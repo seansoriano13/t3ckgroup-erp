@@ -75,7 +75,7 @@ describe("Tasks page HR landing", () => {
 describe("Group Tasks page on PageShell", () => {
   beforeEach(() => {
     localStorage.clear()
-    authUser = { id: "user-9", name: "Ana Reyes", is_head: false, is_hr: false, isSuperAdmin: false }
+    authUser = { id: "user-9", name: "Ana Reyes", is_head: true, is_hr: false, isSuperAdmin: false }
   })
 
   it("puts the main action in the header and keeps the one-line filter bar", async () => {

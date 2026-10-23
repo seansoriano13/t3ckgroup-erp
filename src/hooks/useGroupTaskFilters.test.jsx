@@ -36,14 +36,33 @@ describe("useGroupTaskFilters", () => {
       expect(filter(tasks, { statusFilter: "ACTIVE" }).filteredTasks).toHaveLength(1)
     })
 
-    it("treats every non-active state as finished", () => {
+    it("counts a task as completed only once it was rated", () => {
       const tasks = [
         groupTask({ status: "ACTIVE" }),
-        groupTask({ status: "COMPLETED" }),
+        groupTask({ status: "AWAITING_EVALUATION" }),
         groupTask({ status: "HR_PENDING" }),
+        groupTask({ status: "HR_VERIFIED" }),
       ]
 
       expect(filter(tasks, { statusFilter: "COMPLETED" }).filteredTasks).toHaveLength(2)
+    })
+
+    it("shows only the tasks waiting for their evaluator, longest wait first", () => {
+      const tasks = [
+        groupTask({ title: "Newer", status: "AWAITING_EVALUATION", awaiting_evaluation_at: "2026-10-20T00:00:00Z" }),
+        groupTask({ title: "Still working", status: "ACTIVE" }),
+        groupTask({ title: "Older", status: "AWAITING_EVALUATION", awaiting_evaluation_at: "2026-10-10T00:00:00Z" }),
+      ]
+
+      const result = filter(tasks, { statusFilter: "AWAITING_EVALUATION" }).filteredTasks
+
+      expect(result.map((t) => t.title)).toEqual(["Older", "Newer"])
+    })
+
+    it("keeps an awaiting task out of the Active view", () => {
+      const tasks = [groupTask({ status: "ACTIVE" }), groupTask({ status: "AWAITING_EVALUATION" })]
+
+      expect(filter(tasks, { statusFilter: "ACTIVE" }).filteredTasks).toHaveLength(1)
     })
   })
 

@@ -210,6 +210,10 @@ Edge cases:
 
 ### Where an item comes from
 - **From an SOR line:** name, quantity, unit and Odoo product are copied, with a snapshot. Later SOR edits never change the item. The view can say "SOR line now says N" by comparing against the current line.
+  - **Told in the list, shown as a diff:** a changed line puts a "SOR changed" flag on the item's row, and opening it shows what was asked beside what the SOR says now, with the old value struck through. A closed item carries no flag. A removed line says "SOR line removed" and keeps what was asked.
+  - **Update to SOR:** whoever may add items can make the item take the SOR's quantity and unit. The request chat records the change. Once the item is Ordered a reason is required and posted with it. A closed item and a removed line cannot be followed. If a Canvass exists, the dialog notes that the quantity changed since the Canvass; its per-unit prices stay as they are.
+  - **Keep as asked:** the item stays as picked and the flag goes quiet until the SOR says something else.
+  - **No exact line link:** SOR lines are deleted and re-inserted on every save and carry no Odoo line id, so the item finds its line by Odoo product, else by name. A swapped product therefore reads as "SOR line removed", and the request's "N SOR lines are not requested yet" hint (with an Add button) points at its replacement.
 - **New product:** typed in. Direct requests allow only this kind.
 - **From a Component:** copies name, quantity, unit and Odoo product. It keeps its own copy, so editing the Component later does not rewrite what was asked. A Component from another SOR is refused. It is all or nothing.
 - **Substitute:** the Buyer adds a replacement item linked to the one it replaces. The original moves to Substituted.

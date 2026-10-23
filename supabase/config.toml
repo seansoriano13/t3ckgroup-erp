@@ -18,7 +18,7 @@ major_version = 17
 
 [db.seed]
 # Seeding is a deliberate, separate step (scripts/seed-restore.mjs, from a
-# sanitized staging dump) rather than a committed seed.sql — see AGENTS.md.
+# sanitized staging dump) rather than a committed seed.sql — see docs/local-development.md.
 enabled = false
 
 [studio]
@@ -122,6 +122,7 @@ verify_jwt = false
 [functions.currency-rates-fetch]
 verify_jwt = false
 
+[functions.odoo-costing-costs]
 [functions.odoo-document-admin]
 [functions.odoo-po-ipas]
 [functions.odoo-po-rollup]

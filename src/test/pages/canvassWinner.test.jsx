@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 
-import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
+import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * The winner on the Costing Matrix page (#278): Purchasing marks a winner in the Canvass panel and
@@ -16,12 +15,6 @@ import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
  * components and services on the fake database; the matrix and winner functions are stubbed. The
  * rules themselves are the policy tier's (91-canvass-winner.test.js).
  */
-
-// The confirm toast needs a Toaster the page tests do not mount; confirming is what these tests need.
-vi.mock("@/components/ui/CustomToast", async (importOriginal) => ({
-  ...(await importOriginal()),
-  confirmActionToast: (_title, _description, _confirmText, _type, onConfirm) => onConfirm(),
-}));
 
 let authUser;
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }));
@@ -36,8 +29,7 @@ describe("a winner on the Costing Matrix page", () => {
   const mount = ({ tier, bands }) => {
     stubCostingMatrixRpcs({ tier, bands, actorId: purchaser.id });
     stubCanvassWinnerRpcs({ bands });
-    renderWithProviders(<CostingMatrixSection opportunityId={deal.id} opportunity={deal} />);
-    return setupUser();
+    return renderCostingDesk(deal);
   };
 
   beforeEach(async () => {
@@ -60,18 +52,20 @@ describe("a winner on the Costing Matrix page", () => {
 
   it("marks a winner from the panel and shows 'from Canvass' on Acquire and Offer Specification", async () => {
     const user = mount({ tier: "cost", bands: ["purchasing"] });
+    await openLines();
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
     await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc\. the winner/ }));
 
     await waitFor(() => expect(db.rows("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner).toBe(true));
     await waitFor(() => expect(screen.getAllByTestId("from-canvass")).toHaveLength(2));
     expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
-    // Purchasing does not get the Accept: Brand is Sales' column.
-    expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument();
+    // Purchasing gets the Accept too: Brand is written by Sales and Purchasing.
+    expect(await screen.findByTestId("brand-proposal")).toHaveTextContent("Canvass says Redleaf");
   });
 
   it("un-picks the winner: no winner, sign-off cleared, values kept, and a note on the row", async () => {
     const user = mount({ tier: "cost", bands: ["purchasing"] });
+    await openLines();
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
     await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc. the winner/ }));
     await waitFor(() => expect(screen.getAllByTestId("from-canvass")).toHaveLength(2));
@@ -79,6 +73,8 @@ describe("a winner on the Costing Matrix page", () => {
     db.internal.rowsOf("sor_canvasses")[0].signed_off_at = "2026-10-20T01:00:00Z";
 
     await user.click(await screen.findByRole("button", { name: /Clear Redleaf Inc. as the winner/ }));
+    // It asks first, in a plain confirm dialog.
+    await user.click(within(await screen.findByRole("dialog", { name: "Clear the winner?" })).getByRole("button", { name: "Clear winner" }));
 
     await waitFor(() => expect(db.rows("sor_canvass_offers").some((o) => o.is_winner)).toBe(false));
     expect(db.rows("sor_canvasses")[0].signed_off_at).toBeNull();
@@ -96,6 +92,7 @@ describe("a winner on the Costing Matrix page", () => {
   it("offers the winning brand with an Accept to the Deal Team", async () => {
     db.internal.rowsOf("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner = true;
     const user = mount({ tier: "price", bands: ["sales"] });
+    await openLines();
 
     const proposal = await screen.findByTestId("brand-proposal");
     expect(proposal).toHaveTextContent("Canvass says Redleaf");
@@ -105,9 +102,10 @@ describe("a winner on the Costing Matrix page", () => {
     await waitFor(() => expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument());
   });
 
-  it("shows no 'Canvass says' to anyone outside the Deal Team", async () => {
+  it("shows no 'Canvass says' to anyone outside Sales and Purchasing", async () => {
     db.internal.rowsOf("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner = true;
-    mount({ tier: "cost", bands: ["purchasing"] });
+    mount({ tier: "cost", bands: [] });
+    await openLines();
     await screen.findByTestId("component-canvass");
     expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument();
     expect(screen.queryByText(/Canvass says/)).not.toBeInTheDocument();

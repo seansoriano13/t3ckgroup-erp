@@ -39,6 +39,7 @@ describe("systemAuditLogService", () => {
     it("records an approval event distinctly from a system event", async () => {
       await systemAuditLogService.addApprovalEvent(
         "SIL_LEAVE",
+        "LWOP_LEAVE",
         "leave-1",
         "SIL leave approved",
         null,
@@ -168,6 +169,8 @@ describe("systemAuditLogService", () => {
         "OVERTIME",
         "OFFSET_LEAVE",
         "SIL_LEAVE",
+        "LWOP_LEAVE",
+        "MEETING_REQUEST",
         "HR_SETTINGS"
       ])
     })

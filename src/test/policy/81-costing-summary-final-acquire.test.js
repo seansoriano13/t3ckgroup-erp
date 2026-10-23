@@ -6,13 +6,16 @@
  * The summary itself is worked in the browser from what a tier received (costingMath.summary),
  * so what this file proves is the reading and writing it stands on.
  *
+ * Loosened by 20261102170000: Sales, Purchasing and the Final Acquire list write Final Acquire,
+ * Marketing and OPEX (Finance access too for the last two), and all of them read the Closed Book.
+ *
  * The cast, on one SOR (dealOwner is its Deal Team):
- *   dealOwner           Deal Team                          -> price tier, Sales band
- *   outsider            Purchasing access, no part in it   -> cost tier, Purchasing band
+ *   dealOwner           Deal Team                          -> closed_book, Sales band
+ *   outsider            Purchasing access, no part in it   -> closed_book, Purchasing band
  *   stageParticipant    open Stage Participant window      -> participant tier
  *   finance             Finance access alone               -> no tier, Finance band
  *   ipasSigner          on the final_acquire list          -> closed_book, Management + Finance bands
- *   superAdmin                                             -> closed_book, never Management or Finance
+ *   superAdmin                                             -> closed_book, Sales and Purchasing
  *   ordinary            nobody                             -> no tier
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -124,14 +127,16 @@ afterAll(async () => {
 })
 
 describe("Final Acquire", () => {
-    it("refuses a Super Admin who is not on the list, Purchasing and Sales, naming the Management band", async () => {
-        for (const who of ["superAdmin", "outsider", "dealOwner"]) {
-            const refused = await setCost(who, { final_acquire_unit: 1000 })
-            expect(refused?.code, who).toBe(RLS_VIOLATION)
-            expect(refused?.message, who).toBe("costing_band:costing_component_costs.final_acquire_unit:management")
+    it("lets a Super Admin, Purchasing and Sales write it, and refuses a Stage Participant, naming the bands", async () => {
+        for (const [who, value] of [["superAdmin", 1001], ["outsider", 1002], ["dealOwner", 1003]]) {
+            expect(await setCost(who, { final_acquire_unit: value }), who).toBeNull()
         }
-        const none = await svc().from("costing_component_costs").select("final_acquire_unit").eq("component_id", componentId)
-        expect(none.data.every((r) => r.final_acquire_unit === null)).toBe(true)
+        const refused = await setCost("stageParticipant", { final_acquire_unit: 1000 })
+        expect(refused?.code).toBe(RLS_VIOLATION)
+        expect(refused?.message).toBe("costing_band:costing_component_costs.final_acquire_unit:sales,purchasing,management")
+        expect((await setCost("ordinary", { final_acquire_unit: 1000 }))?.code).toBe(RLS_VIOLATION)
+        const cost = await asSvc(svc().from("costing_component_costs").select("final_acquire_unit").eq("component_id", componentId).single(), "cost")
+        expect(Number(cost.final_acquire_unit)).toBe(1003)
     })
 
     it("lets a member of the list write it on a Component and on a cost-only row", async () => {
@@ -143,12 +148,12 @@ describe("Final Acquire", () => {
         expect(Number(row.final_acquire_unit)).toBe(2500)
     })
 
-    it("keeps a cost-only row's Final Acquire from a Super Admin off the list", async () => {
-        const refused = await setMoney("superAdmin", "costing_cost_rows", costRowId, { final_acquire_unit: 1 })
-        expect(refused?.message).toBe("costing_band:costing_cost_rows.final_acquire_unit:management")
+    it("lets a Super Admin off the list write a cost-only row's Final Acquire too", async () => {
+        expect(await setMoney("superAdmin", "costing_cost_rows", costRowId, { final_acquire_unit: 2400 })).toBeNull()
+        expect(await setMoney("ipasSigner", "costing_cost_rows", costRowId, { final_acquire_unit: 2500 })).toBeNull()
     })
 
-    it("lets a Super Admin write it once they are put on the list", async () => {
+    it("lets a Super Admin write it on the list or off it", async () => {
         await asSvc(svc().from("costing_signer_lists").insert({ list_key: "final_acquire", employee_id: ids.superAdmin }), "list the Super Admin")
         try {
             expect(await setCost("superAdmin", { final_acquire_unit: 17950 })).toBeNull()
@@ -157,7 +162,7 @@ describe("Final Acquire", () => {
         } finally {
             await svc().from("costing_signer_lists").delete().eq("employee_id", ids.superAdmin)
         }
-        expect((await setCost("superAdmin", { final_acquire_unit: 1 }))?.code).toBe(RLS_VIOLATION)
+        expect(await setCost("superAdmin", { final_acquire_unit: 17960 })).toBeNull()
     })
 
     it("clears Final Acquire back to blank with null", async () => {
@@ -168,17 +173,17 @@ describe("Final Acquire", () => {
 })
 
 describe("Marketing and OPEX", () => {
-    it("refuses Purchasing, Sales, a Super Admin off the list and a plain employee, naming the bands", async () => {
-        for (const who of ["outsider", "dealOwner", "superAdmin", "stageParticipant"]) {
-            const refused = await setMatrixMoney(who, { marketing: 12000 })
-            expect(refused?.code, who).toBe(RLS_VIOLATION)
-            expect(refused?.message, who).toBe("costing_band:costing_matrix_money.marketing:finance,management")
+    it("lets Purchasing, Sales and a Super Admin type them, and refuses a Stage Participant and a plain employee", async () => {
+        for (const [who, value] of [["outsider", 11000], ["dealOwner", 11001], ["superAdmin", 11002]]) {
+            expect(await setMatrixMoney(who, { marketing: value, opex: value }), who).toBeNull()
         }
-        expect((await setMatrixMoney("outsider", { opex: 5 }))?.message).toBe("costing_band:costing_matrix_money.opex:finance,management")
+        expect(Number((await moneyRow()).marketing)).toBe(11002)
+        const refused = await setMatrixMoney("stageParticipant", { marketing: 12000 })
+        expect(refused?.code).toBe(RLS_VIOLATION)
+        expect(refused?.message).toBe("costing_band:costing_matrix_money.marketing:finance,sales,purchasing,management")
+        expect((await setMatrixMoney("stageParticipant", { opex: 5 }))?.message).toBe("costing_band:costing_matrix_money.opex:finance,sales,purchasing,management")
         expect((await setMatrixMoney("ordinary", { marketing: 1 }))?.code).toBe(RLS_VIOLATION)
-        const row = await moneyRow()
-        expect(row.marketing).toBeNull()
-        expect(row.opex).toBeNull()
+        await asSvc(svc().from("costing_matrix_money").update({ marketing: null, opex: null }).eq("matrix_id", matrixId), "money back")
     })
 
     it("lets Finance access type them, though Finance has no read tier on the SOR", async () => {
@@ -209,17 +214,19 @@ describe("Marketing and OPEX", () => {
     it("records the change in the history for Closed Book only", async () => {
         const closed = await history("ipasSigner", { p_table: "costing_matrix_money" })
         expect(closed.some((e) => e.detail.column === "marketing" && e.actor_id === ids.ipasSigner && Number(e.detail.new) === 15000)).toBe(true)
-        for (const who of ["dealOwner", "outsider", "stageParticipant"]) {
-            const seen = await history(who)
-            expect(JSON.stringify(seen), who).not.toMatch(/marketing|opex/)
+        for (const who of ["dealOwner", "outsider"]) {
+            const seen = await history(who, { p_table: "costing_matrix_money" })
+            expect(seen.some((e) => e.detail.column === "marketing"), who).toBe(true)
         }
+        const participant = await history("stageParticipant")
+        expect(JSON.stringify(participant)).not.toMatch(/marketing|opex/)
     })
 })
 
 describe("who receives the summary's figures", () => {
     it("serves Closed Book the money row, Final Acquire, Marketing and OPEX", async () => {
         expect(await setCost("ipasSigner", { final_acquire_unit: 17900 })).toBeNull()
-        for (const who of ["ipasSigner", "superAdmin"]) {
+        for (const who of ["ipasSigner", "superAdmin", "dealOwner", "outsider"]) {
             const read = await readMatrix(who)
             expect(read.tier, who).toBe("closed_book")
             const money = read.tables.costing_matrix_money
@@ -231,8 +238,8 @@ describe("who receives the summary's figures", () => {
         }
     })
 
-    it("sends the other tiers no Final Acquire, Marketing or OPEX, the keys absent", async () => {
-        for (const who of ["dealOwner", "outsider", "stageParticipant"]) {
+    it("sends a Stage Participant no Final Acquire, Marketing or OPEX, the keys absent", async () => {
+        for (const who of ["stageParticipant"]) {
             const read = await readMatrix(who)
             expect(read.tables.costing_matrix_money, who).toBeUndefined()
             const text = JSON.stringify(read)
@@ -242,8 +249,8 @@ describe("who receives the summary's figures", () => {
 
     it("lets nobody but Closed Book select the money row directly", async () => {
         const count = async (who) => (await (await clientFor(who)).from("costing_matrix_money").select("matrix_id").eq("matrix_id", matrixId)).data.length
-        for (const who of ["dealOwner", "outsider", "stageParticipant", "finance", "ordinary"]) expect(await count(who), who).toBe(0)
-        for (const who of ["ipasSigner", "superAdmin"]) expect(await count(who), who).toBe(1)
+        for (const who of ["stageParticipant", "finance", "ordinary"]) expect(await count(who), who).toBe(0)
+        for (const who of ["ipasSigner", "superAdmin", "dealOwner", "outsider"]) expect(await count(who), who).toBe(1)
     })
 
     it("matches the registries the screen mirrors in src/constants/costing.js", async () => {

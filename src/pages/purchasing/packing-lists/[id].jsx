@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -14,13 +14,17 @@ import QueryError from "../../../components/ui/QueryError";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Input } from "../../../components/ui/input";
 import { SelectField } from "../../../components/ui/SelectField";
-import NumbersStrip from "../../../components/record/NumbersStrip";
-import RecordCard from "../../../components/record/RecordCard";
-import RecordDrawer from "../../../components/record/RecordDrawer";
+import { unitOptionsWith } from "../../../constants/procurement";
+import MoveButton from "../../../components/record/MoveButton";
+import RecordHeader from "../../../components/record/RecordHeader";
+import PropertyPills from "../../../components/record/PropertyPills";
+import LinerList from "../../../components/record/LinerList";
+import YourMoveCard from "../../../components/record/YourMoveCard";
+import { CHROME } from "../../../components/record/sectionChrome";
+import { useMoveConfirm } from "../../../components/record/useMoveConfirm";
+import SectionTitle from "../../../components/transmittals/SectionTitle";
 import RecordMoreMenu from "../../../components/record/RecordMoreMenu";
-import RecordRows from "../../../components/record/RecordRows";
 import { STATE } from "../../../components/record/statePalette";
-import { useOpenSection } from "../../../components/record/useOpenSection";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { packingListService, sorLineSnapshot } from "../../../services/packingListService";
@@ -159,7 +163,6 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
     <ModalShell
       open={open}
       onOpenChange={onOpenChange}
-      expandable
       crumbs={["Packing List", `Box ${box?.boxNo}`, "Contents"]}
       actions={
         <Button size="lg" onClick={save} disabled={saving}>
@@ -178,7 +181,12 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
                 <Input type="number" min="0" step="any" value={row.quantity} onChange={(e) => setRow(index, { quantity: e.target.value })} />
               </FieldBox>
               <FieldBox label="Unit" bare>
-                <Input value={row.unit} onChange={(e) => setRow(index, { unit: e.target.value })} />
+                <SelectField
+                  options={unitOptionsWith(row.unit)}
+                  value={row.unit}
+                  placeholder="Pick a unit"
+                  onChange={(value) => setRow(index, { unit: value })}
+                />
               </FieldBox>
               <Button variant="ghost" size="icon" aria-label="Remove content" onClick={() => setRows((r) => r.filter((_, i) => i !== index))}>
                 <Trash2 size={14} />
@@ -209,14 +217,8 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
   );
 }
 
-const SECTION = { DETAILS: "details", BOXES: "boxes", PACKED_BY: "packed_by" };
-const SECTIONS = [
-  { key: SECTION.DETAILS, title: "Details" },
-  { key: SECTION.BOXES, title: "Boxes" },
-  { key: SECTION.PACKED_BY, title: "Packed by" },
-];
+const SECTION = { PACKED_BY: "packed_by" };
 
-const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
 const formatWhen = (value) => (value ? new Date(value).toLocaleString() : "");
 
 function PackingListPage({ onClose }) {
@@ -230,8 +232,6 @@ function PackingListPage({ onClose }) {
   const [contentsBox, setContentsBox] = useState(null);
   const [packing, setPacking] = useState(false);
   const [failure, setFailure] = useState(null);
-  const rowEls = useRef({});
-  const { index, current, open: openSection, step, close } = useOpenSection({ drawerSections: SECTIONS });
 
   const { data: list, isLoading, isError, refetch } = useQuery({
     queryKey: KEY(id),
@@ -314,23 +314,9 @@ function PackingListPage({ onClose }) {
         boxes.length === 0
           ? "Add a box first."
           : "Closes the list. The boxes and their contents can't be changed after. Next: nobody.",
-      run: (from) => (boxes.length === 0 ? openSection(SECTION.BOXES) : pack(from)),
+      run: (from) => (boxes.length === 0 ? setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 })) : pack(from)),
     });
   }
-  const gates = [
-    {
-      key: SECTION.PACKED_BY,
-      label: "Packed by",
-      role: "Maker or Purchasing",
-      done: packed,
-      now: Boolean(list) && draft,
-      state: packed ? STATE.DONE : draft ? STATE.CURRENT : STATE.WAITING,
-      line: packed
-        ? `Packed by ${list.packerName ?? "someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
-        : "Waiting for the maker of the list or Purchasing",
-      accessibleName: `Step 1, Packed by, Maker or Purchasing, ${packed ? "done" : draft ? "now" : "waiting"}`,
-    },
-  ];
   const status = !list
     ? ""
     : packed
@@ -339,114 +325,71 @@ function PackingListPage({ onClose }) {
         ? "Waiting for you: Packed by"
         : "Nothing needs you right now. Waiting on the maker of the list or Purchasing for Packed by.";
 
-  const summaries = list && {
-    [SECTION.DETAILS]:
-      [list.sorReference, list.projectTitle, list.odooDeliveryRef ? `Odoo ${list.odooDeliveryRef}` : null]
-        .filter(Boolean)
-        .join(" · ") || "No SOR",
-    [SECTION.BOXES]:
-      boxes.length === 0
-        ? "No boxes yet"
-        : `${plural(boxes.length, "box", "boxes")} · ${totalWeight.toFixed(2)} kg${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}`,
-    [SECTION.PACKED_BY]: gates[0].line,
-  };
-  const stateOf = (key) => {
-    if (key !== SECTION.PACKED_BY) return null;
-    return { state: gates[0].state, detail: packed ? "Signed" : "Not yet" };
-  };
+  const weightText = weighed > 0 ? `${totalWeight.toFixed(2)} kg${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}` : "";
+  const pills = list
+    ? [
+        { key: "sor", label: "SOR", value: list.sorReference },
+        { key: "odoo", label: "Odoo delivery", value: list.odooDeliveryRef },
+        { key: "by", label: "Made by", value: list.creatorName },
+        { key: "boxes", label: "Boxes", value: boxes.length ? String(boxes.length) : "" },
+        { key: "weight", label: "Weight", value: weightText },
+      ]
+    : [];
 
-  const bodyOf = (key) => {
-    if (key === SECTION.DETAILS) {
-      return (
-        <div className="grid grid-cols-1 gap-4 text-[13px] sm:grid-cols-2">
-          <div>
-            <div className="text-muted-foreground">SOR</div>
-            <div>{[list.sorReference, list.projectTitle].filter(Boolean).join(" · ") || "—"}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Odoo delivery ref</div>
-            <div>{list.odooDeliveryRef ?? "—"}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Made by</div>
-            <div>{list.creatorName ?? "—"}</div>
-          </div>
-        </div>
-      );
-    }
-    if (key === SECTION.PACKED_BY) {
-      return (
-        <p className="text-[13px]">
-          {packed
-            ? `${list.packerName ?? "Someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
-            : "Not yet."}
-        </p>
-      );
-    }
-    return (
-      <div className="space-y-4">
-        {boxes.length === 0 && <EmptyState title="No boxes yet" description="Add a box, then list what is in it." />}
-        {boxes.map((box) => (
-          <div key={box.id} className="rounded-xl border border-border bg-card">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-              <div className="text-[13px]">
-                <span className="font-semibold">Box {box.boxNo}</span>
-                <span className="text-muted-foreground">
-                  {" "}· Marks {box.marks ?? "—"} · Seal {box.sealNo ?? "—"} · {box.grossWeightKg == null ? "weight not known" : `${box.grossWeightKg} kg`}
-                </span>
-              </div>
-              {canEdit && (
-                <div className="flex items-center gap-1">
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box, seq: s.seq + 1 }))}>
-                    <Pencil size={13} />
-                    Box
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setContentsBox(box)}>
-                    Contents
-                  </Button>
-                  <Button variant="ghost" size="icon" aria-label={`Remove box ${box.boxNo}`} onClick={() => removeBox(box)}>
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              )}
+  const boxRows = boxes.map((box) => {
+    const count = box.contents.length;
+    return {
+      key: box.id,
+      main: `Box ${box.boxNo}${box.marks ? ` · ${box.marks}` : ""}`,
+      sub: `Seal ${box.sealNo ?? "—"} · ${count} ${count === 1 ? "content" : "contents"}`,
+      quantity: box.grossWeightKg == null ? "— kg" : `${box.grossWeightKg} kg`,
+      children: (
+        <div className="space-y-3">
+          <LinerList
+            label={`Contents of box ${box.boxNo}`}
+            empty="No contents yet."
+            rows={box.contents.map((c) => ({
+              key: c.id,
+              main: c.description,
+              quantity: `${c.quantity}${c.unit ? ` ${c.unit}` : ""}`,
+            }))}
+          />
+          {canEdit && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box, seq: s.seq + 1 }))}>
+                <Pencil size={13} />
+                Edit box
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setContentsBox(box)}>
+                Contents
+              </Button>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={() => removeBox(box)}>
+                <Trash2 size={13} />
+                Remove
+              </Button>
             </div>
-            <ul className="divide-y divide-border">
-              {box.contents.length === 0 && <li className="px-4 py-3 text-[13px] text-muted-foreground">No contents yet.</li>}
-              {box.contents.map((c) => (
-                <li key={c.id} className="px-4 py-2 text-[13px]">
-                  {c.quantity} {c.unit ?? ""} · {c.description}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-        {canEdit && (
-          <Button variant="outline" className="gap-1.5" onClick={() => setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 }))}>
-            <Plus size={14} />
-            Add a box
-          </Button>
-        )}
-      </div>
-    );
-  };
+          )}
+        </div>
+      ),
+    };
+  });
+
+  const packedLine = packed
+    ? `Packed by ${list.packerName ?? "someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
+    : "Waiting for the maker of the list or Purchasing";
 
   const restate = () => (list ? `Signs Packed by on ${list.number}. The boxes and their contents can't be changed after.` : "");
+
+  const { run, dialog } = useMoveConfirm({ restate, viewer: user?.name, origin: CHROME.CARD });
 
   return (
     <ModalShell
       open
       onOpenChange={(next) => !next && onClose()}
-      size="wide"
-      expandable
-      cancelLabel="Close"
+      size="record"
       crumbs={["Packing List", list?.number].filter(Boolean)}
       headerActions={list && <RecordMoreMenu items={[{ key: "print", label: "Print", icon: Printer, onSelect: printList }]} />}
     >
-      {list && (
-        <p className="text-sm text-muted-foreground">
-          {`${list.sorReference ?? ""}${list.projectTitle ? ` · ${list.projectTitle}` : ""}`}
-        </p>
-      )}
       {isLoading && <PageLoading label="Packing List" />}
       {isError && <QueryError title="This Packing List could not be loaded." onRetry={refetch} />}
       {!isLoading && !isError && !list && (
@@ -455,62 +398,63 @@ function PackingListPage({ onClose }) {
 
       {list && (
         <>
-          <div className="grid gap-x-10 gap-y-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
-            <div className="min-w-0 space-y-8">
-              <NumbersStrip
-                stats={[
-                  { key: "boxes", label: "Boxes", value: boxes.length, onOpen: () => openSection(SECTION.BOXES) },
-                  {
-                    key: "weight",
-                    label: "Total weight",
-                    value: weighed > 0 ? `${totalWeight.toFixed(2)} kg` : "—",
-                    sub: weighed > 0 && weighed < boxes.length ? `${weighed} of ${boxes.length} weighed` : undefined,
-                  },
-                ]}
-              />
-              <RecordRows
-                groups={[{ sections: SECTIONS }]}
-                stateOf={stateOf}
-                summaryOf={(key) => summaries[key]}
-                onOpen={openSection}
-                rowRef={(key) => (node) => {
-                  rowEls.current[key] = node;
-                }}
-              />
-            </div>
-            <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
-              <RecordCard
-                status={status}
-                groups={[{ items: moves }]}
-                gates={gates}
-                restate={restate}
-                reviewText={() => "Review section"}
-                onReview={openSection}
-                viewer={user?.name}
-                busy={packing}
-                failure={failure}
-              />
-            </aside>
-          </div>
+          <div className="space-y-6 pb-2">
+            <RecordHeader
+              reference={list.number}
+              name={list.projectTitle}
+              badge={{ label: packed ? "Packed" : "Draft", theme: packed ? "green" : "mauve" }}
+              line={[list.sorReference, list.creatorName && `made by ${list.creatorName}`].filter(Boolean).join(" · ")}
+            />
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_25rem]">
+              <div className="min-w-0 space-y-6">
+                <PropertyPills items={pills} />
+                <section>
+                  <SectionTitle
+                    title={`Boxes · ${boxes.length}`}
+                    aside={
+                      canEdit && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 }))}
+                        >
+                          <Plus size={14} /> Add a box
+                        </Button>
+                      )
+                    }
+                  />
+                  <LinerList label="Boxes" rows={boxRows} empty="No boxes yet. Add a box, then list what is in it." />
+                </section>
+              </div>
 
-          <RecordDrawer
-            number={list.number}
-            sections={SECTIONS}
-            current={current}
-            index={index}
-            step={step}
-            close={close}
-            getRow={(key) => rowEls.current[key]}
-            onEdit={() => {}}
-            body={current ? bodyOf(current.key) : null}
-            summary={current ? summaries[current.key] : ""}
-            moves={current ? moves.filter((move) => move.section === current.key) : []}
-            editable={false}
-            restate={restate}
-            viewer={user?.name}
-            busy={packing}
-            failure={failure}
-          />
+              <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
+                <YourMoveCard
+                  status={status}
+                  steps={[
+                    {
+                      key: SECTION.PACKED_BY,
+                      title: "Packed by",
+                      summary: packedLine,
+                      state: packed ? STATE.DONE : STATE.CURRENT,
+                      needsMe: moves.length > 0,
+                      body: packed ? null : <p className="text-[13px] text-muted-foreground">Signing closes the list. The boxes and their contents can't be changed after.</p>,
+                      moves:
+                        moves.length > 0 ? (
+                          <ul className="space-y-3">
+                            {moves.map((move) => (
+                              <MoveButton key={move.key} move={move} origin="card" disabled={packing} busy={packing} failure={failure} onRun={run} />
+                            ))}
+                          </ul>
+                        ) : null,
+                    },
+                  ]}
+                />
+              </aside>
+            </div>
+          </div>
+          {dialog}
 
           {canEdit && (
             <BoxDialog

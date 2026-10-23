@@ -105,18 +105,19 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       renderDetail(row.id, "purchasing");
-      // The drawer's footer carries the move; the body only reads.
+      // Your move carries Submit; the section's body only reads.
       const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       const one = within(drawer).getByTestId("ipas-signoffs-1");
       expect(within(one).getByText("Not submitted")).toBeInTheDocument();
       expect(within(one).queryByRole("button", { name: /Approve section 1/ })).not.toBeInTheDocument();
 
-      await user.click(within(drawer).getByRole("button", { name: "Submit section 1" }));
+      const card = await screen.findByRole("region", { name: "Your move" });
+      await user.click(within(card).getByRole("button", { name: "Submit section 1" }));
       await confirmMove(user, "Submit section 1", "Submit");
 
       await waitFor(() => expect(within(screen.getByTestId("ipas-signoffs-1")).getByText("Awaiting approval")).toBeInTheDocument());
       expect(within(screen.getByTestId("ipas-signoff-1-prepared")).getByText("Buyer")).toBeInTheDocument();
-      expect(within(drawer).queryByRole("button", { name: "Submit section 1" })).not.toBeInTheDocument();
+      expect(within(card).queryByRole("button", { name: "Submit section 1" })).not.toBeInTheDocument();
       await waitForNetworkIdle();
       expect(db.rows("notifications").map((n) => n.recipient_id).sort()).toEqual([approver.id, other.id].sort());
     });
@@ -309,7 +310,8 @@ describe("IPAS sign-offs", () => {
       await user.click(within(drawer).getByRole("button", { name: "Return section 2" }));
       await screen.findByRole("dialog", { name: "Return section 2?" });
 
-      const text = document.body.textContent ?? "";
+      // The IPAS list sits behind the record window; only the window and the dialog over it are read.
+      const text = screen.getAllByRole("dialog", { hidden: true }).map((dialog) => dialog.textContent ?? "").join(" ");
       expect(text).toContain("Return section 2?");
       expect(text).toContain("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved");
       // Apart from the short move names (#593), a section is named with its number and its name, or not by number at all.

@@ -12,6 +12,66 @@
 
 <body>
   <div id="root"></div>
+  <!-- Boot watchdog. The React error boundary in main.jsx only helps once React
+       has mounted; a script that throws while the bundle loads (or a chunk that
+       404s) never gets that far and used to leave a blank page that a reload
+       could not fix. If #root is still empty shortly after any error, or after
+       20s, show a recovery panel instead. Plain DOM on purpose: nothing here may
+       depend on the bundle. -->
+  <script>
+    (function () {
+      var shown = false
+      function mounted() {
+        var r = document.getElementById("root")
+        return !!(r && r.childElementCount > 0)
+      }
+      function show() {
+        if (shown || mounted()) return
+        shown = true
+        var box = document.createElement("div")
+        box.setAttribute("role", "alert")
+        box.style.cssText =
+          "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;background:#fafafa;color:#1a1a1a"
+        box.innerHTML =
+          '<div style="max-width:420px;text-align:center">' +
+          '<h2 style="margin:0 0 8px;font-size:22px">The app could not start</h2>' +
+          '<p style="margin:0 0 20px;color:#555">Something went wrong while loading. Your data is safe. Try again, and if it still fails, use the second button.</p>' +
+          '<button id="boot-reload" style="padding:10px 18px;border:0;border-radius:10px;background:#1a1a1a;color:#fff;font-weight:600;cursor:pointer;margin:4px">Reload</button>' +
+          '<button id="boot-clear" style="padding:10px 18px;border:1px solid #ccc;border-radius:10px;background:#fff;color:#1a1a1a;font-weight:600;cursor:pointer;margin:4px">Clear cache and reload</button>' +
+          "</div>"
+        document.body.appendChild(box)
+        document.getElementById("boot-reload").onclick = function () {
+          location.reload()
+        }
+        document.getElementById("boot-clear").onclick = function () {
+          var jobs = []
+          try {
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+              jobs.push(
+                navigator.serviceWorker.getRegistrations().then(function (rs) {
+                  return Promise.all(rs.map(function (r) { return r.unregister() }))
+                }),
+              )
+            }
+            if (window.caches && caches.keys) {
+              jobs.push(
+                caches.keys().then(function (ks) {
+                  return Promise.all(ks.map(function (k) { return caches.delete(k) }))
+                }),
+              )
+            }
+          } catch (e) {}
+          Promise.all(jobs).then(
+            function () { location.reload() },
+            function () { location.reload() },
+          )
+        }
+      }
+      // Capture phase so a failed <script>/<link> load (which does not bubble) is seen too.
+      window.addEventListener("error", function () { setTimeout(show, 3000) }, true)
+      setTimeout(show, 20000)
+    })()
+  </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

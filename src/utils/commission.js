@@ -1,3 +1,4 @@
+import { manilaToday } from "@/lib/manilaDate.js";
 import {
   isJudgedByStageCode,
   isLostCode,
@@ -260,7 +261,7 @@ export function aggregateOpportunityCommissions({
   ratesResolver,
   departments = [],
   splitsByProjectType = {},
-  currentDate = new Date().toISOString().slice(0, 10),
+  currentDate = manilaToday(),
   scope = "ALL", // "ALL" | "REALIZED" | "FORECAST"
   dateFilter = null, // { startDate, endDate, dateField = "contract_date" }
   stages = PIPELINE_STAGE_SEED,

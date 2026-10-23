@@ -4,9 +4,9 @@ import { screen, waitFor } from "@testing-library/react";
  * The record pages (IPAS, Transmittal, Packing List) are a modal over their list, so the
  * record is itself a dialog. These two ask about the dialogs opened over it (a drawer, a
  * confirmation, a form) and leave the record out: a wide ModalShell carries
- * `data-modal-shell="wide"`.
+ * `data-modal-shell="wide"` (or `"record"`).
  */
-const others = () => screen.queryAllByRole("dialog").filter((dialog) => dialog.dataset.modalShell !== "wide");
+const others = () => screen.queryAllByRole("dialog").filter((dialog) => !["wide", "record"].includes(dialog.dataset.modalShell));
 
 /** The first dialog open over the record, or null. */
 export const queryOtherDialog = () => others()[0] ?? null;

@@ -2,6 +2,8 @@
 
 Guide §13. Five groups, worked out on the fly. One SOR can sit in several.
 
+The Dashboard has the shared filter bar and pager. A row's SOR still opens in a side panel (`?sor=`), the one place Purchasing keeps a slide-over. A Purchase Request picked there opens in the record window.
+
 ### DASH-01 · Readers
 - **Guide**: §13
 - **Log in as**: purchaser, finance, super-admin, sales-exec, plain

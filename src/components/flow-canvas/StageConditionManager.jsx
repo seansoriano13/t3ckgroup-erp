@@ -261,7 +261,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
           }
         >
           {({ close }) => (
-            <div className="flex flex-col">
+            <div className="flex max-h-[min(22rem,60vh)] flex-col overflow-y-auto overscroll-contain">
               {NEW_CONDITION_KINDS.map((value) => {
                 const meta = CONDITION_KIND_META[value];
                 return (

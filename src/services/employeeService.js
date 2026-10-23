@@ -108,6 +108,20 @@ async function onFinalAcquireList(employee) {
 }
 
 /**
+ * Does the signed-in caller see the money side of at least one Costing Matrix (a Super Admin, Purchasing,
+ * or on any SOR's Deal Team)? They then get the Bid Decisions queue and the Costing Matrix page, which list
+ * only their own SORs. A failure reads as "no": the database is the gate.
+ */
+async function costingOpenAnywhere() {
+  try {
+    const { data, error } = await supabase.rpc("costing_is_open_anywhere");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * A call sign as the database stores it (#247): trimmed, and null when blank.
  * The column refuses an empty or padded string, and an unset call sign is null
  * so any number of people can have none (the unique index is where it's set).
@@ -130,6 +144,7 @@ export const employeeService = {
 
     const ipasLists = await ipasListMembership(data);
     const isFinalAcquire = await onFinalAcquireList(data);
+    const isCostingOpen = await costingOpenAnywhere();
     return {
       id: data.id,
       email: data.email,
@@ -154,6 +169,8 @@ export const employeeService = {
       isTransmittalTechnical: ipasLists.isTransmittalTechnical,
       // On the Costing Matrix's Final Acquire list: decides Bid Decisions (#320).
       isFinalAcquire,
+      // Sees the money side of at least one Costing Matrix: Bid Decisions and the Costing Matrix page.
+      isCostingOpen,
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,

@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within } from "@testing-library/react";
 
-import { renderWithProviders, setupUser } from "@/test/support";
+import { setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { seedCanvass, stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
+import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * The Canvass print (#282) is prices on paper, so the action is offered only to a reader whose
@@ -25,10 +25,11 @@ describe("the Canvass print action", () => {
   const open = async ({ tier, bands, money }) => {
     stubCostingMatrixRpcs({ tier, bands, actorId: purchaser.id });
     stubCanvassMoneyRpc({ money });
-    renderWithProviders(<CostingMatrixSection opportunityId={deal.id} opportunity={deal} />);
+    renderCostingDesk(deal);
+    await openLines();
     const user = setupUser();
     await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
-    await screen.findByText(/Canvass CNV_0001/);
+    await screen.findByRole("heading", { name: /^CNV_0001\s*·/ });
   };
 
   beforeEach(async () => {
@@ -46,13 +47,16 @@ describe("the Canvass print action", () => {
   it("offers Print to a reader with the money tier", async () => {
     await open({ tier: "cost", bands: ["purchasing"], money: true });
     const panel = within(await screen.findByRole("dialog"));
-    expect(await panel.findByRole("button", { name: /^Print$/ })).toBeInTheDocument();
+    await setupUser().click(await panel.findByRole("button", { name: "More" }));
+    expect(await screen.findByRole("button", { name: /^Print$/ })).toBeInTheDocument();
   });
 
   it("offers a Stage Participant without the money tier no print action", async () => {
     await open({ tier: "participant", bands: [], money: false });
     const panel = within(await screen.findByRole("dialog"));
     expect(await panel.findAllByTestId("offer")).toHaveLength(1);
+    // Nothing to hold, so More is not drawn at all.
+    expect(panel.queryByRole("button", { name: "More" })).not.toBeInTheDocument();
     expect(panel.queryByRole("button", { name: /^Print$/ })).not.toBeInTheDocument();
   });
 });

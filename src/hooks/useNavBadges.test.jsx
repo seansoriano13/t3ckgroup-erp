@@ -49,6 +49,7 @@ describe("useNavBadges", () => {
       taskApprovals: 0,
       hrVerifications: 0,
       leaveApprovals: 0,
+      meetingApprovals: 0,
       ipasSignoffs: 0,
       mySors: 0,
     });

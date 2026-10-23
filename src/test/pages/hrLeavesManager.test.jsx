@@ -5,8 +5,14 @@ import HrLeavesManagerPage from '@/pages/hr/offsets/index';
 import { renderWithProviders, setupUser } from '@/test/support';
 import { makeHrEmployee, makeEmployee, makeOffsetLeave, makeOvertimeRequest } from '@/test/factories';
 import { db } from '@/test/db/store';
+import { manilaToday } from '@/lib/manilaDate.js';
 
 const mockUser = vi.hoisted(() => ({ current: null }));
+const mockCalendar = vi.hoisted(() => ({ entries: [] }));
+
+vi.mock('@/services/calendarService', () => ({
+  calendarService: { fetchEntries: vi.fn(async () => mockCalendar.entries) },
+}));
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
@@ -154,8 +160,26 @@ describe('HrLeavesManagerPage', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: /^Pending/i })).toHaveAttribute('aria-selected', 'true'));
   });
 
-  it('folds the Timeline into the Calendar tab as a Month | People switch', async () => {
+  it('shows the shared Calendar on the Calendar tab, with Calendar and Gantt layouts and the reasons', async () => {
     const user = setupUser();
+    const date = manilaToday();
+    mockCalendar.entries = [
+      {
+        kind: 'OFFSET',
+        id: 'o1',
+        group_id: 'o1',
+        starts_at: `${date}T01:00:00Z`,
+        ends_at: `${date}T09:00:00Z`,
+        all_day: false,
+        manila_date: date,
+        employee: { id: 'e1', name: 'Ana Cruz', department: 'SALES', avatar: null },
+        status: 'APPROVED',
+        hours: 8,
+        venue: null,
+        title: 'Offset',
+        details: { reason: 'Dental visit' },
+      },
+    ];
 
     renderWithProviders(
       <MemoryRouter>
@@ -163,11 +187,20 @@ describe('HrLeavesManagerPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('tab', { name: 'Month' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByRole('tab', { name: 'Timeline' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Calendar', pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gantt' })).toBeInTheDocument();
+    // Preset to Time Off and Overtime: no Meetings layer is on.
+    expect(screen.getByRole('button', { name: 'Meetings', pressed: false })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Overtime', pressed: true })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: 'People' }));
-    expect(await screen.findByText(/with time off/)).toBeInTheDocument();
+    await user.click(await screen.findByText(/Ana C\. · Offset/));
+    expect(await screen.findByText('Dental visit')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'Gantt' }));
+    expect(await screen.findByRole('button', { name: 'Gantt', pressed: true })).toBeInTheDocument();
+    // No Meetings layer, so the Gantt has no Rooms rows.
+    expect(screen.queryByRole('button', { name: /^Rooms/ })).toBeNull();
   });
 
   describe('Document Center', () => {
@@ -413,7 +446,7 @@ describe('HrLeavesManagerPage', () => {
       const sheet = await screen.findByRole('dialog');
       await user.click(await within(sheet).findByRole('button', { name: /^Approve/i }));
 
-      expect(await screen.findByText('Approve Offset Leave')).toBeInTheDocument();
+      expect(await screen.findByText('Approve Offset')).toBeInTheDocument();
     });
 
     it('steps to the next request in the list with the arrows', async () => {

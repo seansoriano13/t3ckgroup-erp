@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 
-import { renderWithProviders, setupUser, chooseOption } from "@/test/support";
 import { db } from "@/test/db/store";
-import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import OpportunityDetailsModal from "@/components/sor/OpportunityDetailsModal";
+import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * Markup on the Costing Matrix grid (#269): the Closed Book sees each factor as ×1.35 and +35%, a
@@ -19,18 +17,11 @@ import OpportunityDetailsModal from "@/components/sor/OpportunityDetailsModal";
 let authUser;
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }));
 
-function openModal(deal) {
+function openDesk(deal) {
   const owner = makeEmployee();
   authUser = { id: owner.id, isSuperAdmin: true };
-  stubEdgeFunction("odoo-sor-lookup", { success: true, found: true, order: { id: 1, name: "S1", state: "sale" }, customer: {}, items: [] });
-  stubRpc("ipas_summaries_for_sor", []);
-  stubRpc("ipas_standing_for_sor", []);
-  stubRpc("handoffs_for_sor", { transmittals: [], packing_lists: [] });
-  renderWithProviders(<OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} />);
-  return setupUser();
+  return renderCostingDesk(deal);
 }
-
-const openPms = async () => fireEvent.click(await screen.findByRole("button", { name: /^PMS/ }));
 
 describe("markup on the Costing Matrix grid", () => {
   let deal;
@@ -59,9 +50,9 @@ describe("markup on the Costing Matrix grid", () => {
   it("shows the Closed Book each factor as x and +%, the Markup Price per row, and the line's sum", async () => {
     seed();
     stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management"] });
-    openModal(deal);
+    openDesk(deal);
 
-    await openPms();
+    await openLines();
 
     const block = await screen.findByTestId("components");
     const rows = within(block).getAllByTestId("component");
@@ -74,16 +65,17 @@ describe("markup on the Costing Matrix grid", () => {
     expect(within(rows[0]).getAllByText("₱3,175,935.00")).toHaveLength(2);
     expect(within(rows[1]).getByText("₱1,350.00")).toBeInTheDocument();
     expect(within(rows[1]).getByText("₱2,700.00")).toBeInTheDocument();
-    expect(within(screen.getByTestId("component-totals")).getByText("₱3,178,635.00")).toBeInTheDocument();
-    expect(within(block).getAllByRole("columnheader").map((h) => h.textContent)).toEqual(expect.arrayContaining(["Markup", "Markup factor", "Markup Price / unit"]));
+    // The line adds them up beside its Final Offer; each part shows its markup under its own heading.
+    expect(screen.getByTestId("line-markup-price")).toHaveTextContent("₱3,178,635.00");
+    expect(within(rows[0]).getByRole("region", { name: "Markup" })).toHaveTextContent("Markup factor");
   });
 
   it("shows each Tender Line's Markup Price beside Final Offer with the achieved markup against the target, and the overall in the header", async () => {
     seed();
     stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management"] });
-    openModal(deal);
+    openDesk(deal);
 
-    await openPms();
+    await openLines();
 
     const line = await screen.findByTestId("tender-line");
     expect(within(line).getByLabelText("Final Offer 1")).toHaveTextContent("₱3,300,000.00");
@@ -99,15 +91,16 @@ describe("markup on the Costing Matrix grid", () => {
     expect(overall).toHaveTextContent("×1.4586 +45.86%");
     expect(overall).toHaveTextContent("against ×1.4491 +44.91%");
     expect(screen.getByTestId("markup-default-shown")).toHaveTextContent("×1.35 +35%");
-    expect(screen.getByLabelText("Default markup factor")).toHaveValue(1.35);
+    // The playground starts at the saved markup.
+    expect(screen.getByLabelText("Markup factor to try")).toHaveValue(1.35);
   });
 
   it("flags a Tender Line whose Final Offer is under the target, and still fills nothing in", async () => {
     seed({ finalOffer: 3000000 });
     stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management"] });
-    openModal(deal);
+    openDesk(deal);
 
-    await openPms();
+    await openLines();
 
     const line = await screen.findByTestId("tender-line");
     expect(within(line).getByLabelText("Final Offer 1")).toHaveTextContent("₱3,000,000.00");
@@ -115,54 +108,85 @@ describe("markup on the Costing Matrix grid", () => {
     expect(db.rows("costing_tender_line_prices").map((p) => p.final_offer_unit)).toEqual([3000000]);
   });
 
-  it("shows a cost-only row at x1.00 and its Markup Price, and leaves a blank Acquire blank", async () => {
+  it("shows another cost at its Acquire, with no markup of its own to set, and leaves a blank Acquire blank", async () => {
     seed();
     db.seed("costing_cost_rows", { matrix_id: matrix.id, position: 2, description: "Unpriced", quantity: 1 });
     stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management"] });
-    openModal(deal);
+    openDesk(deal);
 
-    await openPms();
+    await openLines();
 
     const [delivery, unpriced] = await within(await screen.findByTestId("cost-rows")).findAllByTestId("cost-row");
-    expect(within(delivery).getByTestId("markup-factor-shown")).toHaveTextContent("×1.00 · +0%");
-    expect(within(delivery).getAllByText("₱100,000.00").length).toBeGreaterThanOrEqual(3);
-    expect(within(unpriced).getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    // It carries at x1.00 into the totals; the Closed Book sees what it costs, not a factor to change.
+    expect(within(delivery).getByLabelText("Other cost 1 Acquire")).toHaveTextContent("₱100,000.00");
+    expect(within(delivery).queryByLabelText(/markup factor/)).not.toBeInTheDocument();
+    expect(within(delivery).queryByTestId("markup-factor-shown")).not.toBeInTheDocument();
+    expect(within(unpriced).getByLabelText("Other cost 2 Acquire")).toHaveTextContent("—");
   });
 
-  it("lets the Final Acquire list pick a preset, which sets the default factor and leaves Final Offer alone", async () => {
+  it("tries a preset without saving it, then saves it as the markup for someone who does not write Final Offers", async () => {
     seed();
     db.seed("costing_markup_presets", { label: "Government", factor: 1.35, sort: 1, active: true });
     db.seed("costing_markup_presets", { label: "Private", factor: 2.4, sort: 2, active: true });
     db.seed("costing_markup_presets", { label: "Retired", factor: 9, sort: 3, active: false });
     stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management"] });
-    const user = await openModal(deal);
+    const user = openDesk(deal);
 
-    await openPms();
-    const select = await screen.findByRole("combobox", { name: "Markup preset" });
-    await chooseOption(user, select, "Private (×2.40)");
+    await openLines();
+    const presets = await screen.findByLabelText("Markup presets");
+    // A preset that was switched off is not offered.
+    expect(within(presets).queryByRole("button", { name: /Retired/ })).not.toBeInTheDocument();
+    await user.click(within(presets).getByRole("button", { name: /Private/ }));
 
+    // Trying it changes nothing saved: 2,160,500 x 1.47 + 2 x 1,000 x 2.40 = 3,180,735, under the ABC.
+    expect(screen.getByTestId("markup-preview")).toHaveTextContent("₱3,180,735.00");
+    expect(db.rows("costing_matrix_money")[0].default_factor).toBe(1.35);
+
+    await user.click(screen.getByRole("button", { name: "Save ×2.40 as the markup" }));
     await waitFor(() => expect(db.rows("costing_matrix_money")[0]).toMatchObject({ default_factor: 2.4 }));
     await waitFor(() => expect(screen.getByTestId("markup-default-shown")).toHaveTextContent("×2.40 +140%"));
     // The bolts follow the new default; the vehicle keeps its own x1.47; Final Offer is where Sales left it.
     expect(within(screen.getAllByTestId("component")[1]).getByTestId("markup-factor-shown")).toHaveTextContent("×2.40 · +140% (default)");
     expect(within(screen.getAllByTestId("component")[0]).getByTestId("markup-factor-shown")).toHaveTextContent("×1.47 · +47%");
     expect(db.rows("costing_tender_line_prices")[0].final_offer_unit).toBe(3300000);
-    // A preset that was switched off is not offered.
-    await user.click(select);
-    expect(screen.queryByRole("option", { name: /Retired/ })).not.toBeInTheDocument();
   });
 
-  it("saves a typed default factor and a Component's own override", async () => {
+  it("applies a tried markup to the Final Offers, and can price every part at it", async () => {
+    seed();
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+    const user = openDesk(deal);
+
+    await openLines();
+    const tried = await screen.findByLabelText("Markup factor to try");
+    await user.clear(tried);
+    await user.type(tried, "1.2");
+    // The vehicle keeps its own x1.47: 3,175,935 + 2 x 1,000 x 1.20 = 3,178,335.
+    expect(screen.getByTestId("markup-preview")).toHaveTextContent("₱3,178,335.00");
+    expect(screen.getByText(/1 part has a markup of its own/)).toBeInTheDocument();
+
+    // Priced at x1.20 throughout: 2,160,500 x 1.20 + 2,400 = 2,595,000.
+    await user.click(screen.getByRole("switch", { name: /Price every part at this markup/ }));
+    expect(screen.getByTestId("markup-preview")).toHaveTextContent("₱2,595,000.00");
+
+    await user.click(screen.getByRole("button", { name: "Apply ×1.20 to the Final Offers" }));
+    await waitFor(() => expect(db.rows("costing_tender_line_prices")[0].final_offer_unit).toBe(2595000));
+    expect(db.rows("costing_matrix_money")[0].default_factor).toBe(1.2);
+    expect(db.rows("costing_component_costs").find((c) => c.component_id === vehicle.id).markup_factor).toBeNull();
+  });
+
+  it("saves a typed markup and a Component's own override", async () => {
     seed({ defaultFactor: null });
     stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management"] });
-    const user = await openModal(deal);
+    const user = openDesk(deal);
 
-    await openPms();
-    expect(await screen.findByTestId("markup-default-shown")).toHaveTextContent("None yet");
+    await openLines();
+    expect(await screen.findByTestId("markup-default-shown")).toHaveTextContent("none yet");
     expect(within(screen.getAllByTestId("component")[1]).getByTestId("markup-factor-shown")).toHaveTextContent("No factor yet");
 
-    await user.type(screen.getByLabelText("Default markup factor"), "1.5");
-    await user.tab();
+    const tried = screen.getByLabelText("Markup factor to try");
+    await user.clear(tried);
+    await user.type(tried, "1.5");
+    await user.click(screen.getByRole("button", { name: "Save ×1.50 as the markup" }));
     await waitFor(() => expect(db.rows("costing_matrix_money")[0].default_factor).toBe(1.5));
 
     const boltsFactor = within(screen.getAllByTestId("component")[1]).getByLabelText("Markup factor 1.2");
@@ -172,26 +196,26 @@ describe("markup on the Costing Matrix grid", () => {
     await waitFor(() => expect(within(screen.getAllByTestId("component")[1]).getByTestId("markup-factor-shown")).toHaveTextContent("×2.0644 · +106.44%"));
   });
 
-  it("shows a Super Admin who is not on the Final Acquire list the factor read-only", async () => {
+  it("shows a Closed Book reader outside Sales and Purchasing the factor read-only", async () => {
     seed();
-    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
-    openModal(deal);
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["technical"] });
+    openDesk(deal);
 
-    await openPms();
+    await openLines();
 
     expect(await screen.findByTestId("markup-default-shown")).toHaveTextContent("×1.35 +35%");
-    expect(screen.queryByRole("combobox", { name: "Markup preset" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Default markup factor")).not.toBeInTheDocument();
-    expect(screen.getByText("The Final Acquire list sets the markup factor.")).toBeInTheDocument();
+    // They may try a markup, and save nothing.
+    expect(screen.queryByRole("button", { name: /Apply|Save/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Sales, Purchasing and the Final Acquire list set the markup.")).toBeInTheDocument();
     expect(within(screen.getAllByTestId("component")[0]).getByLabelText("Markup factor 1.1").tagName).toBe("SPAN");
   });
 
   it("gives Sales the peso Markup Price and neither a factor, nor the Acquire, nor the achieved markup", async () => {
     seed();
     stubCostingMatrixRpcs({ tier: "price", bands: ["sales"], manageMarkup: false });
-    openModal(deal);
+    openDesk(deal);
 
-    await openPms();
+    await openLines();
 
     const line = await screen.findByTestId("tender-line");
     expect(within(line).getByTestId("line-markup-price")).toHaveTextContent("₱3,178,635.00");
@@ -214,9 +238,9 @@ describe("markup on the Costing Matrix grid", () => {
   it("gives Purchasing the Acquire and no Markup Price or factor at all", async () => {
     seed();
     stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"], manageMarkup: false });
-    openModal(deal);
+    openDesk(deal);
 
-    await openPms();
+    await openLines();
 
     const block = await screen.findByTestId("components");
     expect(within(block).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
@@ -228,9 +252,9 @@ describe("markup on the Costing Matrix grid", () => {
   it("shows a Stage Participant no markup at all", async () => {
     seed();
     stubCostingMatrixRpcs({ tier: "participant", bands: [], manageMarkup: false });
-    openModal(deal);
+    openDesk(deal);
 
-    await openPms();
+    await openLines();
 
     await screen.findByTestId("components");
     expect(screen.queryByText(/Markup|Achieved/)).not.toBeInTheDocument();

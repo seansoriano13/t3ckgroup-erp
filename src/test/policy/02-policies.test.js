@@ -512,14 +512,23 @@ describe("Group Tasks", () => {
         },
     )
 
-    it("anybody can create a Group Task in their own name", async () => {
-        const client = await clientFor("ordinary")
+    it("a department head can create a Group Task in their own name", async () => {
+        const client = await clientFor("head")
         const result = await tryInsert(client, "committee_tasks", {
             title: `${MARKER} Created honestly`,
-            created_by: ids.ordinary,
+            created_by: ids.head,
         })
         expect(result.ok, result.message).toBe(true)
         await serviceClient().from("committee_tasks").delete().eq("id", result.id)
+    })
+
+    it("a non-manager cannot create a Group Task, even in their own name (#656)", async () => {
+        const client = await clientFor("ordinary")
+        const result = await tryInsert(client, "committee_tasks", {
+            title: `${MARKER} Created by a non-manager`,
+            created_by: ids.ordinary,
+        })
+        expect(result.ok, "ordinary was allowed to create a Group Task").toBe(false)
     })
 
     it.each(EVERYONE)(
@@ -537,7 +546,18 @@ describe("Group Tasks", () => {
         },
     )
 
-    it.each(MAY_SEE_THE_GROUP_TASK)("%s can edit a Group Task they created, belong to, or administer", async (key) => {
+    it.each(["ordinary", "support"])(
+        "%s cannot edit a Group Task's details, though they can see it, because only managers may (#656)",
+        async (key) => {
+            const client = await clientFor(key)
+            const result = await tryUpdate(client, "committee_tasks", group.taskId, {
+                description: `${MARKER} edited by ${key}`,
+            })
+            expect(result.affected, `${key} was allowed to edit it`).toBe(0)
+        },
+    )
+
+    it.each(["superAdmin"])("%s can edit a Group Task they created, belong to, or administer", async (key) => {
         // #131 scopes read and insert only; the update policy itself stays
         // `using (true)`, unnarrowed. It does not need to change: Postgres
         // requires a row to be visible under the table's SELECT policy before
@@ -598,15 +618,28 @@ describe("Group Task members", () => {
         },
     )
 
-    it("the creator of a Group Task can add a member to it", async () => {
+    it("a manager who created a Group Task can add a member to it", async () => {
+        const own = (await serviceClient().from("committee_tasks")
+            .insert({ title: `${MARKER} head's own`, created_by: ids.head }).select("id").single()).data.id
+        const client = await clientFor("head")
+        const result = await tryInsert(client, "committee_task_members", {
+            committee_task_id: own,
+            employee_id: ids.deleted,
+            task_description: `${MARKER} added by the creator`,
+        })
+        expect(result.ok, result.message).toBe(true)
+        await serviceClient().from("committee_task_members").delete().eq("id", result.id)
+        await serviceClient().from("committee_tasks").delete().eq("id", own)
+    })
+
+    it("a non-manager who created a Group Task cannot add a member to it (#656)", async () => {
         const client = await clientFor("ordinary")
         const result = await tryInsert(client, "committee_task_members", {
             committee_task_id: group.taskId,
             employee_id: ids.deleted,
             task_description: `${MARKER} added by the creator`,
         })
-        expect(result.ok, result.message).toBe(true)
-        await serviceClient().from("committee_task_members").delete().eq("id", result.id)
+        expect(result.ok, "ordinary was allowed to add a member").toBe(false)
     })
 
     it.each(["outsider", "support", "hr", "leaveManager"])(

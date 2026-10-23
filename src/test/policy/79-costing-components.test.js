@@ -6,8 +6,8 @@
  * sor_inclusions rows.
  *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
- *   dealOwner, support  Deal Team                         -> price tier, Sales band
- *   outsider            Purchasing access, no part in it  -> cost tier, Purchasing band
+ *   dealOwner, support  Deal Team                         -> closed_book tier, Sales band
+ *   outsider            Purchasing access, no part in it  -> closed_book tier, Purchasing band
  *   stageParticipant    open Stage Participant window     -> participant tier, no band
  *   finance             Finance access alone              -> no tier
  *   ipasSigner          on the final_acquire list         -> closed_book, Management band
@@ -202,10 +202,9 @@ describe("Components: who writes", () => {
         expect(edit).toEqual({ ok: true, affected: 1 })
     })
 
-    it("refuses Purchasing Brand and Status, and Sales the Purchasing columns, naming the band", async () => {
+    it("lets Purchasing write Brand, refuses Purchasing Status, and Sales the Purchasing columns, naming the band", async () => {
         const brand = await tryUpdate(await clientFor("outsider"), "costing_components", plainId, { brand: "Other" })
-        expect(brand).toMatchObject({ ok: false, code: RLS_VIOLATION })
-        expect(brand.message).toBe("costing_band:costing_components.brand:sales")
+        expect(brand).toEqual({ ok: true, affected: 1 })
         const status = await tryUpdate(await clientFor("outsider"), "costing_components", plainId, { status: "stockable" })
         expect(status.message).toBe("costing_band:costing_components.status:sales")
 
@@ -280,11 +279,12 @@ describe("Component costs: who writes", () => {
         expect(await setCost("outsider", plainId, { acquire_unit: 18250.5 })).toBeNull()
     })
 
-    it("keeps Final Acquire and the markup factor to the Final Acquire list, a Super Admin included", async () => {
+    it("lets Sales, Purchasing, a Super Admin and the Final Acquire list write Final Acquire and the markup factor", async () => {
         for (const who of ["outsider", "dealOwner", "superAdmin"]) {
-            expect((await setCost(who, plainId, { final_acquire_unit: 1 }))?.message, who).toBe("costing_band:costing_component_costs.final_acquire_unit:management")
-            expect((await setCost(who, plainId, { markup_factor: 1.35 }))?.message, who).toBe("costing_band:costing_component_costs.markup_factor:management")
+            expect(await setCost(who, plainId, { final_acquire_unit: 1, markup_factor: 1.2 }), who).toBeNull()
         }
+        expect((await setCost("stageParticipant", plainId, { final_acquire_unit: 2 }))?.message).toBe("costing_band:costing_component_costs.final_acquire_unit:sales,purchasing,management")
+        expect((await setCost("stageParticipant", plainId, { markup_factor: 1.5 }))?.message).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing,management")
         expect(await setCost("ipasSigner", plainId, { final_acquire_unit: 17900, markup_factor: 1.35 })).toBeNull()
         const row = await asSvc(svc().from("costing_component_costs").select("*").eq("component_id", plainId).single(), "costs")
         expect(Number(row.final_acquire_unit)).toBe(17900)
@@ -431,8 +431,9 @@ describe("cost-only rows", () => {
     expect(await setRowMoney("dealOwner", rowId, { odoo_unit: 90000 })).toBeNull()
     expect((await setRowMoney("dealOwner", rowId, { acquire_unit: 1 }))?.message).toBe("costing_band:costing_cost_rows.acquire_unit:purchasing")
     expect((await setRowMoney("outsider", rowId, { odoo_unit: 1 }))?.message).toBe("costing_band:costing_cost_rows.odoo_unit:sales")
-    expect((await setRowMoney("superAdmin", rowId, { final_acquire_unit: 1 }))?.message).toBe("costing_band:costing_cost_rows.final_acquire_unit:management")
-    expect((await setRowMoney("outsider", rowId, { markup_factor: 2 }))?.message).toBe("costing_band:costing_cost_rows.markup_factor:management")
+    expect(await setRowMoney("superAdmin", rowId, { final_acquire_unit: 1 })).toBeNull()
+    expect(await setRowMoney("outsider", rowId, { markup_factor: 2 })).toBeNull()
+    expect((await setRowMoney("stageParticipant", rowId, { final_acquire_unit: 2 }))?.message).toBe("costing_band:costing_cost_rows.final_acquire_unit:sales,purchasing,management")
     expect(await setRowMoney("ipasSigner", rowId, { final_acquire_unit: 75000, markup_factor: 1 })).toBeNull()
     const row = await asSvc(svc().from("costing_cost_rows").select("*").eq("id", rowId).single(), "cost row")
     expect(row).toMatchObject({ description: "Delivery Charge (Davao)" })
@@ -537,10 +538,10 @@ describe("Incharge", () => {
 
   it("is only a label: naming someone changes nobody's tier or bands", async () => {
     const read = await readMatrix("support")
-    expect(read.tier).toBe("price")
+    expect(read.tier).toBe("closed_book")
     expect([...read.bands].sort()).toEqual(["sales"])
     const buyer = await readMatrix("outsider")
-    expect(buyer.tier).toBe("cost")
+    expect(buyer.tier).toBe("closed_book")
     expect([...buyer.bands].sort()).toEqual(["purchasing", "technical"])
   })
 })
@@ -559,31 +560,8 @@ describe("who reads what", () => {
     expect(JSON.stringify(read)).not.toMatch(/acquire_unit|odoo_unit|final_acquire_unit|markup_factor|legacy_sor_inclusion/)
   })
 
-  it("serves the price side the Odoo unit cost and nothing of Acquire, Final Acquire or the factor", async () => {
-    const read = await readMatrix("dealOwner")
-    expect(read.tier).toBe("price")
-    const costs = tableOf(read, "costing_component_costs").find((c) => c.component_id === plainId)
-    // Markup Price per unit (#269) is the one computed column the price tier gets besides the Odoo unit cost.
-    expect(Object.keys(costs).sort()).toEqual(["component_id", "markup_price_unit", "odoo_unit"])
-    expect(Number(costs.odoo_unit)).toBe(19000)
-    const [row] = tableOf(read, "costing_cost_rows")
-    // A cost-only row's Markup Price (Acquire x1.00) would give Acquire away: not served to the price tier.
-    expect(Object.keys(row).sort()).toEqual(["created_at", "description", "id", "matrix_id", "odoo_unit", "position", "quantity"])
-    expect(JSON.stringify(read)).not.toMatch(/acquire_unit|final_acquire_unit|markup_factor/)
-  })
-
-  it("serves Purchasing Acquire and the Odoo unit cost, but not Final Acquire or the factor", async () => {
-    const read = await readMatrix("outsider")
-    expect(read.tier).toBe("cost")
-    const costs = tableOf(read, "costing_component_costs").find((c) => c.component_id === plainId)
-    expect(Object.keys(costs).sort()).toEqual(["acquire_from_offer_id", "acquire_unit", "component_id", "odoo_unit"])
-    const [row] = tableOf(read, "costing_cost_rows")
-    expect(Object.keys(row).sort()).toEqual(["acquire_unit", "created_at", "description", "id", "matrix_id", "odoo_unit", "position", "quantity"])
-    expect(JSON.stringify(read)).not.toMatch(/final_acquire_unit|markup_factor/)
-  })
-
-  it("serves a Super Admin and the Final Acquire list every column", async () => {
-    for (const who of ["superAdmin", "ipasSigner"]) {
+  it("serves a Super Admin, the Final Acquire list, the Deal Team and Purchasing every column", async () => {
+    for (const who of ["superAdmin", "ipasSigner", "dealOwner", "outsider"]) {
       const read = await readMatrix(who)
       expect(read.tier).toBe("closed_book")
       const costs = tableOf(read, "costing_component_costs").find((c) => c.component_id === plainId)
@@ -604,11 +582,11 @@ describe("who reads what", () => {
     const costs = async (who) =>
       (await (await clientFor(who)).from("costing_component_costs").select("component_id").eq("component_id", plainId)).data.length
     const rows = async (who) => (await (await clientFor(who)).from("costing_cost_rows").select("id").eq("matrix_id", matrixId)).data.length
-    for (const who of ["stageParticipant", "dealOwner", "outsider", "finance", "ordinary"]) {
+    for (const who of ["stageParticipant", "finance", "ordinary"]) {
       expect(await costs(who), who).toBe(0)
       expect(await rows(who), who).toBe(0)
     }
-    for (const who of ["superAdmin", "ipasSigner"]) {
+    for (const who of ["superAdmin", "ipasSigner", "dealOwner", "outsider"]) {
       expect(await costs(who), who).toBe(1)
       expect(await rows(who), who).toBeGreaterThan(0)
     }
@@ -656,14 +634,16 @@ describe("who reads what", () => {
 
 describe("the history", () => {
   it("records a Component's costs by who typed them, to the tier that may read each column", async () => {
-    const price = await history("dealOwner", { p_table: "costing_component_costs", p_row: plainId })
-    expect(price.every((e) => e.detail.column === "odoo_unit" || e.detail.values)).toBe(true)
-    expect(JSON.stringify(price)).not.toMatch(/acquire_unit|final_acquire_unit|markup_factor/)
+    const participant = await history("stageParticipant", { p_table: "costing_component_costs", p_row: plainId })
+    expect(JSON.stringify(participant)).not.toMatch(/acquire_unit|odoo_unit|final_acquire_unit|markup_factor/)
 
+    // The Deal Team and Purchasing read the Closed Book, so their history has every cost column.
     const cost = await history("outsider", { p_table: "costing_component_costs", p_row: plainId })
     const acquire = cost.find((e) => e.detail.column === "acquire_unit" && e.detail.new === 18250.5)
     expect(acquire).toMatchObject({ actor_id: ids.outsider, kind: "changed" })
-    expect(JSON.stringify(cost)).not.toMatch(/final_acquire_unit|markup_factor/)
+    expect(cost.some((e) => e.detail.column === "final_acquire_unit")).toBe(true)
+    const sales = await history("dealOwner", { p_table: "costing_component_costs", p_row: plainId })
+    expect(sales.some((e) => e.detail.column === "acquire_unit")).toBe(true)
 
     const closed = await history("ipasSigner", { p_table: "costing_component_costs", p_row: plainId })
     expect(closed.some((e) => e.detail.column === "final_acquire_unit" && e.detail.new === 17900)).toBe(true)

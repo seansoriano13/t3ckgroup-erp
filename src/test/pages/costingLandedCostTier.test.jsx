@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 
-import { renderWithProviders } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
+import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * Landed Cost is cost (#546): the Component grid draws its two columns for the Closed Book and
@@ -22,7 +21,7 @@ describe("the Landed Cost columns on the Component grid", () => {
 
   const mount = (stub) => {
     stubCostingMatrixRpcs({ actorId: reader.id, ...stub });
-    renderWithProviders(<CostingMatrixSection opportunityId={deal.id} opportunity={deal} />);
+    renderCostingDesk(deal);
   };
 
   beforeEach(() => {
@@ -39,6 +38,7 @@ describe("the Landed Cost columns on the Component grid", () => {
     ["closed_book", ["purchasing"]],
   ])("shows them to the %s tier", async (tier, bands) => {
     mount({ tier, bands });
+    await openLines();
     await screen.findAllByTestId("component");
     expect(screen.getAllByText("Landed Cost / unit").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Landed Cost total").length).toBeGreaterThan(0);
@@ -46,6 +46,7 @@ describe("the Landed Cost columns on the Component grid", () => {
 
   it("drops them for the price tier", async () => {
     mount({ tier: "price", bands: ["sales"] });
+    await openLines();
     await screen.findAllByTestId("component");
     expect(screen.queryByText("Landed Cost / unit")).not.toBeInTheDocument();
     expect(screen.queryByText("Landed Cost total")).not.toBeInTheDocument();

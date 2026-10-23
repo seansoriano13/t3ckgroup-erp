@@ -259,6 +259,25 @@ export const purchaseRequestService = {
   },
 
   /**
+   * Makes a line-sourced item say what its SOR line says now (quantity and unit),
+   * and posts the change in the request. The database wants a reason once the item
+   * is Ordered, and refuses a closed item or a line the SOR no longer has.
+   */
+  async updateItemFromSor(itemId, reason = null) {
+    const { error } = await supabase.rpc("purchase_request_update_item_from_sor", {
+      p_item_id: itemId,
+      p_reason: reason,
+    });
+    if (error) throw error;
+  },
+
+  /** "Keep as asked": the item stays as picked, and its "SOR changed" flag stays quiet until the SOR says something else. */
+  async keepItemAsAsked(itemId) {
+    const { error } = await supabase.rpc("purchase_request_keep_item_as_asked", { p_item_id: itemId });
+    if (error) throw error;
+  },
+
+  /**
    * Adds one Requested Item for each given Component of the request's SOR (#273): the Component's
    * name, quantity, unit and Odoo product id are copied and the item names the Component. Purchasing
    * access only; a Component on another SOR's matrix is refused, and so is the whole call. The same

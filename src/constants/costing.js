@@ -88,7 +88,7 @@ export const COMPONENT_BANDS = {
   unit: [SALES, PURCHASING],
   is_bundle: [SALES, PURCHASING],
   odoo_product_id: [SALES, PURCHASING],
-  brand: [SALES],
+  brand: [SALES, PURCHASING],
   status: [SALES],
   offer_specification: [PURCHASING],
   availability: [PURCHASING],
@@ -116,8 +116,8 @@ export const COMPONENT_CANVASS_COST_BANDS = { acquire_from_offer_id: [PURCHASING
 export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
   odoo_unit: [SALES],
-  final_acquire_unit: [MANAGEMENT],
-  markup_factor: [MANAGEMENT],
+  final_acquire_unit: [SALES, PURCHASING, MANAGEMENT],
+  markup_factor: [SALES, PURCHASING, MANAGEMENT],
 };
 
 /**
@@ -140,8 +140,8 @@ export const COST_ROW_BANDS = {
 
 /**
  * The matrix's own money row (costing_matrix_money): the default markup factor (#269), and Marketing and OPEX (#270)
- * typed on the summary. Closed Book reads them; the Final Acquire list writes the factor, and Finance access or the
- * Final Acquire list writes Marketing and OPEX (policy tests 80 and 81 prove these equal the registries).
+ * typed on the summary. Closed Book reads them; Sales, Purchasing and the Final Acquire list write the factor, and
+ * Finance access joins them on Marketing and OPEX (policy tests 80 and 81 prove these equal the registries).
  */
 export const MATRIX_MONEY_TIERS = {
   default_factor: [COSTING_TIER.CLOSED_BOOK],
@@ -151,10 +151,10 @@ export const MATRIX_MONEY_TIERS = {
 };
 
 export const MATRIX_MONEY_BANDS = {
-  default_factor: [MANAGEMENT],
-  default_preset_id: [MANAGEMENT],
-  marketing: [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT],
-  opex: [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT],
+  default_factor: [SALES, PURCHASING, MANAGEMENT],
+  default_preset_id: [SALES, PURCHASING, MANAGEMENT],
+  marketing: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
+  opex: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
 };
 
 /**

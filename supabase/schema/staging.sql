@@ -15,6 +15,7 @@
 -- Extensions
 -- ============================================================
 
+create extension if not exists "btree_gist" with schema "public";
 create extension if not exists "pg_cron" with schema "pg_catalog";
 create extension if not exists "pg_net" with schema "extensions";
 create extension if not exists "pg_stat_statements" with schema "extensions";
@@ -60,6 +61,13 @@ create table if not exists public."bug_reports" (
   "resolved_at" timestamp with time zone,
   "resolved_by" uuid,
   "attachments_purged_at" timestamp with time zone
+);
+
+create table if not exists public."calendar_venues" (
+  "id" uuid not null default gen_random_uuid(),
+  "name" text not null,
+  "active" boolean not null default true,
+  "sort_order" integer not null default 0
 );
 
 create table if not exists public."categories" (
@@ -197,7 +205,11 @@ create table if not exists public."committee_tasks" (
   "carried_from_visit_id" uuid,
   "cancelled_by_visit_id" uuid,
   "start_date" date,
-  "lead_time" text
+  "lead_time" text,
+  "evaluator_id" uuid,
+  "auto_evaluation" boolean not null default true,
+  "awaiting_evaluation_at" timestamp with time zone,
+  "evaluation_reminders_sent" integer not null default 0
 );
 
 create table if not exists public."companies" (
@@ -820,6 +832,84 @@ create table if not exists public."ipas_sors" (
   "created_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."lwop_leaves" (
+  "id" uuid not null default gen_random_uuid(),
+  "created_at" timestamp with time zone not null default now(),
+  "employee_id" uuid not null,
+  "date" date not null,
+  "hours" numeric not null,
+  "reason" text not null,
+  "status" text not null default 'PENDING'::text,
+  "hr_notes" text,
+  "hr_processed_by" uuid,
+  "hr_processed_at" timestamp with time zone,
+  "attachments" jsonb,
+  "start_time" time without time zone,
+  "end_time" time without time zone,
+  "leave_group_id" uuid not null default gen_random_uuid(),
+  "category_id" uuid,
+  "verification_token" text default encode(gen_random_bytes(16), 'hex'::text),
+  "application_hash" text,
+  "approval_hash" text,
+  "employee_signature_version" text,
+  "employee_signature_timestamp" timestamp with time zone,
+  "hr_signature_version" text,
+  "hr_signature_timestamp" timestamp with time zone,
+  "printed_at" timestamp with time zone,
+  "printed_by" uuid,
+  "head_id" uuid,
+  "head_status" text not null default 'APPROVED'::text,
+  "head_note" text,
+  "head_decided_at" timestamp with time zone,
+  "head_signature_version" text,
+  "hr_override" boolean not null default false,
+  "company_id" uuid,
+  "recorded_by_hr" boolean not null default false
+);
+
+create table if not exists public."meeting_request_events" (
+  "id" uuid not null default gen_random_uuid(),
+  "request_id" uuid not null,
+  "actor_id" uuid,
+  "action" text not null,
+  "from_status" text,
+  "to_status" text,
+  "changed_fields" jsonb,
+  "note" text,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."meeting_request_participants" (
+  "request_id" uuid not null,
+  "employee_id" uuid not null
+);
+
+create table if not exists public."meeting_requests" (
+  "id" uuid not null default gen_random_uuid(),
+  "applicant_id" uuid not null,
+  "venue_id" uuid not null,
+  "starts_at" timestamp with time zone not null,
+  "ends_at" timestamp with time zone not null,
+  "facilitator_id" uuid not null,
+  "purpose" text not null,
+  "guests" text[] not null default '{}'::text[],
+  "status" text not null default 'PENDING_HEAD'::text,
+  "head_id" uuid,
+  "head_decided_at" timestamp with time zone,
+  "head_note" text,
+  "hr_override" boolean not null default false,
+  "hr_decided_by" uuid,
+  "hr_decided_at" timestamp with time zone,
+  "hr_note" text,
+  "return_note" text,
+  "returned_by" uuid,
+  "cancel_reason" text,
+  "cancelled_by" uuid,
+  "reminder_sent_at" timestamp with time zone,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."notifications" (
   "id" uuid not null default gen_random_uuid(),
   "recipient_id" uuid not null,
@@ -890,7 +980,8 @@ create table if not exists public."offset_leaves" (
   "head_signature_version" text,
   "hr_override" boolean not null default false,
   "company_id" uuid,
-  "approved_hours" numeric
+  "approved_hours" numeric,
+  "hr_processed_at" timestamp with time zone
 );
 
 create table if not exists public."order_ageing_rules" (
@@ -939,7 +1030,8 @@ create table if not exists public."overtime_requests" (
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
   "hr_override" boolean not null default false,
-  "company_id" uuid
+  "company_id" uuid,
+  "hr_processed_at" timestamp with time zone
 );
 
 create table if not exists public."packing_list_boxes" (
@@ -1029,7 +1121,8 @@ create table if not exists public."purchase_request_items" (
   "status_changed_at" timestamp with time zone,
   "created_at" timestamp with time zone not null default now(),
   "legacy_procurement_request_id" uuid,
-  "component_id" uuid
+  "component_id" uuid,
+  "sor_change_seen" jsonb
 );
 
 create table if not exists public."purchase_request_members" (
@@ -1315,7 +1408,10 @@ create table if not exists public."sor_canvasses" (
   "number" text,
   "reason" text,
   "product_name" text,
-  "canvasser_id" uuid
+  "canvasser_id" uuid,
+  "request_made_at" timestamp with time zone,
+  "lock_released_at" timestamp with time zone,
+  "lock_released_by" uuid
 );
 
 create table if not exists public."sor_condition_status" (
@@ -1540,7 +1636,8 @@ create table if not exists public."tasks" (
   "held_prev_status" text,
   "held_from_visit_id" uuid,
   "carried_from_visit_id" uuid,
-  "cancelled_by_visit_id" uuid
+  "cancelled_by_visit_id" uuid,
+  "converted_to_group_task_id" uuid
 );
 
 create table if not exists public."transmittal_cleared_signatures" (
@@ -1714,6 +1811,7 @@ create table if not exists public."verification_rate_limits" (
 alter table app_settings add constraint "app_settings_pkey" PRIMARY KEY (id);
 alter table bug_report_notes add constraint "bug_report_notes_pkey" PRIMARY KEY (id);
 alter table bug_reports add constraint "bug_reports_pkey" PRIMARY KEY (id);
+alter table calendar_venues add constraint "calendar_venues_pkey" PRIMARY KEY (id);
 alter table categories add constraint "categories_pkey" PRIMARY KEY (id);
 alter table chat_read_receipts add constraint "chat_read_receipts_pkey" PRIMARY KEY (user_id, entity_type, entity_id);
 alter table chat_user_archives add constraint "chat_user_archives_pkey" PRIMARY KEY (user_id, entity_type, entity_id);
@@ -1780,6 +1878,10 @@ alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIM
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
 alter table ipas_signoffs add constraint "ipas_signoffs_pkey" PRIMARY KEY (id);
 alter table ipas_sors add constraint "ipas_sors_pkey" PRIMARY KEY (id);
+alter table lwop_leaves add constraint "lwop_leaves_pkey" PRIMARY KEY (id);
+alter table meeting_request_events add constraint "meeting_request_events_pkey" PRIMARY KEY (id);
+alter table meeting_request_participants add constraint "meeting_request_participants_pkey" PRIMARY KEY (request_id, employee_id);
+alter table meeting_requests add constraint "meeting_requests_pkey" PRIMARY KEY (id);
 alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_pkey" PRIMARY KEY (id);
 alter table offset_leaves add constraint "offset_leaves_pkey" PRIMARY KEY (id);
@@ -1838,6 +1940,7 @@ alter table transmittal_stages add constraint "transmittal_stages_pkey" PRIMARY 
 alter table transmittals add constraint "transmittals_pkey" PRIMARY KEY (id);
 alter table undertime_requests add constraint "undertime_requests_pkey" PRIMARY KEY (id);
 alter table verification_rate_limits add constraint "verification_rate_limits_pkey" PRIMARY KEY (ip_address);
+alter table calendar_venues add constraint "calendar_venues_name_key" UNIQUE (name);
 alter table categories add constraint "categories_category_id_key" UNIQUE (category_id);
 alter table commission_departments add constraint "commission_departments_key_key" UNIQUE (key);
 alter table commission_departments add constraint "commission_departments_name_key" UNIQUE (name);
@@ -1857,6 +1960,7 @@ alter table flow_stages add constraint "flow_stages_flow_scoped_key" UNIQUE (flo
 alter table ipas add constraint "ipas_number_key" UNIQUE (number);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_key_employee_key" UNIQUE (list_key, employee_id);
 alter table ipas_sors add constraint "ipas_sors_ipas_opportunity_key" UNIQUE (ipas_id, opportunity_id);
+alter table lwop_leaves add constraint "lwop_leaves_verification_token_key" UNIQUE (verification_token);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_odoo_so_number_key" UNIQUE (odoo_so_number);
 alter table offset_leaves add constraint "offset_leaves_verification_token_key" UNIQUE (verification_token);
 alter table overtime_requests add constraint "overtime_requests_verification_token_key" UNIQUE (verification_token);
@@ -1999,6 +2103,13 @@ alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((c
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
 alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 6, 7])));
+alter table lwop_leaves add constraint "lwop_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
+alter table lwop_leaves add constraint "lwop_leaves_hours_check" CHECK ((hours > (0)::numeric));
+alter table lwop_leaves add constraint "lwop_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
+alter table meeting_requests add constraint "meeting_requests_end_after_start" CHECK ((ends_at > starts_at));
+alter table meeting_requests add constraint "meeting_requests_quarter_hours" CHECK (((mod((EXTRACT(epoch FROM starts_at))::bigint, (900)::bigint) = 0) AND (mod((EXTRACT(epoch FROM ends_at))::bigint, (900)::bigint) = 0)));
+alter table meeting_requests add constraint "meeting_requests_same_manila_day" CHECK ((((starts_at AT TIME ZONE 'Asia/Manila'::text))::date = ((ends_at AT TIME ZONE 'Asia/Manila'::text))::date));
+alter table meeting_requests add constraint "meeting_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING_HEAD'::text, 'PENDING_HR'::text, 'RETURNED'::text, 'APPROVED'::text, 'DECLINED'::text, 'CANCELLED'::text])));
 alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'dismissed'::text])));
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
@@ -2047,8 +2158,8 @@ alter table sil_leaves add constraint "sil_leaves_status_check" CHECK ((status =
 alter table sor_action_runs add constraint "sor_action_runs_outcome_check" CHECK ((outcome = ANY (ARRAY['pending'::text, 'created'::text, 'skipped'::text, 'failed'::text])));
 alter table sor_canvass_offer_prices add constraint "sor_canvass_offer_prices_rate_chk" CHECK (((comparison_rate IS NULL) OR (comparison_rate > (0)::numeric)));
 alter table sor_canvass_offers add constraint "sor_canvass_offers_currency_chk" CHECK ((currency ~ '^[A-Z]{3}$'::text));
-alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_cleared_reason_chk" CHECK (((kind <> 'cleared'::text) OR (length(btrim(COALESCE(reason, ''::text))) > 0)));
-alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_kind_chk" CHECK ((kind = ANY (ARRAY['signed'::text, 'cleared'::text])));
+alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_cleared_reason_chk" CHECK (((kind = 'signed'::text) OR (length(btrim(COALESCE(reason, ''::text))) > 0)));
+alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_kind_chk" CHECK ((kind = ANY (ARRAY['signed'::text, 'cleared'::text, 'unlocked'::text])));
 alter table sor_canvasses add constraint "sor_canvasses_at_most_one_subject_chk" CHECK (((((component_id IS NOT NULL))::integer + ((requested_item_id IS NOT NULL))::integer) <= 1));
 alter table sor_canvasses add constraint "sor_canvasses_says_what_chk" CHECK (((component_id IS NOT NULL) OR (requested_item_id IS NOT NULL) OR (NULLIF(btrim(COALESCE(product_name, ''::text)), ''::text) IS NOT NULL)));
 alter table sor_inclusions add constraint "sor_inclusions_completeness_check" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
@@ -2112,6 +2223,7 @@ alter table committee_task_tags add constraint "committee_task_tags_tag_id_fkey"
 alter table committee_tasks add constraint "committee_tasks_cancelled_by_visit_id_fkey" FOREIGN KEY (cancelled_by_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table committee_tasks add constraint "committee_tasks_evaluator_id_fkey" FOREIGN KEY (evaluator_id) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_held_from_visit_id_fkey" FOREIGN KEY (held_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_hr_verified_by_fkey" FOREIGN KEY (hr_verified_by) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
@@ -2196,6 +2308,23 @@ alter table ipas_signoffs add constraint "ipas_signoffs_ipas_id_fkey" FOREIGN KE
 alter table ipas_signoffs add constraint "ipas_signoffs_signed_by_fkey" FOREIGN KEY (signed_by) REFERENCES employees(id);
 alter table ipas_sors add constraint "ipas_sors_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_sors add constraint "ipas_sors_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
+alter table lwop_leaves add constraint "lwop_leaves_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
+alter table lwop_leaves add constraint "lwop_leaves_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
+alter table lwop_leaves add constraint "lwop_leaves_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
+alter table lwop_leaves add constraint "lwop_leaves_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table lwop_leaves add constraint "lwop_leaves_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table lwop_leaves add constraint "lwop_leaves_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
+alter table meeting_request_events add constraint "meeting_request_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
+alter table meeting_request_events add constraint "meeting_request_events_request_id_fkey" FOREIGN KEY (request_id) REFERENCES meeting_requests(id) ON DELETE CASCADE;
+alter table meeting_request_participants add constraint "meeting_request_participants_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
+alter table meeting_request_participants add constraint "meeting_request_participants_request_id_fkey" FOREIGN KEY (request_id) REFERENCES meeting_requests(id) ON DELETE CASCADE;
+alter table meeting_requests add constraint "meeting_requests_applicant_id_fkey" FOREIGN KEY (applicant_id) REFERENCES employees(id);
+alter table meeting_requests add constraint "meeting_requests_cancelled_by_fkey" FOREIGN KEY (cancelled_by) REFERENCES employees(id);
+alter table meeting_requests add constraint "meeting_requests_facilitator_id_fkey" FOREIGN KEY (facilitator_id) REFERENCES employees(id);
+alter table meeting_requests add constraint "meeting_requests_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id);
+alter table meeting_requests add constraint "meeting_requests_hr_decided_by_fkey" FOREIGN KEY (hr_decided_by) REFERENCES employees(id);
+alter table meeting_requests add constraint "meeting_requests_returned_by_fkey" FOREIGN KEY (returned_by) REFERENCES employees(id);
+alter table meeting_requests add constraint "meeting_requests_venue_id_fkey" FOREIGN KEY (venue_id) REFERENCES calendar_venues(id) ON DELETE RESTRICT;
 alter table notifications add constraint "notifications_recipient_id_fkey" FOREIGN KEY (recipient_id) REFERENCES employees(id);
 alter table notifications add constraint "notifications_sender_id_fkey" FOREIGN KEY (sender_id) REFERENCES employees(id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_deal_owner_id_fkey" FOREIGN KEY (deal_owner_id) REFERENCES employees(id);
@@ -2291,6 +2420,7 @@ alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_event
 alter table sor_canvasses add constraint "sor_canvasses_canvasser_id_fkey" FOREIGN KEY (canvasser_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sor_canvasses add constraint "sor_canvasses_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
 alter table sor_canvasses add constraint "sor_canvasses_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table sor_canvasses add constraint "sor_canvasses_lock_released_by_fkey" FOREIGN KEY (lock_released_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sor_canvasses add constraint "sor_canvasses_requested_item_id_fkey" FOREIGN KEY (requested_item_id) REFERENCES purchase_request_items(id) ON DELETE CASCADE;
 alter table sor_canvasses add constraint "sor_canvasses_signed_off_by_fkey" FOREIGN KEY (signed_off_by) REFERENCES employees(id);
 alter table sor_condition_status add constraint "sor_condition_status_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
@@ -2344,6 +2474,7 @@ alter table task_tags add constraint "task_tags_created_by_fkey" FOREIGN KEY (cr
 alter table tasks add constraint "tasks_cancelled_by_visit_id_fkey" FOREIGN KEY (cancelled_by_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_category_fk" FOREIGN KEY (category_id) REFERENCES categories(category_id);
+alter table tasks add constraint "tasks_converted_to_group_task_id_fkey" FOREIGN KEY (converted_to_group_task_id) REFERENCES committee_tasks(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_edited_by_fk" FOREIGN KEY (edited_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_evaluated_by_fkey" FOREIGN KEY (evaluated_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_held_from_visit_id_fkey" FOREIGN KEY (held_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
@@ -2387,6 +2518,7 @@ alter table undertime_requests add constraint "undertime_requests_hr_processed_b
 alter table undertime_requests add constraint "undertime_requests_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_sor_rule_on_ipas" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table ipas_sors add constraint "ipas_sor_rule_on_sors" TRIGGER DEFERRABLE INITIALLY DEFERRED;
+alter table meeting_requests add constraint "meeting_requests_no_double_booking" EXCLUDE USING gist (venue_id WITH =, tstzrange(starts_at, ends_at, '[)'::text) WITH &&) WHERE ((status = ANY (ARRAY['PENDING_HEAD'::text, 'PENDING_HR'::text, 'RETURNED'::text, 'APPROVED'::text])));
 
 -- ============================================================
 -- Indexes (excluding those backing constraints)
@@ -2463,6 +2595,15 @@ CREATE INDEX ipas_signoffs_ipas_id_idx ON public.ipas_signoffs USING btree (ipas
 CREATE UNIQUE INDEX ipas_signoffs_live_key ON public.ipas_signoffs USING btree (ipas_id, section, role) WHERE (cleared_at IS NULL);
 CREATE INDEX ipas_signoffs_signed_by_idx ON public.ipas_signoffs USING btree (signed_by);
 CREATE INDEX ipas_sors_opportunity_id_idx ON public.ipas_sors USING btree (opportunity_id);
+CREATE INDEX lwop_leaves_company_id_idx ON public.lwop_leaves USING btree (company_id);
+CREATE INDEX lwop_leaves_employee_id_date_idx ON public.lwop_leaves USING btree (employee_id, date);
+CREATE INDEX lwop_leaves_head_id_idx ON public.lwop_leaves USING btree (head_id);
+CREATE INDEX lwop_leaves_leave_group_id_idx ON public.lwop_leaves USING btree (leave_group_id);
+CREATE INDEX meeting_request_events_request_idx ON public.meeting_request_events USING btree (request_id, created_at);
+CREATE INDEX meeting_request_participants_employee_idx ON public.meeting_request_participants USING btree (employee_id);
+CREATE INDEX meeting_requests_applicant_idx ON public.meeting_requests USING btree (applicant_id);
+CREATE INDEX meeting_requests_head_idx ON public.meeting_requests USING btree (head_id) WHERE (head_id IS NOT NULL);
+CREATE INDEX meeting_requests_starts_at_idx ON public.meeting_requests USING btree (starts_at);
 CREATE INDEX odoo_retail_queue_created_at_idx ON public.odoo_retail_queue USING btree (created_at DESC);
 CREATE INDEX odoo_retail_queue_status_idx ON public.odoo_retail_queue USING btree (status);
 CREATE INDEX offset_leaves_company_id_idx ON public.offset_leaves USING btree (company_id);
@@ -2560,6 +2701,7 @@ CREATE INDEX undertime_requests_head_id_idx ON public.undertime_requests USING b
 alter table public."app_settings" enable row level security;
 alter table public."bug_report_notes" enable row level security;
 alter table public."bug_reports" enable row level security;
+alter table public."calendar_venues" enable row level security;
 alter table public."categories" enable row level security;
 alter table public."chat_read_receipts" enable row level security;
 alter table public."chat_user_archives" enable row level security;
@@ -2625,6 +2767,10 @@ alter table public."ipas_signer_list_log" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
 alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
+alter table public."lwop_leaves" enable row level security;
+alter table public."meeting_request_events" enable row level security;
+alter table public."meeting_request_participants" enable row level security;
+alter table public."meeting_requests" enable row level security;
 alter table public."notifications" enable row level security;
 alter table public."odoo_retail_queue" enable row level security;
 alter table public."offset_leaves" enable row level security;
@@ -2713,6 +2859,27 @@ create policy "Bug report readers and the sender can view" on public."bug_report
   for select
   to authenticated
   using ((can_read_bug_reports() OR (reporter_id = get_employee_id())));
+create policy "calendar_venues_delete" on public."calendar_venues"
+  as permissive
+  for delete
+  to authenticated
+  using (can_manage_venues());
+create policy "calendar_venues_insert" on public."calendar_venues"
+  as permissive
+  for insert
+  to authenticated
+  with check (can_manage_venues());
+create policy "calendar_venues_read" on public."calendar_venues"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "calendar_venues_update" on public."calendar_venues"
+  as permissive
+  for update
+  to authenticated
+  using (can_manage_venues())
+  with check (can_manage_venues());
 create policy "Allow HR to manage categories" on public."categories"
   as permissive
   for all
@@ -2859,30 +3026,33 @@ create policy "Allow read on committee_task_logs" on public."committee_task_logs
   for select
   to authenticated
   using (true);
-create policy "Allow update for authenticated users" on public."committee_task_members"
-  as permissive
-  for update
-  to authenticated
-  using (true);
 create policy "committee_task_members_delete" on public."committee_task_members"
   as permissive
   for delete
   to authenticated
-  using ((is_super_admin() OR (EXISTS ( SELECT 1
-   FROM committee_tasks ct
-  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))));
+  using (can_manage_group_tasks());
 create policy "committee_task_members_insert" on public."committee_task_members"
   as permissive
   for insert
   to authenticated
   with check ((is_super_admin() OR (EXISTS ( SELECT 1
    FROM committee_tasks ct
-  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))));
+  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()) AND (can_manage_group_tasks() OR group_task_is_stage_action(ct.stage_action_id, ct.opportunity_id)))))));
 create policy "committee_task_members_read" on public."committee_task_members"
   as permissive
   for select
   to authenticated
   using (committee_task_visible(committee_task_id));
+create policy "committee_task_members_update" on public."committee_task_members"
+  as permissive
+  for update
+  to authenticated
+  using (((employee_id = get_employee_id()) OR can_manage_group_tasks() OR (EXISTS ( SELECT 1
+   FROM committee_tasks ct
+  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))))
+  with check (((employee_id = get_employee_id()) OR can_manage_group_tasks() OR (EXISTS ( SELECT 1
+   FROM committee_tasks ct
+  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))));
 create policy "committee_task_tags_delete_owner" on public."committee_task_tags"
   as permissive
   for delete
@@ -2907,16 +3077,21 @@ create policy "Allow update for authenticated users" on public."committee_tasks"
   for update
   to authenticated
   using (true);
+create policy "committee_tasks_delete" on public."committee_tasks"
+  as permissive
+  for delete
+  to authenticated
+  using (can_manage_group_tasks());
 create policy "committee_tasks_insert" on public."committee_tasks"
   as permissive
   for insert
   to authenticated
-  with check ((created_by = get_employee_id()));
+  with check (((created_by = get_employee_id()) AND (can_manage_group_tasks() OR group_task_is_stage_action(stage_action_id, opportunity_id))));
 create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using ((is_super_admin() OR (EXISTS ( SELECT 1
+  using ((is_super_admin() OR (evaluator_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
   WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR ((created_by = get_employee_id()) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "companies_read" on public."companies"
@@ -3491,6 +3666,58 @@ create policy "ipas_sors_read" on public."ipas_sors"
   for select
   to authenticated
   using (ipas_can_read());
+create policy "lwop_leaves_head_select" on public."lwop_leaves"
+  as permissive
+  for select
+  to authenticated
+  using ((head_id = get_employee_id()));
+create policy "lwop_leaves_head_update" on public."lwop_leaves"
+  as permissive
+  for update
+  to authenticated
+  using ((head_id = get_employee_id()));
+create policy "lwop_leaves_insert" on public."lwop_leaves"
+  as permissive
+  for insert
+  to authenticated
+  with check (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
+create policy "lwop_leaves_select" on public."lwop_leaves"
+  as permissive
+  for select
+  to public
+  using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
+create policy "lwop_leaves_update" on public."lwop_leaves"
+  as permissive
+  for update
+  to authenticated
+  using ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves)))));
+create policy "lwop_leaves_withdraw" on public."lwop_leaves"
+  as permissive
+  for update
+  to authenticated
+  using (((employee_id = get_employee_id()) AND (status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text]))))
+  with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
+create policy "meeting_request_events_read" on public."meeting_request_events"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "meeting_request_participants_read" on public."meeting_request_participants"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "meeting_requests_read" on public."meeting_requests"
+  as permissive
+  for select
+  to authenticated
+  using (true);
 create policy "Authenticated users can dispatch a notification as themselves" on public."notifications"
   as permissive
   for insert
@@ -4557,12 +4784,6 @@ begin
       raise exception '%: the pesos taken from the bank must be more than zero, or left blank until the bank statement arrives', p_fn
         using errcode = '22023';
     end if;
-    -- Once Landed Cost is final (LC Odoo Done, or any status after it), it can't go back to an estimate.
-    if v_php is null and p_ipas.computation_status in ('lc_odoo_done', 'costs_complete', 'checked') then
-      raise exception '%: % is % LC Odoo Done, so Landed Cost is final; give the pesos taken from the bank', p_fn, p_ipas.number,
-        case when p_ipas.computation_status = 'lc_odoo_done' then 'at' else 'past' end
-        using errcode = '22023';
-    end if;
   end if;
 
   v_label := public._ipas_check_option(p_fn, p_method_id, 'payment_method', p_current_method, 'payment method');
@@ -5599,6 +5820,14 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_amount(p_quantity numeric, p_unit text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select trim_scale(p_quantity)::text || coalesce(' ' || nullif(btrim(p_unit), ''), '');
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_for_adding(p_request_id uuid, p_fn text)
  RETURNS purchase_requests
  LANGUAGE plpgsql
@@ -5735,6 +5964,24 @@ begin
 
   return v_item;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_item_sor_line(p_item purchase_request_items)
+ RETURNS sales_opportunity_items
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select sl.*
+  from purchase_requests r
+  join sales_opportunity_items sl on sl.opportunity_id = r.opportunity_id
+  where r.id = p_item.request_id
+    and case
+      when p_item.odoo_product_id is not null then sl.odoo_product_id = p_item.odoo_product_id
+      else lower(btrim(sl.product_name)) = lower(btrim(p_item.sor_line_snapshot->>'name'))
+    end
+  order by (sl.quantity = (p_item.sor_line_snapshot->>'quantity')::numeric) desc, sl.sort_order, sl.created_at
+  limit 1;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._purchase_request_item_status_label(p_status text)
@@ -6817,6 +7064,129 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.calendar_entries(p_from date, p_to date, p_include_pending boolean DEFAULT false)
+ RETURNS TABLE(kind text, id uuid, group_id uuid, starts_at timestamp with time zone, ends_at timestamp with time zone, all_day boolean, manila_date date, employee jsonb, status text, hours numeric, venue text, title text, details jsonb)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_viewer uuid := public.get_employee_id();
+  v_hr boolean := false;
+  v_pending boolean;
+begin
+  if v_viewer is null then
+    return;
+  end if;
+
+  select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false) or coalesce(e.can_manage_leaves, false)
+    into v_hr
+    from public.employees e
+    where e.id = v_viewer;
+  v_hr := coalesce(v_hr, false);
+  v_pending := v_hr and coalesce(p_include_pending, false);
+
+  return query
+  select q.* from (
+    with src as (
+      -- ---- SIL ------------------------------------------------------------
+      select 'SIL'::text as kind, s.id, s.leave_group_id as group_id, s.employee_id,
+             s.date, s.start_time, s.end_time,
+             s.status as raw_status, s.hours, 'SIL'::text as title, s.reason
+        from public.sil_leaves s
+        where s.date between p_from and p_to
+      union all
+      -- ---- LWOP -----------------------------------------------------------
+      select 'LWOP', l.id, l.leave_group_id, l.employee_id,
+             l.date, l.start_time, l.end_time,
+             l.status, l.hours, 'LWOP', l.reason
+        from public.lwop_leaves l
+        where l.date between p_from and p_to
+      union all
+      -- ---- OFFSET ---------------------------------------------------------
+      select 'OFFSET', o.id, o.leave_group_id, o.employee_id,
+             o.date, o.start_time, o.end_time,
+             o.status, o.hours, 'Offset', o.reason
+        from public.offset_leaves o
+        where o.date between p_from and p_to
+      union all
+      -- ---- OVERTIME -------------------------------------------------------
+      select 'OVERTIME', ot.id, ot.id, ot.employee_id,
+             ot.date, ot.start_time, ot.end_time,
+             ot.status, coalesce(ot.approved_hours, ot.hours), 'Overtime', ot.reason
+        from public.overtime_requests ot
+        where ot.date between p_from and p_to
+      union all
+      -- ---- UNDERTIME ------------------------------------------------------
+      select 'UNDERTIME', u.id, u.id, u.employee_id,
+             u.date,
+             coalesce(u.actual_start_time, u.original_start_time),
+             coalesce(u.actual_end_time, u.original_end_time),
+             u.status, coalesce(u.approved_hours, u.hours), 'Undertime', u.reason
+        from public.undertime_requests u
+        where u.date between p_from and p_to
+    )
+    select
+      s.kind,
+      s.id,
+      s.group_id,
+      ((s.date + coalesce(s.start_time, time '00:00')) at time zone 'Asia/Manila') as starts_at,
+      ((s.date + coalesce(s.end_time, time '23:59:59')) at time zone 'Asia/Manila') as ends_at,
+      (s.start_time is null) as all_day,
+      s.date as manila_date,
+      jsonb_build_object('id', e.id, 'name', e.name, 'department', e.department, 'avatar', e.avatar_path) as employee,
+      case when s.raw_status = 'PENDING' then 'PENDING' else 'APPROVED' end as status,
+      s.hours,
+      null::text as venue,
+      s.title,
+      case when v_hr or s.employee_id = v_viewer
+           then jsonb_build_object('reason', s.reason)
+           else '{}'::jsonb end as details
+    from src s
+    join public.employees e on e.id = s.employee_id
+    where (s.raw_status in ('APPROVED', 'APPROVED_PAID', 'APPROVED_OFFSET')
+           or (s.raw_status = 'PENDING' and v_pending))
+
+    union all
+
+    -- ---- MEETING --------------------------------------------------------
+    select
+      'MEETING'::text,
+      m.id,
+      m.id,
+      m.starts_at,
+      m.ends_at,
+      false,
+      (m.starts_at at time zone 'Asia/Manila')::date,
+      jsonb_build_object('id', a.id, 'name', a.name, 'department', a.department, 'avatar', a.avatar_path),
+      case when m.status = 'APPROVED' then 'APPROVED' else 'PENDING' end,
+      round((extract(epoch from (m.ends_at - m.starts_at)) / 3600.0)::numeric, 2),
+      v.name,
+      m.purpose,
+      jsonb_build_object(
+        'stage', m.status,
+        'purpose', m.purpose,
+        'venue', v.name,
+        'facilitator', jsonb_build_object('id', f.id, 'name', f.name),
+        'participants', coalesce((
+          select jsonb_agg(jsonb_build_object('id', pe.id, 'name', pe.name) order by pe.name)
+          from public.meeting_request_participants mp
+          join public.employees pe on pe.id = mp.employee_id
+          where mp.request_id = m.id
+        ), '[]'::jsonb),
+        'guests', to_jsonb(m.guests)
+      )
+    from public.meeting_requests m
+    join public.calendar_venues v on v.id = m.venue_id
+    join public.employees a on a.id = m.applicant_id
+    join public.employees f on f.id = m.facilitator_id
+    where m.status in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED')
+      and (m.starts_at at time zone 'Asia/Manila')::date between p_from and p_to
+  ) q
+  order by q.manila_date, q.starts_at, q.id;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.can_edit_sales_flows()
  RETURNS boolean
  LANGUAGE sql
@@ -6838,12 +7208,40 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.can_manage_group_tasks()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(
+    (select e.is_head or e.is_hr or e.is_super_admin
+       from public.employees e
+      where e.id = public.get_employee_id()),
+    false
+  )
+$function$
+;
 CREATE OR REPLACE FUNCTION public.can_manage_leaves()
  RETURNS boolean
  LANGUAGE sql
  SECURITY DEFINER
 AS $function$
   SELECT can_manage_leaves FROM public.employees WHERE email = auth.jwt() ->> 'email';
+$function$
+;
+CREATE OR REPLACE FUNCTION public.can_manage_venues()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(
+    (select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false)
+       from public.employees e
+      where e.id = public.get_employee_id()),
+    false
+  );
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.can_read_bug_reports()
@@ -6874,6 +7272,127 @@ AS $function$
           where r.id = p_request_id and r.buyer_id is null
         )
       );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.cancel_lwop_leave(p_leave_id uuid, p_employee_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare
+  v_group_id uuid;
+  v_employee_id uuid;
+  v_previous_status text;
+  v_total_hours numeric;
+  v_dates date[];
+  v_first_date date;
+begin
+  select leave_group_id into v_group_id from lwop_leaves where id = p_leave_id;
+  if v_group_id is null then
+    raise exception 'Leave application not found.';
+  end if;
+
+  perform 1 from lwop_leaves where leave_group_id = v_group_id order by id for update;
+
+  select employee_id, status into v_employee_id, v_previous_status
+    from lwop_leaves where id = p_leave_id;
+
+  if v_employee_id <> p_employee_id then
+    raise exception 'Unauthorized';
+  end if;
+
+  if v_previous_status in ('REJECTED', 'CANCELLED') then
+    raise exception 'Cannot withdraw this request.';
+  end if;
+
+  select coalesce(sum(hours), 0), array_agg(date order by date), min(date)
+    into v_total_hours, v_dates, v_first_date
+    from lwop_leaves where leave_group_id = v_group_id;
+
+  if v_previous_status = 'APPROVED' and v_first_date < public.manila_today() then
+    raise exception 'This leave started on % and has already been taken, so it cannot be withdrawn. Ask HR to undo the approval if the leave was not actually taken.', v_first_date;
+  end if;
+
+  update lwop_leaves set status = 'CANCELLED' where leave_group_id = v_group_id;
+
+  return jsonb_build_object(
+    'rows', (select jsonb_agg(to_jsonb(l) order by l.date) from lwop_leaves l where l.leave_group_id = v_group_id),
+    'employee_id', v_employee_id,
+    'group_id', v_group_id,
+    'total_hours', v_total_hours,
+    'dates', to_jsonb(v_dates),
+    'previous_status', v_previous_status
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.cancel_meeting_request(p_request_id uuid, p_reason text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_is_hr boolean := false;
+  v_req public.meeting_requests%rowtype;
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_by_applicant boolean;
+  v_action text;
+begin
+  if v_actor is null then
+    raise exception 'Sign in to cancel a Meeting Request.' using errcode = '42501';
+  end if;
+
+  select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false)
+    into v_is_hr from public.employees e where e.id = v_actor;
+  v_is_hr := coalesce(v_is_hr, false);
+
+  select * into v_req from public.meeting_requests where id = p_request_id for update;
+  if not found then
+    raise exception 'Meeting Request not found.' using errcode = 'P0002';
+  end if;
+
+  v_by_applicant := v_req.applicant_id = v_actor;
+  if not (v_by_applicant or v_is_hr) then
+    raise exception 'Only the applicant, HR or a Super Admin can cancel this Meeting Request.' using errcode = '42501';
+  end if;
+
+  if v_req.status not in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED') then
+    raise exception 'A % Meeting Request is final and cannot be cancelled.', lower(v_req.status) using errcode = '22023';
+  end if;
+
+  if v_req.starts_at <= now() then
+    raise exception 'This meeting has already started, so it can no longer be cancelled.' using errcode = '22023';
+  end if;
+
+  if not v_by_applicant and v_reason is null then
+    raise exception 'Write the reason for cancelling this Meeting Request.' using errcode = '22023';
+  end if;
+
+  v_action := case when v_by_applicant then 'CANCELLED' else 'HR_CANCELLED' end;
+
+  update public.meeting_requests set
+    status = 'CANCELLED',
+    cancel_reason = v_reason,
+    cancelled_by = v_actor
+  where id = p_request_id;
+
+  perform public.log_meeting_request_event(p_request_id, v_actor, v_action, v_req.status, 'CANCELLED', null, v_reason);
+
+  return jsonb_build_object(
+    'id', p_request_id,
+    'action', v_action,
+    'from_status', v_req.status,
+    'to_status', 'CANCELLED',
+    'head_id', v_req.head_id,
+    'applicant_id', v_req.applicant_id,
+    'facilitator_id', v_req.facilitator_id,
+    'participant_ids', coalesce((
+      select jsonb_agg(mp.employee_id) from public.meeting_request_participants mp where mp.request_id = p_request_id
+    ), '[]'::jsonb)
+  );
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.cancel_sil_leave(p_leave_id uuid, p_employee_id uuid)
@@ -6919,7 +7438,7 @@ BEGIN
   -- Issue #111 (HR-06): the identical cutoff withdraw_offset_leave applies,
   -- worded identically — an employee has no reason to learn two rules for the
   -- same act. See ADR 0015.
-  IF v_previous_status = 'APPROVED' AND v_first_date < CURRENT_DATE THEN
+  IF v_previous_status = 'APPROVED' AND v_first_date < public.manila_today() THEN
     RAISE EXCEPTION 'This leave started on % and has already been taken, so its hours cannot be withdrawn. Ask HR to undo the approval if the leave was not actually taken.', v_first_date;
   END IF;
 
@@ -6993,6 +7512,139 @@ begin
   );
 
   return to_jsonb(v_offer);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_add_to_purchase_request(p_request_id uuid, p_items jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_req      public.purchase_requests;
+  v_entry    jsonb;
+  v_id       uuid;
+  v_item_id  uuid;
+  v_seen     uuid[] := '{}';
+  v_seen_items uuid[] := '{}';
+  v_canvass  public.sor_canvasses;
+  v_winner   public.sor_canvass_offers;
+  v_price    public.sor_canvass_offer_prices;
+  v_item     public.purchase_request_items;
+  v_name     text;
+  v_desc     text;
+  v_qty      numeric;
+  v_unit     text;
+  v_made     jsonb := '[]'::jsonb;
+  v_unsigned jsonb := '[]'::jsonb;
+begin
+  v_req := public._purchase_request_for_adding(p_request_id, 'canvass_add_to_purchase_request');
+  if not public.canvass_can_write() then
+    raise exception 'canvass_add_to_purchase_request: only Purchasing adds Canvasses to a Purchase Request'
+      using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'canvass_add_to_purchase_request: pick at least one Canvass' using errcode = '22023';
+  end if;
+  if jsonb_array_length(p_items) > 50 then
+    raise exception 'canvass_add_to_purchase_request: at most 50 Canvasses at once' using errcode = '22023';
+  end if;
+
+  -- Check every entry first, locking each Canvass so nobody else turns it into a request meanwhile.
+  for v_entry in select * from jsonb_array_elements(p_items)
+  loop
+    v_id := nullif(v_entry ->> 'canvass_id', '')::uuid;
+    v_item_id := nullif(v_entry ->> 'item_id', '')::uuid;
+
+    -- The same lock a winner pick takes, so the winner can't change between this check and the copy.
+    perform pg_advisory_xact_lock(hashtext('canvass_winner:' || coalesce(v_id::text, '')));
+    select * into v_canvass from public.sor_canvasses where id = v_id for update;
+    if not found then
+      raise exception 'canvass_add_to_purchase_request: a picked Canvass was not found' using errcode = 'P0002';
+    end if;
+    if v_id = any (v_seen) then
+      raise exception 'canvass_add_to_purchase_request: % is picked twice', v_canvass.number using errcode = '22023';
+    end if;
+    v_seen := v_seen || v_id;
+    if v_canvass.component_id is not null or v_canvass.requested_item_id is not null then
+      raise exception 'canvass_add_to_purchase_request: % already belongs to a Component or a Requested Item', v_canvass.number
+        using errcode = '55000';
+    end if;
+    if not exists (select 1 from public.sor_canvass_offers o where o.canvass_id = v_id and o.is_winner) then
+      raise exception 'canvass_add_to_purchase_request: % has no winner yet', v_canvass.number using errcode = '22023';
+    end if;
+    if v_canvass.signed_off_at is null then
+      v_unsigned := v_unsigned || to_jsonb(v_id);
+    end if;
+
+    if v_item_id is not null then
+      select * into v_item from public.purchase_request_items where id = v_item_id for update;
+      if not found or v_item.request_id <> p_request_id then
+        raise exception 'canvass_add_to_purchase_request: % is not an item of this request', v_item_id using errcode = 'P0002';
+      end if;
+      -- Past Canvassing the buying is done: the Canvass would lock at once and overwrite the item's price.
+      if v_item.status not in ('requested', 'to_order', 'canvassing') then
+        raise exception 'canvass_add_to_purchase_request: % is already past canvassing, so a Canvass can''t be attached to it', v_item.name
+          using errcode = '55000';
+      end if;
+      if v_item_id = any (v_seen_items) then
+        raise exception 'canvass_add_to_purchase_request: two Canvasses were picked for %', v_item.name using errcode = '22023';
+      end if;
+      v_seen_items := v_seen_items || v_item_id;
+      if exists (
+        select 1 from public.sor_canvasses c
+         where c.requested_item_id = v_item_id
+            or (v_item.component_id is not null and c.component_id = v_item.component_id)
+      ) then
+        raise exception 'canvass_add_to_purchase_request: % already has a Canvass', v_item.name using errcode = '55000';
+      end if;
+    end if;
+  end loop;
+
+  for v_entry in select * from jsonb_array_elements(p_items)
+  loop
+    v_id := (v_entry ->> 'canvass_id')::uuid;
+    v_item_id := nullif(v_entry ->> 'item_id', '')::uuid;
+    select * into v_canvass from public.sor_canvasses where id = v_id;
+    select * into v_winner from public.sor_canvass_offers where canvass_id = v_id and is_winner;
+
+    if v_item_id is null then
+      v_name := coalesce(
+        nullif(btrim(coalesce(v_canvass.product_name, '')), ''),
+        nullif(btrim(coalesce(v_winner.brand, '')), ''),
+        v_canvass.number
+      );
+      v_desc := nullif(concat_ws(E'\n',
+        nullif(concat_ws(' · ',
+          nullif(btrim(coalesce(v_winner.supplier_name, '')), ''),
+          nullif(btrim(coalesce(v_winner.brand, '')), '')
+        ), ''),
+        nullif(btrim(coalesce(v_winner.description, '')), ''),
+        'From Canvass ' || v_canvass.number
+      ), '');
+      v_qty := coalesce(nullif(v_entry ->> 'quantity', '')::numeric, 1);
+      v_unit := nullif(btrim(coalesce(v_entry ->> 'unit', '')), '');
+      v_item_id := public.purchase_request_add_new_item(p_request_id, v_name, v_qty, v_unit, v_desc, '[]'::jsonb);
+    end if;
+
+    -- The winner's price goes on the item, in the money table only Purchasing, Finance and
+    -- Super Admin can read (#582). A winner with no price writes nothing.
+    select * into v_price from public.sor_canvass_offer_prices where offer_id = v_winner.id;
+    if found and v_price.unit_price is not null then
+      insert into public.purchase_request_item_prices (item_id, unit_price, currency, comparison_rate)
+      values (v_item_id, v_price.unit_price, v_winner.currency, v_price.comparison_rate)
+      on conflict (item_id) do update
+        set unit_price = excluded.unit_price, currency = excluded.currency,
+            comparison_rate = excluded.comparison_rate, updated_at = now();
+    end if;
+
+    -- The Canvass re-points at the item, keeping its number, Offers and reason; this locks it.
+    update public.sor_canvasses set requested_item_id = v_item_id where id = v_id;
+    v_made := v_made || jsonb_build_array(jsonb_build_object('canvass_id', v_id, 'item_id', v_item_id));
+  end loop;
+
+  return jsonb_build_object('request_id', p_request_id, 'items', v_made, 'unsigned_canvass_ids', v_unsigned);
 end;
 $function$
 ;
@@ -7422,6 +8074,20 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.canvass_is_locked(p_canvass_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(
+    (select c.request_made_at is not null and c.lock_released_at is null
+       from public.sor_canvasses c
+      where c.id = p_canvass_id),
+    false
+  )
+$function$
+;
 CREATE OR REPLACE FUNCTION public.canvass_is_ready(p_canvass_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -7438,7 +8104,7 @@ AS $function$
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.canvass_list()
- RETURNS TABLE(id uuid, number text, kind text, product_name text, subject_name text, component_id uuid, component_number text, requested_item_id uuid, request_id uuid, request_label text, opportunity_id uuid, sales_reference text, project_title text, canvasser_id uuid, canvasser_name text, offer_count integer, winner_offer_id uuid, winner_supplier text, winner_brand text, signed_off_at timestamp with time zone, signer_name text, created_by uuid, created_at timestamp with time zone, updated_at timestamp with time zone)
+ RETURNS TABLE(id uuid, number text, kind text, product_name text, subject_name text, component_id uuid, component_number text, requested_item_id uuid, request_id uuid, request_label text, request_item_status text, opportunity_id uuid, sales_reference text, project_title text, canvasser_id uuid, canvasser_name text, offer_count integer, winner_offer_id uuid, winner_supplier text, winner_brand text, signed_off_at timestamp with time zone, signer_name text, created_by uuid, created_at timestamp with time zone, updated_at timestamp with time zone, locked boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -7461,6 +8127,7 @@ AS $function$
          c.requested_item_id,
          req.id,
          case when req.id is not null then public._purchase_request_label(req.id) end,
+         item.status,
          opp.id,
          opp.sales_reference,
          opp.project_title,
@@ -7474,7 +8141,8 @@ AS $function$
          signer.name,
          c.created_by,
          c.created_at,
-         c.updated_at
+         c.updated_at,
+         public.canvass_is_locked(c.id)
     from public.sor_canvasses c
     left join public.costing_components comp on comp.id = c.component_id
     left join public.costing_tender_lines t on t.id = comp.tender_line_id
@@ -7630,6 +8298,56 @@ AS $function$
     and c.po_rfq_no is not null
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.canvass_refuse_edit_when_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if (new.reason is distinct from old.reason or new.product_name is distinct from old.product_name)
+     and public.canvass_is_locked(old.id) then
+    raise exception 'This Canvass is locked, so its reason and product name can''t change. A Super Admin can unlock it.'
+      using errcode = '55000';
+  end if;
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_refuse_offer_change_when_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_canvass uuid := case when tg_op = 'DELETE' then old.canvass_id else new.canvass_id end;
+begin
+  if public.canvass_is_locked(v_canvass) then
+    raise exception 'This Canvass is locked, so its offers and winner can''t change. A Super Admin can unlock it.'
+      using errcode = '55000';
+  end if;
+  return coalesce(new, old);
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_refuse_price_change_when_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_offer   uuid := case when tg_op = 'DELETE' then old.offer_id else new.offer_id end;
+  v_canvass uuid;
+begin
+  -- The Offer is gone (it was removed, or its Canvass was): its own guard has spoken.
+  select canvass_id into v_canvass from public.sor_canvass_offers where id = v_offer;
+  if v_canvass is not null and public.canvass_is_locked(v_canvass) then
+    raise exception 'This Canvass is locked, so its prices can''t change. A Super Admin can unlock it.'
+      using errcode = '55000';
+  end if;
+  return coalesce(new, old);
+end
+$function$
+;
 CREATE OR REPLACE FUNCTION public.canvass_sign(p_canvass_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -7709,6 +8427,19 @@ begin
          and l.employee_id is distinct from v_creator
     ), '[]'::jsonb)
   );
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_stamp_request_made()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if old.requested_item_id is null and new.requested_item_id is not null and new.request_made_at is null then
+    new.request_made_at := now();
+  end if;
+  return new;
 end
 $function$
 ;
@@ -7801,6 +8532,75 @@ AS $function$
   end
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.canvass_unlock(p_canvass_id uuid, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_reason text := btrim(coalesce(p_reason, ''));
+begin
+  if public.get_employee_id() is null then
+    raise exception 'canvass_unlock: sign in first' using errcode = '42501';
+  end if;
+  if not coalesce(public.is_super_admin(), false) then
+    raise exception 'canvass_unlock: only a Super Admin can unlock a Canvass' using errcode = '42501';
+  end if;
+  if v_reason = '' then
+    raise exception 'canvass_unlock: say why it is being unlocked' using errcode = '22023';
+  end if;
+
+  -- The same lock the winner functions take, so an unlock never interleaves with a pick.
+  perform pg_advisory_xact_lock(hashtext('canvass_winner:' || p_canvass_id::text));
+
+  if not exists (select 1 from public.sor_canvasses where id = p_canvass_id) then
+    raise exception 'canvass_unlock: not found' using errcode = 'P0002';
+  end if;
+  if not public.canvass_is_locked(p_canvass_id) then
+    return jsonb_build_object('canvass_id', p_canvass_id, 'unlocked', false);
+  end if;
+
+  update public.sor_canvasses
+     set lock_released_at = now(), lock_released_by = public.get_employee_id()
+   where id = p_canvass_id;
+
+  insert into public.sor_canvass_signoff_events (canvass_id, kind, actor_id, reason, offer_count)
+  values (
+    p_canvass_id, 'unlocked', public.get_employee_id(), v_reason,
+    (select count(*) from public.sor_canvass_offers where canvass_id = p_canvass_id)
+  );
+
+  return jsonb_build_object('canvass_id', p_canvass_id, 'unlocked', true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.cash_dist(money, money)
+ RETURNS money
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$cash_dist$function$
+;
+CREATE OR REPLACE FUNCTION public.chat_message_update_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if coalesce(old.metadata ->> 'removed', 'false') = 'true' then
+    if new.content is distinct from old.content or new.metadata is distinct from old.metadata then
+      raise exception 'This message was removed' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  if current_user in ('authenticated', 'anon') and (old.type = 'COMMENT' or new.type = 'COMMENT') then
+    raise exception 'Chat messages can only be changed through reactions or unsend' using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.clear_issued_password_flag()
  RETURNS void
  LANGUAGE sql
@@ -7850,6 +8650,37 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.close_windows_for_cancelled_stage_task(p_opportunity_id uuid, p_action_id uuid, p_visit_id uuid, p_employee_ids uuid[])
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if p_opportunity_id is null or p_action_id is null or p_visit_id is null then
+    return;
+  end if;
+  update public.sor_stage_participants
+  set closed_at = now(), closed_reason = 'task_cancelled'
+  where closed_at is null
+    and source = 'action'
+    and opportunity_id = p_opportunity_id
+    and source_id = p_action_id
+    and opened_visit_id = p_visit_id
+    and employee_id = any (p_employee_ids)
+    -- keep a window another live task from the same call-in still holds open
+    and not exists (select 1 from public.tasks t2
+      where t2.status <> 'DELETED' and t2.opportunity_id = p_opportunity_id
+        and t2.stage_action_id = p_action_id and t2.stage_visit_id = p_visit_id
+        and t2.logged_by = sor_stage_participants.employee_id)
+    and not exists (select 1 from public.committee_tasks c2
+      join public.committee_task_members m2 on m2.committee_task_id = c2.id
+      where c2.status <> 'CANCELLED' and c2.opportunity_id = p_opportunity_id
+        and c2.stage_action_id = p_action_id and c2.stage_visit_id = p_visit_id
+        and m2.employee_id = sor_stage_participants.employee_id);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.committee_task_visible(p_task_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -7861,6 +8692,7 @@ AS $function$
     where ct.id = p_task_id
       and (
         ct.created_by = public.get_employee_id()
+        or ct.evaluator_id = public.get_employee_id()
         or public.is_super_admin()
         or exists (
           select 1 from public.committee_task_members ctm
@@ -7869,6 +8701,189 @@ AS $function$
         )
       )
   )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.committee_tasks_cancel_closes_windows()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.status = 'CANCELLED' and old.status is distinct from 'CANCELLED' then
+    perform public.close_windows_for_cancelled_stage_task(
+      new.opportunity_id, new.stage_action_id, new.stage_visit_id,
+      (select coalesce(array_agg(m.employee_id), '{}') from public.committee_task_members m
+        where m.committee_task_id = new.id));
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.committee_tasks_guard_manage()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  -- Only direct end-user writes are checked. SECURITY DEFINER callers (stage revert / hold /
+  -- resume RPCs) run as the function owner, service role and migrations run as other roles, so
+  -- current_user tells a system flow apart from a person at a client. The trigger itself is
+  -- SECURITY INVOKER for exactly this reason.
+  if current_user not in ('authenticated', 'anon') or auth.uid() is null then
+    return new;
+  end if;
+
+  if public.can_manage_group_tasks()
+     or public.group_task_is_stage_action(new.stage_action_id, new.opportunity_id) then
+    return new;
+  end if;
+
+  if new.title is distinct from old.title
+     or new.description is distinct from old.description
+     or new.due_date is distinct from old.due_date
+     or new.start_date is distinct from old.start_date
+     or new.lead_time is distinct from old.lead_time
+     or new.committee_role is distinct from old.committee_role
+     or new.template_id is distinct from old.template_id
+     or new.opportunity_id is distinct from old.opportunity_id
+     or new.created_by is distinct from old.created_by then
+    raise exception 'Only department heads, HR and Super Admins can edit Group Task details'
+      using errcode = '42501';
+  end if;
+
+  -- A manual cancel by a non-manager is refused whatever cancel_reason says.
+  if new.status = 'CANCELLED' and old.status is distinct from 'CANCELLED' then
+    raise exception 'Only department heads, HR and Super Admins can cancel a Group Task'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.convert_task_to_group_task(p_task_id uuid, p_member_ids uuid[] DEFAULT '{}'::uuid[])
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_me uuid := public.get_employee_id();
+  v_task public.tasks%rowtype;
+  v_group_id uuid;
+  v_title text;
+  v_owner_dept text;
+  v_my_dept text;
+  v_member uuid;
+begin
+  if v_me is null or not public.can_manage_group_tasks() then
+    raise exception 'Only department heads, HR and Super Admins can convert a task into a Group Task.'
+      using errcode = '42501';
+  end if;
+
+  select * into v_task from public.tasks where id = p_task_id for update;
+  if not found then
+    raise exception 'Task not found.' using errcode = 'P0002';
+  end if;
+
+  if v_task.converted_to_group_task_id is not null then
+    raise exception 'This task was already converted into a Group Task.' using errcode = '22023';
+  end if;
+  if v_task.stage_action_id is not null then
+    raise exception 'A task made by an SOR Stage Action can''t be converted.' using errcode = '22023';
+  end if;
+  if v_task.status in ('AWAITING APPROVAL', 'COMPLETED', 'DELETED', 'CANCELLED', 'ON_HOLD')
+     or coalesce(v_task.hr_verified, false) then
+    raise exception 'Only an open task can be converted; this one is submitted, approved, cancelled or on hold.'
+      using errcode = '22023';
+  end if;
+
+  -- Reach: Super Admins and HR convert any task; a head only tasks they own, receive or that
+  -- belong to their department.
+  if not (public.is_super_admin() or exists (select 1 from public.employees where id = v_me and is_hr)) then
+    select department into v_my_dept from public.employees where id = v_me;
+    select department into v_owner_dept from public.employees where id = v_task.logged_by;
+    if v_task.logged_by is distinct from v_me
+       and v_task.reported_to is distinct from v_me
+       and v_my_dept is distinct from v_owner_dept then
+      raise exception 'You can only convert tasks you own, receive or that are in your department.'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  v_title := coalesce(nullif(btrim(v_task.project_title), ''), left(btrim(coalesce(v_task.task_description, '')), 80));
+  if v_title = '' then v_title := 'Converted task'; end if;
+
+  insert into public.committee_tasks (title, description, created_by, due_date, status, opportunity_id)
+  values (v_title, v_task.task_description, v_me, v_task.end_at, 'ACTIVE', v_task.opportunity_id)
+  returning id into v_group_id;
+
+  -- Owner first (carries the checklist and attachments), then the chosen members.
+  if v_task.logged_by is not null then
+    insert into public.committee_task_members (committee_task_id, employee_id, task_description, checklist, attachments)
+    values (v_group_id, v_task.logged_by, coalesce(v_task.task_description, ''), v_task.checklist,
+            to_jsonb(coalesce(v_task.attachment_urls, '{}'::text[])));
+  end if;
+  foreach v_member in array coalesce(p_member_ids, '{}') loop
+    if v_member is distinct from v_task.logged_by
+       and not exists (select 1 from public.committee_task_members
+                        where committee_task_id = v_group_id and employee_id = v_member) then
+      insert into public.committee_task_members (committee_task_id, employee_id, task_description)
+      values (v_group_id, v_member, '');
+    end if;
+  end loop;
+
+  -- Chat/activity history: same ids, so replies and reactions that name a message still resolve.
+  insert into public.committee_task_activity (id, task_id, author_id, type, content, metadata, created_at)
+  select a.id, v_group_id, a.author_id, a.type, a.content, a.metadata, a.created_at
+  from public.task_activity a
+  where a.task_id = p_task_id;
+
+  -- Unread state follows the thread.
+  insert into public.chat_read_receipts (user_id, entity_type, entity_id, last_read_at)
+  select r.user_id, 'GROUP_TASK', v_group_id::text, r.last_read_at
+  from public.chat_read_receipts r
+  where r.entity_type = 'TASK' and r.entity_id = p_task_id::text
+  on conflict do nothing;
+
+  -- The old task steps aside; old links read converted_to_group_task_id.
+  update public.tasks
+  set status = 'DELETED', converted_to_group_task_id = v_group_id
+  where id = p_task_id;
+
+  -- Chat and assignment alerts that pointed at the old task now lead to the Group Task. Approval,
+  -- rejection, grading and submit alerts are left alone: conversion only takes open tasks, so those
+  -- are history about the old task, and a Group Task has no matching approval flow to open.
+  update public.notifications n
+  set reference_id = v_group_id::text,
+      type = case n.type
+        when 'TASK_MENTION' then 'GROUP_TASK_MENTION'
+        when 'TASK_REACTION' then 'GROUP_TASK_REACTION'
+        when 'TASK_COMMENT' then 'GROUP_TASK_COMMENT'
+        when 'TASK_ASSIGNED' then 'GROUP_ASSIGNED'
+      end
+  where n.reference_id = p_task_id::text
+    and n.type in ('TASK_MENTION', 'TASK_REACTION', 'TASK_COMMENT', 'TASK_ASSIGNED');
+
+  insert into public.committee_task_logs (committee_task_id, action, actor_id, details)
+  values (v_group_id, 'CREATED', v_me, jsonb_build_object('title', v_title, 'converted_from_task_id', p_task_id));
+
+  insert into public.system_audit_logs (author_id, entity_type, entity_id, content, type, metadata)
+  values (v_me, 'GROUP_TASK', v_group_id::text,
+          'Converted task into Group Task "' || v_title || '"', 'TASK_CONVERTED',
+          jsonb_build_object('task_id', p_task_id, 'group_task_id', v_group_id,
+                             'owner_id', v_task.logged_by, 'member_ids', to_jsonb(coalesce(p_member_ids, '{}'))));
+
+  -- Tell the people added (not the caller).
+  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select m.employee_id, v_me, 'GROUP_ASSIGNED', 'Added to a Group Task',
+         'You were added to the Group Task "' || v_title || '".', v_group_id::text
+  from public.committee_task_members m
+  where m.committee_task_id = v_group_id and m.employee_id <> v_me;
+
+  return v_group_id;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_accept_brand(p_component_id uuid)
@@ -7889,8 +8904,9 @@ begin
   if v_opp is null then
     raise exception 'costing_accept_brand: not found' using errcode = '22023';
   end if;
-  if not (public.costing_can_read(v_opp) and public.costing_in_band(v_opp, 'sales')) then
-    raise exception 'costing_accept_brand: only the Deal Team can accept a brand' using errcode = '42501';
+  if not (public.costing_can_read(v_opp)
+          and (public.costing_in_band(v_opp, 'sales') or public.costing_in_band(v_opp, 'purchasing'))) then
+    raise exception 'costing_accept_brand: only the Deal Team or Purchasing can accept a brand' using errcode = '42501';
   end if;
 
   select nullif(btrim(coalesce(o.brand, '')), '') into v_brand
@@ -7906,6 +8922,27 @@ begin
 
   return jsonb_build_object('brand', v_brand);
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_actor_can_fill(p_opportunity_id uuid, p_actor uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1
+    from public.employees e
+    join public.sales_opportunities o on o.id = p_opportunity_id
+    where e.id = p_actor
+      and not coalesce(e.is_deleted, false)
+      and (
+        coalesce(e.is_super_admin, false)
+        or public._employee_has_purchasing_access(e.id)
+        or public.sor_is_deal_team(o, e.id)
+        or exists (select 1 from public.costing_signer_lists l where l.list_key = 'final_acquire' and l.employee_id = e.id)
+      )
+  )
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_add_cost_row(p_matrix_id uuid, p_description text DEFAULT ''::text, p_quantity numeric DEFAULT 1)
@@ -8019,7 +9056,9 @@ CREATE OR REPLACE FUNCTION public.costing_can_manage_markup()
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire')
+  select coalesce(public.is_super_admin(), false)
+    or public.costing_on_list('final_acquire')
+    or public.costing_is_open_anywhere()
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_can_read(p_opportunity_id uuid)
@@ -8443,7 +9482,7 @@ begin
     raise exception 'costing_bid: matrix not found' using errcode = '22023';
   end if;
   if public.costing_tier(v_opp) is distinct from 'closed_book' then
-    raise exception 'costing_bid: only a Super Admin or the Final Acquire list can decide a bid' using errcode = '42501';
+    raise exception 'costing_bid: only Sales, Purchasing, a Super Admin or the Final Acquire list can decide a bid' using errcode = '42501';
   end if;
   if p_verdict is null or p_verdict not in ('go', 'no_go', 'revise') then
     raise exception 'costing_bid: the verdict must be Go, No-go or Revise' using errcode = '22023';
@@ -8577,6 +9616,103 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_fill_from_sor(p_opportunity_id uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor  uuid := public.get_employee_id();
+  v_matrix uuid;
+  v_pos    integer;
+  v_line   uuid;
+  v_unit   text;
+  v_added  integer := 0;
+  v_item   record;
+begin
+  if v_actor is null then
+    raise exception 'costing_fill: sign in first' using errcode = '42501';
+  end if;
+  select m.id into v_matrix from public.costing_matrices m where m.opportunity_id = p_opportunity_id;
+  if v_matrix is null then
+    raise exception 'costing_fill: this SOR has no Costing Matrix yet' using errcode = '22023';
+  end if;
+  if not (public.costing_can_read(p_opportunity_id)
+          and (public.costing_in_band(p_opportunity_id, 'sales') or public.costing_in_band(p_opportunity_id, 'purchasing'))) then
+    raise exception 'costing_fill: only Sales or Purchasing can fill the matrix from the SOR' using errcode = '42501';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('costing_fill:' || v_matrix::text));
+  perform set_config('costing.bypass', 'on', true);
+
+  select coalesce(max(l.position), 0) into v_pos from public.costing_tender_lines l where l.matrix_id = v_matrix;
+
+  for v_item in
+    select i.*
+    from public.sales_opportunity_items i
+    where i.opportunity_id = p_opportunity_id
+      and not exists (
+        select 1 from public.costing_tender_lines l where l.matrix_id = v_matrix and l.sor_item_id = i.id
+      )
+    order by i.sort_order, i.created_at, i.id
+  loop
+    v_pos := v_pos + 1;
+    v_unit := nullif(btrim(coalesce(v_item.unit, '')), '');
+    insert into public.costing_tender_lines (
+      matrix_id, position, source, sor_item_id, odoo_product_id, tender_specification, unit, quantity, sor_line_snapshot, created_by
+    ) values (
+      v_matrix, v_pos, 'sor_line', v_item.id, v_item.odoo_product_id, v_item.product_name, v_unit,
+      case when v_item.quantity > 0 then v_item.quantity else 1 end,
+      jsonb_build_object('name', v_item.product_name, 'quantity', v_item.quantity, 'unit', v_unit),
+      v_actor
+    )
+    returning id into v_line;
+
+    -- A Component's quantity is for the whole line (its totals are unit x quantity), so the product
+    -- carries the line's quantity.
+    insert into public.costing_components (tender_line_id, position, name, quantity, unit, odoo_product_id)
+    values (v_line, 1, v_item.product_name, case when v_item.quantity > 0 then v_item.quantity else 1 end, v_unit, v_item.odoo_product_id);
+
+    v_added := v_added + 1;
+  end loop;
+
+  perform set_config('costing.bypass', '', true);
+  return v_added;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_fill_odoo_costs(p_actor uuid, p_opportunity_id uuid, p_costs jsonb)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_target record;
+  v_cost   numeric;
+  v_filled integer := 0;
+begin
+  if not public.costing_actor_can_fill(p_opportunity_id, p_actor) then
+    raise exception 'costing_fill: only Sales or Purchasing can fill the matrix from Odoo' using errcode = '42501';
+  end if;
+  for v_target in select * from public.costing_odoo_cost_targets(p_actor, p_opportunity_id) loop
+    v_cost := nullif(p_costs ->> v_target.odoo_product_id::text, '')::numeric;
+    if v_cost is null or v_cost <= 0 then
+      continue;
+    end if;
+    v_cost := round(v_cost, 2);
+    insert into public.costing_component_costs (component_id, odoo_unit, acquire_unit)
+    values (v_target.component_id, v_cost, v_cost)
+    on conflict (component_id) do update
+      set odoo_unit = coalesce(public.costing_component_costs.odoo_unit, excluded.odoo_unit),
+          acquire_unit = coalesce(public.costing_component_costs.acquire_unit, excluded.acquire_unit);
+    v_filled := v_filled + 1;
+  end loop;
+  return v_filled;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_history(p_opportunity_id uuid, p_table text DEFAULT NULL::text, p_row uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 100)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -8673,6 +9809,37 @@ begin
   end if;
   return new;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_is_open(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.is_super_admin(), false)
+    or public.has_purchasing_access()
+    or exists (
+      select 1 from public.sales_opportunities o
+      where o.id = p_opportunity_id and public.sor_is_deal_team(o, public.get_employee_id())
+    )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_is_open_anywhere()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with me as (select public.get_employee_id() as id)
+  select coalesce(public.is_super_admin(), false)
+    or public.has_purchasing_access()
+    or exists (
+      select 1 from public.sales_opportunities o, me
+      where me.id is not null
+        and (o.registered_by = me.id or o.deal_owner_id = me.id or o.closing_sales_id = me.id
+          or o.support_sales_1_id = me.id or o.support_sales_2_id = me.id or o.sales_director_id = me.id)
+    )
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
@@ -9122,12 +10289,15 @@ CREATE OR REPLACE FUNCTION public.costing_matrix_page()
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare
+  -- Super Admins and the list read every SOR; anyone else, the SORs they are open on.
+  v_all boolean := coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire');
 begin
   if public.get_employee_id() is null then
     raise exception 'costing_matrix_page: not signed in' using errcode = '42501';
   end if;
-  if not (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire')) then
-    raise exception 'costing_matrix_page: only Super Admins and the Final Acquire list read the Costing Matrix page'
+  if not (v_all or public.costing_is_open_anywhere()) then
+    raise exception 'costing_matrix_page: only Super Admins, Purchasing, the Deal Team and the Final Acquire list read the Costing Matrix page'
       using errcode = '42501';
   end if;
 
@@ -9212,6 +10382,7 @@ begin
   ) ent
   where not coalesce(o.is_deleted, false)
     and not coalesce(o.is_scratch, false)
+    and (v_all or public.costing_is_open(o.id))
   order by o.serial_no desc;
 end;
 $function$
@@ -9315,6 +10486,28 @@ begin
      set component_id = p_component_id,
          position = coalesce((select max(i.position) from public.costing_inclusions i where i.component_id = p_component_id), 0) + 1
    where id = p_inclusion_id;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_odoo_cost_targets(p_actor uuid, p_opportunity_id uuid)
+ RETURNS TABLE(component_id uuid, odoo_product_id integer)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.costing_actor_can_fill(p_opportunity_id, p_actor) then
+    raise exception 'costing_fill: only Sales or Purchasing can fill the matrix from Odoo' using errcode = '42501';
+  end if;
+  return query
+  select c.id, c.odoo_product_id
+  from public.costing_components c
+  join public.costing_tender_lines l on l.id = c.tender_line_id
+  join public.costing_matrices m on m.id = l.matrix_id
+  left join public.costing_component_costs cc on cc.component_id = c.id
+  where m.opportunity_id = p_opportunity_id
+    and c.odoo_product_id is not null
+    and (cc.component_id is null or cc.odoo_unit is null or cc.acquire_unit is null);
 end;
 $function$
 ;
@@ -9462,7 +10655,7 @@ AS $function$
   join public.sales_opportunities o on o.id = m.opportunity_id
   left join public.employees own on own.id = o.deal_owner_id
   cross join lateral public.costing_bid_totals(m.id) t
-  where (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire'))
+  where (public.costing_on_list('final_acquire') or public.costing_is_open(m.opportunity_id))
     and not coalesce(o.is_deleted, false)
     and not coalesce(o.is_scratch, false)
     and t.line_count > 0
@@ -9742,8 +10935,8 @@ begin
     if v_incharge is distinct from v_actor then
       raise exception 'costing_sign: only the Purchasing incharge can sign Costed by' using errcode = '42501';
     end if;
-  elsif not public.costing_on_list('final_acquire') then
-    raise exception 'costing_sign: only someone on the Final Acquire list can approve the Final Acquire and offer' using errcode = '42501';
+  elsif not (public.costing_on_list('final_acquire') or public.costing_is_open(v_opp)) then
+    raise exception 'costing_sign: only Sales, Purchasing or the Final Acquire list can approve the Final Acquire and offer' using errcode = '42501';
   end if;
 
   perform pg_advisory_xact_lock(hashtext('costing_sign:' || p_matrix_id::text));
@@ -9864,8 +11057,7 @@ CREATE OR REPLACE FUNCTION public.costing_tier(p_opportunity_id uuid)
 AS $function$
   select case
     when not exists (select 1 from public.sales_opportunities o where o.id = p_opportunity_id) then null
-    when coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire') then 'closed_book'
-    when public.has_purchasing_access() then 'cost'
+    when public.costing_on_list('final_acquire') or public.costing_is_open(p_opportunity_id) then 'closed_book'
     when exists (
       select 1 from public.sales_opportunities o
       where o.id = p_opportunity_id
@@ -9880,7 +11072,6 @@ AS $function$
         and p.employee_id = public.get_employee_id()
         and p.closed_at is null
     ) then 'participant'
-    -- #545: the Evaluation list reads the matrix with no money, whatever the stage.
     when public.costing_on_list('evaluation')
       and exists (select 1 from public.costing_matrices m where m.opportunity_id = p_opportunity_id)
     then 'participant'
@@ -9948,6 +11139,183 @@ begin
     );
   end if;
   return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.date_dist(date, date)
+ RETURNS integer
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$date_dist$function$
+;
+CREATE OR REPLACE FUNCTION public.decide_lwop_leave_decision(p_group_id uuid, p_status text, p_hr_notes text, p_hr_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare
+  v_employee_id uuid;
+  v_application_hash text;
+  v_row_count integer;
+  v_pending_count integer;
+  v_total_hours numeric;
+  v_dates date[];
+  v_head_status text;
+  v_hr_override boolean;
+  v_approval_hash text;
+  v_hr_signature_version text;
+  v_hr_signature_timestamp timestamptz;
+  v_now timestamptz := now();
+begin
+  if p_status not in ('APPROVED', 'REJECTED') then
+    raise exception 'Unsupported LWOP decision: %.', p_status;
+  end if;
+
+  perform 1 from lwop_leaves where leave_group_id = p_group_id order by id for update;
+
+  select count(*), count(*) filter (where status = 'PENDING'), coalesce(sum(hours), 0), array_agg(date order by date)
+    into v_row_count, v_pending_count, v_total_hours, v_dates
+    from lwop_leaves where leave_group_id = p_group_id;
+
+  if v_row_count = 0 then
+    raise exception 'Leave application not found.';
+  end if;
+
+  if v_pending_count <> v_row_count then
+    raise exception 'This leave application has already been decided.';
+  end if;
+
+  select employee_id, application_hash, head_status, hr_override
+    into v_employee_id, v_application_hash, v_head_status, v_hr_override
+    from lwop_leaves where leave_group_id = p_group_id order by id limit 1;
+
+  -- The head stage must be cleared (approved) or overridden by HR before HR decides.
+  if v_head_status is distinct from 'APPROVED' and not coalesce(v_hr_override, false) then
+    raise exception 'Cannot decide this LWOP: the department head has not approved this request yet (head_status=%). Use the HR override if this needs to proceed anyway.', v_head_status;
+  end if;
+
+  select signature_path into v_hr_signature_version from employees where id = p_hr_id;
+  if v_hr_signature_version is not null then
+    v_hr_signature_timestamp := v_now;
+  end if;
+
+  v_approval_hash := encode(digest(
+    format('%s|%s|%s|%s', v_application_hash, p_status, coalesce(p_hr_id::text, ''), ''),
+    'sha256'), 'hex');
+
+  update lwop_leaves set
+    status = p_status,
+    hr_notes = p_hr_notes,
+    hr_processed_by = p_hr_id,
+    hr_processed_at = v_now,
+    approval_hash = v_approval_hash,
+    hr_signature_version = v_hr_signature_version,
+    hr_signature_timestamp = v_hr_signature_timestamp
+  where leave_group_id = p_group_id;
+
+  return jsonb_build_object(
+    'rows', (select jsonb_agg(to_jsonb(l) order by l.date) from lwop_leaves l where l.leave_group_id = p_group_id),
+    'employee_id', v_employee_id,
+    'total_hours', v_total_hours,
+    'dates', to_jsonb(v_dates)
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.decide_meeting_request(p_request_id uuid, p_decision text, p_note text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_is_hr boolean := false;
+  v_req public.meeting_requests%rowtype;
+  v_note text := nullif(btrim(coalesce(p_note, '')), '');
+  v_to text;
+  v_action text;
+begin
+  if v_actor is null then
+    raise exception 'Sign in to decide a Meeting Request.' using errcode = '42501';
+  end if;
+
+  if p_decision not in ('APPROVE', 'DECLINE', 'RETURN') then
+    raise exception 'Unsupported decision: %.', p_decision using errcode = '22023';
+  end if;
+
+  select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false)
+    into v_is_hr from public.employees e where e.id = v_actor;
+  v_is_hr := coalesce(v_is_hr, false);
+
+  select * into v_req from public.meeting_requests where id = p_request_id for update;
+  if not found then
+    raise exception 'Meeting Request not found.' using errcode = 'P0002';
+  end if;
+
+  if v_req.status not in ('PENDING_HEAD', 'PENDING_HR') then
+    raise exception 'This Meeting Request is not waiting for a decision.' using errcode = '22023';
+  end if;
+
+  if v_req.applicant_id = v_actor then
+    raise exception 'You cannot decide your own Meeting Request.' using errcode = '42501';
+  end if;
+
+  if v_req.status = 'PENDING_HEAD' then
+    if not (v_is_hr or v_req.head_id = v_actor) then
+      raise exception 'Only the department head this request was routed to, or HR, can decide it.' using errcode = '42501';
+    end if;
+  elsif not v_is_hr then
+    raise exception 'Only HR can give the final decision on a Meeting Request.' using errcode = '42501';
+  end if;
+
+  if p_decision in ('DECLINE', 'RETURN') and v_note is null then
+    raise exception 'Write a note to % a Meeting Request.', lower(p_decision) using errcode = '22023';
+  end if;
+
+  if p_decision = 'APPROVE' then
+    v_to := case when v_req.status = 'PENDING_HEAD' then 'PENDING_HR' else 'APPROVED' end;
+    v_action := case when v_req.status = 'PENDING_HEAD' then 'HEAD_APPROVED' else 'HR_APPROVED' end;
+  elsif p_decision = 'DECLINE' then
+    v_to := 'DECLINED';
+    v_action := case when v_req.status = 'PENDING_HEAD' then 'HEAD_DECLINED' else 'HR_DECLINED' end;
+  else
+    v_to := 'RETURNED';
+    v_action := case when v_req.status = 'PENDING_HEAD' then 'HEAD_RETURNED' else 'HR_RETURNED' end;
+  end if;
+
+  if v_req.status = 'PENDING_HEAD' then
+    update public.meeting_requests set
+      status = v_to,
+      head_decided_at = now(),
+      head_note = v_note,
+      return_note = case when p_decision = 'RETURN' then v_note else return_note end,
+      returned_by = case when p_decision = 'RETURN' then v_actor else returned_by end
+    where id = p_request_id;
+  else
+    update public.meeting_requests set
+      status = v_to,
+      hr_decided_by = v_actor,
+      hr_decided_at = now(),
+      hr_note = v_note,
+      return_note = case when p_decision = 'RETURN' then v_note else return_note end,
+      returned_by = case when p_decision = 'RETURN' then v_actor else returned_by end
+    where id = p_request_id;
+  end if;
+
+  perform public.log_meeting_request_event(p_request_id, v_actor, v_action, v_req.status, v_to, null, v_note);
+
+  return jsonb_build_object(
+    'id', p_request_id,
+    'action', v_action,
+    'from_status', v_req.status,
+    'to_status', v_to,
+    'applicant_id', v_req.applicant_id,
+    'facilitator_id', v_req.facilitator_id,
+    'participant_ids', coalesce((
+      select jsonb_agg(mp.employee_id) from public.meeting_request_participants mp where mp.request_id = p_request_id
+    ), '[]'::jsonb)
+  );
 end;
 $function$
 ;
@@ -10050,6 +11418,7 @@ BEGIN
     approval_hash = v_approval_hash,
     hr_signature_version = v_hr_signature_version,
     hr_signature_timestamp = v_hr_signature_timestamp,
+    hr_processed_at = CASE WHEN p_status = 'REJECTED' OR p_status LIKE 'APPROVED%' THEN v_now ELSE NULL END,
     approval_credits_snapshot = v_credits_snapshot,
     hr_processed_by = p_hr_id,
     -- The group total is split across its day-rows in proportion to each
@@ -10155,6 +11524,7 @@ BEGIN
     approval_hash = v_approval_hash,
     hr_signature_version = v_hr_signature_version,
     hr_signature_timestamp = v_hr_signature_timestamp,
+    hr_processed_at = CASE WHEN p_status = 'REJECTED' OR p_status LIKE 'APPROVED%' THEN v_now ELSE NULL END,
     approval_credits_snapshot = v_credits_snapshot,
     hr_processed_by = p_hr_id
   WHERE id = p_request_id
@@ -10330,6 +11700,165 @@ BEGIN
 END;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.edit_meeting_request(p_request_id uuid, p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_req public.meeting_requests%rowtype;
+  v_applicant_is_head boolean;
+  v_to text;
+  v_head uuid;
+  v_guests text[];
+  v_old_people uuid[];
+  v_new_people uuid[];
+  v_changed jsonb := '{}'::jsonb;
+  v_time_changed boolean;
+  v_restart boolean;
+  v_purpose text := btrim(coalesce(p_purpose, ''));
+begin
+  if v_actor is null then
+    raise exception 'Sign in to edit a Meeting Request.' using errcode = '42501';
+  end if;
+
+  select * into v_req from public.meeting_requests where id = p_request_id for update;
+  if not found then
+    raise exception 'Meeting Request not found.' using errcode = 'P0002';
+  end if;
+
+  if v_req.applicant_id <> v_actor then
+    raise exception 'Only the person who filed this Meeting Request can edit it.' using errcode = '42501';
+  end if;
+
+  if v_req.status not in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED') then
+    raise exception 'A % Meeting Request cannot be edited.', lower(v_req.status) using errcode = '22023';
+  end if;
+
+  if v_req.starts_at <= now() then
+    raise exception 'This meeting has already started, so it can no longer be edited.' using errcode = '22023';
+  end if;
+
+  if p_starts_at < now() then
+    raise exception 'A meeting cannot start in the past.' using errcode = '22023';
+  end if;
+
+  if not exists (
+    select 1 from public.calendar_venues
+    where id = p_venue_id and (active or id = v_req.venue_id)
+  ) then
+    raise exception 'Choose a Venue that is open for booking.' using errcode = '22023';
+  end if;
+
+  if not exists (
+    select 1 from public.employees
+    where id = p_facilitator_id and coalesce(is_head, false) and coalesce(is_deleted, false) = false
+  ) then
+    raise exception 'The Facilitator must be a department head.' using errcode = '22023';
+  end if;
+
+  if v_purpose = '' then
+    raise exception 'Write the purpose of the meeting.' using errcode = '22023';
+  end if;
+
+  select coalesce(is_head, false) into v_applicant_is_head from public.employees where id = v_actor;
+
+  v_head := coalesce(p_head_id, v_req.head_id);
+  if v_applicant_is_head then
+    v_head := null;
+  elsif v_head is null or not exists (
+    select 1 from public.employees
+    where id = v_head and coalesce(is_head, false) and coalesce(is_deleted, false) = false
+  ) then
+    raise exception 'Choose the department head who approves this request.' using errcode = '22023';
+  end if;
+
+  v_to := case
+    when v_req.status = 'PENDING_HEAD' then 'PENDING_HEAD'
+    when v_req.status = 'RETURNED' then 'RETURNED'
+    when v_applicant_is_head then 'PENDING_HR'
+    else 'PENDING_HEAD'
+  end;
+  -- Approval starts over when the request moves back to a pending stage from a later one.
+  v_restart := v_to <> v_req.status and v_to in ('PENDING_HEAD', 'PENDING_HR');
+
+  select coalesce(array_agg(btrim(g)) filter (where btrim(g) <> ''), '{}')
+    into v_guests from unnest(coalesce(p_guests, '{}')) as g;
+
+  select coalesce(array_agg(employee_id order by employee_id), '{}') into v_old_people
+    from public.meeting_request_participants where request_id = p_request_id;
+  select coalesce(array_agg(e.id order by e.id), '{}') into v_new_people
+    from public.employees e where e.id = any(coalesce(p_participant_ids, '{}'));
+
+  v_time_changed := v_req.starts_at <> p_starts_at or v_req.ends_at <> p_ends_at;
+
+  if v_req.venue_id <> p_venue_id then
+    v_changed := v_changed || jsonb_build_object('venue_id', jsonb_build_object('from', v_req.venue_id, 'to', p_venue_id));
+  end if;
+  if v_req.starts_at <> p_starts_at then
+    v_changed := v_changed || jsonb_build_object('starts_at', jsonb_build_object('from', v_req.starts_at, 'to', p_starts_at));
+  end if;
+  if v_req.ends_at <> p_ends_at then
+    v_changed := v_changed || jsonb_build_object('ends_at', jsonb_build_object('from', v_req.ends_at, 'to', p_ends_at));
+  end if;
+  if v_req.facilitator_id <> p_facilitator_id then
+    v_changed := v_changed || jsonb_build_object('facilitator_id', jsonb_build_object('from', v_req.facilitator_id, 'to', p_facilitator_id));
+  end if;
+  if v_req.purpose <> v_purpose then
+    v_changed := v_changed || jsonb_build_object('purpose', jsonb_build_object('from', v_req.purpose, 'to', v_purpose));
+  end if;
+  if v_req.guests is distinct from v_guests then
+    v_changed := v_changed || jsonb_build_object('guests', jsonb_build_object('from', to_jsonb(v_req.guests), 'to', to_jsonb(v_guests)));
+  end if;
+  if v_old_people is distinct from v_new_people then
+    v_changed := v_changed || jsonb_build_object('participant_ids', jsonb_build_object('from', to_jsonb(v_old_people), 'to', to_jsonb(v_new_people)));
+  end if;
+  if v_req.head_id is distinct from v_head then
+    v_changed := v_changed || jsonb_build_object('head_id', jsonb_build_object('from', v_req.head_id, 'to', v_head));
+  end if;
+
+  update public.meeting_requests set
+    venue_id = p_venue_id,
+    starts_at = p_starts_at,
+    ends_at = p_ends_at,
+    facilitator_id = p_facilitator_id,
+    purpose = v_purpose,
+    guests = v_guests,
+    head_id = v_head,
+    status = v_to,
+    reminder_sent_at = case when v_time_changed then null else reminder_sent_at end,
+    head_decided_at = case when v_restart then null else head_decided_at end,
+    head_note = case when v_restart then null else head_note end,
+    hr_override = case when v_restart then false else hr_override end,
+    hr_decided_by = case when v_restart then null else hr_decided_by end,
+    hr_decided_at = case when v_restart then null else hr_decided_at end,
+    hr_note = case when v_restart then null else hr_note end
+  where id = p_request_id;
+
+  delete from public.meeting_request_participants where request_id = p_request_id;
+  insert into public.meeting_request_participants (request_id, employee_id)
+  select p_request_id, unnest(v_new_people);
+
+  perform public.log_meeting_request_event(p_request_id, v_actor, 'EDITED', v_req.status, v_to, v_changed, null);
+
+  return jsonb_build_object(
+    'id', p_request_id,
+    'action', 'EDITED',
+    'from_status', v_req.status,
+    'to_status', v_to,
+    'changed_fields', v_changed,
+    'head_id', v_head,
+    'applicant_id', v_req.applicant_id,
+    'facilitator_id', p_facilitator_id,
+    'old_facilitator_id', v_req.facilitator_id,
+    'participant_ids', to_jsonb(v_new_people),
+    'old_participant_ids', to_jsonb(v_old_people)
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.employee_group_member_ids(p_group_id uuid)
  RETURNS SETOF uuid
  LANGUAGE sql
@@ -10351,6 +11880,92 @@ AS $function$
       )
     );
 $function$
+;
+CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_applicant uuid := public.get_employee_id();
+  v_applicant_is_head boolean;
+  v_status text;
+  v_head uuid;
+  v_id uuid;
+  v_guests text[];
+begin
+  if v_applicant is null then
+    raise exception 'Sign in to file a Meeting Request.' using errcode = '42501';
+  end if;
+
+  if not exists (select 1 from public.calendar_venues where id = p_venue_id and active) then
+    raise exception 'Choose a Venue that is open for booking.' using errcode = '22023';
+  end if;
+
+  if not exists (
+    select 1 from public.employees
+    where id = p_facilitator_id and coalesce(is_head, false) and coalesce(is_deleted, false) = false
+  ) then
+    raise exception 'The Facilitator must be a department head.' using errcode = '22023';
+  end if;
+
+  if coalesce(btrim(p_purpose), '') = '' then
+    raise exception 'Write the purpose of the meeting.' using errcode = '22023';
+  end if;
+
+  select coalesce(is_head, false) into v_applicant_is_head from public.employees where id = v_applicant;
+
+  if v_applicant_is_head then
+    v_status := 'PENDING_HR';
+    v_head := null;
+  else
+    v_status := 'PENDING_HEAD';
+    if p_head_id is null or not exists (
+      select 1 from public.employees
+      where id = p_head_id and coalesce(is_head, false) and coalesce(is_deleted, false) = false
+    ) then
+      raise exception 'Choose the department head who approves this request.' using errcode = '22023';
+    end if;
+    v_head := p_head_id;
+  end if;
+
+  select coalesce(array_agg(btrim(g)) filter (where btrim(g) <> ''), '{}')
+    into v_guests from unnest(coalesce(p_guests, '{}')) as g;
+
+  insert into public.meeting_requests (
+    applicant_id, venue_id, starts_at, ends_at, facilitator_id, purpose, guests, status, head_id
+  ) values (
+    v_applicant, p_venue_id, p_starts_at, p_ends_at, p_facilitator_id, btrim(p_purpose), v_guests, v_status, v_head
+  ) returning id into v_id;
+
+  insert into public.meeting_request_participants (request_id, employee_id)
+  select v_id, e.id from public.employees e
+  where e.id = any(coalesce(p_participant_ids, '{}'))
+  on conflict do nothing;
+
+  perform public.log_meeting_request_event(
+    v_id, v_applicant, 'FILED', null, v_status,
+    jsonb_build_object('venue_id', p_venue_id, 'starts_at', p_starts_at, 'ends_at', p_ends_at,
+                       'facilitator_id', p_facilitator_id, 'head_id', v_head),
+    null
+  );
+
+  return v_id;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.float4_dist(real, real)
+ RETURNS real
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$float4_dist$function$
+;
+CREATE OR REPLACE FUNCTION public.float8_dist(double precision, double precision)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$float8_dist$function$
 ;
 CREATE OR REPLACE FUNCTION public.flow_snapshot_next_version(p_flow_id uuid, p_snapshot_data jsonb)
  RETURNS TABLE(version_major integer, version_minor integer)
@@ -10404,55 +12019,1061 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.get_calendar_offset_leaves(p_start date DEFAULT NULL::date, p_end date DEFAULT NULL::date)
- RETURNS jsonb
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select coalesce(jsonb_agg(row order by created_at desc), '[]'::jsonb)
-  from (
-    select l.created_at,
-      jsonb_build_object(
-        'id', l.id, 'employee_id', l.employee_id, 'date', l.date,
-        'start_time', l.start_time, 'end_time', l.end_time, 'hours', l.hours,
-        'status', l.status, 'leave_group_id', l.leave_group_id,
-        'employee', jsonb_build_object('id', e.id, 'name', e.name, 'department', e.department, 'avatar_path', e.avatar_path),
-        'category', case when c.id is null then null else jsonb_build_object('label', c.label) end
-      ) as row
-    from public.offset_leaves l
-    left join public.employees e on e.id = l.employee_id
-    left join public.hr_leave_categories c on c.id = l.category_id
-    where (l.status = 'APPROVED' or l.employee_id = public.get_employee_id())
-      and (p_start is null or l.date >= p_start)
-      and (p_end is null or l.date < p_end)
-  ) s;
-$function$
+CREATE OR REPLACE FUNCTION public.gbt_bit_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bit_compress$function$
 ;
-CREATE OR REPLACE FUNCTION public.get_calendar_sil_leaves(p_start date DEFAULT NULL::date, p_end date DEFAULT NULL::date)
- RETURNS jsonb
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select coalesce(jsonb_agg(row order by created_at desc), '[]'::jsonb)
-  from (
-    select l.created_at,
-      jsonb_build_object(
-        'id', l.id, 'employee_id', l.employee_id, 'date', l.date,
-        'start_time', l.start_time, 'end_time', l.end_time, 'hours', l.hours,
-        'status', l.status, 'leave_group_id', l.leave_group_id,
-        'employee', jsonb_build_object('id', e.id, 'name', e.name, 'department', e.department, 'avatar_path', e.avatar_path),
-        'category', case when c.id is null then null else jsonb_build_object('label', c.label) end
-      ) as row
-    from public.sil_leaves l
-    left join public.employees e on e.id = l.employee_id
-    left join public.hr_leave_categories c on c.id = l.category_id
-    where (l.status = 'APPROVED' or l.employee_id = public.get_employee_id())
-      and (p_start is null or l.date >= p_start)
-      and (p_end is null or l.date < p_end)
-  ) s;
-$function$
+CREATE OR REPLACE FUNCTION public.gbt_bit_consistent(internal, bit, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bit_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bit_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bit_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bit_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bit_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bit_same(gbtreekey_var, gbtreekey_var, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bit_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bit_union(internal, internal)
+ RETURNS gbtreekey_var
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bit_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bool_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE STRICT
+AS '$libdir/btree_gist', $function$gbt_bool_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bool_consistent(internal, boolean, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE STRICT
+AS '$libdir/btree_gist', $function$gbt_bool_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bool_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE STRICT
+AS '$libdir/btree_gist', $function$gbt_bool_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bool_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE STRICT
+AS '$libdir/btree_gist', $function$gbt_bool_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bool_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE STRICT
+AS '$libdir/btree_gist', $function$gbt_bool_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bool_same(gbtreekey2, gbtreekey2, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE STRICT
+AS '$libdir/btree_gist', $function$gbt_bool_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bool_union(internal, internal)
+ RETURNS gbtreekey2
+ LANGUAGE c
+ IMMUTABLE STRICT
+AS '$libdir/btree_gist', $function$gbt_bool_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bpchar_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bpchar_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bpchar_consistent(internal, character, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bpchar_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bytea_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bytea_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bytea_consistent(internal, bytea, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bytea_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bytea_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bytea_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bytea_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bytea_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bytea_same(gbtreekey_var, gbtreekey_var, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bytea_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_bytea_union(internal, internal)
+ RETURNS gbtreekey_var
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_bytea_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_cash_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_cash_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_cash_consistent(internal, money, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_cash_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_cash_distance(internal, money, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_cash_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_cash_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_cash_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_cash_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_cash_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_cash_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_cash_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_cash_same(gbtreekey16, gbtreekey16, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_cash_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_cash_union(internal, internal)
+ RETURNS gbtreekey16
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_cash_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_date_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_date_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_date_consistent(internal, date, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_date_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_date_distance(internal, date, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_date_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_date_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_date_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_date_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_date_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_date_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_date_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_date_same(gbtreekey8, gbtreekey8, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_date_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_date_union(internal, internal)
+ RETURNS gbtreekey8
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_date_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_decompress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_decompress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_enum_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_enum_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_enum_consistent(internal, anyenum, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_enum_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_enum_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_enum_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_enum_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_enum_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_enum_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_enum_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_enum_same(gbtreekey8, gbtreekey8, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_enum_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_enum_union(internal, internal)
+ RETURNS gbtreekey8
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_enum_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float4_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float4_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float4_consistent(internal, real, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float4_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float4_distance(internal, real, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float4_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float4_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float4_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float4_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float4_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float4_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float4_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float4_same(gbtreekey8, gbtreekey8, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float4_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float4_union(internal, internal)
+ RETURNS gbtreekey8
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float4_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float8_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float8_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float8_consistent(internal, double precision, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float8_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float8_distance(internal, double precision, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float8_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float8_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float8_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float8_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float8_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float8_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float8_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float8_same(gbtreekey16, gbtreekey16, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float8_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_float8_union(internal, internal)
+ RETURNS gbtreekey16
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_float8_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_inet_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_inet_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_inet_consistent(internal, inet, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_inet_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_inet_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_inet_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_inet_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_inet_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_inet_same(gbtreekey16, gbtreekey16, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_inet_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_inet_union(internal, internal)
+ RETURNS gbtreekey16
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_inet_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int2_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int2_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int2_consistent(internal, smallint, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int2_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int2_distance(internal, smallint, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int2_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int2_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int2_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int2_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int2_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int2_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int2_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int2_same(gbtreekey4, gbtreekey4, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int2_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int2_union(internal, internal)
+ RETURNS gbtreekey4
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int2_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int4_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int4_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int4_consistent(internal, integer, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int4_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int4_distance(internal, integer, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int4_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int4_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int4_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int4_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int4_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int4_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int4_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int4_same(gbtreekey8, gbtreekey8, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int4_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int4_union(internal, internal)
+ RETURNS gbtreekey8
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int4_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int8_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int8_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int8_consistent(internal, bigint, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int8_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int8_distance(internal, bigint, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int8_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int8_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int8_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int8_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int8_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int8_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int8_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int8_same(gbtreekey16, gbtreekey16, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int8_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_int8_union(internal, internal)
+ RETURNS gbtreekey16
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_int8_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_intv_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_intv_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_intv_consistent(internal, interval, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_intv_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_intv_decompress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_intv_decompress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_intv_distance(internal, interval, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_intv_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_intv_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_intv_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_intv_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_intv_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_intv_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_intv_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_intv_same(gbtreekey32, gbtreekey32, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_intv_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_intv_union(internal, internal)
+ RETURNS gbtreekey32
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_intv_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad8_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad8_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad8_consistent(internal, macaddr8, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad8_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad8_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad8_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad8_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad8_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad8_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad8_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad8_same(gbtreekey16, gbtreekey16, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad8_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad8_union(internal, internal)
+ RETURNS gbtreekey16
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad8_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad_consistent(internal, macaddr, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad_same(gbtreekey16, gbtreekey16, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_macad_union(internal, internal)
+ RETURNS gbtreekey16
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_macad_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_numeric_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_numeric_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_numeric_consistent(internal, numeric, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_numeric_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_numeric_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_numeric_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_numeric_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_numeric_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_numeric_same(gbtreekey_var, gbtreekey_var, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_numeric_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_numeric_union(internal, internal)
+ RETURNS gbtreekey_var
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_numeric_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_oid_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_oid_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_oid_consistent(internal, oid, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_oid_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_oid_distance(internal, oid, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_oid_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_oid_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_oid_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_oid_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_oid_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_oid_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_oid_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_oid_same(gbtreekey8, gbtreekey8, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_oid_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_oid_union(internal, internal)
+ RETURNS gbtreekey8
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_oid_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_text_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_text_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_text_consistent(internal, text, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_text_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_text_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_text_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_text_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_text_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_text_same(gbtreekey_var, gbtreekey_var, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_text_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_text_union(internal, internal)
+ RETURNS gbtreekey_var
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_text_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_time_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_time_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_time_consistent(internal, time without time zone, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_time_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_time_distance(internal, time without time zone, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_time_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_time_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_time_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_time_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_time_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_time_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_time_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_time_same(gbtreekey16, gbtreekey16, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_time_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_time_union(internal, internal)
+ RETURNS gbtreekey16
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_time_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_timetz_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_timetz_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_timetz_consistent(internal, time with time zone, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_timetz_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_ts_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_ts_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_ts_consistent(internal, timestamp without time zone, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_ts_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_ts_distance(internal, timestamp without time zone, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_ts_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_ts_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_ts_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_ts_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_ts_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_ts_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_ts_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_ts_same(gbtreekey16, gbtreekey16, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_ts_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_ts_union(internal, internal)
+ RETURNS gbtreekey16
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_ts_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_tstz_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_tstz_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_tstz_consistent(internal, timestamp with time zone, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_tstz_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_tstz_distance(internal, timestamp with time zone, smallint, oid, internal)
+ RETURNS double precision
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_tstz_distance$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_uuid_compress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_uuid_compress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_uuid_consistent(internal, uuid, smallint, oid, internal)
+ RETURNS boolean
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_uuid_consistent$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_uuid_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_uuid_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_uuid_penalty(internal, internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_uuid_penalty$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_uuid_picksplit(internal, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_uuid_picksplit$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_uuid_same(gbtreekey32, gbtreekey32, internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_uuid_same$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_uuid_union(internal, internal)
+ RETURNS gbtreekey32
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_uuid_union$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_var_decompress(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_var_decompress$function$
+;
+CREATE OR REPLACE FUNCTION public.gbt_var_fetch(internal)
+ RETURNS internal
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbt_var_fetch$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey16_in(cstring)
+ RETURNS gbtreekey16
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_in$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey16_out(gbtreekey16)
+ RETURNS cstring
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_out$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey2_in(cstring)
+ RETURNS gbtreekey2
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_in$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey2_out(gbtreekey2)
+ RETURNS cstring
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_out$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey32_in(cstring)
+ RETURNS gbtreekey32
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_in$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey32_out(gbtreekey32)
+ RETURNS cstring
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_out$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey4_in(cstring)
+ RETURNS gbtreekey4
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_in$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey4_out(gbtreekey4)
+ RETURNS cstring
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_out$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey8_in(cstring)
+ RETURNS gbtreekey8
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_in$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey8_out(gbtreekey8)
+ RETURNS cstring
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_out$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey_var_in(cstring)
+ RETURNS gbtreekey_var
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_in$function$
+;
+CREATE OR REPLACE FUNCTION public.gbtreekey_var_out(gbtreekey_var)
+ RETURNS cstring
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$gbtreekey_out$function$
 ;
 CREATE OR REPLACE FUNCTION public.get_employee_id()
  RETURNS uuid
@@ -10554,6 +13175,17 @@ AS $function$BEGIN
     ORDER BY c.latest_created_at DESC
     LIMIT p_limit;
 END;$function$
+;
+CREATE OR REPLACE FUNCTION public.group_task_is_stage_action(p_stage_action_id uuid, p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select p_stage_action_id is not null
+     and p_opportunity_id is not null
+     and exists (select 1 from public.flow_stage_actions a where a.id = p_stage_action_id)
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.group_task_template_can_edit(p_template_id uuid)
  RETURNS boolean
@@ -10692,6 +13324,30 @@ CREATE OR REPLACE FUNCTION public.has_purchasing_access()
 AS $function$
   select public._employee_has_purchasing_access(get_employee_id());
 $function$
+;
+CREATE OR REPLACE FUNCTION public.int2_dist(smallint, smallint)
+ RETURNS smallint
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$int2_dist$function$
+;
+CREATE OR REPLACE FUNCTION public.int4_dist(integer, integer)
+ RETURNS integer
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$int4_dist$function$
+;
+CREATE OR REPLACE FUNCTION public.int8_dist(bigint, bigint)
+ RETURNS bigint
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$int8_dist$function$
+;
+CREATE OR REPLACE FUNCTION public.interval_dist(interval, interval)
+ RETURNS interval
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$interval_dist$function$
 ;
 CREATE OR REPLACE FUNCTION public.invoke_cron_edge_function(p_function text, p_query text DEFAULT ''::text, p_timeout_ms integer DEFAULT 120000)
  RETURNS bigint
@@ -12351,7 +15007,6 @@ declare
   v_gantt boolean;
   v_label text;
   v_remarks text;
-  v_missing text;
   v_changes jsonb := '{}'::jsonb;
 begin
   if v_actor is null then
@@ -12454,15 +15109,6 @@ begin
     if v_status is null or v_status not in ('encoding', 'encoded', 'lc_gs_done', 'lc_odoo_done') then
       raise exception 'ipas_set_header: the computation status is Encoding, Encoded, LC GS Done or LC Odoo Done'
         using errcode = '22023';
-    end if;
-    -- #604: LC Odoo Done makes Landed Cost final, and a final Landed Cost needs the pesos actually
-    -- paid. Refused while a foreign-currency payment has "Pesos taken from the bank" blank.
-    if v_status = 'lc_odoo_done' and v_status is distinct from v_row.computation_status then
-      v_missing := public._ipas_payments_missing_pesos(v_row.id);
-      if v_missing is not null then
-        raise exception 'ipas_set_header: LC Odoo Done needs the pesos taken from the bank on every foreign-currency payment. Still blank: %', v_missing
-          using errcode = '22023';
-      end if;
     end if;
   end if;
 
@@ -13912,6 +16558,22 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.log_meeting_request_event(p_request_id uuid, p_actor_id uuid, p_action text, p_from_status text, p_to_status text, p_changed_fields jsonb DEFAULT NULL::jsonb, p_note text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into public.meeting_request_events (request_id, actor_id, action, from_status, to_status, changed_fields, note)
+  values (p_request_id, p_actor_id, p_action, p_from_status, p_to_status, p_changed_fields, p_note);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.manila_today()
+ RETURNS date
+ LANGUAGE sql
+ STABLE
+AS $function$ SELECT (now() AT TIME ZONE 'Asia/Manila')::date $function$
+;
 CREATE OR REPLACE FUNCTION public.mark_bug_report_files_purged(p_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -13932,6 +16594,89 @@ begin
   if not found then
     raise exception 'Bug report not found, or not a year old yet.';
   end if;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.meeting_request_holder(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_exclude_id uuid DEFAULT NULL::uuid)
+ RETURNS TABLE(id uuid, purpose text, starts_at timestamp with time zone, ends_at timestamp with time zone, applicant_name text, venue_name text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select m.id, m.purpose, m.starts_at, m.ends_at, e.name, v.name
+    from public.meeting_requests m
+    join public.employees e on e.id = m.applicant_id
+    join public.calendar_venues v on v.id = m.venue_id
+    where public.get_employee_id() is not null
+      and m.venue_id = p_venue_id
+      and m.status in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED')
+      and tstzrange(m.starts_at, m.ends_at, '[)') && tstzrange(p_starts_at, p_ends_at, '[)')
+      and (p_exclude_id is null or m.id <> p_exclude_id)
+    order by m.starts_at
+    limit 1;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.meeting_request_participants_broadcast_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', coalesce(new.request_id, old.request_id)),
+      tg_op,
+      'meeting_request_participants-changes',
+      true
+    );
+  exception when others then
+    null;
+  end;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.meeting_requests_broadcast_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', coalesce(new.id, old.id)),
+      tg_op,
+      'meeting_requests-changes',
+      true -- private: gated by the realtime.messages policy, not public
+    );
+  exception when others then
+    null;
+  end;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.meeting_requests_guard_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.starts_at < now() then
+    raise exception 'A meeting cannot start in the past.' using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.meeting_requests_touch()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  new.updated_at := now();
+  return new;
 end;
 $function$
 ;
@@ -14047,6 +16792,12 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.oid_dist(oid, oid)
+ RETURNS oid
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$oid_dist$function$
+;
 CREATE OR REPLACE FUNCTION public.order_ageing_rules_stamp()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -14131,6 +16882,69 @@ begin
         source = 'override',
         overridden_by = excluded.overridden_by,
         overridden_at = excluded.overridden_at;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.override_meeting_request_head(p_request_id uuid, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_is_hr boolean := false;
+  v_req public.meeting_requests%rowtype;
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+begin
+  if v_actor is null then
+    raise exception 'Sign in to override the head step.' using errcode = '42501';
+  end if;
+
+  select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false)
+    into v_is_hr from public.employees e where e.id = v_actor;
+  if not coalesce(v_is_hr, false) then
+    raise exception 'Only HR can skip the department head step.' using errcode = '42501';
+  end if;
+
+  select * into v_req from public.meeting_requests where id = p_request_id for update;
+  if not found then
+    raise exception 'Meeting Request not found.' using errcode = 'P0002';
+  end if;
+
+  if v_req.status <> 'PENDING_HEAD' then
+    raise exception 'Only a request waiting for its head can have the head step skipped.' using errcode = '22023';
+  end if;
+
+  if v_req.applicant_id = v_actor then
+    raise exception 'You cannot override the head step on your own Meeting Request.' using errcode = '42501';
+  end if;
+
+  if v_reason is null then
+    raise exception 'Write the reason for skipping the head step.' using errcode = '22023';
+  end if;
+
+  update public.meeting_requests set
+    status = 'PENDING_HR',
+    hr_override = true,
+    hr_decided_by = v_actor,
+    hr_note = v_reason
+  where id = p_request_id;
+
+  perform public.log_meeting_request_event(
+    p_request_id, v_actor, 'HR_OVERRIDE', v_req.status, 'PENDING_HR',
+    jsonb_build_object('hr_override', true, 'routed_head_id', v_req.head_id), v_reason
+  );
+
+  return jsonb_build_object(
+    'id', p_request_id,
+    'action', 'HR_OVERRIDE',
+    'from_status', v_req.status,
+    'to_status', 'PENDING_HR',
+    'applicant_id', v_req.applicant_id,
+    'facilitator_id', v_req.facilitator_id,
+    'participant_ids', '[]'::jsonb
+  );
 end;
 $function$
 ;
@@ -15324,6 +18138,42 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_keep_item_as_asked(p_item_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_fn constant text := 'purchase_request_keep_item_as_asked';
+  v_item public.purchase_request_items;
+  v_line public.sales_opportunity_items;
+begin
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if v_item.id is null then
+    raise exception '%: item % not found', v_fn, p_item_id using errcode = 'P0002';
+  end if;
+
+  perform public._purchase_request_for_adding(v_item.request_id, v_fn);
+
+  if v_item.source <> 'sor_line' then
+    raise exception '%: only an item picked from the SOR has a line to keep', v_fn using errcode = '22023';
+  end if;
+  if v_item.status in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled') then
+    raise exception '%: this item is closed, so it keeps what was asked', v_fn using errcode = '22023';
+  end if;
+
+  v_line := public._purchase_request_item_sor_line(v_item);
+  if v_line.id is null then
+    raise exception '%: the SOR no longer has this line', v_fn using errcode = 'P0002';
+  end if;
+
+  update public.purchase_request_items
+  set sor_change_seen = jsonb_build_object('quantity', v_line.quantity, 'unit', nullif(btrim(v_line.unit), ''))
+  where id = v_item.id;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchase_request_member_side(p_opportunity_id uuid, p_employee_id uuid)
  RETURNS text
  LANGUAGE sql
@@ -15866,6 +18716,79 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_update_item_from_sor(p_item_id uuid, p_reason text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_fn constant text := 'purchase_request_update_item_from_sor';
+  v_item public.purchase_request_items;
+  v_line public.sales_opportunity_items;
+  v_reason text := nullif(btrim(p_reason), '');
+  v_unit text;
+  v_before text;
+  v_after text;
+begin
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if v_item.id is null then
+    raise exception '%: item % not found', v_fn, p_item_id using errcode = 'P0002';
+  end if;
+
+  perform public._purchase_request_for_adding(v_item.request_id, v_fn);
+
+  if v_item.source <> 'sor_line' then
+    raise exception '%: only an item picked from the SOR can follow it', v_fn using errcode = '22023';
+  end if;
+  if v_item.status in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled') then
+    raise exception '%: this item is closed, so it keeps what was asked', v_fn using errcode = '22023';
+  end if;
+
+  v_line := public._purchase_request_item_sor_line(v_item);
+  if v_line.id is null then
+    raise exception '%: the SOR no longer has this line', v_fn using errcode = 'P0002';
+  end if;
+  if coalesce(v_line.quantity, 0) <= 0 then
+    raise exception '%: the SOR line has no quantity', v_fn using errcode = '22023';
+  end if;
+
+  v_unit := nullif(btrim(v_line.unit), '');
+  if v_line.quantity = (v_item.sor_line_snapshot->>'quantity')::numeric
+     and lower(coalesce(v_unit, '')) = lower(coalesce(btrim(v_item.sor_line_snapshot->>'unit'), '')) then
+    raise exception '%: the item already says what the SOR says', v_fn using errcode = '22023';
+  end if;
+
+  if v_item.status = 'ordered' and v_reason is null then
+    raise exception '%: this item is already ordered, so say why it follows the SOR', v_fn using errcode = '22023';
+  end if;
+
+  v_before := public._purchase_request_amount(v_item.quantity, v_item.unit);
+  v_after := public._purchase_request_amount(v_line.quantity, v_unit);
+
+  update public.purchase_request_items
+  set quantity = v_line.quantity,
+      unit = v_unit,
+      sor_line_snapshot = jsonb_set(
+        jsonb_set(coalesce(sor_line_snapshot, '{}'::jsonb), '{quantity}', to_jsonb(v_line.quantity)),
+        '{unit}', coalesce(to_jsonb(v_unit), 'null'::jsonb)
+      ),
+      sor_change_seen = null
+  where id = v_item.id;
+
+  insert into public.purchase_request_messages (request_id, author_id, content, metadata)
+  values (
+    v_item.request_id,
+    public.get_employee_id(),
+    format('Updated %s from %s to %s, as the SOR now says.', v_item.name, v_before, v_after)
+      || coalesce(' Reason: ' || v_reason, ''),
+    jsonb_build_object('event', 'item_followed_sor', 'item_id', v_item.id, 'from', v_before, 'to', v_after)
+  );
+
+  update public.purchase_requests set updated_at = now() where id = v_item.request_id;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchasing_dashboard_rows()
  RETURNS TABLE(opportunity_id uuid, sales_reference text, project_title text, grp text, target_kind text, target_id uuid, target_label text, item_count integer, no_canvass_count integer, buyer_id uuid, canvasser_id uuid, since timestamp with time zone, request_id uuid)
  LANGUAGE sql
@@ -16028,6 +18951,74 @@ AS $function$
     where public.currency_rates.overridden_at is null;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.record_lwop_leave_as_approved(p_group_id uuid, p_hr_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare
+  v_employee_id uuid;
+  v_application_hash text;
+  v_row_count integer;
+  v_pending_count integer;
+  v_total_hours numeric;
+  v_dates date[];
+  v_approval_hash text;
+  v_hr_signature_version text;
+  v_hr_signature_timestamp timestamptz;
+  v_now timestamptz := now();
+begin
+  if not (coalesce(public.is_hr(), false) or coalesce(public.is_super_admin(), false)) then
+    raise exception 'Only HR or a Super Admin can record an LWOP.';
+  end if;
+
+  perform 1 from lwop_leaves where leave_group_id = p_group_id order by id for update;
+
+  select count(*), count(*) filter (where status = 'PENDING'), coalesce(sum(hours), 0), array_agg(date order by date)
+    into v_row_count, v_pending_count, v_total_hours, v_dates
+    from lwop_leaves where leave_group_id = p_group_id;
+
+  if v_row_count = 0 then
+    raise exception 'Leave application not found.';
+  end if;
+
+  if v_pending_count <> v_row_count then
+    raise exception 'This leave application has already been decided.';
+  end if;
+
+  select employee_id, application_hash
+    into v_employee_id, v_application_hash
+    from lwop_leaves where leave_group_id = p_group_id order by id limit 1;
+
+  select signature_path into v_hr_signature_version from employees where id = p_hr_id;
+  if v_hr_signature_version is not null then
+    v_hr_signature_timestamp := v_now;
+  end if;
+
+  v_approval_hash := encode(digest(
+    format('%s|%s|%s|%s', v_application_hash, 'APPROVED', coalesce(p_hr_id::text, ''), ''),
+    'sha256'), 'hex');
+
+  update lwop_leaves set
+    status = 'APPROVED',
+    head_status = 'APPROVED',
+    recorded_by_hr = true,
+    hr_processed_by = p_hr_id,
+    hr_processed_at = v_now,
+    approval_hash = v_approval_hash,
+    hr_signature_version = v_hr_signature_version,
+    hr_signature_timestamp = v_hr_signature_timestamp
+  where leave_group_id = p_group_id;
+
+  return jsonb_build_object(
+    'rows', (select jsonb_agg(to_jsonb(l) order by l.date) from lwop_leaves l where l.leave_group_id = p_group_id),
+    'employee_id', v_employee_id,
+    'total_hours', v_total_hours,
+    'dates', to_jsonb(v_dates)
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.record_stage_visit()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -16146,6 +19137,69 @@ BEGIN
     UPDATE hr_leave_categories SET sort_order = item.sort_order, updated_at = now() WHERE id = item.id;
   END LOOP;
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.resend_meeting_request(p_request_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_req public.meeting_requests%rowtype;
+  v_is_head boolean;
+  v_to text;
+begin
+  if v_actor is null then
+    raise exception 'Sign in to send a Meeting Request again.' using errcode = '42501';
+  end if;
+
+  select * into v_req from public.meeting_requests where id = p_request_id for update;
+  if not found then
+    raise exception 'Meeting Request not found.' using errcode = 'P0002';
+  end if;
+
+  if v_req.applicant_id <> v_actor then
+    raise exception 'Only the person who filed this Meeting Request can send it again.' using errcode = '42501';
+  end if;
+
+  if v_req.status <> 'RETURNED' then
+    raise exception 'Only a returned Meeting Request can be sent again.' using errcode = '22023';
+  end if;
+
+  if v_req.starts_at <= now() then
+    raise exception 'This meeting has already started, so it can no longer be sent again.' using errcode = '22023';
+  end if;
+
+  select coalesce(is_head, false) into v_is_head from public.employees where id = v_actor;
+  v_to := case when v_is_head then 'PENDING_HR' else 'PENDING_HEAD' end;
+
+  if v_to = 'PENDING_HEAD' and v_req.head_id is null then
+    raise exception 'Choose the department head who approves this request.' using errcode = '22023';
+  end if;
+
+  update public.meeting_requests set
+    status = v_to,
+    head_decided_at = null, head_note = null,
+    hr_override = false, hr_decided_by = null, hr_decided_at = null, hr_note = null
+  where id = p_request_id;
+
+  perform public.log_meeting_request_event(p_request_id, v_actor, 'RESENT', v_req.status, v_to, null, null);
+
+  return jsonb_build_object(
+    'id', p_request_id,
+    'action', 'RESENT',
+    'from_status', v_req.status,
+    'to_status', v_to,
+    'head_id', v_req.head_id,
+    'applicant_id', v_req.applicant_id,
+    'facilitator_id', v_req.facilitator_id,
+    'participant_ids', coalesce((
+      select jsonb_agg(mp.employee_id) from public.meeting_request_participants mp where mp.request_id = p_request_id
+    ), '[]'::jsonb)
+  );
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.restore_flow_snapshot(p_flow_id uuid, p_snapshot_id uuid)
@@ -16641,6 +19695,129 @@ begin
   new.updated_at := now();
   return new;
 end $function$
+;
+CREATE OR REPLACE FUNCTION public.send_group_task_evaluation_reminders()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_reminded integer;
+  v_escalated integer;
+begin
+  with due as (
+    update public.committee_tasks ct
+       set evaluation_reminders_sent = ct.evaluation_reminders_sent + 1
+     where ct.status = 'AWAITING_EVALUATION'
+       and ct.auto_evaluation
+       and ct.awaiting_evaluation_at is not null
+       and ct.evaluation_reminders_sent < 3
+       and ct.awaiting_evaluation_at + interval '3 days' * (ct.evaluation_reminders_sent + 1) <= now()
+    returning ct.id, ct.title, ct.created_by, ct.evaluator_id
+  ),
+  ins as (
+    insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+    select coalesce(d.evaluator_id, d.created_by),
+           null,
+           'GROUP_TASK_EVALUATION_REMINDER',
+           'Group task still needs your rating',
+           format('"%s" is done and still waiting for you to rate it.', d.title),
+           d.id
+      from due d
+    returning 1
+  )
+  select count(*) into v_reminded from ins;
+
+  with escalated as (
+    update public.committee_tasks ct
+       set evaluation_reminders_sent = 4
+     where ct.status = 'AWAITING_EVALUATION'
+       and ct.auto_evaluation
+       and ct.awaiting_evaluation_at is not null
+       and ct.evaluation_reminders_sent = 3
+       and ct.awaiting_evaluation_at + interval '12 days' <= now()
+    returning ct.id, ct.title, ct.created_by, coalesce(ct.evaluator_id, ct.created_by) as evaluator_id
+  ),
+  people as (
+    select x.id as task_id, x.title, x.evaluator_id, x.created_by as person_id
+      from escalated x
+    union
+    select x.id, x.title, x.evaluator_id, h.id
+      from escalated x
+      join public.employees ev on ev.id = x.evaluator_id
+      join public.employees h
+        on h.is_head
+       and not coalesce(h.is_deleted, false)
+       and h.department = ev.department
+  ),
+  ins as (
+    insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+    select p.person_id,
+           null,
+           'GROUP_TASK_EVALUATION_REMINDER',
+           'Group task is still not rated',
+           format('"%s" has waited 12 days for %s to rate it.', p.title, coalesce(ev.name, 'its evaluator')),
+           p.task_id
+      from people p
+      left join public.employees ev on ev.id = p.evaluator_id
+     where p.person_id <> p.evaluator_id
+    returning 1
+  )
+  select count(*) into v_escalated from ins;
+
+  return coalesce(v_reminded, 0) + coalesce(v_escalated, 0);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.send_meeting_reminders()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_count integer;
+begin
+  with due as (
+    update public.meeting_requests r
+       set reminder_sent_at = now()
+     where r.status = 'APPROVED'
+       and r.reminder_sent_at is null
+       and r.starts_at > now()
+       and r.starts_at <= now() + interval '15 minutes'
+    returning r.id, r.applicant_id, r.facilitator_id, r.venue_id, r.starts_at, r.purpose
+  ),
+  people as (
+    select d.id as request_id, d.applicant_id as person_id from due d
+    union
+    select d.id, d.facilitator_id from due d
+    union
+    select d.id, p.employee_id
+      from due d
+      join public.meeting_request_participants p on p.request_id = d.id
+  ),
+  ins as (
+    insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+    select pe.person_id,
+           null,
+           'MEETING_REMINDER',
+           'Meeting starts soon',
+           format('%s, %s: %s',
+                  coalesce(v.name, 'Venue'),
+                  to_char(d.starts_at at time zone 'Asia/Manila', 'Mon FMDD, FMHH12:MI AM'),
+                  d.purpose),
+           d.id
+      from people pe
+      join due d on d.id = pe.request_id
+      left join public.calendar_venues v on v.id = d.venue_id
+    returning 1
+  )
+  select count(*) into v_count from ins;
+
+  return coalesce(v_count, 0);
+end;
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.set_bug_report_resolved(p_id uuid, p_resolved boolean)
  RETURNS void
@@ -17196,7 +20373,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.sor_create_stage_group_task_action(p_run_id uuid, p_title text, p_description text, p_members jsonb, p_due_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_template_id uuid DEFAULT NULL::uuid, p_tag_ids uuid[] DEFAULT NULL::uuid[], p_created_by uuid DEFAULT NULL::uuid)
+CREATE OR REPLACE FUNCTION public.sor_create_stage_group_task_action(p_run_id uuid, p_title text, p_description text, p_members jsonb, p_due_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_template_id uuid DEFAULT NULL::uuid, p_tag_ids uuid[] DEFAULT NULL::uuid[], p_created_by uuid DEFAULT NULL::uuid, p_evaluator_id uuid DEFAULT NULL::uuid)
  RETURNS committee_tasks
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -17239,12 +20416,16 @@ begin
   end if;
 
   insert into public.committee_tasks (
-    title, description, created_by, due_date, status,
+    title, description, created_by, evaluator_id, due_date, status,
     template_id, opportunity_id, stage_action_id, stage_visit_id
   ) values (
     p_title,
     p_description,
     coalesce(p_created_by, v_actor),
+    coalesce(
+      p_evaluator_id,
+      (select o.deal_owner_id from public.sales_opportunities o where o.id = v_run.opportunity_id)
+    ),
     p_due_date,
     'ACTIVE',
     p_template_id,
@@ -19214,7 +22395,8 @@ begin
               (select array_agg(t::uuid) from jsonb_array_elements_text(v_action->'tag_ids') t)
             else null
           end,
-          nullif(v_action->>'created_by', '')::uuid
+          nullif(v_action->>'created_by', '')::uuid,
+          nullif(v_action->>'evaluator_id', '')::uuid
         );
         v_created := v_created || jsonb_build_object(
           'action_id', v_action->>'action_id',
@@ -19590,6 +22772,27 @@ begin
   return null;
 end;
 $function$
+;
+CREATE OR REPLACE FUNCTION public.tasks_cancel_closes_windows()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.status = 'DELETED' and old.status is distinct from 'DELETED' then
+    perform public.close_windows_for_cancelled_stage_task(
+      new.opportunity_id, new.stage_action_id, new.stage_visit_id, array[new.logged_by]);
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.time_dist(time without time zone, time without time zone)
+ RETURNS interval
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$time_dist$function$
 ;
 CREATE OR REPLACE FUNCTION public.toggle_chat_reaction(p_table text, p_message_id uuid, p_user_id uuid, p_emoji text)
  RETURNS jsonb
@@ -21136,6 +24339,68 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ts_dist(timestamp without time zone, timestamp without time zone)
+ RETURNS interval
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$ts_dist$function$
+;
+CREATE OR REPLACE FUNCTION public.tstz_dist(timestamp with time zone, timestamp with time zone)
+ RETURNS interval
+ LANGUAGE c
+ IMMUTABLE PARALLEL SAFE STRICT
+AS '$libdir/btree_gist', $function$tstz_dist$function$
+;
+CREATE OR REPLACE FUNCTION public.undo_lwop_leave_decision(p_group_id uuid, p_hr_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare
+  v_employee_id uuid;
+  v_previous_status text;
+  v_row_count integer;
+  v_total_hours numeric;
+  v_dates date[];
+begin
+  perform 1 from lwop_leaves where leave_group_id = p_group_id order by id for update;
+
+  select count(*), coalesce(sum(hours), 0), array_agg(date order by date)
+    into v_row_count, v_total_hours, v_dates
+    from lwop_leaves where leave_group_id = p_group_id;
+
+  if v_row_count = 0 then
+    raise exception 'Leave application not found.';
+  end if;
+
+  select employee_id, status
+    into v_employee_id, v_previous_status
+    from lwop_leaves where leave_group_id = p_group_id order by id limit 1;
+
+  if v_previous_status = 'PENDING' then
+    raise exception 'Leave is already pending.';
+  end if;
+
+  update lwop_leaves set
+    status = 'PENDING',
+    hr_notes = null,
+    hr_processed_by = null,
+    hr_processed_at = null,
+    approval_hash = null,
+    hr_signature_version = null,
+    hr_signature_timestamp = null
+  where leave_group_id = p_group_id;
+
+  return jsonb_build_object(
+    'rows', (select jsonb_agg(to_jsonb(l) order by l.date) from lwop_leaves l where l.leave_group_id = p_group_id),
+    'employee_id', v_employee_id,
+    'total_hours', v_total_hours,
+    'dates', to_jsonb(v_dates),
+    'previous_status', v_previous_status
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.undo_offset_leave_decision(p_group_id uuid, p_hr_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -21184,6 +24449,7 @@ BEGIN
     approval_hash = NULL,
     hr_signature_version = NULL,
     hr_signature_timestamp = NULL,
+    hr_processed_at = NULL,
     approval_credits_snapshot = NULL,
     hr_processed_by = NULL,
     approved_hours = NULL
@@ -21245,6 +24511,7 @@ BEGIN
     approval_hash = NULL,
     hr_signature_version = NULL,
     hr_signature_timestamp = NULL,
+    hr_processed_at = NULL,
     approval_credits_snapshot = NULL,
     hr_processed_by = NULL
   WHERE id = p_request_id
@@ -21363,6 +24630,52 @@ BEGIN
 END;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.unsend_chat_message(p_table text, p_message_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_author uuid;
+  v_created timestamptz;
+  v_removed jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Not signed in';
+  end if;
+  if p_table not in ('task_activity', 'committee_task_activity') then
+    raise exception 'Invalid table %', p_table;
+  end if;
+
+  execute format('select author_id, created_at from public.%I where id = $1 and type = ''COMMENT''', p_table)
+    into v_author, v_created using p_message_id;
+
+  if v_created is null then
+    raise exception 'Message not found';
+  end if;
+  if v_author is distinct from auth.uid() then
+    raise exception 'You can only unsend your own messages';
+  end if;
+  if now() - v_created > interval '15 minutes' then
+    raise exception 'Messages can only be unsent within 15 minutes';
+  end if;
+
+  v_removed := jsonb_build_object('removed', true, 'removedAt', now());
+
+  execute format('update public.%I set content = ''Message removed'', metadata = $2 where id = $1', p_table)
+    using p_message_id, v_removed;
+
+  execute format($q$update public.%I
+    set metadata = jsonb_set(metadata, '{replyTo}',
+      (metadata->'replyTo') || '{"content":"Message removed","removed":true}'::jsonb)
+    where metadata->'replyTo'->>'id' = $1::text$q$, p_table)
+    using p_message_id;
+
+  return v_removed;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.verify_form_token(lookup_token text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -21373,7 +24686,6 @@ DECLARE
   client_ip TEXT;
   rate_limit_row RECORD;
   result_json JSONB;
-  settings RECORD;
   rec RECORD;
   group_dates TEXT[];
   group_hours NUMERIC;
@@ -21414,7 +24726,6 @@ BEGIN
     VALUES (client_ip, 1, NOW());
   END IF;
 
-  SELECT * INTO settings FROM public.hr_form_settings WHERE id = 1;
 
   -- Try SIL Leaves
   SELECT s.*, e.name AS employee_name, c.label AS category_label,
@@ -21453,7 +24764,7 @@ BEGIN
       'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
       'total_hours', group_hours,
       'status', rec.status,
-      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approver_name', rec.hr_name,
       'approval_date', COALESCE(to_char(rec.hr_processed_at, 'Mon DD, YYYY'), to_char(rec.updated_at, 'Mon DD, YYYY')),
       'application_valid', app_valid,
       'approval_valid', appr_valid,
@@ -21500,8 +24811,54 @@ BEGIN
       'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
       'total_hours', group_hours,
       'status', rec.status,
-      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approver_name', rec.hr_name,
       'approval_date', to_char(rec.updated_at, 'Mon DD, YYYY'),
+      'application_valid', app_valid,
+      'approval_valid', appr_valid,
+      'employee_signature_timestamp', rec.employee_signature_timestamp,
+      'hr_signature_timestamp', rec.hr_signature_timestamp
+    );
+    RETURN result_json;
+  END IF;
+
+  -- Try LWOP Leaves (#621). Records only: no balance, so the approval hash commits to an empty credit.
+  SELECT l.*, e.name AS employee_name, c.label AS category_label,
+         hr.name AS hr_name
+  INTO rec
+  FROM public.lwop_leaves l
+  JOIN public.employees e ON l.employee_id = e.id
+  LEFT JOIN public.hr_leave_categories c ON l.category_id = c.id
+  LEFT JOIN public.employees hr ON l.hr_processed_by = hr.id
+  WHERE l.verification_token = lookup_token;
+
+  IF FOUND THEN
+    SELECT array_agg(date::TEXT ORDER BY date), sum(hours) INTO group_dates, group_hours
+    FROM public.lwop_leaves WHERE leave_group_id = rec.leave_group_id;
+
+    dates_string := array_to_string(group_dates, ',');
+    canon_hours := COALESCE(trim_scale(round(group_hours, 2))::text, '');
+    computed_app_hash := encode(digest(
+      format('%s|%s|%s|%s|%s', rec.employee_id, COALESCE(rec.category_id::text, ''), dates_string, canon_hours, COALESCE(rec.reason, '')),
+      'sha256'), 'hex');
+    app_valid := (rec.application_hash IS NOT NULL) AND (computed_app_hash = rec.application_hash);
+
+    appr_valid := NULL;
+    IF rec.approval_hash IS NOT NULL AND (rec.status LIKE 'APPROVED%' OR rec.status = 'REJECTED') THEN
+      computed_appr_hash := encode(digest(
+        format('%s|%s|%s|%s', rec.application_hash, rec.status, COALESCE(rec.hr_processed_by::text, ''), ''),
+        'sha256'), 'hex');
+      appr_valid := (computed_appr_hash = rec.approval_hash);
+    END IF;
+
+    result_json := jsonb_build_object(
+      'form_type', 'LWOP',
+      'employee_name', rec.employee_name,
+      'category', rec.category_label,
+      'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
+      'total_hours', group_hours,
+      'status', rec.status,
+      'approver_name', rec.hr_name,
+      'approval_date', to_char(rec.hr_processed_at, 'Mon DD, YYYY'),
       'application_valid', app_valid,
       'approval_valid', appr_valid,
       'employee_signature_timestamp', rec.employee_signature_timestamp,
@@ -21543,7 +24900,7 @@ BEGIN
       'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
       'total_hours', rec.hours,
       'status', rec.status,
-      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approver_name', rec.hr_name,
       'approval_date', to_char(rec.updated_at, 'Mon DD, YYYY'),
       'application_valid', app_valid,
       'approval_valid', appr_valid,
@@ -21602,7 +24959,7 @@ BEGIN
   -- an approved leave has hours to give back, so only an approved leave is
   -- guarded: a pending one has spent nothing, and guarding it would strand a
   -- past-dated application with no way for the employee to take it back.
-  IF v_previous_status = 'APPROVED' AND v_first_date < CURRENT_DATE THEN
+  IF v_previous_status = 'APPROVED' AND v_first_date < public.manila_today() THEN
     RAISE EXCEPTION 'This leave started on % and has already been taken, so its hours cannot be withdrawn. Ask HR to undo the approval if the leave was not actually taken.', v_first_date;
   END IF;
 
@@ -21634,6 +24991,9 @@ $function$
 -- Triggers
 -- ============================================================
 
+CREATE TRIGGER trg_committee_task_activity_update_guard BEFORE UPDATE ON public.committee_task_activity FOR EACH ROW EXECUTE FUNCTION chat_message_update_guard();
+CREATE TRIGGER committee_tasks_cancel_closes_windows AFTER UPDATE OF status ON public.committee_tasks FOR EACH ROW EXECUTE FUNCTION committee_tasks_cancel_closes_windows();
+CREATE TRIGGER trg_committee_tasks_guard_manage BEFORE UPDATE ON public.committee_tasks FOR EACH ROW EXECUTE FUNCTION committee_tasks_guard_manage();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_bid_decisions FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_component AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
@@ -21720,6 +25080,11 @@ CREATE TRIGGER ipas_signoffs_guard BEFORE UPDATE ON public.ipas_signoffs FOR EAC
 CREATE TRIGGER ipas_signoffs_lc_fingerprint BEFORE INSERT ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_lc_fingerprint();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE ON public.ipas_sors DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_sors FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
+CREATE TRIGGER lwop_leaves_guard_head_status BEFORE UPDATE ON public.lwop_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
+CREATE TRIGGER meeting_request_participants_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.meeting_request_participants FOR EACH ROW EXECUTE FUNCTION meeting_request_participants_broadcast_change();
+CREATE TRIGGER meeting_requests_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_broadcast_change();
+CREATE TRIGGER meeting_requests_guard_insert BEFORE INSERT ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_guard_insert();
+CREATE TRIGGER meeting_requests_touch BEFORE UPDATE ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_touch();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER order_ageing_rules_stamp BEFORE INSERT OR UPDATE ON public.order_ageing_rules FOR EACH ROW EXECUTE FUNCTION order_ageing_rules_stamp();
@@ -21751,8 +25116,10 @@ CREATE TRIGGER sor_logs_set_stage_visit BEFORE INSERT ON public.sales_opportunit
 CREATE TRIGGER sil_leaves_guard_head_status BEFORE UPDATE ON public.sil_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER trg_canvass_clear_on_price_change AFTER INSERT OR DELETE OR UPDATE ON public.sor_canvass_offer_prices FOR EACH ROW EXECUTE FUNCTION canvass_clear_on_price_change();
 CREATE TRIGGER trg_sor_canvass_offer_prices_check_rate BEFORE INSERT OR UPDATE ON public.sor_canvass_offer_prices FOR EACH ROW EXECUTE FUNCTION sor_canvass_offer_prices_check_rate();
+CREATE TRIGGER trg_sor_canvass_offer_prices_locked BEFORE INSERT OR DELETE OR UPDATE ON public.sor_canvass_offer_prices FOR EACH ROW EXECUTE FUNCTION canvass_refuse_price_change_when_locked();
 CREATE TRIGGER trg_canvass_clear_on_offer_change AFTER INSERT OR DELETE OR UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION canvass_clear_on_offer_change();
 CREATE TRIGGER trg_sor_canvass_offers_check_currency BEFORE UPDATE OF currency ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION sor_canvass_offers_check_currency();
+CREATE TRIGGER trg_sor_canvass_offers_locked BEFORE INSERT OR DELETE OR UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION canvass_refuse_offer_change_when_locked();
 CREATE TRIGGER trg_sor_canvass_offers_touch BEFORE UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION sor_canvass_offers_touch();
 CREATE TRIGGER trg_sor_canvass_signoff_events_append_only BEFORE DELETE OR UPDATE ON public.sor_canvass_signoff_events FOR EACH ROW EXECUTE FUNCTION sor_canvass_signoff_events_append_only();
 CREATE TRIGGER trg_canvass_clear_on_reason_change AFTER UPDATE OF reason ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION canvass_clear_on_reason_change();
@@ -21760,15 +25127,19 @@ CREATE TRIGGER trg_sor_canvasses_assign_number BEFORE INSERT ON public.sor_canva
 CREATE TRIGGER trg_sor_canvasses_default_canvasser BEFORE INSERT ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_default_canvasser();
 CREATE TRIGGER trg_sor_canvasses_guard_signoff BEFORE INSERT OR UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_guard_signoff();
 CREATE TRIGGER trg_sor_canvasses_keep_number BEFORE UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_keep_number();
+CREATE TRIGGER trg_sor_canvasses_locked BEFORE UPDATE OF reason, product_name ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION canvass_refuse_edit_when_locked();
 CREATE TRIGGER trg_sor_canvasses_mark_canvassing AFTER INSERT ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_mark_canvassing();
 CREATE TRIGGER trg_sor_canvasses_refuse_component_item BEFORE INSERT OR UPDATE OF requested_item_id ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_refuse_component_item();
+CREATE TRIGGER trg_sor_canvasses_stamp_request_made BEFORE UPDATE OF requested_item_id ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION canvass_stamp_request_made();
 CREATE TRIGGER trg_sor_canvasses_touch BEFORE UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_touch();
 CREATE TRIGGER trg_sor_inclusions_touch BEFORE UPDATE ON public.sor_inclusions FOR EACH ROW EXECUTE FUNCTION sor_inclusions_touch();
 CREATE TRIGGER trg_sor_procurement_requests_guard BEFORE UPDATE ON public.sor_procurement_requests FOR EACH ROW EXECUTE FUNCTION sor_procurement_requests_guard();
 CREATE TRIGGER trg_sor_procurement_requests_touch BEFORE UPDATE ON public.sor_procurement_requests FOR EACH ROW EXECUTE FUNCTION sor_procurement_requests_touch();
 CREATE TRIGGER trg_sor_purchase_order_links_touch BEFORE UPDATE ON public.sor_purchase_order_links FOR EACH ROW EXECUTE FUNCTION sor_purchase_order_links_touch();
+CREATE TRIGGER trg_task_activity_update_guard BEFORE UPDATE ON public.task_activity FOR EACH ROW EXECUTE FUNCTION chat_message_update_guard();
 CREATE TRIGGER enforce_task_verification_security BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION protect_task_verification();
 CREATE TRIGGER tasks_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION tasks_broadcast_change();
+CREATE TRIGGER tasks_cancel_closes_windows AFTER UPDATE OF status ON public.tasks FOR EACH ROW EXECUTE FUNCTION tasks_cancel_closes_windows();
 CREATE TRIGGER transmittal_cleared_signatures_no_change BEFORE DELETE OR UPDATE ON public.transmittal_cleared_signatures FOR EACH ROW EXECUTE FUNCTION transmittal_cleared_signatures_append_only();
 CREATE TRIGGER transmittal_lines_guard BEFORE INSERT OR DELETE OR UPDATE ON public.transmittal_lines FOR EACH ROW EXECUTE FUNCTION transmittal_lines_guard();
 CREATE TRIGGER transmittal_lines_sync_links AFTER INSERT OR DELETE OR UPDATE ON public.transmittal_lines FOR EACH ROW EXECUTE FUNCTION transmittal_lines_sync_links();

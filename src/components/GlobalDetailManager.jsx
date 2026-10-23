@@ -12,6 +12,7 @@ import { opportunityService } from "../services/opportunityService";
 import { useAuth } from "../context/AuthContext";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import toast from "react-hot-toast";
+import { canManageGroupTasks } from "../utils/permissions";
 
 export default function GlobalDetailManager() {
   const { user } = useAuth();
@@ -102,6 +103,13 @@ export default function GlobalDetailManager() {
     enabled: !!stackedTaskId,
     staleTime: 0,
   });
+
+  // #657: an old link to a task that was converted lands on the Group Task it became.
+  useEffect(() => {
+    if (activeItem?.type === "TASK" && taskData?.convertedToGroupTaskId) {
+      setActiveItem({ id: taskData.convertedToGroupTaskId, type: "GROUP_TASK" });
+    }
+  }, [activeItem?.type, taskData?.convertedToGroupTaskId]);
 
   useEffect(() => {
     if (activeItem) {
@@ -324,6 +332,7 @@ export default function GlobalDetailManager() {
             currentUserId={user?.id}
             isSuperAdmin={isSuperAdmin}
             isHr={isHr}
+            canManage={canManageGroupTasks({ isHead, isHr, isSuperAdmin })}
             employees={employees}
             onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
             onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}

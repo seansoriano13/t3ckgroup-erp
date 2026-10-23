@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useQuery } from "@tanstack/react-query";
-import { CircleDot, Hand, Layers, PackageSearch, Plus } from "lucide-react";
+import { Hand, Layers, PackageSearch, Plus, UserRound } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageShell from "../../components/ui/PageShell";
@@ -12,10 +12,18 @@ import FilterBar from "../../components/ui/FilterBar";
 import { FilterSelect } from "../../components/ui/FilterDropdown";
 import { Button } from "../../components/ui/button";
 import { SortHead, Table, TableBody, TableCell, TableHeader, TableRow } from "../../components/ui/table";
+import { TablePager } from "../../components/ui/TablePager";
 import { useTableSort } from "../../hooks/useTableSort";
+import { usePaging } from "../../hooks/usePaging";
+import { useSavedFilters } from "../../hooks/useSavedFilters";
+import { IdentityCell } from "../../components/purchasing/list/IdentityCell";
+import { StateCell, STATE_HEAD_CLASS } from "../../components/purchasing/list/StateCell";
+import ExportButton from "../../components/purchasing/list/ExportButton";
+import { listAge, listAgeDays, listDate } from "../../utils/listDates";
+import { QUEUE_EXPORT_HEADER, REQUEST_STATE, REQUEST_STATE_TONES, queueExportRows, requestStateOf } from "../../components/purchase-request/queueList";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
-import PurchaseRequestSlideOver, { RequestState } from "../../components/purchase-request/PurchaseRequestSlideOver";
+import PurchaseRequestModal from "../../components/purchase-request/PurchaseRequestModal";
 import NewPurchaseRequestDialog from "../../components/purchase-request/NewPurchaseRequestDialog";
 import { useTakeRequest } from "../../components/purchase-request/requestHooks";
 import { procurementQueueKey } from "../../components/purchase-request/queryKeys";
@@ -31,7 +39,6 @@ import { useAuth } from "../../context/AuthContext";
 import { useRecordParam } from "../../hooks/useRecordParam";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
 import { getPermissionContext } from "../../utils/permissions";
-import { formatDate } from "../../utils/formatDate.js";
 import {
   REQUEST_KIND,
   REQUEST_KIND_LABELS,
@@ -48,23 +55,26 @@ import { flowStageTonesByName } from "../../constants/salesFlow";
  * open in a slide-over beside it (`?request=`, where notifications link).
  * Anyone opens a Direct request (no SOR) from here.
  *
- * For Purchasing, level-2 pills slice by Buyer (unassigned / mine / all) and
- * an unassigned row offers Take right in the table. The filter bar narrows by
- * open or closed and by kind (Project / Direct), and searches. The slide-over
- * holds the whole request (`PurchaseRequestView`: members, Requested Items,
- * chat) with the Buyer pinned in its footer; on desktop it opens full
- * screen instead (`PurchaseRequestSlideOver`).
+ * Pills slice by state (Open / Closed / All, with counts). For Purchasing, an
+ * unassigned row offers Take right in the table. The filter bar searches and
+ * narrows by Buyer (Any buyer / Unassigned / Mine, Purchasing only) and kind
+ * (Project / Direct), saves them as a default, and exports the rows shown. A
+ * request opens (`?request=`) in the record window at every width
+ * (`PurchaseRequestModal`: Buyer, Requested Items, members, chat).
  */
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
 const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
 
-const STATE_OPTIONS = [
-  { value: QUEUE_STATE.OPEN, label: "Open" },
-  { value: QUEUE_STATE.CLOSED, label: "Closed" },
-  { value: QUEUE_STATE.ALL, label: "Open or closed" },
+const BUYER_OPTIONS = [
+  { value: QUEUE_BUYER.ALL, label: "Any buyer" },
+  { value: QUEUE_BUYER.UNASSIGNED, label: "Unassigned" },
+  { value: QUEUE_BUYER.MINE, label: "Mine" },
 ];
+
+// What "Save as default" remembers. Buyer only counts for Purchasing.
+const FILTER_DEFAULTS = { state: QUEUE_STATE.OPEN, kind: QUEUE_KIND.ALL, buyer: QUEUE_BUYER.ALL };
 
 const KIND_OPTIONS = [
   { value: QUEUE_KIND.ALL, label: "Project or Direct" },
@@ -97,8 +107,8 @@ const REQUEST_SORT = {
   progress: (r) => (r.item_count ? (r.item_count - r.open_count) / r.item_count : null),
   buyer: (r) => r.buyer_name,
   "last-activity": (r) => new Date(r.last_activity_at || r.created_at).getTime(),
-  age: (r) => ageDays(r),
-  status: (r) => r.status,
+  age: (r) => listAgeDays(r.created_at),
+  state: (r) => requestStateOf(r).label,
 };
 const AGE_STALE_DAYS = 7;
 
@@ -120,15 +130,11 @@ function ProgressCell({ row }) {
   );
 }
 
-function ageDays(row) {
-  return Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000);
-}
-
 function AgeCell({ row }) {
-  const days = ageDays(row);
+  const days = listAgeDays(row.created_at);
   return (
     <span className={`text-xs font-medium tabular-nums ${days > AGE_STALE_DAYS ? "text-amber-11" : "text-muted-foreground"}`}>
-      {days}d
+      {listAge(row.created_at)}
     </span>
   );
 }
@@ -172,17 +178,12 @@ function QueueRow({ row, selected, onOpen, canTake, stageTones }) {
       className="group cursor-pointer outline-none focus-visible:bg-muted aria-selected:bg-muted/60"
     >
       {/* A Direct request is marked quietly: a hairline on the left and the word, never colour alone. */}
-      <TableCell className={direct ? "border-l-2 border-l-mauve-7" : undefined}>
-        {direct ? (
-          <span className="block text-[11px] font-medium text-muted-foreground">{reference}</span>
-        ) : (
-          <span className="block font-mono text-xs font-semibold text-foreground">{reference}</span>
-        )}
-        {/* A Direct title is often a long Odoo product name: two lines, the rest on hover. */}
-        <span title={title} className="mt-0.5 line-clamp-2 max-w-[22rem] break-words text-sm text-foreground">
-          {title}
-        </span>
-      </TableCell>
+      <IdentityCell
+        hairline={direct}
+        reference={direct ? undefined : reference}
+        word={direct ? reference : undefined}
+        name={title}
+      />
       <TableCell className="hidden md:table-cell">
         <StageCell row={row} tones={stageTones} />
       </TableCell>
@@ -202,14 +203,12 @@ function QueueRow({ row, selected, onOpen, canTake, stageTones }) {
         )}
       </TableCell>
       <TableCell className="hidden md:table-cell">
-        <span className="text-xs tabular-nums text-muted-foreground">{formatDate(row.last_activity_at || row.created_at)}</span>
+        <span className="text-xs tabular-nums text-muted-foreground">{listDate(row.last_activity_at || row.created_at)}</span>
       </TableCell>
       <TableCell className="hidden md:table-cell">
         <AgeCell row={row} />
       </TableCell>
-      <TableCell className="text-right">
-        <RequestState row={row} />
-      </TableCell>
+      <StateCell {...requestStateOf(row)} tones={REQUEST_STATE_TONES} />
     </TableRow>
   );
 }
@@ -218,13 +217,18 @@ function PurchaseRequests() {
   const { user } = useAuth();
   const { isSuperAdmin, hasPurchasingFlow } = getPermissionContext(user);
   const purchaser = isSuperAdmin || hasPurchasingFlow;
-  const { recordId, open, step, close } = useRecordParam("request");
+  const { recordId, open, close } = useRecordParam("request");
 
-  const [buyerPill, setBuyer] = useState(QUEUE_BUYER.ALL);
+  const { initial, hasSavedDefault, saveDefault, clearDefault, isDirty } = useSavedFilters(
+    "purchase_requests",
+    user?.id,
+    FILTER_DEFAULTS,
+  );
+  const [state, setState] = useState(initial.state);
+  const [kind, setKind] = useState(initial.kind);
+  const [buyerPick, setBuyer] = useState(initial.buyer);
   // Only Purchasing has Buyers to slice by; everyone else sees all of theirs.
-  const buyer = purchaser ? buyerPill : QUEUE_BUYER.ALL;
-  const [state, setState] = useState(QUEUE_STATE.OPEN);
-  const [kind, setKind] = useState(QUEUE_KIND.ALL);
+  const buyer = purchaser ? buyerPick : QUEUE_BUYER.ALL;
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -246,57 +250,54 @@ function PurchaseRequests() {
   });
   const stageTones = useMemo(() => flowStageTonesByName(flowStagesIndex), [flowStagesIndex]);
 
-  // Search, open/closed and kind narrow first; the pills count within that.
-  const scoped = useMemo(() => {
+  // Search, kind and Buyer narrow first; the Open / Closed / All pills count within that.
+  const narrowed = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return filterQueue(rows, { state, kind }).filter((r) => !term || matches(r, term));
-  }, [rows, state, kind, search]);
-  const filtered = useMemo(() => filterQueue(scoped, { buyer }, user?.id), [scoped, buyer, user?.id]);
+    return filterQueue(rows, { kind, buyer }, user?.id).filter((r) => !term || matches(r, term));
+  }, [rows, kind, buyer, search, user?.id]);
+  const filtered = useMemo(() => filterQueue(narrowed, { state }), [narrowed, state]);
   const { sorted: visible, sort, toggle } = useTableSort(filtered, REQUEST_SORT);
+  const paging = usePaging(visible);
   const counts = {
-    [QUEUE_BUYER.UNASSIGNED]: filterQueue(scoped, { buyer: QUEUE_BUYER.UNASSIGNED }).length,
-    [QUEUE_BUYER.MINE]: filterQueue(scoped, { buyer: QUEUE_BUYER.MINE }, user?.id).length,
-    [QUEUE_BUYER.ALL]: scoped.length,
+    [QUEUE_STATE.OPEN]: filterQueue(narrowed, { state: QUEUE_STATE.OPEN }).length,
+    [QUEUE_STATE.CLOSED]: filterQueue(narrowed, { state: QUEUE_STATE.CLOSED }).length,
+    [QUEUE_STATE.ALL]: narrowed.length,
   };
+  const exportRows = useMemo(() => queueExportRows(visible), [visible]);
 
-  // The open request may sit outside the current slice (a notification's
-  // link, or a request just taken off "Unassigned"): it stays open, without
-  // stepping.
-  const openRow = rows.find((r) => String(r.id) === recordId) || null;
-  const index = visible.findIndex((r) => String(r.id) === recordId);
-  const stepping = index >= 0;
-
-  const hasActiveFilters = search !== "" || state !== QUEUE_STATE.OPEN || kind !== QUEUE_KIND.ALL;
+  const filters = { state, kind, buyer: buyerPick };
+  const hasActiveFilters =
+    search !== "" || state !== FILTER_DEFAULTS.state || kind !== FILTER_DEFAULTS.kind || (purchaser && buyerPick !== FILTER_DEFAULTS.buyer);
 
   const toolbar = (
     <>
-      {purchaser && (
-        <TabGroup
-          variant="pill"
-          size="sm"
-          activeTab={buyer}
-          onChange={setBuyer}
-          tabs={[
-            { value: QUEUE_BUYER.UNASSIGNED, label: "Unassigned", badge: counts[QUEUE_BUYER.UNASSIGNED] },
-            { value: QUEUE_BUYER.MINE, label: "Mine", badge: counts[QUEUE_BUYER.MINE] },
-            { value: QUEUE_BUYER.ALL, label: "All", badge: counts[QUEUE_BUYER.ALL] },
-          ]}
-        />
-      )}
+      <TabGroup
+        variant="pill"
+        size="sm"
+        activeTab={state}
+        onChange={setState}
+        tabs={[
+          { value: QUEUE_STATE.OPEN, label: "Open", badge: counts[QUEUE_STATE.OPEN] },
+          { value: QUEUE_STATE.CLOSED, label: "Closed", badge: counts[QUEUE_STATE.CLOSED] },
+          { value: QUEUE_STATE.ALL, label: "All", badge: counts[QUEUE_STATE.ALL] },
+        ]}
+      />
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: "Search requests" }}
         chips={
           <>
-            <FilterSelect
-              icon={CircleDot}
-              label="Status"
-              options={STATE_OPTIONS}
-              value={state}
-              onChange={setState}
-              allValue={QUEUE_STATE.OPEN}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
-            />
+            {purchaser && (
+              <FilterSelect
+                icon={UserRound}
+                label="Buyer"
+                options={BUYER_OPTIONS}
+                value={buyerPick}
+                onChange={setBuyer}
+                allValue={QUEUE_BUYER.ALL}
+                className={CHIP}
+                wrapperClassName={CHIP_WRAPPER}
+              />
+            )}
             <FilterSelect
               icon={Layers}
               label="Kind"
@@ -312,9 +313,19 @@ function PurchaseRequests() {
         hasActiveFilters={hasActiveFilters}
         onClearAll={() => {
           setSearch("");
-          setState(QUEUE_STATE.OPEN);
-          setKind(QUEUE_KIND.ALL);
+          setState(FILTER_DEFAULTS.state);
+          setKind(FILTER_DEFAULTS.kind);
+          setBuyer(FILTER_DEFAULTS.buyer);
         }}
+        saveDefault={{
+          hasSavedDefault,
+          isDirty: isDirty(filters),
+          onSave: () => saveDefault(filters),
+          onClear: clearDefault,
+        }}
+        actions={
+          <ExportButton name="purchase-requests" sheetName="Purchase Requests" header={QUEUE_EXPORT_HEADER} rows={exportRows} />
+        }
       />
     </>
   );
@@ -364,14 +375,14 @@ function PurchaseRequests() {
               <Table tableId="purchasing" className="md:min-w-[52rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {["Request", "Stage", "Progress", "Buyer", "Last activity", "Age", "Status"].map((heading) => (
+                    {["Request", "Stage", "Progress", "Buyer", "Last activity", "Age", "State"].map((heading) => (
                       <SortHead
                         key={heading}
                         id={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
                         sortKey={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
                         sort={sort}
                         onSort={toggle}
-                        className={`${HEAD} ${heading === "Status" ? "text-right" : ""} ${NARROW_HIDDEN.has(heading) ? "hidden md:table-cell" : ""}`}
+                        className={`${HEAD} ${heading === "State" ? STATE_HEAD_CLASS : ""} ${NARROW_HIDDEN.has(heading) ? "hidden md:table-cell" : ""}`}
                       >
                         {heading}
                       </SortHead>
@@ -379,7 +390,7 @@ function PurchaseRequests() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visible.map((row) => (
+                  {paging.rows.map((row) => (
                     <QueueRow
                       key={row.id}
                       row={row}
@@ -392,24 +403,12 @@ function PurchaseRequests() {
                 </TableBody>
               </Table>
             </div>
-            <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-              {visible.length} {visible.length === 1 ? "request" : "requests"}
-            </div>
+            <TablePager {...paging} noun="requests" />
           </div>
         )}
       </PageShell>
 
-      <PurchaseRequestSlideOver
-        request={openRow}
-        crumb="Purchase Requests"
-        index={stepping ? index : 0}
-        total={stepping ? visible.length : 1}
-        onStep={(d) => {
-          const to = visible[index + d];
-          if (to) step(to.id);
-        }}
-        onClose={close}
-      />
+      {recordId && <PurchaseRequestModal requestId={recordId} onClose={close} />}
 
       <NewPurchaseRequestDialog open={creating} onOpenChange={setCreating} onOpened={open} />
     </>

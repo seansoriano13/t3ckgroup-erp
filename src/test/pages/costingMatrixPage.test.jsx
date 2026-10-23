@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useParams } from "react-router";
 
 import CostingMatrixPage from "@/pages/costing-matrix";
 import { renderWithProviders, setupUser } from "@/test/support";
@@ -51,11 +51,18 @@ const rows = [
   { ...base, opportunity_id: "aaaaaaaa-0000-4000-8000-000000000103", sor_code: "SOR-103", sales_reference: null, project_title: "Water tanker", stage: "Bidding", final_offer_total: null, final_acquire_total: null, items_total: 0 },
 ];
 
+/** Stands in for the Costing Desk route: says which SOR's matrix was opened. */
+function OpenedDesk() {
+  const { id } = useParams();
+  return <p data-testid="opened-desk">{id}</p>;
+}
+
 function renderPage() {
   return renderWithProviders(
     <MemoryRouter initialEntries={["/costing-matrix"]}>
       <Routes>
         <Route path="/costing-matrix" element={<CostingMatrixPage />} />
+        <Route path="/costing-matrix/:id" element={<OpenedDesk />} />
         <Route path="/" element={<p>The dashboard</p>} />
       </Routes>
     </MemoryRouter>,
@@ -151,17 +158,13 @@ describe("the Costing Matrix page", () => {
     expect(screen.getByTestId("costing-matrix-row")).toHaveTextContent("SOR-102");
   });
 
-  it("opens that SOR's Costing Matrix tab when a row is clicked", async () => {
-    const opened = vi.fn();
-    window.addEventListener("OPEN_ENTITY_DETAILS", opened);
+  it("opens that SOR's Costing Matrix in its record window when a row is clicked", async () => {
     const user = setupUser();
     renderPage();
 
     await user.click(await rowFor("SOR-102"));
 
-    await waitFor(() => expect(opened).toHaveBeenCalled());
-    expect(opened.mock.calls[0][0].detail).toEqual({ id: rows[1].opportunity_id, type: "OPPORTUNITY", view: "pms" });
-    window.removeEventListener("OPEN_ENTITY_DETAILS", opened);
+    expect(await screen.findByTestId("opened-desk")).toHaveTextContent(rows[1].opportunity_id);
   });
 
   it("says plainly when nothing matches", async () => {

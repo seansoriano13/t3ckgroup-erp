@@ -84,13 +84,14 @@ describe("purchasing", () => {
     expect(db.rows("purchase_request_items")[0].status).toBe("requested")
   })
 
-  it("holds a long item name to two lines and keeps the full name", async () => {
+  it("holds a long item name to one line and keeps the full name", async () => {
     const name = "Safety Harness Full Body With Double Lanyard And Shock Absorber, Large, Orange, Odoo 4421"
     seedItem({ name })
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const title = await screen.findByText(name)
-    expect(title).toHaveClass("line-clamp-2")
+    expect(title).toHaveClass("truncate")
+    expect(title).toHaveAttribute("title", name)
   })
 
   it("moves the row to the Closed group when the item is closed", async () => {

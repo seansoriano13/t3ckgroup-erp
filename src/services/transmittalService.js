@@ -42,7 +42,7 @@ const TRANSMITTAL_SELECT =
 
 const TRANSMITTAL_LIST_SELECT =
   "id, number, prepared_on, prepared_by, origin, priority, entity, state, submitted_at, created_at," +
-  " preparer:employees!transmittals_prepared_by_fkey(id, name), lines:transmittal_lines(id, wh_rating, tech_rating)";
+  " preparer:employees!transmittals_prepared_by_fkey(id, name), lines:transmittal_lines(id, wh_rating, tech_rating, ipas:ipas!transmittal_lines_ipas_id_fkey(po_number))";
 
 /**
  * Fills each line's IPAS and SOR reference from `transmittal_line_refs`. The
@@ -227,6 +227,7 @@ export const transmittalService = {
       lineCount: (row.lines ?? []).length,
       naCount: naLines(row).length,
       hasNa: naLines(row).length > 0,
+      poNumbers: [...new Set((row.lines ?? []).map((line) => line.ipas?.po_number).filter(Boolean))],
       submittedAt: row.submitted_at ?? null,
       createdAt: row.created_at,
     }));

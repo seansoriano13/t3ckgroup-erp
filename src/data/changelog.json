@@ -1,15 +1,110 @@
 [
     {
+        "date": "2026-10-23",
+        "title": "Pick who rates a group task when you create it",
+        "version": "1.9.65",
+        "changes": [
+            "The Create Group Task form now has an Evaluator field. Leave it empty and you rate the task yourself."
+        ]
+    },
+    {
+        "date": "2026-10-23",
+        "title": "Group tasks wait for their evaluator",
+        "version": "1.9.64",
+        "changes": [
+            "When every member is done, a group task now shows Awaiting evaluation instead of looking finished. It becomes Completed only after it is rated.",
+            "The new To evaluate tab on Group Tasks lists the tasks waiting for a rating, longest wait first, with a count of the ones waiting for you.",
+            "The evaluator gets one message when a task is ready to rate, and a reminder after 3, 6 and 9 days. After that, the creator and the heads of the evaluator's department are told.",
+            "The creator, the evaluator, heads and Super Admins can use Send to evaluation when some members will never finish.",
+            "Reminders and the automatic move apply to group tasks created from now on. Older tasks that were done but not rated now show under To evaluate."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "The Costing Matrix in its own window",
+        "version": "1.9.63",
+        "changes": [
+            "The Costing Matrix opens in its own window. Open it from an SOR's PMS tab with Open Costing Matrix, or from a row on the Costing Matrix page.",
+            "The matrix fills itself from the SOR's products, with each product's cost from Odoo. Refresh from the SOR brings in products added later. Nothing you typed is overwritten.",
+            "A line is priced from its product. Break it down into parts only when a line needs them.",
+            "The markup playground lets you try a markup and see the offer, its share of the ABC and the margin before anything is saved. Apply fills every Final Offer.",
+            "The Bid Decision has its own card with big Go, Revise and No-go buttons.",
+            "Sales, Purchasing and the SOR's Sales Director can now see and edit the costs and the markup, and Purchasing can set the Brand."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "A new Calendar, with a Gantt beside it",
+        "version": "1.9.62",
+        "changes": [
+            "The Calendar has two layouts. Switch between Calendar and Gantt at the top left. The Calendar remembers which one you used last.",
+            "Calendar: the month shows Time Off that runs over several days as one bar. Meetings and overtime are one line each, with their start time. Weekends are narrower.",
+            "Click a day to see it on the right: who is out, each room's day from 8 AM to 7 PM, and overtime. Click a free spot on a room to book it. Use the arrow keys to move from day to day.",
+            "Gantt: two or four weeks across. Rooms come first, then people grouped by department, with a count of how many people are out each day. Search for a person or a department.",
+            "Opening a Time Off request now shows the whole request (all its dates, the number of days and the total hours), not only the day you clicked. My Requests and HR's Time Off & Overtime tab use the same new Calendar."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "Purchasing looks the same everywhere",
+        "version": "1.9.61",
+        "changes": [
+            "Every Purchasing list now works the same way: state pills with counts, one filter bar with search and Export at the end, sortable headings, the reference over the name, a State badge on the right, and the same pager at the bottom.",
+            "Every Purchasing record opens in the same full-height window over its list: Purchase Request, Canvass, IPAS, Transmittal and Packing List. Close takes you back to the list, and records fill the screen on a phone. The IPAS is no longer a page of its own.",
+            "Each record starts with its number and name, one state badge and one quiet line, then its key facts as pills. Fields have small labels above their values, and lines, boxes, payments and documents are one-line rows that open in place.",
+            "Sign, Submit and Approve are green buttons in the same Your move card on the IPAS, Transmittal, Packing List and Canvass. A Canvass is now signed there too.",
+            "Dialogs with fields share one form style, plain yes/no questions use the plain confirm, and the Canvass no longer asks questions in pop-up toasts. Links are now text colour instead of red."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "Transmittals and Packing Lists get a desk and a rail",
+        "version": "1.9.60",
+        "changes": [
+            "New Transmittal: the live PO lines are on the left, and the slip is on the right. Click a PO line to put it on the slip, click it again to take it off. Company and Project fill in from the first line.",
+            "The slip's header is now a row of pills you click to set. A strip lists everything still missing before you can Submit, not only the first thing.",
+            "Each line on the slip is one row. You can add every line of a PO at once by typing its number, and add a typed line for anything not on a PO.",
+            "Transmittal record: the slip and its lines are on the left, and the GC / NA rating is done right on each line. A single card on the right shows what you need to do and lists the steps, and opening a step shows its work and sign button under the list.",
+            "Packing List record: same layout. The boxes and what is in them are on the left, and the card on the right holds Sign Packed by. The side drawer is gone."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "Canvasses join Purchase Requests, and lock once bought on",
+        "version": "1.9.59",
+        "changes": [
+            "Purchase Request window: the items now get the full width. Members and Chat are tucked behind two buttons and open as a side panel, and the item you click shows clearly as selected.",
+            "In a Purchase Request, Purchasing can press Add a Canvass to bring in Canvasses they already did. Each one becomes a new item, or goes onto an item the request already has, and the winner's price goes onto that item.",
+            "A Canvass locks once a Purchase Request is made from it, so its offers, prices, winner and reason can no longer change. A Super Admin can unlock it, and has to give a reason that is kept in the Canvass history.",
+            "The Canvasses list marks locked Canvasses with a lock, and the Request column now shows just the status (for example Requested), not a link. The Canvass window names the Purchase Request and opens it on top.",
+            "A Purchase Request no longer starts a Canvass on its items. Do the Canvass on the Canvasses page, then create a request from it or add it to one."
+        ]
+    },
+    {
+        "date": "2026-10-21",
+        "title": "Time Off & Overtime, the Calendar, Meeting Requests and Venues",
+        "version": "1.9.58",
+        "changes": [
+            "Leaves Manager and Leave Approvals are now called Time Off & Overtime. The My Requests button is now File Time Off / Overtime, and its tabs are Overtime, Offset, Leave and Undertime.",
+            "Printed forms (TG-11 leave, TG-12 overtime, TG-13 undertime) are cleaner, show when HR validated the request, and no longer print an Outcome box.",
+            "Dates for leave, overtime and offset now follow Manila time everywhere, so a request near midnight no longer lands on the wrong day. Withdrawing a request uses the Manila date too.",
+            "HR can now record Leave Without Pay (LWOP). It is saved as approved, can be verified from its printed QR code, and shows on the Calendar.",
+            "The new Calendar shows Time Off, overtime, LWOP and meetings in Month, Week, Day and People views, and updates by itself when a meeting changes.",
+            "Meeting Requests: book a Venue from the Calendar, add a Facilitator, Participants and guests. Your department head approves first, then HR, in the Approval Center. You can edit, send again or cancel before it starts, and everyone invited gets a reminder.",
+            "Venues: HR and Super Admins can add, rename, reorder, hide or delete the Venues people can book."
+        ]
+    },
+    {
         "date": "2026-10-21",
         "title": "IPAS list, record page and Costing Matrix page get a big upgrade",
         "version": "1.9.57",
         "changes": [
             "The IPAS list now shows the Amount, Payment Scheme, Down Payment, Full Payment, Remaining Balance and the new IPAS Status (Pending, Requested, Ongoing, On-Hold, Paid, Done). Pick which columns to show.",
-            "Purchasing and Finance can put an IPAS On-Hold with a note, and take it off again. An On-Hold order does not go late in Order Monitoring.",
+            "Purchasing and Finance can put an IPAS On-Hold with a note from the record's More menu, and take it off again. An On-Hold order does not go late in Order Monitoring.",
             "New list views: Unpaid, On-Hold, Ongoing and Raised by me. Totals are shown per currency, and the list can be exported to Excel.",
             "Search finds an IPAS by its SO number, SOR number or project name, or by the SO number and project typed together.",
             "The IPAS record is a full page again, with a money summary at the top and a Supplier bill check that compares the Odoo PO total with the P.I/QT Amount. A mismatch is shown beside Approve for section 1 and never blocks it.",
-            "Pesos taken from the bank is now optional on a foreign-currency payment. Until it is filled in, Landed Cost is marked as an estimate, and the status cannot move to LC Odoo Done.",
+            "Pesos taken from the bank is now optional on a foreign-currency payment. Left blank, Landed Cost uses the Reference Rate of the payment date and is marked as an estimate. The Computation status can jump to any step.",
             "The SOR picker when raising an IPAS now finds every SOR by SO number, SOR number or project, and a Super Admin can set the number the next IPAS takes in Settings (it can only move forward).",
             "New Costing Matrix page for the Closed Book: every SOR with its Planned Revenue and Actual Revenue side by side, with search, filters and totals."
         ]

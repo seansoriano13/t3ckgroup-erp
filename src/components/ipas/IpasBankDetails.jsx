@@ -1,7 +1,7 @@
 import { Pencil, TriangleAlert } from "lucide-react";
 
 import { Button } from "../ui/button";
-import { DetailRow } from "../ui/DetailParts";
+import DetailGrid from "@/components/record/DetailGrid";
 import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import { ipasSectionLabel } from "../../constants/ipas";
@@ -49,20 +49,23 @@ export function IpasBankDetails({ ipas, canChange: granted = false, onEdit }) {
       )}
 
       {bank ? (
-        <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
-          <DetailRow label="Bank Name">{bank.bankName}</DetailRow>
-          <DetailRow label="Account Name">{bank.accountName}</DetailRow>
-          <DetailRow label="Account #">
-            <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="tabular-nums">{bank.accountNumber ?? "—"}</span>
-              {flagged && <StatusBadge theme="red" label="Changed account" />}
-            </span>
-          </DetailRow>
-        </dl>
+        <DetailGrid
+          items={[
+            { label: "Bank Name", value: bank.bankName },
+            { label: "Account Name", value: bank.accountName },
+            {
+              label: "Account #",
+              value: (
+                <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="tabular-nums">{bank.accountNumber ?? "—"}</span>
+                  {flagged && <StatusBadge theme="red" label="Changed account" />}
+                </span>
+              ),
+            },
+          ]}
+        />
       ) : (
-        <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-          No bank details typed yet.
-        </p>
+        <p className="text-[13px] text-muted-foreground">No bank details typed yet.</p>
       )}
     </div>
   );

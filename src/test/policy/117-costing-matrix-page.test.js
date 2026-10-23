@@ -204,8 +204,29 @@ describe("the Closed Book", () => {
     })
 })
 
+describe("Purchasing and the Deal Team (since 20261102170000)", () => {
+    it("gives Purchasing every SOR with a matrix", async () => {
+        const { data, error } = await page("outsider")
+        expect(error).toBeNull()
+        expect(rowOf(data, sorA)).toBeDefined()
+        expect(rowOf(data, sorB)).toBeDefined()
+        expect(rowOf(data, sorC)).toBeUndefined()
+    })
+
+    it("gives the Deal Team its own SORs and no one else's", async () => {
+        const { data, error } = await page("dealOwner")
+        expect(error).toBeNull()
+        expect(rowOf(data, sorA)).toBeDefined()
+        expect(rowOf(data, sorB)).toBeDefined()
+        const theirs = await svc().from("sales_opportunities").select("id")
+            .or(`registered_by.eq.${ids.dealOwner},deal_owner_id.eq.${ids.dealOwner},closing_sales_id.eq.${ids.dealOwner},support_sales_1_id.eq.${ids.dealOwner},support_sales_2_id.eq.${ids.dealOwner},sales_director_id.eq.${ids.dealOwner}`)
+        const own = new Set(theirs.data.map((r) => r.id))
+        expect(data.every((r) => own.has(r.opportunity_id))).toBe(true)
+    })
+})
+
 describe("everyone else is refused", () => {
-    it.each(["outsider", "finance", "dealOwner", "ordinary"])("%s gets no rows", async (who) => {
+    it.each(["finance", "ordinary"])("%s gets no rows", async (who) => {
         const { data, error } = await page(who)
         expect(data ?? null).toBeNull()
         expect(error?.code).toBe(NOT_ALLOWED)

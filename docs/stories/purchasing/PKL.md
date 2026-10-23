@@ -2,6 +2,8 @@
 
 Guide §11. No Stage Action makes Packing Lists yet (§17), so they are made by hand.
 
+A Packing List opens in the record window. The boxes are rows that open in place to show their contents (Edit box, Contents, Remove). Sign Packed by is in the Your move card, after the steps.
+
 ### PKL-01 · Who can make one
 - **Guide**: §11
 - **Log in as**: purchaser, plain (Warehouse), sales-exec

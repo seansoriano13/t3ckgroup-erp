@@ -1,10 +1,11 @@
 import { screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import EmployeeLeavesPage from '@/pages/offsets/index';
 import { renderWithProviders, setupUser } from '@/test/support';
+import { manilaToday } from '@/lib/manilaDate.js';
 import { within } from '@testing-library/react';
 import { makeEmployee, makeOffsetLeave, makeOvertimeRequest, makeUndertimeRequest } from '@/test/factories';
-import { stubCalendarOffsetLeavesRpc, stubCalendarSilLeavesRpc } from '@/test/stubs/calendarLeavesRpc';
 
 // The page's history queries are bound to the currently displayed month
 // (defaulting to "today"), while its pending queries are unbounded. A test
@@ -14,6 +15,11 @@ import { stubCalendarOffsetLeavesRpc, stubCalendarSilLeavesRpc } from '@/test/st
 const todayStr = new Date().toISOString().slice(0, 10);
 
 const mockUser = vi.hoisted(() => ({ current: null }));
+const mockCalendar = vi.hoisted(() => ({ entries: [] }));
+
+vi.mock('@/services/calendarService', () => ({
+  calendarService: { fetchEntries: vi.fn(async () => mockCalendar.entries) },
+}));
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
@@ -32,13 +38,10 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
       sil_hours_balance: 20,
     });
     mockUser.current = { id: employee.id, name: employee.name, offset_hours_balance: 10, sil_hours_balance: 20 };
-    // The page reads the viewer's own leaves through the calendar projection RPCs.
-    stubCalendarOffsetLeavesRpc({ viewerId: employee.id });
-    stubCalendarSilLeavesRpc({ viewerId: employee.id });
   });
 
   it('renders the My Requests header and both balances', () => {
-    renderWithProviders(<EmployeeLeavesPage />);
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/My\s*Requests/i);
     expect(screen.getByText(/Offset balance/i)).toBeInTheDocument();
     expect(screen.getByText(/SIL balance/i)).toBeInTheDocument();
@@ -49,7 +52,7 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     makeOvertimeRequest({ employee_id: employee.id, date: '2026-03-10', created_at: '2026-03-10T00:00:00Z' });
     makeUndertimeRequest({ employee_id: employee.id, date: '2026-03-08', created_at: '2026-03-08T00:00:00Z' });
 
-    renderWithProviders(<EmployeeLeavesPage />);
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
 
     const rows = await screen.findAllByRole('row');
     // header row + 3 request rows
@@ -68,7 +71,7 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     makeOffsetLeave({ employee_id: employee.id, date: '2026-03-13', hours: 8, leave_group_id: groupId });
     makeOffsetLeave({ employee_id: employee.id, date: '2026-03-14', hours: 8, leave_group_id: groupId });
 
-    renderWithProviders(<EmployeeLeavesPage />);
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
 
     const totalHours = await screen.findByText('24 hrs');
     expect(totalHours).toBeInTheDocument();
@@ -84,7 +87,7 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     makeOffsetLeave({ employee_id: employee.id, date: '2026-03-05' });
     makeOvertimeRequest({ employee_id: employee.id, date: '2026-03-10' });
 
-    renderWithProviders(<EmployeeLeavesPage />);
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
     const table = await screen.findByRole('table');
     expect(within(table).getByText('Offset')).toBeInTheDocument();
     expect(within(table).getByText('Overtime')).toBeInTheDocument();
@@ -102,7 +105,7 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     makeOffsetLeave({ employee_id: employee.id, date: '2026-03-05', status: 'PENDING' });
     makeOvertimeRequest({ employee_id: employee.id, date: todayStr, status: 'APPROVED_OFFSET' });
 
-    renderWithProviders(<EmployeeLeavesPage />);
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
     const table = await screen.findByRole('table');
     await within(table).findByText('Offset');
     await within(table).findByText('Overtime');
@@ -120,27 +123,52 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
       head_status: 'PENDING',
     });
 
-    renderWithProviders(<EmployeeLeavesPage />);
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
     expect(await screen.findByText('Waiting on Jane Head')).toBeInTheDocument();
   });
 
   it('shows an empty state when nothing has been filed', async () => {
-    renderWithProviders(<EmployeeLeavesPage />);
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
     expect(await screen.findByText('No requests found')).toBeInTheDocument();
   });
 
   it('still shows the shared approved-leave calendar tab', async () => {
-    renderWithProviders(<EmployeeLeavesPage />);
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
     const calendarTab = await screen.findByRole('tab', { name: /^Calendar$/i });
     await setupUser().click(calendarTab);
     expect(screen.queryByText('No requests found')).not.toBeInTheDocument();
   });
 
-  it('sits on PageShell: Apply Leave / OT in the header, underlined tabs', async () => {
-    renderWithProviders(<EmployeeLeavesPage />);
+  it('shows the shared Calendar with the viewer\'s own reasons and no colleague\'s', async () => {
+    const date = manilaToday();
+    const row = (id, who, details) => ({
+      kind: 'OFFSET', id, group_id: id, starts_at: `${date}T01:00:00Z`, ends_at: `${date}T09:00:00Z`,
+      all_day: false, manila_date: date, employee: { id: who.id, name: who.name, department: 'SALES', avatar: null },
+      status: 'APPROVED', hours: 8, venue: null, title: 'Offset', details,
+    });
+    mockCalendar.entries = [
+      row('mine', { id: employee.id, name: 'John Doe' }, { reason: 'My dentist' }),
+      row('theirs', { id: 'other', name: 'Ben Lim' }, {}),
+    ];
+    const user = setupUser();
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
+    await user.click(await screen.findByRole('tab', { name: /^Calendar$/i }));
+
+    await user.click(await screen.findByText(/John D\. · Offset/));
+    expect(await screen.findByText('My dentist')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+
+    await user.click(screen.getByText(/Ben L\. · Offset/));
+    expect(await screen.findAllByText('Ben Lim')).not.toHaveLength(0);
+    expect(screen.queryByText('Reason')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
+  });
+
+  it('sits on PageShell: File Time Off / Overtime in the header, underlined tabs', async () => {
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
 
     const header = screen.getByRole('heading', { level: 1 }).closest('div').parentElement;
-    expect(header).toContainElement(screen.getByRole('button', { name: /apply leave/i }));
+    expect(header).toContainElement(screen.getByRole('button', { name: /file time off/i }));
 
     const requestsTab = await screen.findByRole('tab', { name: /^Requests/ });
     expect(requestsTab).toHaveAttribute('aria-selected', 'true');

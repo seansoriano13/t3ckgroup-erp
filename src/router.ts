@@ -11,10 +11,13 @@ export type Path =
   | `/approvals/hr-verification`
   | `/approvals/ipas`
   | `/approvals/leaves`
+  | `/approvals/meetings`
   | `/approvals/tasks`
   | `/approvals/transmittals`
   | `/bug-reports`
+  | `/calendar`
   | `/costing-matrix`
+  | `/costing-matrix/:id`
   | `/crm`
   | `/crm/commission`
   | `/crm/commission-formula`
@@ -60,6 +63,7 @@ export type Path =
   | `/verify/:token`
 
 export type Params = {
+  '/costing-matrix/:id': { id: string }
   '/flow-versions/:snapshotId': { snapshotId: string }
   '/purchasing/ipas/:id': { id: string }
   '/purchasing/packing-lists/:id': { id: string }

@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { Building2, Calculator, CircleDot, Columns3, Download, Eye, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
+import { Building2, Calculator, CircleDot, Eye, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import PageShell from "../../../components/ui/PageShell";
@@ -10,10 +10,7 @@ import QueryError from "../../../components/ui/QueryError";
 import PageLoading from "../../../components/ui/PageLoading";
 import TabGroup from "../../../components/ui/TabGroup";
 import FilterBar from "../../../components/ui/FilterBar";
-import { FilterSelect, FilterTriggerButton } from "../../../components/ui/FilterDropdown";
-import Dropdown from "../../../components/ui/Dropdown";
-import { Checkbox } from "../../../components/ui/checkbox";
-import { FieldBox } from "../../../components/ui/FieldBox";
+import { FilterSelect } from "../../../components/ui/FilterDropdown";
 import { Button } from "../../../components/ui/button";
 import { TablePager } from "../../../components/ui/TablePager";
 import { SortHead, Table, TableBody, TableHeader, TableRow } from "../../../components/ui/table";
@@ -29,7 +26,9 @@ import { filterIpas, formatAmount } from "../../../utils/ipas";
 import { ipasFigures, ipasTotalsByCurrency } from "../../../utils/ipasFigures";
 import { IPAS_EXPORT_HEADER, ipasExportRows } from "../../../utils/ipasListExport";
 import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView } from "../../../utils/ipasListViews";
-import { downloadXlsx } from "../../../utils/xlsx";
+import ExportButton from "../../../components/purchasing/list/ExportButton";
+import ColumnsMenu from "../../../components/purchasing/list/ColumnsMenu";
+import { useHiddenColumns } from "../../../hooks/useHiddenColumns";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -59,7 +58,7 @@ const ALL = "__all__";
 
 // Supplier, Entity, Project / SO, Raised, Raised by and the payment columns hide below md so the number, Purpose,
 // Costing, Amount, Remaining balance and State stay in view.
-const NARROW_HIDDEN = new Set(["Supplier", "Entity", "Project / SO", "Raised", "Raised by", "Payment scheme", "DP", "FP"]);
+const NARROW_HIDDEN = new Set(["Entity", "Project / SO", "Raised", "Raised by", "Payment scheme", "DP", "FP"]);
 // The sheet's money columns (#596): worked out by the IPAS figures, in each PO's currency.
 const MONEY_HEADINGS = ["Amount", "Payment scheme", "DP", "FP", "Remaining balance"];
 const MONEY_RIGHT = new Set(["Amount", "DP", "FP", "Remaining balance"]);
@@ -104,11 +103,12 @@ const VIEW_OPTIONS = [
   ...Object.values(IPAS_VIEW).map((value) => ({ value, label: IPAS_VIEW_LABELS[value] })),
 ];
 
+const slug = (heading) => heading.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
 // Every column of the list, in order. The IPAS number is always shown; the rest can be hidden with the column picker.
 const LIST_HEADINGS = [
   "IPAS",
   "Odoo PO",
-  "Supplier",
   "Entity",
   "Purpose",
   "Costing",
@@ -120,38 +120,18 @@ const LIST_HEADINGS = [
   "State",
 ];
 const LOCKED_HEADING = "IPAS";
+// Someone who has never chosen columns starts without these three; a saved choice (even "show all") is kept.
+const DEFAULT_HIDDEN_COLUMNS = ["raised-by", "dp", "fp"];
 
-const slug = (heading) => heading.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-
-// The hidden columns are remembered per employee on this browser. Blocked or broken storage never breaks the page.
-const columnsKey = (userId) => `erp_ipas_columns_${userId ?? "anon"}`;
-
-function readHiddenColumns(userId) {
-  try {
-    const stored = JSON.parse(localStorage.getItem(columnsKey(userId)) ?? "[]");
-    return Array.isArray(stored) ? stored.filter((key) => typeof key === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeHiddenColumns(userId, hidden) {
-  try {
-    if (hidden.length) localStorage.setItem(columnsKey(userId), JSON.stringify(hidden));
-    else localStorage.removeItem(columnsKey(userId));
-  } catch {
-    /* ignore */
-  }
-}
+const COLUMNS = LIST_HEADINGS.map((heading) => ({ key: slug(heading), label: heading, locked: heading === LOCKED_HEADING }));
+const KNOWN_COLUMN_KEYS = COLUMNS.map((column) => column.key);
 
 function IpasList() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { hasPurchasingFlow, hasFinanceFlow, isSuperAdmin } = getPermissionContext(user);
+  const { hasPurchasingFlow, isSuperAdmin } = getPermissionContext(user);
   // The option lists: Purchasing access and Super Admins.
   const canEditSettings = hasPurchasingFlow || isSuperAdmin;
-  // The status pill puts an open IPAS On-Hold (#597): Purchasing access or Finance access; the pill is read-only for everyone else.
-  const canSetHold = hasPurchasingFlow || hasFinanceFlow;
 
   const [state, setState] = useState(IPAS_STATE.OPEN);
   const [entity, setEntity] = useState(null);
@@ -161,13 +141,9 @@ function IpasList() {
   const [search, setSearch] = useState("");
   const [view, setView] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [hiddenColumns, setHiddenColumns] = useState(() => readHiddenColumns(user?.id));
-  const show = useCallback((key) => !hiddenColumns.includes(key), [hiddenColumns]);
-  const toggleColumn = (key) => {
-    const next = hiddenColumns.includes(key) ? hiddenColumns.filter((k) => k !== key) : [...hiddenColumns, key];
-    setHiddenColumns(next);
-    writeHiddenColumns(user?.id, next);
-  };
+  // Remembered per employee on this browser.
+  const columns = useHiddenColumns(`erp_ipas_columns_${user?.id ?? "anon"}`, { defaults: DEFAULT_HIDDEN_COLUMNS, known: KNOWN_COLUMN_KEYS });
+  const { show } = columns;
 
   const { data: listed = [], isLoading, isError, refetch } = useQuery({
     queryKey: ipasListKey,
@@ -201,13 +177,7 @@ function IpasList() {
   const totals = useMemo(() => ipasTotalsByCurrency(visible), [visible]);
 
   // The rows shown, in the order shown, as the sheet's columns. Only what the list itself shows.
-  const exportToExcel = () => {
-    downloadXlsx(`ipas-${new Date().toISOString().slice(0, 10)}.xlsx`, {
-      sheetName: "IPAS",
-      header: IPAS_EXPORT_HEADER,
-      rows: ipasExportRows(visible),
-    });
-  };
+  const exportRows = useMemo(() => ipasExportRows(visible), [visible]);
 
   // A view sets the state tab it needs: the first three are about open IPAS, Raised by me spans them all.
   const pickView = (next) => {
@@ -232,7 +202,20 @@ function IpasList() {
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: "Search IPAS, PO, supplier, SO, SOR or project" }}
         chips={
-          <>
+          <FilterSelect
+            icon={CircleDot}
+            label="IPAS Status"
+            options={STATUS_OPTIONS}
+            value={status ?? ALL}
+            onChange={(v) => setStatus(v === ALL ? null : v)}
+            allValue={ALL}
+            className={CHIP}
+            wrapperClassName={CHIP_WRAPPER}
+          />
+        }
+        // The rest sit behind one Filters button, so the bar stays on one line.
+        filters={
+          <div className="grid gap-2 sm:grid-cols-2">
             <FilterSelect
               icon={Eye}
               label="View"
@@ -240,8 +223,6 @@ function IpasList() {
               value={view ?? ALL}
               onChange={(v) => pickView(v === ALL ? null : v)}
               allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
             />
             <FilterSelect
               icon={Building2}
@@ -250,8 +231,6 @@ function IpasList() {
               value={entity ?? ALL}
               onChange={(v) => setEntity(v === ALL ? null : v)}
               allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
             />
             <FilterSelect
               icon={Layers}
@@ -260,8 +239,6 @@ function IpasList() {
               value={purpose ?? ALL}
               onChange={(v) => setPurpose(v === ALL ? null : v)}
               allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
             />
             <FilterSelect
               icon={Calculator}
@@ -270,61 +247,14 @@ function IpasList() {
               value={costing ?? ALL}
               onChange={(v) => setCosting(v === ALL ? null : v)}
               allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
             />
-            <FilterSelect
-              icon={CircleDot}
-              label="IPAS Status"
-              options={STATUS_OPTIONS}
-              value={status ?? ALL}
-              onChange={(v) => setStatus(v === ALL ? null : v)}
-              allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
-            />
-          </>
+          </div>
         }
+        activeCount={[view, entity, purpose, costing].filter((value) => value !== null).length}
         actions={
           <>
-            <Dropdown
-              usePortal
-              placement="bottom-end"
-              matchTriggerWidth={false}
-              className="w-auto shrink-0"
-              trigger={({ isOpen }) => (
-                <FilterTriggerButton
-                  popup="dialog"
-                  wrapperClassName="w-auto"
-                  className={CHIP}
-                  icon={Columns3}
-                  label="Columns"
-                  count={hiddenColumns.length}
-                  isActive={hiddenColumns.length > 0}
-                  isOpen={isOpen}
-                />
-              )}
-            >
-              {() => (
-                <div className="flex w-56 flex-col gap-1 p-2" role="group" aria-label="Columns shown">
-                  {LIST_HEADINGS.map((heading) => (
-                    <FieldBox inline key={heading} className="rounded-md px-1.5 py-1 text-[13px] hover:bg-muted">
-                      <Checkbox
-                        checked={heading === LOCKED_HEADING || show(slug(heading))}
-                        disabled={heading === LOCKED_HEADING}
-                        onCheckedChange={() => toggleColumn(slug(heading))}
-                        aria-label={heading}
-                      />
-                      {heading}
-                    </FieldBox>
-                  ))}
-                </div>
-              )}
-            </Dropdown>
-            <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={exportToExcel} disabled={visible.length === 0}>
-              <Download size={14} />
-              Export to Excel
-            </Button>
+            <ColumnsMenu columns={COLUMNS} hidden={columns.hidden} onToggle={columns.toggle} />
+            <ExportButton name="ipas" sheetName="IPAS" header={IPAS_EXPORT_HEADER} rows={exportRows} />
           </>
         }
         hasActiveFilters={hasActiveFilters}
@@ -385,9 +315,10 @@ function IpasList() {
         )}
 
         {!isLoading && !isError && visible.length > 0 && (
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <div className="overflow-x-auto">
-              <Table tableId="ipas" className="md:min-w-[72rem]">
+          // No overflow-hidden here: the table's "Reset columns" sits just above this card.
+          <div className="rounded-xl border border-border bg-card [&_thead_tr]:rounded-t-xl [&_th:first-child]:rounded-tl-xl [&_th:last-child]:rounded-tr-xl">
+            <div>
+              <Table tableId="ipas" resetAbove className="md:min-w-[60rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
                     {LIST_HEADINGS.filter((heading) => heading === LOCKED_HEADING || show(slug(heading))).map((heading) => (
@@ -410,7 +341,6 @@ function IpasList() {
                       key={row.id}
                       row={row}
                       search={search}
-                      canSetHold={canSetHold}
                       show={show}
                       onOpen={(id) => navigate(`/purchasing/ipas/${id}`)}
                     />

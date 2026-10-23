@@ -67,7 +67,7 @@ function NewTransmittal() {
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            Tick the slip as on paper, then add the lines. Submit to open its first stage.
+            Pick the lines, set the slip, then Submit to open its first stage.
           </p>
           <TransmittalForm
             defaultOrigin={originFor({ hasPurchasingFlow, lists })}

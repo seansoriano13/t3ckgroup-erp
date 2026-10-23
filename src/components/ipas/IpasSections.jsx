@@ -3,9 +3,9 @@ import { Check, CircleAlert, CloudDownload, CloudOff, Pencil, RefreshCw, Undo2 }
 
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
-import { DetailRow } from "../ui/DetailParts";
+import DetailGrid from "@/components/record/DetailGrid";
+import LinerList from "@/components/record/LinerList";
 import SectionHeader from "../ui/SectionHeader";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
 import {
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -67,18 +67,16 @@ export function OdooMark({ children = "Odoo" }) {
   );
 }
 
-function Facts({ children }) {
-  return <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">{children}</dl>;
-}
-
 /**
  * An Odoo value Purchasing may override (Entity, Source Doc., Analytic Dist.):
  * what the IPAS uses, with Odoo's current value beside an override and one
- * action to go back to it. `state` is one of `ipas.overrides`.
+ * action to go back to it. `state` is one of `ipas.overrides`. Returns the
+ * detail-grid item.
  */
-function OverrideRow({ state, canChange, onEdit, onReset }) {
-  return (
-    <DetailRow label={state.label}>
+function overrideItem(state, canChange, onEdit, onReset) {
+  return {
+    label: state.label,
+    value: (
       <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>{state.value ?? "—"}</span>
         {state.overridden ? (
@@ -116,17 +114,19 @@ function OverrideRow({ state, canChange, onEdit, onReset }) {
           </span>
         )}
       </span>
-    </DetailRow>
-  );
+    ),
+  };
 }
 
 /**
  * A value Purchasing types and Odoo fills only while it is blank (supplier
- * contact, P.I #). `fromOdoo` marks a value that is still Odoo's.
+ * contact, P.I #). `fromOdoo` marks a value that is still Odoo's. Returns the
+ * detail-grid item.
  */
-function TypedRow({ label, value, fromOdoo, canChange, onEdit }) {
-  return (
-    <DetailRow label={label}>
+function typedItem({ label, value, fromOdoo, canChange, onEdit }) {
+  return {
+    label,
+    value: (
       <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>{value ?? "—"}</span>
         {fromOdoo && <OdooMark>Filled from Odoo</OdooMark>}
@@ -143,8 +143,8 @@ function TypedRow({ label, value, fromOdoo, canChange, onEdit }) {
           </Button>
         )}
       </span>
-    </DetailRow>
-  );
+    ),
+  };
 }
 
 /**
@@ -293,30 +293,25 @@ export function IpasHeaderSection({ ipas, canChange: granted = false, onEditOver
   const canChange = useEditable(granted);
   return (
     <IpasSection title="Header">
-      <Facts>
-        <OverrideRow
-          state={ipas.overrides[IPAS_OVERRIDE.ENTITY]}
-          canChange={canChange}
-          onEdit={onEditOverride}
-          onReset={onResetOverride}
-        />
-        <DetailRow label="Priority">{IPAS_PRIORITY_LABELS[ipas.priority]}</DetailRow>
-        <DetailRow label="Source">{IPAS_SOURCE_LABELS[ipas.source]}</DetailRow>
-        <DetailRow label="Purpose">{IPAS_PURPOSE_LABELS[ipas.purpose]}</DetailRow>
-        <DetailRow label="Date created">{formatDate(ipas.created_at)}</DetailRow>
-        <DetailRow label="Created by">{ipas.creator?.name}</DetailRow>
-        <TypedRow
-          label="Remarks"
-          value={ipas.remarks}
-          canChange={canChange && Boolean(onEditHeader)}
-          onEdit={() => onEditHeader("remarks")}
-        />
-      </Facts>
+      <DetailGrid
+        items={[
+          overrideItem(ipas.overrides[IPAS_OVERRIDE.ENTITY], canChange, onEditOverride, onResetOverride),
+          { label: "Priority", value: IPAS_PRIORITY_LABELS[ipas.priority] },
+          { label: "Source", value: IPAS_SOURCE_LABELS[ipas.source] },
+          { label: "Purpose", value: IPAS_PURPOSE_LABELS[ipas.purpose] },
+          { label: "Date created", value: formatDate(ipas.created_at) },
+          { label: "Created by", value: ipas.creator?.name },
+          typedItem({
+            label: "Remarks",
+            value: ipas.remarks,
+            canChange: canChange && Boolean(onEditHeader),
+            onEdit: () => onEditHeader("remarks"),
+          }),
+        ]}
+      />
     </IpasSection>
   );
 }
-
-const LINE_HEAD = "text-label font-bold uppercase tracking-wider";
 
 /**
  * Section 1: the PO and its item lines, as Odoo had them when last fetched.
@@ -347,91 +342,79 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange: gra
     >
       <IpasChangeNote note={ipas.changeNote} currency={ipas.currency} />
 
-      <Facts>
-        <DetailRow label="Purchase Order">
-          <span className="inline-flex flex-wrap items-center gap-2">
-            <span className="font-mono">{po.name || ipas.po_number}</span>
-            {po.state && (
-              <StatusBadge
-                theme={po.state === "cancel" ? "red" : "blue"}
-                label={ODOO_PO_STATE_LABELS[po.state] || po.state}
-              />
-            )}
-            <OdooMark />
-          </span>
-        </DetailRow>
-        <DetailRow label="Currency">
-          <span className="inline-flex items-center gap-2">
-            <span className="font-mono">{ipas.currency}</span>
-            <OdooMark>Odoo · fix on the Odoo PO</OdooMark>
-          </span>
-        </DetailRow>
-        <DetailRow label="Supplier">
-          <span className="inline-flex flex-wrap items-center gap-2">
-            {ipas.supplier}
-            <OdooMark />
-          </span>
-        </DetailRow>
-        <TypedRow
-          label="Supplier's name"
-          value={ipas.contact}
-          fromOdoo={ipas.contactFromOdoo}
-          canChange={canChange}
-          onEdit={() => onEditHeader("supplier_contact")}
-        />
-        <TypedRow
-          label="P.I #"
-          value={ipas.piNumber}
-          fromOdoo={ipas.piNumberFromOdoo}
-          canChange={canChange}
-          onEdit={() => onEditHeader("pi_number")}
-        />
-      </Facts>
+      <DetailGrid
+        items={[
+          {
+            label: "Purchase Order",
+            value: (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <span className="font-mono">{po.name || ipas.po_number}</span>
+                {po.state && (
+                  <StatusBadge
+                    theme={po.state === "cancel" ? "red" : "blue"}
+                    label={ODOO_PO_STATE_LABELS[po.state] || po.state}
+                  />
+                )}
+                <OdooMark />
+              </span>
+            ),
+          },
+          {
+            label: "Currency",
+            value: (
+              <span className="inline-flex items-center gap-2">
+                <span className="font-mono">{ipas.currency}</span>
+                <OdooMark>Odoo · fix on the Odoo PO</OdooMark>
+              </span>
+            ),
+          },
+          {
+            label: "Supplier",
+            value: (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                {ipas.supplier}
+                <OdooMark />
+              </span>
+            ),
+          },
+          typedItem({
+            label: "Supplier's name",
+            value: ipas.contact,
+            fromOdoo: ipas.contactFromOdoo,
+            canChange,
+            onEdit: () => onEditHeader("supplier_contact"),
+          }),
+          typedItem({
+            label: "P.I #",
+            value: ipas.piNumber,
+            fromOdoo: ipas.piNumberFromOdoo,
+            canChange,
+            onEdit: () => onEditHeader("pi_number"),
+          }),
+        ]}
+      />
 
-      {ipas.lines.length === 0 ? (
-        <p className="py-4 text-sm text-muted-foreground">The Odoo PO has no item lines.</p>
-      ) : (
-        <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-          <Table className="md:min-w-[40rem]">
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className={LINE_HEAD}>Item</TableHead>
-                <TableHead className={LINE_HEAD}>Brand</TableHead>
-                <TableHead className={`${LINE_HEAD} text-right`}>Qty</TableHead>
-                <TableHead className={`${LINE_HEAD} text-right`}>Unit price</TableHead>
-                <TableHead className={`${LINE_HEAD} text-right`}>Amount</TableHead>
-                <TableHead className={LINE_HEAD}>Taxes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ipas.lines.map((line) => (
-                <TableRow key={line.line_id}>
-                  <TableCell className="max-w-[22rem] whitespace-pre-line text-sm text-foreground">
-                    {line.name}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{line.brand || "—"}</TableCell>
-                  <TableCell className="text-right font-mono text-xs tabular-nums">
-                    {line.quantity} {line.unit}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs tabular-nums">
-                    {formatAmount(line.price_unit, ipas.currency)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
-                    {formatAmount(line.price_subtotal, ipas.currency)}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {line.taxes?.length ? line.taxes.join(", ") : "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="flex justify-between gap-3 border-t border-border bg-muted/20 px-4 py-2 text-xs">
-            <span className="text-muted-foreground">Before tax, as Odoo prices the lines</span>
-            <span className="font-mono font-semibold tabular-nums">{formatAmount(total, ipas.currency)}</span>
-          </div>
-        </div>
-      )}
+      <div className="mt-5 space-y-3" data-testid="ipas-lines">
+        <SectionHeader title={`Lines · ${ipas.lines.length}`} className="border-b-0 pb-2" />
+        <LinerList
+          label="Lines"
+          empty="The Odoo PO has no item lines."
+          total={{ label: "Before tax, as Odoo prices the lines", value: formatAmount(total, ipas.currency) }}
+          rows={ipas.lines.map((line) => ({
+            key: line.line_id,
+            testId: "ipas-line-row",
+            main: <span className="whitespace-pre-line">{line.name}</span>,
+            sub: [line.brand, line.taxes?.length ? `Taxes: ${line.taxes.join(", ")}` : null].filter(Boolean).join(" · ") || null,
+            subWrap: true,
+            quantity: `${line.quantity} ${line.unit} × ${formatAmount(line.price_unit, ipas.currency)}`,
+            actions: (
+              <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">
+                {formatAmount(line.price_subtotal, ipas.currency)}
+              </span>
+            ),
+          }))}
+        />
+      </div>
 
       {children}
     </IpasSection>
@@ -447,66 +430,62 @@ export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverr
   const inDrawer = useInDrawer();
   return (
     <IpasSection title={ipasSectionLabel("sales")}>
-      <dl className="divide-y divide-border">
-        <DetailRow label="SORs">
-          {ipas.sors.length === 0 ? (
-            <span className="text-muted-foreground">
-              {ipas.isProject ? "No SOR named" : `None; ${IPAS_PURPOSE_LABELS[ipas.purpose]} names no SOR`}
-            </span>
-          ) : (
-            <ul className="space-y-1">
-              {ipas.sors.map((sor) => (
-                <li key={sor.id} className="text-sm">
-                  <span className="font-mono font-semibold">{sor.salesReference}</span>
-                  <span className="text-muted-foreground">
-                    {" "}
-                    · {sor.projectTitle}
-                    {sor.stageName ? ` · ${sor.stageName}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </DetailRow>
-        <DetailRow label="Googlesheet">
-          {inDrawer ? (
-            <ReadTick checked={ipas.googleSheet} label="Googlesheet" />
-          ) : (
-            <Checkbox
-              checked={ipas.googleSheet}
-              disabled={!canChange}
-              aria-label="Googlesheet"
-              tone="neutral"
-              onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GOOGLE_SHEET, Boolean(value))}
-            />
-          )}
-        </DetailRow>
-        <DetailRow label="Gantt Chart">
-          {inDrawer ? (
-            <ReadTick checked={ipas.ganttChart} label="Gantt Chart" />
-          ) : (
-            <Checkbox
-              checked={ipas.ganttChart}
-              disabled={!canChange}
-              aria-label="Gantt Chart"
-              tone="neutral"
-              onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GANTT_CHART, Boolean(value))}
-            />
-          )}
-        </DetailRow>
-        <OverrideRow
-          state={ipas.overrides[IPAS_OVERRIDE.SOURCE_DOC]}
-          canChange={canChange}
-          onEdit={onEditOverride}
-          onReset={onResetOverride}
-        />
-        <OverrideRow
-          state={ipas.overrides[IPAS_OVERRIDE.ANALYTIC]}
-          canChange={canChange}
-          onEdit={onEditOverride}
-          onReset={onResetOverride}
-        />
-      </dl>
+      <DetailGrid
+        items={[
+          {
+            label: "SORs",
+            value:
+              ipas.sors.length === 0 ? (
+                <span className="font-normal text-muted-foreground">
+                  {ipas.isProject ? "No SOR named" : `None; ${IPAS_PURPOSE_LABELS[ipas.purpose]} names no SOR`}
+                </span>
+              ) : (
+                <ul className="space-y-1">
+                  {ipas.sors.map((sor) => (
+                    <li key={sor.id} className="text-sm">
+                      <span className="font-mono font-semibold">{sor.salesReference}</span>
+                      <span className="font-normal text-muted-foreground">
+                        {" "}
+                        · {sor.projectTitle}
+                        {sor.stageName ? ` · ${sor.stageName}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ),
+          },
+          {
+            label: "Googlesheet",
+            value: inDrawer ? (
+              <ReadTick checked={ipas.googleSheet} label="Googlesheet" />
+            ) : (
+              <Checkbox
+                checked={ipas.googleSheet}
+                disabled={!canChange}
+                aria-label="Googlesheet"
+                tone="neutral"
+                onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GOOGLE_SHEET, Boolean(value))}
+              />
+            ),
+          },
+          {
+            label: "Gantt Chart",
+            value: inDrawer ? (
+              <ReadTick checked={ipas.ganttChart} label="Gantt Chart" />
+            ) : (
+              <Checkbox
+                checked={ipas.ganttChart}
+                disabled={!canChange}
+                aria-label="Gantt Chart"
+                tone="neutral"
+                onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GANTT_CHART, Boolean(value))}
+              />
+            ),
+          },
+          overrideItem(ipas.overrides[IPAS_OVERRIDE.SOURCE_DOC], canChange, onEditOverride, onResetOverride),
+          overrideItem(ipas.overrides[IPAS_OVERRIDE.ANALYTIC], canChange, onEditOverride, onResetOverride),
+        ]}
+      />
     </IpasSection>
   );
 }
@@ -634,13 +613,12 @@ function SupplierOrigin({ ipas, canChange, onEdit }) {
           </Button>
         )}
       </SectionHeader>
-      <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
-        {IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, label }) => (
-          <DetailRow key={field} label={label}>
-            {origin[field] ? formatDay(origin[field]) : null}
-          </DetailRow>
-        ))}
-      </dl>
+      <DetailGrid
+        items={IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, label }) => ({
+          label,
+          value: origin[field] ? formatDay(origin[field]) : null,
+        }))}
+      />
     </div>
   );
 }

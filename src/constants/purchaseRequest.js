@@ -25,6 +25,9 @@ export const ITEM_STATUS = {
   CANCELLED: "cancelled",
 };
 
+/** An existing Canvass can still be attached to an item at these statuses (past them the buying is done). */
+export const CANVASS_ATTACHABLE_STATUSES = [ITEM_STATUS.REQUESTED, ITEM_STATUS.TO_ORDER, ITEM_STATUS.CANVASSING];
+
 /** Every status, in path order: the main path first, then the ways out. */
 export const ITEM_STATUSES = [
   ITEM_STATUS.REQUESTED,

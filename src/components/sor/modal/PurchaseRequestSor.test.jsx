@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, vi } from "vitest"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { MemoryRouter } from "react-router"
 
 import { renderWithProviders } from "../../../test/support"
 import { stubEdgeFunction, stubRpc } from "../../../test/msw/server"
@@ -28,7 +29,11 @@ function open(deal) {
   stubEdgeFunction("odoo-sor-lookup", { success: true, found: true, order: { id: 1, name: "S1", state: "sale" }, customer: {}, items: [] })
   // The PMS tab shows to anyone with a Costing Matrix read tier on the SOR.
   stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] })
-  renderWithProviders(<OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} />)
+  renderWithProviders(
+    <MemoryRouter>
+      <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} />
+    </MemoryRouter>,
+  )
 }
 
 describe("Purchase Request on the SOR (#310)", () => {

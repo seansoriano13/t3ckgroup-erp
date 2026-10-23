@@ -109,7 +109,7 @@ export default function CostingSummary({ matrix, writes }) {
   };
 
   return (
-    <section className="max-w-xl space-y-2 rounded-xl border border-border/70 bg-card p-4" aria-label="Summary" data-testid="costing-summary">
+    <section className="space-y-2 rounded-xl border border-border/70 bg-card p-4" aria-label="Summary" data-testid="costing-summary">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <Calculator size={14} aria-hidden="true" />
         Summary

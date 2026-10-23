@@ -74,7 +74,6 @@ export default function AddFromCostingMatrixDialog({ open, onOpenChange, request
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       className={OVER_REQUEST_MODAL}
       crumbs={["Purchase Requests", "Add from the Costing Matrix"]}
-      expandable
       actions={
         <Button
           size="lg"

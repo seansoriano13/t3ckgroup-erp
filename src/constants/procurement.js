@@ -250,6 +250,16 @@ export const REQUEST_UNITS = [
   "lot",
 ];
 
+/**
+ * The unit picker's options: the common units, plus a unit already saved on
+ * a row that is not one of them (a free-text unit from before the list), so
+ * that row still shows what it holds.
+ */
+export const unitOptionsWith = (current) => {
+  const units = current && !REQUEST_UNITS.includes(current) ? [...REQUEST_UNITS, current] : REQUEST_UNITS;
+  return units.map((u) => ({ value: u, label: u }));
+};
+
 /** A request is answered once purchasing has recorded a definitive outcome (Purchased, Delivered, or Alternative). */
 export const isResolved = (request) => {
   const outcome = normalizeOutcome(request?.outcome);

@@ -4,6 +4,7 @@ import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
+import { lwopService } from '../../services/lwopService';
 import { silService } from '../../services/silService';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -16,7 +17,8 @@ import { FilterSelect } from '../../components/ui/FilterDropdown';
 import TabGroup from '../../components/ui/TabGroup';
 import { Button } from '@/components/ui/button';
 import FloatingMonthPicker from '../../components/FloatingMonthPicker';
-import NotionLeaveCalendar from '../../components/hr/NotionLeaveCalendar';
+import Calendar from '@/components/calendar/Calendar';
+import { TIME_OFF_OVERTIME_LAYERS } from '@/components/calendar/entryKinds.jsx';
 import ApplyLeaveModal from '../../components/offsets/ApplyLeaveModal';
 import { confirmDeleteToast } from '../../components/ui/CustomToast';
 import { getMonthBoundaries } from '../../utils/dateUtils';
@@ -29,6 +31,7 @@ import { CAPTION_BASE } from "@/lib/captionStyle";
 const REQUEST_WITHDRAW = {
   OFFSET: (req, employeeId) => offsetService.withdrawOffsetLeave({ leaveId: req.id, employeeId }),
   SIL: (req, employeeId) => silService.cancelMySilLeave({ leaveId: req.id, employeeId }),
+  LWOP: (req, employeeId) => lwopService.cancelMyLwopLeave({ leaveId: req.id, employeeId }),
   OVERTIME: (req, employeeId) => offsetService.withdrawOvertimeRequest({ requestId: req.id, employeeId }),
   UNDERTIME: (req, employeeId) => offsetService.withdrawUndertimeRequest({ requestId: req.id, employeeId }),
 };
@@ -37,6 +40,7 @@ const TYPE_FILTER_OPTIONS = [
   { value: 'ALL', label: 'All types' },
   { value: 'OFFSET', label: 'Offset' },
   { value: 'SIL', label: 'SIL' },
+  { value: 'LWOP', label: 'LWOP' },
   { value: 'OVERTIME', label: 'Overtime' },
   { value: 'UNDERTIME', label: 'Undertime' },
 ];
@@ -65,24 +69,24 @@ export default function EmployeeLeavesPage() {
       const [
         otData,
         offsetLvData,
-        allOffsetLeavesData,
         silLvData,
-        allSilLeavesData,
         pendingOtData,
         pendingOffsetData,
         pendingSilData,
+        lwopLvData,
+        pendingLwopData,
         utData,
         pendingUtData,
         empDataRes
       ] = await Promise.all([
         offsetService.getMyOvertimeRequests(user.id, dateRange.startDate, dateRange.endDate),
         offsetService.getMyOffsetLeaves(user.id, dateRange.startDate, dateRange.endDate),
-        offsetService.getCalendarOffsetLeaves(dateRange.startDate, dateRange.endDate), // Calendar projection
         silService.getMySilLeaves(user.id, dateRange.startDate, dateRange.endDate),
-        silService.getCalendarSilLeaves(dateRange.startDate, dateRange.endDate), // Calendar projection
         offsetService.getMyPendingOvertimeRequests(user.id),
         offsetService.getMyPendingOffsetLeaves(user.id),
         silService.getMyPendingSilLeaves(user.id),
+        lwopService.getMyLwopLeaves(user.id, dateRange.startDate, dateRange.endDate),
+        lwopService.getMyPendingLwopLeaves(user.id),
         offsetService.getMyUndertimeRequests(user.id, dateRange.startDate, dateRange.endDate),
         offsetService.getMyPendingUndertimeRequests(user.id),
         supabase.from('employees').select('offset_hours_balance, sil_hours_balance').eq('id', user.id).single()
@@ -93,16 +97,13 @@ export default function EmployeeLeavesPage() {
       const requests = mergeRequestRows({
         OFFSET: [...offsetLvData, ...pendingOffsetData],
         SIL: [...silLvData, ...pendingSilData],
+        LWOP: [...lwopLvData, ...pendingLwopData],
         OVERTIME: [...otData, ...pendingOtData],
         UNDERTIME: [...utData, ...pendingUtData],
       });
 
-      const approvedOffset = allOffsetLeavesData.filter(l => l.status === 'APPROVED').map(l => ({ ...l, type: 'OFFSET' }));
-      const approvedSil = allSilLeavesData.filter(l => l.status === 'APPROVED').map(l => ({ ...l, type: 'SIL' }));
-
       return {
         requests,
-        globalApprovedLeaves: [...approvedOffset, ...approvedSil],
         offsetBalance: empDataRes.data?.offset_hours_balance ?? user?.offset_hours_balance ?? 0,
         silBalance: empDataRes.data?.sil_hours_balance ?? user?.sil_hours_balance ?? 0,
       };
@@ -112,7 +113,6 @@ export default function EmployeeLeavesPage() {
 
   const {
     requests = [],
-    globalApprovedLeaves = [],
     offsetBalance = user?.offset_hours_balance || 0,
     silBalance = user?.sil_hours_balance || 0,
   } = data || {};
@@ -127,6 +127,7 @@ export default function EmployeeLeavesPage() {
           await REQUEST_WITHDRAW[req.type](req, user?.id);
           toast.success(`${label} request withdrawn successfully.`);
           queryClient.invalidateQueries({ queryKey: ['employeeLeaves'] });
+          queryClient.invalidateQueries({ queryKey: ['calendar-entries'] });
         } catch (err) {
           toast.error(err.message || 'Failed to withdraw request.');
         }
@@ -134,9 +135,9 @@ export default function EmployeeLeavesPage() {
     );
   }, [user?.id, queryClient]);
 
-  // NotionLeaveCalendar calls back with (id, status, type) for its own withdraw affordance.
-  const handleWithdrawFromCalendar = useCallback((id, status, type) => {
-    handleWithdraw({ id, status, type });
+  // The Calendar's detail panel offers Withdraw on the viewer's own upcoming Time Off.
+  const handleWithdrawFromCalendar = useCallback((entry) => {
+    handleWithdraw({ id: entry.id, status: entry.status, type: entry.kind });
   }, [handleWithdraw]);
 
   const filteredRequests = useMemo(() => {
@@ -144,7 +145,7 @@ export default function EmployeeLeavesPage() {
     return requests.filter(r => r.type === typeFilter);
   }, [requests, typeFilter]);
 
-  // The balances sit beside Apply Leave / OT: they are what the person checks
+  // The balances sit beside File Time Off / Overtime: they are what the person checks
   // before applying, on either tab. A zero balance reads muted, not alarming.
   const balances = (
     <dl className="flex items-center gap-6">
@@ -178,7 +179,7 @@ export default function EmployeeLeavesPage() {
             <span aria-hidden="true" className="hidden h-8 w-px bg-border sm:block" />
             <Button onClick={() => setIsApplyModalOpen(true)}>
               <Plus size={16} />
-              Apply Leave / OT
+              File Time Off / Overtime
             </Button>
           </>
         }
@@ -217,12 +218,7 @@ export default function EmployeeLeavesPage() {
 
         {activeTab === 'calendar' && (
           <div className="animate-in fade-in duration-300">
-            <NotionLeaveCalendar
-              approvedLeaves={globalApprovedLeaves}
-              currentUserId={user?.id}
-              onWithdrawLeave={handleWithdrawFromCalendar}
-              targetDate={dateRange.startDate}
-            />
+            <Calendar presetLayers={TIME_OFF_OVERTIME_LAYERS} onWithdraw={handleWithdrawFromCalendar} />
           </div>
         )}
 

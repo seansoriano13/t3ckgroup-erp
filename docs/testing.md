@@ -137,6 +137,10 @@ the library, so a test file left there becomes a route — and drags msw, the fa
 database and the SQL schema parser into the production bundle. The build fails
 outright when that happens. `src/test/pages` is the workaround, and this
 paragraph is why it is not an inconsistency to tidy up.
+`src/test/scripts/noTestsInRoutedPages.test.js` fails if a test file (or anything
+importing vitest, testing-library or msw) sits in a routed spot, because that
+mistake does not just fail the build — on 2026-10-22 it shipped to staging and
+crashed the app while the bundle loaded, so every reload stayed blank.
 
 ### The environment each test runs in
 

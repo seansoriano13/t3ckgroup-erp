@@ -898,6 +898,17 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   // them again. Now the RPC either returns (everything on this Stage is
   // created-or-failed) or the whole call never happened (nothing began, so
   // the fire-once gate still lets a retry pick it all up).
+  const failedStageActions = await runStageActionsOnEntry({ existing, to, snapshotActions, actorId });
+  return { ...data, failedStageActions };
+}
+
+/**
+ * Runs the Actions of `to`, the Stage a deal has just entered, from its Flow
+ * Snapshot (#204, #409). Shared by a stage move and by registration (SOR-245:
+ * a deal registered onto a Stage with Actions got no run, so its Actions never
+ * fired). Returns the names of the Actions that failed. It never throws.
+ */
+async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId }) {
   const failedStageActions = [];
   let actionsAttempted = false;
   try {
@@ -1001,6 +1012,10 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
       // decision-due notification directly, in the same transaction as the
       // run it belongs to.
       for (const payload of actionsPayload) {
+        if (payload.kind === "create_group_task" && !payload.confirm) {
+          const action = actions.find((a) => a.id === payload.action_id);
+          payload.evaluator_id = await resolveEvaluatorId(action?.config?.evaluator, existing);
+        }
         if (!payload.confirm) continue;
         payload.decider_ids = await resolveDeciderIds(payload.decider, existing);
         const action = actions.find((a) => a.id === payload.action_id);
@@ -1091,12 +1106,15 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
                 actorId,
               );
               if (newVisit?.id) {
-                for (const member of payload.members || []) {
-                  if (!member?.employee_id) continue;
+                for (const calledInId of groupTaskCalledIn(
+                  (payload.members || []).map((m) => m?.employee_id),
+                  payload.evaluator_id,
+                  existing.deal_owner_id,
+                )) {
                   await sorStageParticipantService.openWindow(
                     {
                       opportunityId: existing.id,
-                      employeeId: member.employee_id,
+                      employeeId: calledInId,
                       source: "action",
                       sourceId: action.id,
                       openedVisitId: newVisit.id,
@@ -1126,7 +1144,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     }
   }
 
-  return { ...data, failedStageActions };
+  return failedStageActions;
 }
 
 /**
@@ -1266,6 +1284,29 @@ async function resolveDeciderIds(deciderSelectors, opportunity) {
 }
 
 /**
+ * Everyone a Stage Action's Group Task calls into the SOR: its members and, if
+ * they are not already one of them, the evaluator, who has to see the deal to
+ * rate the work. The Deal Owner already sees the deal, so naming them as the
+ * evaluator opens no window (it would only add the deal to their My SORs).
+ */
+function groupTaskCalledIn(memberIds, evaluatorId, dealOwnerId) {
+  const ids = new Set(memberIds.filter(Boolean));
+  if (evaluatorId && evaluatorId !== dealOwnerId) ids.add(evaluatorId);
+  return [...ids];
+}
+
+/**
+ * Who rates a Stage Action's Group Task: the first person the action's
+ * `config.evaluator` selectors resolve to. Null when none is configured or it
+ * resolves to nobody — the database then falls back to the SOR's Deal Owner.
+ */
+async function resolveEvaluatorId(evaluatorSelectors, opportunity) {
+  if (!evaluatorSelectors || evaluatorSelectors.length === 0) return null;
+  const ids = await resolveSelectorIds(evaluatorSelectors, opportunity);
+  return ids[0] ?? null;
+}
+
+/**
  * Issue #204 Part 3 — resolves a Follow-up Cadence's `recipients` selectors
  * to live employee ids, the same shape `resolveDeciderIds` resolves a
  * "When confirmed" action's Decider — kept separate rather than shared so a
@@ -1338,6 +1379,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
         ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
         : "",
       createdBy: actorId,
+      evaluatorId: (await resolveEvaluatorId(config.evaluator, existing)) ?? existing.deal_owner_id ?? null,
       templateId: config.templateId || null,
       members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }],
       opportunityId: existing.id,
@@ -1375,12 +1417,15 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       // Issue #294: every assignee/member on this action task becomes a
       // Stage Participant, windowed by the action's own `config.access`.
       if (runRow?.stage_visit_id) {
-        for (const member of payload.members) {
-          if (!member?.employeeId) continue;
+        for (const calledInId of groupTaskCalledIn(
+          payload.members.map((m) => m?.employeeId),
+          payload.evaluatorId,
+          existing.deal_owner_id,
+        )) {
           await sorStageParticipantService.openWindow(
             {
               opportunityId: existing.id,
-              employeeId: member.employeeId,
+              employeeId: calledInId,
               source: "action",
               sourceId: action.id,
               openedVisitId: runRow.stage_visit_id,
@@ -1909,6 +1954,19 @@ export const opportunityService = {
 
     const final = await opportunityService.getOpportunityById(data.id);
 
+    // SOR-245: a deal lands on its entry Stage with no action run, so that
+    // Stage's Actions (a Purchase Request, a task) never fired. Run them here,
+    // from the same snapshot the deal was registered under.
+    let failedStageActions = [];
+    if (flowEntry) {
+      failedStageActions = await runStageActionsOnEntry({
+        existing: final,
+        to: flowEntry.entry,
+        snapshotActions: flowEntry.snapshot.snapshot_data?.actions || [],
+        actorId,
+      });
+    }
+
     await opportunityService.addSystemNote(
       final.id,
       `Registered — ${final.client_name}, ${formatPHP(final.expected_value)}.`,
@@ -1924,7 +1982,7 @@ export const opportunityService = {
       actorId,
     ).catch(console.error);
 
-    return final;
+    return { ...final, failedStageActions };
   },
 
   /**

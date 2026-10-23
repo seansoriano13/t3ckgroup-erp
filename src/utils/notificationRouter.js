@@ -58,7 +58,10 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     // decides what the reader may see (the database returns nothing to someone
     // who can't read IPAS), so every IPAS_* type lands there.
     navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
-  } else if (notif.type === "GROUP_TASK_COMMENT") {
+  } else if (
+    notif.type === "GROUP_TASK_COMMENT" ||
+    notif.type === "GROUP_TASK_REACTION"
+  ) {
     navigate("/group-tasks");
     window.dispatchEvent(
       new CustomEvent("OPEN_CHAT_MODAL", {
@@ -93,6 +96,8 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
   } else if (
     notif.type === "GROUP_ASSIGNED" ||
     notif.type === "GROUP_TASK_READY_FOR_HR" ||
+    notif.type === "GROUP_TASK_AWAITING_EVALUATION" ||
+    notif.type === "GROUP_TASK_EVALUATION_REMINDER" ||
     notif.type === "GROUP_MEMBER_DONE"
   ) {
     navigate("/group-tasks");

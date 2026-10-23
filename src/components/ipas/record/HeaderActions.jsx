@@ -1,23 +1,29 @@
-import { Ban, FileLock2, Pencil, Printer } from "lucide-react";
+import { Ban, CirclePause, CirclePlay, FileLock2, Pencil, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import IpasStateBadge from "@/components/ipas/IpasStateBadge";
 import RecordMoreMenu from "@/components/record/RecordMoreMenu";
 import { PrintPreviewButton } from "./PrintPreview";
 
 /**
- * The page header's actions: the state, Preview (the one visible button),
- * a More menu with the rest, and the link back to the list. Print and Print filing copy open the printed
- * IPAS; the Purchasing edits and Cancel IPAS show only while it is open and
- * the viewer may change it, as before.
+ * The record window's actions, top right: Preview and Edit as outline buttons,
+ * then More. Print and Print filing copy open the printed IPAS; On-Hold, the
+ * Purpose edit and Cancel IPAS show only while it is open and the viewer may
+ * change it, as before.
  */
 export default function HeaderActions({ ctx }) {
-  const { ipas, can, on, busy, back } = ctx;
+  const { ipas, can, on, busy } = ctx;
   const items = [
     { key: "print", label: busy.print ? "Preparing…" : "Print", icon: Printer, disabled: busy.print, onSelect: on.print },
   ];
   if (can.printFiling) {
     items.push({ key: "filing", label: "Print filing copy", icon: FileLock2, disabled: busy.print, onSelect: on.printFiling });
+  }
+  if (can.hold) {
+    items.push(
+      ctx.onHold
+        ? { key: "hold", label: "Clear On-Hold", icon: CirclePlay, onSelect: on.hold }
+        : { key: "hold", label: "Put On-Hold", icon: CirclePause, onSelect: on.hold },
+    );
   }
   if (can.change) {
     // A Project's SORs are fixed when it is raised, so its Purpose has nowhere to go (#551).
@@ -26,7 +32,6 @@ export default function HeaderActions({ ctx }) {
   }
   return (
     <>
-      <IpasStateBadge state={ipas.state} />
       <PrintPreviewButton ctx={ctx} />
       {can.change && (
         <Button size="sm" variant="outline" className="gap-1.5" onClick={on.edit}>
@@ -35,7 +40,6 @@ export default function HeaderActions({ ctx }) {
         </Button>
       )}
       <RecordMoreMenu items={items} />
-      {back}
     </>
   );
 }

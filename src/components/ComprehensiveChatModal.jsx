@@ -48,6 +48,8 @@ import ReplyPreviewBar from "./ui/ReplyPreviewBar";
 import ReplyQuote from "./ui/ReplyQuote";
 import SwipeToReplyWrapper from "./ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "../utils/chatReply";
+import { canUnsend, isMessageRemoved } from "../utils/chatUnsend";
+import { chatUnsendService } from "../services/chatUnsendService";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { AttachmentPreviews, AttachmentList } from "./ui/Attachments";
 import { ALLOWED_MIME_TYPES } from "../utils/attachments";
@@ -137,7 +139,8 @@ const entityLabel = (type) =>
 //  SUB-COMPONENTS
 // -------------------------------------------------------------
 
-function MessageBubble({ entry, currentUserId, onReply, onReact }) {
+function MessageBubble({ entry, currentUserId, onReply, onReact, onUnsend }) {
+  const removed = isMessageRemoved(entry);
   const isMe = entry.authorId === currentUserId;
   const avatarMap = useEmployeeAvatarMap();
 
@@ -279,9 +282,10 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
 
           <SwipeToReplyWrapper 
             isMe={isMe} 
-            copyText={entry.content}
-            onReply={() => onReply?.(entry)}
-            onReact={(emoji) => onReact && onReact(entry, emoji)}
+            copyText={removed ? undefined : entry.content}
+            onReply={removed ? undefined : () => onReply?.(entry)}
+            onReact={removed ? undefined : (emoji) => onReact && onReact(entry, emoji)}
+            onUnsend={canUnsend(entry, currentUserId) ? () => onUnsend?.(entry) : undefined}
           >
             <div
               className={cn(
@@ -296,16 +300,18 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
               )}
               style={{ wordBreak: "break-word" }}
             >
-              <ReplyQuote replyTo={entry.metadata?.replyTo} />
-              {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
-              {entry.metadata?.attachments?.length > 0 && (
-                <div
-                  className={cn(
-                    entry.content ? "mt-2" : "",
+              {removed ? (
+                <p className="italic opacity-70">Message removed</p>
+              ) : (
+                <>
+                  <ReplyQuote replyTo={entry.metadata?.replyTo} />
+                  {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
+                  {entry.metadata?.attachments?.length > 0 && (
+                    <div className={cn(entry.content ? "mt-2" : "")}>
+                      <AttachmentList attachments={entry.metadata.attachments} />
+                    </div>
                   )}
-                >
-                  <AttachmentList attachments={entry.metadata.attachments} />
-                </div>
+                </>
               )}
             </div>
           </SwipeToReplyWrapper>
@@ -680,7 +686,7 @@ export default function ComprehensiveChatModal({
         notificationService.createNotification({
           recipient_id: message.authorId,
           sender_id: user.id,
-          type: "TASK_REACTION",
+          type: selectedChat?.entity_type === "TASK" ? "TASK_REACTION" : "GROUP_TASK_REACTION",
           title: "New Reaction",
           message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
           reference_id: selectedChat?.entity_id,
@@ -693,6 +699,25 @@ export default function ComprehensiveChatModal({
         queryKey: ["chatMessages", selectedChat?.entity_type, selectedChat?.entity_id],
       });
     }
+  };
+
+  const unsendMessage = async (message) => {
+    if (!message?.id) return;
+    const table = selectedChat?.entity_type === "TASK" ? "task_activity" : "committee_task_activity";
+    patchPagedMessage(queryClient, chatKey, message.id, (m) => ({
+      ...m,
+      content: "Message removed",
+      metadata: { removed: true },
+    }));
+    try {
+      await chatUnsendService.unsend(table, message.id);
+    } catch (err) {
+      console.error("Failed to unsend message:", err);
+    }
+    queryClient.invalidateQueries({
+      queryKey: ["chatMessages", selectedChat?.entity_type, selectedChat?.entity_id],
+    });
+    queryClient.invalidateQueries({ queryKey: ["activeChats", user?.id] });
   };
 
   // -- Effects -----------------------------------------------
@@ -1309,6 +1334,7 @@ export default function ComprehensiveChatModal({
                       currentUserId={user.id}
                       onReply={(entry) => setReplyingTo(buildReplySnapshot(entry))}
                       onReact={toggleReaction}
+                      onUnsend={unsendMessage}
                     />
                   ))
                 )}
