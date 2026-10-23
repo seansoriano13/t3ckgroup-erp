@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { groupTaskService } from "./groupTaskService"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
-import { makeEmployee, makeHead, makeHrEmployee, makeSuperAdmin } from "@/test/factories"
+import { makeEmployee, makeHead, makeHrEmployee, makeOpportunity, makeStageVisit, makeSuperAdmin } from "@/test/factories"
 import { stubEdgeFunction } from "@/test/msw/server"
 
 /**
@@ -551,6 +551,53 @@ describe("groupTaskService", () => {
       await waitForNetworkIdle()
 
       expect(removalsLogged()).toBe(1)
+    })
+  })
+
+  describe("changing who evaluates", () => {
+    it("sets the evaluator on a task that never had one", async () => {
+      const task = await createTask()
+
+      await groupTaskService.changeEvaluator(task.id, bob.id, creator.id)
+
+      expect((await groupTaskService.getGroupTaskById(task.id)).evaluator_id).toBe(bob.id)
+    })
+
+    it("refuses to clear the evaluator", async () => {
+      const task = await createTask()
+
+      await expect(groupTaskService.changeEvaluator(task.id, null, creator.id)).rejects.toThrow(
+        "Pick who will evaluate this group task.",
+      )
+    })
+
+    it("leaves a task alone when the chosen evaluator already rates it", async () => {
+      const task = await createTask()
+
+      await groupTaskService.changeEvaluator(task.id, creator.id, creator.id)
+
+      expect((await groupTaskService.getGroupTaskById(task.id)).evaluator_id).toBeNull()
+    })
+
+    it("calls the new evaluator into the SOR a task belongs to", async () => {
+      const opportunity = makeOpportunity()
+      const visit = makeStageVisit({ opportunity_id: opportunity.id })
+      const task = await createTask({ opportunityId: opportunity.id, stageVisitId: visit.id })
+
+      await groupTaskService.changeEvaluator(task.id, bob.id, creator.id)
+
+      const windows = db.internal
+        .rowsOf("sor_stage_participants")
+        .filter((w) => w.opportunity_id === opportunity.id)
+      expect(windows.map((w) => w.employee_id)).toEqual([bob.id])
+    })
+
+    it("opens no SOR window for a task outside any SOR", async () => {
+      const task = await createTask()
+
+      await groupTaskService.changeEvaluator(task.id, bob.id, creator.id)
+
+      expect(db.internal.rowsOf("sor_stage_participants")).toEqual([])
     })
   })
 })
