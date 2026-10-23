@@ -115,10 +115,12 @@ _Avoid_: Rater, Reviewer, Approver
 **Awaiting Evaluation** (a Group Task status):
 Every member has marked their assignment done and the Evaluator has not rated yet.
 Reached on its own when the last member is done, and left again if a member
-un-marks. It is not Completed: Completed means the task is fully closed, rating
-and HR check included, so a task that is done but unrated can never look finished.
+un-marks. It is not Completed: Completed means the task was rated and handed to
+HR, so a task that is done but unrated can never look finished. A task made
+before this flow keeps moving by hand only, and gets no reminders.
 A creator, Evaluator, head or super admin can also send a task here by hand when
-some members will never finish.
+some members will never finish. A task left unrated is chased: the Evaluator is
+reminded, and at the end the creator and the Evaluator's department heads are told.
 _Avoid_: Done, Ready to Rate, Pending Rating
 
 **Start Date** (of a Group Task):
