@@ -259,7 +259,7 @@ if (checkOnly) {
       const a = stripHeader(normalize(committed)).split('\n');
       const b = stripHeader(normalize(body)).split('\n');
       const inA = new Set(a), inB = new Set(b);
-      for (const l of a) if (!inB.has(l)) console.error('MIRROR-ONLY: ' + l.slice(0, 400));
+      for (const l of a) if (!inB.has(l)) console.error('MIRROR-ONLY (mirror has, db lacks): ' + l.slice(0, 400));
       for (const l of b) if (!inA.has(l)) console.error('DB-ONLY: ' + l.slice(0, 400));
     }
     console.error(`DRIFT DETECTED: the live schema on ${label} no longer matches ${compareFile}`);
