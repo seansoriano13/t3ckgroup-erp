@@ -287,6 +287,7 @@ export default function CreateGroupTaskModal({
       confirmMode: mode === "automation" ? confirmMode : undefined,
       decider: mode === "automation" && confirmMode === "confirm" ? decider : undefined,
       evaluator: mode === "automation" ? evaluator : undefined,
+      evaluatorId: mode === "automation" ? undefined : evaluator[0]?.id ?? null,
       createdBy: user.id,
       templateId: appliedTemplateId ?? null,
       members: validMembers.map((m) => {
@@ -547,14 +548,23 @@ export default function CreateGroupTaskModal({
                 )}
               </div>
 
-              {mode === "automation" && (
-                <div className="mt-3 space-y-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                    Evaluator: who rates this task (defaults to the Deal Owner)
-                  </span>
+              <div className="mt-3 space-y-1">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  {mode === "automation"
+                    ? "Evaluator: who rates this task (defaults to the Deal Owner)"
+                    : "Evaluator: who rates this task (defaults to you)"}
+                </span>
+                {mode === "automation" ? (
                   <PeoplePicker value={evaluator} onChange={setEvaluator} allowRoles placeholder="Add Evaluator" />
-                </div>
-              )}
+                ) : (
+                  <PeoplePicker
+                    value={evaluator}
+                    onChange={(next) => setEvaluator(next.slice(-1))}
+                    types={["employee"]}
+                    placeholder="Add Evaluator"
+                  />
+                )}
+              </div>
               {mode === "automation" && (
                 <div className="mt-3 flex items-center justify-between rounded-lg border border-dashed border-mauve-7 px-3 py-2">
                   <span className="text-xs font-semibold text-muted-foreground">

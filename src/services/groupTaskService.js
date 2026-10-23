@@ -183,7 +183,8 @@ export const groupTaskService = {
           description,
           ...toDetailColumns({ dueDate, startDate, leadTime }),
           created_by: createdBy,
-          evaluator_id: evaluatorId ?? null,
+          // Left empty when the creator rates, so the creator stays the default.
+          evaluator_id: evaluatorId && evaluatorId !== createdBy ? evaluatorId : null,
           status: "ACTIVE",
           template_id: templateId ?? null,
           opportunity_id: opportunityId ?? null,

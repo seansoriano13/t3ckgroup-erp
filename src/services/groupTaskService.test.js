@@ -51,6 +51,18 @@ describe("groupTaskService", () => {
       expect(members.every((m) => m.status === "PENDING")).toBe(true)
     })
 
+    it("keeps the creator as the evaluator when nobody else is chosen", async () => {
+      const task = await createTask({ evaluatorId: creator.id })
+
+      expect(task.evaluator_id).toBeNull()
+    })
+
+    it("records another person as the evaluator", async () => {
+      const task = await createTask({ evaluatorId: bob.id })
+
+      expect(task.evaluator_id).toBe(bob.id)
+    })
+
     it("refuses a group task with nobody on it", async () => {
       await expect(createTask({ members: [] })).rejects.toThrow(
         "Add at least one member to the group task",
