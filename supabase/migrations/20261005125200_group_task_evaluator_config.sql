@@ -1,3 +1,4 @@
+-- allow-out-of-order: prod ships these before staging's 20261006+ migrations; they sort right after prod's tip so staging appends after them.
 -- A Stage Action's Group Task can name who rates it (flow canvas: the action's
 -- Evaluator). The client resolves the configured people to an employee id and
 -- passes it as p_evaluator_id; unset falls back to the SOR's Deal Owner, and

@@ -1,3 +1,4 @@
+-- allow-out-of-order: prod ships these before staging's 20261006+ migrations; they sort right after prod's tip so staging appends after them.
 -- A Group Task made by a Stage Action is created by whoever moved the SOR
 -- (committee_tasks.created_by), but the person who rates it is the SOR's Deal
 -- Owner. Until now rating was tied to created_by, so the Deal Owner could
