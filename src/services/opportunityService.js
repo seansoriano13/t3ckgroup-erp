@@ -924,6 +924,10 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
       // decision-due notification directly, in the same transaction as the
       // run it belongs to.
       for (const payload of actionsPayload) {
+        if (payload.kind === "create_group_task" && !payload.confirm) {
+          const action = actions.find((a) => a.id === payload.action_id);
+          payload.evaluator_id = await resolveEvaluatorId(action?.config?.evaluator, existing);
+        }
         if (!payload.confirm) continue;
         payload.decider_ids = await resolveDeciderIds(payload.decider, existing);
         const action = actions.find((a) => a.id === payload.action_id);
@@ -1163,6 +1167,17 @@ async function resolveDeciderIds(deciderSelectors, opportunity) {
 }
 
 /**
+ * Who rates a Stage Action's Group Task: the first person the action's
+ * `config.evaluator` selectors resolve to. Null when none is configured or it
+ * resolves to nobody — the database then falls back to the SOR's Deal Owner.
+ */
+async function resolveEvaluatorId(evaluatorSelectors, opportunity) {
+  if (!evaluatorSelectors || evaluatorSelectors.length === 0) return null;
+  const ids = await resolveSelectorIds(evaluatorSelectors, opportunity);
+  return ids[0] ?? null;
+}
+
+/**
  * Issue #204 Part 3 — resolves a Follow-up Cadence's `recipients` selectors
  * to live employee ids, the same shape `resolveDeciderIds` resolves a
  * "When confirmed" action's Decider — kept separate rather than shared so a
@@ -1235,6 +1250,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
         ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
         : "",
       createdBy: actorId,
+      evaluatorId: (await resolveEvaluatorId(config.evaluator, existing)) ?? existing.deal_owner_id ?? null,
       templateId: config.templateId || null,
       members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }],
       opportunityId: existing.id,

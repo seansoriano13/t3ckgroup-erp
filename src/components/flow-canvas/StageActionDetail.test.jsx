@@ -43,6 +43,21 @@ describe("StageActionDetail", () => {
     expect(screen.getByText("Bob")).toBeInTheDocument();
   });
 
+  it("shows who evaluates a group task, defaulting to the Deal Owner", () => {
+    const withEvaluator = {
+      kind: "create_group_task",
+      config: { evaluator: [{ type: "employee", id: "emp-1" }], members: [] },
+    };
+    const { unmount } = render(
+      <StageActionDetail action={withEvaluator} employees={[{ id: "emp-1", name: "Alice" }]} />,
+    );
+    expect(screen.getByText("Evaluator").nextSibling).toHaveTextContent("Alice");
+    unmount();
+
+    render(<StageActionDetail action={{ kind: "create_group_task", config: { members: [] } }} employees={[]} />);
+    expect(screen.getByText("Evaluator").nextSibling).toHaveTextContent(/deal owner/i);
+  });
+
   it("falls back to 'Someone no longer listed' for a member id with no matching employee", () => {
     const action = {
       kind: "create_group_task",
