@@ -82,7 +82,7 @@ export default function GroupTaskCard({
       )}
 
       {/* HR Rejected Banner */}
-      {task.status === "ACTIVE" && task.hr_remarks && (
+      {(task.status === "ACTIVE" || task.status === "AWAITING_EVALUATION") && task.hr_remarks && (
         <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 bg-destructive/10 border border-red-500/20 rounded-lg text-[10px] font-bold text-destructive uppercase tracking-wider">
           <AlertTriangle size={11} />
           HR Rejected — Resubmit Required
