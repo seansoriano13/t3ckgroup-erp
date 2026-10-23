@@ -1,6 +1,14 @@
 [
     {
         "date": "2026-10-23",
+        "title": "Pick who rates a group task when you create it",
+        "version": "1.9.65",
+        "changes": [
+            "The Create Group Task form now has an Evaluator field. Leave it empty and you rate the task yourself."
+        ]
+    },
+    {
+        "date": "2026-10-23",
         "title": "Group tasks wait for their evaluator",
         "version": "1.9.64",
         "changes": [
