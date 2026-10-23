@@ -5945,6 +5945,14 @@ begin
       v_label || ': ' || new.content
     );
 
+  elsif v_event = 'items_added' then
+    -- A batch from the SOR picker: one notification for all of its items.
+    perform public._purchase_request_notify(
+      v_req.id, array[v_req.buyer_id], new.author_id, 'PURCHASE_REQUEST_ITEM_ADDED',
+      'Items requested',
+      v_label || ': ' || new.content
+    );
+
   elsif v_event is null then
     -- The creator counts only before a Buyer, or as a Direct request's Requester.
     select array_agg(distinct x) into v_requesters
@@ -14845,6 +14853,69 @@ begin
     perform public._purchase_request_item_added(v_item);
     v_added := v_added || v_item.id;
   end loop;
+
+  return v_added;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_add_items_from_lines(p_request_id uuid, p_line_ids uuid[])
+ RETURNS uuid[]
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_req public.purchase_requests := public._purchase_request_for_adding(p_request_id, 'purchase_request_add_items_from_lines');
+  v_id uuid;
+  v_line public.sales_opportunity_items;
+  v_name text;
+  v_unit text;
+  v_item public.purchase_request_items;
+  v_added uuid[] := '{}';
+begin
+  if p_line_ids is null or cardinality(p_line_ids) = 0 then
+    raise exception 'purchase_request_add_items_from_lines: pick at least one line' using errcode = '22023';
+  end if;
+
+  foreach v_id in array p_line_ids loop
+    select * into v_line from public.sales_opportunity_items where id = v_id;
+    if v_line.id is null or v_line.opportunity_id is distinct from v_req.opportunity_id then
+      raise exception 'purchase_request_add_items_from_lines: that line is no longer on this SOR''s Product List'
+        using errcode = 'P0002';
+    end if;
+    if coalesce(v_line.quantity, 0) <= 0 then
+      raise exception 'purchase_request_add_items_from_lines: that line has no quantity' using errcode = '22023';
+    end if;
+
+    v_name := btrim(v_line.product_name);
+    v_unit := nullif(btrim(v_line.unit), '');
+
+    insert into public.purchase_request_items
+      (request_id, source, odoo_product_id, name, unit, quantity, sor_line_snapshot, requested_by)
+    values
+      (p_request_id, 'sor_line', v_line.odoo_product_id, v_name, v_unit, v_line.quantity,
+       jsonb_build_object('name', v_name, 'quantity', v_line.quantity, 'unit', v_unit),
+       public.get_employee_id())
+    returning * into v_item;
+
+    v_added := v_added || v_item.id;
+  end loop;
+
+  if cardinality(v_added) = 1 then
+    -- One line: the same message the one-line RPC posts.
+    perform public._purchase_request_item_added(v_item);
+  else
+    -- Several lines: one message for the whole batch, so the Buyer is told once.
+    insert into public.purchase_request_messages (request_id, author_id, content, metadata)
+    values (
+      v_req.id,
+      public.get_employee_id(),
+      format('Requested %s items, from the SOR''s Product List.', cardinality(v_added)),
+      jsonb_build_object('event', 'items_added', 'item_ids', to_jsonb(v_added), 'source', 'sor_line')
+    );
+
+    update public.purchase_requests set updated_at = now() where id = v_req.id;
+  end if;
 
   return v_added;
 end;

@@ -246,6 +246,19 @@ export const purchaseRequestService = {
   },
 
   /**
+   * Adds an item for each picked Product List line, all or nothing, in one call. Several lines
+   * post one message, so the Buyer is notified once. Returns the new items' ids.
+   */
+  async addItemsFromLines(requestId, lineIds) {
+    const { data, error } = await supabase.rpc("purchase_request_add_items_from_lines", {
+      p_request_id: requestId,
+      p_line_ids: lineIds,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
    * Adds one Requested Item for each given Component of the request's SOR (#273): the Component's
    * name, quantity, unit and Odoo product id are copied and the item names the Component. Purchasing
    * access only; a Component on another SOR's matrix is refused, and so is the whole call. The same

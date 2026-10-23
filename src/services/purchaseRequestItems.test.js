@@ -120,6 +120,26 @@ describe("purchaseRequestService — Requested Items", () => {
     expect(items.every((i) => i.status === "requested")).toBe(true)
   })
 
+  it("adds several picked lines in one call, and posts one message for them", async () => {
+    const harness = await lineNamed("Full Body Harness")
+    const kit = await lineNamed("Rope Access Kit")
+    const ids = await purchaseRequestService.addItemsFromLines(request.id, [harness.id, kit.id])
+
+    const items = await purchaseRequestService.listItems(request.id)
+    expect(items.map((i) => i.id).sort()).toEqual([...ids].sort())
+    const posts = db.rows("purchase_request_messages").filter((m) => m.request_id === request.id)
+    expect(posts.map((m) => m.metadata)).toEqual([{ event: "items_added", item_ids: ids, source: "sor_line" }])
+  })
+
+  it("adds none of the picked lines when one of them is not on the SOR", async () => {
+    const harness = await lineNamed("Full Body Harness")
+    await expect(
+      purchaseRequestService.addItemsFromLines(request.id, [harness.id, "00000000-0000-0000-0000-000000000000"]),
+    ).rejects.toThrow("no longer on this SOR's Product List")
+
+    expect(await purchaseRequestService.listItems(request.id)).toEqual([])
+  })
+
   it("surfaces the refusal of a line the SOR has since re-saved", async () => {
     const harness = await lineNamed("Full Body Harness")
     await opportunityService.updateOpportunity(opportunity.id, { items: productList }, salesperson.id)
