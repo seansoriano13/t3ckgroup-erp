@@ -1012,6 +1012,10 @@ async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId }
       // decision-due notification directly, in the same transaction as the
       // run it belongs to.
       for (const payload of actionsPayload) {
+        if (payload.kind === "create_group_task" && !payload.confirm) {
+          const action = actions.find((a) => a.id === payload.action_id);
+          payload.evaluator_id = await resolveEvaluatorId(action?.config?.evaluator, existing);
+        }
         if (!payload.confirm) continue;
         payload.decider_ids = await resolveDeciderIds(payload.decider, existing);
         const action = actions.find((a) => a.id === payload.action_id);
@@ -1102,12 +1106,15 @@ async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId }
                 actorId,
               );
               if (newVisit?.id) {
-                for (const member of payload.members || []) {
-                  if (!member?.employee_id) continue;
+                for (const calledInId of groupTaskCalledIn(
+                  (payload.members || []).map((m) => m?.employee_id),
+                  payload.evaluator_id,
+                  existing.deal_owner_id,
+                )) {
                   await sorStageParticipantService.openWindow(
                     {
                       opportunityId: existing.id,
-                      employeeId: member.employee_id,
+                      employeeId: calledInId,
                       source: "action",
                       sourceId: action.id,
                       openedVisitId: newVisit.id,
@@ -1277,6 +1284,29 @@ async function resolveDeciderIds(deciderSelectors, opportunity) {
 }
 
 /**
+ * Everyone a Stage Action's Group Task calls into the SOR: its members and, if
+ * they are not already one of them, the evaluator, who has to see the deal to
+ * rate the work. The Deal Owner already sees the deal, so naming them as the
+ * evaluator opens no window (it would only add the deal to their My SORs).
+ */
+function groupTaskCalledIn(memberIds, evaluatorId, dealOwnerId) {
+  const ids = new Set(memberIds.filter(Boolean));
+  if (evaluatorId && evaluatorId !== dealOwnerId) ids.add(evaluatorId);
+  return [...ids];
+}
+
+/**
+ * Who rates a Stage Action's Group Task: the first person the action's
+ * `config.evaluator` selectors resolve to. Null when none is configured or it
+ * resolves to nobody — the database then falls back to the SOR's Deal Owner.
+ */
+async function resolveEvaluatorId(evaluatorSelectors, opportunity) {
+  if (!evaluatorSelectors || evaluatorSelectors.length === 0) return null;
+  const ids = await resolveSelectorIds(evaluatorSelectors, opportunity);
+  return ids[0] ?? null;
+}
+
+/**
  * Issue #204 Part 3 — resolves a Follow-up Cadence's `recipients` selectors
  * to live employee ids, the same shape `resolveDeciderIds` resolves a
  * "When confirmed" action's Decider — kept separate rather than shared so a
@@ -1349,6 +1379,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
         ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
         : "",
       createdBy: actorId,
+      evaluatorId: (await resolveEvaluatorId(config.evaluator, existing)) ?? existing.deal_owner_id ?? null,
       templateId: config.templateId || null,
       members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }],
       opportunityId: existing.id,
@@ -1386,12 +1417,15 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       // Issue #294: every assignee/member on this action task becomes a
       // Stage Participant, windowed by the action's own `config.access`.
       if (runRow?.stage_visit_id) {
-        for (const member of payload.members) {
-          if (!member?.employeeId) continue;
+        for (const calledInId of groupTaskCalledIn(
+          payload.members.map((m) => m?.employeeId),
+          payload.evaluatorId,
+          existing.deal_owner_id,
+        )) {
           await sorStageParticipantService.openWindow(
             {
               opportunityId: existing.id,
-              employeeId: member.employeeId,
+              employeeId: calledInId,
               source: "action",
               sourceId: action.id,
               openedVisitId: runRow.stage_visit_id,

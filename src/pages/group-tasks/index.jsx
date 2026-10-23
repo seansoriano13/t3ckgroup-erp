@@ -18,12 +18,14 @@ import GroupTaskTableView from "./_components/GroupTaskTableView";
 import CreateGroupTaskModal from "./_components/CreateGroupTaskModal";
 import GroupTaskDetailModal from "./_components/GroupTaskDetailModal";
 import RateEmployeesModal from "./_components/RateEmployeesModal";
+import EvaluationTabs from "./_components/EvaluationTabs";
 import GroupTaskFilterBar from "../../components/GroupTaskFilterBar";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
 import { useMemo } from "react";
 import { usePaging } from "@/hooks/usePaging";
 import { TablePager } from "@/components/ui/TablePager";
+import { isGroupTaskEvaluator } from "../../utils/groupTaskEvaluator";
 
 const GROUP_TASK_FILTER_DEFAULTS = {
   statusFilter: "ALL",
@@ -178,6 +180,15 @@ export default function GroupTasksPage() {
     crmOnly: setCrmOnly,
   };
 
+  // Tasks waiting on this person to rate them; the tab shows how many.
+  const awaitingMyRating = useMemo(
+    () =>
+      groupTasks.filter(
+        (t) => t.status === "AWAITING_EVALUATION" && isGroupTaskEvaluator(t, user?.id),
+      ).length,
+    [groupTasks, user?.id],
+  );
+
   const clearAllFilters = () => {
     setSearchTerm("");
     setStatusFilter("ALL");
@@ -240,6 +251,25 @@ export default function GroupTasksPage() {
       toast.success("Group Task updated.");
     },
     onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
+  });
+
+  const sendToEvaluationMutation = useMutation({
+    mutationFn: () => groupTaskService.sendToEvaluation(selectedTask.id, user.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Sent to the evaluator.");
+    },
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
+  });
+
+  const changeEvaluatorMutation = useMutation({
+    mutationFn: (employeeId) =>
+      groupTaskService.changeEvaluator(selectedTask.id, employeeId, user.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Evaluator changed.");
+    },
+    onError: (err) => toast.error(err.message),
   });
 
   const addMemberAttachmentMutation = useMutation({
@@ -424,6 +454,12 @@ export default function GroupTasksPage() {
         />
       }
     >
+      <EvaluationTabs
+        statusFilter={statusFilter}
+        count={awaitingMyRating}
+        onChange={setStatusFilter}
+      />
+
       {viewMode === "table" ? (
         <div className="pb-10">
           <GroupTaskTableView
@@ -492,9 +528,14 @@ export default function GroupTasksPage() {
         task={selectedTask}
         currentUserId={user?.id}
         isSuperAdmin={isSuperAdmin}
+        isHead={isHead}
         isHr={isHr}
         canManage={canManage}
         employees={employees}
+        onSendToEvaluation={() => sendToEvaluationMutation.mutate()}
+        isSendingToEvaluation={sendToEvaluationMutation.isPending}
+        onChangeEvaluator={(employeeId) => changeEvaluatorMutation.mutateAsync(employeeId)}
+        isChangingEvaluator={changeEvaluatorMutation.isPending}
         onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
         onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
 
@@ -533,7 +574,7 @@ export default function GroupTasksPage() {
       />
 
 
-      {selectedTaskId && (canManage || selectedTask?.created_by === user?.id) && (
+      {selectedTaskId && (canManage || selectedTask?.created_by === user?.id || isGroupTaskEvaluator(selectedTask, user?.id)) && (
         <RateEmployeesModal
           isOpen={isRateOpen}
           onClose={() => setIsRateOpen(false)}

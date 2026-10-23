@@ -32,10 +32,22 @@ Password for all: `MockStaging#2026`. Email is `<key>@mock.t3ck.test`.
 | sales-head | IPAS section 4 Noted. |
 | approver | IPAS section 4 Checked and Approved. Costing Final Acquire list. |
 
-IPAS sections are numbered as the screen shows them: 1, 2 and 4 (section 3 on the screen is Computation status and has no sign-off).
 | plain | Transmittal Warehouse list. No flags. |
 | technical | Transmittal Technical list. |
 | logistics | Transmittal Logistics list. |
+
+IPAS sections are numbered as the screen shows them: 1, 2 and 4 (section 3 on the screen is Computation status and has no sign-off).
+
+### Log in as another person
+
+The login form pre-fills the magic login (`VITE_MAGIC_LOGIN_*`) and the browser's autofill, so a typed email can land on top of a saved one. For each person:
+
+1. Clear the site's localStorage, then open `/login`.
+2. Triple-click the email box and type the email. Triple-click the password box and type the password.
+3. Press Sign in, then wait about 5 seconds.
+4. Close the "What's New" dialog if it shows.
+
+Check the name in the app header before you start the story.
 
 ## 3. Test data
 
@@ -82,7 +94,7 @@ Name every record you create with the story id, for example remarks "STORY IPAS-
 
 ## 5. Results
 
-Write one file per run: `results/YYYY-MM-DD-run.md`, copied from [results/TEMPLATE.md](results/TEMPLATE.md). Screenshots go in `results/YYYY-MM-DD-shots/` (git ignores them).
+Write one file per run: `results/YYYY-MM-DD-run.md`, copied from [results/TEMPLATE.md](results/TEMPLATE.md). Screenshots go in `results/YYYY-MM-DD-shots/` (git ignores them). Git ignores the shots, so write what you saw for every failure in the run file itself, in words: a later agent cannot open your screenshots.
 
 Each story gets one line: **PASS**, **FAIL** or **BLOCKED**.
 - **FAIL**: the app did something the story says it must not. Add what you saw and a screenshot.

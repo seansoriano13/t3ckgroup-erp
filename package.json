@@ -9,6 +9,7 @@
         "build": "vite build",
         "lint": "eslint .",
         "lint:primitives": "node scripts/lint-primitives.mjs",
+        "lint:ratchet": "node scripts/lint-ratchet.mjs",
         "lint:tests": "eslint \"src/test/**/*.{js,jsx}\" \"src/**/*.test.{js,jsx}\"",
         "preview": "vite preview",
         "test": "vitest run",

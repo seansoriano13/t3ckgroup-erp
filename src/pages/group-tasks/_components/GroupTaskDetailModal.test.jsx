@@ -11,7 +11,7 @@
  * so assertions read the `disabled`/visibility seam this ticket touches
  * rather than re-testing those components' own internals.
  */
-import { screen } from "@testing-library/react"
+import { screen, within } from "@testing-library/react"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { renderWithProviders } from "@/test/support"
 import GroupTaskDetailModal from "./GroupTaskDetailModal"
@@ -196,5 +196,129 @@ describe("GroupTaskDetailModal read-only gating", () => {
     expect(screen.queryByText("Add member")).not.toBeInTheDocument()
     expect(screen.queryByTitle("Delete Task")).not.toBeInTheDocument()
     expect(screen.queryByTitle("Edit Task")).not.toBeInTheDocument()
+  })
+})
+
+describe("GroupTaskDetailModal who can rate", () => {
+  it("lets the creator rate a task that has no evaluator", () => {
+    renderModal({ task: task({ evaluator_id: null }) })
+
+    expect(screen.getByTitle("Rate")).toBeInTheDocument()
+  })
+
+  it("hands rating to the evaluator, not the creator, on a Stage Action task", () => {
+    renderModal({ task: task({ evaluator_id: "deal-owner-1" }) })
+
+    expect(screen.queryByTitle("Rate")).not.toBeInTheDocument()
+  })
+
+  it("shows the Rate button to the evaluator", () => {
+    renderModal({
+      task: task({ evaluator_id: "deal-owner-1" }),
+      currentUserId: "deal-owner-1",
+    })
+
+    expect(screen.getByTitle("Rate")).toBeInTheDocument()
+  })
+})
+
+describe("GroupTaskDetailModal awaiting evaluation", () => {
+  it("lets the evaluator rate a task that is waiting for them", () => {
+    renderModal({ task: task({ status: "AWAITING_EVALUATION" }) })
+
+    expect(screen.getByTitle("Rate")).toBeInTheDocument()
+  })
+
+  it("names the status on the badge", () => {
+    renderModal({ task: task({ status: "AWAITING_EVALUATION" }) })
+
+    expect(screen.getByText("AWAITING EVALUATION")).toBeInTheDocument()
+  })
+
+  it("offers Resubmit when HR sent a waiting task back", () => {
+    renderModal({ task: task({ status: "AWAITING_EVALUATION", hr_remarks: "Recount aisle B" }) })
+
+    expect(screen.getByTitle("Resubmit")).toBeInTheDocument()
+  })
+
+  it("lets the creator send an active task to evaluation by hand", () => {
+    const onSendToEvaluation = vi.fn()
+    renderModal({ task: task(), onSendToEvaluation })
+
+    screen.getByRole("button", { name: "Send to evaluation" }).click()
+
+    expect(onSendToEvaluation).toHaveBeenCalled()
+  })
+
+  it("does not offer it once the task is already waiting", () => {
+    renderModal({ task: task({ status: "AWAITING_EVALUATION" }), onSendToEvaluation: vi.fn() })
+
+    expect(screen.queryByRole("button", { name: "Send to evaluation" })).not.toBeInTheDocument()
+  })
+
+  it("does not offer it to someone who only works on the task", () => {
+    renderModal({
+      task: task({ created_by: "someone-else", evaluator_id: "deal-owner-1" }),
+      onSendToEvaluation: vi.fn(),
+    })
+
+    expect(screen.queryByRole("button", { name: "Send to evaluation" })).not.toBeInTheDocument()
+  })
+})
+
+describe("GroupTaskDetailModal who evaluates", () => {
+  const evaluatorRow = () => screen.getByText("Evaluated by").parentElement
+  const people = [
+    { id: "creator-1", name: "Creator" },
+    { id: "deal-owner-1", name: "Deal Owner Dan" },
+  ]
+
+  it("names the evaluator at the top", () => {
+    renderModal({
+      task: task({ evaluator_id: "deal-owner-1", evaluator: { name: "Deal Owner Dan" } }),
+      employees: people,
+      isHead: false,
+      onChangeEvaluator: undefined,
+    })
+
+    expect(screen.getByText("Evaluated by")).toBeInTheDocument()
+    expect(screen.getByText("Deal Owner Dan")).toBeInTheDocument()
+  })
+
+  it("names the creator as the evaluator when the task has none", () => {
+    renderModal({ task: task({ evaluator_id: null }), onChangeEvaluator: undefined })
+
+    expect(screen.getByText("Evaluated by").nextSibling).toHaveTextContent("Creator")
+  })
+
+  it("lets the creator change the evaluator", () => {
+    renderModal({ task: task({ evaluator_id: null }), employees: people, onChangeEvaluator: vi.fn() })
+
+    expect(within(evaluatorRow()).getByRole("button")).toBeInTheDocument()
+  })
+
+  it("lets a head, who did not create the task, change the evaluator", () => {
+    renderModal({
+      task: task({ evaluator_id: null }),
+      currentUserId: "head-1",
+      isHead: true,
+      employees: people,
+      onChangeEvaluator: vi.fn(),
+    })
+
+    expect(within(evaluatorRow()).getByRole("button")).toBeInTheDocument()
+  })
+
+  it("does not let an ordinary member change the evaluator", () => {
+    renderModal({
+      task: task({ evaluator_id: null }),
+      currentUserId: "member-9",
+      isHead: false,
+      employees: people,
+      onChangeEvaluator: vi.fn(),
+    })
+
+    expect(within(evaluatorRow()).queryByRole("button")).not.toBeInTheDocument()
+    expect(screen.getByText("Evaluated by").nextSibling).toHaveTextContent("Creator")
   })
 })

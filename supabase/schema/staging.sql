@@ -205,7 +205,11 @@ create table if not exists public."committee_tasks" (
   "carried_from_visit_id" uuid,
   "cancelled_by_visit_id" uuid,
   "start_date" date,
-  "lead_time" text
+  "lead_time" text,
+  "evaluator_id" uuid,
+  "auto_evaluation" boolean not null default true,
+  "awaiting_evaluation_at" timestamp with time zone,
+  "evaluation_reminders_sent" integer not null default 0
 );
 
 create table if not exists public."companies" (
@@ -2214,6 +2218,7 @@ alter table committee_task_tags add constraint "committee_task_tags_tag_id_fkey"
 alter table committee_tasks add constraint "committee_tasks_cancelled_by_visit_id_fkey" FOREIGN KEY (cancelled_by_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table committee_tasks add constraint "committee_tasks_evaluator_id_fkey" FOREIGN KEY (evaluator_id) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_held_from_visit_id_fkey" FOREIGN KEY (held_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_hr_verified_by_fkey" FOREIGN KEY (hr_verified_by) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
@@ -3071,7 +3076,7 @@ create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using ((is_super_admin() OR (EXISTS ( SELECT 1
+  using ((is_super_admin() OR (evaluator_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
   WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR ((created_by = get_employee_id()) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "companies_read" on public."companies"
@@ -8318,6 +8323,7 @@ AS $function$
     where ct.id = p_task_id
       and (
         ct.created_by = public.get_employee_id()
+        or ct.evaluator_id = public.get_employee_id()
         or public.is_super_admin()
         or exists (
           select 1 from public.committee_task_members ctm
@@ -18779,6 +18785,80 @@ begin
   return new;
 end $function$
 ;
+CREATE OR REPLACE FUNCTION public.send_group_task_evaluation_reminders()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_reminded integer;
+  v_escalated integer;
+begin
+  with due as (
+    update public.committee_tasks ct
+       set evaluation_reminders_sent = ct.evaluation_reminders_sent + 1
+     where ct.status = 'AWAITING_EVALUATION'
+       and ct.auto_evaluation
+       and ct.awaiting_evaluation_at is not null
+       and ct.evaluation_reminders_sent < 3
+       and ct.awaiting_evaluation_at + interval '3 days' * (ct.evaluation_reminders_sent + 1) <= now()
+    returning ct.id, ct.title, ct.created_by, ct.evaluator_id
+  ),
+  ins as (
+    insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+    select coalesce(d.evaluator_id, d.created_by),
+           null,
+           'GROUP_TASK_EVALUATION_REMINDER',
+           'Group task still needs your rating',
+           format('"%s" is done and still waiting for you to rate it.', d.title),
+           d.id
+      from due d
+    returning 1
+  )
+  select count(*) into v_reminded from ins;
+
+  with escalated as (
+    update public.committee_tasks ct
+       set evaluation_reminders_sent = 4
+     where ct.status = 'AWAITING_EVALUATION'
+       and ct.auto_evaluation
+       and ct.awaiting_evaluation_at is not null
+       and ct.evaluation_reminders_sent = 3
+       and ct.awaiting_evaluation_at + interval '12 days' <= now()
+    returning ct.id, ct.title, ct.created_by, coalesce(ct.evaluator_id, ct.created_by) as evaluator_id
+  ),
+  people as (
+    select x.id as task_id, x.title, x.evaluator_id, x.created_by as person_id
+      from escalated x
+    union
+    select x.id, x.title, x.evaluator_id, h.id
+      from escalated x
+      join public.employees ev on ev.id = x.evaluator_id
+      join public.employees h
+        on h.is_head
+       and not coalesce(h.is_deleted, false)
+       and h.department = ev.department
+  ),
+  ins as (
+    insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+    select p.person_id,
+           null,
+           'GROUP_TASK_EVALUATION_REMINDER',
+           'Group task is still not rated',
+           format('"%s" has waited 12 days for %s to rate it.', p.title, coalesce(ev.name, 'its evaluator')),
+           p.task_id
+      from people p
+      left join public.employees ev on ev.id = p.evaluator_id
+     where p.person_id <> p.evaluator_id
+    returning 1
+  )
+  select count(*) into v_escalated from ins;
+
+  return coalesce(v_reminded, 0) + coalesce(v_escalated, 0);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.send_meeting_reminders()
  RETURNS integer
  LANGUAGE plpgsql
@@ -19382,7 +19462,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.sor_create_stage_group_task_action(p_run_id uuid, p_title text, p_description text, p_members jsonb, p_due_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_template_id uuid DEFAULT NULL::uuid, p_tag_ids uuid[] DEFAULT NULL::uuid[], p_created_by uuid DEFAULT NULL::uuid)
+CREATE OR REPLACE FUNCTION public.sor_create_stage_group_task_action(p_run_id uuid, p_title text, p_description text, p_members jsonb, p_due_date timestamp with time zone DEFAULT NULL::timestamp with time zone, p_template_id uuid DEFAULT NULL::uuid, p_tag_ids uuid[] DEFAULT NULL::uuid[], p_created_by uuid DEFAULT NULL::uuid, p_evaluator_id uuid DEFAULT NULL::uuid)
  RETURNS committee_tasks
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -19425,12 +19505,16 @@ begin
   end if;
 
   insert into public.committee_tasks (
-    title, description, created_by, due_date, status,
+    title, description, created_by, evaluator_id, due_date, status,
     template_id, opportunity_id, stage_action_id, stage_visit_id
   ) values (
     p_title,
     p_description,
     coalesce(p_created_by, v_actor),
+    coalesce(
+      p_evaluator_id,
+      (select o.deal_owner_id from public.sales_opportunities o where o.id = v_run.opportunity_id)
+    ),
     p_due_date,
     'ACTIVE',
     p_template_id,
@@ -21400,7 +21484,8 @@ begin
               (select array_agg(t::uuid) from jsonb_array_elements_text(v_action->'tag_ids') t)
             else null
           end,
-          nullif(v_action->>'created_by', '')::uuid
+          nullif(v_action->>'created_by', '')::uuid,
+          nullif(v_action->>'evaluator_id', '')::uuid
         );
         v_created := v_created || jsonb_build_object(
           'action_id', v_action->>'action_id',

@@ -2402,6 +2402,31 @@ describe("opportunityService", () => {
 
         expect(groupTask.title).toBe("Custom group automation title")
       })
+
+      it("makes the configured evaluator the task's evaluator and calls them into the SOR", async () => {
+        const evaluator = makeEmployee({ name: "Evaluator Eve" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_group_task",
+          config: {
+            evaluator: [{ type: "employee", id: evaluator.id }],
+            members: [{ employeeId: registrar.id, role: "Assignee", taskDescription: "Do it" }],
+          },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const groupTask = db.internal.rowsOf("committee_tasks").find((t) => t.opportunity_id === deal.id)
+        expect(groupTask.evaluator_id).toBe(evaluator.id)
+
+        const windows = db.internal
+          .rowsOf("sor_stage_participants")
+          .filter((w) => w.opportunity_id === deal.id)
+          .map((w) => w.employee_id)
+        expect(windows).toContain(evaluator.id)
+        expect(windows).toContain(registrar.id)
+      })
     })
 
     // Issue #203: project_evaluation is a removed kind — an SOR still

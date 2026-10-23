@@ -3,6 +3,7 @@ import { notificationService } from "./notificationService";
 import { groupTaskActivityService } from "./groupTaskActivityService";
 import { formatTaskPreview } from "../utils/taskFormatters";
 import { HIDDEN_GROUP_TASK_STATUS_FILTER } from "../constants/status";
+import { sorStageParticipantService } from "./sorStageParticipantService";
 
 const logGroupTaskActivity = async (groupTaskId, action, details = {}, actorId = null) => {
   try {
@@ -14,6 +15,87 @@ const logGroupTaskActivity = async (groupTaskId, action, details = {}, actorId =
     });
   } catch (err) {
     console.error("Failed to log group task activity", err);
+  }
+};
+
+// Who rates a task: its Evaluator, or the creator when none was set.
+const evaluatorOf = (task) => task.evaluator_id ?? task.created_by;
+
+// A task whose members are all done waits for its Evaluator; the move runs the
+// same whether the last member did it or someone sent the task by hand.
+const enterAwaitingEvaluation = async (task, actorId, { automatic }) => {
+  // Only an active task can enter, so two members finishing together, or a
+  // manual send racing the last member, move it and tell the evaluator once.
+  const { data: moved, error } = await supabase
+    .from("committee_tasks")
+    .update({
+      status: "AWAITING_EVALUATION",
+      awaiting_evaluation_at: new Date().toISOString(),
+      evaluation_reminders_sent: 0,
+    })
+    .eq("id", task.id)
+    .eq("status", "ACTIVE")
+    .select("id");
+  if (error) throw error;
+  if (!moved?.length) return;
+
+  await logGroupTaskActivity(task.id, "AWAITING_EVALUATION", { automatic }, actorId);
+  groupTaskActivityService
+    .addSystemEvent(
+      task.id,
+      automatic
+        ? "All members are done. The group task is waiting for its evaluator."
+        : "The group task was sent to its evaluator.",
+      { event: "AWAITING_EVALUATION" },
+    )
+    .catch(console.error);
+
+  const evaluatorId = evaluatorOf(task);
+  if (evaluatorId && evaluatorId !== actorId) {
+    notificationService.createNotification({
+      recipient_id: evaluatorId,
+      sender_id: actorId,
+      type: "GROUP_TASK_AWAITING_EVALUATION",
+      title: "Group Task Ready to Rate",
+      message: `"${task.title || "A group task"}" is ready for your rating.`,
+      reference_id: task.id,
+    });
+  }
+};
+
+// Keeps a new-flow task's status in step with its members: all done moves it to
+// Awaiting Evaluation, and anyone un-doing their part moves it back. A task from
+// before this flow (auto_evaluation false) is only ever moved by hand.
+const syncAwaitingEvaluation = async (task, actorId) => {
+  if (!task?.auto_evaluation) return;
+  if (task.status !== "ACTIVE" && task.status !== "AWAITING_EVALUATION") return;
+
+  const { data: members, error } = await supabase
+    .from("committee_task_members")
+    .select("status")
+    .eq("committee_task_id", task.id);
+  if (error) throw error;
+
+  const allDone = members.length > 0 && members.every((m) => m.status === "DONE");
+
+  if (allDone && task.status === "ACTIVE") {
+    await enterAwaitingEvaluation(task, actorId, { automatic: true });
+    return;
+  }
+
+  if (!allDone && task.status === "AWAITING_EVALUATION") {
+    const { error: backError } = await supabase
+      .from("committee_tasks")
+      .update({ status: "ACTIVE", awaiting_evaluation_at: null, evaluation_reminders_sent: 0 })
+      .eq("id", task.id);
+    if (backError) throw backError;
+
+    await logGroupTaskActivity(task.id, "REOPENED", { reason: "MEMBER_PENDING" }, actorId);
+    groupTaskActivityService
+      .addSystemEvent(task.id, "Group task is active again — a member's work is not done.", {
+        event: "REOPENED",
+      })
+      .catch(console.error);
   }
 };
 
@@ -54,6 +136,7 @@ const upsertGroupChecklistActivity = async (groupTaskId, memberId, taskDescripti
 const GROUP_TASK_SELECT = `
   *,
   creator:employees!committee_tasks_created_by_fkey(name, department, sub_department, avatar_path),
+  evaluator:employees!committee_tasks_evaluator_id_fkey(name, avatar_path),
   opportunity:sales_opportunities(client_name, sales_reference),
   members:committee_task_members(
     id, employee_id, task_description, checklist, status, grade, grade_remarks, rated_at, rated_by, role, custom_role, attachments,
@@ -86,7 +169,7 @@ const toDetailColumns = (payload) =>
 export const groupTaskService = {
   // CREATE
   async createGroupTask(payload) {
-    const { title, description, dueDate, startDate, leadTime, createdBy, members, templateId, opportunityId, stageActionId, stageVisitId } = payload;
+    const { title, description, dueDate, startDate, leadTime, createdBy, evaluatorId, members, templateId, opportunityId, stageActionId, stageVisitId } = payload;
 
     if (!members || members.length === 0) {
       throw new Error("Add at least one member to the group task");
@@ -100,6 +183,8 @@ export const groupTaskService = {
           description,
           ...toDetailColumns({ dueDate, startDate, leadTime }),
           created_by: createdBy,
+          // Left empty when the creator rates, so the creator stays the default.
+          evaluator_id: evaluatorId && evaluatorId !== createdBy ? evaluatorId : null,
           status: "ACTIVE",
           template_id: templateId ?? null,
           opportunity_id: opportunityId ?? null,
@@ -207,6 +292,64 @@ export const groupTaskService = {
     return groupTask;
   },
 
+  /**
+   * Changes who evaluates (rates) a Group Task. The UI offers this to the
+   * task's creator, Super Admins and Heads; an older task, made before
+   * evaluators existed, is how it gets one. A task that belongs to an SOR also
+   * calls the new evaluator into it, the same as a Stage Action does, so they
+   * can open the deal and find it under My SORs.
+   */
+  async changeEvaluator(groupTaskId, evaluatorId, actorId) {
+    if (!evaluatorId) throw new Error("Pick who will evaluate this group task.");
+
+    const { data: task, error: fetchError } = await supabase
+      .from("committee_tasks")
+      .select("id, evaluator_id, created_by, opportunity_id, stage_visit_id, stage_action_id")
+      .eq("id", groupTaskId)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const previousId = task.evaluator_id ?? task.created_by;
+    if (previousId === evaluatorId) return task;
+
+    const { data: updated, error } = await supabase
+      .from("committee_tasks")
+      .update({ evaluator_id: evaluatorId })
+      .eq("id", groupTaskId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    await logGroupTaskActivity(
+      groupTaskId,
+      "TASK_UPDATED",
+      { old: { evaluator_id: previousId }, new: { evaluator_id: evaluatorId } },
+      actorId,
+    );
+    groupTaskActivityService.addSystemEvent(
+      groupTaskId,
+      "The evaluator of this group task was changed.",
+      { event: "EVALUATOR_CHANGED", from: previousId, to: evaluatorId },
+    ).catch(console.error);
+
+    if (task.opportunity_id && task.stage_visit_id) {
+      await sorStageParticipantService
+        .openWindow(
+          {
+            opportunityId: task.opportunity_id,
+            employeeId: evaluatorId,
+            source: "action",
+            sourceId: task.stage_action_id,
+            openedVisitId: task.stage_visit_id,
+          },
+          actorId,
+        )
+        .catch((err) => console.error("Calling the new evaluator into the SOR failed:", err));
+    }
+
+    return updated;
+  },
+
   // READ (Heads see all they created or are part of, super admin sees all, employees see where they are members)
   async getGroupTasks(userId, isHead, isSuperAdmin) {
     let query = supabase
@@ -223,6 +366,7 @@ export const groupTaskService = {
     // Filter locally if needed
     return data.filter((ct) => {
       if (ct.created_by === userId) return true; // Created by this head
+      if (ct.evaluator_id === userId) return true; // Rates this task
       return ct.members.some((m) => m.employee_id === userId); // Is a member
     });
   },
@@ -272,28 +416,37 @@ export const groupTaskService = {
       { event: status === "DONE" ? "MEMBER_DONE" : "MEMBER_PENDING", memberId },
     ).catch(console.error);
 
-    // Notify creator when a member marks DONE (only if the actor is not the creator)
+    await syncAwaitingEvaluation(member.committee_tasks, userId);
+
+    // Tell the creator when a member marks DONE (never the member themselves).
+    // On a task that waits for its evaluator on its own the evaluator hears once,
+    // when it is ready, so the per-member note goes to the creator alone and not
+    // to someone who is also the evaluator.
     if (status === "DONE") {
-      const creatorId = member.committee_tasks?.created_by;
-      if (creatorId && creatorId !== userId) {
+      const task = member.committee_tasks;
+      const candidates = task.auto_evaluation
+        ? [task.created_by].filter((id) => id !== evaluatorOf(task))
+        : [task.created_by, task.evaluator_id];
+      const recipientIds = [...new Set(candidates.filter((id) => id && id !== userId))];
+      if (recipientIds.length > 0) {
         const { data: employee } = await supabase
           .from("employees")
           .select("name")
           .eq("id", userId)
           .single();
 
-        notificationService.createNotification({
-          recipient_id: creatorId,
-          sender_id: userId,
-          type: "GROUP_MEMBER_DONE",
-          title: "Member Completed Their Task",
-          message: `${employee?.name || "A member"} marked their assignment as done: "${member.task_description || "assignment"}" in group task "${member.committee_tasks?.title || "a group task"}".`,
-          reference_id: member.committee_task_id,
-        });
+        for (const recipientId of recipientIds) {
+          notificationService.createNotification({
+            recipient_id: recipientId,
+            sender_id: userId,
+            type: "GROUP_MEMBER_DONE",
+            title: "Member Completed Their Task",
+            message: `${employee?.name || "A member"} marked their assignment as done: "${member.task_description || "assignment"}" in group task "${task.title || "a group task"}".`,
+            reference_id: member.committee_task_id,
+          });
+        }
       }
     }
-
-
 
     return true;
   },
@@ -361,28 +514,21 @@ export const groupTaskService = {
     );
   },
 
-  // UPDATE - Mark Complete manually
-  async markGroupTaskComplete(groupTaskId, actorId) {
-    const { data, error } = await supabase
+  // UPDATE - Send to the evaluator by hand, for work that will not be finished by everyone
+  async sendToEvaluation(groupTaskId, actorId) {
+    const { data: task, error: fetchError } = await supabase
       .from("committee_tasks")
-      .update({ status: "COMPLETED", hr_remarks: null })
+      .select("*")
       .eq("id", groupTaskId)
-      .select()
       .single();
+    if (fetchError) throw fetchError;
 
-    if (error) throw error;
+    if (task.status !== "ACTIVE") {
+      throw new Error("Only an active group task can be sent to evaluation.");
+    }
 
-    // Any pending members are auto-marked as skipped or just leave them? Let's leave them or mark DONE.
-    // For now, if head forces complete, they remain what they are, but head can rate them.
-
-    await logGroupTaskActivity(groupTaskId, "COMPLETED", {}, actorId);
-    groupTaskActivityService.addSystemEvent(
-      groupTaskId,
-      "Group task marked as completed.",
-      { event: "COMPLETED" },
-    ).catch(console.error);
-
-    return data;
+    await enterAwaitingEvaluation(task, actorId, { automatic: false });
+    return { ...task, status: "AWAITING_EVALUATION" };
   },
 
   // RATE EMPLOYEES
@@ -563,6 +709,14 @@ export const groupTaskService = {
       { event: "MEMBER_REMOVED", memberId },
     ).catch(console.error);
 
+    // The people left may all be done already.
+    const { data: task } = await supabase
+      .from("committee_tasks")
+      .select("*")
+      .eq("id", groupTaskId)
+      .single();
+    await syncAwaitingEvaluation(task, actorId);
+
     return true;
   },
 
@@ -679,15 +833,15 @@ export const groupTaskService = {
       .single();
 
     // A new member arrives PENDING, with work still to do — a task the group
-    // had already closed out (COMPLETED, or somewhere in the HR hand-off) is
+    // had already closed out (awaiting evaluation, or somewhere in the HR hand-off) is
     // no longer an accurate description of it, and every "mark done" control
     // in the UI is gated on ACTIVE, which would leave the new member with no
     // way to ever mark their assignment done. Reopen it so it does not sit
     // permanently locked at a status that predates the new work.
-    if (ct && ["COMPLETED", "HR_PENDING", "HR_VERIFIED"].includes(ct.status)) {
+    if (ct && ["AWAITING_EVALUATION", "HR_PENDING", "HR_VERIFIED"].includes(ct.status)) {
       const { error: reopenError } = await supabase
         .from("committee_tasks")
-        .update({ status: "ACTIVE", hr_remarks: null })
+        .update({ status: "ACTIVE", hr_remarks: null, awaiting_evaluation_at: null, evaluation_reminders_sent: 0 })
         .eq("id", groupTaskId);
       if (reopenError) throw reopenError;
 
