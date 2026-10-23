@@ -198,3 +198,26 @@ describe("GroupTaskDetailModal read-only gating", () => {
     expect(screen.queryByTitle("Edit Task")).not.toBeInTheDocument()
   })
 })
+
+describe("GroupTaskDetailModal who can rate", () => {
+  it("lets the creator rate a task that has no evaluator", () => {
+    renderModal({ task: task({ evaluator_id: null }) })
+
+    expect(screen.getByTitle("Rate")).toBeInTheDocument()
+  })
+
+  it("hands rating to the evaluator, not the creator, on a Stage Action task", () => {
+    renderModal({ task: task({ evaluator_id: "deal-owner-1" }) })
+
+    expect(screen.queryByTitle("Rate")).not.toBeInTheDocument()
+  })
+
+  it("shows the Rate button to the evaluator", () => {
+    renderModal({
+      task: task({ evaluator_id: "deal-owner-1" }),
+      currentUserId: "deal-owner-1",
+    })
+
+    expect(screen.getByTitle("Rate")).toBeInTheDocument()
+  })
+})

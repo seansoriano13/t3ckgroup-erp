@@ -24,6 +24,7 @@ import { useSavedFilters } from "../../hooks/useSavedFilters";
 import { useMemo } from "react";
 import { usePaging } from "@/hooks/usePaging";
 import { TablePager } from "@/components/ui/TablePager";
+import { isGroupTaskEvaluator } from "../../utils/groupTaskEvaluator";
 
 const GROUP_TASK_FILTER_DEFAULTS = {
   statusFilter: "ALL",
@@ -533,7 +534,7 @@ export default function GroupTasksPage() {
       />
 
 
-      {selectedTaskId && (canManage || selectedTask?.created_by === user?.id) && (
+      {selectedTaskId && (canManage || selectedTask?.created_by === user?.id || isGroupTaskEvaluator(selectedTask, user?.id)) && (
         <RateEmployeesModal
           isOpen={isRateOpen}
           onClose={() => setIsRateOpen(false)}

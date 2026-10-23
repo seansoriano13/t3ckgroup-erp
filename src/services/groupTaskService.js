@@ -223,6 +223,7 @@ export const groupTaskService = {
     // Filter locally if needed
     return data.filter((ct) => {
       if (ct.created_by === userId) return true; // Created by this head
+      if (ct.evaluator_id === userId) return true; // Rates this task
       return ct.members.some((m) => m.employee_id === userId); // Is a member
     });
   },
@@ -274,22 +275,31 @@ export const groupTaskService = {
 
     // Notify creator when a member marks DONE (only if the actor is not the creator)
     if (status === "DONE") {
-      const creatorId = member.committee_tasks?.created_by;
-      if (creatorId && creatorId !== userId) {
+      // The creator and, on a Stage Action task, the Deal Owner who rates it.
+      const recipientIds = [
+        ...new Set(
+          [member.committee_tasks?.created_by, member.committee_tasks?.evaluator_id].filter(
+            (id) => id && id !== userId,
+          ),
+        ),
+      ];
+      if (recipientIds.length > 0) {
         const { data: employee } = await supabase
           .from("employees")
           .select("name")
           .eq("id", userId)
           .single();
 
-        notificationService.createNotification({
-          recipient_id: creatorId,
-          sender_id: userId,
-          type: "GROUP_MEMBER_DONE",
-          title: "Member Completed Their Task",
-          message: `${employee?.name || "A member"} marked their assignment as done: "${member.task_description || "assignment"}" in group task "${member.committee_tasks?.title || "a group task"}".`,
-          reference_id: member.committee_task_id,
-        });
+        for (const recipientId of recipientIds) {
+          notificationService.createNotification({
+            recipient_id: recipientId,
+            sender_id: userId,
+            type: "GROUP_MEMBER_DONE",
+            title: "Member Completed Their Task",
+            message: `${employee?.name || "A member"} marked their assignment as done: "${member.task_description || "assignment"}" in group task "${member.committee_tasks?.title || "a group task"}".`,
+            reference_id: member.committee_task_id,
+          });
+        }
       }
     }
 
