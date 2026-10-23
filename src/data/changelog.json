@@ -1,5 +1,25 @@
 [
     {
+        "date": "2026-10-23",
+        "title": "Pick who rates a group task when you create it",
+        "version": "1.9.65",
+        "changes": [
+            "The Create Group Task form now has an Evaluator field. Leave it empty and you rate the task yourself."
+        ]
+    },
+    {
+        "date": "2026-10-23",
+        "title": "Group tasks wait for their evaluator",
+        "version": "1.9.64",
+        "changes": [
+            "When every member is done, a group task now shows Awaiting evaluation instead of looking finished. It becomes Completed only after it is rated.",
+            "The new To evaluate tab on Group Tasks lists the tasks waiting for a rating, longest wait first, with a count of the ones waiting for you.",
+            "The evaluator gets one message when a task is ready to rate, and a reminder after 3, 6 and 9 days. After that, the creator and the heads of the evaluator's department are told.",
+            "The creator, the evaluator, heads and Super Admins can use Send to evaluation when some members will never finish.",
+            "Reminders and the automatic move apply to group tasks created from now on. Older tasks that were done but not rated now show under To evaluate."
+        ]
+    },
+    {
         "date": "2026-10-22",
         "title": "The Costing Matrix in its own window",
         "version": "1.9.63",
