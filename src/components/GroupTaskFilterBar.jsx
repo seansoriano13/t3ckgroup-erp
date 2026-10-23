@@ -10,7 +10,6 @@ import { FilterSelect, FilterTriggerButton } from "./ui/FilterDropdown";
 const STATUS_OPTIONS = [
   { value: "ALL", label: "Any status" },
   { value: "ACTIVE", label: "Active" },
-  { value: "AWAITING_EVALUATION", label: "Awaiting evaluation" },
   { value: "COMPLETED", label: "Completed" },
 ];
 

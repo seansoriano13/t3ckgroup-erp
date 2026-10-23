@@ -107,8 +107,6 @@ export default function GroupTaskDetailModal({
   employees = [],
   onChangeEvaluator,
   isChangingEvaluator,
-  onSendToEvaluation,
-  isSendingToEvaluation,
   onAddMember,
   isAddingMember,
   onUpdateMember,
@@ -725,15 +723,6 @@ export default function GroupTaskDetailModal({
     "Unknown";
   const isHrPending = task.status === "HR_PENDING";
   const isHrVerified = task.status === "HR_VERIFIED";
-  // Members can still mark their part done, or take it back, while the task waits
-  // for its evaluator: taking it back reopens the task.
-  const isOpenForWork =
-    task.status === "ACTIVE" || task.status === "AWAITING_EVALUATION";
-  const canSendToEvaluation =
-    task.status === "ACTIVE" &&
-    !isReadOnly &&
-    typeof onSendToEvaluation === "function" &&
-    (isCreator || isEvaluator || isSuperAdmin || isHead);
   const isCompletedOrBeyond =
     task.status === "COMPLETED" || isHrPending || isHrVerified;
 
@@ -1111,7 +1100,7 @@ export default function GroupTaskDetailModal({
                               </span>
                             </div>
 
-                            {!isReadOnly && (canManageTask || (isMe && isOpenForWork && member.status === "PENDING")) && (
+                            {!isReadOnly && (canManageTask || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <Button
                                   type="button"
@@ -1211,7 +1200,7 @@ export default function GroupTaskDetailModal({
                                   </span>
                                 )}
                               </div>
-                              {isMe && member.status === "PENDING" && isOpenForWork && (
+                              {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
                                 <FileInput
                                   multiple
                                   accept={ALLOWED_EXTENSIONS_STRING}
@@ -1260,7 +1249,7 @@ export default function GroupTaskDetailModal({
                               <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border/70 bg-muted/10 px-4 py-5 text-center">
                                 <Paperclip size={16} className="text-muted-foreground/50" />
                                 <p className="text-[13px] text-muted-foreground">No attachments yet</p>
-                                {isMe && member.status === "PENDING" && isOpenForWork && (
+                                {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
                                   <p className="text-[11px] text-muted-foreground/70">
                                     Images, documents, and short videos — up to {formatBytes(MAX_ATTACHMENT_BYTES)} each.
                                   </p>
@@ -1291,7 +1280,7 @@ export default function GroupTaskDetailModal({
 
                             {isMe &&
                               member.status === "PENDING" &&
-                              isOpenForWork && (
+                              task.status === "ACTIVE" && (
                                 <Button
                                   onClick={() => onMarkDone(member.id)}
                                   disabled={isMarkingDone || hasUncheckedItems}
@@ -1309,7 +1298,7 @@ export default function GroupTaskDetailModal({
                                 </Button>
                               )}
 
-                            {isDone && isOpenForWork && (
+                            {isDone && task.status === "ACTIVE" && (
                               <Button
                                 variant="outline"
                                 onClick={() => onRevertDone(member.id)}
@@ -1745,30 +1734,19 @@ export default function GroupTaskDetailModal({
               </Button>
             )}
 
-            {canSendToEvaluation && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onSendToEvaluation}
-                disabled={isSendingToEvaluation}
-                className="h-9 rounded-xl px-3 sm:px-4 text-[13px] font-bold"
-                title="Send to the evaluator even though some members are not done"
-              >
-                {isSendingToEvaluation ? "Sending…" : "Send to evaluation"}
-              </Button>
-            )}
-
-            {/* Rate Button for the evaluator and Super Admins */}
+            {/* Rate Button for Heads/Admins */}
             {(isEvaluator || isSuperAdmin) &&
-              (isOpenForWork || task.status === "COMPLETED") && (
+              (task.status === "ACTIVE" || task.status === "COMPLETED") && (
                 <Button
                   onClick={onOpenRateModal}
                   className="h-9 px-4 sm:px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-0 sm:gap-2"
-                  title={isOpenForWork && task.hr_remarks ? "Resubmit" : "Rate"}
+                  title={task.status === "ACTIVE" && task.hr_remarks ? "Resubmit" : "Rate"}
                 >
                   <Star size={16} fill="currentColor" />
                   <span className="font-bold hidden sm:inline">
-                    {isOpenForWork && task.hr_remarks ? "Resubmit" : "Rate"}
+                    {task.status === "ACTIVE" && task.hr_remarks
+                      ? "Resubmit"
+                      : "Rate"}
                   </span>
                 </Button>
               )}

@@ -29,8 +29,6 @@ const TYPE_ICONS = {
   GROUP_TASK_COMMENT: <MessageCircle size={18} className="text-violet-9" />,
   GROUP_TASK_READY_FOR_HR: <CheckCircle2 size={18} className="text-violet-10" />,
   GROUP_MEMBER_DONE: <CheckCircle2 size={18} className="text-green-500" />,
-  GROUP_TASK_AWAITING_EVALUATION: <CheckCircle2 size={18} className="text-amber-600" />,
-  GROUP_TASK_EVALUATION_REMINDER: <Clock size={18} className="text-amber-500" />,
   OPPORTUNITY_REGISTERED: <Target size={18} className="text-primary" />,
   OPPORTUNITY_STAGE_CHANGED: <TrendingUp size={18} className="text-blue-600" />,
   // TODO: transition shim — drop with LEGACY_TYPE_ALIASES in notificationRouter.js.

@@ -36,7 +36,6 @@ export default function GroupTasksList({ selectedRange }) {
     const tasks = groupTasks.filter(
       (t) =>
         t.status === "ACTIVE" ||
-        t.status === "AWAITING_EVALUATION" ||
         t.status === "PENDING" ||
         t.status === "COMPLETED",
     );

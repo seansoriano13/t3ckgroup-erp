@@ -222,50 +222,6 @@ describe("GroupTaskDetailModal who can rate", () => {
   })
 })
 
-describe("GroupTaskDetailModal awaiting evaluation", () => {
-  it("lets the evaluator rate a task that is waiting for them", () => {
-    renderModal({ task: task({ status: "AWAITING_EVALUATION" }) })
-
-    expect(screen.getByTitle("Rate")).toBeInTheDocument()
-  })
-
-  it("names the status on the badge", () => {
-    renderModal({ task: task({ status: "AWAITING_EVALUATION" }) })
-
-    expect(screen.getByText("AWAITING EVALUATION")).toBeInTheDocument()
-  })
-
-  it("offers Resubmit when HR sent a waiting task back", () => {
-    renderModal({ task: task({ status: "AWAITING_EVALUATION", hr_remarks: "Recount aisle B" }) })
-
-    expect(screen.getByTitle("Resubmit")).toBeInTheDocument()
-  })
-
-  it("lets the creator send an active task to evaluation by hand", () => {
-    const onSendToEvaluation = vi.fn()
-    renderModal({ task: task(), onSendToEvaluation })
-
-    screen.getByRole("button", { name: "Send to evaluation" }).click()
-
-    expect(onSendToEvaluation).toHaveBeenCalled()
-  })
-
-  it("does not offer it once the task is already waiting", () => {
-    renderModal({ task: task({ status: "AWAITING_EVALUATION" }), onSendToEvaluation: vi.fn() })
-
-    expect(screen.queryByRole("button", { name: "Send to evaluation" })).not.toBeInTheDocument()
-  })
-
-  it("does not offer it to someone who only works on the task", () => {
-    renderModal({
-      task: task({ created_by: "someone-else", evaluator_id: "deal-owner-1" }),
-      onSendToEvaluation: vi.fn(),
-    })
-
-    expect(screen.queryByRole("button", { name: "Send to evaluation" })).not.toBeInTheDocument()
-  })
-})
-
 describe("GroupTaskDetailModal who evaluates", () => {
   const evaluatorRow = () => screen.getByText("Evaluated by").parentElement
   const people = [

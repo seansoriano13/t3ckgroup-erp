@@ -266,7 +266,7 @@ export default function GroupTaskTableView({
                             <SorLinkChip opportunityId={task.opportunity_id} opportunity={task.opportunity} />
                           </div>
                         )}
-                        {(task.status === "ACTIVE" || task.status === "AWAITING_EVALUATION") && task.hr_remarks && (
+                        {task.status === "ACTIVE" && task.hr_remarks && (
                           <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-destructive">
                             <AlertTriangle size={10} /> HR Rejected: {task.hr_remarks}
                           </div>

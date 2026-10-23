@@ -206,10 +206,7 @@ create table if not exists public."committee_tasks" (
   "cancelled_by_visit_id" uuid,
   "start_date" date,
   "lead_time" text,
-  "evaluator_id" uuid,
-  "auto_evaluation" boolean not null default true,
-  "awaiting_evaluation_at" timestamp with time zone,
-  "evaluation_reminders_sent" integer not null default 0
+  "evaluator_id" uuid
 );
 
 create table if not exists public."companies" (
@@ -18784,80 +18781,6 @@ begin
   new.updated_at := now();
   return new;
 end $function$
-;
-CREATE OR REPLACE FUNCTION public.send_group_task_evaluation_reminders()
- RETURNS integer
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-declare
-  v_reminded integer;
-  v_escalated integer;
-begin
-  with due as (
-    update public.committee_tasks ct
-       set evaluation_reminders_sent = ct.evaluation_reminders_sent + 1
-     where ct.status = 'AWAITING_EVALUATION'
-       and ct.auto_evaluation
-       and ct.awaiting_evaluation_at is not null
-       and ct.evaluation_reminders_sent < 3
-       and ct.awaiting_evaluation_at + interval '3 days' * (ct.evaluation_reminders_sent + 1) <= now()
-    returning ct.id, ct.title, ct.created_by, ct.evaluator_id
-  ),
-  ins as (
-    insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
-    select coalesce(d.evaluator_id, d.created_by),
-           null,
-           'GROUP_TASK_EVALUATION_REMINDER',
-           'Group task still needs your rating',
-           format('"%s" is done and still waiting for you to rate it.', d.title),
-           d.id
-      from due d
-    returning 1
-  )
-  select count(*) into v_reminded from ins;
-
-  with escalated as (
-    update public.committee_tasks ct
-       set evaluation_reminders_sent = 4
-     where ct.status = 'AWAITING_EVALUATION'
-       and ct.auto_evaluation
-       and ct.awaiting_evaluation_at is not null
-       and ct.evaluation_reminders_sent = 3
-       and ct.awaiting_evaluation_at + interval '12 days' <= now()
-    returning ct.id, ct.title, ct.created_by, coalesce(ct.evaluator_id, ct.created_by) as evaluator_id
-  ),
-  people as (
-    select x.id as task_id, x.title, x.evaluator_id, x.created_by as person_id
-      from escalated x
-    union
-    select x.id, x.title, x.evaluator_id, h.id
-      from escalated x
-      join public.employees ev on ev.id = x.evaluator_id
-      join public.employees h
-        on h.is_head
-       and not coalesce(h.is_deleted, false)
-       and h.department = ev.department
-  ),
-  ins as (
-    insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
-    select p.person_id,
-           null,
-           'GROUP_TASK_EVALUATION_REMINDER',
-           'Group task is still not rated',
-           format('"%s" has waited 12 days for %s to rate it.', p.title, coalesce(ev.name, 'its evaluator')),
-           p.task_id
-      from people p
-      left join public.employees ev on ev.id = p.evaluator_id
-     where p.person_id <> p.evaluator_id
-    returning 1
-  )
-  select count(*) into v_escalated from ins;
-
-  return coalesce(v_reminded, 0) + coalesce(v_escalated, 0);
-end;
-$function$
 ;
 CREATE OR REPLACE FUNCTION public.send_meeting_reminders()
  RETURNS integer
