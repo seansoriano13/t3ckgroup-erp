@@ -96,6 +96,23 @@ _Avoid_: Leave credit, OT slip
 A collaborative project or shared task assignment involving multiple team members with defined roles and templates.
 _Avoid_: Project, Shared Task
 
+**Evaluator** (of a Group Task):
+The person who rates the members once the work is done. Set on the Group Task
+(by the Stage Action that created it, or changed later by the creator, a head or
+a super admin); when none is set, the creator rates. Not the creator: the
+creator is whoever made the task, which for a Stage Action is whoever moved the
+Stage.
+_Avoid_: Rater, Reviewer, Approver
+
+**Awaiting Evaluation** (a Group Task status):
+Every member has marked their assignment done and the Evaluator has not rated yet.
+Reached on its own when the last member is done, and left again if a member
+un-marks. It is not Completed: Completed means the task is fully closed, rating
+and HR check included, so a task that is done but unrated can never look finished.
+A creator, Evaluator, head or super admin can also send a task here by hand when
+some members will never finish.
+_Avoid_: Done, Ready to Rate, Pending Rating
+
 **Start Date** (of a Group Task):
 The day a Group Task's work begins. Independent of when the task was created
 and of its Due Date — neither is derived from the other.
