@@ -75,7 +75,7 @@ const Message = memo(function Message({ message }) {
  * Who is notified is the database's call (a trigger on every message): the
  * people mentioned always; otherwise the Buyer and the requesters.
  */
-export default function RequestChat({ request, className = "" }) {
+export default function RequestChat({ request, focusOnMount = false, className = "" }) {
   const requestId = request?.id;
   const { user } = useAuth();
   const { isSuperAdmin } = getPermissionContext(user);
@@ -197,6 +197,7 @@ export default function RequestChat({ request, className = "" }) {
               onMentionsChange={setMentions}
               onPaste={attachments.addFromPaste}
               onEnterSubmit={handlePost}
+              autoFocus={focusOnMount}
               disabled={isPosting}
               placeholder="Message the request — type @ to mention a member"
               className="custom-scrollbar block w-full resize-none border-none bg-transparent px-3 py-2.5 text-sm shadow-none outline-none focus-visible:ring-0 disabled:opacity-50"

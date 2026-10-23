@@ -21,6 +21,7 @@ export default function PurchaseRequestView({
   requestId,
   hideBuyer = false,
   layout = "stacked",
+  focusChat = false,
   className = "",
 }) {
   const { data: request, isLoading, isError, refetch } = usePurchaseRequest(requestId);
@@ -89,7 +90,7 @@ export default function PurchaseRequestView({
           <RequestedItems request={request} />
         </div>
         <div className="flex w-[380px] shrink-0 flex-col border-l border-border">
-          <RequestChat request={request} className="h-full flex-1 rounded-none border-0" />
+          <RequestChat request={request} focusOnMount={focusChat} className="h-full flex-1 rounded-none border-0" />
         </div>
       </div>
     </div>

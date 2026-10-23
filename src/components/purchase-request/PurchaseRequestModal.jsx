@@ -30,7 +30,7 @@ function RequestStateBadge({ row }) {
  * It sits on REQUEST_MODAL_LAYER, over the SOR modal; every dialog the view
  * opens (add items, PO, confirmations) uses OVER_REQUEST_MODAL to show above it.
  */
-export default function PurchaseRequestModal({ requestId, onClose }) {
+export default function PurchaseRequestModal({ requestId, focusChat = false, onClose }) {
   const { data: request } = usePurchaseRequest(requestId);
   const { reference, title } = requestIdentity(request);
   const direct = request && requestKind(request) === REQUEST_KIND.DIRECT;
@@ -61,7 +61,7 @@ export default function PurchaseRequestModal({ requestId, onClose }) {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <PurchaseRequestView requestId={requestId} layout="split" className="min-h-0 flex-1" />
+        <PurchaseRequestView requestId={requestId} layout="split" focusChat={focusChat} className="min-h-0 flex-1" />
       </div>
     </ModalShell>
   );
