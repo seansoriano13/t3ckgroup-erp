@@ -70,6 +70,41 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     return item.id
   })
 
+  // Every line is checked before any item is added, as the SQL does, so a refusal adds none.
+  // One line posts the single-item message; several post one items_added message.
+  stubRpc("purchase_request_add_items_from_lines", (args) => {
+    const request = findRow("purchase_requests", args.p_request_id)
+    const lines = args.p_line_ids.map((id) => findRow("sales_opportunity_items", id))
+    if (!request || lines.some((line) => !line || line.opportunity_id !== request.opportunity_id)) {
+      throw Object.assign(new Error("purchase_request_add_items_from_lines: that line is no longer on this SOR's Product List"), {
+        code: "P0002",
+      })
+    }
+    const items = lines.map((line) =>
+      insertRow("purchase_request_items", {
+        request_id: request.id,
+        source: "sor_line",
+        odoo_product_id: line.odoo_product_id ?? null,
+        name: line.product_name.trim(),
+        unit: (line.unit || "").trim() || null,
+        quantity: line.quantity,
+        sor_line_snapshot: { name: line.product_name.trim(), quantity: Number(line.quantity), unit: (line.unit || "").trim() || null },
+        requested_by: actorId,
+      }),
+    )
+    if (items.length === 1) {
+      postAdded(items[0])
+    } else {
+      insertRow("purchase_request_messages", {
+        request_id: request.id,
+        author_id: actorId,
+        content: `Requested ${items.length} items, from the SOR's Product List.`,
+        metadata: { event: "items_added", item_ids: items.map((item) => item.id), source: "sor_line" },
+      })
+    }
+    return items.map((item) => item.id)
+  })
+
   stubRpc("has_purchasing_access", () => purchasing)
 
   const matrixOf = (componentId) => {

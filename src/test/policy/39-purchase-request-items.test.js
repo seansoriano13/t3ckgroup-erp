@@ -280,6 +280,7 @@ describe("someone not signed in", () => {
     it.each([
         ["purchase_request_can_add_items", { p_request_id: NO_ID }],
         ["purchase_request_add_item_from_line", { p_request_id: NO_ID, p_line_id: NO_ID }],
+        ["purchase_request_add_items_from_lines", { p_request_id: NO_ID, p_line_ids: [NO_ID] }],
         ["purchase_request_add_new_item", { p_request_id: NO_ID, p_name: "x", p_quantity: 1 }],
         ["purchase_request_pickable_lines", { p_request_id: NO_ID }],
         ["purchase_request_item_lines", { p_request_id: NO_ID }],
@@ -292,5 +293,33 @@ describe("someone not signed in", () => {
         const args = fn === "_purchase_request_for_adding" ? { p_request_id: NO_ID, p_fn: "x" } : { p_item: {} }
         const { error } = await (await clientFor("superAdmin")).rpc(fn, args)
         expect(error).not.toBeNull()
+    })
+})
+
+/** Picking several lines at once: one call adds them all, and the Buyer is notified once for the batch. */
+describe("adding several lines at once", () => {
+    async function buyerItemNotices() {
+        const { data, error } = await svc()
+            .from("notifications")
+            .select("id")
+            .eq("recipient_id", ids.stageParticipant)
+            .eq("type", "PURCHASE_REQUEST_ITEM_ADDED")
+            .eq("reference_id", requestId)
+        if (error) throw error
+        return data.length
+    }
+
+    it("adds every picked line, and the Buyer is notified once for the batch", async () => {
+        const [harness, rope] = await lines()
+        const before = await buyerItemNotices()
+
+        const { data, error } = await (await clientFor("dealOwner")).rpc("purchase_request_add_items_from_lines", {
+            p_request_id: requestId,
+            p_line_ids: [harness.id, rope.id],
+        })
+        if (error) throw error
+
+        expect(data).toHaveLength(2)
+        expect((await buyerItemNotices()) - before).toBe(1)
     })
 })

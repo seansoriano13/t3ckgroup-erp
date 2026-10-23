@@ -246,6 +246,19 @@ export const purchaseRequestService = {
   },
 
   /**
+   * Adds an item for each picked Product List line, all or nothing, in one call. Several lines
+   * post one message, so the Buyer is notified once. Returns the new items' ids.
+   */
+  async addItemsFromLines(requestId, lineIds) {
+    const { data, error } = await supabase.rpc("purchase_request_add_items_from_lines", {
+      p_request_id: requestId,
+      p_line_ids: lineIds,
+    });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
    * Makes a line-sourced item say what its SOR line says now (quantity and unit),
    * and posts the change in the request. The database wants a reason once the item
    * is Ordered, and refuses a closed item or a line the SOR no longer has.

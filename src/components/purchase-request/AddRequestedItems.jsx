@@ -67,11 +67,8 @@ export function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityI
   };
 
   const addMutation = useMutation({
-    mutationFn: async (lineIds) => {
-      for (const lineId of lineIds) {
-        await purchaseRequestService.addItemFromLine(requestId, lineId);
-      }
-    },
+    // One call for the whole pick: all or nothing, and the Buyer is notified once.
+    mutationFn: (lineIds) => purchaseRequestService.addItemsFromLines(requestId, lineIds),
     onSuccess: (_, lineIds) => {
       toast.success(lineIds.length === 1 ? "Item requested." : `${lineIds.length} items requested.`);
       close();
@@ -87,6 +84,11 @@ export function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityI
   });
 
   const pickedIds = lines.filter((l) => picked.has(l.id)).map((l) => l.id);
+  // A line with no quantity can't be picked, so "select all" skips it.
+  const selectable = lines.filter((l) => Number(l.quantity) > 0);
+  const allPicked = selectable.length > 0 && selectable.every((l) => picked.has(l.id));
+  const somePicked = selectable.some((l) => picked.has(l.id));
+  const toggleAll = (on) => setPicked(on ? new Set(selectable.map((l) => l.id)) : new Set());
 
   return (
     <ModalShell
@@ -124,34 +126,45 @@ export function PickSorLinesDialog({ open, onOpenChange, requestId, opportunityI
           ) : lines.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">This SOR&apos;s Product List is empty.</p>
           ) : (
-            <ul className="divide-y divide-border">
-              {lines.map((line) => {
-                const product = line.odoo_product_id ? stockSnapshot?.data?.products?.[line.odoo_product_id] || null : null;
-                const badge = stockBadge({ quantity: line.quantity, product, odooProductId: line.odoo_product_id });
-                const noQuantity = !(Number(line.quantity) > 0);
-                return (
-                  <li key={line.id} className="py-2.5">
-                    <FieldBox inline className="items-start gap-3">
-                      <Checkbox
-                        className="mt-0.5"
-                        checked={picked.has(line.id)}
-                        disabled={noQuantity}
-                        onCheckedChange={(on) => toggle(line.id, on)}
-                      />
-                      <span className="min-w-0 flex-1 text-sm font-semibold text-foreground break-words">
-                        {line.product_name}
-                      </span>
-                    </FieldBox>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 pl-7 text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">{formatAmount(line.quantity, line.unit)}</span>
-                      <StatusBadge label={badge.label} theme={STOCK_BADGE_THEME[badge.kind]} />
-                      {isLineRequested(line, items) && <span className="font-medium">Already requested</span>}
-                      {noQuantity && <span className="font-medium">No quantity</span>}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <FieldBox inline className="items-center gap-3 pb-2.5">
+                <Checkbox
+                  checked={allPicked}
+                  indeterminate={somePicked && !allPicked}
+                  disabled={selectable.length === 0}
+                  onCheckedChange={toggleAll}
+                />
+                <span className="text-sm font-semibold text-foreground">Select all</span>
+              </FieldBox>
+              <ul className="divide-y divide-border">
+                {lines.map((line) => {
+                  const product = line.odoo_product_id ? stockSnapshot?.data?.products?.[line.odoo_product_id] || null : null;
+                  const badge = stockBadge({ quantity: line.quantity, product, odooProductId: line.odoo_product_id });
+                  const noQuantity = !(Number(line.quantity) > 0);
+                  return (
+                    <li key={line.id} className="py-2.5">
+                      <FieldBox inline className="items-start gap-3">
+                        <Checkbox
+                          className="mt-0.5"
+                          checked={picked.has(line.id)}
+                          disabled={noQuantity}
+                          onCheckedChange={(on) => toggle(line.id, on)}
+                        />
+                        <span className="min-w-0 flex-1 text-sm font-semibold text-foreground break-words">
+                          {line.product_name}
+                        </span>
+                      </FieldBox>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 pl-7 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{formatAmount(line.quantity, line.unit)}</span>
+                        <StatusBadge label={badge.label} theme={STOCK_BADGE_THEME[badge.kind]} />
+                        {isLineRequested(line, items) && <span className="font-medium">Already requested</span>}
+                        {noQuantity && <span className="font-medium">No quantity</span>}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
         </div>
     </ModalShell>

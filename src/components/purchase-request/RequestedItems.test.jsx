@@ -263,6 +263,19 @@ describe("RequestedItems", () => {
     expect(within(row).queryByText(/SOR line/)).not.toBeInTheDocument()
   })
 
+  it("picks every line with Select all, and adds them together", async () => {
+    const user = setupUser()
+    renderWithProviders(<RequestedItems request={request} />)
+
+    await user.click(await screen.findByRole("button", { name: "Add from the SOR" }))
+    await user.click(await screen.findByRole("checkbox", { name: "Select all" }))
+    expect(screen.getByRole("checkbox", { name: "Full Body Harness" })).toBeChecked()
+    expect(screen.getByRole("checkbox", { name: "Rope Access Kit" })).toBeChecked()
+    await user.click(screen.getByRole("button", { name: "Request 2 items" }))
+
+    await waitFor(() => expect(rows()).toHaveLength(2))
+  })
+
   it("says which lines are already requested", async () => {
     await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
     const user = setupUser()
