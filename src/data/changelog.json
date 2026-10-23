@@ -1,6 +1,14 @@
 [
     {
         "date": "2026-10-23",
+        "title": "Save only the field you clicked",
+        "version": "1.9.66",
+        "changes": [
+            "In an SOR's stage fields, clicking Save on one field now shows saving on that field only. Other fields keep their normal Save button."
+        ]
+    },
+    {
+        "date": "2026-10-23",
         "title": "Pick who rates a group task when you create it",
         "version": "1.9.65",
         "changes": [
