@@ -1012,12 +1012,15 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
                 actorId,
               );
               if (newVisit?.id) {
-                for (const member of payload.members || []) {
-                  if (!member?.employee_id) continue;
+                for (const calledInId of groupTaskCalledIn(
+                  (payload.members || []).map((m) => m?.employee_id),
+                  payload.evaluator_id,
+                  existing.deal_owner_id,
+                )) {
                   await sorStageParticipantService.openWindow(
                     {
                       opportunityId: existing.id,
-                      employeeId: member.employee_id,
+                      employeeId: calledInId,
                       source: "action",
                       sourceId: action.id,
                       openedVisitId: newVisit.id,
@@ -1167,6 +1170,18 @@ async function resolveDeciderIds(deciderSelectors, opportunity) {
 }
 
 /**
+ * Everyone a Stage Action's Group Task calls into the SOR: its members and, if
+ * they are not already one of them, the evaluator, who has to see the deal to
+ * rate the work. The Deal Owner already sees the deal, so naming them as the
+ * evaluator opens no window (it would only add the deal to their My SORs).
+ */
+function groupTaskCalledIn(memberIds, evaluatorId, dealOwnerId) {
+  const ids = new Set(memberIds.filter(Boolean));
+  if (evaluatorId && evaluatorId !== dealOwnerId) ids.add(evaluatorId);
+  return [...ids];
+}
+
+/**
  * Who rates a Stage Action's Group Task: the first person the action's
  * `config.evaluator` selectors resolve to. Null when none is configured or it
  * resolves to nobody — the database then falls back to the SOR's Deal Owner.
@@ -1288,12 +1303,15 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       // Issue #294: every assignee/member on this action task becomes a
       // Stage Participant, windowed by the action's own `config.access`.
       if (runRow?.stage_visit_id) {
-        for (const member of payload.members) {
-          if (!member?.employeeId) continue;
+        for (const calledInId of groupTaskCalledIn(
+          payload.members.map((m) => m?.employeeId),
+          payload.evaluatorId,
+          existing.deal_owner_id,
+        )) {
           await sorStageParticipantService.openWindow(
             {
               opportunityId: existing.id,
-              employeeId: member.employeeId,
+              employeeId: calledInId,
               source: "action",
               sourceId: action.id,
               openedVisitId: runRow.stage_visit_id,

@@ -1767,9 +1767,9 @@ create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using ((is_super_admin() OR (EXISTS ( SELECT 1
+  using ((is_super_admin() OR (evaluator_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
-  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR (((created_by = get_employee_id()) OR (evaluator_id = get_employee_id())) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
+  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR ((created_by = get_employee_id()) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "companies_read" on public."companies"
   as permissive
   for select
@@ -3006,6 +3006,7 @@ AS $function$
     where ct.id = p_task_id
       and (
         ct.created_by = public.get_employee_id()
+        or ct.evaluator_id = public.get_employee_id()
         or public.is_super_admin()
         or exists (
           select 1 from public.committee_task_members ctm
