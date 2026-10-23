@@ -213,3 +213,20 @@ describe("GroupTaskDetailModal who can rate", () => {
     expect(screen.getByTitle("Rate")).toBeInTheDocument()
   })
 })
+
+describe("GroupTaskDetailModal who evaluates", () => {
+  it("names the evaluator next to the creator", () => {
+    renderModal({
+      task: task({ evaluator_id: "deal-owner-1", evaluator: { name: "Deal Owner Dan" } }),
+    })
+
+    expect(screen.getByText("Evaluated by")).toBeInTheDocument()
+    expect(screen.getByText("Deal Owner Dan")).toBeInTheDocument()
+  })
+
+  it("names the creator as the evaluator when the task has none", () => {
+    renderModal({ task: task({ evaluator_id: null }) })
+
+    expect(screen.getByText("Evaluated by").nextSibling).toHaveTextContent("Creator")
+  })
+})
