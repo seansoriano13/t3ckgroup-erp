@@ -251,22 +251,9 @@ describe("groupTaskService", () => {
       expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("ACTIVE")
     })
 
-    it("leaves the task active for the head to assess once the last member is done", async () => {
-      const task = await createTask()
-      const members = await membersOf(task.id)
-
-      for (const member of members) {
-        await groupTaskService.updateMemberStatus(member.id, "DONE", member.employee_id)
-      }
-
-      // Auto-completion was removed so the head gets a chance to grade the
-      // work before the task closes out; markGroupTaskComplete is now the
-      // only path to COMPLETED.
-      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("ACTIVE")
-    })
-
     it("tells the creator when a member finishes", async () => {
-      const task = await createTask()
+      const dana = makeEmployee({ name: "Dana Lim" })
+      const task = await createTask({ evaluatorId: dana.id })
       await waitForNetworkIdle()
       const before = db.rows("notifications").length
       const [aliceAssignment] = (await membersOf(task.id)).filter(
@@ -293,6 +280,172 @@ describe("groupTaskService", () => {
       await waitForNetworkIdle()
 
       expect(db.rows("notifications")).toHaveLength(before)
+    })
+  })
+
+  describe("awaiting evaluation", () => {
+    let dana
+
+    beforeEach(() => {
+      dana = makeEmployee({ name: "Dana Lim" })
+    })
+
+    const finishAll = async (taskId) => {
+      for (const member of await membersOf(taskId)) {
+        await groupTaskService.updateMemberStatus(member.id, "DONE", member.employee_id)
+      }
+    }
+
+    const notificationsFor = (personId, type) =>
+      db.rows("notifications").filter((n) => n.recipient_id === personId && n.type === type)
+
+    it("waits for the evaluator on its own once the last member is done", async () => {
+      const task = await createTask()
+
+      await finishAll(task.id)
+
+      const waiting = await groupTaskService.getGroupTaskById(task.id)
+      expect(waiting.status).toBe("AWAITING_EVALUATION")
+      expect(waiting.awaiting_evaluation_at).toBeTruthy()
+      expect(waiting.evaluation_reminders_sent).toBe(0)
+    })
+
+    it("stays active while anyone is still pending", async () => {
+      const task = await createTask()
+      const [first] = await membersOf(task.id)
+
+      await groupTaskService.updateMemberStatus(first.id, "DONE", first.employee_id)
+
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("ACTIVE")
+    })
+
+    it("goes back to active when a member takes their done back", async () => {
+      const task = await createTask()
+      await finishAll(task.id)
+      const [first] = await membersOf(task.id)
+
+      await groupTaskService.updateMemberStatus(first.id, "PENDING", first.employee_id)
+
+      const reopened = await groupTaskService.getGroupTaskById(task.id)
+      expect(reopened.status).toBe("ACTIVE")
+      expect(reopened.awaiting_evaluation_at).toBeNull()
+    })
+
+    it("does not move a task that was created before this flow existed", async () => {
+      const task = await createTask()
+      db.internal.rowsOf("committee_tasks").find((t) => t.id === task.id).auto_evaluation = false
+
+      await finishAll(task.id)
+
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("ACTIVE")
+    })
+
+    it("tells the evaluator once, when the task is ready, and not after every member", async () => {
+      const task = await createTask({ evaluatorId: dana.id })
+      await waitForNetworkIdle()
+      const [first, second] = await membersOf(task.id)
+
+      await groupTaskService.updateMemberStatus(first.id, "DONE", first.employee_id)
+      await waitForNetworkIdle()
+      expect(notificationsFor(dana.id, "GROUP_MEMBER_DONE")).toEqual([])
+      expect(notificationsFor(dana.id, "GROUP_TASK_AWAITING_EVALUATION")).toEqual([])
+
+      await groupTaskService.updateMemberStatus(second.id, "DONE", second.employee_id)
+      await waitForNetworkIdle()
+      expect(notificationsFor(dana.id, "GROUP_MEMBER_DONE")).toEqual([])
+      expect(notificationsFor(dana.id, "GROUP_TASK_AWAITING_EVALUATION")).toHaveLength(1)
+    })
+
+    it("tells a creator who is also the evaluator only when the task is ready", async () => {
+      const task = await createTask()
+      await waitForNetworkIdle()
+      const [first, second] = await membersOf(task.id)
+
+      await groupTaskService.updateMemberStatus(first.id, "DONE", first.employee_id)
+      await waitForNetworkIdle()
+      expect(db.rows("notifications").filter((n) => n.recipient_id === creator.id && n.type === "GROUP_MEMBER_DONE")).toEqual([])
+
+      await groupTaskService.updateMemberStatus(second.id, "DONE", second.employee_id)
+      await waitForNetworkIdle()
+      expect(notificationsFor(creator.id, "GROUP_TASK_AWAITING_EVALUATION")).toHaveLength(1)
+    })
+
+    it("still tells the creator and evaluator about every member on an older task", async () => {
+      const task = await createTask({ evaluatorId: dana.id })
+      db.internal.rowsOf("committee_tasks").find((t) => t.id === task.id).auto_evaluation = false
+      await waitForNetworkIdle()
+      const [first] = await membersOf(task.id)
+
+      await groupTaskService.updateMemberStatus(first.id, "DONE", first.employee_id)
+      await waitForNetworkIdle()
+
+      expect(notificationsFor(dana.id, "GROUP_MEMBER_DONE")).toHaveLength(1)
+      expect(notificationsFor(creator.id, "GROUP_MEMBER_DONE")).toHaveLength(1)
+    })
+
+    it("lets the creator send an unfinished task to evaluation by hand", async () => {
+      const task = await createTask({ evaluatorId: dana.id })
+      await waitForNetworkIdle()
+
+      await groupTaskService.sendToEvaluation(task.id, creator.id)
+      await waitForNetworkIdle()
+
+      const waiting = await groupTaskService.getGroupTaskById(task.id)
+      expect(waiting.status).toBe("AWAITING_EVALUATION")
+      expect(notificationsFor(dana.id, "GROUP_TASK_AWAITING_EVALUATION")).toHaveLength(1)
+    })
+
+    it("refuses to send a task that is not active", async () => {
+      const task = await createTask()
+      await finishAll(task.id)
+
+      await expect(groupTaskService.sendToEvaluation(task.id, creator.id)).rejects.toThrow(
+        "Only an active group task can be sent to evaluation.",
+      )
+    })
+
+    it("can be rated while it waits, and then goes to HR", async () => {
+      const task = await createTask()
+      await finishAll(task.id)
+      const members = await membersOf(task.id)
+
+      await groupTaskService.rateMembers(
+        task.id,
+        members.map((m) => ({ memberId: m.id, grade: 90, gradeRemarks: "Good" })),
+        creator.id,
+      )
+
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("HR_PENDING")
+    })
+
+    it("waits again when HR sends it back and the members finish again", async () => {
+      const hr = makeHrEmployee({ name: "HR Officer" })
+      const task = await createTask()
+      await finishAll(task.id)
+      const members = await membersOf(task.id)
+      await groupTaskService.rateMembers(
+        task.id,
+        members.map((m) => ({ memberId: m.id, grade: 90, gradeRemarks: "Good" })),
+        creator.id,
+      )
+      await groupTaskService.rejectGroupTask(task.id, hr.id, "Recount aisle B")
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("ACTIVE")
+
+      await finishAll(task.id)
+
+      const again = await groupTaskService.getGroupTaskById(task.id)
+      expect(again.status).toBe("AWAITING_EVALUATION")
+      expect(again.hr_remarks).toBe("Recount aisle B")
+    })
+
+    it("waits once the remaining member is removed and everyone left is done", async () => {
+      const task = await createTask()
+      const [first, second] = await membersOf(task.id)
+      await groupTaskService.updateMemberStatus(first.id, "DONE", first.employee_id)
+
+      await groupTaskService.removeMemberFromTask(second.id, task.id, creator.id)
+
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("AWAITING_EVALUATION")
     })
   })
 
@@ -345,7 +498,7 @@ describe("groupTaskService", () => {
     it("marks the task verified", async () => {
       const hr = makeHrEmployee({ name: "HR Officer" })
       const task = await createTask()
-      await groupTaskService.markGroupTaskComplete(task.id, creator.id)
+      await groupTaskService.sendToEvaluation(task.id, creator.id)
 
       await groupTaskService.verifyGroupTask(task.id, hr.id, "Checked the counts")
 
@@ -371,9 +524,9 @@ describe("groupTaskService", () => {
   })
 
   describe("adding a member after the task was already closed out", () => {
-    it("reopens a completed task so the new member's work can be done", async () => {
+    it("reopens a task that was waiting for evaluation so the new member's work can be done", async () => {
       const task = await createTask()
-      await groupTaskService.markGroupTaskComplete(task.id, creator.id)
+      await groupTaskService.sendToEvaluation(task.id, creator.id)
 
       const carol = makeEmployee({ name: "Carol Reyes" })
       await groupTaskService.addMemberToTask(

@@ -1,10 +1,12 @@
 import { useMemo } from "react";
 import { formatDateToYMD } from "../utils/dateUtils";
 
+const COMPLETED_STATUSES = new Set(["COMPLETED", "HR_PENDING", "HR_VERIFIED"]);
+
 export function useGroupTaskFilters(rawTasks = [], filters = {}) {
   const {
     searchTerm = "",
-    statusFilter = "ALL", // ALL, ACTIVE, COMPLETED
+    statusFilter = "ALL", // ALL, ACTIVE, AWAITING_EVALUATION, COMPLETED
     creatorFilter = "ALL",
     memberFilter = "ALL",
     deptFilter = "ALL",
@@ -16,10 +18,12 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
   } = filters;
 
   const filteredTasks = useMemo(() => {
-    return rawTasks.filter((task) => {
+    const matching = rawTasks.filter((task) => {
       // 1. Status Filter
       if (statusFilter === "ACTIVE" && task.status !== "ACTIVE") return false;
-      if (statusFilter === "COMPLETED" && task.status === "ACTIVE") return false;
+      if (statusFilter === "AWAITING_EVALUATION" && task.status !== "AWAITING_EVALUATION") return false;
+      // Completed is a task that was rated: it is with HR or verified.
+      if (statusFilter === "COMPLETED" && !COMPLETED_STATUSES.has(task.status)) return false;
 
       // 2. Search Filter
       if (searchTerm) {
@@ -105,6 +109,16 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
 
       return true;
     });
+
+    // The ones that have waited longest come first.
+    if (statusFilter === "AWAITING_EVALUATION") {
+      return [...matching].sort(
+        (a, b) =>
+          new Date(a.awaiting_evaluation_at ?? a.created_at ?? 0) -
+          new Date(b.awaiting_evaluation_at ?? b.created_at ?? 0),
+      );
+    }
+    return matching;
   }, [
     rawTasks,
     searchTerm,
