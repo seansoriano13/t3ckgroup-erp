@@ -185,7 +185,8 @@ create table if not exists public."committee_tasks" (
   "carried_from_visit_id" uuid,
   "cancelled_by_visit_id" uuid,
   "start_date" date,
-  "lead_time" text
+  "lead_time" text,
+  "evaluator_id" uuid
 );
 
 create table if not exists public."companies" (
@@ -1213,6 +1214,7 @@ alter table committee_task_tags add constraint "committee_task_tags_tag_id_fkey"
 alter table committee_tasks add constraint "committee_tasks_cancelled_by_visit_id_fkey" FOREIGN KEY (cancelled_by_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table committee_tasks add constraint "committee_tasks_evaluator_id_fkey" FOREIGN KEY (evaluator_id) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_held_from_visit_id_fkey" FOREIGN KEY (held_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_hr_verified_by_fkey" FOREIGN KEY (hr_verified_by) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
@@ -1767,7 +1769,7 @@ create policy "committee_tasks_read" on public."committee_tasks"
   to authenticated
   using ((is_super_admin() OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
-  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR ((created_by = get_employee_id()) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
+  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR (((created_by = get_employee_id()) OR (evaluator_id = get_employee_id())) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "companies_read" on public."companies"
   as permissive
   for select
@@ -3671,7 +3673,7 @@ BEGIN
 END;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.invoke_retail_sync(p_mode text DEFAULT NULL::text)
+CREATE OR REPLACE FUNCTION public.invoke_cron_edge_function(p_function text, p_query text DEFAULT ''::text, p_timeout_ms integer DEFAULT 120000)
  RETURNS bigint
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -3679,30 +3681,53 @@ CREATE OR REPLACE FUNCTION public.invoke_retail_sync(p_mode text DEFAULT NULL::t
 AS $function$
 declare
   v_url text;
-  v_key text;
+  v_secret text;
+begin
+  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'project_url';
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'cron_secret';
+  if v_url is null or v_secret is null then
+    raise exception 'invoke_cron_edge_function: Vault secrets project_url and cron_secret must both exist';
+  end if;
+
+  return net.http_post(
+    url := rtrim(v_url, '/') || '/functions/v1/' || p_function || p_query,
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || v_secret
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := p_timeout_ms
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.invoke_retail_sync(p_mode text DEFAULT NULL::text)
+ RETURNS bigint
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
 begin
   if p_mode is not null and p_mode <> 'full' then
     raise exception 'invoke_retail_sync: mode must be null or ''full'', got %', p_mode;
   end if;
 
-  select decrypted_secret into v_url from vault.decrypted_secrets where name = 'project_url';
-  select decrypted_secret into v_key from vault.decrypted_secrets where name = 'anon_key';
-  if v_url is null or v_key is null then
-    raise exception 'invoke_retail_sync: Vault secrets project_url and anon_key must both exist';
-  end if;
-
-  return net.http_post(
-    url := rtrim(v_url, '/') || '/functions/v1/odoo-sor-sync'
-      || case when p_mode is null then '' else '?mode=' || p_mode end,
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || v_key
-    ),
-    body := '{}'::jsonb,
+  return public.invoke_cron_edge_function(
+    'odoo-sor-sync',
+    case when p_mode is null then '' else '?mode=' || p_mode end,
     -- the nightly run re-reads more orders' notes than a 5-minute run; give it room
-    timeout_milliseconds := case when p_mode = 'full' then 300000 else 120000 end
+    case when p_mode = 'full' then 300000 else 120000 end
   );
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.invoke_sor_follow_up_reminders()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  select public.invoke_cron_edge_function('sor-follow-up-reminders');
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.is_head()
@@ -4885,12 +4910,13 @@ begin
   end if;
 
   insert into public.committee_tasks (
-    title, description, created_by, due_date, status,
+    title, description, created_by, evaluator_id, due_date, status,
     template_id, opportunity_id, stage_action_id, stage_visit_id
   ) values (
     p_title,
     p_description,
     coalesce(p_created_by, v_actor),
+    (select o.deal_owner_id from public.sales_opportunities o where o.id = v_run.opportunity_id),
     p_due_date,
     'ACTIVE',
     p_template_id,
@@ -6516,6 +6542,17 @@ AS $function$
         )
       )
     )
+
+  union
+
+  -- Mentioned in: every visit of the SOR (hotfix, see header).
+  select v.id
+  from public.sor_mention_viewers m
+  join public.sor_stage_visits v on v.opportunity_id = m.opportunity_id
+  where m.opportunity_id = p_opportunity_id
+    and m.employee_id = public.get_employee_id()
+    and not public.is_super_admin()
+    and v.undone_at is null
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_visit_audience(p_opportunity_id uuid, p_visit_id uuid)
