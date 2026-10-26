@@ -2,6 +2,7 @@ import CostingMatrixSection from "../../costing/CostingMatrixSection";
 import { useCostingTier } from "../../costing/useCostingMatrix";
 import IpasSorSection from "../../ipas/IpasSorSection";
 import HandoffsSorSection from "../HandoffsSorSection";
+import DirectRequestsSorSection from "../DirectRequestsSorSection";
 import PurchaseRequestCard from "./PurchaseRequestCard";
 
 /**
@@ -29,6 +30,9 @@ export default function PmsTab({ opportunityId, opportunity }) {
 
       {/* #257: renders nothing when no Transmittal or Packing List names this SOR. */}
       <HandoffsSorSection opportunityId={opportunityId} />
+
+      {/* #689: renders nothing when no Direct request names this SOR (or the viewer cannot read it). */}
+      <DirectRequestsSorSection opportunityId={opportunityId} />
     </div>
   );
 }

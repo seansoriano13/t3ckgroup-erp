@@ -613,7 +613,7 @@ _Avoid_: Procurement Request, Requisition, PR Batch, Non-SOR Purchase Request
 A Purchase Request for one SOR — at most one per SOR, opened by a Stage Action, showing the SOR's reference. Opened as early as Sales' first "do we carry this?" and at the latest by award; the same request then carries the buying after award, so a product question and the order it becomes stay on one record. Its purchasing members also see the SOR's Stage Visit it was opened in; any other member sees only the request and the SOR's locked header.
 
 **Direct** (a Purchase Request's kind):
-A Purchase Request with no SOR, opened by any employee to buy something outside a project — stock, supplies, tools. Has a title instead of an SOR reference and new-product Requested Items only; any number may exist. The kind is never chosen or stored: a request is Project when it has an SOR and Direct when it has none.
+A Purchase Request with no SOR, opened by any employee to buy something outside a project — stock, supplies, tools. Has a title instead of an SOR reference and new-product Requested Items only; any number may exist. The kind is never chosen or stored: a request is Project when it has an SOR and Direct when it has none. It may optionally name the SOR it is for, a separate link from a Project request's own SOR: it stays Direct, does not join the project's product list, and shows on that SOR under "Direct requests for this project" (title, PR number, P0 and status; no money) to whoever can read the SOR.
 _Avoid_: Internal, Standalone, Non-SOR
 
 **Requester**:

@@ -257,6 +257,6 @@ describe("purchaseRequestService — a new product's fields, on every path", () 
     expect(added).toEqual([{ p_request_id: "r1", ...args }])
     expect(substituted).toEqual([{ p_item_id: "item-9", ...args }])
     // A Direct request's items go as one list, and carry no images.
-    expect(opened).toEqual([{ p_title: "Office", p_items: [expected] }])
+    expect(opened).toEqual([{ p_title: "Office", p_items: [expected], p_for_opportunity_id: null }])
   })
 })
