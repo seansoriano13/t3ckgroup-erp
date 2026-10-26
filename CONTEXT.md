@@ -676,7 +676,7 @@ How an Inclusion would be obtained — In stock, Stocked but needs ordering, or 
 _Avoid_: Source out (as a boolean), Availability
 
 **Stock Availability**:
-Odoo's count of a product that is on hand and not reserved, per warehouse, as of the last fetch — always shown with the time it was fetched and never presented as live. A fact read from Odoo, where Sourcing is purchasing's own judgment.
+Odoo's count of a product that is on hand and not reserved, per warehouse, as of the last fetch — always shown with the time it was fetched and never presented as live. When a fresh stock check shows an Available product line no longer has enough free stock, the line warns "Now x free of y"; the warning holds the line open in the folded list and clears when someone chooses a status again. A fact read from Odoo, where Sourcing is purchasing's own judgment.
 _Avoid_: Inventory (unqualified), Live Stock
 
 **Canvass**:

@@ -99,6 +99,7 @@ describe("requestedItemStock", () => {
   it("judges the product's free stock against the quantity requested, with the read time", () => {
     expect(requestedItemStock(fromLine(), snapshot, sameDay)).toEqual({
       badge: { kind: STOCK_BADGE.PARTIAL, label: "Partial · 4 of 10", free: 4 },
+      figure: "4 free of 10",
       fetchedAt: "2026-10-07T01:00:00Z",
       stale: false,
     })
@@ -116,6 +117,7 @@ describe("requestedItemStock", () => {
   it("is Not checked when the SOR's stock hasn't been read", () => {
     expect(requestedItemStock(fromLine(), null)).toEqual({
       badge: { kind: STOCK_BADGE.NOT_CHECKED, label: "Not checked", free: null },
+      figure: "Not read yet",
       fetchedAt: null,
       stale: false,
     })

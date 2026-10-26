@@ -138,8 +138,8 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     const row = await openRow((await screen.findAllByTestId("requested-item"))[0])
-    expect(within(row).getByText("Partial · 4 of 10")).toBeInTheDocument()
-    expect(within(row).getByText(/^Stock as of /)).toBeInTheDocument()
+    expect(within(row).getByText("4 free of 10")).toBeInTheDocument()
+    expect(within(row).getByText(/^read /)).toBeInTheDocument()
     expect(within(row).queryByText("Stale")).not.toBeInTheDocument()
   })
 
@@ -153,8 +153,8 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     const row = await openRow((await screen.findAllByTestId("requested-item"))[1])
-    expect(await within(row).findByText("Available", { selector: "span" })).toBeInTheDocument()
-    expect(within(row).getByText(/^Stock as of /)).toBeInTheDocument()
+    expect(await within(row).findByText("5 free, enough", { selector: "span" })).toBeInTheDocument()
+    expect(within(row).getByText(/^read /)).toBeInTheDocument()
   })
 
   it("marks stock read more than a day ago Stale (#501)", async () => {
@@ -163,7 +163,7 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     const row = await openRow((await screen.findAllByTestId("requested-item"))[0])
-    expect(await within(row).findByText("Partial · 4 of 10")).toBeInTheDocument()
+    expect(await within(row).findByText("4 free of 10")).toBeInTheDocument()
     expect(within(row).getByText("Stale")).toBeInTheDocument()
   })
 
@@ -190,7 +190,7 @@ describe("RequestedItems", () => {
     expect(within(row).getByText("Custom mounting bracket")).toBeInTheDocument()
     expect(within(row).getByText("Other request", { selector: "dd" })).toBeInTheDocument()
     expect(within(row).getByText("Stainless, per the client's drawing")).toBeInTheDocument()
-    expect(within(row).queryByText(/Stock as of/)).not.toBeInTheDocument()
+    expect(within(row).queryByText(/^read /)).not.toBeInTheDocument()
     expect(rows()).toHaveLength(3)
 
     const item = db.rows("purchase_request_items").find((i) => i.name === "Custom mounting bracket")

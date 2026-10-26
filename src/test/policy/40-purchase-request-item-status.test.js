@@ -235,10 +235,10 @@ describe("the wrong side is refused", () => {
         expect(data.status).toBe("cancelled")
     })
 
-    it.each(["purchased", "to_purchase", "available", "cannot_source"])(
+    it.each(["purchased", "still_canvassing", "received", "cannot_source"])(
         "the sales side can't set %s",
         async (to) => {
-            const id = await seedItem(to === "purchased" ? "to_purchase" : "not_checked")
+            const id = await seedItem(to === "purchased" ? "to_purchase" : to === "received" ? "purchased" : "not_checked")
             const { error } = await setStatus("dealOwner", id, to)
             expect(error?.code).toBe("42501")
             expect((await item(id)).status).not.toBe(to)

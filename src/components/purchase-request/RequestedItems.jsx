@@ -15,13 +15,16 @@ import {
   ITEM_STATUS_LABELS,
   ITEM_STATUS_THEME,
   isClosedStatus,
+  stockWarning,
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
 
 /** The one quiet line under a name: the PO, else the stock, else which section it is in. */
 function summaryOf(item, stock) {
+  const warning = stockWarning(item);
+  if (warning) return warning.label;
   if (item.po_number) return `PO ${item.po_number}`;
-  if (stock) return `Stock: ${stock.badge.label}`;
+  if (stock) return `Stock: ${stock.figure}`;
   return itemSectionLabel(item);
 }
 
