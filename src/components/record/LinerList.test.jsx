@@ -49,6 +49,13 @@ describe("LinerList", () => {
     expect(screen.getByText("Plain row")).toBeInTheDocument();
   });
 
+  it("keeps a shut row's content clipped, so it cannot spill over the row below", () => {
+    const { container } = render(<LinerList rows={rows} />);
+    const panels = container.querySelectorAll(".reveal");
+    expect(panels).toHaveLength(2);
+    panels.forEach((panel) => expect(panel.getAttribute("data-settled")).toBe("false"));
+  });
+
   it("opens a row marked defaultOpen on arrival", () => {
     render(<LinerList rows={[{ key: "a", main: "Cutter", children: <p>Cutter details</p>, defaultOpen: true }]} />);
     expect(screen.getByRole("button", { name: /Cutter/ })).toHaveAttribute("aria-expanded", "true");

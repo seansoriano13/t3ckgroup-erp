@@ -8,15 +8,15 @@ import { useState } from "react";
  * focus rings inside it are not cut off.
  */
 export default function Reveal({ open, id, className = "", children }) {
-  // The state the panel last finished moving to; "settled" only when that is the current state.
-  const [settledFor, setSettledFor] = useState(open);
+  // Whether the panel has finished opening. A shut panel is never settled, so its clip stays on.
+  const [finishedOpening, setFinishedOpening] = useState(open);
   return (
     <div
       className="reveal"
       data-open={open}
-      data-settled={settledFor === open}
+      data-settled={open && finishedOpening}
       onTransitionEnd={(event) => {
-        if (event.target === event.currentTarget) setSettledFor(open);
+        if (event.target === event.currentTarget) setFinishedOpening(open);
       }}
     >
       <div id={id} inert={!open} aria-hidden={!open}>
