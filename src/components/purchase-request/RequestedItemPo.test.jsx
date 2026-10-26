@@ -33,9 +33,7 @@ const seedItem = (fields = {}) =>
 
 async function openAttachDialog(user) {
   const row = await rowNamed("Full Body Harness")
-  await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
-  await statusMenuReady()
-  await user.click(screen.getByRole("button", { name: /Attach P0/ }))
+  await user.click(within(row).getByRole("button", { name: "Attach P0" }))
   return { row, dialog: await screen.findByRole("dialog") }
 }
 
@@ -106,7 +104,7 @@ describe("Attach P0", () => {
     await waitFor(() => expect(db.rows("purchase_request_items")[0].status).toBe("purchased"))
     expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "purchased", po_number: "P01111", bought_as: "Full Body Harness XL" })
     expect(screen.getByTestId("requested-item-bought-as")).toHaveTextContent("Full Body Harness XL")
-    expect(screen.getByText("Asked as")).toBeInTheDocument()
+    expect(screen.getByText("Asked as: Full Body Harness")).toBeInTheDocument()
   })
 
   it("keeps the line To purchase for an RFQ and says so", async () => {
@@ -196,7 +194,7 @@ describe("Attach P0", () => {
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
     expect(screen.queryByRole("button", { name: "Purchased" })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Attach P0/ })).toBeInTheDocument()
+    expect(within(row).getByRole("button", { name: "Attach P0" })).toBeInTheDocument()
   })
 })
 
@@ -209,9 +207,9 @@ describe("picking the PO line", () => {
 
     const row = await rowNamed("Full Body Harness")
     expect(within(currentRow("Full Body Harness")).getByText("PO line not picked")).toBeInTheDocument()
+    expect(within(row).getByRole("button", { name: "Attach P0" })).toBeInTheDocument()
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
-    expect(screen.getByRole("button", { name: /Attach P0/ })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Pick PO line/ })).not.toBeInTheDocument()
   })
 
@@ -242,7 +240,7 @@ describe("picking the PO line", () => {
 
     await showDoneLines()
     const row = await rowNamed("Full Body Harness")
-    expect(within(row).getByText("PO P01234")).toBeInTheDocument()
+    expect(within(row).getByText("P01234")).toBeInTheDocument()
     expect(within(currentRow("Full Body Harness")).getByText("PO line not picked")).toBeInTheDocument()
     expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
   })
@@ -267,7 +265,7 @@ describe("Correct PO", () => {
     await user.type(within(dialog).getByLabelText("New PO number"), "p01234")
     await user.click(within(dialog).getByRole("button", { name: "Check PO and correct" }))
 
-    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText(/^PO P01234/)).toBeInTheDocument())
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("P01234")).toBeInTheDocument())
     expect(db.rows("purchase_request_items")[0]).toMatchObject({ po_number: "P01234", po_verification: "VERIFIED", odoo_po_line_ids: [] })
   })
 

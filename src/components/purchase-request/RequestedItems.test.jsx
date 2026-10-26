@@ -74,7 +74,7 @@ describe("RequestedItems", () => {
     const s0Rows = within(s0).getAllByTestId("requested-item")
     expect(s0Rows).toHaveLength(2)
     expect(within(s0Rows[0]).getByText("Full Body Harness")).toBeInTheDocument()
-    expect(within(s0Rows[0]).getByText("10 pc")).toBeInTheDocument()
+    expect(within(s0Rows[0]).getByText("×10 pc")).toBeInTheDocument()
     expect(within(s0Rows[0]).getByText("Not checked")).toBeInTheDocument()
     expect(within(s0Rows[1]).getByText("Rope Access Kit")).toBeInTheDocument()
     expect(within(s0Rows[1]).getAllByText("Available").length).toBeGreaterThan(0)
@@ -110,7 +110,7 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     const row = (await screen.findAllByTestId("requested-item"))[0]
-    expect(within(row).getByText("12 pc")).toBeInTheDocument()
+    expect(within(row).getByText("×12 pc")).toBeInTheDocument()
     expect(within(row).queryByText(/Removed from S0|SOR changed/)).not.toBeInTheDocument()
   })
 
@@ -142,7 +142,7 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     const row = await openRow((await screen.findAllByTestId("requested-item"))[0])
-    expect(within(row).getByText("4 free of 10")).toBeInTheDocument()
+    expect(within(row).getAllByText("4 free of 10").length).toBeGreaterThan(0)
     expect(within(row).getByText(/^read /)).toBeInTheDocument()
     expect(within(row).queryByText("Stale")).not.toBeInTheDocument()
   })
@@ -157,7 +157,7 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     const row = await openRow((await screen.findAllByTestId("requested-item"))[1])
-    expect(await within(row).findByText("5 free, enough", { selector: "span" })).toBeInTheDocument()
+    expect((await within(row).findAllByText("5 free, enough")).length).toBeGreaterThan(0)
     expect(within(row).getByText(/^read /)).toBeInTheDocument()
   })
 
@@ -167,7 +167,7 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     const row = await openRow((await screen.findAllByTestId("requested-item"))[0])
-    expect(await within(row).findByText("4 free of 10")).toBeInTheDocument()
+    expect((await within(row).findAllByText("4 free of 10")).length).toBeGreaterThan(0)
     expect(within(row).getByText("Stale")).toBeInTheDocument()
   })
 
@@ -219,7 +219,7 @@ describe("RequestedItems", () => {
       renderWithProviders(<RequestedItems request={request} />)
 
       const row = await openRow((await screen.findAllByTestId("requested-item"))[1])
-      expect(await within(row).findByTestId("requested-item-price")).toHaveTextContent("PHP 1,250.50 each")
+      expect(await within(row).findByTestId("requested-item-price")).toHaveTextContent("PHP 1,250.50")
     })
 
     it("shows no price when the database returns none, as for a member who may not see prices", async () => {

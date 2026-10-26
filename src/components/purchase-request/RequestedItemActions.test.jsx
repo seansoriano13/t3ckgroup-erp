@@ -123,11 +123,9 @@ describe("purchasing", () => {
     await user.click(within(dialog).getByRole("button", { name: "Cannot source" }))
 
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cannot source")).toBeInTheDocument())
-    // A closed line has no further steps; Purchasing may still Replace it (#687).
-    await user.click(within(currentRow("Full Body Harness")).getByRole("button", { name: /Change status/ }))
-    await statusMenuReady()
-    expect(screen.getByRole("button", { name: /Replace/ })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Cancel item" })).not.toBeInTheDocument()
+    // A closed line has no status menu; Purchasing may still Replace it from the opened line (#687, #695).
+    expect(within(currentRow("Full Body Harness")).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
+    expect(within(currentRow("Full Body Harness")).getByRole("button", { name: "Replace" })).toBeEnabled()
   })
 
   it("Purchasing replaces a product: it needs a reason, cancels the old line and adds the new one", async () => {
@@ -136,9 +134,7 @@ describe("purchasing", () => {
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")
-    await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
-    await statusMenuReady()
-    await user.click(screen.getByRole("button", { name: /Replace/ }))
+    await user.click(within(row).getByRole("button", { name: "Replace" }))
     const dialog = await screen.findByRole("dialog")
     await user.type(within(dialog).getByLabelText("Replace with"), "Harness, other brand")
     expect(within(dialog).getByRole("button", { name: "Replace product" })).toBeDisabled()

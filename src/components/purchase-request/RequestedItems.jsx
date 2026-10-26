@@ -1,106 +1,89 @@
 import { useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QueryError from "@/components/ui/QueryError";
-import { AlertTriangle, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import Reveal from "@/components/record/Reveal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import ReadyBar from "./ReadyBar";
 import { isFolded, summarize } from "../../utils/productReadiness";
+import { Image } from "@/components/ui/image";
 import Spinner from "@/components/ui/Spinner";
 import AddRequestedItems from "./AddRequestedItems";
 import LinerList from "@/components/record/LinerList";
 import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
-import ItemCanvass from "./ItemCanvass";
+import LineButtons from "./LineButtons";
+import { AskedSub, ColumnHeads, COLUMNS, ForCell, NotesCell, P0Cell, ProductCode, QtyCell, StockCell } from "./ProductLineCells";
 import { YoursBadge } from "./YoursDialog";
 import StatusBadge from "../StatusBadge";
-import { formatAmount, isFromS0, itemSectionLabel, replacedNote, requestedItemStock, s0StillListsNote } from "../../utils/requestedItem";
-import { deliveryNote } from "../../utils/deliveryNote";
+import { isFromS0, requestedItemStock } from "../../utils/requestedItem";
+import { mergedRequestOf, splitProductName, thumbnailOf } from "../../utils/productLine";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
-import {
-  ITEM_STATUS,
-  ITEM_STATUS_LABELS,
-  ITEM_STATUS_THEME,
-  MEMBER_SIDE,
-  isClosedStatus,
-  stockWarning,
-} from "../../constants/purchaseRequest";
+import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME, MEMBER_SIDE, isClosedStatus } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
 import { useCostingMatrix } from "../costing/useCostingMatrix";
 import { tierReadsCost } from "../../constants/costing";
 import { costComparisonText } from "../../utils/costComparison";
 
-/** The one quiet line under a name: the PO, else the stock, else which section it is in. */
-function summaryOf(item, stock, replacedBy = null) {
-  // #688: an Other request closed because its P0 moved onto an S0 line says so.
-  if (item.closed_note) return item.closed_note;
-  if (replacedBy && item.status === ITEM_STATUS.CANCELLED) return replacedNote(item, replacedBy);
-  const warning = stockWarning(item);
-  if (warning) return warning.label;
-  if (item.po_number) {
-    if (item.po_state === "rfq") return `RFQ ${item.po_number}`;
-    const delivery = deliveryNote(item);
-    return delivery ? `PO ${item.po_number} · ${delivery}` : `PO ${item.po_number}`;
-  }
-  if (stock) return `Stock: ${stock.figure}`;
-  return itemSectionLabel(item);
+/** The first column of an Other request: its photo, what was asked, and what the P0 bought. */
+function askedMain(item) {
+  const photo = thumbnailOf(item);
+  const boughtAs = item.po_number && item.bought_as;
+  // Plain text when there is nothing beside it, so the row can hold it to one line and show the full name on hover.
+  if (!photo && !boughtAs) return item.name;
+  return (
+    <>
+      {photo && (
+        <Image src={photo.url} alt="" className="mr-2 inline-block size-6 rounded-md border border-border object-cover align-middle" />
+      )}
+      {boughtAs ? `Asked as: ${item.name}` : item.name}
+    </>
+  );
 }
 
 /**
- * One Requested Item (#305) as a LinerList row: its name over a one-line
- * summary (the PO, the stock, or where it came from), the quantity, and its
- * status, which is the status menu (#306) in `actions` or a plain badge. The
- * rest of the item opens in place as a DetailGrid.
+ * One Requested Item (#305) as a row of the product list (#695, after the prototype of spec #675):
+ * the name over the Odoo code (an Other request: what was asked over what was bought), then the
+ * columns Qty, Stock (For on an Other request), Status, P0 and Delivery and notes. The status is
+ * the menu (#306) when the viewer may change it, else a plain badge. The rest of the item opens in
+ * place as a DetailGrid with the Purchasing buttons.
  *
- * `stockSnapshot` is the SOR's `sor_stock_snapshots` row. `replaces` /
- * `replacedBy` are the items on either end of a Buyer's substitute.
- *
- * An item for a Component shows it as "1.2 · name".
- * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
- * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
+ * `stockSnapshot` is the SOR's `sor_stock_snapshots` row. `replaces` / `replacedBy` are the items on
+ * either end of a Buyer's substitute; `mergedFrom` is the request whose P0 moved onto this line.
+ * An item for a Component shows it as "1.2 · name" in its details.
  */
-function requestedItemRow({ item, stockSnapshot, costText = null, actions = null, replaces = null, replacedBy = null, canvass = null, yours = null }) {
+function requestedItemRow({ item, stockSnapshot, side = null, costText = null, status, notes, buttons = null, replaces = null, replacedBy = null, mergedFrom = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
-  // The S0 dropped this line: the item stays so a bought product is never lost, and says so.
-  const removed = isFromS0(item) && item.removed_from_s0 === true;
-  const summary = summaryOf(item, stock, replacedBy);
-  // #687: the S0 still lists a product Purchasing replaced; Sales has to fix the S0.
-  const stillLists = item.s0_still_lists === true;
+  const asked = !isFromS0(item);
   return {
     key: item.id,
     testId: "requested-item",
-    main: item.name,
     label: item.name,
-    sub:
-      removed || stillLists ? (
-        <>
-          {summary}
-          {" · "}
-          <span className="inline-flex items-center gap-1 font-medium text-amber-11">
-            <AlertTriangle size={12} className="shrink-0" aria-hidden="true" />
-            {stillLists ? s0StillListsNote(item) : "Removed from S0"}
-          </span>
-        </>
-      ) : (
-        summary
-      ),
-    quantity: formatAmount(item.quantity, item.unit),
-    badge: { label: ITEM_STATUS_LABELS[item.status] || item.status, theme: ITEM_STATUS_THEME[item.status] },
-    actions: yours ? (
-      <div className="flex items-center gap-2">
-        {yours}
-        {actions}
+    main: asked ? askedMain(item) : splitProductName(item.name).name,
+    sub: asked ? <AskedSub item={item} side={side} /> : <ProductCode item={item} />,
+    subWrap: asked,
+    actions: (
+      <div className={cn("grid items-center gap-3", COLUMNS)}>
+        <QtyCell item={item} />
+        {asked ? <ForCell item={item} /> : <StockCell stock={stock} />}
+        <span className="flex">{status}</span>
+        <P0Cell item={item} />
+        {notes}
       </div>
-    ) : (
-      actions
     ),
     children: (
-      <>
-        <RequestedItemDetails item={item} stock={stock} costText={costText} replaces={replaces} replacedBy={replacedBy} />
-        {canvass}
-      </>
+      <RequestedItemDetails
+        item={item}
+        stock={stock}
+        costText={costText}
+        replaces={replaces}
+        replacedBy={replacedBy}
+        side={side}
+        mergedFrom={mergedFrom}
+        buttons={buttons}
+      />
     ),
   };
 }
@@ -110,6 +93,7 @@ function requestedItemRow({ item, stockSnapshot, costText = null, actions = null
  * Received, Cancelled) fold into one "N done" row unless they carry a warning.
  */
 function ItemSection({ section, rowFor, open, onOpenChange, sectionRef }) {
+  const asked = section.key === "other";
   const [showDone, setShowDone] = useState(false);
   const panelId = useId();
   const active = section.list.filter((i) => !isFolded(i));
@@ -153,7 +137,16 @@ function ItemSection({ section, rowFor, open, onOpenChange, sectionRef }) {
         <span className="text-xs font-medium text-muted-foreground">{section.list.length}</span>
       </Button>
       <Reveal open={open} id={panelId}>
-        <LinerList label={section.title} empty={section.empty} rows={rows} />
+        {rows.length === 0 ? (
+          <LinerList label={section.title} empty={section.empty} rows={rows} />
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="min-w-[64rem] overflow-hidden rounded-2xl border border-border bg-card">
+              <ColumnHeads first={asked ? "What was asked" : "Product"} third={asked ? "For" : "Stock"} />
+              <LinerList label={section.title} empty={section.empty} rows={rows} className="rounded-none border-0" />
+            </div>
+          </div>
+        )}
       </Reveal>
     </section>
   );
@@ -205,6 +198,14 @@ export default function RequestedItems({ request, renderActions }) {
     enabled: !!requestId && !renderActions,
   });
 
+  // Who asked, by side ("Asked by Sales", "Added by Purchasing"); the roster is shared with the request's members.
+  const { data: members = [] } = useQuery({
+    queryKey: purchaseRequestKeys.members(requestId),
+    queryFn: () => purchaseRequestService.listMembers(requestId),
+    enabled: !!requestId,
+  });
+  const sideOf = new Map(members.map((m) => [m.id, m.side]));
+
   const items = itemsQuery.data || [];
   // #686: Expected / Actual cost on a product line, read through the matrix so the viewer's cost tier decides.
   const { data: matrix } = useCostingMatrix(items.some((i) => i.component_id) ? request?.opportunity_id : null);
@@ -232,32 +233,45 @@ export default function RequestedItems({ request, renderActions }) {
     setOpenSections((prev) => ({ ...prev, [key]: true }));
     sectionRefs[key].current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   };
-  const rowFor = (item) =>
-    requestedItemRow({
+  const rowFor = (item) => {
+    const replacedBy = substituteOf.get(item.id);
+    const statusBadge = <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />;
+    return requestedItemRow({
       item,
       stockSnapshot,
+      side: sideOf.get(item.requested_by) ?? null,
       costText: item.component_id ? costByComponent.get(item.component_id) ?? null : null,
       replaces: byId.get(item.substitute_for_item_id),
-      replacedBy: substituteOf.get(item.id),
-      canvass: renderActions ? null : <ItemCanvass item={item} request={request} actor={actor} />,
-      // #688: a new S0 line that may be the same product as an Other request already bought.
-      yours: item.new_on_s0 ? (
-        <YoursBadge
-          item={item}
-          other={byId.get(item.yours_item_id)}
-          requestId={requestId}
-          canAnswer={[MEMBER_SIDE.PURCHASING, MEMBER_SIDE.SALES].includes(actor?.side)}
-        />
-      ) : null,
-      actions: renderActions ? (
+      replacedBy,
+      mergedFrom: mergedRequestOf(item, items),
+      buttons: renderActions ? null : <LineButtons item={item} request={request} actor={actor} />,
+      status: renderActions ? (
         <div className="flex items-center gap-2">
-          <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />
+          {statusBadge}
           {renderActions(item)}
         </div>
       ) : (
         <RequestedItemActions item={item} request={request} actor={actor} />
       ),
+      // #688: a new S0 line that may be the same product as an Other request already bought.
+      notes: (
+        <NotesCell
+          item={item}
+          replacedBy={replacedBy}
+          yours={
+            item.new_on_s0 ? (
+              <YoursBadge
+                item={item}
+                other={byId.get(item.yours_item_id)}
+                requestId={requestId}
+                canAnswer={[MEMBER_SIDE.PURCHASING, MEMBER_SIDE.SALES].includes(actor?.side)}
+              />
+            ) : null
+          }
+        />
+      ),
     });
+  };
 
   return (
     <section className="flex flex-col gap-2.5">
