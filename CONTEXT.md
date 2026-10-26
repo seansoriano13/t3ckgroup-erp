@@ -606,14 +606,14 @@ The Module carrying purchasing's own work — buying against Purchase Requests, 
 _Avoid_: Procurement, PMS (when meaning the Module)
 
 **Purchase Request**:
-Every request for Purchasing to buy something — whether it comes from a project or not. Holds Requested Items, its own members, and its own Chat, so each request's buying talk stays apart from every other's. A Buyer from Purchasing takes it and buys; nobody approves it first. Every Purchase Request, Project ones included, makes every Purchasing holder a member.
+Every request for Purchasing to buy something — whether it comes from a project or not. Holds Requested Items, its own members, and its own Chat, so each request's buying talk stays apart from every other's. Every request has a short number in the Canvass style, PR_0042, from a sequence so a number is never reused; it shows on the request and in the list (searchable by "PR_0042" or "0042"), and Purchasing writes it in a P0's Source Document for a Direct request. A Buyer from Purchasing takes it and buys; nobody approves it first. Every Purchase Request, Project ones included, makes every Purchasing holder a member.
 _Avoid_: Procurement Request, Requisition, PR Batch, Non-SOR Purchase Request
 
 **Project** (a Purchase Request's kind):
 A Purchase Request for one SOR — at most one per SOR, opened by a Stage Action, showing the SOR's reference. Opened as early as Sales' first "do we carry this?" and at the latest by award; the same request then carries the buying after award, so a product question and the order it becomes stay on one record. Its purchasing members also see the SOR's Stage Visit it was opened in; any other member sees only the request and the SOR's locked header.
 
 **Direct** (a Purchase Request's kind):
-A Purchase Request with no SOR, opened by any employee to buy something outside a project — stock, supplies, tools. Has a title instead of an SOR reference and new-product Requested Items only; any number may exist. The kind is never chosen or stored: a request is Project when it has an SOR and Direct when it has none.
+A Purchase Request with no SOR, opened by any employee to buy something outside a project — stock, supplies, tools. Has a title instead of an SOR reference and new-product Requested Items only; any number may exist. The kind is never chosen or stored: a request is Project when it has an SOR and Direct when it has none. It may optionally name the SOR it is for, a separate link from a Project request's own SOR: it stays Direct, does not join the project's product list, and shows on that SOR under "Direct requests for this project" (title, PR number, P0 and status; no money) to whoever can read the SOR.
 _Avoid_: Internal, Standalone, Non-SOR
 
 **Requester**:
@@ -625,18 +625,29 @@ The one purchaser who owns a Purchase Request — named by the Stage Action that
 _Avoid_: Assignee, Purchaser (when meaning this role)
 
 **Requested Item**:
-One product a Purchase Request asks for — copied from an SOR line or a Costing
-Matrix Component at the moment it was picked, or described as a new product.
-Later edits to the source never rewrite it. It keeps the link to the Component it
-buys for, and once Ordered it records the Odoo purchase order line as well as its
+One product a Purchase Request asks for, and the one product line Sales and
+Purchasing share. Every S0 line has exactly one Requested Item on the SOR's
+project request, made by itself (no picking, no typing) and kept in step with the
+line (name, quantity, unit) whenever the S0 is read; it is unique per SOR line,
+starts at Not checked, and stays with a "Removed from S0" note if Odoo drops the
+line, so a bought product is never lost. The request shows two sections, From the
+S0 and Other requests, with each product's status beside it. A Component reaches
+its item through its SOR line. Once Purchased it records the Odoo purchase order line as well as its
 number, which is how Landed Cost finds its way back. The server checks the PO
 number against Odoo itself: a PO Odoo doesn't know is refused, and when Odoo
 doesn't answer the PO is saved as "Not checked". Purchasing can Correct PO while
-the item is Ordered, which is checked again. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
+the item is Purchased, which is checked again. Carries its own status: Not checked, then Available, or To purchase → Still canvassing → Purchased → Received; or out via Cannot source or Cancelled. There is no Substituted status: a substitute cancels the old item and keeps the "substitute for" link.
 _Avoid_: Line Item, Procurement Request
 
+**Other request**:
+A Requested Item with no SOR line: a product Sales asks for in its own words (brand, spec, photos) that is not on the S0, or material for the job. It sits in the Other requests section of the project request, starts at Not checked, and reaches the Costing Matrix only once it joins the S0 (a later ticket); materials never do. Not the same as a Direct request, which is a whole Purchase Request with no SOR.
+_Avoid_: Free-text item, Extra item
+
+**Is this yours?**:
+The question on a new S0 line whose Odoo product is the one on the P0 attached to an Other request on the same project: "Is this from your purchase request?". Yes moves the P0, its delivery, status and history onto the S0 line and closes the Other request as Cancelled ("Closed · {P0} and its delivery moved onto {S0 line}"); nothing is deleted. No clears the question and changes nothing else (ADR 0046).
+
 **Requested Item Status**:
-The stage of sourcing for a Requested Item, rendered as an interactive status pill consolidating the status indicator and action controls into one element, allowing permitted members to advance the item along its path or cancel it.
+The stage of sourcing for a Requested Item (Not checked, Available, To purchase, Still canvassing, Purchased, Received, Cannot source, Cancelled), rendered as an interactive status pill consolidating the status indicator and action controls into one element, allowing permitted members to advance the item along its path or cancel it.
 _Avoid_: Status dropdown, Outcome selector, Status button
 
 **Purchase Requests** (the list):
@@ -645,8 +656,13 @@ _Avoid_: Procurement Queue, Sourcing List, Purchasing Dashboard (a different thi
 
 **Purchasing Dashboard**:
 Where every project's buying is seen at once, grouped by what is outstanding
-rather than by which record holds it — **To source**, **To price**, **To order**,
-**On order**, **To check**. The groups are derived and never stored, and one SOR
+rather than by which record holds it — **Not checked**, **To purchase**,
+**Still canvassing**, **Purchased (not received)**: exactly four. A Component still
+needing its Acquire price or a Bid Decision counts under Still canvassing, and a
+Transmittal being checked is not a Dashboard group. The item groups
+read the stored line status, one word for one thing: a line turned Purchased by Odoo
+sits under Purchased (not received) with its delivery note ("Not received yet · ETA …",
+"x of y received") and leaves the groups once it is Received. The groups are derived and never stored, and one SOR
 sits in as many as apply, because purchasing is not a line: components are
 canvassed while others are already ordered and others are on a truck. One page
 with three tabs: **Projects** (those groups), then Order Monitoring's **What needs
@@ -668,11 +684,11 @@ How an Inclusion would be obtained — In stock, Stocked but needs ordering, or 
 _Avoid_: Source out (as a boolean), Availability
 
 **Stock Availability**:
-Odoo's count of a product that is on hand and not reserved, per warehouse, as of the last fetch — always shown with the time it was fetched and never presented as live. A fact read from Odoo, where Sourcing is purchasing's own judgment.
+Odoo's count of a product that is on hand and not reserved, per warehouse, as of the last fetch — always shown with the time it was fetched and never presented as live. When a fresh stock check shows an Available product line no longer has enough free stock, the line warns "Now x free of y"; the warning holds the line open in the folded list and clears when someone chooses a status again. A fact read from Odoo, where Sourcing is purchasing's own judgment.
 _Avoid_: Inventory (unqualified), Live Stock
 
 **Canvass**:
-The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase has no Costing Matrix row yet — never both. Buying outside a project is canvassed first, on the Canvasses page, against nothing yet; a Purchase Request is then created from that Canvass, and the Canvass points at the Requested Item it became. Gets its number when its first Offer is saved, not when it is opened. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished. Nothing forces an item through one — but an item ordered without a Canvass says so on its Costing Matrix row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
+The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase has no Costing Matrix row yet — never both. On a project, the subject is the product line (the Requested Item): Purchasing starts the Canvass from the line, which moves it to Still canvassing, and the winner's price fills the Acquire of the Component linked to the line's SOR line (ADR 0042). Buying outside a project is canvassed first, on the Canvasses page, against nothing yet; a Purchase Request is then created from that Canvass, and the Canvass points at the Requested Item it became. Gets its number when its first Offer is saved, not when it is opened. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished. Nothing forces an item through one — but an item ordered without a Canvass says so on its Costing Matrix row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
 _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 
 **Locked Canvass**:
@@ -680,7 +696,7 @@ A Canvass is locked once a Purchase Request was made from it, whether the reques
 _Avoid_: Frozen, Closed Canvass
 
 **Canvasses** (the page):
-The Purchasing page listing every Canvass, project ones included, and where a Canvass for buying outside a project is started. Buying outside a project always starts here: Purchasing canvasses first, then creates a Purchase Request from the Canvass or adds it to one that already exists. A Purchase Request never starts a Canvass on its items. Several Canvasses can be picked to create one Purchase Request, one Requested Item each. A Canvass that already exists can also be added to a Purchase Request that already exists, from the request ("Add a Canvass"): it becomes a new Requested Item (with a quantity and unit), or is attached to an item the request already has that has no Canvass yet. Either way the winner's price goes on the item and the Canvass is locked (see Locked Canvass). Creating one needs each Canvass to have a winner; a Canvass not yet signed off only warns. Each Canvass on the page and in its panel says whether a request is still to be made: "Needs winner", "Ready to request", or the status of its Requested Item once a request exists ("Requested", "Cancelled"). The badge is a status only, never a link; the Canvass panel names the request and opens it in place, over the Canvass. A Canvass on a Component shows nothing there. A "Request" filter narrows to Canvasses not requested yet or with a request created.
+The Purchasing page listing every Canvass, project ones included, and where a Canvass for buying outside a project is started. Buying outside a project always starts here: Purchasing canvasses first, then creates a Purchase Request from the Canvass or adds it to one that already exists. A Purchase Request outside a project never starts a Canvass on its items. Several Canvasses can be picked to create one Purchase Request, one Requested Item each. A Canvass that already exists can also be added to a Purchase Request that already exists, from the request ("Add a Canvass"): it becomes a new Requested Item (with a quantity and unit), or is attached to an item the request already has that has no Canvass yet. Either way the winner's price goes on the item and the Canvass is locked (see Locked Canvass). Creating one needs each Canvass to have a winner; a Canvass not yet signed off only warns. Each Canvass on the page and in its panel says whether a request is still to be made: "Needs winner", "Ready to request", or the status of its Requested Item once a request exists ("Requested", "Cancelled"). The badge is a status only, never a link; the Canvass panel names the request and opens it in place, over the Canvass. A Canvass on a Component shows nothing there. A "Request" filter narrows to Canvasses not requested yet or with a request created.
 _Avoid_: Canvass tool, Sourcing page
 
 **Offer**:
@@ -769,7 +785,7 @@ _Avoid_: Penalty, Late Fee
 
 **Purchase Order**:
 T3CK's order to a supplier, raised in Odoo and numbered there (P02552). What an
-IPAS records, what a Requested Item is Ordered on, and what a Transmittal line
+IPAS records, what a Requested Item is Purchased on, and what a Transmittal line
 names. On screen it is the "Odoo PO", never the client's paper.
 _Avoid_: PO (unqualified, where the Client PO could be meant), Order (unqualified)
 
@@ -1038,8 +1054,16 @@ _Avoid_: Margin, Profit, Projected Revenue (the Offer's projected margin is a Ca
 **Tender Line**:
 One thing the client asked for in the Costing Matrix — its specification,
 quantity, ABC and Final Offer. The offer price is quoted per tender line. Typed,
-or picked from an SOR line whose name, quantity and unit it then keeps.
+or picked from an SOR line whose name, quantity and unit it then keeps. It points
+at that SOR line by the line's fixed id (a real reference), which an SOR save
+never changes (ADR 0041).
 _Avoid_: Line item, Item, SOR line (a different thing)
+
+**Removed from S0**:
+An SOR product line whose Odoo S0 line is gone. The line is kept (a purchase may
+hang off it), marked, and left out of Estimated Value. An SOR line keeps the
+Odoo S0 line's own id, so a line is the same line across reads (ADR 0041).
+_Avoid_: Deleted line
 
 **Component**:
 One thing T3CK supplies toward a Tender Line, with its own brand, sourcing,

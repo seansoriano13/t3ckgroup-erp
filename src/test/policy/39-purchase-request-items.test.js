@@ -1,6 +1,7 @@
 /**
- * Requested Items (#305, part of #209): added from an SOR line or as a new
- * product, by the request's sales side or its Buyer.
+ * Requested Items (#305, part of #209): a new product added by the request's
+ * sales side or its Buyer. The items of the SOR's own lines are made by the
+ * database (#678): see 141-requested-item-follows-s0.test.js.
  *
  * `dealOwner` is the sales-side member and the SOR's Deal Owner;
  * `stageParticipant` is the Buyer; `outsider` is a purchasing member who isn't
@@ -30,24 +31,10 @@ async function insert(table, row) {
     return data.id
 }
 
-async function lines(sor = sorId) {
-    const { data, error } = await svc()
-        .from("sales_opportunity_items")
-        .select("id, product_name, quantity, unit, odoo_product_id")
-        .eq("opportunity_id", sor)
-        .order("sort_order")
-    if (error) throw error
-    return data
-}
-
 async function item(id) {
     const { data, error } = await svc().from("purchase_request_items").select("*").eq("id", id).single()
     if (error) throw error
     return data
-}
-
-async function addFromLine(who, lineId) {
-    return (await clientFor(who)).rpc("purchase_request_add_item_from_line", { p_request_id: requestId, p_line_id: lineId })
 }
 
 async function addNew(who, fields = {}) {
@@ -97,106 +84,6 @@ afterAll(async () => {
     await svc().from("sales_opportunities").delete().in("id", [sorId, otherSorId].filter(Boolean))
 })
 
-describe("adding an item from an SOR line", () => {
-    let itemId
-
-    beforeAll(async () => {
-        const [harness] = await lines()
-        const { data, error } = await addFromLine("dealOwner", harness.id)
-        if (error) throw error
-        itemId = data
-    })
-
-    it("copies the line's Odoo product, name, quantity and unit, and snapshots them", async () => {
-        expect(await item(itemId)).toMatchObject({
-            request_id: requestId,
-            source: "sor_line",
-            odoo_product_id: 101,
-            name: `${MARKER} Full Body Harness`,
-            quantity: 10,
-            unit: "pc",
-            sor_line_snapshot: { name: `${MARKER} Full Body Harness`, quantity: 10, unit: "pc" },
-            status: "requested",
-            requested_by: ids.dealOwner,
-        })
-    })
-
-    it("posts the item in the request as an event, authored by whoever added it", async () => {
-        const { data } = await svc()
-            .from("purchase_request_messages")
-            .select("author_id, content, metadata")
-            .eq("request_id", requestId)
-            .contains("metadata", { item_id: itemId })
-        expect(data).toEqual([
-            {
-                author_id: ids.dealOwner,
-                content: `Requested ${MARKER} Full Body Harness × 10 pc, from the SOR's Product List.`,
-                metadata: { event: "item_added", item_id: itemId, source: "sor_line" },
-            },
-        ])
-    })
-
-    it("refuses a line on another SOR", async () => {
-        const [foreign] = await lines(otherSorId)
-        const { error } = await addFromLine("dealOwner", foreign.id)
-        expect(error?.code).toBe("P0002")
-    })
-
-    it("refuses a line id that no longer exists", async () => {
-        const { error } = await addFromLine("dealOwner", NO_ID)
-        expect(error?.code).toBe("P0002")
-    })
-})
-
-describe("after the SOR's Product List is replaced", () => {
-    let harnessItem, ropeItem
-
-    const lineNow = async (who = "dealOwner") => {
-        const { data, error } = await (await clientFor(who)).rpc("purchase_request_item_lines", { p_request_id: requestId })
-        if (error) throw error
-        return Object.fromEntries(data.map((r) => [r.item_id, r]))
-    }
-
-    beforeAll(async () => {
-        const [harness, rope] = await lines()
-        harnessItem = (await addFromLine("dealOwner", harness.id)).data
-        ropeItem = (await addFromLine("dealOwner", rope.id)).data
-
-        await replaceProductList([{ ...PRODUCT_LIST[0], quantity: 12 }])
-    })
-
-    afterAll(() => replaceProductList(PRODUCT_LIST))
-
-    it("keeps the item as it was picked", async () => {
-        expect(await item(harnessItem)).toMatchObject({
-            quantity: 10,
-            sor_line_snapshot: { name: `${MARKER} Full Body Harness`, quantity: 10, unit: "pc" },
-        })
-        expect(await item(ropeItem)).toMatchObject({ quantity: 2, unit: "roll" })
-    })
-
-    it("reports the line's new quantity, found by its Odoo product", async () => {
-        expect((await lineNow())[harnessItem]).toEqual({
-            item_id: harnessItem,
-            line_found: true,
-            line_quantity: 12,
-            line_unit: "pc",
-        })
-    })
-
-    it("reports a hand-typed line the SOR dropped as gone", async () => {
-        expect((await lineNow())[ropeItem]).toMatchObject({ line_found: false, line_quantity: null })
-    })
-
-    it("answers any reader of the request, who may hold no access to the SOR", async () => {
-        expect((await lineNow("hr"))[harnessItem]).toMatchObject({ line_quantity: 12 })
-    })
-
-    it("answers nothing to someone who can't read the request", async () => {
-        expect(await lineNow("ordinary")).toEqual({})
-    })
-})
-
 describe("adding a new product", () => {
     const images = [{ url: "https://res.cloudinary.com/demo/bracket.jpg", name: "bracket.jpg", type: "image/jpeg", bytes: 2048 }]
 
@@ -216,7 +103,7 @@ describe("adding a new product", () => {
             description: "Stainless, per the client's drawing",
             images,
             sor_line_snapshot: null,
-            status: "requested",
+            status: "not_checked",
         })
 
         const { data: posts } = await svc()
@@ -247,21 +134,12 @@ describe("who may add items", () => {
         ["a non-member", "ordinary", false],
     ])("%s: %s", async (_, who, allowed) => {
         const client = await clientFor(who)
-        const [line] = await lines()
 
         const can = await client.rpc("purchase_request_can_add_items", { p_request_id: requestId })
         expect(can.data).toBe(allowed)
 
-        const fromLine = await addFromLine(who, line.id)
         const fresh = await addNew(who)
-        const picker = await client.rpc("purchase_request_pickable_lines", { p_request_id: requestId })
-        if (allowed) {
-            expect([fromLine.error, fresh.error, picker.error]).toEqual([null, null, null])
-            expect(picker.data.map((l) => l.product_name)).toEqual(PRODUCT_LIST.map((l) => l.product_name))
-            expect(picker.data[0]).not.toHaveProperty("unit_price")
-        } else {
-            expect([fromLine.error?.code, fresh.error?.code, picker.error?.code]).toEqual(["42501", "42501", "42501"])
-        }
+        expect(fresh.error?.code ?? null).toBe(allowed ? null : "42501")
     })
 
     it("a direct insert into the items is refused", async () => {
@@ -279,9 +157,7 @@ describe("who may add items", () => {
 describe("someone not signed in", () => {
     it.each([
         ["purchase_request_can_add_items", { p_request_id: NO_ID }],
-        ["purchase_request_add_item_from_line", { p_request_id: NO_ID, p_line_id: NO_ID }],
         ["purchase_request_add_new_item", { p_request_id: NO_ID, p_name: "x", p_quantity: 1 }],
-        ["purchase_request_pickable_lines", { p_request_id: NO_ID }],
         ["purchase_request_item_lines", { p_request_id: NO_ID }],
     ])("cannot call %s at all", async (fn, args) => {
         const { error } = await anonymousClient().rpc(fn, args)

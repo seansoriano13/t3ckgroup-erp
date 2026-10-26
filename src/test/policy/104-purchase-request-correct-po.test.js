@@ -1,6 +1,6 @@
 /**
- * Correct PO on an Ordered item (#549, spec #544): the 'correct' action of
- * `purchase_request_item_apply_po_check`. Purchasing only, while the item is Ordered; the new PO
+ * Correct PO on a Purchased item (#549, spec #544): the 'correct' action of
+ * `purchase_request_item_apply_po_check`. Purchasing only, while the item is Purchased; the new PO
  * gets the same three Odoo verdicts (Odoo faked by passing its answer), picked PO lines are
  * cleared, and the request's history records the old and new PO. Set-up follows
  * 103-purchase-request-po-check.
@@ -29,7 +29,7 @@ const seedItem = (fields = {}) =>
         name: `${MARKER} Safety Boots`,
         unit: "pc",
         quantity: 10,
-        status: "ordered",
+        status: "purchased",
         po_number: OLD,
         po_verification: "VERIFIED",
         odoo_po_line_ids: [501, 502],
@@ -78,13 +78,13 @@ afterAll(async () => {
     if (sorId) await svc().from("sales_opportunities").delete().eq("id", sorId)
 })
 
-describe("Correct PO on an Ordered item", () => {
+describe("Correct PO on a Purchased item", () => {
     it("Odoo has the new PO: verified, picked lines cleared, history shows old and new", async () => {
         const id = await seedItem()
         const { data, error } = await correct("stageParticipant", id, "found", " p01234 ")
         expect(error).toBeNull()
-        expect(data).toMatchObject({ status: "ordered", po_number: PO, po_verification: "VERIFIED", odoo_po_line_ids: [] })
-        expect(await item(id)).toMatchObject({ status: "ordered", po_number: PO, odoo_po_line_ids: [] })
+        expect(data).toMatchObject({ status: "purchased", po_number: PO, po_verification: "VERIFIED", odoo_po_line_ids: [] })
+        expect(await item(id)).toMatchObject({ status: "purchased", po_number: PO, odoo_po_line_ids: [] })
 
         const { data: posts } = await svc()
             .from("purchase_request_messages")
@@ -121,7 +121,7 @@ describe("Correct PO on an Ordered item", () => {
         expect(await item(id)).toMatchObject({ po_number: OLD, odoo_po_line_ids: [501, 502] })
     })
 
-    it.each(["to_order", "canvassing", "received", "cancelled"])("refuses an item that is %s", async (status) => {
+    it.each(["to_purchase", "still_canvassing", "received", "cancelled"])("refuses an item that is %s", async (status) => {
         const id = await seedItem({ status })
         const { error } = await correct("stageParticipant", id, "found")
         expect(error?.code).toBe("22023")

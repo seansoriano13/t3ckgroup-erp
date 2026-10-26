@@ -3,11 +3,11 @@
  * per thing that owns the work, tagged with the group it is in. The groups are derived here and never
  * stored; one SOR sits in as many groups as apply. Counts only: no money column is ever served.
  *
- * One SOR carries work in four groups at once:
- *   To source  one Requested Item at Requested, one Canvass with no winner
- *   To price   one Component with no Acquire (the matrix has a Go decision)
- *   To order   one Component priced, no PO yet
- *   On order   one Requested Item Ordered, on a Component with no Canvass
+ * One SOR carries work in several groups at once (#690: item groups follow the stored line status):
+ *   Not checked       one Requested Item at Not checked
+ *   Still canvassing  one Component Canvass with no winner, and one Component with no Acquire
+ *                     (the matrix has a Go decision)
+ *   Purchased         one Requested Item Purchased, on a Component with no Canvass (grp purchased)
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -77,7 +77,7 @@ beforeAll(async () => {
     await asSvc(
         svc()
             .from("purchase_request_items")
-            .insert({ request_id: requestId, name: "Siren", source: "new", requested_by: ids.dealOwner, component_id: orderedComp, status: "ordered", po_number: `P99${RUN}` })
+            .insert({ request_id: requestId, name: "Siren", source: "new", requested_by: ids.dealOwner, component_id: orderedComp, status: "purchased", po_number: `P99${RUN}` })
             .select("id")
             .single(),
         "Ordered Item",
@@ -113,10 +113,10 @@ describe("who reads the dashboard", () => {
 })
 
 describe("one SOR in many groups", () => {
-    it("puts the SOR in all four groups that apply, and not in To check", async () => {
+    it("puts the SOR in every group that applies, and in no other than the four status groups", async () => {
         const { data } = await dashboard("outsider")
         const groups = [...new Set(mine(data).map((row) => row.grp))].sort()
-        expect(groups).toEqual(["on_order", "to_order", "to_price", "to_source"])
+        expect(groups).toEqual(["not_checked", "purchased", "still_canvassing"])
     })
 
     it("names the record that owns each piece of work", async () => {
@@ -124,11 +124,10 @@ describe("one SOR in many groups", () => {
         const keyed = rows.map((row) => `${row.grp}:${row.target_kind}:${row.target_id}`).sort()
         expect(keyed).toEqual(
             [
-                `on_order:purchase_request:${requestId}`,
-                `to_order:costing_matrix:${sorId}`,
-                `to_price:costing_matrix:${sorId}`,
-                `to_source:canvass:${canvassId}`,
-                `to_source:purchase_request:${requestId}`,
+                `purchased:purchase_request:${requestId}`,
+                `still_canvassing:costing_matrix:${sorId}`,
+                `still_canvassing:canvass:${canvassId}`,
+                `not_checked:purchase_request:${requestId}`,
             ].sort(),
         )
     })
@@ -136,33 +135,33 @@ describe("one SOR in many groups", () => {
     it("counts the items each row holds", async () => {
         const rows = mine((await dashboard("outsider")).data)
         const count = (grp) => rows.filter((row) => row.grp === grp).reduce((sum, row) => sum + row.item_count, 0)
-        expect(count("to_source")).toBe(2)
-        expect(count("to_price")).toBe(1)
-        expect(count("to_order")).toBe(1)
-        expect(count("on_order")).toBe(1)
+        expect(count("not_checked")).toBe(1)
+        expect(count("still_canvassing")).toBe(2)
+        expect(count("to_purchase")).toBe(0)
+        expect(count("purchased")).toBe(1)
     })
 
     it("marks the item ordered with no canvass", async () => {
         const rows = mine((await dashboard("outsider")).data)
-        expect(rows.find((row) => row.grp === "on_order").no_canvass_count).toBe(1)
+        expect(rows.find((row) => row.grp === "purchased").no_canvass_count).toBe(1)
     })
 
     it("carries the Buyer and the Canvasser for the filters", async () => {
         const rows = mine((await dashboard("outsider")).data)
-        expect(rows.find((row) => row.target_kind === "purchase_request" && row.grp === "to_source").buyer_id).toBe(ids.outsider)
+        expect(rows.find((row) => row.target_kind === "purchase_request" && row.grp === "not_checked").buyer_id).toBe(ids.outsider)
         expect(rows.find((row) => row.target_kind === "canvass").canvasser_id).toBe(ids.outsider)
     })
 
     it("sends no money", async () => {
         const { data } = await dashboard("superAdmin")
         expect(Object.keys(mine(data)[0]).sort()).toEqual(
-            ["buyer_id", "canvasser_id", "grp", "item_count", "no_canvass_count", "opportunity_id", "project_title", "sales_reference", "request_id", "since", "target_id", "target_kind", "target_label"].sort(),
+            ["buyer_id", "canvasser_id", "delivery_note", "grp", "item_count", "no_canvass_count", "opportunity_id", "project_title", "sales_reference", "request_id", "since", "target_id", "target_kind", "target_label"].sort(),
         )
     })
 })
 
 describe("what moves the SOR between groups", () => {
-    it("drops To source for the Canvass once an Offer wins", async () => {
+    it("drops Still canvassing for the Canvass once an Offer wins", async () => {
         const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvassId, supplier_name: `${MARKER} Win`, is_winner: true }).select("id").single(), "Offer")
         const rows = mine((await dashboard("outsider")).data)
         expect(rows.some((row) => row.target_kind === "canvass")).toBe(false)
@@ -176,11 +175,11 @@ describe("what moves the SOR between groups", () => {
         await svc().from("sor_canvasses").delete().eq("id", late.id)
     })
 
-    it("puts the whole matrix back in To price when its decision is cleared", async () => {
+    it("puts the whole matrix back in Still canvassing when its decision is cleared", async () => {
         await asSvc(svc().from("costing_bid_decisions").update({ cleared_at: new Date().toISOString(), cleared_reason: "fixture" }).eq("matrix_id", matrixId), "clear")
         const rows = mine((await dashboard("outsider")).data)
-        expect(rows.some((row) => row.grp === "to_order")).toBe(false)
-        expect(rows.find((row) => row.grp === "to_price").item_count).toBe(2)
+        expect(rows.some((row) => row.grp === "to_purchase")).toBe(false)
+        expect(rows.find((row) => row.target_kind === "costing_matrix").item_count).toBe(2)
         await asSvc(svc().from("costing_bid_decisions").update({ cleared_at: null, cleared_reason: null }).eq("matrix_id", matrixId), "unclear")
     })
 })
@@ -210,16 +209,16 @@ describe("the known gaps (#322 follow-up)", () => {
     it("lists an order whose PO has an IPAS under that IPAS, so it opens there", async () => {
         const ipasId = await raiseIpas(`P99${RUN}`)
         const rows = mine((await dashboard("outsider")).data)
-        const onOrder = rows.find((row) => row.grp === "on_order")
+        const onOrder = rows.find((row) => row.grp === "purchased")
         expect(onOrder).toMatchObject({ target_kind: "ipas", target_id: ipasId, request_id: requestId, item_count: 1 })
     })
 
-    it("puts an item received on an IPAS no Transmittal names yet into To check", async () => {
-        await asSvc(svc().from("purchase_request_items").update({ status: "received" }).eq("request_id", requestId).eq("status", "ordered"), "receive")
+    it("leaves an item received on an IPAS out of every group (a Transmittal check is not a group)", async () => {
+        await asSvc(svc().from("purchase_request_items").update({ status: "received" }).eq("request_id", requestId).eq("status", "purchased"), "receive")
         const rows = mine((await dashboard("outsider")).data)
-        expect(rows.find((row) => row.grp === "to_check")).toMatchObject({ target_kind: "ipas", target_id: ipasIds[0], item_count: 1 })
-        expect(rows.some((row) => row.grp === "on_order")).toBe(false)
-        await asSvc(svc().from("purchase_request_items").update({ status: "ordered" }).eq("request_id", requestId).eq("status", "received"), "unreceive")
+        expect(rows.some((row) => row.target_kind === "ipas")).toBe(false)
+        expect(rows.some((row) => row.grp === "purchased")).toBe(false)
+        await asSvc(svc().from("purchase_request_items").update({ status: "purchased" }).eq("request_id", requestId).eq("status", "received"), "unreceive")
     })
 
     it("counts a Direct request, which has no SOR", async () => {
@@ -227,7 +226,7 @@ describe("the known gaps (#322 follow-up)", () => {
         await asSvc(svc().from("purchase_request_items").insert({ request_id: directRequestId, name: "Toner", source: "new", requested_by: ids.dealOwner }), "direct item")
         const { data } = await dashboard("outsider")
         const direct = data.find((row) => row.target_id === directRequestId)
-        expect(direct).toMatchObject({ opportunity_id: null, project_title: "Direct request", grp: "to_source", item_count: 1 })
+        expect(direct).toMatchObject({ opportunity_id: null, project_title: "Direct request", grp: "not_checked", item_count: 1 })
         expect(mine((await dashboard("ordinary")).data)).toEqual([])
         expect((await dashboard("ordinary")).data.some((row) => row.target_id === directRequestId)).toBe(false)
     })

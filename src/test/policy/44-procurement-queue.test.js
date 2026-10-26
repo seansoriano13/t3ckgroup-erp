@@ -60,7 +60,7 @@ beforeAll(async () => {
     await ensureCastLoaded()
     const flag = await svc().from("employees").update({ has_purchasing_flow: true }).in("id", PURCHASERS.map((k) => ids[k]))
     if (flag.error) throw flag.error
-    unassigned = await newRequest({ statuses: ["requested", "received"] })
+    unassigned = await newRequest({ statuses: ["not_checked", "received"] })
     assigned = await newRequest({ buyer: "stageParticipant", statuses: ["received", "cancelled"] })
 })
 

@@ -431,8 +431,8 @@ describe("the Costing Desk", () => {
             status,
             requested_by: buyer.id,
           });
-        item("ordered");
-        item("requested");
+        item("purchased");
+        item("not_checked");
       }
 
       it.each(["closed_book", "cost", "price", "participant"])("shows a Component its Requested Items' statuses at the %s tier", async (tier) => {
@@ -445,8 +445,8 @@ describe("the Costing Desk", () => {
         const block = await screen.findByTestId("components");
         const [vehicleRow, winchRow] = within(block).getAllByTestId("component");
         const requests = await within(vehicleRow).findByTestId("component-requests");
-        expect(within(requests).getByText("Ordered")).toBeInTheDocument();
-        expect(within(requests).getByText("Requested")).toBeInTheDocument();
+        expect(within(requests).getByText("Purchased")).toBeInTheDocument();
+        expect(within(requests).getByText("Not checked")).toBeInTheDocument();
         // Only the status: no name, quantity or requester comes with it.
         expect(requests).not.toHaveTextContent("Bea Buyer");
         expect(within(winchRow).queryByTestId("component-requests")).not.toBeInTheDocument();

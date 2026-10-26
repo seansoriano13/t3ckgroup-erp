@@ -20,12 +20,12 @@ function clearOldOpenAsChoice() {
   }
 }
 
-/** "Purchase Request for S01001 · Stage · 2 open of 5" — the one quiet line under the title. */
+/** "PR_0042 · Purchase Request for S01001 · Stage · 2 open of 5" — the one quiet line under the title. */
 function headerLine(request) {
   const direct = requestKind(request) === REQUEST_KIND.DIRECT;
   const count = request.item_count ? `${request.open_count ?? request.open_item_count ?? 0} open of ${request.item_count}` : null;
   const lead = direct ? "Direct Purchase Request" : `Purchase Request for ${request.sales_reference || "an SOR"}`;
-  return [lead, requestStageLabel(request), count].filter(Boolean).join(" · ");
+  return [request.pr_number, lead, requestStageLabel(request), count].filter(Boolean).join(" · ");
 }
 
 /**

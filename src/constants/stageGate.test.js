@@ -295,7 +295,7 @@ describe("evaluateCondition — purchasing_settled kind (#311)", () => {
   })
 
   it("is unsatisfied while any item is open, satisfied once every item is closed", () => {
-    const open = [{ status: "received" }, { status: "ordered" }]
+    const open = [{ status: "received" }, { status: "purchased" }]
     const closed = [{ status: "received" }, { status: "cancelled" }]
     expect(evaluateCondition(req, { purchaseRequestItems: open }).status).toBe(CONDITION_STATUS.UNSATISFIED)
     expect(evaluateCondition(req, { purchaseRequestItems: closed }).status).toBe(CONDITION_STATUS.SATISFIED)

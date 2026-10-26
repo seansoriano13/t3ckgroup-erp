@@ -28,7 +28,7 @@ export function stubCanvassAddToRequestRpc() {
           name: canvass.product_name ?? canvass.number,
           quantity: entry.quantity ?? 1,
           unit: entry.unit ?? null,
-          status: "requested",
+          status: "not_checked",
           description: `From Canvass ${canvass.number}`,
           requested_by: rowsOf("purchase_requests").find((r) => r.id === args.p_request_id)?.created_by ?? null,
         })
@@ -159,10 +159,18 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"], superAdmin = fal
     if (!offer.is_winner) updateRow("sor_canvass_offers", offer, { is_winner: true })
 
     const filled = { acquire: false, offer_specification: false, documents: false }
-    if (!canvass.component_id) return { offer_id: offer.id, filled }
+    // A Canvass on a product line fills the one Component linked to the line's SOR line (#682).
+    let componentId = canvass.component_id
+    if (!componentId && canvass.requested_item_id) {
+      const item = rowsOf("purchase_request_items").find((i) => i.id === canvass.requested_item_id)
+      const tenderIds = item?.sor_item_id ? rowsOf("costing_tender_lines").filter((l) => l.sor_item_id === item.sor_item_id).map((l) => l.id) : []
+      const linked = rowsOf("costing_components").filter((c) => tenderIds.includes(c.tender_line_id))
+      componentId = linked.length === 1 ? linked[0].id : null
+    }
+    if (!componentId) return { offer_id: offer.id, filled }
 
-    const component = rowsOf("costing_components").find((c) => c.id === canvass.component_id)
-    const cost = rowsOf("costing_component_costs").find((c) => c.component_id === canvass.component_id)
+    const component = rowsOf("costing_components").find((c) => c.id === componentId)
+    const cost = rowsOf("costing_component_costs").find((c) => c.component_id === componentId)
 
     canvassFill.on = true
     try {
@@ -172,7 +180,7 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"], superAdmin = fal
           requireBand("costing_component_costs", "acquire_unit", ["purchasing"])
           const patch = { acquire_unit: roundCentavo(offer.currency === "PHP" ? unit : Number(unit) * Number(rate)), acquire_from_offer_id: offer.id }
           if (cost) updateRow("costing_component_costs", cost, patch)
-          else insertRow("costing_component_costs", { component_id: canvass.component_id, ...patch })
+          else insertRow("costing_component_costs", { component_id: componentId, ...patch })
           filled.acquire = true
         }
       } else if (cost?.acquire_from_offer_id) {

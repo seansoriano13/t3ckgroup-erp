@@ -494,7 +494,7 @@ describe("Tender Lines: who reads what", () => {
 })
 
 describe("a Tender Line picked from an SOR line", () => {
-  it("keeps its snapshot after the lines are replaced, and reports what the line says now", async () => {
+  it("keeps its snapshot after the line is saved again, and reports what the line says now", async () => {
     const original = await asSvc(
       svc()
         .from("sales_opportunity_items")
@@ -514,18 +514,9 @@ describe("a Tender Line picked from an SOR line", () => {
       sor_line_snapshot: { name: "Safety harness", quantity: 5, unit: "pc" },
     })
 
-    // sor_replace_items deletes every line and inserts new rows with new ids.
-    await asSvc(svc().from("sales_opportunity_items").delete().eq("opportunity_id", sorId), "delete lines")
+    // A save updates the line in place (#677): the same id, new words.
     await asSvc(
-      svc().from("sales_opportunity_items").insert({
-        opportunity_id: sorId,
-        product_name: "Safety harness (full body)",
-        unit: "pc",
-        quantity: 8,
-        unit_price: 4700,
-        sort_order: 1,
-        odoo_product_id: 8123,
-      }),
+      svc().from("sales_opportunity_items").update({ product_name: "Safety harness (full body)", quantity: 8, unit_price: 4700 }).eq("id", original.id),
       "replaced line",
     )
 
@@ -554,21 +545,41 @@ describe("a Tender Line picked from an SOR line", () => {
     expect(gone.sor_line_snapshot.quantity).toBe(5)
   })
 
-  it("matches by name when the line has no Odoo product id", async () => {
-    await asSvc(
-      svc().from("sales_opportunity_items").insert({ opportunity_id: sorId, product_name: "  Rope 11mm ", unit: "m", quantity: 100, unit_price: 90, sort_order: 1 }),
-      "SOR line",
+  it("follows its own line by id when the SOR lists the same product twice", async () => {
+    await asSvc(svc().from("sales_opportunity_items").delete().eq("opportunity_id", sorId), "clear lines")
+    const [, second] = await asSvc(
+      svc()
+        .from("sales_opportunity_items")
+        .insert([
+          { opportunity_id: sorId, product_name: "Rope 11mm", unit: "m", quantity: 100, unit_price: 90, sort_order: 1, odoo_product_id: 9001, odoo_line_id: 7001 },
+          { opportunity_id: sorId, product_name: "Rope 11mm", unit: "m", quantity: 40, unit_price: 95, sort_order: 2, odoo_product_id: 9001, odoo_line_id: 7002 },
+        ])
+        .select("id")
+        .order("sort_order"),
+      "SOR lines",
     )
     const picked = await addLine("dealOwner", {
       position: 3,
       source: "sor_line",
+      sor_item_id: second.id,
+      odoo_product_id: 9001,
       tender_specification: "Rope 11mm",
       unit: "m",
-      quantity: 100,
-      sor_line_snapshot: { name: "Rope 11mm", quantity: 100, unit: "m" },
+      quantity: 40,
+      sor_line_snapshot: { name: "Rope 11mm", quantity: 40, unit: "m" },
     })
     const line = (await readMatrix("dealOwner")).tables.costing_tender_lines.find((l) => l.id === picked)
-    expect(line.sor_line_now).toMatchObject({ found: true, quantity: 100, unit: "m" })
+    expect(line.sor_line_now).toMatchObject({ found: true, quantity: 40, unit: "m" })
+  })
+
+  it("reports a line the S0 dropped as gone, and refuses a made-up line id", async () => {
+    const [kept] = await asSvc(svc().from("sales_opportunity_items").select("id").eq("opportunity_id", sorId).eq("odoo_line_id", 7002), "line")
+    await asSvc(svc().from("sales_opportunity_items").update({ removed_from_s0: true }).eq("id", kept.id), "removed")
+    const read = (await readMatrix("dealOwner")).tables.costing_tender_lines.find((l) => l.sor_item_id === kept.id)
+    expect(read.sor_line_now).toEqual({ found: false })
+
+    const bad = await svc().from("costing_tender_lines").insert({ matrix_id: matrixId, position: 99, source: "sor_line", sor_item_id: NO_ID, tender_specification: "x", quantity: 1 })
+    expect(bad.error?.code).toBe("23503")
   })
 })
 

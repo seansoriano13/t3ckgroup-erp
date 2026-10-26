@@ -15,7 +15,6 @@ const RENAMED = [
     "actor_side",
     "can_add_substitute",
     "set_item_status",
-    "add_substitute",
     "take",
     "set_buyer",
     "item_po_lines",
@@ -91,7 +90,6 @@ describe("old and new names answer alike", () => {
         ["take", { p_request_id: NO_ID }],
         ["set_buyer", { p_request_id: NO_ID, p_employee_id: null }],
         ["set_item_status", { p_item_id: NO_ID, p_status: "cancelled" }],
-        ["add_substitute", { p_item_id: NO_ID, p_name: "x", p_quantity: 1 }],
         ["item_po_lines", { p_item_id: NO_ID }],
         ["pick_po_lines", { p_item_id: NO_ID, p_line_ids: [1] }],
     ])("both names refuse %s alike", async (fn, args) => {
@@ -105,12 +103,12 @@ describe("old and new names answer alike", () => {
     it("both names move an item", async () => {
         const client = await clientFor("superAdmin")
         const item = await newItem()
-        const moved = await client.rpc("purchase_request_set_item_status", { p_item_id: item, p_status: "to_order" })
+        const moved = await client.rpc("purchase_request_set_item_status", { p_item_id: item, p_status: "to_purchase" })
         expect(moved.error).toBeNull()
-        expect(moved.data.status).toBe("to_order")
-        const again = await client.rpc("pr_set_item_status", { p_item_id: item, p_status: "canvassing" })
+        expect(moved.data.status).toBe("to_purchase")
+        const again = await client.rpc("pr_set_item_status", { p_item_id: item, p_status: "still_canvassing" })
         expect(again.error).toBeNull()
-        expect(again.data.status).toBe("canvassing")
+        expect(again.data.status).toBe("still_canvassing")
     })
 })
 

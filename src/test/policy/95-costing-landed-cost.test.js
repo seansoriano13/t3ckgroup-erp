@@ -83,7 +83,7 @@ async function makeComponent(lineId, position, name, quantity, extra = {}) {
     ).id
 }
 
-async function addItem(request, componentId, { quantity, tag, lines, status = "ordered" }) {
+async function addItem(request, componentId, { quantity, tag, lines, status = "purchased" }) {
     return (
         await asSvc(
             svc()
@@ -180,7 +180,7 @@ beforeAll(async () => {
     items.notPicked = await addItem(requestA, c.notPicked, { quantity: 1, tag: "PHP", lines: [] })
     items.removed = await addItem(requestA, c.removed, { quantity: 1, tag: "PHP", lines: [999] })
     items.unavailable = await addItem(requestA, c.unavailable, { quantity: 1, tag: "NOPAY", lines: [51] })
-    items.notOrdered = await addItem(requestA, c.notOrdered, { quantity: 3, status: "requested" })
+    items.notOrdered = await addItem(requestA, c.notOrdered, { quantity: 3, status: "not_checked" })
 })
 
 afterAll(async () => {
@@ -250,7 +250,7 @@ describe("costing_landed_costs: the sums", () => {
         await asSvc(svc().from("purchase_request_items").update({ status: "cancelled" }).eq("id", items.sharedB), "cancel")
         expect((await landed("outsider")).get(c.sharedA)).toMatchObject({ total_php: 500 })
         expect((await landed("superAdmin", sorB)).get(c.sharedB)).toMatchObject({ blank_reason: "not_ordered", total_php: null })
-        await asSvc(svc().from("purchase_request_items").update({ status: "ordered" }).eq("id", items.sharedB), "restore")
+        await asSvc(svc().from("purchase_request_items").update({ status: "purchased" }).eq("id", items.sharedB), "restore")
     })
 
     it("says why a Component is blank, never a partial figure", async () => {
@@ -317,7 +317,7 @@ describe("costing_component_purchases", () => {
         const byId = new Map(data.map((r) => [r.component_id, r]))
         const hose = byId.get(c.hose)
         expect(Number(hose.ordered_quantity)).toBe(6)
-        expect(hose.requests).toEqual([{ item_id: items.hose, request_id: requestA, name: "Item", po_number: po("PHP"), status: "ordered", odoo_po_line_ids: [11] }])
+        expect(hose.requests).toEqual([{ item_id: items.hose, request_id: requestA, name: "Item", po_number: po("PHP"), status: "purchased", odoo_po_line_ids: [11] }])
         expect(hose.ipas).toEqual([{ po_number: po("PHP"), ipas_id: ipas.php, number: expect.stringMatching(/^TGIPAS_/), state: "open" }])
         expect(byId.get(c.typedPo)).toMatchObject({ po_rfq_no: "P02574", ipas: [{ po_number: "P02574", ipas_id: null, number: null, state: null }] })
         expect(JSON.stringify(data)).not.toMatch(/total_php|unit_php/)

@@ -21,3 +21,10 @@ export async function openRowNamed(name) {
 
 /** The row now showing this name (a row is a new element after it moves to another group). */
 export const currentRow = (name) => screen.getByText(name).closest("[data-testid='requested-item']")
+
+/** Unfolds every "N done · show" row, so finished lines (Available, Received, Cancelled) are on screen. */
+export async function showDoneLines() {
+  const user = userEvent.setup()
+  const buttons = (await screen.findAllByTestId("done-row")).map((r) => within(r).getByRole("button", { name: "show" }))
+  for (const b of buttons) await user.click(b)
+}

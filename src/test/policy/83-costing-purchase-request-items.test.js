@@ -1,6 +1,5 @@
 /**
- * Requested Items from the Costing Matrix (#273, spec #266): Purchasing access, and only that,
- * adds an item per Component; a Component of another SOR's matrix is refused; one Component may
+ * Requested Items that name a Costing Matrix Component (#273, spec #266): one Component may
  * have several items; an item keeps its own copy of the Component; the matrix grid reads each
  * Component's items' statuses without the table's own read policy being widened.
  *
@@ -16,7 +15,7 @@
  * anyone else yet); every other assertion runs as a real cast member.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
+import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { purgeCostingForSors } from "./support/costing.js"
@@ -26,7 +25,7 @@ const CHECK_VIOLATION = "23514"
 
 let saleTypeId, flowId, stageId
 let sorId, otherSorId, requestId
-let hose, nozzle, bundle, foreign
+let hose, bundle
 const sorIds = []
 
 const asSvc = async (query, what) => {
@@ -35,11 +34,32 @@ const asSvc = async (query, what) => {
     return data
 }
 
-const addFrom = async (who, componentIds, request = requestId) =>
-    (await clientFor(who)).rpc("purchase_request_add_items_from_components", { p_request_id: request, p_component_ids: componentIds })
-
-const itemsOf = async (request = requestId) =>
-    asSvc(svc().from("purchase_request_items").select("*").eq("request_id", request).order("created_at"), "items")
+/** A Requested Item naming a Component, made with the service role (the add-from-matrix RPC is gone; S0 lines make items by trigger). */
+const seedFor = async (componentIds) => {
+    const made = []
+    for (const componentId of componentIds) {
+        const c = await asSvc(svc().from("costing_components").select("name, unit, quantity, odoo_product_id").eq("id", componentId).single(), "component")
+        const row = await asSvc(
+            svc()
+                .from("purchase_request_items")
+                .insert({
+                    request_id: requestId,
+                    source: "component",
+                    component_id: componentId,
+                    name: c.name.trim(),
+                    unit: c.unit,
+                    quantity: c.quantity,
+                    odoo_product_id: c.odoo_product_id,
+                    requested_by: ids.outsider,
+                })
+                .select("id")
+                .single(),
+            "item",
+        )
+        made.push(row.id)
+    }
+    return made
+}
 
 const clearItems = async () => {
     await svc().from("purchase_request_messages").delete().eq("request_id", requestId)
@@ -98,9 +118,9 @@ beforeAll(async () => {
     const line2 = await makeLine(opened.data, 2, "Pumps")
     const otherLine = await makeLine(openedOther.data, 1, "Other")
     hose = await makeComponent(line1, 1, { name: "  Hose reel ", unit: "pc", quantity: 4, availability: "for_order", odoo_product_id: 101 })
-    nozzle = await makeComponent(line1, 2, { name: "Nozzle", unit: null, quantity: 2.5 })
+    await makeComponent(line1, 2, { name: "Nozzle", unit: null, quantity: 2.5 })
     bundle = await makeComponent(line2, 1, { name: "Pump set", is_bundle: true, quantity: 1, unit: "set" })
-    foreign = await makeComponent(otherLine, 1, { name: "Foreign part" })
+    await makeComponent(otherLine, 1, { name: "Foreign part" })
 
     requestId = (
         await asSvc(
@@ -131,106 +151,9 @@ afterAll(async () => {
     await svc().from("sale_types").delete().eq("id", saleTypeId)
 })
 
-describe("adding from the Costing Matrix: who", () => {
-    it("lets Purchasing access add, copying the Component and naming it", async () => {
-        const { data, error } = await addFrom("outsider", [hose, nozzle])
-        expect(error).toBeNull()
-        expect(data).toHaveLength(2)
-
-        const items = await itemsOf()
-        expect(items).toHaveLength(2)
-        const byComponent = Object.fromEntries(items.map((i) => [i.component_id, i]))
-        expect(byComponent[hose]).toMatchObject({
-            request_id: requestId,
-            source: "component",
-            odoo_product_id: 101,
-            name: "Hose reel",
-            unit: "pc",
-            quantity: 4,
-            status: "requested",
-            requested_by: ids.outsider,
-            sor_line_snapshot: null,
-        })
-        expect(byComponent[nozzle]).toMatchObject({ name: "Nozzle", unit: null, quantity: 2.5, odoo_product_id: null })
-
-        // Each is posted in the request, in words that say where it came from.
-        const messages = await asSvc(
-            svc().from("purchase_request_messages").select("content, metadata").eq("request_id", requestId).eq("metadata->>event", "item_added"),
-            "messages",
-        )
-        expect(messages.map((m) => m.content).sort()).toEqual([
-            "Requested Hose reel × 4 pc, from the Costing Matrix.",
-            "Requested Nozzle × 2.5, from the Costing Matrix.",
-        ])
-        expect(messages[0].metadata.source).toBe("component")
-        await clearItems()
-    })
-
-    it("refuses a sales-side member", async () => {
-        const { data, error } = await addFrom("dealOwner", [hose])
-        expect(data).toBeNull()
-        expect(error.code).toBe("42501")
-        expect(error.message).toMatch(/Purchasing access/)
-        expect(await itemsOf()).toEqual([])
-    })
-
-    it("refuses the request's Buyer when they have no Purchasing access", async () => {
-        const { error } = await addFrom("stageParticipant", [hose])
-        expect(error.code).toBe("42501")
-        expect(await itemsOf()).toEqual([])
-    })
-
-    it("refuses someone with no part in it, and an anonymous caller", async () => {
-        expect((await addFrom("ordinary", [hose])).error.code).toBe("42501")
-        const anon = await anonymousClient()
-        const { error } = await anon.rpc("purchase_request_add_items_from_components", { p_request_id: requestId, p_component_ids: [hose] })
-        expect(error).not.toBeNull()
-        expect(await itemsOf()).toEqual([])
-    })
-})
-
-describe("adding from the Costing Matrix: which Components", () => {
-    it("refuses a Component on another SOR's matrix, and adds none of the others with it", async () => {
-        const { data, error } = await addFrom("outsider", [hose, foreign])
-        expect(data).toBeNull()
-        expect(error.code).toBe("P0002")
-        expect(error.message).toMatch(/not on this SOR's Costing Matrix/)
-        expect(await itemsOf()).toEqual([])
-    })
-
-    it("refuses a Component that does not exist, a request that does not exist, and an empty pick", async () => {
-        const none = "00000000-0000-0000-0000-000000000000"
-        expect((await addFrom("outsider", [none])).error.code).toBe("P0002")
-        expect((await addFrom("outsider", [hose], none)).error.code).toBe("P0002")
-        expect((await addFrom("outsider", [])).error.code).toBe("22023")
-        expect(await itemsOf()).toEqual([])
-    })
-
-    it("allows a second Requested Item on the same Component, and several in one call", async () => {
-        expect((await addFrom("outsider", [hose])).error).toBeNull()
-        expect((await addFrom("outsider", [hose, hose])).error).toBeNull()
-        const items = await itemsOf()
-        expect(items.filter((i) => i.component_id === hose)).toHaveLength(3)
-        await clearItems()
-    })
-
-    it("requests a bundle as one item, and refuses a Component with no name", async () => {
-        expect((await addFrom("outsider", [bundle])).error).toBeNull()
-        const [item] = await itemsOf()
-        expect(item).toMatchObject({ component_id: bundle, name: "Pump set", unit: "set" })
-        await clearItems()
-
-        await asSvc(svc().from("costing_components").update({ name: "" }).eq("id", nozzle), "blank the name")
-        const { error } = await addFrom("outsider", [nozzle])
-        expect(error.code).toBe("22023")
-        await asSvc(svc().from("costing_components").update({ name: "Nozzle" }).eq("id", nozzle), "restore the name")
-    })
-})
-
 describe("the item keeps its own copy", () => {
     it("is not rewritten when the Component is edited later, and survives the Component's removal", async () => {
-        const { data } = await addFrom("outsider", [hose])
-        const [itemId] = data
+        const [itemId] = await seedFor([hose])
 
         await asSvc(
             svc().from("costing_components").update({ name: "Hose reel, 30 m", quantity: 6, unit: "set", odoo_product_id: 999 }).eq("id", hose),
@@ -243,7 +166,7 @@ describe("the item keeps its own copy", () => {
         // removing it leaves the item standing, no longer naming it.
         const lineId = (await asSvc(svc().from("costing_components").select("tender_line_id").eq("id", hose).single(), "line")).tender_line_id
         const extra = await makeComponent(lineId, 9, { name: "Spare" })
-        const { data: spare } = await addFrom("outsider", [extra])
+        const spare = await seedFor([extra])
         expect((await svc().from("costing_components").delete().eq("id", extra)).error?.code).toBe("22023")
         const unlinked = await (await clientFor("outsider")).rpc("purchase_request_item_detach_component", { p_item_id: spare[0] })
         expect(unlinked.error).toBeNull()
@@ -270,8 +193,8 @@ describe("what the Costing Matrix grid reads", () => {
     let first
 
     beforeAll(async () => {
-        first = (await addFrom("outsider", [hose, hose, bundle])).data
-        await asSvc(svc().from("purchase_request_items").update({ status: "ordered" }).eq("id", first[0]), "status")
+        first = await seedFor([hose, hose, bundle])
+        await asSvc(svc().from("purchase_request_items").update({ status: "purchased" }).eq("id", first[0]), "status")
     })
 
     afterAll(clearItems)
@@ -291,7 +214,7 @@ describe("what the Costing Matrix grid reads", () => {
         const rows = await readRequests(who)
         expect(rows).toHaveLength(3)
         expect(rows.map((r) => `${r.component_id} ${r.status}`).sort()).toEqual(
-            [`${hose} ordered`, `${hose} requested`, `${bundle} requested`].sort(),
+            [`${hose} not_checked`, `${hose} purchased`, `${bundle} not_checked`].sort(),
         )
         for (const row of rows) {
             expect(Object.keys(row).sort()).toEqual(["component_id", "id", "request_id", "status"])

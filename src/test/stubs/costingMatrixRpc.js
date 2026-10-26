@@ -349,7 +349,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
     return rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id))
   }
-  const LIVE = ["ordered", "received"]
+  const LIVE = ["purchased", "received"]
   const liveIpas = (po) =>
     po ? rowsOf("ipas").filter((i) => i.po_number === String(po).trim() && i.state !== "cancelled").sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] ?? null : null
   const orderedOf = (componentId) =>

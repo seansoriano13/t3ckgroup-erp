@@ -1,15 +1,20 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import LinerList from "@/components/record/LinerList";
 import ModalShell from "@/components/ui/ModalShell";
+import QueryError from "@/components/ui/QueryError";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import Spinner from "@/components/ui/Spinner";
 import { warningToast } from "@/components/ui/CustomToast";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
+import { ITEM_STATUS, ITEM_STATUS_LABELS } from "../../constants/purchaseRequest";
+import { p0Facts, statusFromP0 } from "../../../supabase/functions/_shared/p0Suggestions.ts";
+import { p0Reference } from "../../utils/requestedItem";
 import {
   PO_NUMBER_HINT,
   PO_VERIFICATION,
@@ -17,12 +22,9 @@ import {
   isValidPoNumber,
   normalizePoNumber,
 } from "../../constants/procurement";
-import { useRefreshRequest } from "./requestHooks";
-import { useItemStatusUndo } from "./useItemStatusUndo";
+import { refusal, useRefreshRequest } from "./requestHooks";
+import { purchaseRequestKeys } from "./queryKeys";
 import { OVER_REQUEST_MODAL } from "./stacking";
-
-/** The database's refusal, without the function name it leads with. */
-const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
 
 /**
  * Tells the buyer how their PO number was checked (#548): a success toast, or,
@@ -34,66 +36,135 @@ function toastPoVerdict(message, updated) {
   } else toast.success(message);
 }
 
+/** What the line becomes when this P0 is attached, in the screen's words. */
+function outcomeOf(p0, productId) {
+  const facts = p0Facts(p0, productId);
+  if (!facts) return "Cancelled in Odoo";
+  const status = statusFromP0(facts);
+  return status === "to_purchase" ? "RFQ: the line stays To purchase" : `The line becomes ${ITEM_STATUS_LABELS[status]}`;
+}
+
+/** One P0 from Odoo as a LinerList row; choosing it selects it, and the dialog confirms once. */
+function p0Row({ p0, productId, chosen, onChoose }) {
+  const bought = [...new Set(p0.lines.map((l) => l.product_name).filter(Boolean))].join(", ");
+  return {
+    key: p0.name,
+    testId: "p0-suggestion",
+    main: p0.name,
+    sub: [p0.supplier, bought, outcomeOf(p0, productId)].filter(Boolean).join(" · "),
+    subWrap: true,
+    actions: (
+      <Button
+        type="button"
+        size="sm"
+        variant={chosen === p0.name ? "default" : "outline"}
+        aria-pressed={chosen === p0.name}
+        aria-label={`Choose ${p0.name}`}
+        onClick={() => onChoose(p0.name)}
+      >
+        {chosen === p0.name ? "Chosen" : "Choose"}
+      </Button>
+    ),
+  };
+}
+
 /**
- * Issue #312 — setting an item Ordered, with its PO number if there is one.
- * The number is checked against Odoo on save and stored with the answer; an
- * item can be Ordered without one.
+ * Issue #684 — Attach P0 (Purchasing). Lists the P0s in Odoo whose Source Document names this
+ * request's S0 (a Direct request: its PR number): those with the line's own Odoo product first,
+ * then the other P0s that name it, then a field to type a number. Purchasing confirms once.
+ * The server reads the P0 and sets the line from it, so the screen only names the P0.
  */
-export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
+export function AttachP0Dialog({ open, onOpenChange, item, request }) {
+  const requestId = request?.id;
   const refresh = useRefreshRequest(requestId);
-  const announce = useItemStatusUndo(requestId);
-  const [poNumber, setPoNumber] = useState("");
-  const po = normalizePoNumber(poNumber);
-  const invalid = !!po && !isValidPoNumber(po);
+  const [typed, setTyped] = useState("");
+  const [picked, setPicked] = useState("");
+  const reference = p0Reference(request);
+  const productId = item.odoo_product_id ?? null;
+
+  const suggestions = useQuery({
+    queryKey: purchaseRequestKeys.p0Suggestions(requestId, item.id),
+    queryFn: () => purchaseRequestService.suggestP0s({ reference, productId }),
+    enabled: open && !!reference,
+    retry: false,
+  });
+
+  const typedPo = normalizePoNumber(typed);
+  const typedInvalid = !!typedPo && !isValidPoNumber(typedPo);
+  const chosen = typedPo && !typedInvalid ? typedPo : picked;
 
   const close = () => {
-    setPoNumber("");
+    setTyped("");
+    setPicked("");
     onOpenChange(false);
   };
 
-  const orderMutation = useMutation({
-    mutationFn: () => purchaseRequestService.orderItem(item.id, { poNumber: po }),
-    // The item as it was, for Undo to say what it goes back to.
-    onMutate: () => ({ before: item }),
-    onSuccess: (updated, _, { before }) => {
-      const checked = updated?.po_number
-        ? ` PO ${updated.po_number}: ${PO_VERIFICATION_LABELS[updated.po_verification] || updated.po_verification}.`
-        : "";
-      const pending = updated?.po_verification === PO_VERIFICATION.PENDING;
-      announce(before, updated, `${item.name}: Ordered.${checked}${pending ? " Saved without being checked." : ""}`, {
-        variant: pending ? "warning" : "success",
-      });
+  const attachMutation = useMutation({
+    mutationFn: () => purchaseRequestService.attachP0(item.id, chosen),
+    onSuccess: (updated) => {
+      toast.success(
+        updated?.status === ITEM_STATUS.TO_PURCHASE
+          ? `${item.name}: RFQ ${updated.po_number} attached; still To purchase.`
+          : `${item.name}: ${updated?.po_number} attached; ${ITEM_STATUS_LABELS[updated?.status] || updated?.status}.`,
+      );
       close();
     },
     onError: (error) => toast.error(refusal(error)),
     onSettled: refresh,
   });
-  const busy = orderMutation.isPending;
+  const busy = attachMutation.isPending;
+  const rowsOf = (list) => list.map((p0) => p0Row({ p0, productId, chosen: picked, onChoose: (name) => { setTyped(""); setPicked(name); } }));
 
   return (
     <ModalShell
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       className={OVER_REQUEST_MODAL}
-      crumbs={["Purchase Requests", "Mark as Ordered"]}
+      crumbs={["Purchase Requests", "Attach P0"]}
       onSubmit={(e) => {
         e.preventDefault();
-        if (!invalid && !busy) orderMutation.mutate();
+        if (chosen && !busy) attachMutation.mutate();
       }}
       actions={
-        <Button size="lg" type="submit" disabled={invalid || busy}>
+        <Button size="lg" type="submit" disabled={!chosen || busy}>
           {busy && <Spinner size="sm" />}
-          {po ? "Check PO and mark Ordered" : "Mark Ordered"}
+          {chosen ? `Attach ${chosen}` : "Attach P0"}
         </Button>
       }
     >
-      <p className="text-sm text-muted-foreground">{item.name}. Add the Odoo PO number if you have it; it&apos;s checked against Odoo.</p>
+      <p className="text-sm text-muted-foreground">
+        {item.name}. An RFQ keeps the line at To purchase. A confirmed P0 makes it Purchased.
+      </p>
+      {reference ? (
+        suggestions.isLoading ? (
+          <div className="flex justify-center py-6">
+            <Spinner />
+          </div>
+        ) : suggestions.isError ? (
+          <QueryError title={suggestions.error?.message || "Couldn't read the P0s from Odoo."} onRetry={suggestions.refetch} />
+        ) : (
+          <>
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-foreground">Suggested from Odoo</h3>
+              <p className="text-xs text-muted-foreground">Their Source Document names {reference} and they list the same product.</p>
+              <LinerList label="Suggested P0s" rows={rowsOf(suggestions.data.suggested)} empty="No P0 in Odoo lists this product yet." />
+            </section>
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-foreground">Other P0s that name {reference}</h3>
+              <p className="text-xs text-muted-foreground">Different products. The line will say what was bought instead.</p>
+              <LinerList label="Other P0s" rows={rowsOf(suggestions.data.others)} empty="No other P0s name it." />
+            </section>
+          </>
+        )
+      ) : (
+        <p className="text-xs text-muted-foreground">This request has no S0 or PR number to search Odoo by. Type the P0 number below.</p>
+      )}
       <div className="space-y-1.5">
-        <FieldBox label="PO number (optional)" bare>
-          <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" autoFocus />
+        <FieldBox label="Or type a P0 number" bare>
+          <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="P01234" />
         </FieldBox>
-        <p className={`pl-1 text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
-          {invalid ? PO_NUMBER_HINT : "Without one, the item is Ordered with no PO."}
+        <p className={`pl-1 text-xs ${typedInvalid ? "text-destructive" : "text-muted-foreground"}`}>
+          {typedInvalid ? PO_NUMBER_HINT : "The number is checked against Odoo."}
         </p>
       </div>
     </ModalShell>
@@ -101,7 +172,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
 }
 
 /**
- * Issue #549 — correcting the PO number on an Ordered item. The new number is
+ * Issue #549 — correcting the PO number on an Purchased item. The new number is
  * checked against Odoo like the first; PO lines picked on the old PO are cleared.
  */
 export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
@@ -162,7 +233,7 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
 }
 
 /**
- * Issue #312 — picking the Odoo PO line(s) an Ordered item is bought on, from
+ * Issue #312 — picking the Odoo PO line(s) an Purchased item is bought on, from
  * the lines its PO has on the IPAS stored Odoo copy (`lineIds`). The caller
  * only offers this when there are lines; the database refuses any other.
  */

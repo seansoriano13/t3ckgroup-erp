@@ -16,11 +16,10 @@ import {
  * things Purchasing used to read on separate tabs, the project work before an
  * order (`purchasing_dashboard_rows()`, grouped by purchasingDashboard.js) and
  * the orders after it (orderMonitoringService), into a single model. An order
- * joins its SORs through the SORs it names; its stage is On order, or To check
- * when the dashboard's rows put its IPAS there.
+ * joins its SORs through the SORs it names; its stage is Purchased.
  */
 
-/** The life of a purchase, left to right: the five dashboard groups, then Filed. */
+/** The life of a purchase, left to right: the four dashboard groups, then Filed. */
 export const TRACKER_STAGE = { ...Object.fromEntries(DASHBOARD_GROUPS.map((key) => [key.toUpperCase(), key])), FILED: "filed" };
 export const TRACKER_STAGES = [
   ...DASHBOARD_GROUPS.map((key) => ({
@@ -41,15 +40,15 @@ const NO_SOR = "no-sor";
 
 /** What the person on a project record has to do next, by the kind of record and the group it sits in. */
 function rowAction(row) {
-  if (row.grp === "to_order") return "Place the PO";
-  if (row.grp === "to_check") return "Move the Transmittal check";
-  if (row.grp === "to_price") return row.target_kind === "costing_matrix" ? "Finish the Bid Decision" : "Add an Acquire price";
-  return row.target_kind === "canvass" ? "Pick a Canvass winner" : "Source the Requested Items";
+  if (row.grp === "to_purchase") return "Place the P0";
+  if (row.grp === "still_canvassing") return row.target_kind === "costing_matrix" ? "Finish the Bid Decision" : "Pick a Canvass winner";
+  if (row.grp === "purchased") return "Follow the delivery";
+  return "Check the Requested Items";
 }
 
 /** The next move on a project record (never an IPAS; an order carries its own). */
 export function rowMove(row, today = new Date()) {
-  const owner = row.grp === "to_check" ? ORDER_OWNER.CHECK_BY : ORDER_OWNER.PURCHASING;
+  const owner = ORDER_OWNER.PURCHASING;
   return {
     label: rowAction(row),
     owner,
@@ -103,14 +102,14 @@ export function stageStates(sor) {
     const n = sor.byStage[key];
     if (key === TRACKER_STAGE.FILED) return { key, n, tone: n > 0 ? "done" : "none" };
     if (n > 0) {
-      const late = (key === TRACKER_STAGE.ON_ORDER || key === TRACKER_STAGE.TO_CHECK) && sor.lateCount > 0;
+      const late = key === TRACKER_STAGE.PURCHASED && sor.lateCount > 0;
       return { key, n, tone: late ? "late" : "open" };
     }
     return { key, n: 0, tone: index < reach ? "done" : "none" };
   });
 }
 
-/** What a SOR has outstanding, in words: "4 to source, 2 on order". */
+/** What a SOR has outstanding, in words: "4 not checked, 2 purchased (not received)". */
 export function sorSummary(sor) {
   return TRACKER_STAGES.slice(0, LAST_OPEN + 1)
     .map((stage) => (sor.byStage[stage.key] > 0 ? `${sor.byStage[stage.key]} ${stage.label.toLowerCase()}` : null))
@@ -180,9 +179,6 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
     showFiled = false,
   } = filters;
 
-  // An order sits in To check when the dashboard's rows put its IPAS there, whatever the filters keep.
-  const checkIds = new Set(rows.filter((row) => row.target_kind === "ipas" && row.grp === "to_check").map((row) => row.target_id));
-
   const orderLevel = Boolean(entity || source || supplier);
   const keptOrders = orders
     .filter((order) => !entity || order.entity === entity)
@@ -235,7 +231,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
       sor.orders.push(order);
       if (order.group === ORDER_GROUP.FILED) sor.byStage.filed += 1;
       // An open order the dashboard's rows do not know still counts, as one item where it stands.
-      else if (!ipasRowIds.has(order.id)) sor.byStage[checkIds.has(order.id) ? "to_check" : "on_order"] += 1;
+      else if (!ipasRowIds.has(order.id)) sor.byStage.purchased += 1;
       touch(sor, order.createdAt);
     }
   }
@@ -285,5 +281,5 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
 
   const result = beforeStage.filter((sor) => !stage || sor.byStage[stage] > 0).sort(byUrgency);
   const shownOrders = [...new Map(result.flatMap((sor) => sor.openOrders).map((order) => [order.id, order])).values()];
-  return { sors: result, stages, orders: shownOrders, checkIds };
+  return { sors: result, stages, orders: shownOrders };
 }

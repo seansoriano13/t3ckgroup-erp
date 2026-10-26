@@ -128,6 +128,25 @@ describe("costing_fill_from_sor", () => {
         expect(data).toBe(1)
         expect((await lines()).map((l) => l.tender_specification)).toEqual(["Fire hose, 65 mm", "Rescue tripod", "Harness"])
     })
+
+    it("adds nothing twice after the SOR is saved again (#677: lines keep their id)", async () => {
+        await asSvc(svc().from("sales_opportunity_items").update({ odoo_line_id: 5001 }).eq("id", hoseId), "hose line id")
+        await asSvc(svc().from("sales_opportunity_items").update({ odoo_line_id: 5002 }).eq("id", tripodId), "tripod line id")
+        const before = await lines()
+
+        // A save: every stored line sent back, the S0's by Odoo line id and the rest by their own id.
+        const rows = await asSvc(
+            svc().from("sales_opportunity_items").select("id, product_name, unit, quantity, unit_price, odoo_product_id, odoo_line_id").eq("opportunity_id", sorId).order("sort_order"),
+            "items",
+        )
+        const { error } = await (await clientFor("dealOwner")).rpc("sor_replace_items", { p_opportunity_id: sorId, p_items: rows })
+        expect(error).toBeNull()
+
+        const { data, error: fillError } = await fill("dealOwner")
+        expect(fillError).toBeNull()
+        expect(data).toBe(0)
+        expect((await lines()).map((l) => l.sor_item_id)).toEqual(before.map((l) => l.sor_item_id))
+    })
 })
 
 describe("the Odoo costs (server only)", () => {

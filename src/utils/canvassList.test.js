@@ -43,7 +43,7 @@ describe("filterCanvasses by request", () => {
   const rows = [
     bare({ id: "a", number: "CNV_0001" }),
     bare({ id: "b", number: "CNV_0002", winner: withWinner }),
-    bare({ id: "c", number: "CNV_0003", kind: CANVASS_KIND.REQUESTED_ITEM, requestId: "pr-1", requestLabel: "PR-1", requestItemStatus: "ordered" }),
+    bare({ id: "c", number: "CNV_0003", kind: CANVASS_KIND.REQUESTED_ITEM, requestId: "pr-1", requestLabel: "PR-1", requestItemStatus: "purchased" }),
     bare({ id: "d", number: "CNV_0004", kind: CANVASS_KIND.COMPONENT }),
   ];
   const ids = (request) => filterCanvasses(rows, { request }).map((r) => r.id);

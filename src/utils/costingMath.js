@@ -78,13 +78,23 @@ function sumUnlessBlank(amounts) {
 }
 
 /**
+ * The unit cost the totals use (#686): the Actual (the attached P0 line's price) when there is
+ * one, otherwise Acquire. The typed Acquire is never overwritten; a viewer whose tier was not sent
+ * the Actual simply gets Acquire.
+ */
+export function effectiveAcquireUnit(row) {
+  const actual = row?.p0_unit_price;
+  return actual !== null && actual !== undefined && actual !== "" ? actual : row?.acquire_unit;
+}
+
+/**
  * A Component's (or a cost-only row's) totals: each unit cost times its quantity, null while that
  * unit cost is blank or the viewer's tier never received it. A bundle is priced as a whole, so a
  * bundle at 1 x 2,160,500 totals 2,160,500.
  */
 export function componentTotals(component) {
   return {
-    acquireTotal: pesosFromCentavos(extendedCentavos(component?.acquire_unit, component?.quantity)),
+    acquireTotal: pesosFromCentavos(extendedCentavos(effectiveAcquireUnit(component), component?.quantity)),
     odooTotal: pesosFromCentavos(extendedCentavos(component?.odoo_unit, component?.quantity)),
   };
 }
@@ -99,7 +109,7 @@ export const costRowTotals = componentTotals;
 export function costRowsTotals(rows) {
   const list = rows ?? [];
   return {
-    acquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.acquire_unit, r?.quantity)))),
+    acquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(effectiveAcquireUnit(r), r?.quantity)))),
     odooTotal: pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.odoo_unit, r?.quantity)))),
   };
 }
@@ -134,7 +144,7 @@ export function lineTotals(tenderLine, components = []) {
     finalOfferTotal: pesosFromCentavos(offer),
     overAbc: abc !== null && offer !== null && offer > abc,
     percentOfAbc: abc !== null && offer !== null ? percentOf(pesosFromCentavos(offer), pesosFromCentavos(abc)) : null,
-    acquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(c?.acquire_unit, c?.quantity)))),
+    acquireTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(effectiveAcquireUnit(c), c?.quantity)))),
     odooTotal: pesosFromCentavos(sumUnlessBlank(list.map((c) => extendedCentavos(c?.odoo_unit, c?.quantity)))),
     landedCost: landedCostRollup(list),
   };
@@ -494,7 +504,7 @@ function targetOf(markups, priceCentavos, acquireCentavos) {
 export function lineMarkup(tenderLine, components, defaultFactor) {
   const list = (components ?? []).map((c) => c.markup ?? componentMarkup(c, defaultFactor));
   const price = sumUnlessBlank(list.map((m) => extendedCentavos(m.priceTotal, 1)));
-  const acquire = sumUnlessBlank((components ?? []).map((c) => extendedCentavos(c?.acquire_unit, c?.quantity)));
+  const acquire = sumUnlessBlank((components ?? []).map((c) => extendedCentavos(effectiveAcquireUnit(c), c?.quantity)));
   const offer = extendedCentavos(tenderLine?.final_offer_unit, tenderLine?.quantity);
   return {
     priceTotal: pesosFromCentavos(price),
@@ -524,7 +534,7 @@ export function matrixMarkup(tenderLines, costRows, defaultFactor) {
   ];
   const everyLineCosted = lines.length > 0 && lines.every((l) => (l.components ?? []).length > 0);
   const acquire = everyLineCosted
-    ? sumUnlessBlank([...components, ...rows].map((c) => extendedCentavos(c?.acquire_unit, c?.quantity)))
+    ? sumUnlessBlank([...components, ...rows].map((c) => extendedCentavos(effectiveAcquireUnit(c), c?.quantity)))
     : null;
   const price = sumUnlessBlank(markups.map((m) => extendedCentavos(m.priceTotal, 1)));
   const offer = sumUnlessBlank(lines.map((l) => extendedCentavos(l?.final_offer_unit, l?.quantity)));

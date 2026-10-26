@@ -1,31 +1,51 @@
-import { useQuery } from "@tanstack/react-query";
+import { useId, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QueryError from "@/components/ui/QueryError";
-import { AlertTriangle, PackageSearch } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 
-import EmptyState from "@/components/ui/EmptyState";
+import Reveal from "@/components/record/Reveal";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import ReadyBar from "./ReadyBar";
+import { isFolded, summarize } from "../../utils/productReadiness";
 import Spinner from "@/components/ui/Spinner";
 import AddRequestedItems from "./AddRequestedItems";
-import UnrequestedSorLinesHint from "./UnrequestedSorLinesHint";
 import LinerList from "@/components/record/LinerList";
 import RequestedItemDetails from "./RequestedItemDetails";
-import { groupItems } from "./requestedItemGroups";
 import RequestedItemActions from "./RequestedItemActions";
+import ItemCanvass from "./ItemCanvass";
+import { YoursBadge } from "./YoursDialog";
 import StatusBadge from "../StatusBadge";
-import { ITEM_SOURCE_LABEL, formatAmount, requestedItemStock, sorLineChange, SOR_LINE_CHANGE } from "../../utils/requestedItem";
+import { formatAmount, isFromS0, itemSectionLabel, replacedNote, requestedItemStock, s0StillListsNote } from "../../utils/requestedItem";
+import { deliveryNote } from "../../utils/deliveryNote";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
   ITEM_STATUS,
   ITEM_STATUS_LABELS,
   ITEM_STATUS_THEME,
+  MEMBER_SIDE,
   isClosedStatus,
+  stockWarning,
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
+import { useCostingMatrix } from "../costing/useCostingMatrix";
+import { tierReadsCost } from "../../constants/costing";
+import { costComparisonText } from "../../utils/costComparison";
 
-/** The one quiet line under a name: the PO, else the stock, else where the item came from. */
-function summaryOf(item, stock) {
-  if (item.po_number) return `PO ${item.po_number}`;
-  if (stock) return `Stock: ${stock.badge.label}`;
-  return ITEM_SOURCE_LABEL[item.source] || "From the SOR";
+/** The one quiet line under a name: the PO, else the stock, else which section it is in. */
+function summaryOf(item, stock, replacedBy = null) {
+  // #688: an Other request closed because its P0 moved onto an S0 line says so.
+  if (item.closed_note) return item.closed_note;
+  if (replacedBy && item.status === ITEM_STATUS.CANCELLED) return replacedNote(item, replacedBy);
+  const warning = stockWarning(item);
+  if (warning) return warning.label;
+  if (item.po_number) {
+    if (item.po_state === "rfq") return `RFQ ${item.po_number}`;
+    const delivery = deliveryNote(item);
+    return delivery ? `PO ${item.po_number} · ${delivery}` : `PO ${item.po_number}`;
+  }
+  if (stock) return `Stock: ${stock.figure}`;
+  return itemSectionLabel(item);
 }
 
 /**
@@ -37,40 +57,112 @@ function summaryOf(item, stock) {
  * `stockSnapshot` is the SOR's `sor_stock_snapshots` row. `replaces` /
  * `replacedBy` are the items on either end of a Buyer's substitute.
  *
- * An item added from the Costing Matrix (#273) shows the Component it buys for as "1.2 · name".
+ * An item for a Component shows it as "1.2 · name".
  * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
  * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
  */
-function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null }) {
+function requestedItemRow({ item, stockSnapshot, costText = null, actions = null, replaces = null, replacedBy = null, canvass = null, yours = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
-  // A closed item keeps what was asked, so it carries no flag in the list.
-  const change = isClosedStatus(item.status) ? null : sorLineChange(item);
+  // The S0 dropped this line: the item stays so a bought product is never lost, and says so.
+  const removed = isFromS0(item) && item.removed_from_s0 === true;
+  const summary = summaryOf(item, stock, replacedBy);
+  // #687: the S0 still lists a product Purchasing replaced; Sales has to fix the S0.
+  const stillLists = item.s0_still_lists === true;
   return {
     key: item.id,
     testId: "requested-item",
     main: item.name,
     label: item.name,
-    sub: change ? (
-      <>
-        {summaryOf(item, stock)}
-        {" · "}
-        <span className="inline-flex items-center gap-1 font-medium text-amber-11">
-          <AlertTriangle size={12} className="shrink-0" aria-hidden="true" />
-          {change.kind === SOR_LINE_CHANGE.REMOVED ? "SOR line removed" : "SOR changed"}
-        </span>
-      </>
-    ) : (
-      summaryOf(item, stock)
-    ),
+    sub:
+      removed || stillLists ? (
+        <>
+          {summary}
+          {" · "}
+          <span className="inline-flex items-center gap-1 font-medium text-amber-11">
+            <AlertTriangle size={12} className="shrink-0" aria-hidden="true" />
+            {stillLists ? s0StillListsNote(item) : "Removed from S0"}
+          </span>
+        </>
+      ) : (
+        summary
+      ),
     quantity: formatAmount(item.quantity, item.unit),
     badge: { label: ITEM_STATUS_LABELS[item.status] || item.status, theme: ITEM_STATUS_THEME[item.status] },
-    actions,
-    children: <RequestedItemDetails item={item} stock={stock} replaces={replaces} replacedBy={replacedBy} />,
+    actions: yours ? (
+      <div className="flex items-center gap-2">
+        {yours}
+        {actions}
+      </div>
+    ) : (
+      actions
+    ),
+    children: (
+      <>
+        <RequestedItemDetails item={item} stock={stock} costText={costText} replaces={replaces} replacedBy={replacedBy} />
+        {canvass}
+      </>
+    ),
   };
 }
 
 /**
- * Issue #305 — a Purchase Request's Requested Items, and the way to add more.
+ * #680 - one foldable section. The header folds it shut; inside, finished lines (Available,
+ * Received, Cancelled) fold into one "N done" row unless they carry a warning.
+ */
+function ItemSection({ section, rowFor, open, onOpenChange, sectionRef }) {
+  const [showDone, setShowDone] = useState(false);
+  const panelId = useId();
+  const active = section.list.filter((i) => !isFolded(i));
+  const folded = section.list.filter(isFolded);
+  const rows = [
+    ...active.map(rowFor),
+    ...(showDone ? folded.map(rowFor) : []),
+    ...(folded.length > 0
+      ? [
+          {
+            key: `${section.key}-done`,
+            testId: "done-row",
+            main: `${folded.length} done`,
+            sub: "Available, Received and Cancelled lines",
+            actions: (
+              <Button type="button" variant="link" size="sm" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)}>
+                {showDone ? "hide" : "show"}
+              </Button>
+            ),
+          },
+        ]
+      : []),
+  ];
+  return (
+    <section
+      ref={sectionRef}
+      aria-label={section.title}
+      className="flex scroll-mt-4 flex-col gap-1.5 [&_.reveal[data-open='false']>*]:overflow-hidden!"
+      data-testid={`requested-section-${section.key}`}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => onOpenChange(!open)}
+        className="h-auto w-full justify-start gap-2 px-1 py-1.5 text-left hover:bg-muted/50"
+      >
+        <ChevronRight size={16} aria-hidden="true" className={cn("shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-90")} />
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{section.title}</span>
+        <span className="text-xs font-medium text-muted-foreground">{section.list.length}</span>
+      </Button>
+      <Reveal open={open} id={panelId}>
+        <LinerList label={section.title} empty={section.empty} rows={rows} />
+      </Reveal>
+    </section>
+  );
+}
+
+/**
+ * Issue #305 / #678 — a Purchase Request's products in two sections: "From the S0" (one item per
+ * S0 line, made and kept in step by the database) and "Other requests" (items with no S0 line).
+ * Each shows its status beside it; the way to add an Other request sits on top.
  * Self-contained, for the request view (#308) to mount: `request` needs `id`
  * and `opportunity_id`. Each row's action slot holds the status controls
  * (#306) for whatever the signed-in member may do; `renderActions(item)`
@@ -78,11 +170,28 @@ function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null
  */
 export default function RequestedItems({ request, renderActions }) {
   const requestId = request?.id;
+  const [openSections, setOpenSections] = useState({ s0: true, other: true });
+  const sectionRefs = { s0: useRef(null), other: useRef(null) };
 
   const itemsQuery = useQuery({
     queryKey: purchaseRequestKeys.items(requestId),
     queryFn: () => purchaseRequestService.listItems(requestId),
     enabled: !!requestId,
+  });
+  // Opening the request reads its P0s from Odoo once (#685); lines then show the stored values.
+  const queryClient = useQueryClient();
+  const hasP0 = (itemsQuery.data || []).some((i) => i.po_number);
+  useQuery({
+    queryKey: purchaseRequestKeys.p0Sync(requestId),
+    queryFn: async () => {
+      const result = await purchaseRequestService.syncP0s(requestId);
+      if (result.ok) queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.items(requestId) });
+      return result;
+    },
+    enabled: !!requestId && hasP0,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
   const { data: stockSnapshot } = useQuery({
     queryKey: purchaseRequestKeys.stock(requestId),
@@ -97,14 +206,58 @@ export default function RequestedItems({ request, renderActions }) {
   });
 
   const items = itemsQuery.data || [];
+  // #686: Expected / Actual cost on a product line, read through the matrix so the viewer's cost tier decides.
+  const { data: matrix } = useCostingMatrix(items.some((i) => i.component_id) ? request?.opportunity_id : null);
+  const costByComponent = new Map();
+  if (matrix && tierReadsCost(matrix.tier, "acquire_unit")) {
+    for (const line of matrix.tenderLines ?? []) {
+      for (const c of line.components ?? []) {
+        const text = costComparisonText({ expected: c.acquire_unit, actual: c.p0_unit_price, fromCanvass: c.fromCanvass?.acquire });
+        if (text) costByComponent.set(c.id, text);
+      }
+    }
+  }
   const byId = new Map(items.map((i) => [i.id, i]));
   const substituteOf = new Map(
     items
       .filter((i) => i.substitute_for_item_id)
       .map((i) => [i.substitute_for_item_id, i]),
   );
-  const groups = groupItems(items);
+  const sections = [
+    { key: "s0", title: "From the S0", list: items.filter(isFromS0), empty: "The S0 has no products yet." },
+    { key: "other", title: "Other requests", list: items.filter((i) => !isFromS0(i)), empty: "No other requests." },
+  ];
   const open = items.filter((i) => !isClosedStatus(i.status)).length;
+  const jump = (key) => {
+    setOpenSections((prev) => ({ ...prev, [key]: true }));
+    sectionRefs[key].current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  };
+  const rowFor = (item) =>
+    requestedItemRow({
+      item,
+      stockSnapshot,
+      costText: item.component_id ? costByComponent.get(item.component_id) ?? null : null,
+      replaces: byId.get(item.substitute_for_item_id),
+      replacedBy: substituteOf.get(item.id),
+      canvass: renderActions ? null : <ItemCanvass item={item} request={request} actor={actor} />,
+      // #688: a new S0 line that may be the same product as an Other request already bought.
+      yours: item.new_on_s0 ? (
+        <YoursBadge
+          item={item}
+          other={byId.get(item.yours_item_id)}
+          requestId={requestId}
+          canAnswer={[MEMBER_SIDE.PURCHASING, MEMBER_SIDE.SALES].includes(actor?.side)}
+        />
+      ) : null,
+      actions: renderActions ? (
+        <div className="flex items-center gap-2">
+          <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />
+          {renderActions(item)}
+        </div>
+      ) : (
+        <RequestedItemActions item={item} request={request} actor={actor} />
+      ),
+    });
 
   return (
     <section className="flex flex-col gap-2.5">
@@ -119,8 +272,6 @@ export default function RequestedItems({ request, renderActions }) {
         </h3>
         <AddRequestedItems request={request} items={items} />
       </div>
-      {items.length > 0 && <UnrequestedSorLinesHint request={request} items={items} />}
-
       {itemsQuery.isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner />
@@ -130,42 +281,30 @@ export default function RequestedItems({ request, renderActions }) {
           title="Couldn't load the items."
           onRetry={itemsQuery.refetch}
         />
-      ) : items.length === 0 ? (
-        <EmptyState
-          icon={PackageSearch}
-          title="Nothing requested yet"
-          description="Whoever may request items adds what needs buying: a line from the SOR's Product List, or a new product."
-          className="py-10"
-        />
       ) : (
-        <LinerList
-          label="Requested Items"
-          groups={groups.map((g) => ({
-            key: g.key,
-            title: g.label,
-            count: g.list.length,
-            testId: `requested-group-${g.key}`,
-            rows: g.list.map((item) =>
-              requestedItemRow({
-                item,
-                stockSnapshot,
-                replaces: byId.get(item.substitute_for_item_id),
-                replacedBy: substituteOf.get(item.id),
-                actions: renderActions ? (
-                  <div className="flex items-center gap-2">
-                    <StatusBadge
-                      label={ITEM_STATUS_LABELS[item.status] || item.status}
-                      theme={ITEM_STATUS_THEME[item.status]}
-                    />
-                    {renderActions(item)}
-                  </div>
-                ) : (
-                  <RequestedItemActions item={item} request={request} actor={actor} />
-                ),
-              }),
-            ),
-          }))}
-        />
+        <>
+          {items.length > 0 && (
+            <ReadyBar
+              summary={summarize(items)}
+              jumps={sections.map((section) => ({
+                key: section.key,
+                label: section.title,
+                count: section.list.length,
+                onClick: () => jump(section.key),
+              }))}
+            />
+          )}
+          {sections.map((section) => (
+            <ItemSection
+              key={section.key}
+              section={section}
+              rowFor={rowFor}
+              open={openSections[section.key]}
+              onOpenChange={(v) => setOpenSections((prev) => ({ ...prev, [section.key]: v }))}
+              sectionRef={sectionRefs[section.key]}
+            />
+          ))}
+        </>
       )}
     </section>
   );

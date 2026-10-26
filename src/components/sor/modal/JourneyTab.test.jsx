@@ -177,12 +177,12 @@ describe("JourneyTab", () => {
 
 describe("JourneyTab requested items (#310)", () => {
   it("lists the items raised on a visit by name with their status", () => {
-    mockVisits[1].requestedItems = [{ id: "r1", name: "Fire Hose 2in", status: "ordered" }];
+    mockVisits[1].requestedItems = [{ id: "r1", name: "Fire Hose 2in", status: "purchased" }];
     render(<JourneyTab opportunityId="deal-1" hasOpened={() => true} onGoToNow={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Qualified/i }));
     expect(screen.getByText(/Requested items/)).toBeInTheDocument();
     expect(screen.getByText("Fire Hose 2in")).toBeInTheDocument();
-    expect(screen.getByText("Ordered")).toBeInTheDocument();
+    expect(screen.getByText("Purchased")).toBeInTheDocument();
     mockVisits[1].requestedItems = [];
   });
 });

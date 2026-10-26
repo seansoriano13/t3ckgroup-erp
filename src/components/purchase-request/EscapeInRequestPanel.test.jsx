@@ -31,7 +31,7 @@ beforeEach(() => {
     unit: "pc",
     quantity: 10,
     requested_by: salesperson.id,
-    status: "canvassing",
+    status: "still_canvassing",
   })
   stubPurchaseRequestItemRpcs({ actorId: buyer.id })
 })
@@ -91,7 +91,7 @@ describe("the request panel", () => {
     // A click in the very first instant of the menu picks nothing.
     fireEvent.click(screen.getByRole("button", { name: "Cannot source" }))
     expect(screen.queryByText("Keep it")).not.toBeInTheDocument()
-    expect(within(row).getByText("Canvassing")).toBeInTheDocument()
+    expect(within(row).getByText("Still canvassing")).toBeInTheDocument()
 
     // Once open, the same click works.
     await statusMenuReady()
