@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-26",
+        "title": "P0s that list a product twice",
+        "version": "1.9.68",
+        "changes": [
+            "When a P0 lists the same product on several lines, the line now adds them all up for its ordered and received counts, and its price is the average over those lines.",
+            "Once Purchasing picks the P0 line, only that line counts, so two projects on one P0 each see their own quantity and price.",
+            "A product asked in words takes the P0's product when the P0 has only one. When the P0 has several, it shows no counts until its line is picked."
+        ]
+    },
+    {
+        "date": "2026-10-26",
         "title": "Product list is now a table",
         "version": "1.9.67",
         "changes": [

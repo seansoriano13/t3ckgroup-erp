@@ -160,10 +160,10 @@ Deno.serve(async (req) => {
         const [p0] = await readP0s(seen.uid, [["id", "=", seen.order.id]], 1);
         const { data: row } = await admin
           .from("purchase_request_items")
-          .select("odoo_product_id")
+          .select("odoo_product_id, odoo_po_line_ids")
           .eq("id", itemId)
           .maybeSingle();
-        const facts = p0 && p0Facts(p0, row?.odoo_product_id ?? null);
+        const facts = p0 && p0Facts(p0, row?.odoo_product_id ?? null, row?.odoo_po_line_ids ?? []);
         if (!facts) {
           return jsonResponse({ success: false, refused: true, message: `${ref} is cancelled in Odoo, so it can't be attached.` });
         }
@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
         const { error: priceError } = await admin.rpc("costing_set_p0_price", {
           p_actor_email: email,
           p_item_id: itemId,
-          p_price: p0UnitPrice(p0, row?.odoo_product_id ?? null),
+          p_price: p0UnitPrice(p0, row?.odoo_product_id ?? null, row?.odoo_po_line_ids ?? []),
         });
         if (priceError) console.error("odoo-po-verify actual cost error:", priceError.message);
         return jsonResponse({ success: true, verdict: "verified", item: { ...data, bought_product_id: facts.bought_product_id } });
