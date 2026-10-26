@@ -1,5 +1,14 @@
 [
     {
+        "date": "2026-10-26",
+        "title": "Product list is now a table",
+        "version": "1.9.67",
+        "changes": [
+            "On a Purchase Request, products now sit in a table with columns for quantity, stock, status, P0 and delivery notes.",
+            "Open a line to see its stock, Odoo code, P0 and price, with Canvass, Attach P0 and Replace buttons under it."
+        ]
+    },
+    {
         "date": "2026-10-23",
         "title": "Save only the field you clicked",
         "version": "1.9.66",
