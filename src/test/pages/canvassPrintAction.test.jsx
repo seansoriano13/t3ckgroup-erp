@@ -7,7 +7,7 @@ import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { seedCanvass, stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { renderComponentCanvass } from "@/test/support/costingDesk";
 
 /**
  * The Canvass print (#282) is prices on paper, so the action is offered only to a reader whose
@@ -25,10 +25,7 @@ describe("the Canvass print action", () => {
   const open = async ({ tier, bands, money }) => {
     stubCostingMatrixRpcs({ tier, bands, actorId: purchaser.id });
     stubCanvassMoneyRpc({ money });
-    renderCostingDesk(deal);
-    await openLines();
-    const user = setupUser();
-    await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
+    renderComponentCanvass(deal, component, { userId: purchaser.id });
     await screen.findByRole("heading", { name: /^CNV_0001\s*·/ });
   };
 
