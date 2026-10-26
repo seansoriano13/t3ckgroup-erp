@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, PackageOpen, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "../../ui/button";
@@ -38,6 +38,7 @@ export default function LineDetail({ line, index, count, matrix, ctx }) {
   const { busy, run, refresh } = writes;
   const [removingLine, setRemovingLine] = useState(false);
   const [removingPart, setRemovingPart] = useState(null);
+  const addedPartId = useRef(null);
 
   const canWrite = matrix.bands.includes(COSTING_BAND.SALES);
   const canEditParts = inAnyBand(matrix.bands, ROW_EDIT_BANDS);
@@ -59,13 +60,27 @@ export default function LineDetail({ line, index, count, matrix, ctx }) {
     [ids[index], ids[target]] = [ids[target], ids[index]];
     run(() => costingMatrixService.reorder(matrix.matrixId, ids));
   };
-  const addPart = (fields = { name: "" }) => run(() => costingMatrixService.addComponent(line.id, fields));
+  const addPart = (fields = { name: "" }) =>
+    run(async () => {
+      addedPartId.current = await costingMatrixService.addComponent(line.id, fields);
+    });
+  const partDomId = (id) => `part-${id}`;
 
   // What the saved markup suggests per unit, kept at the ABC. Only the Closed Book can work it out.
   const suggested = showAchieved ? linePlay(line, matrix.defaultFactor, { capAtAbc: true }) : null;
   const rollup = describeComplianceRollup(line.compliance);
   const parts = line.components;
   const partProps = { line, matrix, writes, incharge, requests, canvasses, bundles, stockData, opportunityId, actorId };
+
+  // Once the new part is on screen, scroll to it. It waits for `parts` too, because the
+  // list only shows the part after the refresh that follows the add.
+  useEffect(() => {
+    if (addedPartId.current == null) return;
+    const element = document.getElementById(partDomId(addedPartId.current));
+    if (!element) return;
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    addedPartId.current = null;
+  }, [parts]);
 
   return (
     <div className="space-y-4 bg-muted/20 px-4 py-4" data-testid="line-detail">
@@ -187,12 +202,17 @@ export default function LineDetail({ line, index, count, matrix, ctx }) {
             </Button>
           )}
         </div>
-        {parts.length === 1 && <PartDetail component={parts[0]} asProduct {...partProps} onRemove={() => setRemovingPart(parts[0])} />}
+        {parts.length === 1 && (
+          <div id={partDomId(parts[0].id)}>
+            <PartDetail component={parts[0]} asProduct {...partProps} onRemove={() => setRemovingPart(parts[0])} />
+          </div>
+        )}
         {parts.length > 1 && (
           <LinerList
             label={`Parts of Tender Line ${line.number}`}
             rows={parts.map((c) => ({
               key: c.id,
+              domId: partDomId(c.id),
               label: `${c.number} ${c.name || "unnamed part"}`,
               main: `${c.number} · ${c.name || "Unnamed part"}`,
               sub: partSub(c, showAcquire),

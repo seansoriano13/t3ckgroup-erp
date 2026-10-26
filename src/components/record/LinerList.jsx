@@ -39,7 +39,7 @@ function LinerRow({ row }) {
   // A row that carries its own controls (`actions`, a menu) cannot sit inside the toggle button, so the toggle takes only the text.
   const withActions = expandable && row.actions != null;
   return (
-    <li data-testid={row.testId}>
+    <li id={row.domId} data-testid={row.testId}>
       {withActions ? (
         <div className="flex items-center gap-3 pr-4 hover:bg-muted/50">
           <Button
@@ -85,7 +85,8 @@ function LinerRow({ row }) {
  * row with `children` opens in place (the `.reveal` pattern: its content stays
  * mounted) and several can be open at once.
  *
- * `rows`: `[{ key, main, sub?, quantity?, badge?: { label, theme? }, actions?, label?, testId?, children?, defaultOpen?, subWrap? }]`.
+ * `rows`: `[{ key, main, sub?, quantity?, badge?: { label, theme? }, actions?, label?, testId?, domId?, children?, defaultOpen?, subWrap? }]`.
+ * `domId` sets the row's element id, so a caller can scroll to it.
  * `subWrap` lets a long sub line wrap instead of cutting it short.
  * `actions` is a node (a status menu) shown in place of the badge; the row's toggle then holds only its text.
  * `groups` (instead of `rows`): `[{ key, title?, count?, rows }]`, each group's title a
