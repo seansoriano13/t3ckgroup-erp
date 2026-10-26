@@ -35,7 +35,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
           type="button"
           variant="link"
           onClick={addRow}
-          className="h-auto p-0 text-[12px] gap-1"
+          className="h-auto p-0 text-[12px] font-semibold gap-1"
         >
           <Plus size={13} /> Add Item
         </Button>

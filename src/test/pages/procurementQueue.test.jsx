@@ -1,6 +1,6 @@
 /**
  * The Procurement Queue (#308) on the fake database: a Queue page whose rows
- * open the shared PurchaseRequestView in a slide-over (`?request=`, where
+ * open the shared PurchaseRequestView in the record window (`?request=`, where
  * notifications link), sliced by unassigned / mine and open / closed, with
  * Take on an unassigned row. Who may read and take is the policy tier's
  * (44-procurement-queue, 41-purchase-request-chat-and-buyer).
@@ -57,6 +57,11 @@ function renderAt(entry = "/purchasing") {
 
 const rowFor = async (ref) => (await screen.findByText(ref)).closest("tr")
 const tab = (name) => screen.getByRole("tab", { name: new RegExp(`^${name}`) })
+// The Buyer dropdown: open it from whatever it shows now, then pick.
+async function pickBuyer(user, from, option) {
+  await user.click(screen.getByRole("button", { name: from }))
+  await user.click(await screen.findByRole("button", { name: option }))
+}
 
 beforeEach(() => {
   me = makeEmployee({ name: "Pia Buyer", department: "OPERATIONS", has_purchasing_flow: true })
@@ -83,8 +88,10 @@ describe("Procurement Queue", () => {
     expect(within(await rowFor("S01001")).getByText("0 of 1 done")).toBeInTheDocument()
 
     const user = setupUser()
-    await user.click(within(screen.getByTestId("page-toolbar")).getByRole("button", { name: "Open" }))
-    await user.click(await screen.findByText("Closed"))
+    expect(tab("Open")).toHaveTextContent("2")
+    expect(tab("Closed")).toHaveTextContent("1")
+    expect(tab("All")).toHaveTextContent("3")
+    await user.click(tab("Closed"))
 
     expect(await rowFor("S01003")).toBeInTheDocument()
     expect(screen.queryByText("S01001")).not.toBeInTheDocument()
@@ -95,17 +102,32 @@ describe("Procurement Queue", () => {
     renderAt()
     await rowFor("S01001")
 
-    await user.click(tab("Unassigned"))
+    await pickBuyer(user, "Any buyer", "Unassigned")
     expect(screen.getByText("S01001")).toBeInTheDocument()
     expect(screen.queryByText("S01002")).not.toBeInTheDocument()
 
-    await user.click(tab("Mine"))
+    await pickBuyer(user, "Unassigned", "Mine")
     expect(screen.queryByText("S01001")).not.toBeInTheDocument()
     expect(screen.queryByText("S01002")).not.toBeInTheDocument()
     expect(screen.getByText("No matching requests")).toBeInTheDocument()
   })
 
-  it("opens the picked request beside the list, in the URL, with its items, members and chat", async () => {
+  it("saves the Buyer pick as a default and opens with it next time", async () => {
+    const user = setupUser()
+    const first = renderAt()
+    await rowFor("S01001")
+
+    await pickBuyer(user, "Any buyer", "Unassigned")
+    await user.click(screen.getByRole("button", { name: "Save filters as default" }))
+    first.unmount()
+
+    renderAt()
+    expect(await rowFor("S01001")).toBeInTheDocument()
+    expect(screen.queryByText("S01002")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Unassigned" })).toBeInTheDocument()
+  })
+
+  it("opens the picked request in the record window, in the URL, with its items, members and chat", async () => {
     const user = setupUser()
     renderAt()
 
@@ -113,18 +135,21 @@ describe("Procurement Queue", () => {
 
     const sheet = await screen.findByRole("dialog")
     expect(screen.getByTestId("where")).toHaveTextContent(`?request=${taken.id}`)
-    expect(within(sheet).getByText("Bridge rails")).toBeInTheDocument()
+    expect(sheet.dataset.modalShell).toBe("record")
+    expect(await within(sheet).findByRole("heading", { name: /Bridge rails/ })).toBeInTheDocument()
     expect(await within(sheet).findByText("Rail")).toBeInTheDocument()
+    // Members and Chat sit behind their toggles, in the same window.
+    await user.click(within(sheet).getByRole("button", { name: "Members" }))
     expect(await within(sheet).findByText("Ana Reyes")).toBeInTheDocument()
-    expect(within(sheet).getByRole("region", { name: "Request chat" })).toBeInTheDocument()
-    expect(within(sheet).getByText("1 / 2")).toBeInTheDocument()
+    await user.click(within(sheet).getByRole("button", { name: "Chat" }))
+    expect(await within(sheet).findByRole("region", { name: "Request chat" })).toBeInTheDocument()
   })
 
   it("opens straight from a notification's link", async () => {
     renderAt(`/purchasing?request=${done.id}`)
 
     const sheet = await screen.findByRole("dialog")
-    expect(within(sheet).getByText("Old depot")).toBeInTheDocument()
+    expect(await within(sheet).findByRole("heading", { name: /Old depot/ })).toBeInTheDocument()
   })
 
   it("Take on an unassigned row makes me the Buyer, and the row moves under Mine", async () => {
@@ -136,16 +161,16 @@ describe("Procurement Queue", () => {
     await waitFor(() => expect(db.rows("purchase_requests").find((r) => r.id === unassigned.id).buyer_id).toBe(me.id))
     expect(screen.getByTestId("where")).toHaveTextContent("")
 
-    await user.click(tab("Mine"))
+    await pickBuyer(user, "Any buyer", "Mine")
     expect(await rowFor("S01001")).toBeInTheDocument()
     expect(within(await rowFor("S01001")).getByText("Pia Buyer")).toBeInTheDocument()
     expect(screen.queryByText("S01002")).not.toBeInTheDocument()
 
-    await user.click(tab("Unassigned"))
+    await pickBuyer(user, "Mine", "Unassigned")
     expect(screen.queryByText("S01001")).not.toBeInTheDocument()
   })
 
-  it("Take from the slide-over's footer", async () => {
+  it("Take beside the Buyer pill in the record window", async () => {
     const user = setupUser()
     renderAt(`/purchasing?request=${unassigned.id}`)
 
@@ -153,8 +178,7 @@ describe("Procurement Queue", () => {
     await user.click(await within(sheet).findByRole("button", { name: /^take$/i }))
 
     await waitFor(() => expect(db.rows("purchase_requests").find((r) => r.id === unassigned.id).buyer_id).toBe(me.id))
-    const buyer = within(sheet).getByRole("region", { name: "Buyer" })
-    expect(await within(buyer).findByText("Pia Buyer")).toBeInTheDocument()
+    expect(await within(sheet).findByText("Pia Buyer")).toBeInTheDocument()
     expect(within(sheet).queryByRole("button", { name: /^take$/i })).not.toBeInTheDocument()
   })
 
@@ -170,24 +194,19 @@ describe("Procurement Queue", () => {
     expect(project.querySelector("td")).not.toHaveClass("border-l-2")
   })
 
-  it("opens full screen on desktop widths, with no drawer toggles, and clears the old stored choice (#571)", async () => {
+  it("opens in the record window with no drawer toggles, and clears the old stored choice (#571)", async () => {
     localStorage.setItem("purchase_request_open_as:u1", "full")
-    const mm = window.matchMedia
-    window.matchMedia = (q) => ({ ...mm(q), matches: true })
-    try {
-      renderAt(`/purchasing?request=${unassigned.id}`)
-      expect(await screen.findByRole("button", { name: "Close" })).toBeInTheDocument()
-      expect(screen.queryByRole("button", { name: "Open full" })).not.toBeInTheDocument()
-      expect(screen.queryByRole("button", { name: "Show in side panel" })).not.toBeInTheDocument()
-      expect(localStorage.getItem("purchase_request_open_as:u1")).toBeNull()
-    } finally {
-      window.matchMedia = mm
-    }
+    renderAt(`/purchasing?request=${unassigned.id}`)
+    expect(await screen.findByRole("button", { name: "Close window" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Open full" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Show in side panel" })).not.toBeInTheDocument()
+    await waitFor(() => expect(localStorage.getItem("purchase_request_open_as:u1")).toBeNull())
   })
 
-  it("opens in the slide-over on mobile widths, with no Open full button (#571)", async () => {
+  it("opens in the record window at mobile widths too, not a side panel", async () => {
     renderAt(`/purchasing?request=${unassigned.id}`)
-    expect(await screen.findByRole("dialog")).toBeInTheDocument()
+    const sheet = await screen.findByRole("dialog")
+    expect(sheet.dataset.modalShell).toBe("record")
     expect(screen.queryByRole("button", { name: "Open full" })).not.toBeInTheDocument()
   })
 })

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { useEffect } from "react";
 import { useState } from "react";
+import { categoryMatchesUnit } from "../lib/categoryScope";
 
 export function useTaskTopology(isOpen, formData, taskCategoryId, isEditing) {
   const [topology, setTopology] = useState({ emps: [], cats: [] });
@@ -61,21 +62,24 @@ export function useTaskTopology(isOpen, formData, taskCategoryId, isEditing) {
   );
 
   const filteredCategories = useMemo(() => {
+    const taskCat = isEditing
+      ? null
+      : topology.cats.find((c) => c.category_id === taskCategoryId);
+    const targetDept = isEditing ? formData.department : taskCat?.department;
     const targetSubDept = isEditing
       ? formData.subDepartment
-      : topology.cats.find((c) => c.category_id === taskCategoryId)?.sub_department;
+      : taskCat?.sub_department;
 
-    return topology.cats.filter((cat) => {
-      // 1. Does it match the currently selected sub-department?
-      const isNormalMatch = cat.sub_department === targetSubDept;
-      
-      // 2. Is it one of your universal committee categories?
-      const isUniversal = cat.department === "ALL" && cat.sub_department === "ALL";
-
-      // Keep the category if it passes either test
-      return isNormalMatch || isUniversal;
-    });
-  }, [topology.cats, formData.subDepartment, taskCategoryId, isEditing]);
+    return topology.cats.filter((cat) =>
+      categoryMatchesUnit(cat, targetDept, targetSubDept),
+    );
+  }, [
+    topology.cats,
+    formData.department,
+    formData.subDepartment,
+    taskCategoryId,
+    isEditing,
+  ]);
 
   const taskOwnerInfo = useMemo(
     () => topology.emps.find((e) => e.id === formData.loggedById),

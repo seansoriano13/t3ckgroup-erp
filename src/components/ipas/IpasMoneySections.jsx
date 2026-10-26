@@ -1,11 +1,11 @@
 import { CircleAlert, Check, Paperclip, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "../ui/button";
-import { DetailRow } from "../ui/DetailParts";
+import DetailGrid from "@/components/record/DetailGrid";
+import LinerList from "@/components/record/LinerList";
 import { ExternalLink } from "../ui/external-link";
 import SectionHeader from "../ui/SectionHeader";
 import { SelectField } from "../ui/SelectField";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
 import { useEditable } from "@/components/record/sectionChrome";
@@ -25,8 +25,6 @@ import { formatAmount } from "../../utils/ipas";
 import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
 import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from "../../utils/landedCost";
 
-const HEAD = "text-label font-bold uppercase tracking-wider";
-
 const SPLIT_OPTIONS = IPAS_LANDED_COST_SPLITS.map((value) => ({
   value,
   label: IPAS_LANDED_COST_SPLIT_LABELS[value],
@@ -38,6 +36,17 @@ const pesos = (value) => formatAmount(value, "PHP");
 
 /** An amount inside a sentence or a label, in the same monospace figures as the tables. */
 const Amt = ({ children }) => <span className="font-mono tabular-nums">{children}</span>;
+
+/** Pieces of a row's sub line, set apart with a middle dot. */
+function Dotted({ parts }) {
+  const shown = parts.filter(Boolean);
+  return shown.map((part, index) => (
+    <span key={index}>
+      {index > 0 && " · "}
+      {part}
+    </span>
+  ));
+}
 
 /**
  * Section 1's money: the header amounts (P.I/QT Amount typed; DP and FP read
@@ -72,42 +81,48 @@ export function IpasPaymentsBlock({
 
   return (
     <div className="mt-4 space-y-3">
-      <dl className="grid grid-cols-1 gap-x-8 divide-y divide-border sm:grid-cols-2 sm:divide-y-0">
-        <DetailRow label="P.I/QT Amount">
-          <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-            <Amt>{ipas.piQtAmount === null ? "—" : formatAmount(ipas.piQtAmount, currency)}</Amt>
-            {canChange && (
-              <Button
-                variant="ghost"
-                size="xs"
-                className="gap-1 text-muted-foreground"
-                aria-label="Edit P.I/QT Amount"
-                onClick={onEditAmount}
-              >
-                <Pencil size={12} />
-                Edit
-              </Button>
-            )}
-          </span>
-        </DetailRow>
-        <DetailRow label="Freight service">
-          {canChange ? (
-            <SelectField
-              size="sm"
-              options={freightOptions}
-              value={ipas.freight_service_id ?? NONE}
-              onChange={(value) => onPickFreight(value === NONE ? null : value)}
-              aria-label="Freight service"
-            />
-          ) : (
-            ipas.freightService?.label
-          )}
-        </DetailRow>
-        <DetailRow label="DP">{sum.downPayment > 0 ? <Amt>{formatAmount(sum.downPayment, currency)}</Amt> : null}</DetailRow>
-        <DetailRow label="FP">{sum.fullPayment > 0 ? <Amt>{formatAmount(sum.fullPayment, currency)}</Amt> : null}</DetailRow>
-      </dl>
+      <DetailGrid
+        items={[
+          {
+            label: "P.I/QT Amount",
+            value: (
+              <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+                <Amt>{ipas.piQtAmount === null ? "—" : formatAmount(ipas.piQtAmount, currency)}</Amt>
+                {canChange && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="gap-1 text-muted-foreground"
+                    aria-label="Edit P.I/QT Amount"
+                    onClick={onEditAmount}
+                  >
+                    <Pencil size={12} />
+                    Edit
+                  </Button>
+                )}
+              </span>
+            ),
+          },
+          {
+            label: "Freight service",
+            value: canChange ? (
+              <SelectField
+                size="sm"
+                options={freightOptions}
+                value={ipas.freight_service_id ?? NONE}
+                onChange={(value) => onPickFreight(value === NONE ? null : value)}
+                aria-label="Freight service"
+              />
+            ) : (
+              ipas.freightService?.label
+            ),
+          },
+          { label: "DP", value: sum.downPayment > 0 ? <Amt>{formatAmount(sum.downPayment, currency)}</Amt> : null },
+          { label: "FP", value: sum.fullPayment > 0 ? <Amt>{formatAmount(sum.fullPayment, currency)}</Amt> : null },
+        ]}
+      />
 
-      <SectionHeader title="Payments" className="border-b-0 pb-2">
+      <SectionHeader title={`Payments · ${payments.length}`} className="border-b-0 pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddPayment}>
             <Plus size={14} />
@@ -116,110 +131,100 @@ export function IpasPaymentsBlock({
         )}
       </SectionHeader>
 
-      {payments.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-          No payments recorded yet.
-          {!isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE
+      <LinerList
+        label="Payments"
+        empty={`No payments recorded yet.${
+          !isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE
             ? " A foreign-currency Odoo PO needs a payment before Landed Cost can be worked out."
-            : ""}
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <Table className="md:min-w-[48rem]">
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className={HEAD}>Payment</TableHead>
-                <TableHead className={HEAD}>Date</TableHead>
-                <TableHead className={`${HEAD} text-right`}>{isPhp ? "Amount" : `Amount (${currency})`}</TableHead>
-                {!isPhp && <TableHead className={`${HEAD} text-right`}>Pesos taken from the bank</TableHead>}
-                <TableHead className={`${HEAD} text-right`}>Charge fee</TableHead>
-                <TableHead className={HEAD}>Method</TableHead>
-                <TableHead className={HEAD}>Proof</TableHead>
-                {canRecord && <TableHead className={`${HEAD} text-right`}>
-                  <span className="sr-only">Actions</span>
-                </TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payments.map((payment) => (
-                <TableRow key={payment.id} data-testid="ipas-payment-row">
-                  <TableCell className="text-sm font-medium text-foreground">
-                    <span className="inline-flex flex-wrap items-center gap-2">
-                      {IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind}
-                      {payment.paid_before_approval && <StatusBadge theme="amber" label="Paid before approval" />}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs tabular-nums text-muted-foreground">{formatDay(payment.paid_on)}</TableCell>
-                  <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
-                    {formatAmount(payment.amount, currency)}
-                  </TableCell>
-                  {!isPhp && (
-                    <TableCell className="text-right font-mono text-xs tabular-nums">
+            : ""
+        }`}
+        total={
+          payments.length > 0
+            ? {
+                label: `Total debited, including charge fees${
+                  sum.missingPhp > 0
+                    ? ` · ${sum.missingPhp} payment${sum.missingPhp === 1 ? "" : "s"} without the pesos taken from the bank`
+                    : ""
+                }`,
+                value: pesos(sum.totalDebitedPhp),
+              }
+            : undefined
+        }
+        rows={payments.map((payment) => {
+          const kind = IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind;
+          return {
+            key: payment.id,
+            testId: "ipas-payment-row",
+            main: (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                {kind}
+                {payment.paid_before_approval && <StatusBadge theme="amber" label="Paid before approval" />}
+              </span>
+            ),
+            sub: (
+              <Dotted
+                parts={[
+                  formatDay(payment.paid_on),
+                  payment.methodLabel ?? "—",
+                  payment.check_no ? `Check No. ${payment.check_no}` : null,
+                  !isPhp && (
+                    <>
+                      Pesos taken from the bank:{" "}
                       {payment.php_debited === null ? (
                         <span className="text-amber-11">Not in yet (estimate)</span>
                       ) : (
-                        pesos(payment.php_debited)
+                        <span className="font-mono tabular-nums">{pesos(payment.php_debited)}</span>
                       )}
-                    </TableCell>
-                  )}
-                  <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                    {payment.charge_fee_php ? pesos(payment.charge_fee_php) : "—"}
-                  </TableCell>
-                  <TableCell className="text-xs text-foreground">
-                    {payment.methodLabel ?? "—"}
-                    {payment.check_no && (
-                      <span className="block text-xs text-muted-foreground">Check No. {payment.check_no}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {payment.proof_url ? (
-                      <ExternalLink
-                        href={payment.proof_url}
-                        className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
-                      >
-                        <Paperclip size={12} aria-hidden="true" />
-                        View
-                      </ExternalLink>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  {canRecord && (
-                    <TableCell className="text-right">
-                      <span className="inline-flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Edit ${IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? "payment"} of ${formatDay(payment.paid_on)}`}
-                          onClick={() => onEditPayment(payment)}
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-red-11"
-                          aria-label={`Remove ${IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? "payment"} of ${formatDay(payment.paid_on)}`}
-                          onClick={() => onRemovePayment(payment)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </span>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 border-t border-border bg-muted/20 px-4 py-2 text-xs">
-            <span className="text-muted-foreground">
-              Total debited, including charge fees
-              {sum.missingPhp > 0 && ` · ${sum.missingPhp} payment${sum.missingPhp === 1 ? "" : "s"} without the pesos taken from the bank`}
-            </span>
-            <span className="font-mono font-semibold tabular-nums">{pesos(sum.totalDebitedPhp)}</span>
-          </div>
-        </div>
-      )}
+                    </>
+                  ),
+                  <>
+                    Charge fee:{" "}
+                    <span className="font-mono tabular-nums">{payment.charge_fee_php ? pesos(payment.charge_fee_php) : "—"}</span>
+                  </>,
+                ]}
+              />
+            ),
+            subWrap: true,
+            quantity: formatAmount(payment.amount, currency),
+            actions: (
+              <span className="inline-flex shrink-0 items-center gap-2 text-xs">
+                {payment.proof_url ? (
+                  <ExternalLink
+                    href={payment.proof_url}
+                    className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
+                  >
+                    <Paperclip size={12} aria-hidden="true" />
+                    View
+                  </ExternalLink>
+                ) : (
+                  <span className="text-muted-foreground">No proof</span>
+                )}
+                {canRecord && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Edit ${kind ?? "payment"} of ${formatDay(payment.paid_on)}`}
+                      onClick={() => onEditPayment(payment)}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-red-11"
+                      aria-label={`Remove ${kind ?? "payment"} of ${formatDay(payment.paid_on)}`}
+                      onClick={() => onRemovePayment(payment)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </>
+                )}
+              </span>
+            ),
+          };
+        })}
+      />
     </div>
   );
 }
@@ -241,7 +246,7 @@ export function IpasChargesSection({
 
   return (
     <IpasSection title={ipasSectionLabel("finance")}>
-      <SectionHeader title="Importation charges" className="border-b-0 pb-2">
+      <SectionHeader title={`Charges · ${charges.length}`} className="border-b-0 pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddCharge}>
             <Plus size={14} />
@@ -250,62 +255,41 @@ export function IpasChargesSection({
         )}
       </SectionHeader>
 
-      {charges.length === 0 ? (
-        <p className="mt-3 rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-          No charges recorded yet. A charge covering several Odoo POs is recorded as this IPAS&apos;s own share.
-        </p>
-      ) : (
-        <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-          <Table className="md:min-w-[28rem]">
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className={HEAD}>Charge</TableHead>
-                <TableHead className={HEAD}>Date</TableHead>
-                <TableHead className={`${HEAD} text-right`}>Amount (PHP)</TableHead>
-                {canRecord && <TableHead className={`${HEAD} text-right`}>
-                  <span className="sr-only">Actions</span>
-                </TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {charges.map((charge) => (
-                <TableRow key={charge.id} data-testid="ipas-charge-row">
-                  <TableCell className="text-sm font-medium text-foreground">{charge.kindLabel ?? "—"}</TableCell>
-                  <TableCell className="text-xs tabular-nums text-muted-foreground">{formatDay(charge.charged_on)}</TableCell>
-                  <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">{pesos(charge.amount_php)}</TableCell>
-                  {canRecord && (
-                    <TableCell className="text-right">
-                      <span className="inline-flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Edit ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
-                          onClick={() => onEditCharge(charge)}
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-red-11"
-                          aria-label={`Remove ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
-                          onClick={() => onRemoveCharge(charge)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </span>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="flex justify-between gap-3 border-t border-border bg-muted/20 px-4 py-2 text-xs">
-            <span className="text-muted-foreground">Total charges</span>
-            <span className="font-mono font-semibold tabular-nums">{pesos(sum.chargesPhp)}</span>
-          </div>
-        </div>
-      )}
+      <div className="mt-3">
+        <LinerList
+          label="Charges"
+          empty="No charges recorded yet. A charge covering several Odoo POs is recorded as this IPAS's own share."
+          total={charges.length > 0 ? { label: "Total charges", value: pesos(sum.chargesPhp) } : undefined}
+          rows={charges.map((charge) => ({
+            key: charge.id,
+            testId: "ipas-charge-row",
+            main: charge.kindLabel ?? "—",
+            sub: formatDay(charge.charged_on),
+            quantity: pesos(charge.amount_php),
+            actions: canRecord ? (
+              <span className="inline-flex shrink-0 items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Edit ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
+                  onClick={() => onEditCharge(charge)}
+                >
+                  <Pencil />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-red-11"
+                  aria-label={`Remove ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
+                  onClick={() => onRemoveCharge(charge)}
+                >
+                  <Trash2 />
+                </Button>
+              </span>
+            ) : undefined,
+          }))}
+        />
+      </div>
       {children}
     </IpasSection>
   );
@@ -334,8 +318,8 @@ export function LandedCostBadge({ status, estimate = false }) {
  * LC Odoo Done) and Landed Cost per line and per unit with its provisional or
  * final mark and how it was spread.
  *
- * The status moves one step either way, by Purchasing (`canSetStatus(from, to)`
- * says). The current step looks selected for everyone and carries a tick like
+ * The status jumps to any step, either way, by Purchasing (`canSetStatus(from, to)`
+ * says; feedback on #595: the steps mean little until Purchasing says so). The current step looks selected for everyone and carries a tick like
  * the steps before it; LC Odoo Done, once reached, is green (#586). Section 3's
  * sign-offs arrive as `children`, below the Landed Cost.
  */
@@ -348,7 +332,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
   const foreign = lc.isForeign;
   const estimate = isLandedCostEstimate(lc);
   const mayStep = (status, index) =>
-    Math.abs(index - currentIndex) === 1 && (canSetStatus ? canSetStatus(ipas.computationStatus, status) : granted);
+    index !== currentIndex && (canSetStatus ? canSetStatus(ipas.computationStatus, status) : granted);
   const anyStep = IPAS_COMPUTATION_STATUSES.some((status, index) => mayStep(status, index));
 
   return (
@@ -469,58 +453,39 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
                   Nothing on the lines has a price to spread by, so charges are spread equally.
                 </p>
               )}
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <Table className="md:min-w-[44rem]">
-                  <TableHeader>
-                    <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableHead className={HEAD}>Item</TableHead>
-                      <TableHead className={`${HEAD} text-right`}>Qty</TableHead>
-                      <TableHead className={`${HEAD} text-right`}>Unit price (PHP)</TableHead>
-                      <TableHead className={`${HEAD} text-right`}>Goods</TableHead>
-                      <TableHead className={`${HEAD} text-right`}>Charges &amp; fees</TableHead>
-                      <TableHead className={`${HEAD} text-right`}>Landed Cost</TableHead>
-                      <TableHead className={`${HEAD} text-right`}>Per unit</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lc.lines.map((line, index) => (
-                      <TableRow key={line.lineId ?? index} data-testid="ipas-landed-line">
-                        <TableCell className="max-w-[18rem] whitespace-pre-line text-sm text-foreground">
-                          {line.name}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">
-                          {line.quantity} {line.unit}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">
-                          {pesos(line.unitPricePhp)}
-                          {foreign && (
-                            <span className="block text-xs text-muted-foreground">
-                              {formatAmount(line.unitPriceForeign, lc.currency)}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">{pesos(line.goodsPhp)}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                          {pesos(line.spreadPhp)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
-                          {pesos(line.landedPhp)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
-                          {pesos(line.landedPerUnitPhp)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 border-t border-border bg-muted/20 px-4 py-2 text-xs">
-                  <span className="text-muted-foreground">
-                    Goods <Amt>{pesos(lc.totals.goodsPhp)}</Amt> + charges <Amt>{pesos(lc.totals.chargesPhp)}</Amt> + charge fees{" "}
-                    <Amt>{pesos(lc.totals.chargeFeesPhp)}</Amt> + shipping fees <Amt>{pesos(lc.totals.shippingFeesPhp)}</Amt>
-                  </span>
-                  <span className="font-mono font-semibold tabular-nums">{pesos(lc.totals.landedPhp)}</span>
-                </div>
-              </div>
+              <LinerList
+                label="Landed Cost per line"
+                empty="The Odoo PO has no item lines to cost."
+                total={{
+                  label: (
+                    <>
+                      Goods <Amt>{pesos(lc.totals.goodsPhp)}</Amt> + charges <Amt>{pesos(lc.totals.chargesPhp)}</Amt> + charge fees{" "}
+                      <Amt>{pesos(lc.totals.chargeFeesPhp)}</Amt> + shipping fees <Amt>{pesos(lc.totals.shippingFeesPhp)}</Amt>
+                    </>
+                  ),
+                  value: pesos(lc.totals.landedPhp),
+                }}
+                rows={lc.lines.map((line, index) => ({
+                  key: line.lineId ?? index,
+                  testId: "ipas-landed-line",
+                  main: <span className="whitespace-pre-line">{line.name}</span>,
+                  sub: (
+                    <Dotted
+                      parts={[
+                        `Unit price ${pesos(line.unitPricePhp)}${foreign ? ` (${formatAmount(line.unitPriceForeign, lc.currency)})` : ""}`,
+                        `Goods ${pesos(line.goodsPhp)}`,
+                        `Charges & fees ${pesos(line.spreadPhp)}`,
+                        `Per unit ${pesos(line.landedPerUnitPhp)}`,
+                      ]}
+                    />
+                  ),
+                  subWrap: true,
+                  quantity: `${line.quantity} ${line.unit}`,
+                  actions: (
+                    <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">{pesos(line.landedPhp)}</span>
+                  ),
+                }))}
+              />
             </>
           )}
         </div>

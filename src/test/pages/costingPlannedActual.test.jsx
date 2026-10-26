@@ -2,11 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
-import { renderWithProviders } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
+import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * Planned and Actual Revenue in the Costing Matrix summary (#605), Closed Book only. One Tender Line at
@@ -26,11 +25,7 @@ describe("Planned and Actual Revenue on the summary", () => {
 
   const mount = (stub = { tier: "closed_book", bands: ["purchasing"] }) => {
     stubCostingMatrixRpcs({ actorId: reader.id, ...stub });
-    renderWithProviders(
-      <MemoryRouter>
-        <CostingMatrixSection opportunityId={deal.id} opportunity={deal} />
-      </MemoryRouter>,
-    );
+    renderCostingDesk(deal);
   };
 
   /** The first Component bought on the IPAS' PO at the given price per unit. */
@@ -78,6 +73,7 @@ describe("Planned and Actual Revenue on the summary", () => {
 
   it("shows Planned as today's Revenue and Actual equal to it while nothing is bought, with the not-bought note", async () => {
     mount();
+    await openLines();
     const block = await screen.findByTestId("summary-planned-actual");
     expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱423,100.00");
     expect(within(block).getByTestId("summary-planned-revenue")).toHaveTextContent("₱423,100.00");
@@ -89,6 +85,7 @@ describe("Planned and Actual Revenue on the summary", () => {
   it("highlights the difference when buying cost more, and marks Actual an estimate while the IPAS is short of LC Odoo Done", async () => {
     buy(1100000, "encoded");
     mount();
+    await openLines();
     const block = await screen.findByTestId("summary-planned-actual");
     expect(await within(block).findByTestId("summary-actual-estimate")).toHaveTextContent("estimate");
     // The first Component at 1,100,000 instead of 1,000,000: Actual Revenue 100,000 below Planned.
@@ -102,6 +99,7 @@ describe("Planned and Actual Revenue on the summary", () => {
   it("drops the estimate mark once the IPAS reached LC Odoo Done, and does not highlight a saving", async () => {
     buy(900000, "lc_odoo_done");
     mount();
+    await openLines();
     const block = await screen.findByTestId("summary-planned-actual");
     expect(within(block).getByTestId("summary-actual-revenue")).toHaveTextContent("₱523,100.00");
     expect(within(block).queryByTestId("summary-actual-estimate")).not.toBeInTheDocument();
@@ -115,6 +113,7 @@ describe("Planned and Actual Revenue on the summary", () => {
     ["price", ["sales"]],
   ])("shows the %s tier neither the summary nor the comparison", async (tier, bands) => {
     mount({ tier, bands });
+    await openLines();
     await screen.findAllByTestId("component");
     expect(screen.queryByTestId("costing-summary")).not.toBeInTheDocument();
     expect(screen.queryByTestId("summary-planned-actual")).not.toBeInTheDocument();

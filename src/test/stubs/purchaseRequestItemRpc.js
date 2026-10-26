@@ -172,6 +172,64 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       })
   })
 
+  // 20261103100000_purchase_request_item_follows_sor.sql: the item follows its SOR line, or is kept as asked.
+  // Who may do it is proven in the policy tier (133-purchase-request-item-follows-sor.test.js).
+  const sorLineOf = (item) => {
+    const request = findRow("purchase_requests", item.request_id)
+    const picked = item.sor_line_snapshot || {}
+    return rowsOf("sales_opportunity_items")
+      .filter((l) => l.opportunity_id === request?.opportunity_id)
+      .filter((l) => (item.odoo_product_id != null ? l.odoo_product_id === item.odoo_product_id : sameName(l.product_name, picked.name)))
+      .sort(
+        (a, b) =>
+          (Number(b.quantity) === Number(picked.quantity)) - (Number(a.quantity) === Number(picked.quantity)) ||
+          a.sort_order - b.sort_order,
+      )[0]
+  }
+  const refuseSor = (message, code = "22023") => {
+    throw pgrstError(code, message)
+  }
+
+  stubRpc("purchase_request_update_item_from_sor", (args) => {
+    const item = findRow("purchase_request_items", args.p_item_id)
+    if (!item) refuseSor("purchase_request_update_item_from_sor: item not found", "P0002")
+    if (["from_stock", "received", "substituted", "cannot_source", "cancelled"].includes(item.status)) {
+      refuseSor("purchase_request_update_item_from_sor: this item is closed, so it keeps what was asked")
+    }
+    const line = sorLineOf(item)
+    if (!line) refuseSor("purchase_request_update_item_from_sor: the SOR no longer has this line", "P0002")
+    const reason = (args.p_reason || "").trim()
+    if (item.status === "ordered" && !reason) {
+      refuseSor("purchase_request_update_item_from_sor: this item is already ordered, so say why it follows the SOR")
+    }
+    const unit = (line.unit || "").trim() || null
+    const before = `${Number(item.quantity)}${item.unit ? ` ${item.unit}` : ""}`
+    const after = `${Number(line.quantity)}${unit ? ` ${unit}` : ""}`
+    updateRow("purchase_request_items", item, {
+      quantity: line.quantity,
+      unit,
+      sor_line_snapshot: { ...item.sor_line_snapshot, quantity: Number(line.quantity), unit },
+      sor_change_seen: null,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `Updated ${item.name} from ${before} to ${after}, as the SOR now says.${reason ? ` Reason: ${reason}` : ""}`,
+      metadata: { event: "item_followed_sor", item_id: item.id, from: before, to: after },
+    })
+    return null
+  })
+
+  stubRpc("purchase_request_keep_item_as_asked", (args) => {
+    const item = findRow("purchase_request_items", args.p_item_id)
+    const line = item && sorLineOf(item)
+    if (!line) refuseSor("purchase_request_keep_item_as_asked: the SOR no longer has this line", "P0002")
+    updateRow("purchase_request_items", item, {
+      sor_change_seen: { quantity: Number(line.quantity), unit: (line.unit || "").trim() || null },
+    })
+    return null
+  })
+
   // #501 (20261012100500_purchase_request_stock_snapshot.sql): the request's
   // SOR stock snapshot, or null. Who may read it is can_read_purchase_request.
   stubRpc("purchase_request_stock_snapshot", (args) => {

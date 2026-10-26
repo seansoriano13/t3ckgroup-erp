@@ -1,5 +1,6 @@
 import {
   LayoutList,
+  CalendarDays,
   ListCheck,
   ListTodo,
   Clock,
@@ -25,7 +26,7 @@ import {
   LayoutDashboard,
   Calculator,
 } from "lucide-react";
-import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
+import { canManageGroupTasks, getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
 export const NAV_MODULES = {
   workspace: {
@@ -53,6 +54,15 @@ export const NAV_MODULES = {
         label: "My Requests",
         link: "/offsets",
         icon: Clock,
+        isPermitted: () => true,
+      },
+      // The company-wide Calendar, for everyone (ADR 0037). The server decides
+      // what each viewer may see on it.
+      {
+        key: "workspace.calendar",
+        label: "Calendar",
+        link: "/calendar",
+        icon: CalendarDays,
         isPermitted: () => true,
       },
       // What changed in the ERP, for everyone (ADR 0030). The What's new
@@ -173,7 +183,7 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       // The Purchasing Dashboard (#322): every SOR's buying grouped by what is
-      // outstanding, with Order Monitoring (#263) as two of its tabs since
+      // outstanding, with Order Monitoring (#263) folded into its tracker since
       // 2026-10-20. Purchasing access, Finance access and Super Admins; the
       // database limits the rows and the page sends anyone else home.
       {
@@ -269,11 +279,21 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
-        label: "Leave Approvals",
+        label: "Time Off & Overtime",
         link: "/approvals/leaves",
         icon: Clock,
         badgeKey: "leaveApprovals",
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead,
+        exactMatch: true,
+      },
+      {
+        // Meeting Requests (#624): the head step and HR's final say.
+        key: "approvals.meetings",
+        label: "Meeting Requests",
+        link: "/approvals/meetings",
+        icon: Clock,
+        badgeKey: "meetingApprovals",
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead || ctx.isHr,
         exactMatch: true,
       },
       {
@@ -334,7 +354,7 @@ export const NAV_MODULES = {
       },
       {
         key: "hr.leavesManager",
-        label: "Leaves Manager",
+        label: "Time Off & Overtime",
         link: "/hr/offsets",
         icon: Clock,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.canManageLeaves,
@@ -440,8 +460,15 @@ export const QUICK_ACTIONS = [
       {
         id: "offset",
         key: "quick.offset",
-        label: "Apply Leave / Overtime",
+        label: "File Time Off / Overtime",
         icon: Clock,
+        isPermitted: () => true,
+      },
+      {
+        id: "meeting-request",
+        key: "quick.meetingRequest",
+        label: "New Meeting Request",
+        icon: UsersRound,
         isPermitted: () => true,
       },
     ],
@@ -454,7 +481,7 @@ export const QUICK_ACTIONS = [
         key: "quick.groupTask",
         label: "Create Group Task",
         icon: UsersRound,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasTaskFlow,
+        isPermitted: (ctx) => canManageGroupTasks(ctx),
       },
       {
         // Every employee may open a Purchase Request (#179), as in the nav.

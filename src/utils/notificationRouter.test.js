@@ -109,6 +109,36 @@ describe("handleNotificationRoute", () => {
   })
 
   describe("group notifications", () => {
+    it("opens the group task chat for a group task reaction", () => {
+      handleNotificationRoute(
+        { type: "GROUP_TASK_REACTION", reference_id: "ct-2" },
+        head,
+        navigate,
+        onClose,
+      )
+
+      expect(navigate).toHaveBeenCalledWith("/group-tasks")
+      expect(dispatched).toEqual([
+        {
+          type: "OPEN_CHAT_MODAL",
+          detail: { entityId: "ct-2", entityType: "GROUP_TASK" },
+        },
+      ])
+    })
+
+    it("still opens a personal task for a personal task reaction", () => {
+      handleNotificationRoute(
+        { type: "TASK_REACTION", reference_id: "task-9" },
+        head,
+        navigate,
+        onClose,
+      )
+
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
+        state: { openTaskId: "task-9" },
+      })
+    })
+
     it("opens the chat modal for a group comment", () => {
       handleNotificationRoute(
         { type: "GROUP_TASK_COMMENT", reference_id: "ct-1" },

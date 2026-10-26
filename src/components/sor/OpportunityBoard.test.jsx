@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import OpportunityBoard from "./OpportunityBoard";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makePipelineStage } from "@/test/factories";
+import toast from "react-hot-toast";
 import { opportunityService } from "../../services/opportunityService";
 
 vi.mock("../../services/opportunityService", () => ({
@@ -11,6 +12,8 @@ vi.mock("../../services/opportunityService", () => ({
     getReturnStageIds: vi.fn(async () => []),
   },
 }));
+
+vi.mock("react-hot-toast", () => ({ default: { error: vi.fn(), success: vi.fn() } }));
 
 const opportunity = (overrides = {}) => ({
   id: "opp-1",
@@ -223,6 +226,31 @@ describe("OpportunityBoard", () => {
       fireEvent.dragEnd(card.closest("button"));
 
       expect(screen.queryByText("Move to")).not.toBeInTheDocument();
+    });
+
+    it("a drop onto a Stage that is not next explains the allowed next Stage", async () => {
+      const three = {
+        ...flowStagesIndex,
+        stagesByFlow: { ...flowStagesIndex.stagesByFlow, "flow-outright": [stages.lead, stages.qualified, { id: "won", flow_id: "flow-outright", name: "Won Deal", pos_x: 2, pos_y: 0, is_terminal: false }] },
+      };
+      renderWithProviders(
+        <OpportunityBoard
+          opportunities={[flowDeal()]}
+          search=""
+          flowStagesIndex={three}
+          snapshotsById={snapshotsById}
+          saleTypes={saleTypes}
+          onCardClick={() => {}}
+        />,
+      );
+
+      const card = (await screen.findByText("Acme Corp")).closest("button");
+      const wonColumn = screen.getByText("Won Deal").closest("div");
+      fireEvent.dragStart(card);
+      fireEvent.drop(wonColumn);
+
+      expect(toast.error).toHaveBeenCalledWith("Lead can only move to Qualified next.");
+      expect(screen.queryByText(/^Move to/)).not.toBeInTheDocument();
     });
 
     it("a drop onto an allowed Stage opens the move confirmation, listing a known blocker", async () => {

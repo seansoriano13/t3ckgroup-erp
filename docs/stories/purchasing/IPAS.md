@@ -2,6 +2,8 @@
 
 Guide §9. Raise only with the real POs in the README. Sections are numbered as the screen shows them: 1 and 2 are prepared and approved, 3 is Computation status (no sign-off), 4 is Filing. Sign-off lists: section 1 and 2 Approved = admin-head; section 4 Received = ops-head, Noted = sales-head, Checked and Approved = approver.
 
+An IPAS opens in the record window at full size over the IPAS list (`/purchasing/ipas/:id`), like every other Purchasing record; it is no longer a page of its own, and Close returns to the list. The window shows one state badge (Open); the payment status (Paid) is a pill under the title. Sign-off moves (Prepare, Submit, Approve, Return) are green buttons in the Your move card, and only there. Each section keeps its own Edit section button. Lines, payments and documents are one-line rows that open in place with their chevron. More holds Print and Cancel. The bill check keeps its red Odoo PO amount and green P.I amount.
+
 Keep these IPAS records alive, later stories use them:
 - **IPAS-A**: P02401, Local, Project, S990001 (from IPAS-01).
 - **IPAS-B**: P02400, Import, Project, S990002 (from IPAS-03).
@@ -254,7 +256,7 @@ Keep these IPAS records alive, later stories use them:
 - **Guide**: §9 Printing
 - **Log in as**: purchaser
 - **Steps**:
-  1. Print IPAS-A.
+  1. Print IPAS-A (More, then Print).
 - **You should see**: all seven parts. Signature images only for sign-offs that carry them. A declined signature does not print.
 
 ### IPAS-26 · PO changed in Odoo (manual setup)

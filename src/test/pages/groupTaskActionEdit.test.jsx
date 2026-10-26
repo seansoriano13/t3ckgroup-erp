@@ -95,3 +95,19 @@ describe("editing a saved group task action", () => {
     ]);
   });
 });
+
+describe("creating a group task by hand", () => {
+  it("offers an evaluator that defaults to the person creating it", async () => {
+    renderWithProviders(
+      <CreateGroupTaskModal
+        isOpen
+        onClose={() => {}}
+        user={makeEmployee({ name: "Super" })}
+        employees={[alice()]}
+        onSubmit={() => {}}
+      />,
+    );
+
+    expect(await screen.findByText(/Evaluator: who rates this task \(defaults to you\)/)).toBeInTheDocument();
+  });
+});

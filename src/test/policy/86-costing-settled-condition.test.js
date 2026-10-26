@@ -5,8 +5,8 @@
  * bid-submitted stamp and the timeline entry a Final Offer change writes after it.
  *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
- *   dealOwner, support  Deal Team                          -> price tier (reads the evidence)
- *   outsider            Purchasing access, no part in it   -> cost tier (writes Components)
+ *   dealOwner, support  Deal Team                          -> closed_book tier (reads the evidence)
+ *   outsider            Purchasing access, no part in it   -> closed_book tier (writes Components)
  *   stageParticipant    open Stage Participant window      -> participant tier
  *   ipasSigner          on the final_acquire list          -> closed_book (Final Acquire, decides)
  *   ordinary            nobody                             -> sees nothing: refused

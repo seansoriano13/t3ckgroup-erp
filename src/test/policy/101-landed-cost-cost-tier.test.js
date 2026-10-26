@@ -1,8 +1,8 @@
 /**
  * Landed Cost and Offer prices are cost (#546, spec #544).
  *
- * Only the closed_book and cost tiers may read them. The price tier (the Deal Team and anyone the
- * Sales Flow names as Always sees) gets nothing from the database:
+ * Only the closed_book and cost tiers may read them. The price tier (since 20261102170000, only
+ * the people the Sales Flow names as Always sees) gets nothing from the database:
  *
  *   costing_landed_costs         per-Component Landed Cost: no rows
  *   ipas_summaries_for_sor       the IPAS rows still come, the Landed Cost total and mark are null
@@ -10,9 +10,9 @@
  *   canvass_offer_projection     unchanged: closed_book and cost get it, price is refused
  *
  * The cast, on one SOR:
- *   dealOwner    Deal Team                       -> price tier
+ *   dealOwner    Deal Team                       -> closed_book tier
  *   ordinary     named in the Flow's Always sees -> price tier
- *   outsider     Purchasing access               -> cost tier
+ *   outsider     Purchasing access               -> closed_book tier
  *   ipasSigner   Final Acquire list              -> closed_book tier
  *   superAdmin                                   -> closed_book tier
  */
@@ -26,9 +26,9 @@ import { purgeIpas } from "./support/ipas.js"
 const svc = () => serviceClient()
 const RUN = Date.now() % 100000
 
-const PRICE = ["dealOwner", "ordinary"]
+const PRICE = ["ordinary"]
 const COST = ["outsider"]
-const CLOSED_BOOK = ["ipasSigner", "superAdmin"]
+const CLOSED_BOOK = ["ipasSigner", "superAdmin", "dealOwner"]
 
 let saleTypeId, flowId, stageId
 let sorId, compId, canvassId, offerId, ipasId, poNumber
@@ -135,9 +135,9 @@ describe("costing_can_read_cost", () => {
 
 describe("the tiers are what this test assumes", () => {
     it.each([
-        ["dealOwner", "price"],
+        ["dealOwner", "closed_book"],
         ["ordinary", "price"],
-        ["outsider", "cost"],
+        ["outsider", "closed_book"],
         ["ipasSigner", "closed_book"],
         ["superAdmin", "closed_book"],
     ])("%s is %s", async (who, tier) => {
@@ -202,7 +202,7 @@ describe("Canvass Offer prices", () => {
     })
 
     it("refuses a price-tier write of an Offer price", async () => {
-        const { data } = await (await clientFor("dealOwner")).from("sor_canvass_offer_prices").insert({ offer_id: offerId, unit_price: 1 }).select()
+        const { data } = await (await clientFor("ordinary")).from("sor_canvass_offer_prices").insert({ offer_id: offerId, unit_price: 1 }).select()
         expect(data ?? []).toEqual([])
     })
 })

@@ -364,7 +364,7 @@ describe("taskQueryService", () => {
 
     it("raises for a task that does not exist", async () => {
       await expect(taskQueryService.getTaskById("00000000-0000-4000-8000-000000009999"))
-        .rejects.toMatchObject({ code: "PGRST116" })
+        .rejects.toThrow("Task not found")
     })
   })
 

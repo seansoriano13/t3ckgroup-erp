@@ -43,7 +43,11 @@ function writeWidths(storageKey, widths) {
 // column is drag-resizable; widths are remembered per user, per table, in
 // this browser only. The first drag freezes every identified column at its
 // current width so only the dragged column moves.
-function Table({ className, tableId, style, scrollCue = false, ...props }) {
+//
+// `resetAbove` puts the "Reset columns" button just above the table instead of
+// over its header, and lets it fade out slowly so the pointer can reach it.
+// The table's parents must not clip it (no overflow-hidden around the table).
+function Table({ className, tableId, style, scrollCue = false, resetAbove = false, ...props }) {
   const userId = useUserId();
   const storageKey = tableId ? `erp_colwidths_${userId}_${tableId}` : null;
   const tableRef = React.useRef(null);
@@ -169,7 +173,12 @@ function Table({ className, tableId, style, scrollCue = false, ...props }) {
             size="xs"
             data-slot="table-reset-widths"
             onClick={() => ctx.reset()}
-            className="absolute top-1 right-2 z-10 bg-card text-[11px] text-muted-foreground opacity-0 shadow-sm transition-opacity group-hover/table:opacity-100 group-focus-within/table:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+            className={cn(
+              "absolute right-2 z-10 bg-card text-[11px] text-muted-foreground opacity-0 shadow-sm transition-opacity group-hover/table:opacity-100 group-focus-within/table:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
+              resetAbove
+                ? "bottom-full mb-1.5 delay-700 duration-200 group-hover/table:delay-0 group-focus-within/table:delay-0 before:absolute before:inset-x-0 before:-bottom-2 before:h-2 before:content-['']"
+                : "top-1",
+            )}
           >
             Reset columns
           </Button>

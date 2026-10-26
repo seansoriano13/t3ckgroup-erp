@@ -104,6 +104,25 @@ _Avoid_: Client, Contact Name
 A collaborative project or shared task assignment involving multiple team members with defined roles and templates.
 _Avoid_: Project, Shared Task
 
+**Evaluator** (of a Group Task):
+The person who rates the members once the work is done. Set on the Group Task
+(by the Stage Action that created it, or changed later by the creator, a head or
+a super admin); when none is set, the creator rates. Not the creator: the
+creator is whoever made the task, which for a Stage Action is whoever moved the
+Stage.
+_Avoid_: Rater, Reviewer, Approver
+
+**Awaiting Evaluation** (a Group Task status):
+Every member has marked their assignment done and the Evaluator has not rated yet.
+Reached on its own when the last member is done, and left again if a member
+un-marks. It is not Completed: Completed means the task was rated and handed to
+HR, so a task that is done but unrated can never look finished. A task made
+before this flow keeps moving by hand only, and gets no reminders.
+A creator, Evaluator, head or super admin can also send a task here by hand when
+some members will never finish. A task left unrated is chased: the Evaluator is
+reminded, and at the end the creator and the Evaluator's department heads are told.
+_Avoid_: Done, Ready to Rate, Pending Rating
+
 **Start Date** (of a Group Task):
 The day a Group Task's work begins. Independent of when the task was created
 and of its Due Date — neither is derived from the other.
@@ -316,7 +335,8 @@ creates, by an Assignment condition, or as a purchasing member of a Purchase
 Request opened there. Sees every Stage Visit inside their access window, which
 opens when they are called and closes when the calling Stage is left, when a
 chosen later Stage is entered or left, or at a Terminal Stage, as the Sales Flow
-set it; a Terminal Stage always closes it. Each call-in opens its own window, so
+set it; a Terminal Stage always closes it. Cancelling the task that called them
+in closes it too (reason "task cancelled") unless another live task from the same call-in still holds it. Each call-in opens its own window, so
 one person named by two actions on the same Stage holds two at once and sees the
 union of them. A window only ever reaches forward: someone called in at a Stage
 never sees the visits before it. An Assignment on the entry Stage makes someone a
@@ -655,8 +675,12 @@ _Avoid_: Inventory (unqualified), Live Stock
 The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase has no Costing Matrix row yet — never both. Buying outside a project is canvassed first, on the Canvasses page, against nothing yet; a Purchase Request is then created from that Canvass, and the Canvass points at the Requested Item it became. Gets its number when its first Offer is saved, not when it is opened. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished. Nothing forces an item through one — but an item ordered without a Canvass says so on its Costing Matrix row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
 _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 
+**Locked Canvass**:
+A Canvass is locked once a Purchase Request was made from it, whether the request was created from it or the Canvass was added to an existing request (the winner's price was copied onto the item). Its Offers, winner, reason and product name stop changing; sign-off, attachments and printing stay open. A Super Admin can unlock it, always with a reason that is kept in the Canvass history, and an unlocked Canvass stays unlocked. The Canvasses page marks a locked Canvass with a lock beside its number.
+_Avoid_: Frozen, Closed Canvass
+
 **Canvasses** (the page):
-The Purchasing page listing every Canvass, project ones included, and where a Canvass for buying outside a project is started. Buying outside a project runs either way round: Purchasing canvasses first and creates the Purchase Request from it, or an employee opens a Direct request first and canvassing one of its Requested Items opens that item's Canvass here. Several Canvasses can be picked to create one Purchase Request, one Requested Item each. Creating one needs each Canvass to have a winner; a Canvass not yet signed off only warns.
+The Purchasing page listing every Canvass, project ones included, and where a Canvass for buying outside a project is started. Buying outside a project always starts here: Purchasing canvasses first, then creates a Purchase Request from the Canvass or adds it to one that already exists. A Purchase Request never starts a Canvass on its items. Several Canvasses can be picked to create one Purchase Request, one Requested Item each. A Canvass that already exists can also be added to a Purchase Request that already exists, from the request ("Add a Canvass"): it becomes a new Requested Item (with a quantity and unit), or is attached to an item the request already has that has no Canvass yet. Either way the winner's price goes on the item and the Canvass is locked (see Locked Canvass). Creating one needs each Canvass to have a winner; a Canvass not yet signed off only warns. Each Canvass on the page and in its panel says whether a request is still to be made: "Needs winner", "Ready to request", or the status of its Requested Item once a request exists ("Requested", "Cancelled"). The badge is a status only, never a link; the Canvass panel names the request and opens it in place, over the Canvass. A Canvass on a Component shows nothing there. A "Request" filter narrows to Canvasses not requested yet or with a request created.
 _Avoid_: Canvass tool, Sourcing page
 
 **Offer**:

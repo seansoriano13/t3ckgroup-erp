@@ -103,13 +103,13 @@ describe("Costing Matrix settings", () => {
     await waitFor(() => expect(within(within(section).getAllByTestId("markup-preset-row")[0]).queryByLabelText("Private: name")).toBeInTheDocument());
   });
 
-  it("tells Purchasing access that the presets are not theirs, with nothing to edit", async () => {
+  it("tells someone the database keeps the presets from that they are not theirs, with nothing to edit", async () => {
     seedPresets();
     stubRpc("costing_can_manage_markup", false);
     mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
     renderAt("/settings?tab=costing");
 
-        expect(await screen.findByTestId("markup-presets-closed")).toHaveTextContent("Only Super Admins and the Final Acquire list");
+        expect(await screen.findByTestId("markup-presets-closed")).toHaveTextContent("Only Super Admins, Purchasing, the Deal Team and the Final Acquire list");
     expect(screen.queryByLabelText("New markup preset name")).not.toBeInTheDocument();
     expect(screen.queryByTestId("markup-preset-row")).not.toBeInTheDocument();
   });

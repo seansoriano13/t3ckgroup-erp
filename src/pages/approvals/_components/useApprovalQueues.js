@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, ClipboardCheck, Gavel, PackageCheck, ReceiptText, Scale, ShieldCheck } from "lucide-react";
+import { CalendarClock, CalendarDays, ClipboardCheck, Gavel, PackageCheck, ReceiptText, Scale, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { taskService } from "../../../services/taskService.js";
 import { headApprovalService } from "../../../services/headApprovalService";
 import { transmittalService } from "../../../services/transmittalService";
+import { meetingRequestService } from "../../../services/meetingRequestService";
 import { TRANSMITTAL_STAFF_LIST } from "../../../constants/transmittals";
 import {
   selectHrPending,
@@ -37,9 +38,17 @@ export const APPROVAL_QUEUES = [
   {
     key: "leaves",
     path: "/approvals/leaves",
-    label: "Leave & Overtime",
+    label: "Time Off & Overtime",
     icon: CalendarClock,
     can: (r) => r.isSuperAdmin || r.isHead,
+  },
+  {
+    // Meeting Requests (#624): a head approves the ones routed to them, HR gives the final say.
+    key: "meetings",
+    path: "/approvals/meetings",
+    label: "Meeting Requests",
+    icon: CalendarDays,
+    can: (r) => r.isSuperAdmin || r.isHead || r.isHr,
   },
   {
     key: "ipas",
@@ -95,9 +104,10 @@ export function useApprovalRoles() {
     isTransmittalListsLoading: !!user?.id && listsQuery.isLoading,
     // The same list signs Canvasses (#279): the purchasing approver. A Super Admin only when on it.
     isCanvassApprover: (listsQuery.data ?? []).includes(TRANSMITTAL_STAFF_LIST.CHECK_BY),
-    // A Super Admin or on the Costing Matrix's Final Acquire list (#320): decides Bid Decisions.
+    // A Super Admin, on the Final Acquire list (#320), or open on a Costing Matrix: decides Bid Decisions.
     isBidDecider:
-      user?.is_super_admin === true || user?.isSuperAdmin === true || user?.is_final_acquire === true || user?.isFinalAcquire === true,
+      user?.is_super_admin === true || user?.isSuperAdmin === true || user?.is_final_acquire === true || user?.isFinalAcquire === true ||
+      user?.is_costing_open === true || user?.isCostingOpen === true,
   };
 }
 
@@ -126,6 +136,13 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
     enabled: !!user?.id && (isHead || isSuperAdmin),
   });
 
+  const isHr = roles.isHr;
+  const meetingsQuery = useQuery({
+    queryKey: ["meeting-requests", "approval-queue", user?.id, isHr, isSuperAdmin],
+    queryFn: () => meetingRequestService.listPendingForApprover({ employeeId: user.id, isHr, isSuperAdmin }),
+    enabled: !!user?.id && (isHead || isSuperAdmin || isHr),
+  });
+
   const rawTasks = tasksQuery.data;
   const queues = useMemo(() => {
     const tasks = rawTasks || [];
@@ -151,6 +168,7 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
     tasks: queues.managerPending.length,
     hr: queues.hrPending.length,
     leaves: (leavesPending || []).length,
+    meetings: (meetingsQuery.data || []).length,
   };
 
   return {
@@ -159,12 +177,16 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
     rawTasks: rawTasks || [],
     ...queues,
     leavesPending: leavesPending || [],
+    meetingsPending: meetingsQuery.data || [],
     counts,
     isLoadingTasks: tasksQuery.isLoading,
     isLoadingLeaves: leavesQuery.isLoading,
+    isLoadingMeetings: meetingsQuery.isLoading,
     isErrorTasks: tasksQuery.isError,
     isErrorLeaves: leavesQuery.isError,
+    isErrorMeetings: meetingsQuery.isError,
     refetchTasks: tasksQuery.refetch,
     refetchLeaves: leavesQuery.refetch,
+    refetchMeetings: meetingsQuery.refetch,
   };
 }

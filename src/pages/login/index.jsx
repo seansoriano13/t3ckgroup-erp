@@ -171,18 +171,7 @@ export default function Login() {
             </div>
 
             <div className="grid gap-2">
-              <div className="flex justify-between items-center">
-                <FieldBox label="Password" htmlFor="login-password" />
-                <Button
-                  type="button"
-                  variant="link"
-                  disabled={isResetting}
-                  onClick={handleForgotPassword}
-                  className="h-auto p-0 text-xs font-medium text-mauve-11 hover:underline"
-                >
-                  Forgot password?
-                </Button>
-              </div>
+              <FieldBox label="Password" htmlFor="login-password" />
               <Input
                 id="login-password"
                 ref={passwordRef}
@@ -198,6 +187,17 @@ export default function Login() {
                   setErrors((prev) => ({ ...prev, password: undefined }));
                 }}
               />
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="link"
+                  disabled={isResetting}
+                  onClick={handleForgotPassword}
+                  className="h-auto p-0 text-xs font-medium text-mauve-11 hover:underline"
+                >
+                  Forgot password?
+                </Button>
+              </div>
               {errors.password && (
                 <p id="login-password-error" role="alert" className="text-xs font-medium text-destructive">
                   {errors.password}

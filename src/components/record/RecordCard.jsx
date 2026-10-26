@@ -45,6 +45,8 @@ function MoveGroup({ items, origin, className, ...rest }) {
  * @param {object|null} props.failure  the failed move, shown under it with Retry
  * @param {string} [props.chainLabel]  e.g. "Where it stands"
  * @param {boolean} [props.split]  the card spans the page: from the wide breakpoint the moves sit left and the chain right
+ * @param {boolean} [props.rail]   the card is a narrow side rail from the wide breakpoint: small moves, then the
+ *                                 chain grouped by section under them; the page lays it beside the money and sections
  */
 export default function RecordCard({
   status,
@@ -60,6 +62,7 @@ export default function RecordCard({
   failure,
   chainLabel = "Where it stands",
   split = false,
+  rail = false,
 }) {
   const wide = useMediaQuery(WIDE);
   const movesId = useId();
@@ -71,7 +74,8 @@ export default function RecordCard({
 
   // A card move asks first, unless it asks in its own dialog (the filing dialog, the reason of a return).
   const { run: runFromCard, dialog: confirmDialog } = useMoveConfirm({ restate, viewer, origin: CHROME.CARD });
-  const rest = { disabled: busy, busy, failure, onRun: runFromCard, onReview, reviewText };
+  const compact = rail && wide;
+  const rest = { disabled: busy, busy, failure, onRun: runFromCard, onReview, reviewText, compact };
 
   return (
     <section
@@ -80,14 +84,18 @@ export default function RecordCard({
       aria-labelledby="your-move-heading"
       className={cn(
         "overflow-hidden rounded-2xl border border-border bg-card outline-none",
-        split && "xl:grid xl:grid-cols-[minmax(0,1fr)_24rem]",
+        split && !rail && "xl:grid xl:grid-cols-[minmax(0,1fr)_24rem]",
+        compact && "rounded-xl",
       )}
     >
-      <div className="space-y-4 p-5">
-        <h2 id="your-move-heading" className="text-base font-semibold text-foreground">
+      <div className={compact ? "space-y-3 p-3.5" : "space-y-4 p-5"}>
+        <h2
+          id="your-move-heading"
+          className={compact ? "text-[11px] font-bold uppercase tracking-wider text-muted-foreground" : "text-base font-semibold text-foreground"}
+        >
           Your move
         </h2>
-        <p className="text-sm text-foreground">{status}</p>
+        <p className={cn("text-sm text-foreground", compact && "-mt-2 font-semibold")}>{status}</p>
         {next && (
           <p className="text-sm">
             <Link to={next.to} className="font-semibold text-foreground underline underline-offset-4">
@@ -108,11 +116,17 @@ export default function RecordCard({
           </Button>
         )}
         {(wide || movesOpen) && (
-          <div id={movesId} className="space-y-4">
+          <div id={movesId} className={compact ? "space-y-2" : "space-y-4"}>
             {groups
               .filter((group) => group.items.length > 0)
               .map((group, index) => (
-                <MoveGroup key={index} items={group.items} origin={CHROME.CARD} className={group.className} {...rest} />
+                <MoveGroup
+                  key={index}
+                  items={group.items}
+                  origin={CHROME.CARD}
+                  className={compact ? cn("space-y-1.5", group.className?.includes("border-t") && "border-t border-border pt-2") : group.className}
+                  {...rest}
+                />
               ))}
             {footnote}
           </div>
@@ -133,8 +147,11 @@ export default function RecordCard({
         </div>
       )}
       {(wide || chainOpen) && (
-        <div id="your-move-chain" className={cn("border-t border-border p-5", split && "xl:border-t-0 xl:border-l")}>
-          <RecordChain gates={gates} label={chainLabel} />
+        <div
+          id="your-move-chain"
+          className={cn("border-t border-border", compact ? "px-3.5 py-3" : "p-5", split && !rail && "xl:border-t-0 xl:border-l")}
+        >
+          <RecordChain gates={gates} label={chainLabel} compact={compact} />
         </div>
       )}
 

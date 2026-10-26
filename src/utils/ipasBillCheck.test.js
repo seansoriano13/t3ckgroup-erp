@@ -17,10 +17,10 @@ const ipas = ({ total = 11200, pi = null, copy } = {}) => ({
 const view = (over) => billCheckView(ipasFigures(ipas(over)))
 
 describe("billCheckView", () => {
-  it("says = matches when the P.I equals the Odoo PO total, and has nothing to warn about", () => {
+  it("says it matches when the P.I equals the Odoo PO total, and has nothing to warn about", () => {
     const result = view({ pi: 11200 })
     expect(result.kind).toBe(BILL_CHECK_KIND.MATCHES)
-    expect(result.verdict).toBe("= matches")
+    expect(result.verdict).toBe("Matches the Odoo PO")
     expect(result.warning).toBeNull()
     expect(result.poText).toBe("₱11,200.00")
     expect(result.piText).toBe("₱11,200.00")
@@ -29,13 +29,13 @@ describe("billCheckView", () => {
   it("says how much more the P.I is when it is higher, and warns", () => {
     const result = view({ pi: 16200 })
     expect(result.kind).toBe(BILL_CHECK_KIND.DIFFERS)
-    expect(result.verdict).toBe("≠ P.I is ₱5,000.00 more")
+    expect(result.verdict).toBe("P.I is ₱5,000.00 more than the Odoo PO")
     expect(result.warning).toBe("Supplier bill check: the P.I is ₱5,000.00 more than the Odoo PO (₱16,200.00 against ₱11,200.00).")
   })
 
   it("says how much less the P.I is when it is lower, and warns", () => {
     const result = view({ pi: 11199.5 })
-    expect(result.verdict).toBe("≠ P.I is ₱0.50 less")
+    expect(result.verdict).toBe("P.I is ₱0.50 less than the Odoo PO")
     expect(result.warning).toMatch(/₱0\.50 less than the Odoo PO/)
   })
 
@@ -56,7 +56,7 @@ describe("billCheckView", () => {
     const result = view({ pi: 11200, copy: OLD_COPY })
     expect(result.kind).toBe(BILL_CHECK_KIND.BEFORE_TAX)
     expect(result.verdict).toMatch(/before tax/)
-    expect(result.verdict).not.toMatch(/≠/)
+    expect(result.verdict).not.toMatch(/than the Odoo PO/)
     expect(result.warning).toBeNull()
   })
 
@@ -74,6 +74,6 @@ describe("billCheckView", () => {
     const result = billCheckView(
       ipasFigures({ state: "open", payments: [], pi_qt_amount: 1200, odoo_copy: { po: { currency: "USD", amount_total: 1000 }, lines: [] } }),
     )
-    expect(result.verdict).toBe("≠ P.I is $200.00 more")
+    expect(result.verdict).toBe("P.I is $200.00 more than the Odoo PO")
   })
 })

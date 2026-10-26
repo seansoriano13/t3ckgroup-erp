@@ -184,7 +184,8 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
 
       renderList();
       await screen.findAllByTestId("ipas-row");
-      await user.click(screen.getByRole("button", { name: /All IPAS/ }));
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(await screen.findByRole("button", { name: /All IPAS/ }));
       await user.click(await screen.findByRole("button", { name: "Unpaid" }));
 
       await waitFor(() => expect(shownPos()).toEqual(["P02001", "P02002"]));
@@ -200,11 +201,14 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
 
       renderList();
       await screen.findAllByTestId("ipas-row");
-      await user.click(screen.getByRole("button", { name: /All IPAS/ }));
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(await screen.findByRole("button", { name: /All IPAS/ }));
       await user.click(await screen.findByRole("button", { name: "On-Hold" }));
       await waitFor(() => expect(shownPos()).toEqual(["P02002"]));
 
-      await user.click(within(screen.getByTestId("page-toolbar")).getByRole("button", { name: /On-Hold/ }));
+      // The view sits behind Filters; open it again if picking closed it.
+      if (!screen.queryByRole("button", { name: /^On-Hold$/ })) await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(await screen.findByRole("button", { name: /^On-Hold$/ }));
       await user.click(await screen.findByRole("button", { name: "Ongoing" }));
       await waitFor(() => expect(shownPos()).toEqual(["P02003"]));
     });
@@ -217,7 +221,8 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
 
       renderList();
       await screen.findAllByTestId("ipas-row");
-      await user.click(screen.getByRole("button", { name: /All IPAS/ }));
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(await screen.findByRole("button", { name: /All IPAS/ }));
       await user.click(await screen.findByRole("button", { name: "Raised by me" }));
 
       await waitFor(() => expect(shownPos()).toEqual(["P02001"]));
@@ -238,13 +243,37 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
 
       await waitFor(() => expect(screen.queryByTestId("ipas-row-amount")).not.toBeInTheDocument());
       expect(screen.queryByRole("columnheader", { name: /^Amount/ })).not.toBeInTheDocument();
-      expect(JSON.parse(localStorage.getItem(`erp_ipas_columns_${purchaser.id}`))).toEqual(["amount"]);
+      expect(JSON.parse(localStorage.getItem(`erp_ipas_columns_${purchaser.id}`))).toEqual(["raised-by", "dp", "fp", "amount"]);
 
       first.unmount();
       renderList();
       await screen.findAllByTestId("ipas-row");
       expect(screen.queryByTestId("ipas-row-amount")).not.toBeInTheDocument();
       expect(screen.getByTestId("ipas-row-remaining")).toBeInTheDocument();
+    });
+
+    it("starts without Raised by, DP and FP for someone who never chose columns", async () => {
+      ipas({ po_number: "P02001", pi_qt_amount: 10000 });
+
+      renderList();
+      await screen.findAllByTestId("ipas-row");
+
+      for (const heading of ["Raised by", "DP", "FP"]) {
+        expect(screen.queryByRole("columnheader", { name: new RegExp(`^${heading}`) })).not.toBeInTheDocument();
+      }
+      expect(screen.getByRole("columnheader", { name: /^State/ })).toBeInTheDocument();
+    });
+
+    it("keeps a saved column choice, even when it shows everything", async () => {
+      ipas({ po_number: "P02001", pi_qt_amount: 10000 });
+      localStorage.setItem(`erp_ipas_columns_${purchaser.id}`, "[]");
+
+      renderList();
+      await screen.findAllByTestId("ipas-row");
+
+      for (const heading of ["Raised by", "DP", "FP"]) {
+        expect(screen.getByRole("columnheader", { name: new RegExp(`^${heading}`) })).toBeInTheDocument();
+      }
     });
 
     it("still works when the browser blocks storage", async () => {
@@ -260,9 +289,9 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
       renderList();
       await screen.findAllByTestId("ipas-row");
       await user.click(screen.getByRole("button", { name: /Columns/ }));
-      await user.click(await pickerOption("DP"));
+      await user.click(await pickerOption("Amount"));
 
-      await waitFor(() => expect(screen.queryByTestId("ipas-row-dp")).not.toBeInTheDocument());
+      await waitFor(() => expect(screen.queryByTestId("ipas-row-amount")).not.toBeInTheDocument());
       getItem.mockRestore();
       setItem.mockRestore();
     });

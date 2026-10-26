@@ -4,11 +4,12 @@
  * change clears which sign-off.
  *
  * The cast, on one SOR:
- *   dealOwner   Deal Team, the matrix's Sales incharge       -> price tier, signs "prepared"
- *   support     Deal Team, not the incharge                  -> price tier
- *   outsider    Purchasing access, the Purchasing incharge   -> cost tier, signs "costed"
+ *   dealOwner   Deal Team, the matrix's Sales incharge       -> closed_book tier, signs "prepared"
+ *   support     Deal Team, not the incharge                  -> closed_book tier
+ *   outsider    Purchasing access, the Purchasing incharge   -> closed_book tier, signs "costed"
  *   ipasSigner  on the final_acquire list                    -> closed_book, signs "final_approved"
  *   superAdmin  closed_book, on no list, incharge of nothing
+ * Since 20261102180000 anyone at the Closed Book may approve the Final Acquire and offer, not only the list.
  *   ordinary    nobody                                       -> no tier
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -65,6 +66,8 @@ beforeAll(async () => {
     // ...and #556 carries costing_sign forward with its refusal codes, so put that on top. Only the
     // costing functions: replaying the whole file would put back the IPAS functions as of #556 too.
     await replayCostingFunctions(sql(), "supabase/migrations/20261023210000_refusal_codes.sql")
+    // ...and 20261102180000 opens costing_sign's Final Acquire sign-off per SOR, so put that on top too.
+    await replayCostingFunctions(sql(), "supabase/migrations/20261102180000_costing_open_review_fixes.sql")
     await ensureCastLoaded()
     await asSvc(svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider), "purchasing flag")
     previousSignature = (await asSvc(svc().from("employees").select("signature_path").eq("id", ids.dealOwner).single(), "signature")).signature_path
@@ -153,12 +156,19 @@ describe("Costed by", () => {
 })
 
 describe("Final Acquire and offer approved", () => {
-    it("is refused to anyone off the final_acquire list, a Super Admin included", async () => {
+    it("lets the Deal Team, Purchasing and a Super Admin approve it too, as they read the Closed Book", async () => {
         for (const who of ["dealOwner", "outsider", "superAdmin"]) {
             const { error } = await sign(who, "final_approved")
-            expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error?.message, who).toBe("costing_sign: only someone on the Final Acquire list can approve the Final Acquire and offer")
+            expect(error, who).toBeNull()
+            expect((await live("final_approved"))?.signed_by, who).toBe(ids[who])
+            await svc().from("costing_signoffs").delete().eq("matrix_id", matrixId).eq("role", "final_approved")
         }
+        expect(await live("final_approved")).toBeNull()
+    })
+
+    it("is refused to someone who cannot read the matrix", async () => {
+        const { error } = await sign("ordinary", "final_approved")
+        expect(error?.code).toBe(RLS_VIOLATION)
         expect(await live("final_approved")).toBeNull()
     })
 

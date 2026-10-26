@@ -71,6 +71,60 @@ describe("purchaseRequestService — Requested Items", () => {
     expect(sorLineChange(item)).toBeNull()
   })
 
+  it("follows the SOR line: the item takes the new quantity, and the request says so", async () => {
+    await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
+    await opportunityService.updateOpportunity(
+      opportunity.id,
+      { items: [{ ...productList[0], quantity: 12 }, productList[1]] },
+      salesperson.id,
+    )
+
+    await purchaseRequestService.updateItemFromSor((await purchaseRequestService.listItems(request.id))[0].id)
+
+    const [item] = await purchaseRequestService.listItems(request.id)
+    expect(item).toMatchObject({ quantity: 12, sor_line_snapshot: { quantity: 12, unit: "pc" } })
+    expect(sorLineChange(item)).toBeNull()
+    const posted = db.internal.rowsOf("purchase_request_messages").find((m) => m.metadata?.event === "item_followed_sor")
+    expect(posted.content).toBe("Updated Full Body Harness from 10 pc to 12 pc, as the SOR now says.")
+  })
+
+  it("wants a reason once the item is Ordered, and posts it", async () => {
+    await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
+    const [added] = await purchaseRequestService.listItems(request.id)
+    db.internal.rowsOf("purchase_request_items").find((i) => i.id === added.id).status = "ordered"
+    await opportunityService.updateOpportunity(
+      opportunity.id,
+      { items: [{ ...productList[0], quantity: 12 }, productList[1]] },
+      salesperson.id,
+    )
+
+    await expect(purchaseRequestService.updateItemFromSor(added.id)).rejects.toThrow(/say why/)
+    await purchaseRequestService.updateItemFromSor(added.id, "Client added two")
+    const posted = db.internal.rowsOf("purchase_request_messages").find((m) => m.metadata?.event === "item_followed_sor")
+    expect(posted.content).toMatch(/Reason: Client added two$/)
+  })
+
+  it("keeps an item as asked: the flag goes quiet until the SOR changes again", async () => {
+    await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
+    await opportunityService.updateOpportunity(
+      opportunity.id,
+      { items: [{ ...productList[0], quantity: 12 }, productList[1]] },
+      salesperson.id,
+    )
+    const [flagged] = await purchaseRequestService.listItems(request.id)
+    expect(sorLineChange(flagged)?.kind).toBe(SOR_LINE_CHANGE.CHANGED)
+
+    await purchaseRequestService.keepItemAsAsked(flagged.id)
+    expect(sorLineChange((await purchaseRequestService.listItems(request.id))[0])).toBeNull()
+
+    await opportunityService.updateOpportunity(
+      opportunity.id,
+      { items: [{ ...productList[0], quantity: 15 }, productList[1]] },
+      salesperson.id,
+    )
+    expect(sorLineChange((await purchaseRequestService.listItems(request.id))[0])?.quantity).toBe(15)
+  })
+
   it("says the line is gone once the SOR drops it", async () => {
     const kit = await lineNamed("Rope Access Kit")
     await purchaseRequestService.addItemFromLine(request.id, kit.id)

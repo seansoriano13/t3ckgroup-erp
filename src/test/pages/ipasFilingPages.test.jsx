@@ -425,10 +425,14 @@ describe("IPAS section 7 and Filing", () => {
       expect(cleared.map((s) => s.role).sort()).toEqual(["approved", "checked", "noted", "received"]);
       expect(cleared.every((s) => s.cleared_reason === "Reopened: Charges were misread")).toBe(true);
       // Sections 1 and 3 stay approved; section 7 starts from Received again.
-      await user.click(await screen.findByRole("button", { name: /^1 · Purchasing/ }));
+      // The sections open in place, in the record window.
+      const openSection = async (name) => {
+        const row = await screen.findByRole("button", { name });
+        if (row.getAttribute("aria-expanded") !== "true") await user.click(row);
+      };
+      await openSection(/^1 · Purchasing/);
       expect(within(await screen.findByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument();
-      await user.keyboard("{Escape}");
-      await user.click(await screen.findByRole("button", { name: /^4 · Filing/ }));
+      await openSection(/^4 · Filing/);
       expect(await screen.findByTestId("ipas-signoff-history-7")).toBeInTheDocument();
     });
   });

@@ -1,18 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-// eslint-disable-next-line no-unused-vars
-import { LayoutGroup, MotionConfig, motion } from "framer-motion";
 import QueryError from "@/components/ui/QueryError";
-import { PackageSearch } from "lucide-react";
+import { AlertTriangle, PackageSearch } from "lucide-react";
 
 import EmptyState from "@/components/ui/EmptyState";
 import Spinner from "@/components/ui/Spinner";
 import AddRequestedItems from "./AddRequestedItems";
-import RequestedItemRow from "./RequestedItemRow";
-import { SPRING, groupItems } from "./requestedItemGroups";
+import UnrequestedSorLinesHint from "./UnrequestedSorLinesHint";
+import LinerList from "@/components/record/LinerList";
+import RequestedItemDetails from "./RequestedItemDetails";
+import { groupItems } from "./requestedItemGroups";
 import RequestedItemActions from "./RequestedItemActions";
-import RequestedItemCanvass from "./RequestedItemCanvass";
 import StatusBadge from "../StatusBadge";
+import { ITEM_SOURCE_LABEL, formatAmount, requestedItemStock, sorLineChange, SOR_LINE_CHANGE } from "../../utils/requestedItem";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
   ITEM_STATUS,
@@ -22,30 +21,52 @@ import {
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
 
-/** Which rows are open, and whether the list is wide enough for two columns. */
-function useListLayout() {
-  const [open, setOpen] = useState(() => new Set());
-  const toggle = useCallback(
-    (id) =>
-      setOpen((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      }),
-    [],
-  );
-  const [node, setNode] = useState(null);
-  const [wide, setWide] = useState(false);
-  useEffect(() => {
-    if (!node || typeof ResizeObserver === "undefined") return undefined;
-    const check = () => setWide(node.clientWidth >= 720);
-    check();
-    const observer = new ResizeObserver(check);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [node]);
-  return { open, toggle, wide, setNode };
+/** The one quiet line under a name: the PO, else the stock, else where the item came from. */
+function summaryOf(item, stock) {
+  if (item.po_number) return `PO ${item.po_number}`;
+  if (stock) return `Stock: ${stock.badge.label}`;
+  return ITEM_SOURCE_LABEL[item.source] || "From the SOR";
+}
+
+/**
+ * One Requested Item (#305) as a LinerList row: its name over a one-line
+ * summary (the PO, the stock, or where it came from), the quantity, and its
+ * status, which is the status menu (#306) in `actions` or a plain badge. The
+ * rest of the item opens in place as a DetailGrid.
+ *
+ * `stockSnapshot` is the SOR's `sor_stock_snapshots` row. `replaces` /
+ * `replacedBy` are the items on either end of a Buyer's substitute.
+ *
+ * An item added from the Costing Matrix (#273) shows the Component it buys for as "1.2 · name".
+ * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
+ * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
+ */
+function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null }) {
+  const stock = requestedItemStock(item, stockSnapshot);
+  // A closed item keeps what was asked, so it carries no flag in the list.
+  const change = isClosedStatus(item.status) ? null : sorLineChange(item);
+  return {
+    key: item.id,
+    testId: "requested-item",
+    main: item.name,
+    label: item.name,
+    sub: change ? (
+      <>
+        {summaryOf(item, stock)}
+        {" · "}
+        <span className="inline-flex items-center gap-1 font-medium text-amber-11">
+          <AlertTriangle size={12} className="shrink-0" aria-hidden="true" />
+          {change.kind === SOR_LINE_CHANGE.REMOVED ? "SOR line removed" : "SOR changed"}
+        </span>
+      </>
+    ) : (
+      summaryOf(item, stock)
+    ),
+    quantity: formatAmount(item.quantity, item.unit),
+    badge: { label: ITEM_STATUS_LABELS[item.status] || item.status, theme: ITEM_STATUS_THEME[item.status] },
+    actions,
+    children: <RequestedItemDetails item={item} stock={stock} replaces={replaces} replacedBy={replacedBy} />,
+  };
 }
 
 /**
@@ -82,7 +103,6 @@ export default function RequestedItems({ request, renderActions }) {
       .filter((i) => i.substitute_for_item_id)
       .map((i) => [i.substitute_for_item_id, i]),
   );
-  const { open: openRows, toggle, wide, setNode } = useListLayout();
   const groups = groupItems(items);
   const open = items.filter((i) => !isClosedStatus(i.status)).length;
 
@@ -99,6 +119,7 @@ export default function RequestedItems({ request, renderActions }) {
         </h3>
         <AddRequestedItems request={request} items={items} />
       </div>
+      {items.length > 0 && <UnrequestedSorLinesHint request={request} items={items} />}
 
       {itemsQuery.isLoading ? (
         <div className="flex justify-center py-8">
@@ -117,74 +138,34 @@ export default function RequestedItems({ request, renderActions }) {
           className="py-10"
         />
       ) : (
-        <MotionConfig reducedMotion="user">
-          <LayoutGroup>
-            <div ref={setNode} className="flex flex-col gap-8">
-              {groups.map((g) => (
-                <motion.section
-                  key={g.key}
-                  layout
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={SPRING}
-                  className="flex flex-col gap-3"
-                  aria-label={g.label}
-                  data-testid={`requested-group-${g.key}`}
-                >
-                  <motion.h4
-                    layout="position"
-                    className="flex items-baseline gap-2 px-1 text-xs font-semibold text-foreground"
-                  >
-                    {g.label}
-                    <span className="font-medium tabular-nums text-muted-foreground">
-                      {g.list.length}
-                    </span>
-                  </motion.h4>
-                  <ul className="flex flex-col gap-2">
-                    {g.list.map((item) => (
-                      <RequestedItemRow
-                        key={item.id}
-                        item={item}
-                        stockSnapshot={stockSnapshot}
-                        open={openRows.has(item.id)}
-                        onToggle={() => toggle(item.id)}
-                        wide={wide}
-                        canvass={
-                          <RequestedItemCanvass
-                            item={item}
-                            request={request}
-                            actor={actor}
-                          />
-                        }
-                        replaces={byId.get(item.substitute_for_item_id)}
-                        replacedBy={substituteOf.get(item.id)}
-                        actions={
-                          renderActions ? (
-                            <div className="flex items-center gap-2">
-                              <StatusBadge
-                                label={
-                                  ITEM_STATUS_LABELS[item.status] || item.status
-                                }
-                                theme={ITEM_STATUS_THEME[item.status]}
-                              />
-                              {renderActions(item)}
-                            </div>
-                          ) : (
-                            <RequestedItemActions
-                              item={item}
-                              request={request}
-                              actor={actor}
-                            />
-                          )
-                        }
-                      />
-                    ))}
-                  </ul>
-                </motion.section>
-              ))}
-            </div>
-          </LayoutGroup>
-        </MotionConfig>
+        <LinerList
+          label="Requested Items"
+          groups={groups.map((g) => ({
+            key: g.key,
+            title: g.label,
+            count: g.list.length,
+            testId: `requested-group-${g.key}`,
+            rows: g.list.map((item) =>
+              requestedItemRow({
+                item,
+                stockSnapshot,
+                replaces: byId.get(item.substitute_for_item_id),
+                replacedBy: substituteOf.get(item.id),
+                actions: renderActions ? (
+                  <div className="flex items-center gap-2">
+                    <StatusBadge
+                      label={ITEM_STATUS_LABELS[item.status] || item.status}
+                      theme={ITEM_STATUS_THEME[item.status]}
+                    />
+                    {renderActions(item)}
+                  </div>
+                ) : (
+                  <RequestedItemActions item={item} request={request} actor={actor} />
+                ),
+              }),
+            ),
+          }))}
+        />
       )}
     </section>
   );

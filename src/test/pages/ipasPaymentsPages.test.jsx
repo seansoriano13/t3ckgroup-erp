@@ -132,8 +132,8 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(within(saved).getByText("Down payment")).toBeInTheDocument();
       expect(within(saved).getByDisplayValue("CHK-0042")).toBeInTheDocument();
       // DP is read off the rows. The record page shows no balance yet (the IPAS list does, #596).
-      // Only the record page is on screen now (#602), so the whole screen is the record.
-      const record = document.body;
+      // The IPAS list sits behind the record window, so read the window only.
+      const record = screen.getAllByRole("dialog").find((dialog) => dialog.dataset.modalShell === "record");
       await waitFor(() => expect(within(record).getByText("DP").parentElement).toHaveTextContent(/3,000\.00/));
       expect(within(record).queryByText(/balance/i)).not.toBeInTheDocument();
     }, 20_000);
@@ -252,7 +252,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.type(amount, "640");
       // Optional (#604): no Needed mark, a one-line explanation under it, and Save all goes without it.
       expect(within(payment).queryByText("Needed")).not.toBeInTheDocument();
-      expect(within(payment).getByTestId("payment-pesos-hint")).toHaveTextContent(/Leave it blank until then/);
+      expect(within(payment).getByTestId("payment-pesos-hint")).toHaveTextContent(/Left blank, Landed Cost uses the Reference Rate/);
       await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
@@ -471,14 +471,14 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.queryByRole("button", { name: "Checked by" })).not.toBeInTheDocument();
     });
 
-    it("moves the status one step either way for Purchasing, and no further", async () => {
+    it("jumps the status to any step for Purchasing (feedback on #595)", async () => {
       const row = ipas({ po_number: "P02552", computation_status: "encoded" });
 
       renderDetail(row.id, "costing", "edit");
 
       expect(await screen.findByRole("button", { name: "LC GS Done" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Encoding" })).toBeEnabled();
-      expect(screen.getByRole("button", { name: "LC Odoo Done" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "LC Odoo Done" })).toBeEnabled();
       expect(screen.queryByRole("button", { name: "Checked by" })).not.toBeInTheDocument();
     });
 

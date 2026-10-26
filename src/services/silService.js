@@ -306,25 +306,6 @@ export const silService = {
   },
 
   /**
-   * Fetch approved SIL leaves for the shared calendar — employee view.
-   *
-   * Projects only the fields the calendar needs (person, date, type, time
-   * window). Reason, hours balance, and signature path are omitted at the
-   * query level so they never reach a non-HR browser. HR uses getAllSilLeaves
-   * instead. See ADR 0012.
-   */
-  async getCalendarSilLeaves(startDate = null, endDate = null) {
-    // RPC (security definer): table RLS is own-row/HR only, so a direct select
-    // would hide colleagues' leaves. The function returns the projection only.
-    const { data, error } = await supabase.rpc('get_calendar_sil_leaves', {
-      p_start: startDate,
-      p_end: endDate,
-    });
-    if (error) throw new Error(error.message);
-    return data || [];
-  },
-
-  /**
    * Fetch all pending SIL leaves across all time (HR)
    */
   async getAllPendingSilLeaves() {

@@ -7,7 +7,7 @@
  *
  * The cast, on one SOR (dealOwner is its Deal Team):
  *   dealOwner   Deal Team                         -> reads the evidence
- *   outsider    Purchasing access, no part in it  -> cost tier (writes Acquire, adds cost-only rows)
+ *   outsider    Purchasing access, no part in it  -> closed_book tier (writes Acquire, adds cost-only rows)
  *   ipasSigner  on the final_acquire list         -> closed_book (writes Final Acquire)
  *   ordinary    nobody                            -> refused
  */

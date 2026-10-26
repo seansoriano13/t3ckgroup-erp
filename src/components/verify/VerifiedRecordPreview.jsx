@@ -20,6 +20,14 @@ function getStatusConfig(status) {
   }
 }
 
+/** Same wording the printed TG-11 uses for how a record is treated. */
+function treatedAsLabel(formType, category) {
+  if (formType === "Offset") return "Offset";
+  if (formType === "LWOP") return "Leave Without Pay (LWOP)";
+  if (formType === "Leave") return "Leave With Pay (LWP)";
+  return category;
+}
+
 export default function VerifiedRecordPreview({ token, standalone = false }) {
   const { user, isAuthLoading } = useAuth();
   
@@ -65,6 +73,11 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
             table = "offset_leaves";
             employeeFkey = "offset_leaves_employee_id_fkey";
             hrFkey = "offset_leaves_hr_processed_by_fkey";
+          }
+          if (record.form_type === "LWOP") {
+            table = "lwop_leaves";
+            employeeFkey = "lwop_leaves_employee_id_fkey";
+            hrFkey = "lwop_leaves_hr_processed_by_fkey";
           }
           if (record.form_type === "Overtime") {
             table = "overtime_requests";
@@ -222,7 +235,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
                 <h2 className="text-lg font-semibold text-[#37352F] border-b border-[#E9E9E7] pb-2 mb-4">Details</h2>
                 <div className="space-y-1">
                   <DetailRow label="Employee" value={fullRecord.employee_name} />
-                  <DetailRow label="Category" value={fullRecord.category} />
+                  <DetailRow label="Treated as" value={treatedAsLabel(fullRecord.form_type, fullRecord.category)} />
                   <DetailRow label="Inclusive Dates" value={new Date(fullRecord.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} />
                   <DetailRow label="Total Hours" value={`${fullRecord.total_hours} hrs`} />
                 </div>
@@ -288,7 +301,8 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
 
             <div className="space-y-1">
               <DetailRow label="Employee" value={data.employee_name} />
-              <DetailRow label="Form Type" value={`${data.form_type} (${data.category})`} />
+              <DetailRow label="Form Type" value={data.form_type} />
+              <DetailRow label="Treated as" value={treatedAsLabel(data.form_type, data.category)} />
               <DetailRow label="Dates" value={data.inclusive_dates} />
               <DetailRow label="Total Hours" value={`${data.total_hours} hrs`} />
             </div>

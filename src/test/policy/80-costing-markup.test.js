@@ -1,16 +1,16 @@
 /**
- * Costing Matrix, markup (#269, spec #266, amended by #316 and #319): the Final Acquire list
- * sets the markup factor and the named presets, only the Closed Book reads a factor, and Sales
- * reads the peso Markup Price (computed in the database) without the Acquire or the factor
- * behind it.
+ * Costing Matrix, markup (#269, spec #266, amended by #316 and #319, loosened by 20261102170000):
+ * Sales, Purchasing and the Final Acquire list set the markup factor and the named presets, only
+ * the Closed Book reads a factor, and the price tier reads the peso Markup Price (computed in the
+ * database) without the Acquire or the factor behind it.
  *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
- *   dealOwner, support  Deal Team                         -> price tier, Sales band
- *   outsider            Purchasing access, no part in it  -> cost tier, Purchasing band
+ *   dealOwner, support  Deal Team                         -> closed_book, Sales band
+ *   outsider            Purchasing access, no part in it  -> closed_book, Purchasing band
  *   stageParticipant    open Stage Participant window     -> participant tier, no band
  *   finance             Finance access alone              -> no tier
  *   ipasSigner          on the final_acquire list         -> closed_book, Management band
- *   superAdmin                                            -> closed_book, never Management
+ *   superAdmin                                            -> closed_book, Sales and Purchasing
  *   ordinary            nobody                            -> no tier
  *
  * Fixtures are written with the service role (the band trigger lets it through); every
@@ -163,8 +163,15 @@ describe("markup presets: who reads and writes", () => {
         expect(seen.data).toHaveLength(2)
     })
 
-    it("refuses a plain employee, Purchasing, Sales, Finance and a Stage Participant writing a preset", async () => {
-        for (const who of ["ordinary", "outsider", "dealOwner", "finance", "stageParticipant"]) {
+    it("lets Sales and Purchasing add a preset too", async () => {
+        for (const who of ["outsider", "dealOwner"]) {
+            const { error } = await (await clientFor(who)).from("costing_markup_presets").insert({ label: presetLabel(`By ${who}`), factor: 1.2 })
+            expect(error, who).toBeNull()
+        }
+    })
+
+    it("refuses a plain employee, Finance and a Stage Participant writing a preset", async () => {
+        for (const who of ["ordinary", "finance", "stageParticipant"]) {
             const { error } = await (await clientFor(who)).from("costing_markup_presets").insert({ label: presetLabel(`Nope ${who}`), factor: 9 })
             expect(error?.code, who).toBe(RLS_VIOLATION)
         }
@@ -173,7 +180,7 @@ describe("markup presets: who reads and writes", () => {
     })
 
     it("refuses those same people editing a preset, and shows them none", async () => {
-        for (const who of ["ordinary", "outsider", "dealOwner", "finance", "stageParticipant"]) {
+        for (const who of ["ordinary", "finance", "stageParticipant"]) {
             const client = await clientFor(who)
             const edit = await client.from("costing_markup_presets").update({ factor: 9 }).eq("id", govPreset).select("id")
             expect(edit.data ?? [], who).toEqual([])
@@ -213,11 +220,12 @@ describe("markup presets: who reads and writes", () => {
         expect(negative.error?.code).toBe(CHECK_VIOLATION)
     })
 
-    it("tells the screen who edits presets: the Final Acquire list and Super Admins", async () => {
+    it("tells the screen who edits presets: the Final Acquire list, Super Admins, Purchasing and the Deal Team", async () => {
         const answer = async (who) => (await (await clientFor(who)).rpc("costing_can_manage_markup")).data
-        expect(await answer("ipasSigner")).toBe(true)
-        expect(await answer("superAdmin")).toBe(true)
-        for (const who of ["outsider", "dealOwner", "ordinary", "finance", "stageParticipant"]) {
+        for (const who of ["ipasSigner", "superAdmin", "outsider", "dealOwner"]) {
+            expect(await answer(who), who).toBe(true)
+        }
+        for (const who of ["ordinary", "finance", "stageParticipant"]) {
             expect(await answer(who), who).toBe(false)
         }
     })
@@ -229,23 +237,24 @@ describe("markup presets: who reads and writes", () => {
     })
 })
 
-describe("the default factor: only the Final Acquire list writes it", () => {
-    it("refuses Sales, Purchasing, a Stage Participant, a plain employee and Finance, naming the band", async () => {
-        for (const who of ["dealOwner", "support", "outsider", "stageParticipant"]) {
-            const error = await setMatrixMoney(who, { default_factor: 1.35 })
-            expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error.message, who).toBe("costing_band:costing_matrix_money.default_factor:management")
+describe("the default factor: Sales, Purchasing and the Final Acquire list write it", () => {
+    it("lets Sales, Purchasing and a Super Admin write it", async () => {
+        for (const [who, factor] of [["dealOwner", 1.21], ["support", 1.22], ["outsider", 1.23], ["superAdmin", 1.24]]) {
+            expect(await setMatrixMoney(who, { default_factor: factor }), who).toBeNull()
         }
+        const row = await asSvc(svc().from("costing_matrix_money").select("*").eq("matrix_id", matrixId).single(), "money")
+        expect(Number(row.default_factor)).toBe(1.24)
+    })
+
+    it("refuses a Stage Participant, a plain employee and Finance, naming the band", async () => {
+        const error = await setMatrixMoney("stageParticipant", { default_factor: 1.35 })
+        expect(error?.code).toBe(RLS_VIOLATION)
+        expect(error.message).toBe("costing_band:costing_matrix_money.default_factor:sales,purchasing,management")
         for (const who of ["ordinary", "finance"]) {
             expect((await setMatrixMoney(who, { default_factor: 1.35 }))?.code, who).toBe(RLS_VIOLATION)
         }
-        const preset = await setMatrixMoney("dealOwner", { default_preset_id: govPreset })
-        expect(preset.message).toBe("costing_band:costing_matrix_money.default_preset_id:management")
-    })
-
-    it("refuses a Super Admin who is not on the list: the Closed Book reads it, only the list sets it", async () => {
-        const error = await setMatrixMoney("superAdmin", { default_factor: 1.35 })
-        expect(error?.message).toBe("costing_band:costing_matrix_money.default_factor:management")
+        const preset = await setMatrixMoney("stageParticipant", { default_preset_id: govPreset })
+        expect(preset.message).toBe("costing_band:costing_matrix_money.default_preset_id:sales,purchasing,management")
     })
 
     it("lets the Final Acquire list type a factor or take a preset, and refuses a factor of zero", async () => {
@@ -272,14 +281,14 @@ describe("the default factor: only the Final Acquire list writes it", () => {
     })
 
     it("serves the default factor to the Closed Book alone, with no money row at all for everyone else", async () => {
-        for (const who of ["superAdmin", "ipasSigner"]) {
+        for (const who of ["superAdmin", "ipasSigner", "dealOwner", "outsider"]) {
             const read = await readMatrix(who)
             expect(read.tier).toBe("closed_book")
             const [money] = tableOf(read, "costing_matrix_money")
             expect(Object.keys(money).sort(), who).toEqual(["default_factor", "default_preset_id", "marketing", "matrix_id", "opex"])
             expect(Number(money.default_factor), who).toBe(1.35)
         }
-        for (const who of ["dealOwner", "outsider", "stageParticipant"]) {
+        for (const who of ["stageParticipant"]) {
             const read = await readMatrix(who)
             expect(read.tables.costing_matrix_money, who).toBeUndefined()
             expect(JSON.stringify(read), who).not.toMatch(/default_factor|default_preset_id/)
@@ -287,29 +296,33 @@ describe("the default factor: only the Final Acquire list writes it", () => {
     })
 
     it("keeps the money row closed to direct reads below the Closed Book", async () => {
-        for (const who of ["dealOwner", "outsider", "stageParticipant", "ordinary", "finance"]) {
+        for (const who of ["stageParticipant", "ordinary", "finance"]) {
             const { data } = await (await clientFor(who)).from("costing_matrix_money").select("matrix_id").eq("matrix_id", matrixId)
             expect(data, who).toEqual([])
         }
-        const closed = await (await clientFor("ipasSigner")).from("costing_matrix_money").select("matrix_id").eq("matrix_id", matrixId)
-        expect(closed.data).toHaveLength(1)
+        for (const who of ["ipasSigner", "dealOwner", "outsider"]) {
+            const closed = await (await clientFor(who)).from("costing_matrix_money").select("matrix_id").eq("matrix_id", matrixId)
+            expect(closed.data, who).toHaveLength(1)
+        }
     })
 })
 
 describe("row overrides: the same band", () => {
-    it("refuses Sales, Purchasing and a Super Admin a Component's factor, and lets the Final Acquire list set it", async () => {
-        for (const who of ["dealOwner", "outsider", "superAdmin", "stageParticipant"]) {
-            expect((await setCost(who, boltsId, { markup_factor: 2 }))?.message, who).toBe("costing_band:costing_component_costs.markup_factor:management")
+    it("lets Sales, Purchasing, a Super Admin and the Final Acquire list set a Component's factor, and refuses anyone else", async () => {
+        for (const [who, factor] of [["dealOwner", 2.1], ["outsider", 2.2], ["superAdmin", 2.3]]) {
+            expect(await setCost(who, boltsId, { markup_factor: factor }), who).toBeNull()
         }
+        expect((await setCost("stageParticipant", boltsId, { markup_factor: 2 }))?.message).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing,management")
         expect((await setCost("ordinary", boltsId, { markup_factor: 2 }))?.code).toBe(RLS_VIOLATION)
         expect(await setCost("ipasSigner", boltsId, { markup_factor: 2 })).toBeNull()
         expect(await setCost("ipasSigner", boltsId, { markup_factor: null })).toBeNull()
     })
 
-    it("refuses those same people a cost-only row's factor, and lets the Final Acquire list set it", async () => {
-        for (const who of ["dealOwner", "outsider", "superAdmin"]) {
-            expect((await setRowMoney(who, plainRowId, { markup_factor: 2 }))?.message, who).toBe("costing_band:costing_cost_rows.markup_factor:management")
+    it("lets the same people set a cost-only row's factor, and refuses a Stage Participant", async () => {
+        for (const [who, factor] of [["dealOwner", 2.1], ["outsider", 2.2], ["superAdmin", 2.3]]) {
+            expect(await setRowMoney(who, plainRowId, { markup_factor: factor }), who).toBeNull()
         }
+        expect((await setRowMoney("stageParticipant", plainRowId, { markup_factor: 2 }))?.message).toBe("costing_band:costing_cost_rows.markup_factor:sales,purchasing,management")
         expect(await setRowMoney("ipasSigner", plainRowId, { markup_factor: 1.2 })).toBeNull()
         expect(await setRowMoney("ipasSigner", plainRowId, { markup_factor: null })).toBeNull()
     })
@@ -321,29 +334,21 @@ describe("row overrides: the same band", () => {
 })
 
 describe("Markup Price: computed in the database", () => {
-    it("gives Sales the peso Markup Price per unit, on every row, and no Acquire and no factor", async () => {
+    it("gives the Deal Team the Markup Price per unit, and a blank one while the Acquire is blank", async () => {
         // default x1.35 (set above); the vehicle has its own x1.47; the Permit row has none (x1.00).
         const read = await readMatrix("dealOwner")
-        expect(read.tier).toBe("price")
+        expect(read.tier).toBe("closed_book")
         expect(Number(markupUnitOf(read, vehicleId))).toBe(3175935) // 2,160,500 x 1.47
         expect(Number(markupUnitOf(read, boltsId))).toBe(24638.18) // 18,250.50 x 1.35 = 24,638.175, half up
-        // A cost-only row is x1.00, so its Markup Price would be its Acquire to the centavo: the price tier gets no
-        // markup_price_unit on cost-only rows at all (Closed Book leak, #266 review). The key is absent, not null.
-        for (const row of tableOf(read, "costing_cost_rows")) expect(Object.keys(row), row.id).not.toContain("markup_price_unit")
-        expect(JSON.stringify(tableOf(read, "costing_cost_rows"))).not.toMatch(/markup_price_unit/)
 
         // A blank Acquire leaves Markup Price blank: the key is there, the value is null, never 0.
-        const costs = tableOf(read, "costing_component_costs")
-        const blank = costs.find((c) => c.component_id === blankId)
+        const blank = tableOf(read, "costing_component_costs").find((c) => c.component_id === blankId)
         expect(blank).toBeDefined()
         expect(blank.markup_price_unit).toBeNull()
-
-        expect(JSON.stringify(read)).not.toMatch(/acquire_unit|markup_factor|default_factor|final_acquire_unit/)
-        expect(Object.keys(costs.find((c) => c.component_id === vehicleId)).sort()).toEqual(["component_id", "markup_price_unit", "odoo_unit"])
     })
 
     it("gives the Closed Book the Markup Price beside the Acquire and the factor behind it", async () => {
-        for (const who of ["superAdmin", "ipasSigner"]) {
+        for (const who of ["superAdmin", "ipasSigner", "dealOwner", "outsider"]) {
             const read = await readMatrix(who)
             const vehicle = tableOf(read, "costing_component_costs").find((c) => c.component_id === vehicleId)
             expect(Number(vehicle.acquire_unit), who).toBe(2160500)
@@ -355,11 +360,7 @@ describe("Markup Price: computed in the database", () => {
         }
     })
 
-    it("gives Purchasing the Acquire and no Markup Price, and a Stage Participant no money at all", async () => {
-        const cost = await readMatrix("outsider")
-        expect(JSON.stringify(cost)).not.toMatch(/markup_price_unit|markup_factor|default_factor/)
-        expect(Number(tableOf(cost, "costing_component_costs").find((c) => c.component_id === vehicleId).acquire_unit)).toBe(2160500)
-
+    it("gives a Stage Participant no money at all", async () => {
         const participant = await readMatrix("stageParticipant")
         expect(participant.tables.costing_component_costs).toBeUndefined()
         expect(participant.tables.costing_cost_rows.every((r) => !("markup_price_unit" in r))).toBe(true)
@@ -433,10 +434,12 @@ describe("Markup Price: computed in the database", () => {
 
 describe("the history", () => {
     it("shows a factor change to the Closed Book and nothing about it to anyone below", async () => {
-        const closed = await (await clientFor("ipasSigner")).rpc("costing_history", { p_opportunity_id: sorId, p_table: "costing_matrix_money" })
-        expect(closed.data.some((e) => e.detail.column === "default_factor" && e.actor_id === ids.ipasSigner)).toBe(true)
+        for (const who of ["ipasSigner", "dealOwner", "outsider"]) {
+            const closed = await (await clientFor(who)).rpc("costing_history", { p_opportunity_id: sorId, p_table: "costing_matrix_money" })
+            expect(closed.data.some((e) => e.detail.column === "default_factor" && e.actor_id === ids.ipasSigner), who).toBe(true)
+        }
 
-        for (const who of ["dealOwner", "outsider"]) {
+        for (const who of ["stageParticipant"]) {
             const below = await (await clientFor(who)).rpc("costing_history", { p_opportunity_id: sorId })
             expect(JSON.stringify(below.data), who).not.toMatch(/default_factor|default_preset_id|markup_factor/)
         }

@@ -105,7 +105,7 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
       id={field}
       scope="col"
       aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
-      className={`${cell} px-2.5 py-2.5 whitespace-nowrap hover:text-foreground transition-colors ${className}`}
+      className={`${cell} px-2.5 py-2.5 whitespace-nowrap overflow-hidden hover:text-foreground transition-colors ${className}`}
     >
       <Button
         type="button"
@@ -113,7 +113,7 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
         onClick={() => onSort(field)}
         className={`h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent w-full gap-0 ${inner || "justify-start"}`}
       >
-        {children}
+        <span className="min-w-0 truncate">{children}</span>
         {icon}
       </Button>
     </TableHead>
@@ -1043,7 +1043,7 @@ export default function OpportunitiesPage() {
         ) : (
           <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <Table tableId="sor-register" className="table-fixed min-w-[1100px]">
+              <Table tableId="sor-register" className="table-fixed min-w-[1290px]">
                 <TableHeader>
                   {/* Sortable headers. The interaction styling is
                       TaskTableView's — cursor-pointer hover:text-foreground
@@ -1055,12 +1055,12 @@ export default function OpportunitiesPage() {
                     <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[80px]">SOR</SortableTh>
                     <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">Sales Ref.</SortableTh>
                     <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
-                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Lead Source</SortableTh>
-                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[18%]">Company</SortableTh>
-                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[20%]">Project</SortableTh>
+                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Lead Source</SortableTh>
+                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[200px]">Company</SortableTh>
+                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[220px]">Project</SortableTh>
                     <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[114px]">Expected Value</SortableTh>
                     <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
-                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Deal Owner</SortableTh>
+                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Deal Owner</SortableTh>
                     <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[192px]">Status</SortableTh>
                   </TableRow>
                 </TableHeader>

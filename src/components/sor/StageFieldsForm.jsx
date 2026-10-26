@@ -99,7 +99,9 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
           const savedThisVisit = isSor ? null : currentValues[field.id];
           const previousValue = isSor ? null : previousValues[field.id];
           const value = draft[field.id] ?? "";
-          const isSaving = isSor ? saving === field.id : saveCustomMutation.isPending;
+          const isSaving = isSor
+            ? saving === field.id
+            : saveCustomMutation.isPending && saveCustomMutation.variables?.field.id === field.id;
 
           return (
             <div key={field.id} className="space-y-1">

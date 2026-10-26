@@ -73,7 +73,7 @@ describe("RequestedItems", () => {
     const group = await screen.findByRole("region", { name: "To do" })
     expect(within(group).getByText("1")).toBeInTheDocument()
     const row = within(group).getByTestId("requested-item")
-    expect(within(row).queryByText("Requested by")).not.toBeInTheDocument()
+    expect(within(row).getByRole("button", { name: /^Open details of/ })).toHaveAttribute("aria-expanded", "false")
     await openRow(row)
     expect(within(row).getByText("Requested by")).toBeInTheDocument()
   })
@@ -92,6 +92,132 @@ describe("RequestedItems", () => {
     expect(within(row).getByText(/^Stock as of /)).toBeInTheDocument()
     expect(within(row).queryByText("Stale")).not.toBeInTheDocument()
     expect(within(row).getByText("SOR line now says 12 pc")).toBeInTheDocument()
+  })
+
+  describe("when the SOR line changed", () => {
+    const changeHarness = async () => {
+      await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
+      await opportunityService.replaceItems(opportunity.id, [{ ...PRODUCT_LIST[0], quantity: 12 }, PRODUCT_LIST[1]])
+    }
+
+    it("flags the row in the list, before it is opened", async () => {
+      await changeHarness()
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await screen.findByTestId("requested-item")
+      expect(within(row).getByText("SOR changed")).toBeInTheDocument()
+    })
+
+    it("shows what was asked beside what the SOR says now", async () => {
+      await changeHarness()
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await openRow(await screen.findByTestId("requested-item"))
+      const asked = (await within(row).findByText("Asked")).closest("div")
+      expect(asked).toHaveTextContent("10 pc")
+      const now = within(row).getByText("SOR now").closest("div")
+      expect(now).toHaveTextContent("12 pc")
+      // The part that moved is the only part marked: bold now, struck through when asked.
+      expect(within(now).getByText("12")).toHaveClass("font-bold")
+      expect(within(now).getByText("pc")).not.toHaveClass("font-bold")
+      expect(within(asked).getByText("10")).toHaveClass("line-through")
+    })
+
+    it("updates the item to the SOR, and the request chat says so", async () => {
+      const user = setupUser()
+      await changeHarness()
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await openRow(await screen.findByTestId("requested-item"))
+      await user.click(await within(row).findByRole("button", { name: "Update to SOR" }))
+      await user.click(await screen.findByRole("button", { name: "Update item" }))
+
+      await waitFor(() => expect(within(rows()[0]).getByText("12 pc")).toBeInTheDocument())
+      expect(within(rows()[0]).queryByText("SOR changed")).not.toBeInTheDocument()
+      expect(
+        db.internal.rowsOf("purchase_request_messages").some((m) => m.metadata?.event === "item_followed_sor"),
+      ).toBe(true)
+    })
+
+    it("asks for a reason before following the SOR on an Ordered item", async () => {
+      const user = setupUser()
+      await changeHarness()
+      db.internal.rowsOf("purchase_request_items")[0].status = "ordered"
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await openRow(await screen.findByTestId("requested-item"))
+      await user.click(await within(row).findByRole("button", { name: "Update to SOR" }))
+      const update = await screen.findByRole("button", { name: "Update item" })
+      expect(update).toBeDisabled()
+      await user.type(screen.getByRole("textbox"), "Client added two")
+      expect(update).toBeEnabled()
+    })
+
+    it("warns that a Canvass was done on the old quantity", async () => {
+      const user = setupUser()
+      await changeHarness()
+      const [item] = await purchaseRequestService.listItems(request.id)
+      const listItems = vi
+        .spyOn(purchaseRequestService, "listItems")
+        .mockResolvedValue([{ ...item, canvass: { id: "c1", number: "CNV_1", signed: true } }])
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await openRow(await screen.findByTestId("requested-item"))
+      await user.click(await within(row).findByRole("button", { name: "Update to SOR" }))
+      expect(await screen.findByText(/Quantity changed since the Canvass/)).toBeInTheDocument()
+      listItems.mockRestore()
+    })
+
+    it("keeps the item as asked, and the flag goes quiet", async () => {
+      const user = setupUser()
+      await changeHarness()
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await openRow(await screen.findByTestId("requested-item"))
+      await user.click(await within(row).findByRole("button", { name: "Keep as asked" }))
+
+      await waitFor(() => expect(within(rows()[0]).queryByText("SOR changed")).not.toBeInTheDocument())
+      expect(within(rows()[0]).getByText("10 pc")).toBeInTheDocument()
+    })
+
+    it("says a removed line is gone and offers no update", async () => {
+      await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
+      await opportunityService.replaceItems(opportunity.id, [PRODUCT_LIST[1]])
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await openRow(await screen.findByTestId("requested-item"))
+      expect(await within(row).findAllByText("SOR line removed")).not.toHaveLength(0)
+      expect(within(row).queryByRole("button", { name: "Update to SOR" })).not.toBeInTheDocument()
+    })
+
+    it("has no flag on a closed item", async () => {
+      await changeHarness()
+      db.internal.rowsOf("purchase_request_items")[0].status = "cancelled"
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await screen.findByTestId("requested-item")
+      expect(within(row).queryByText("SOR changed")).not.toBeInTheDocument()
+    })
+  })
+
+  it("says how many SOR lines are not requested yet, and opens the picker from the hint", async () => {
+    const user = setupUser()
+    await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
+    renderWithProviders(<RequestedItems request={request} />)
+
+    const hint = await screen.findByTestId("unrequested-sor-lines")
+    expect(hint).toHaveTextContent("1 SOR line is not requested yet.")
+    await user.click(within(hint).getByRole("button", { name: "Add" }))
+    expect(await screen.findByRole("checkbox", { name: "Rope Access Kit" })).toBeInTheDocument()
+  })
+
+  it("shows no hint once every SOR line is requested", async () => {
+    await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
+    await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Rope Access Kit")).id)
+    renderWithProviders(<RequestedItems request={request} />)
+
+    await screen.findAllByTestId("requested-item")
+    expect(screen.queryByTestId("unrequested-sor-lines")).not.toBeInTheDocument()
   })
 
   it("reads stock through the request, so a Buyer without SOR access still sees it (#501)", async () => {

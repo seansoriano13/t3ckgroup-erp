@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
 import { headApprovalService } from "../services/headApprovalService";
 import { opportunityService } from "../services/opportunityService";
+import { meetingRequestService } from "../services/meetingRequestService";
 import { ipasService } from "../services/ipasService";
 import { ipasPendingKey } from "../components/ipas/ipasKeys";
 
@@ -59,6 +60,17 @@ export function useNavBadges(user) {
   });
   const leaveApprovals = isSuperAdmin || isHead ? pendingHeadApprovals.length : 0;
 
+  // 2b. Meeting Requests waiting on this person's step (#624): the head's routed ones, or for
+  // HR / Super Admin everything at the head or HR step.
+  const canSeeMeetings = isSuperAdmin || isHead || isHr;
+  const { data: pendingMeetings = [] } = useQuery({
+    queryKey: ["meeting-requests", "nav-badge", user?.id, isHr, isSuperAdmin],
+    queryFn: () => meetingRequestService.listPendingForApprover({ employeeId: user.id, isHr, isSuperAdmin }),
+    enabled: !!user?.id && canSeeMeetings,
+    staleTime: 30000,
+  });
+  const meetingApprovals = canSeeMeetings ? pendingMeetings.length : 0;
+
   // 3. My SORs — deals this person was called into and still has an open
   // window on. Every employee can hold one, so this is not gated on a role.
   const { data: mySors = 0 } = useQuery({
@@ -83,6 +95,7 @@ export function useNavBadges(user) {
     taskApprovals,
     hrVerifications,
     leaveApprovals,
+    meetingApprovals,
     ipasSignoffs,
     mySors,
   };

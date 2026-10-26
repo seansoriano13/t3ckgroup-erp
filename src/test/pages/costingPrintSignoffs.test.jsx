@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 
-import { renderWithProviders, setupUser } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import CostingMatrixSection from "@/components/costing/CostingMatrixSection";
+import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { renderWithProviders, setupUser } from "@/test/support";
+import PrintButton from "@/components/costing/desk/PrintButton";
 
 /**
  * The Print button and the sign buttons on the PMS tab's Costing Matrix (#274). Real components and
@@ -36,8 +37,7 @@ describe("the Costing Matrix print and sign-offs", () => {
   const mount = (me, stub = {}) => {
     authUser = { id: me.id, name: me.name, isFinalAcquire: me === boss };
     stubCostingMatrixRpcs({ tier: "closed_book", bands: [], actorId: me.id, ...stub });
-    renderWithProviders(<CostingMatrixSection opportunityId={deal.id} opportunity={deal} />);
-    return setupUser();
+    return renderCostingDesk(deal);
   };
 
   beforeEach(() => {
@@ -52,8 +52,16 @@ describe("the Costing Matrix print and sign-offs", () => {
     db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "Tripod", compliance: "complies" });
   });
 
+  // The Print button the PMS tab's card and the Costing Desk's window both carry.
+  const mountPrint = (me) => {
+    authUser = { id: me.id, name: me.name };
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: [], actorId: me.id });
+    renderWithProviders(<PrintButton opportunityId={deal.id} opportunity={deal} />);
+    return setupUser();
+  };
+
   it("prints into a window opened in the click, naming who printed", async () => {
-    const user = mount(boss, { onFinalAcquireList: true });
+    const user = mountPrint(boss);
     await user.click(await screen.findByRole("button", { name: "Print" }));
     expect(printer.open).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(printer.print).toHaveBeenCalledTimes(1));
@@ -62,24 +70,34 @@ describe("the Costing Matrix print and sign-offs", () => {
 
   it("prints nothing when a popup blocker refuses the window", async () => {
     printer.open.mockReturnValue(null);
-    const user = mount(boss);
+    const user = mountPrint(boss);
     await user.click(await screen.findByRole("button", { name: "Print" }));
     expect(printer.print).not.toHaveBeenCalled();
   });
 
-  it("shows each sign button only to the person who may sign it", async () => {
+  it("shows each sign button only to the people who may sign it", async () => {
     let user = mount(sales);
+    await openLines();
     expect(await screen.findByRole("button", { name: "Sign as prepared" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sign as costed" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Approve Final Acquire/ })).not.toBeInTheDocument();
+    // The Deal Team reads this matrix at the Closed Book, so it may approve the Final Acquire and offer.
+    expect(screen.getByRole("button", { name: /Approve Final Acquire/ })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Sign as prepared" }));
     await waitFor(() => expect(db.rows("costing_signoffs")).toEqual([expect.objectContaining({ role: "prepared", signed_by: sales.id })]));
     expect(await screen.findByTestId("signoff-prepared")).toHaveTextContent("Prepared by");
     expect(screen.queryByRole("button", { name: "Sign as prepared" })).not.toBeInTheDocument();
   });
 
+  it("keeps Final approval from a viewer below the Closed Book who is not on the list", async () => {
+    mount(sales, { tier: "price" });
+    await openLines();
+    expect(await screen.findByRole("button", { name: "Sign as prepared" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Approve Final Acquire/ })).not.toBeInTheDocument();
+  });
+
   it("offers Costed by to the Purchasing incharge and Final Acquire and offer to the list", async () => {
     mount(buyer);
+    await openLines();
     expect(await screen.findByRole("button", { name: "Sign as costed" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sign as prepared" })).not.toBeInTheDocument();
   });
@@ -87,6 +105,7 @@ describe("the Costing Matrix print and sign-offs", () => {
   it("offers Final Acquire and offer to a member of the list, and says why a cleared one went", async () => {
     db.seed("costing_signoffs", { matrix_id: matrix.id, role: "final_approved", signed_by: boss.id, cleared_at: "2026-10-16T01:00:00Z", cleared_reason: "The Final Offer changed" });
     mount(boss, { onFinalAcquireList: true });
+    await openLines();
     expect(await screen.findByRole("button", { name: "Approve Final Acquire & offer" })).toBeInTheDocument();
     expect(screen.getByTestId("signoff-final_approved-cleared")).toHaveTextContent("Cleared: the Final Offer changed.");
   });

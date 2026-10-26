@@ -90,7 +90,7 @@ export default function MarkupPresetsSection() {
 
       {canManage !== true ? (
         <p className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground" data-testid="markup-presets-closed">
-          Only Super Admins and the Final Acquire list can see or change the markup presets.
+          Only Super Admins, Purchasing, the Deal Team and the Final Acquire list can see or change the markup presets.
         </p>
       ) : isLoading ? (
         <PageLoading label="markup presets" />

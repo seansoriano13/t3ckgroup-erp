@@ -3,6 +3,7 @@ import { CheckCircle2, PenLine } from "lucide-react";
 import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
 import { costingMatrixService } from "../../services/costingMatrixService";
+import { COSTING_TIER } from "../../constants/costing";
 import { formatDate } from "../../utils/formatDate";
 
 /**
@@ -15,7 +16,8 @@ import { formatDate } from "../../utils/formatDate";
 const SIGNOFFS = [
   { role: "prepared", label: "Prepared by", button: "Sign as prepared", who: (matrix, ctx) => Boolean(ctx.actorId) && matrix.matrix?.sales_incharge_id === ctx.actorId },
   { role: "costed", label: "Costed by", button: "Sign as costed", who: (matrix, ctx) => Boolean(ctx.actorId) && matrix.matrix?.purchasing_incharge_id === ctx.actorId },
-  { role: "final_approved", label: "Final approval", button: "Approve Final Acquire & offer", who: (_matrix, ctx) => ctx.isFinalAcquire },
+  // The list, or anyone who reads this matrix at the Closed Book (Purchasing and the SOR's Deal Team).
+  { role: "final_approved", label: "Final approval", button: "Approve Final Acquire & offer", who: (matrix, ctx) => ctx.isFinalAcquire || matrix.tier === COSTING_TIER.CLOSED_BOOK },
 ];
 
 export default function SignoffBar({ matrix, actorId, isFinalAcquire = false, nameOf, writes }) {
@@ -23,8 +25,8 @@ export default function SignoffBar({ matrix, actorId, isFinalAcquire = false, na
   const ctx = { actorId, isFinalAcquire };
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border/70 bg-card/50 px-4 py-3" data-testid="signoff-bar">
-      <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+    <div className="space-y-3 rounded-2xl border border-border bg-card p-4" data-testid="signoff-bar">
+      <span className="flex items-center gap-1.5 text-label font-bold uppercase tracking-wider text-muted-foreground">
         <PenLine size={14} aria-hidden="true" />
         Sign-offs
       </span>

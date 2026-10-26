@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event"
 import { render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import DocumentCenterTab from "./DocumentCenterTab"
@@ -58,6 +59,15 @@ describe("DocumentCenterTab", () => {
     const saved = JSON.parse(localStorage.getItem("documentCenterTray:v1"))
     expect(saved).toHaveLength(1)
     expect(saved[0].id).toBe("rec_1")
+  })
+
+  it("offers an LWOP record and queues it for printing (#621)", async () => {
+    const lwop = { ...sampleRecord, id: "rec_lwop", type: "LWOP", leave_group_id: "g1" }
+    render(<DocumentCenterTab approvedRecords={[lwop]} allLoadedRecords={[lwop]} hrId="hr_1" onPrinted={vi.fn()} />)
+
+    expect(screen.getByText(/LWOP/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("checkbox", { name: /LWOP record to the tray/ }))
+    await waitFor(() => expect(screen.getByText("1 form queued")).toBeInTheDocument())
   })
 
   it("drops a genuinely removed record (decision undone)", async () => {

@@ -55,7 +55,7 @@ async function main() {
       console.log("Mock purchasing data is already there. Nothing added.")
       return
     }
-    const emps = await q("select id, email from employees where coalesce(is_deleted,false) = false order by (email like 'purchaser@mock%') desc, (email like 'super-admin%') desc, email")
+    const emps = await q("select id, email from employees where coalesce(is_deleted,false) = false order by (email in ('purchaser@mock.t3ck.test', 'purchaser@local')) desc, (email like '%@policy.fixture') asc, (email like 'super-admin%') desc, email")
     if (emps.length < 2) throw new Error("Need at least two employees. Run seed-mock-employees.mjs first.")
     const buyer = emps[0].id
     const people = emps.map((e) => e.id)
@@ -137,9 +137,12 @@ async function main() {
         { name: pick(i, ITEM_NAMES)[0], quantity: 10 + i, unit: "pc", price_unit: 120 + i * 15, price_subtotal: (10 + i) * (120 + i * 15) },
         { name: pick(i + 3, ITEM_NAMES)[0], quantity: 5, unit: "pc", price_unit: 80, price_subtotal: 400 },
       ]
+      // The PO's totals, as a current Odoo copy carries them (#596): VAT on a local PO only.
+      const untaxed = lines.reduce((sum, l) => sum + l.price_subtotal, 0)
+      const tax = s.src === "local" ? Math.round(untaxed * 0.12 * 100) / 100 : 0
       const copy = {
         supplier: { id: 9000 + i, name: s.supplier, contact: `sales@supplier${i}.example` },
-        po: { id: 7000 + i, name: s.po, state: "purchase", currency: s.src === "import" ? "USD" : "PHP", partner_ref: `PI-MOCK-${i + 1}`, origin: s.sor == null ? null : SORS[s.sor].ref, company: "T3CK GROUP" },
+        po: { id: 7000 + i, name: s.po, state: "purchase", currency: s.src === "import" ? "USD" : "PHP", partner_ref: `PI-MOCK-${i + 1}`, origin: s.sor == null ? null : SORS[s.sor].ref, company: "T3CK GROUP", amount_untaxed: untaxed, amount_tax: tax, amount_total: untaxed + tax },
         lines,
       }
       const cancelled = s.state === "cancelled"
@@ -148,7 +151,7 @@ async function main() {
          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'value',$11,$12,$13,$14) returning id`,
         [s.po, s.pri, s.src, s.purpose, JSON.stringify(copy), s.state,
           cancelled ? "Supplier could not deliver in time (mock)." : null, cancelled ? new Date() : null,
-          buyer, s.src === "import" ? freight : null, 15000 + i * 5000, "Mock IPAS for testing.",
+          buyer, s.src === "import" ? freight : null, i === 0 ? untaxed + tax : 15000 + i * 5000, "Mock IPAS for testing.",
           s.ship ? "2026-09-20" : null, s.ship ? "2026-09-24" : null],
       )
       ipasCount++

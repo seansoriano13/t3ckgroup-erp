@@ -285,6 +285,14 @@ export function sectionState(key, t, gates) {
   return null;
 }
 
+/** The StatusBadge colour for a slip's state: a draft is quiet, closed is green, cancelled is red, anything waiting is amber. */
+export function badgeThemeOf(state) {
+  if (state === STATE.DRAFT) return "mauve";
+  if (state === STATE.CLOSED) return "green";
+  if (state === STATE.CANCELLED) return "red";
+  return "amber";
+}
+
 /** How many lines are rated GC, how many NA (either side's NA counts), and how many are rated at all. */
 export function ratingCounts(t) {
   let gc = 0;
@@ -343,6 +351,20 @@ export function summariesOf(t, gates) {
     lines[SECTION.CHECK_BY] = `Check by (2): ${pairName(t.checkBy.second)}. Check by (1) still open`;
   }
   return lines;
+}
+
+/**
+ * The steps the rail lists: every section after Details and Lines (those two are
+ * the slip itself), each with its state and its one-line summary.
+ */
+export function railStepsOf(t, gates, summaries) {
+  return sectionsOf(t)
+    .filter((section) => section.key !== SECTION.DETAILS && section.key !== SECTION.LINES)
+    .map((section) => ({
+      ...section,
+      state: sectionState(section.key, t, gates),
+      summary: summaries[section.key] ?? "",
+    }));
 }
 
 /** Whether a stage is open to be worked in its own state (for the row's "Open" detail). */

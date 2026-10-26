@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Navigate } from "react-router";
+import { Navigate, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Calculator, Layers, TrendingDown } from "lucide-react";
 
@@ -26,7 +26,7 @@ import { filterMatrixPage, matrixPageTotals } from "../../utils/costingMatrixPag
  * Actual Revenue side by side, so margins can be compared without opening each SOR. Closed Book only
  * (Super Admins and the Final Acquire list): the menu offers it to them alone, the page sends anyone
  * else home, and the database refuses the read whatever the screen does. Planned and Actual are worked
- * with the same maths as the SOR's own summary. A row opens that SOR's Costing Matrix (PMS) tab.
+ * with the same maths as the SOR's own summary. A row opens that SOR's Costing Matrix in its record window.
  */
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
@@ -85,11 +85,10 @@ function EstimateMark({ testId }) {
   );
 }
 
-function openMatrix(opportunityId) {
-  window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: opportunityId, type: "OPPORTUNITY", view: "pms" } }));
-}
-
 function MatrixRow({ row, search }) {
+  const navigate = useNavigate();
+  // A row opens that SOR's Costing Matrix in its record window, over this list.
+  const openMatrix = (opportunityId) => navigate(`/costing-matrix/${opportunityId}`);
   const { comparison } = row;
   const lower = comparison.actualLower;
   return (
@@ -177,7 +176,7 @@ function TotalsRow({ totals }) {
   );
 }
 
-function CostingMatrixList() {
+export function CostingMatrixList() {
   const [stage, setStage] = useState(null);
   const [entity, setEntity] = useState(null);
   const [margin, setMargin] = useState(null);
@@ -257,7 +256,7 @@ function CostingMatrixList() {
   return (
     <PageShell
       title="Costing Matrix"
-      description="Every SOR's costing with Planned and Actual Revenue. Closed Book only."
+      description="Every SOR's costing you can see, with Planned and Actual Revenue. Open one to work its matrix."
       toolbar={toolbar}
     >
       {isLoading && <PageLoading label="Costing Matrix" />}

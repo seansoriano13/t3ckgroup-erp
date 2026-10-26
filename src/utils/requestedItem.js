@@ -71,7 +71,9 @@ export const formatAmount = (quantity, unit) => {
  * still says what was picked (or the item didn't come from a line).
  *
  * `item.sorLine` is the line as the SOR says it now, from
- * `purchase_request_item_lines`: `{ found, quantity, unit }`. Left undefined
+ * `purchase_request_item_lines`: `{ found, quantity, unit }`. A change someone
+ * kept as asked (`item.sor_change_seen`) stays quiet while the line is unchanged
+ * since; a removed line is always said. Left undefined
  * when it hasn't been read, which says nothing rather than "removed".
  */
 export function sorLineChange(item) {
@@ -83,12 +85,21 @@ export function sorLineChange(item) {
   }
 
   const quantity = Number(sorLine.quantity);
-  if (quantity === Number(picked.quantity) && sameUnit(sorLine.unit, picked.unit)) return null;
+  const quantityChanged = quantity !== Number(picked.quantity);
+  const unitChanged = !sameUnit(sorLine.unit, picked.unit);
+  if (!quantityChanged && !unitChanged) return null;
+
+  // Someone chose "Keep as asked" against this very reading: quiet until the SOR says something else.
+  const seen = item.sor_change_seen;
+  if (seen && quantity === Number(seen.quantity) && sameUnit(sorLine.unit, seen.unit)) return null;
 
   return {
     kind: SOR_LINE_CHANGE.CHANGED,
     quantity,
     unit: sorLine.unit || null,
+    asked: { quantity: Number(picked.quantity), unit: picked.unit || null },
+    quantityChanged,
+    unitChanged,
     label: `SOR line now says ${formatAmount(quantity, sorLine.unit)}`,
   };
 }

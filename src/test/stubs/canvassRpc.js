@@ -6,6 +6,47 @@ import { canvassFill } from "@/test/db/triggers"
 const rowsOf = (table) => db.internal.rowsOf(table)
 
 /**
+ * `canvass_add_to_purchase_request` (20261101110000) on the in-memory store: each Canvass becomes a new
+ * Requested Item of the request, or is attached to the item named, and is stamped as requested (which
+ * locks it). The database's own checks are in the policy tier (132-canvass-add-to-request).
+ */
+export function stubCanvassAddToRequestRpc() {
+  stubRpc("canvass_add_to_purchase_request", (args) => {
+    const made = []
+    const unsigned = []
+    for (const entry of args.p_items) {
+      const canvass = rowsOf("sor_canvasses").find((c) => c.id === entry.canvass_id)
+      if (!canvass) throw pgrstError("P0002", "canvass_add_to_purchase_request: a picked Canvass was not found", { status: 404 })
+      const winner = rowsOf("sor_canvass_offers").find((o) => o.canvass_id === canvass.id && o.is_winner)
+      if (!winner) throw pgrstError("22023", `canvass_add_to_purchase_request: ${canvass.number} has no winner yet`, { status: 400 })
+      if (!canvass.signed_off_at) unsigned.push(canvass.id)
+      let itemId = entry.item_id ?? null
+      if (!itemId) {
+        const item = insertRow("purchase_request_items", {
+          request_id: args.p_request_id,
+          source: "new",
+          name: canvass.product_name ?? canvass.number,
+          quantity: entry.quantity ?? 1,
+          unit: entry.unit ?? null,
+          status: "requested",
+          description: `From Canvass ${canvass.number}`,
+          requested_by: rowsOf("purchase_requests").find((r) => r.id === args.p_request_id)?.created_by ?? null,
+        })
+        itemId = item.id
+      }
+      updateRow("sor_canvasses", canvass, { requested_item_id: itemId, request_made_at: new Date().toISOString() })
+      made.push({ canvass_id: canvass.id, item_id: itemId })
+    }
+    return { request_id: args.p_request_id, items: made, unsigned_canvass_ids: unsigned }
+  })
+}
+
+/** `canvass_is_locked` (20261101100000), on the in-memory store: a request was made and the lock was not released. */
+function isLocked(canvass) {
+  return Boolean(canvass?.request_made_at) && !canvass.lock_released_at
+}
+
+/**
  * `canvass_subject_can_read_money` (supabase/migrations/20261019100000_canvass_repoint.sql, #276):
  * whether the caller's tier may see an Offer's prices. The fake has no caller and no tier, so a
  * test says which side it is on: `{ money: true }` is a purchaser (closed_book, cost or price),
@@ -20,6 +61,7 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  */
 export function stubCanvassMoneyRpc({ money = true } = {}) {
   stubRpc("canvass_subject_can_read_money", () => money)
+  stubRpc("canvass_is_locked", (args) => isLocked(rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)))
 
   const addOffer = (args) => {
     const offerInput = args.p_offer ?? {}
@@ -90,7 +132,7 @@ export async function seedCanvass(subject = {}, actorId = null, { productName = 
  * the real function sets canvass.fill. The real rules (who may, the refusals, the fill under
  * real band triggers) are the policy tier's (91-canvass-winner.test.js).
  */
-export function stubCanvassWinnerRpcs({ bands = ["purchasing"] } = {}) {
+export function stubCanvassWinnerRpcs({ bands = ["purchasing"], superAdmin = false } = {}) {
   const refuseBand = (table, column, needed) => {
     throw pgrstError("42501", `costing_band:${table}.${column}:${needed.join(",")}`, { status: 403 })
   }
@@ -181,8 +223,19 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"] } = {}) {
     return { canvass_id: canvass.id, cleared: winners.length > 0 }
   })
 
+  // canvass_unlock (20261101100000): a Super Admin releases a lock, and says why.
+  stubRpc("canvass_unlock", (args) => {
+    if (!superAdmin) throw pgrstError("42501", "canvass_unlock: only a Super Admin can unlock a Canvass", { status: 403 })
+    const canvass = rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)
+    if (!canvass) throw pgrstError("P0002", "canvass_unlock: not found", { status: 404 })
+    if (!String(args.p_reason ?? "").trim()) throw pgrstError("22023", "canvass_unlock: say why it is being unlocked", { status: 400 })
+    updateRow("sor_canvasses", canvass, { lock_released_at: new Date().toISOString() })
+    insertRow("sor_canvass_signoff_events", { canvass_id: canvass.id, kind: "unlocked", actor_id: null, reason: args.p_reason, offer_count: 0 })
+    return { canvass_id: canvass.id, unlocked: true }
+  })
+
   stubRpc("costing_accept_brand", (args) => {
-    if (!bands.includes("sales")) throw pgrstError("42501", "costing_accept_brand: only the Deal Team can accept a brand", { status: 403 })
+    if (!bands.includes("sales") && !bands.includes("purchasing")) throw pgrstError("42501", "costing_accept_brand: only the Deal Team or Purchasing can accept a brand", { status: 403 })
     const canvass = rowsOf("sor_canvasses").find((c) => c.component_id === args.p_component_id)
     const winner = canvass && rowsOf("sor_canvass_offers").find((o) => o.canvass_id === canvass.id && o.is_winner)
     const brand = String(winner?.brand ?? "").trim()
@@ -295,6 +348,7 @@ export function stubCanvassListRpcs({ actorId = null } = {}) {
         requested_item_id: c.requested_item_id ?? null,
         request_id: request?.id ?? null,
         request_label: request?.title ?? null,
+        request_item_status: item?.status ?? null,
         opportunity_id: request?.opportunity_id ?? null,
         sales_reference: null,
         project_title: null,
@@ -309,6 +363,7 @@ export function stubCanvassListRpcs({ actorId = null } = {}) {
         created_by: c.created_by ?? null,
         created_at: c.created_at,
         updated_at: c.updated_at ?? c.created_at,
+        locked: isLocked(c),
       }
     }),
   )

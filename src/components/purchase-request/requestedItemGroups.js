@@ -1,7 +1,5 @@
 import { ITEM_STATUS, isClosedStatus } from "../../constants/purchaseRequest";
 
-export const EASE = [0.22, 1, 0.36, 1];
-export const SPRING = { type: "spring", stiffness: 420, damping: 38 };
 
 const TODO = [ITEM_STATUS.REQUESTED, ITEM_STATUS.TO_ORDER];
 const GROUPS = [

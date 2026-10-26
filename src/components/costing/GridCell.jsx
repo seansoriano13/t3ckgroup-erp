@@ -41,9 +41,10 @@ export function Cell({
     setDraft(shown);
   }
 
+  // Read-only, it still stands as tall as a box, so a row of fields lines up whoever is looking.
   if (readOnly) {
     return (
-      <span className={multiline ? "block whitespace-pre-line text-sm text-foreground" : "block text-sm tabular-nums text-foreground"} aria-label={label}>
+      <span className={multiline ? "block whitespace-pre-line py-2 text-sm text-foreground" : "flex min-h-9 items-center text-sm tabular-nums text-foreground"} aria-label={label}>
         {shown === "" ? "—" : money ? formatPHP(Number(shown)) : shown}
       </span>
     );
@@ -88,7 +89,7 @@ export function Cell({
   return (
     <div className={cn("space-y-1", className)}>
       {multiline ? (
-        <Textarea {...shared} rows={3} className="min-h-[64px] px-2 py-1.5 text-sm" />
+        <Textarea {...shared} rows={3} className="min-h-[72px] rounded-lg px-3 py-2 text-sm" />
       ) : (
         <Input
           {...shared}
@@ -96,8 +97,10 @@ export function Cell({
           min={numeric ? 0 : undefined}
           step={numeric ? step : undefined}
           className={cn(
-            "h-8 px-2 text-sm",
-            align === "right" && "text-right tabular-nums",
+            // One height and corner with the SelectCell beside it.
+            "h-9 rounded-lg px-3 text-sm",
+            numeric && "tabular-nums",
+            align === "right" && "text-right",
             // The up/down arrows of a number box eat the room the digits need.
             numeric && "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
           )}
@@ -125,7 +128,7 @@ export function SelectCell({ value, options, onSave, readOnly, label, clearable 
 
   if (readOnly) {
     return (
-      <span className="block text-sm text-foreground" aria-label={label}>
+      <span className="flex min-h-9 items-center text-sm text-foreground" aria-label={label}>
         {current?.label ?? "—"}
       </span>
     );
@@ -145,7 +148,7 @@ export function SelectCell({ value, options, onSave, readOnly, label, clearable 
       <SelectField
         aria-label={label}
         size="sm"
-        className="w-full"
+        className="w-full text-sm font-normal"
         placeholder={placeholder}
         options={clearable ? [{ value: NONE, label: "—" }, ...options] : options}
         value={value ?? (clearable ? NONE : "")}
@@ -157,6 +160,18 @@ export function SelectCell({ value, options, onSave, readOnly, label, clearable 
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * A figure worked out from others (a total, a Markup Price): as tall as the boxes beside it, so it lines up
+ * with them, and plain, since nobody types it. `strong` for the figure the row is about.
+ */
+export function Readout({ children, label, strong = false, className, ...props }) {
+  return (
+    <p aria-label={label} className={cn("flex min-h-9 items-center text-sm tabular-nums text-foreground", strong && "font-semibold", className)} {...props}>
+      {children}
+    </p>
   );
 }
 

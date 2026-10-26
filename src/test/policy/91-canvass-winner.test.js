@@ -4,8 +4,8 @@
  * registry rows.
  *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
- *   outsider          Purchasing access                  -> cost tier, Purchasing band
- *   dealOwner         Deal Team                          -> price tier, Sales band
+ *   outsider          Purchasing access                  -> closed_book tier, Purchasing band
+ *   dealOwner         Deal Team                          -> closed_book tier, Sales band
  *   stageParticipant  open Stage Participant window      -> participant tier, no band
  *   ordinary          nobody
  *
@@ -303,15 +303,16 @@ describe("accepting a brand", () => {
         expect(error.code).toBe(WRONG_STATE)
     })
 
-    it("is refused to Purchasing and allowed to the Deal Team", async () => {
+    it("is allowed to Purchasing and to the Deal Team, as the Brand column is", async () => {
         const toxic = await makeOffer(canvass.id, { supplier_name: "Toyota Dealer", brand: "Toyota" }, { unit_price: 2 })
         expect((await winner("outsider", canvass.id, toxic.id)).error).toBeNull()
         // The fill never touches Brand.
         expect((await component(compBrand)).brand).toBe("Generic")
 
-        const refused = await accept("outsider")
-        expect(refused.error.code).toBe(RLS_DENIED)
-        expect((await component(compBrand)).brand).toBe("Generic")
+        const byPurchasing = await accept("outsider")
+        expect(byPurchasing.error).toBeNull()
+        expect((await component(compBrand)).brand).toBe("Toyota")
+        await asSvc(svc().from("costing_components").update({ brand: "Generic" }).eq("id", compBrand), "brand back")
 
         const allowed = await accept("dealOwner")
         expect(allowed.error).toBeNull()

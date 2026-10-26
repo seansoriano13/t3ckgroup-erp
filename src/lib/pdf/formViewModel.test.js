@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { formHTML } from './htmlPrinter';
 import {
   getRecordNumber,
   getTreatedAs,
@@ -9,6 +10,7 @@ import {
   buildTG11ViewModel,
   buildTG12ViewModel,
   buildTG13ViewModel,
+  getValidationStamp,
 } from './formViewModel';
 
 const employee = { name: 'Alvin Roa', role: 'Logistics Assistant', department: 'Operations', sub_department: 'Logistics', employment_status: 'Regular' };
@@ -30,7 +32,7 @@ describe('getRecordNumber', () => {
 
 describe('getTreatedAs', () => {
   it('labels SIL and OFFSET distinctly', () => {
-    expect(getTreatedAs({ type: 'SIL' })).toBe('Service Incentive Leave');
+    expect(getTreatedAs({ type: 'SIL' })).toBe('Leave With Pay (LWP)');
     expect(getTreatedAs({ type: 'OFFSET' })).toBe('Offset');
   });
 });
@@ -232,8 +234,15 @@ describe('buildTG12ViewModel', () => {
     expect(vm.requestedHours).toBeNull();
   });
 
-  it('reports the outcome label from status', () => {
-    expect(buildTG12ViewModel(record).outcome).toBe('OFFSET CREDIT');
+  it('has no Outcome block, so OFFSET CREDIT never prints', () => {
+    expect(buildTG12ViewModel(record).outcome).toBeUndefined();
+  });
+
+  it('prints no Outcome block, whatever the overtime status', () => {
+    const html = formHTML(buildTG12ViewModel({ ...record, status: 'APPROVED' }));
+    expect(html).not.toContain('Outcome');
+    expect(html).not.toContain('OFFSET CREDIT');
+    expect(html).not.toContain('PAID OVERTIME');
   });
 
   it('prints the company recorded on the request, and blank when absent (issue #142)', () => {
@@ -274,5 +283,74 @@ describe('buildTG13ViewModel', () => {
     expect(vm.bigK).toBe('Total no. of hours');
     expect(vm.bigN).toBe('2');
     expect(vm.hrd.map((h) => h[0])).not.toContain('Offset balance');
+  });
+});
+
+describe('printed form titles and field lists (issue #612)', () => {
+  const rec = { id: 'abcd1234', type: 'SIL', status: 'APPROVED', created_at: '2026-08-01T00:00:00Z', date: '2026-08-05', hours: 8, employee: { name: 'A', employment_status: 'Regular' } };
+  it('TG-11 title and exact fields', () => {
+    const vm = buildTG11ViewModel(rec);
+    expect(vm.kind).toBe('Application for Leave / Offset Form');
+    expect(vm.fields.map((f) => f.k)).toEqual(['Date filed', 'Inclusive dates', 'Treated as']);
+    expect(vm.outcome).toBeTruthy();
+  });
+  it('TG-11 treated as maps SIL and Offset', () => {
+    expect(buildTG11ViewModel(rec).fields[2].v).toBe('Leave With Pay (LWP)');
+    expect(buildTG11ViewModel({ ...rec, type: 'OFFSET' }).fields[2].v).toBe('Offset');
+  });
+  it('TG-11 treated as reads Leave Without Pay (LWOP) for an LWOP, with an LV record number (#621)', () => {
+    const vm = buildTG11ViewModel({ ...rec, type: 'LWOP' });
+    expect(vm.fields[2].v).toBe('Leave Without Pay (LWOP)');
+    expect(getRecordNumber({ ...rec, type: 'LWOP' })).toMatch(/^LV-/);
+  });
+  it('TG-12 title and exact fields', () => {
+    const vm = buildTG12ViewModel({ ...rec, type: 'OVERTIME' });
+    expect(vm.kind).toBe('Overtime Authorization Form');
+    expect(vm.fields.map((f) => f.k)).toEqual(['Date filed', 'Date of overtime', 'Time window']);
+  });
+  it('TG-13 title, exact fields and outcome', () => {
+    const vm = buildTG13ViewModel({ ...rec, type: 'UNDERTIME' });
+    expect(vm.kind).toBe('Undertime Request Form');
+    expect(vm.fields.map((f) => f.k)).toEqual(['Date filed', 'Date of undertime', 'Original work schedule', 'Actual work schedule']);
+    expect(vm.outcome).toBeTruthy();
+  });
+  it('record number prefixes are unchanged', () => {
+    expect(getRecordNumber({ ...rec, type: 'SIL' })).toMatch(/^LV-/);
+    expect(getRecordNumber({ ...rec, type: 'OFFSET' })).toMatch(/^LV-/);
+    expect(getRecordNumber({ ...rec, type: 'OVERTIME' })).toMatch(/^OT-/);
+    expect(getRecordNumber({ ...rec, type: 'UNDERTIME' })).toMatch(/^UT-/);
+  });
+});
+
+describe('validation date fallback (issue #614)', () => {
+  const stamp = (vm) => vm.hrd.find((h) => h[0] === 'Validation date')[1];
+  const base = { id: 'abcd1234', created_at: '2026-10-01T00:00:00Z', status: 'APPROVED', employee, hr: { name: 'HR' } };
+  // 2026-10-14T07:27:00Z is 3:27 PM in Manila.
+  const cases = [
+    ['TG-11', buildTG11ViewModel, 'OFFSET'],
+    ['TG-12', buildTG12ViewModel, 'OVERTIME'],
+    ['TG-13', buildTG13ViewModel, 'UNDERTIME'],
+  ];
+
+  for (const [label, build, type] of cases) {
+    it(`${label}: hr_processed_at wins, with date and time`, () => {
+      const vm = build({ ...base, type, hr_processed_at: '2026-10-14T07:27:00Z', hr_signature_timestamp: '2026-10-10T01:00:00Z', updated_at: '2026-10-20T00:00:00Z' });
+      expect(stamp(vm)).toBe('Oct 14, 2026 · 3:27 PM');
+    });
+    it(`${label}: falls back to hr_signature_timestamp, with date and time`, () => {
+      const vm = build({ ...base, type, hr_signature_timestamp: '2026-10-14T07:27:00Z', updated_at: '2026-10-20T00:00:00Z' });
+      expect(stamp(vm)).toBe('Oct 14, 2026 · 3:27 PM');
+    });
+    it(`${label}: last falls back to updated_at, date only`, () => {
+      const vm = build({ ...base, type, updated_at: '2026-10-14T07:27:00Z' });
+      expect(stamp(vm)).toBe('Oct 14, 2026');
+    });
+    it(`${label}: shows a dash when nothing is recorded`, () => {
+      expect(stamp(build({ ...base, type }))).toBe('—');
+    });
+  }
+
+  it('uses the Manila date near midnight UTC', () => {
+    expect(getValidationStamp({ hr_processed_at: '2026-10-14T17:30:00Z' })).toBe('Oct 15, 2026 · 1:30 AM');
   });
 });

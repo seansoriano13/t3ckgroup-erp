@@ -5,7 +5,6 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import TransmittalDetailPage from "@/pages/purchasing/transmittals/[id]";
 import { confirmMove, renderWithProviders, setupUser } from "@/test/support";
 import { shapeTransmittal } from "@/utils/transmittals";
-import { findOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 const service = vi.hoisted(() => ({
@@ -120,16 +119,14 @@ describe("Transmittal record page", () => {
     expect(screen.queryByText(/^Waiting for you/)).not.toBeInTheDocument();
   });
 
-  it("shows the numbers, a row per section and who it waits on", async () => {
+  it("shows the slip's lines on the desk and a step in the rail for each stage", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Your move" })).toBeInTheDocument();
     expect(screen.getByText("Waiting for you: Check by")).toBeInTheDocument();
-    // Numbers strip: lines, GC, NA, steps done.
-    expect(screen.getByText("Steps done")).toBeInTheDocument();
-    expect(screen.getByText("1 of 2")).toBeInTheDocument();
-    // One row per section; the Checking boxes that were not ticked are hidden.
-    for (const title of ["Details", "Lines", "Warehouse checking", "Received in Odoo", "Check by"]) {
+    expect(screen.getByRole("heading", { name: /^Lines · / })).toBeInTheDocument();
+    // One step per stage after the slip; the Checking boxes that were not ticked are hidden.
+    for (const title of ["Warehouse checking", "Received in Odoo", "Check by"]) {
       expect(screen.getAllByRole("button", { name: new RegExp(`^${title}`) }).length).toBeGreaterThan(0);
     }
     expect(screen.queryByRole("button", { name: /^Technical inspection/ })).not.toBeInTheDocument();
@@ -145,19 +142,55 @@ describe("Transmittal record page", () => {
     await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("t1", 1));
   });
 
-  it("keeps the sign buttons out of a section's body, and signs from the drawer's bottom bar", async () => {
+  it("opens the step that needs me on arrival, with its one sign button under it", async () => {
     const user = setupUser();
-    renderPage("t1", "?open=check_by");
+    renderPage();
 
-    const drawer = await findOtherDialog();
-    expect(within(drawer).getByText("Check by (1)")).toBeInTheDocument();
-    // The body names who signed; the one sign button for the slot is the drawer's bar.
-    const buttons = within(drawer).getAllByRole("button", { name: "Sign Check by (1)" });
+    // The Check by step needs me, so it is already open; its body names who signed.
+    const stepButton = await screen.findByRole("button", { name: /^Check by/ });
+    expect(stepButton).toHaveAttribute("aria-expanded", "true");
+    const buttons = screen.getAllByRole("button", { name: "Sign Check by (1)" });
     expect(buttons).toHaveLength(1);
 
     await user.click(buttons[0]);
     await confirmMove(user, "Sign Check by (1)", "Sign");
     await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("t1", 1));
+  });
+
+  it("opens steps in place, several at once", async () => {
+    const user = setupUser();
+    renderPage();
+
+    const checking = await screen.findByRole("button", { name: /^Warehouse checking/ });
+    const checkBy = screen.getByRole("button", { name: /^Check by/ });
+    expect(checking).toHaveAttribute("aria-expanded", "false");
+    await user.click(checking);
+    expect(checking).toHaveAttribute("aria-expanded", "true");
+    expect(checkBy).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("opens in the record window: a title with one badge, no footer bar and no Expand", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: /^TG03_0007\s*\u00b7\s*T3CK Trading$/ })).toBeInTheDocument();
+    expect(screen.getByText("Awaiting Check by")).toBeInTheDocument();
+    expect(screen.getByText(/^Prepared .* by Pat Prep$/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Expand" })).not.toBeInTheDocument();
+    expect(screen.queryByText("to cancel")).not.toBeInTheDocument();
+  });
+
+  it("opens a line in place to show its ratings, and keeps several open", async () => {
+    const user = setupUser();
+    renderPage();
+
+    const cutter = await screen.findByRole("button", { name: /Cutter/ });
+    const blade = screen.getByRole("button", { name: /Blade/ });
+    expect(cutter).toHaveAttribute("aria-expanded", "false");
+    await user.click(cutter);
+    await user.click(blade);
+    expect(cutter).toHaveAttribute("aria-expanded", "true");
+    expect(blade).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("bent")).toBeInTheDocument();
   });
 
   it("offers the slip's preparer no Check by sign buttons", async () => {
@@ -212,6 +245,8 @@ describe("Transmittal record page", () => {
     service.undoSignature.mockResolvedValue({ number: "TG03_0007" });
     renderPage();
 
+    // The step is signed, so it starts shut; open it to reach its Undo.
+    await user.click(await screen.findByRole("button", { name: /^Check by/ }));
     await user.click(await screen.findByRole("button", { name: "Undo Check by (1)" }));
     const dialog = await screen.findByRole("dialog", { name: "Undo Check by (1)?" });
     const confirm = within(dialog).getByRole("button", { name: "Undo signature" });

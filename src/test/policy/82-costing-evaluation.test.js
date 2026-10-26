@@ -7,8 +7,8 @@
  *   technical         member of the SOR's Evaluation of Specification group task, with an
  *                     open Stage Participant window  -> participant tier, Technical band
  *   stageParticipant  open window, not on the task   -> participant tier, no band
- *   dealOwner, support Deal Team                      -> price tier, Sales band
- *   outsider          Purchasing access, and on the evaluation list -> cost tier,
+ *   dealOwner, support Deal Team                      -> closed_book tier, Sales band
+ *   outsider          Purchasing access, and on the evaluation list -> closed_book tier,
  *                     Purchasing + Technical bands
  *   superAdmin                                        -> closed_book, Sales + Purchasing +
  *                     Technical bands, but not on the evaluation list
@@ -32,6 +32,7 @@ const CHECK_VIOLATION = "23514"
 const WRONG_STATE = "22023"
 const MIGRATION = readFileSync("supabase/migrations/20261018140000_costing_matrix_evaluation.sql", "utf8")
 const REFUSAL_MIGRATION = "supabase/migrations/20261023210000_refusal_codes.sql"
+const OPEN_MIGRATION = "supabase/migrations/20261102180000_costing_open_review_fixes.sql"
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId
@@ -227,7 +228,7 @@ describe("the Technical band", () => {
             (await (await clientFor("technical")).rpc("costing_set_money", { p_table: table, p_row: row, p_patch: patch })).error
         expect((await typed("costing_component_costs", compA, { acquire_unit: 100 })).message).toBe("costing_band:costing_component_costs.acquire_unit:purchasing")
         expect((await typed("costing_component_costs", compA, { odoo_unit: 100 })).message).toBe("costing_band:costing_component_costs.odoo_unit:sales")
-        expect((await typed("costing_component_costs", compA, { final_acquire_unit: 100 })).message).toBe("costing_band:costing_component_costs.final_acquire_unit:management")
+        expect((await typed("costing_component_costs", compA, { final_acquire_unit: 100 })).message).toBe("costing_band:costing_component_costs.final_acquire_unit:sales,purchasing,management")
         expect((await typed("costing_tender_line_prices", lineId, { final_offer_unit: 100 })).message).toBe("costing_band:costing_tender_line_prices.final_offer_unit:sales")
         expect((await typed("costing_tender_line_prices", lineId, { abc_unit: 100 })).code).toBe(RLS_VIOLATION)
         expect((await typed("costing_matrix_money", matrixId, { nonsense: 1 })).code).toBe("22023")
@@ -242,7 +243,7 @@ describe("the Technical band", () => {
     it("refuses a member every other column, and adding or removing a Component", async () => {
         const brand = await setCompliance("technical", compA, { brand: "Petzl" })
         expect(brand).toMatchObject({ ok: false, code: RLS_VIOLATION })
-        expect(brand.message).toBe("costing_band:costing_components.brand:sales")
+        expect(brand.message).toBe("costing_band:costing_components.brand:sales,purchasing")
         const offer = await setCompliance("technical", compA, { offer_specification: "changed" })
         expect(offer.message).toBe("costing_band:costing_components.offer_specification:purchasing")
         const add = await tryInsert(await clientFor("technical"), "costing_components", { tender_line_id: lineId, position: 9, name: "x", quantity: 1 })
@@ -367,8 +368,9 @@ describe("Evaluation approved", () => {
     })
 
     it("leaves the other roles to their own signers (#274)", async () => {
-        // This matrix names no incharge and the cast is on no final_acquire list: refused, not signed.
-        for (const role of ["prepared", "costed", "final_approved"]) {
+        // This matrix names no incharge: refused, not signed. (Purchasing reads the Closed Book, so it may
+        // approve the Final Acquire and offer since 20261102180000; 88 covers that.)
+        for (const role of ["prepared", "costed"]) {
             expect((await sign("outsider", role)).error?.code, role).toBe(RLS_VIOLATION)
         }
         expect((await sign("outsider", "nonsense")).error?.code).toBe("22023")
@@ -611,8 +613,10 @@ describe("the registries and settings", () => {
             await svc().from("group_task_templates").delete().eq("id", named.id)
             await svc().from("costing_signer_lists").delete().eq("employee_id", ids.ipasSigner).eq("list_key", "evaluation")
             await svc().from("employees").update({ call_sign: null }).eq("id", ids.ipasSigner)
-            // The replays above put this migration's older costing_sign back; put the latest one back (#556).
+            // The replays above put this migration's older costing_sign back; put the latest one back (#556),
+            // then the costing functions 20261102180000 carried forward on top of it.
             await replayCostingFunctions(sql(), REFUSAL_MIGRATION)
+            await replayCostingFunctions(sql(), OPEN_MIGRATION)
         }
         expect(await canRead(await clientFor("outsider"), "costing_components", compA)).toBe(true)
     })

@@ -19,6 +19,7 @@ import PageShell from "../../components/ui/PageShell";
 import DesktopNotice from "@/components/ui/DesktopNotice";
 import { formatBuildFingerprint } from "@/utils/buildFingerprint";
 import LeaveCategoriesConfig from "../../components/hr/LeaveCategoriesConfig";
+import VenueManager from "../../components/settings/VenueManager";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
 import LeadSourceManager from "../../components/settings/LeadSourceManager";
 import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager";
@@ -374,6 +375,7 @@ const TAB_DEFS = [
   { value: "general", label: "General", isPermitted: () => true, Panel: GeneralPanel },
   { value: "approvals", label: "Approval Rules", isPermitted: (c) => c.isSuperAdmin, Panel: ApprovalRulesPanel },
   { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: HrPanel },
+  { value: "venues", label: "Venues", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: VenueManager },
   { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin, Panel: SalesPanel },
   { value: "purchasing", label: "Purchasing", isPermitted: (c) => c.isSuperAdmin || c.hasPurchasingFlow, Panel: PurchasingPanel },
   { value: "costing", label: "Costing Matrix", isPermitted: (c) => c.isSuperAdmin || c.hasFinanceFlow || c.hasPurchasingFlow || c.managesCostingMarkup, Panel: CostingMatrixPanel },
