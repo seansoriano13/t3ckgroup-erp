@@ -10,11 +10,11 @@ import { PickPoLinesDialog } from "../purchase-request/PoDialogs";
 
 /**
  * Under a Component's P.O./RFQ No. (#283): the PO numbers of its Requested Items (beside the typed
- * one), each PO's IPAS as "TGIPAS_050 · Open", and "ordered 3 of 5" when its Ordered items don't
+ * one), each PO's IPAS as "TGIPAS_050 · Open", and "purchased 3 of 5" when its Purchased items don't
  * cover its quantity. No money, so every tier sees it; the IPAS links only for a tier above
  * participant, and the IPAS page itself still decides who may read it.
  *
- * When Purchasing reads "Pick the PO line again" (a refresh removed a picked line), each Ordered item
+ * When Purchasing reads "Pick the PO line again" (a refresh removed a picked line), each Purchased item
  * with a PO offers the pick again here, from the PO's IPAS copy. Purchasing can also unlink a
  * Requested Item from the Component (kept in the matrix's history), so the Component can be removed.
  */
@@ -27,7 +27,7 @@ export default function ComponentPurchases({ component, linkIpas, canPick, onPic
   const requestPos = purchases.poNumbers.filter((po) => po !== typed);
   const withIpas = purchases.ipas.filter((i) => i.ipasId);
   const repick = canPick && component.landed_cost?.blankReason === "line_removed";
-  const pickable = repick ? purchases.requests.filter((r) => r.poNumber && ["ordered", "received"].includes(r.status)) : [];
+  const pickable = repick ? purchases.requests.filter((r) => r.poNumber && ["purchased", "received"].includes(r.status)) : [];
 
   const startPick = async (request) => {
     const ipas = purchases.ipas.find((i) => i.poNumber === request.poNumber);
@@ -69,7 +69,7 @@ export default function ComponentPurchases({ component, linkIpas, canPick, onPic
       })}
       {purchases.orderedShort && (
         <p className="text-amber-12" data-testid="ordered-short">
-          ordered {purchases.orderedShort.ordered} of {purchases.orderedShort.of}
+          purchased {purchases.orderedShort.ordered} of {purchases.orderedShort.of}
         </p>
       )}
       {pickable.map((request) => (

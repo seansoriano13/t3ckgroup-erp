@@ -67,9 +67,9 @@ function refuseComponentItem(row, context) {
 function markItemsCanvassing(row, old, context) {
   if (old !== null) return
   for (const item of context.rowsOf("purchase_request_items")) {
-    if (item.status !== "to_order") continue
+    if (item.status !== "to_purchase") continue
     if (item.id === row.requested_item_id || (row.component_id && item.component_id === row.component_id)) {
-      item.status = "canvassing"
+      item.status = "still_canvassing"
       item.status_changed_at = new Date().toISOString()
     }
   }

@@ -54,15 +54,15 @@ describe("purchasing", () => {
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
-    expect(screen.getByRole("button", { name: "From stock" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Ordered" })).not.toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "To order" }))
+    expect(screen.getByRole("button", { name: "Available" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Purchased" })).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "To purchase" }))
 
-    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("To order")).toBeInTheDocument())
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("To purchase")).toBeInTheDocument())
     expect(db.rows("purchase_request_messages")).toEqual([
       expect.objectContaining({
         author_id: buyer.id,
-        metadata: expect.objectContaining({ event: "item_status_changed", from: "requested", to: "to_order" }),
+        metadata: expect.objectContaining({ event: "item_status_changed", from: "not_checked", to: "to_purchase" }),
       }),
     ])
   })
@@ -76,12 +76,12 @@ describe("purchasing", () => {
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
-    await user.click(screen.getByRole("button", { name: "To order" }))
-    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("To order")).toBeInTheDocument())
+    await user.click(screen.getByRole("button", { name: "To purchase" }))
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("To purchase")).toBeInTheDocument())
 
     await user.click(await screen.findByRole("button", { name: "Undo" }))
-    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Requested")).toBeInTheDocument())
-    expect(db.rows("purchase_request_items")[0].status).toBe("requested")
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Not checked")).toBeInTheDocument())
+    expect(db.rows("purchase_request_items")[0].status).toBe("not_checked")
   })
 
   it("holds a long item name to one line and keeps the full name", async () => {
@@ -95,7 +95,7 @@ describe("purchasing", () => {
   })
 
   it("moves the row to the Closed group when the item is closed", async () => {
-    seedItem({ status: "canvassing" })
+    seedItem({ status: "still_canvassing" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
@@ -112,7 +112,7 @@ describe("purchasing", () => {
   })
 
   it("asks before a way out", async () => {
-    seedItem({ status: "canvassing" })
+    seedItem({ status: "still_canvassing" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
@@ -128,7 +128,7 @@ describe("purchasing", () => {
   })
 
   it("the Buyer offers a substitute, linked to the item it replaces", async () => {
-    seedItem({ status: "canvassing" })
+    seedItem({ status: "still_canvassing" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
@@ -143,9 +143,9 @@ describe("purchasing", () => {
 
     const substitute = await rowNamed("Harness, other brand")
     expect(within(substitute).getByText("Substitute for Full Body Harness")).toBeInTheDocument()
-    expect(within(substitute).getByText("Requested")).toBeInTheDocument()
+    expect(within(substitute).getByText("Not checked")).toBeInTheDocument()
     await rowNamed("Full Body Harness")
-    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Substituted")).toBeInTheDocument())
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cancelled")).toBeInTheDocument())
     expect(within(currentRow("Full Body Harness")).getByText("Replaced by Harness, other brand")).toBeInTheDocument()
   })
 })
@@ -154,7 +154,7 @@ describe("the sales side", () => {
   beforeEach(() => stubPurchaseRequestItemRpcs({ actorId: salesperson.id }))
 
   it("can only cancel, after confirming", async () => {
-    seedItem({ status: "ordered" })
+    seedItem({ status: "purchased" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 

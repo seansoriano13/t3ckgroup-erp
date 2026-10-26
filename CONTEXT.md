@@ -628,15 +628,15 @@ _Avoid_: Assignee, Purchaser (when meaning this role)
 One product a Purchase Request asks for — copied from an SOR line or a Costing
 Matrix Component at the moment it was picked, or described as a new product.
 Later edits to the source never rewrite it. It keeps the link to the Component it
-buys for, and once Ordered it records the Odoo purchase order line as well as its
+buys for, and once Purchased it records the Odoo purchase order line as well as its
 number, which is how Landed Cost finds its way back. The server checks the PO
 number against Odoo itself: a PO Odoo doesn't know is refused, and when Odoo
 doesn't answer the PO is saved as "Not checked". Purchasing can Correct PO while
-the item is Ordered, which is checked again. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
+the item is Purchased, which is checked again. Carries its own status: Not checked, then Available, or To purchase → Still canvassing → Purchased → Received; or out via Cannot source or Cancelled. There is no Substituted status: a substitute cancels the old item and keeps the "substitute for" link.
 _Avoid_: Line Item, Procurement Request
 
 **Requested Item Status**:
-The stage of sourcing for a Requested Item, rendered as an interactive status pill consolidating the status indicator and action controls into one element, allowing permitted members to advance the item along its path or cancel it.
+The stage of sourcing for a Requested Item (Not checked, Available, To purchase, Still canvassing, Purchased, Received, Cannot source, Cancelled), rendered as an interactive status pill consolidating the status indicator and action controls into one element, allowing permitted members to advance the item along its path or cancel it.
 _Avoid_: Status dropdown, Outcome selector, Status button
 
 **Purchase Requests** (the list):
@@ -645,8 +645,8 @@ _Avoid_: Procurement Queue, Sourcing List, Purchasing Dashboard (a different thi
 
 **Purchasing Dashboard**:
 Where every project's buying is seen at once, grouped by what is outstanding
-rather than by which record holds it — **To source**, **To price**, **To order**,
-**On order**, **To check**. The groups are derived and never stored, and one SOR
+rather than by which record holds it — **To source**, **To price**, **To purchase**,
+**Purchased**, **To check**. The groups are derived and never stored, and one SOR
 sits in as many as apply, because purchasing is not a line: components are
 canvassed while others are already ordered and others are on a truck. One page
 with three tabs: **Projects** (those groups), then Order Monitoring's **What needs
@@ -769,7 +769,7 @@ _Avoid_: Penalty, Late Fee
 
 **Purchase Order**:
 T3CK's order to a supplier, raised in Odoo and numbered there (P02552). What an
-IPAS records, what a Requested Item is Ordered on, and what a Transmittal line
+IPAS records, what a Requested Item is Purchased on, and what a Transmittal line
 names. On screen it is the "Odoo PO", never the client's paper.
 _Avoid_: PO (unqualified, where the Client PO could be meant), Order (unqualified)
 

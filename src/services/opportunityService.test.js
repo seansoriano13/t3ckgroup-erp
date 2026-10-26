@@ -3326,7 +3326,7 @@ describe("opportunityService", () => {
     })
 
     it("lists requested items under the visit they were raised on, by the visit's window (#310)", async () => {
-      const raised = (id, created_at) => ({ id, name: id, status: "requested", source: "sor_line", created_at })
+      const raised = (id, created_at) => ({ id, name: id, status: "not_checked", source: "sor_line", created_at })
       stubRpc("sor_purchase_request_overview", [
         { request_id: "r", buyer_id: null, items: [raised("in-v1", "2026-01-05T00:00:00Z"), raised("in-v2", "2026-01-10T00:00:00Z"), raised("in-v3", "2026-01-25T00:00:00Z")] },
       ])

@@ -147,7 +147,7 @@ describe("adding from the Costing Matrix: who", () => {
             name: "Hose reel",
             unit: "pc",
             quantity: 4,
-            status: "requested",
+            status: "not_checked",
             requested_by: ids.outsider,
             sor_line_snapshot: null,
         })
@@ -271,7 +271,7 @@ describe("what the Costing Matrix grid reads", () => {
 
     beforeAll(async () => {
         first = (await addFrom("outsider", [hose, hose, bundle])).data
-        await asSvc(svc().from("purchase_request_items").update({ status: "ordered" }).eq("id", first[0]), "status")
+        await asSvc(svc().from("purchase_request_items").update({ status: "purchased" }).eq("id", first[0]), "status")
     })
 
     afterAll(clearItems)

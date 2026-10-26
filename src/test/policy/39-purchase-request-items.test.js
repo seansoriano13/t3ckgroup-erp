@@ -116,7 +116,7 @@ describe("adding an item from an SOR line", () => {
             quantity: 10,
             unit: "pc",
             sor_line_snapshot: { name: `${MARKER} Full Body Harness`, quantity: 10, unit: "pc" },
-            status: "requested",
+            status: "not_checked",
             requested_by: ids.dealOwner,
         })
     })
@@ -216,7 +216,7 @@ describe("adding a new product", () => {
             description: "Stainless, per the client's drawing",
             images,
             sor_line_snapshot: null,
-            status: "requested",
+            status: "not_checked",
         })
 
         const { data: posts } = await svc()

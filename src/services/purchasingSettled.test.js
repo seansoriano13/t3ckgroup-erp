@@ -67,7 +67,7 @@ describe("Purchasing settled", () => {
 
     await expect(opportunityService.updateStatus(deal.id, qualified.id, owner.id)).rejects.toThrow(/Purchasing settled/)
 
-    await purchaseRequestService.setItemStatus(harness, "from_stock")
+    await purchaseRequestService.setItemStatus(harness, "available")
     await expect(opportunityService.updateStatus(deal.id, qualified.id, owner.id)).rejects.toThrow(/Purchasing settled/)
 
     await purchaseRequestService.setItemStatus(helmet, "cannot_source")

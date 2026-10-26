@@ -156,7 +156,7 @@ function seedPurchaseRequest() {
     source: "new",
     name: "Floodlight",
     quantity: 1,
-    status: "requested",
+    status: "not_checked",
     requested_by: salesperson.id,
   })
   purchaseRequestId = request.id

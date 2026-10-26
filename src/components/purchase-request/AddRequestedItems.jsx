@@ -169,8 +169,8 @@ const blankProduct = (from = null) => ({
  * A product that isn't in Odoo: name, quantity, unit, description and images.
  *
  * With `substituteFor` (an item), the Buyer's substitute for it (#306): the
- * amount starts at the original's, and saving moves the original to
- * Substituted.
+ * amount starts at the original's, and saving cancels the original
+ * and keeps the link.
  */
 export function NewProductDialog({ open, onOpenChange, requestId, substituteFor = null }) {
   const refresh = useRefreshRequest(requestId);
@@ -233,7 +233,7 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
     >
       <p className="text-sm text-muted-foreground">
         {substituteFor
-          ? `For ${substituteFor.name}. It moves to Substituted, so sales can re-price.`
+          ? `For ${substituteFor.name}. It is cancelled and stays linked, so sales can re-price.`
           : "For a product that isn't in Odoo. Describe it so Purchasing can source it."}
       </p>
 

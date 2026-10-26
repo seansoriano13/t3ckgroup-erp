@@ -105,12 +105,12 @@ describe("old and new names answer alike", () => {
     it("both names move an item", async () => {
         const client = await clientFor("superAdmin")
         const item = await newItem()
-        const moved = await client.rpc("purchase_request_set_item_status", { p_item_id: item, p_status: "to_order" })
+        const moved = await client.rpc("purchase_request_set_item_status", { p_item_id: item, p_status: "to_purchase" })
         expect(moved.error).toBeNull()
-        expect(moved.data.status).toBe("to_order")
-        const again = await client.rpc("pr_set_item_status", { p_item_id: item, p_status: "canvassing" })
+        expect(moved.data.status).toBe("to_purchase")
+        const again = await client.rpc("pr_set_item_status", { p_item_id: item, p_status: "still_canvassing" })
         expect(again.error).toBeNull()
-        expect(again.data.status).toBe("canvassing")
+        expect(again.data.status).toBe("still_canvassing")
     })
 })
 

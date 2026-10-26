@@ -40,14 +40,9 @@ const CONFIRM = {
     description: "Sales will know to re-price or drop it. This closes the item.",
     confirmLabel: "Cannot source",
   },
-  [ITEM_STATUS.SUBSTITUTED]: {
-    title: "Mark as Substituted?",
-    description: "This closes the item. To say what replaces it, offer a substitute instead.",
-    confirmLabel: "Mark Substituted",
-  },
 };
 
-const WAYS_OUT = [ITEM_STATUS.SUBSTITUTED, ITEM_STATUS.CANNOT_SOURCE, ITEM_STATUS.CANCELLED];
+const WAYS_OUT = [ITEM_STATUS.CANNOT_SOURCE, ITEM_STATUS.CANCELLED];
 
 const THEME_STYLES = {
   green: "bg-card text-green-600 dark:text-green-400 border-green-400 hover:bg-green-3 hover:border-green-6",
@@ -146,7 +141,7 @@ export default function RequestedItemActions({ item, request, actor }) {
   const onPo =
     side === MEMBER_SIDE.PURCHASING &&
     !!item.po_number &&
-    (item.status === ITEM_STATUS.ORDERED || item.status === ITEM_STATUS.RECEIVED);
+    (item.status === ITEM_STATUS.PURCHASED || item.status === ITEM_STATUS.RECEIVED);
 
   const { data: poLineIds = [] } = useQuery({
     queryKey: purchaseRequestKeys.poLines(requestId, item.id),
@@ -168,7 +163,7 @@ export default function RequestedItemActions({ item, request, actor }) {
   const canSubstitute = !!actor?.canSubstitute && !isClosedStatus(item.status);
   const canPickLines = onPo && poLineIds.length > 0;
   // #549: Purchasing can correct the PO while the item is Ordered; Received is fixed.
-  const canCorrectPo = side === MEMBER_SIDE.PURCHASING && item.status === ITEM_STATUS.ORDERED;
+  const canCorrectPo = side === MEMBER_SIDE.PURCHASING && item.status === ITEM_STATUS.PURCHASED;
   const canInteract = next.length > 0 || canSubstitute || canPickLines || canCorrectPo;
 
   if (!canInteract) {
@@ -181,7 +176,7 @@ export default function RequestedItemActions({ item, request, actor }) {
   }
 
   const choose = (status) => {
-    if (status === ITEM_STATUS.ORDERED) setOrdering(true);
+    if (status === ITEM_STATUS.PURCHASED) setOrdering(true);
     else if (CONFIRM[status]) setConfirming(status);
     else moveMutation.mutate(status);
   };

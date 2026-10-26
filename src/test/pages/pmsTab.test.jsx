@@ -185,7 +185,7 @@ describe("the PMS tab", () => {
         buyer_avatar_path: null,
         opened_visit_id: null,
         created_at: "2026-01-01T00:00:00Z",
-        items: [{ id: "i1", name: "Hose", odoo_product_id: null, quantity: 1, unit: null, status: "requested", source: "sor_line", created_at: "2026-01-02T00:00:00Z" }],
+        items: [{ id: "i1", name: "Hose", odoo_product_id: null, quantity: 1, unit: null, status: "not_checked", source: "sor_line", created_at: "2026-01-02T00:00:00Z" }],
       },
     ]);
     openModal(deal);

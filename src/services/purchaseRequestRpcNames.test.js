@@ -37,7 +37,7 @@ describe("purchaseRequestService — RPC names", () => {
     await purchaseRequestService.listQueue()
     await purchaseRequestService.get("r1")
     await purchaseRequestService.itemActor("r1")
-    await purchaseRequestService.setItemStatus("item-1", "to_order")
+    await purchaseRequestService.setItemStatus("item-1", "to_purchase")
     await purchaseRequestService.cancelItem("item-1")
     await purchaseRequestService.poLines("item-1")
     await purchaseRequestService.pickPoLines("item-1", [7])

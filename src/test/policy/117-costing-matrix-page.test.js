@@ -124,7 +124,7 @@ beforeAll(async () => {
             component_id: hose,
             name: "Hose",
             quantity: 6,
-            status: "ordered",
+            status: "purchased",
             po_number: po,
             odoo_po_line_ids: [11],
             requested_by: ids.dealOwner,

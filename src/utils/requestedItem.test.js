@@ -15,7 +15,7 @@ import { STOCK_BADGE } from "@/constants/stock"
 const fromLine = (overrides = {}) => ({
   id: "i1",
   source: ITEM_SOURCE.SOR_LINE,
-  status: "requested",
+  status: "not_checked",
   odoo_product_id: 101,
   name: "Full Body Harness",
   quantity: 10,
@@ -145,7 +145,7 @@ describe("isLineRequested", () => {
 
   it("doesn't count a cancelled item or a new product", () => {
     expect(isLineRequested(line, [fromLine({ status: "cancelled" })])).toBe(false)
-    expect(isLineRequested(line, [{ source: ITEM_SOURCE.NEW, name: "Full Body Harness", status: "requested" }])).toBe(false)
+    expect(isLineRequested(line, [{ source: ITEM_SOURCE.NEW, name: "Full Body Harness", status: "not_checked" }])).toBe(false)
   })
 })
 
@@ -157,7 +157,7 @@ describe("formatAmount", () => {
 })
 
 describe("poLineNotPicked (#312)", () => {
-  const ordered = (overrides = {}) => ({ status: "ordered", po_number: "P01234", odoo_po_line_ids: [], ...overrides })
+  const ordered = (overrides = {}) => ({ status: "purchased", po_number: "P01234", odoo_po_line_ids: [], ...overrides })
 
   it("flags an Ordered item with a PO but no line", () => {
     expect(poLineNotPicked(ordered())).toBe(true)
@@ -171,7 +171,7 @@ describe("poLineNotPicked (#312)", () => {
   it("says nothing once a line is picked, with no PO number, or before Ordered", () => {
     expect(poLineNotPicked(ordered({ odoo_po_line_ids: [501] }))).toBe(false)
     expect(poLineNotPicked(ordered({ po_number: null }))).toBe(false)
-    expect(poLineNotPicked(ordered({ status: "to_order" }))).toBe(false)
+    expect(poLineNotPicked(ordered({ status: "to_purchase" }))).toBe(false)
     expect(poLineNotPicked(null)).toBe(false)
   })
 })

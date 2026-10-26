@@ -193,13 +193,13 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
   stubRpc("purchase_request_update_item_from_sor", (args) => {
     const item = findRow("purchase_request_items", args.p_item_id)
     if (!item) refuseSor("purchase_request_update_item_from_sor: item not found", "P0002")
-    if (["from_stock", "received", "substituted", "cannot_source", "cancelled"].includes(item.status)) {
+    if (["available", "received", "cannot_source", "cancelled"].includes(item.status)) {
       refuseSor("purchase_request_update_item_from_sor: this item is closed, so it keeps what was asked")
     }
     const line = sorLineOf(item)
     if (!line) refuseSor("purchase_request_update_item_from_sor: the SOR no longer has this line", "P0002")
     const reason = (args.p_reason || "").trim()
-    if (item.status === "ordered" && !reason) {
+    if (item.status === "purchased" && !reason) {
       refuseSor("purchase_request_update_item_from_sor: this item is already ordered, so say why it follows the SOR")
     }
     const unit = (line.unit || "").trim() || null
@@ -309,7 +309,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
 
   function setStatus(item, status, details, server) {
     const po = (details.po_number || "").trim().toUpperCase() || null
-    if (Object.keys(details).length && status !== "ordered") {
+    if (Object.keys(details).length && status !== "purchased") {
       refuse(`purchase_request_set_item_status: ${ITEM_STATUS_LABELS[status]} takes no details`, "22023")
     }
     if (po && !/^P\d+$/.test(po)) refuse(`purchase_request_set_item_status: ${po} isn't an Odoo PO number`, "22023")
@@ -333,7 +333,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       const verification = odoo === "found" ? "VERIFIED" : "PENDING_VERIFICATION"
       if (body.action === "correct") {
         if (sideOf(item.request_id) !== "purchasing") return { success: false, refused: true, message: "purchase_request_correct_po: only Purchasing corrects an item's PO".replace(/^[a-z_]+: /, "") }
-        if (item.status !== "ordered") return { success: false, refused: true, message: `${item.name} is ${item.status}, not Ordered; a PO can only be corrected while the item is Ordered` }
+        if (item.status !== "purchased") return { success: false, refused: true, message: `${item.name} is ${item.status}, not Ordered; a PO can only be corrected while the item is Ordered` }
         const corrected = updateRow("purchase_request_items", item, { po_number: po, po_verification: verification, odoo_po_line_ids: [] })
         insertRow("purchase_request_messages", {
           request_id: item.request_id,
@@ -343,7 +343,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
         })
         return { success: true, verdict: odoo === "found" ? "verified" : "not_checked", item: corrected }
       }
-      const updated = setStatus(item, "ordered", { po_number: po, po_verification: verification }, true)
+      const updated = setStatus(item, "purchased", { po_number: po, po_verification: verification }, true)
       return { success: true, verdict: odoo === "found" ? "verified" : "not_checked", item: updated }
     })
   }
@@ -392,7 +392,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       content: `Offered ${item.name} as a substitute for ${original.name}.`,
       metadata: { event: "item_added", item_id: item.id, source: "new", substitute_for_item_id: original.id },
     })
-    move(original, "substituted", { substitute_item_id: item.id }, "purchase_request_add_substitute")
+    move(original, "cancelled", { substitute_item_id: item.id }, "purchase_request_add_substitute")
     return item.id
   })
 }

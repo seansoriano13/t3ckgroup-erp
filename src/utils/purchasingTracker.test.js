@@ -55,7 +55,7 @@ const ipasRow = (over) => row({ grp: "on_order", target_kind: "ipas", target_id:
 describe("stages", () => {
   it("counts a SOR's outstanding work per stage, and ticks the stages it is past", () => {
     const { sors } = buildTracker({
-      rows: [row({ grp: "to_order", item_count: 3 }), ipasRow()],
+      rows: [row({ grp: "to_purchase", item_count: 3 }), ipasRow()],
       orders: [order()],
       today: TODAY,
     });
@@ -63,7 +63,7 @@ describe("stages", () => {
     expect(states.map((s) => [s.key, s.n, s.tone])).toEqual([
       ["to_source", 0, "done"],
       ["to_price", 0, "done"],
-      ["to_order", 3, "open"],
+      ["to_purchase", 3, "open"],
       ["on_order", 1, "open"],
       ["to_check", 0, "none"],
       ["filed", 0, "none"],
@@ -111,7 +111,7 @@ describe("stages", () => {
 describe("next move", () => {
   it("is the late order first, whatever else is waiting", () => {
     const next = nextMoveOf(
-      [row({ grp: "to_order", since: daysAgo(30) })],
+      [row({ grp: "to_purchase", since: daysAgo(30) })],
       [order({ late: true, daysWaiting: 2, group: ORDER_GROUP.NEEDS_CHASING })],
       { today: TODAY },
     );

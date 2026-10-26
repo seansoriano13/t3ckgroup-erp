@@ -49,7 +49,7 @@ describe("purchaseRequestService — Requested Items", () => {
     const [item] = await purchaseRequestService.listItems(request.id)
     expect(item).toMatchObject({
       source: "sor_line",
-      status: "requested",
+      status: "not_checked",
       odoo_product_id: 101,
       name: "Full Body Harness",
       quantity: 10,
@@ -91,7 +91,7 @@ describe("purchaseRequestService — Requested Items", () => {
   it("wants a reason once the item is Ordered, and posts it", async () => {
     await purchaseRequestService.addItemFromLine(request.id, (await lineNamed("Full Body Harness")).id)
     const [added] = await purchaseRequestService.listItems(request.id)
-    db.internal.rowsOf("purchase_request_items").find((i) => i.id === added.id).status = "ordered"
+    db.internal.rowsOf("purchase_request_items").find((i) => i.id === added.id).status = "purchased"
     await opportunityService.updateOpportunity(
       opportunity.id,
       { items: [{ ...productList[0], quantity: 12 }, productList[1]] },
@@ -150,7 +150,7 @@ describe("purchaseRequestService — Requested Items", () => {
     const [item] = await purchaseRequestService.listItems(request.id)
     expect(item).toMatchObject({
       source: "new",
-      status: "requested",
+      status: "not_checked",
       name: "Custom mounting bracket",
       quantity: 4,
       description: "Stainless, per the client's drawing",
@@ -171,7 +171,7 @@ describe("purchaseRequestService — Requested Items", () => {
     expect(posts.map((m) => m.metadata)).toEqual(
       items.map((i) => ({ event: "item_added", item_id: i.id, source: i.source })),
     )
-    expect(items.every((i) => i.status === "requested")).toBe(true)
+    expect(items.every((i) => i.status === "not_checked")).toBe(true)
   })
 
   it("surfaces the refusal of a line the SOR has since re-saved", async () => {
