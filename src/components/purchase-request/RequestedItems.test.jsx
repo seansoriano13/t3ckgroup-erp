@@ -4,7 +4,7 @@
  * and do: the two sections, each product's name, amount and status, stock, "Removed from S0",
  * through accessible names, not structure.
  */
-import { openRow } from "@/test/openRequestedItem"
+import { openRow, showDoneLines } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
@@ -67,6 +67,10 @@ describe("RequestedItems", () => {
 
     const s0 = await screen.findByRole("region", { name: "From the S0" })
     const other = screen.getByRole("region", { name: "Other requests" })
+    // The Available line folds into one "done" row until shown.
+    expect(within(s0).getAllByTestId("requested-item")).toHaveLength(1)
+    expect(within(s0).getByText("1 done")).toBeInTheDocument()
+    await showDoneLines()
     const s0Rows = within(s0).getAllByTestId("requested-item")
     expect(s0Rows).toHaveLength(2)
     expect(within(s0Rows[0]).getByText("Full Body Harness")).toBeInTheDocument()
@@ -222,6 +226,76 @@ describe("RequestedItems", () => {
       const row = await openRow((await screen.findAllByTestId("requested-item"))[1])
       expect(within(row).getByText("Rope Access Kit")).toBeInTheDocument()
       expect(within(row).queryByTestId("requested-item-price")).not.toBeInTheDocument()
+    })
+  })
+
+  describe("the ready bar and folding (#680)", () => {
+    const seed = (name, status, extra = {}) =>
+      db.seed("purchase_request_items", {
+        request_id: request.id, source: "new", name, quantity: 1, unit: "pc", status, requested_by: salesperson.id, ...extra,
+      })
+
+    it("says N of M ready and the plain sentence, leaving Cancelled lines out", async () => {
+      itemRow("Rope Access Kit").status = "received"
+      seed("Bracket", "to_purchase")
+      seed("Anchor", "purchased", { po_number: "P01234" })
+      seed("Old sling", "cancelled")
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const bar = await screen.findByTestId("ready-bar")
+      expect(within(bar).getByText("1 of 4 ready")).toBeInTheDocument()
+      expect(within(bar).getByTestId("ready-sentence")).toHaveTextContent(
+        "1 is in the warehouse. 2 need buying: 1 still needs a supplier, 1 is on P01234 and not here yet. 1 has not been checked yet.",
+      )
+    })
+
+    it("names the cannot-source count and counts several purchased lines", async () => {
+      seed("A", "purchased"); seed("B", "purchased"); seed("C", "cannot_source")
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const bar = await screen.findByTestId("ready-bar")
+      expect(within(bar).getByTestId("ready-sentence")).toHaveTextContent(
+        "0 are in the warehouse. 2 need buying: 2 are on a P0 and not here yet. 2 have not been checked yet. 1 cannot be sourced.",
+      )
+    })
+
+    it("folds finished lines into 'N done' and shows them on request", async () => {
+      itemRow("Rope Access Kit").status = "available"
+      seed("Old sling", "cancelled")
+      const user = setupUser()
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const s0 = await screen.findByRole("region", { name: "From the S0" })
+      expect(within(s0).getAllByTestId("requested-item")).toHaveLength(1)
+      expect(within(s0).getByText("1 done")).toBeInTheDocument()
+      const other = screen.getByRole("region", { name: "Other requests" })
+      expect(within(other).queryAllByTestId("requested-item")).toHaveLength(0)
+      expect(within(other).getByText("1 done")).toBeInTheDocument()
+      await user.click(within(s0).getByRole("button", { name: "show" }))
+      expect(within(s0).getAllByTestId("requested-item")).toHaveLength(2)
+    })
+
+    it("does not hold a finished line open for Removed from S0 alone", async () => {
+      itemRow("Full Body Harness").status = "received"
+      itemRow("Full Body Harness").removed_from_s0 = true
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const s0 = await screen.findByRole("region", { name: "From the S0" })
+      const shown = within(s0).getAllByTestId("requested-item")
+      expect(shown).toHaveLength(1)
+      expect(within(shown[0]).getByText("Rope Access Kit")).toBeInTheDocument()
+      expect(within(s0).getByText("1 done")).toBeInTheDocument()
+    })
+
+    it("folds a section shut, and a count button opens it again", async () => {
+      const user = setupUser()
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const header = await screen.findByRole("button", { name: /From the S0/ , expanded: true })
+      await user.click(header)
+      expect(screen.getByRole("button", { name: /From the S0/, expanded: false })).toBeInTheDocument()
+      await user.click(within(screen.getByRole("group", { name: "Jump to a section" })).getByRole("button", { name: "From the S0 · 2" }))
+      expect(screen.getByRole("button", { name: /^From the S0/, expanded: true })).toBeInTheDocument()
     })
   })
 })
