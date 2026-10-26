@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-10-26",
+        "title": "Actual cost of a foreign P0 in pesos",
+        "version": "1.9.68",
+        "changes": [
+            "On the Costing Matrix, a P0 in dollars or another currency now shows its Actual cost in pesos, at the rate of the Canvass winner, with the P0's own price beside it.",
+            "If no Canvass winner is in the P0's currency, its price is shown in that currency and not compared with the peso cost."
+        ]
+    },
+    {
+        "date": "2026-10-26",
         "title": "Product list is now a table",
         "version": "1.9.67",
         "changes": [

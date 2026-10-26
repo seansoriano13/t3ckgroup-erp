@@ -63,6 +63,25 @@ describe("Expected and Actual cost on the Costing Matrix", () => {
     expect(await screen.findByTestId("cost-comparison")).toHaveTextContent(/^₱78,000\.00$/);
   });
 
+  it("shows a USD P0 in pesos at the Canvass rate, not its dollar price as pesos", async () => {
+    // P01235: the Light Tower 400 at USD 388; the Canvass winner filled Acquire at 63.509.
+    seedCost({ acquire_unit: 24641.49, p0_unit_price: 24641.49, p0_quoted_unit_price: 388, p0_currency: "USD" });
+    mount();
+    await openLines();
+    const text = await screen.findByTestId("cost-comparison");
+    expect(text).toHaveTextContent("₱24,641.49 · $388.00 at the Canvass rate");
+    expect(text).not.toHaveTextContent("₱388.00");
+  });
+
+  it("shows a USD P0 with no peso rate in dollars, not compared", async () => {
+    seedCost({ acquire_unit: 24641.49, p0_unit_price: null, p0_quoted_unit_price: 388, p0_currency: "USD" });
+    mount();
+    await openLines();
+    const text = await screen.findByTestId("cost-comparison");
+    expect(text).toHaveTextContent("Actual $388.00 in USD, not compared");
+    expect(text).not.toHaveTextContent("%");
+  });
+
   it("shows nothing about cost to a tier that may not read it", async () => {
     seedCost({ acquire_unit: 78000, p0_unit_price: 81900 });
     mount({ tier: "price", bands: ["sales"] });

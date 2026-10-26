@@ -92,11 +92,20 @@ describe("p0UnitPrice (#686)", () => {
   const priced = (id, price_unit) => ({ ...line(id), price_unit });
   it("takes the price of the line for the same product, else the first line", () => {
     const order = p0("P01", "S01", [priced(1, 10), priced(2, 25)]);
-    expect(p0UnitPrice(order, 2)).toBe(25);
-    expect(p0UnitPrice(order, 99)).toBe(10);
-    expect(p0UnitPrice(order, null)).toBe(10);
+    expect(p0UnitPrice(order, 2).price).toBe(25);
+    expect(p0UnitPrice(order, 99).price).toBe(10);
+    expect(p0UnitPrice(order, null).price).toBe(10);
   });
   it("is null when Odoo gave no price", () => {
-    expect(p0UnitPrice(p0("P01", "S01", [line(1)]), 1)).toBeNull();
+    expect(p0UnitPrice(p0("P01", "S01", [line(1)]), 1).price).toBeNull();
+  });
+  it("carries the P0's currency, so a USD price is never taken as pesos", () => {
+    // P01235 (Shenzhen Coming Technology): the Light Tower 400 at USD 388.
+    const order = p0("P01235", "S01", [priced(7, 388)], { currency: "USD" });
+    expect(p0UnitPrice(order, 7)).toEqual({ price: 388, currency: "USD" });
+    expect(p0UnitPrice(p0("P01", "S01", [priced(1, 10)], { currency: "PHP" }), 1)).toEqual({ price: 10, currency: "PHP" });
+  });
+  it("does not assume pesos when Odoo did not say the currency", () => {
+    expect(p0UnitPrice(p0("P01", "S01", [priced(1, 10)]), 1)).toEqual({ price: 10, currency: null });
   });
 });

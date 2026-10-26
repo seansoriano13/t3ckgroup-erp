@@ -4,7 +4,7 @@
 import { executeKw } from "./odoo.ts";
 import type { OdooP0 } from "./p0Suggestions.ts";
 
-const ORDER_FIELDS = ["id", "name", "state", "partner_id", "date_order", "date_planned", "origin"];
+const ORDER_FIELDS = ["id", "name", "state", "partner_id", "date_order", "date_planned", "origin", "currency_id"];
 const LINE_FIELDS = ["order_id", "product_id", "name", "product_qty", "qty_received", "price_unit"];
 
 export type OdooP0Row = OdooP0 & { id: number; supplier: string | null };
@@ -29,6 +29,8 @@ export async function readP0s(uid: number, domain: unknown[], limit = 200): Prom
     date_order: o.date_order ? String(o.date_order) : null,
     date_planned: o.date_planned ? String(o.date_planned).slice(0, 10) : null,
     supplier: Array.isArray(o.partner_id) ? String(o.partner_id[1]) : null,
+    // currency_id comes back as [id, "USD"]; the name is the ISO code.
+    currency: Array.isArray(o.currency_id) ? String(o.currency_id[1]) : null,
     lines: lines
       .filter((l: Record<string, unknown>) => Array.isArray(l.order_id) && l.order_id[0] === o.id)
       .map((l: Record<string, unknown>) => ({

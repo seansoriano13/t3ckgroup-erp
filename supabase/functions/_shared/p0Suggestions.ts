@@ -20,6 +20,8 @@ export type OdooP0 = {
   date_order?: string | null;
   /** Odoo's Expected Arrival (YYYY-MM-DD); often only the order date, or not set. */
   date_planned?: string | null;
+  /** The P0's currency in Odoo ("PHP", "USD"); its line prices are in it. */
+  currency?: string | null;
   lines: OdooP0Line[];
 };
 
@@ -106,12 +108,17 @@ export function statusFromP0(facts: P0Facts): "to_purchase" | "purchased" | "rec
 }
 
 /**
- * The unit price on the P0 line that bought this product line's product (the Actual cost, #686).
- * Same line choice as p0Facts. Null when the line has no price.
+ * The unit price on the P0 line that bought this product line's product (the Actual cost, #686),
+ * in the P0's own currency, which may not be pesos: the database turns a foreign one into pesos.
+ * Same line choice as p0Facts. The price is null when the line has none; the currency is null
+ * when Odoo did not say, and is never assumed to be PHP.
  */
-export function p0UnitPrice(p0: OdooP0, productId: number | null): number | null {
+export function p0UnitPrice(p0: OdooP0, productId: number | null): { price: number | null; currency: string | null } {
   const line =
     (productId != null ? p0.lines.find((l) => l.product_id === productId) : undefined) ?? p0.lines[0];
   const price = line?.price_unit;
-  return price == null || !Number.isFinite(Number(price)) ? null : Number(price);
+  return {
+    price: price == null || !Number.isFinite(Number(price)) ? null : Number(price),
+    currency: p0.currency ? String(p0.currency).trim().toUpperCase() || null : null,
+  };
 }
