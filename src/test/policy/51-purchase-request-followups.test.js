@@ -28,7 +28,7 @@ async function one(query, what) {
 }
 
 /** A request on an SOR at the open Stage, with members and one item per status. */
-async function newRequest({ buyer = null, items = ["requested"], members = [] } = {}) {
+async function newRequest({ buyer = null, items = ["not_checked"], members = [] } = {}) {
     const sorId = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stage.open })
     sors.push(sorId)
     const req = await one(

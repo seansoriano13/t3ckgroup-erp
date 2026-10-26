@@ -158,7 +158,7 @@ describe("before a Buyer", () => {
     beforeEach(() => clearNotifications(requestId))
 
     it("a status change tells only the requester", async () => {
-        const { error } = await setStatus("stageParticipant", itemId, "to_order")
+        const { error } = await setStatus("stageParticipant", itemId, "to_purchase")
         expect(error).toBeNull()
         expect(await notified(requestId)).toEqual({ dealOwner: ["PURCHASE_REQUEST_ITEM_STATUS"] })
     })
@@ -211,7 +211,7 @@ describe("after Take", () => {
     beforeEach(() => clearNotifications(requestId))
 
     it("a status change tells only the Buyer and the requester", async () => {
-        const { error } = await setStatus("stageParticipant", itemId, "to_order")
+        const { error } = await setStatus("stageParticipant", itemId, "to_purchase")
         expect(error).toBeNull()
         expect(await notified(requestId)).toEqual({
             outsider: ["PURCHASE_REQUEST_ITEM_STATUS"],

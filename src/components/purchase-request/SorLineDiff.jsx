@@ -66,7 +66,7 @@ function ChangeFields({ change }) {
 function FollowSorDialog({ open, onOpenChange, item, change }) {
   const refresh = useRefreshRequest(item.request_id);
   const [reason, setReason] = useState("");
-  const ordered = item.status === ITEM_STATUS.ORDERED;
+  const ordered = item.status === ITEM_STATUS.PURCHASED;
 
   const close = () => {
     setReason("");

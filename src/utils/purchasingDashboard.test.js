@@ -38,12 +38,12 @@ describe("dashboardView", () => {
     expect(view.groups.map((group) => group.key)).toEqual([
       DASHBOARD_GROUP.TO_SOURCE,
       DASHBOARD_GROUP.TO_PRICE,
-      DASHBOARD_GROUP.TO_ORDER,
+      DASHBOARD_GROUP.TO_PURCHASE,
       DASHBOARD_GROUP.ON_ORDER,
       DASHBOARD_GROUP.TO_CHECK,
     ]);
     expect(groupOf(view, DASHBOARD_GROUP.TO_SOURCE)).toMatchObject({ itemCount: 5, sorCount: 2 });
-    expect(groupOf(view, DASHBOARD_GROUP.TO_ORDER)).toMatchObject({ itemCount: 0, sorCount: 0 });
+    expect(groupOf(view, DASHBOARD_GROUP.TO_PURCHASE)).toMatchObject({ itemCount: 0, sorCount: 0 });
   });
 
   it("puts one SOR in every group that applies, with that group's item count", () => {
@@ -75,7 +75,7 @@ describe("dashboardView", () => {
 
 describe("sorSummary", () => {
   it("reads every group an SOR is in, never one primary group", () => {
-    expect(sorSummary(ROWS, "sor-1")).toBe("4 to source, 1 to price, 2 on order, 1 to check");
+    expect(sorSummary(ROWS, "sor-1")).toBe("4 to source, 1 to price, 2 purchased, 1 to check");
   });
 });
 

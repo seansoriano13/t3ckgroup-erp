@@ -35,7 +35,7 @@ const ITEM_NAMES = [
   ["Cable ties (pack)", "pack", 15],
   ["Network switch 24-port", "pc", 2],
 ]
-const ITEM_STATUSES = ["requested", "to_order", "canvassing", "ordered", "received", "from_stock", "cannot_source", "cancelled", "requested"]
+const ITEM_STATUSES = ["not_checked", "to_purchase", "still_canvassing", "purchased", "received", "available", "cannot_source", "cancelled", "not_checked"]
 
 const pick = (i, arr) => arr[i % arr.length]
 
@@ -101,13 +101,13 @@ async function main() {
         const [name, unit, qty] = ITEM_NAMES[idx]
         // Last request is fully closed so the Closed filter has rows.
         const status = ri === 4 ? (k === 0 ? "received" : "cancelled") : pick(idx + ri, ITEM_STATUSES)
-        const ordered = status === "ordered" || status === "received"
+        const ordered = status === "purchased" || status === "received"
         await q(
           `insert into purchase_request_items (request_id, source, name, unit, quantity, description, status, po_number, po_verification, requested_by, status_changed_by, status_changed_at)
            values ($1,'new',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [pr.id, name, unit, qty, `Mock item for testing (${name}).`, status,
             ordered ? `P99${ri}0${k}0` : null, ordered ? "UNVERIFIED" : "UNVERIFIED", requester,
-            status === "requested" ? null : buyer, status === "requested" ? null : new Date()],
+            status === "not_checked" ? null : buyer, status === "not_checked" ? null : new Date()],
         )
       }
       await q(

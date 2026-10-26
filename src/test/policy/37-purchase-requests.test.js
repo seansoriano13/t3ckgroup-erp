@@ -83,24 +83,24 @@ describe("the tables", () => {
         expect(policies).toBeGreaterThan(0)
     })
 
-    it("the item status CHECK refuses a value outside the nine", async () => {
+    it("the item status CHECK refuses a value outside the eight", async () => {
         expect(await constraintInsert("purchase_request_items", itemRow(unassigned, { status: "shipped" }))).toBe("23514")
     })
 
     it.each([
-        "requested", "from_stock", "to_order", "canvassing", "ordered",
-        "received", "substituted", "cannot_source", "cancelled",
+        "not_checked", "available", "to_purchase", "still_canvassing", "purchased",
+        "received", "cannot_source", "cancelled",
     ])("the item status CHECK accepts %s", async (status) => {
         expect(await constraintInsert("purchase_request_items", itemRow(unassigned, { status }))).toBeNull()
     })
 
-    it("a new item starts at Requested, Not checked, with no PO lines", async () => {
+    it("a new item starts at Not checked, with no PO lines", async () => {
         const { data } = await svc()
             .from("purchase_request_items")
             .select("status, po_verification, odoo_po_line_ids, images")
             .eq("id", item)
             .single()
-        expect(data).toEqual({ status: "requested", po_verification: "UNVERIFIED", odoo_po_line_ids: [], images: [] })
+        expect(data).toEqual({ status: "not_checked", po_verification: "UNVERIFIED", odoo_po_line_ids: [], images: [] })
     })
 
     it("refuses an item source, member side or PO verification outside its set", async () => {
@@ -254,7 +254,7 @@ describe("every other write waits for its RPC", () => {
 
     it("a purchasing member cannot set a status or a Buyer directly", async () => {
         const client = await clientFor("stageParticipant")
-        expect((await tryUpdate(client, "purchase_request_items", item, { status: "ordered" })).affected).toBe(0)
+        expect((await tryUpdate(client, "purchase_request_items", item, { status: "purchased" })).affected).toBe(0)
         expect((await tryUpdate(client, "purchase_requests", unassigned, { buyer_id: ids.stageParticipant })).affected).toBe(0)
     })
 })

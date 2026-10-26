@@ -1,7 +1,7 @@
 import { ITEM_STATUS, isClosedStatus } from "../../constants/purchaseRequest";
 
 
-const TODO = [ITEM_STATUS.REQUESTED, ITEM_STATUS.TO_ORDER];
+const TODO = [ITEM_STATUS.NOT_CHECKED, ITEM_STATUS.TO_PURCHASE];
 const GROUPS = [
   { key: "todo", label: "To do", test: (i) => TODO.includes(i.status) },
   { key: "doing", label: "In progress", test: (i) => !TODO.includes(i.status) && !isClosedStatus(i.status) },

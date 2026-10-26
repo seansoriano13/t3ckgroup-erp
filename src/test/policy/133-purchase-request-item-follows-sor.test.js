@@ -111,7 +111,7 @@ describe("an Ordered item", () => {
     beforeAll(async () => {
         await replaceProductList(PRODUCT_LIST)
         itemId = await pickHarness()
-        await svc().from("purchase_request_items").update({ status: "ordered" }).eq("id", itemId)
+        await svc().from("purchase_request_items").update({ status: "purchased" }).eq("id", itemId)
         await replaceProductList([{ ...PRODUCT_LIST[0], quantity: 15 }])
     })
 

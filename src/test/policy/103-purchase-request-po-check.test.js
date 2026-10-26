@@ -33,7 +33,7 @@ const seedItem = (fields = {}) =>
         name: `${MARKER} Safety Boots`,
         unit: "pc",
         quantity: 10,
-        status: "to_order",
+        status: "to_purchase",
         requested_by: ids.dealOwner,
         ...fields,
     })
@@ -86,11 +86,11 @@ describe("a signed-in caller can't set the Odoo check", () => {
             const id = await seedItem()
             const { error } = await (await clientFor("stageParticipant")).rpc("purchase_request_set_item_status", {
                 p_item_id: id,
-                p_status: "ordered",
+                p_status: "purchased",
                 p_details: { po_number: PO, po_verification: state },
             })
             expect(error?.code).toBe("42501")
-            expect(await item(id)).toMatchObject({ status: "to_order", po_number: null })
+            expect(await item(id)).toMatchObject({ status: "to_purchase", po_number: null })
         },
     )
 
@@ -98,7 +98,7 @@ describe("a signed-in caller can't set the Odoo check", () => {
         const id = await seedItem()
         const { error } = await (await clientFor("stageParticipant")).rpc("pr_set_item_status", {
             p_item_id: id,
-            p_status: "ordered",
+            p_status: "purchased",
             p_details: { po_number: PO, po_verification: "VERIFIED" },
         })
         expect(error?.code).toBe("42501")
@@ -108,22 +108,22 @@ describe("a signed-in caller can't set the Odoo check", () => {
         const id = await seedItem()
         const { error } = await (await clientFor("stageParticipant")).rpc("purchase_request_set_item_status", {
             p_item_id: id,
-            p_status: "ordered",
+            p_status: "purchased",
             p_details: { po_number: PO },
         })
         expect(error?.code).toBe("42501")
-        expect(await item(id)).toMatchObject({ status: "to_order", po_number: null })
+        expect(await item(id)).toMatchObject({ status: "to_purchase", po_number: null })
     })
 
     it("Ordered with no PO number is unchanged", async () => {
         const id = await seedItem()
         const { data, error } = await (await clientFor("stageParticipant")).rpc("purchase_request_set_item_status", {
             p_item_id: id,
-            p_status: "ordered",
+            p_status: "purchased",
             p_details: {},
         })
         expect(error).toBeNull()
-        expect(data).toMatchObject({ status: "ordered", po_number: null })
+        expect(data).toMatchObject({ status: "purchased", po_number: null })
     })
 
     it("nobody signed in can use the server-only path", async () => {
@@ -137,7 +137,7 @@ describe("a signed-in caller can't set the Odoo check", () => {
         }
         expect((await (await clientFor("superAdmin")).rpc("purchase_request_item_apply_po_check", args)).error).not.toBeNull()
         expect((await anonymousClient().rpc("purchase_request_item_apply_po_check", args)).error).not.toBeNull()
-        expect(await item(id)).toMatchObject({ status: "to_order", po_number: null })
+        expect(await item(id)).toMatchObject({ status: "to_purchase", po_number: null })
     })
 })
 
@@ -146,7 +146,7 @@ describe("the three verdicts, with Odoo faked", () => {
         const id = await seedItem()
         const { data, error } = await check("stageParticipant", id, "found", " p01234 ")
         expect(error).toBeNull()
-        expect(data).toMatchObject({ status: "ordered", po_number: PO, po_verification: "VERIFIED" })
+        expect(data).toMatchObject({ status: "purchased", po_number: PO, po_verification: "VERIFIED" })
         expect(await item(id)).toMatchObject({ status_changed_by: ids.stageParticipant })
 
         const { data: posts } = await svc()
@@ -155,7 +155,7 @@ describe("the three verdicts, with Odoo faked", () => {
             .eq("request_id", requestId)
             .contains("metadata", { event: "item_status_changed", item_id: id })
         expect(posts[0].metadata).toMatchObject({
-            to: "ordered",
+            to: "purchased",
             changed_by: ids.stageParticipant,
             details: { po_number: PO, po_verification: "VERIFIED" },
         })
@@ -167,14 +167,14 @@ describe("the three verdicts, with Odoo faked", () => {
         expect(data).toBeNull()
         expect(error?.code).toBe("22023")
         expect(error?.message).toMatch(/P09999/)
-        expect(await item(id)).toMatchObject({ status: "to_order", po_number: null, po_verification: "UNVERIFIED" })
+        expect(await item(id)).toMatchObject({ status: "to_purchase", po_number: null, po_verification: "UNVERIFIED" })
     })
 
     it("Odoo doesn't answer: saved as not checked", async () => {
         const id = await seedItem()
         const { data, error } = await check("stageParticipant", id, "unreachable")
         expect(error).toBeNull()
-        expect(data).toMatchObject({ status: "ordered", po_number: PO, po_verification: "PENDING_VERIFICATION" })
+        expect(data).toMatchObject({ status: "purchased", po_number: PO, po_verification: "PENDING_VERIFICATION" })
     })
 })
 
@@ -182,7 +182,7 @@ describe("the server path keeps every rule of the status move", () => {
     it("the sales side can't set Ordered this way either", async () => {
         const id = await seedItem()
         expect((await check("dealOwner", id, "found")).error?.code).toBe("42501")
-        expect(await item(id)).toMatchObject({ status: "to_order", po_number: null })
+        expect(await item(id)).toMatchObject({ status: "to_purchase", po_number: null })
     })
 
     it("someone who isn't a member is refused", async () => {
@@ -203,6 +203,6 @@ describe("the server path keeps every rule of the status move", () => {
     ])("refuses %s", async (_, po, odoo, action) => {
         const id = await seedItem()
         expect((await check("stageParticipant", id, odoo, po, action)).error?.code).toBe("22023")
-        expect(await item(id)).toMatchObject({ status: "to_order", po_number: null })
+        expect(await item(id)).toMatchObject({ status: "to_purchase", po_number: null })
     })
 })

@@ -34,7 +34,7 @@ async function openOrderDialog(user) {
   const row = await rowNamed("Full Body Harness")
   await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
   await statusMenuReady()
-  await user.click(screen.getByRole("button", { name: "Ordered" }))
+  await user.click(screen.getByRole("button", { name: "Purchased" }))
   return { row, dialog: await screen.findByRole("dialog") }
 }
 
@@ -51,27 +51,27 @@ describe("setting Ordered", () => {
   beforeEach(() => stubPurchaseRequestItemRpcs({ actorId: buyer.id }))
 
   it("works with no PO number", async () => {
-    seedItem({ status: "to_order" })
+    seedItem({ status: "to_purchase" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const { dialog } = await openOrderDialog(user)
-    await user.click(within(dialog).getByRole("button", { name: "Mark Ordered" }))
+    await user.click(within(dialog).getByRole("button", { name: "Mark Purchased" }))
 
-    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Ordered")).toBeInTheDocument())
-    expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "ordered", po_number: null })
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Purchased")).toBeInTheDocument())
+    expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "purchased", po_number: null })
     expect(within(currentRow("Full Body Harness")).queryByText("PO line not picked")).not.toBeInTheDocument()
   })
 
   it("checks a PO number against Odoo, stores it, and says its line isn't picked", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
-    seedItem({ status: "to_order" })
+    seedItem({ status: "to_purchase" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const { dialog } = await openOrderDialog(user)
     await user.type(within(dialog).getByLabelText("PO number (optional)"), "p01234")
-    await user.click(within(dialog).getByRole("button", { name: "Check PO and mark Ordered" }))
+    await user.click(within(dialog).getByRole("button", { name: "Check PO and mark Purchased" }))
 
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("PO P01234")).toBeInTheDocument())
     expect(within(currentRow("Full Body Harness")).getByText(/Confirmed in Odoo/)).toBeInTheDocument()
@@ -81,13 +81,13 @@ describe("setting Ordered", () => {
 
   it("shows the PO as not checked when Odoo doesn't answer", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "unreachable" })
-    seedItem({ status: "to_order" })
+    seedItem({ status: "to_purchase" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const { dialog } = await openOrderDialog(user)
     await user.type(within(dialog).getByLabelText("PO number (optional)"), "P01234")
-    await user.click(within(dialog).getByRole("button", { name: "Check PO and mark Ordered" }))
+    await user.click(within(dialog).getByRole("button", { name: "Check PO and mark Purchased" }))
 
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("PO P01234")).toBeInTheDocument())
     expect(within(currentRow("Full Body Harness")).getByText(/Not checked/)).toBeInTheDocument()
@@ -96,33 +96,33 @@ describe("setting Ordered", () => {
 
   it("saves nothing when Odoo says there is no such PO", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "not_found" })
-    seedItem({ status: "to_order" })
+    seedItem({ status: "to_purchase" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const { dialog } = await openOrderDialog(user)
     await user.type(within(dialog).getByLabelText("PO number (optional)"), "P09999")
-    await user.click(within(dialog).getByRole("button", { name: "Check PO and mark Ordered" }))
+    await user.click(within(dialog).getByRole("button", { name: "Check PO and mark Purchased" }))
 
-    await waitFor(() => expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "to_order", po_number: null }))
+    await waitFor(() => expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "to_purchase", po_number: null }))
   })
 
   it("won't save a number that isn't an Odoo PO", async () => {
-    seedItem({ status: "to_order" })
+    seedItem({ status: "to_purchase" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const { dialog } = await openOrderDialog(user)
     await user.type(within(dialog).getByLabelText("PO number (optional)"), "PO-12")
     expect(within(dialog).getByText(/"P" followed by digits/)).toBeInTheDocument()
-    expect(within(dialog).getByRole("button", { name: "Check PO and mark Ordered" })).toBeDisabled()
+    expect(within(dialog).getByRole("button", { name: "Check PO and mark Purchased" })).toBeDisabled()
   })
 })
 
 describe("picking the PO line", () => {
   it("is not offered while the PO has no IPAS", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id })
-    seedItem({ status: "ordered", po_number: "P01234", po_verification: "VERIFIED" })
+    seedItem({ status: "purchased", po_number: "P01234", po_verification: "VERIFIED" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
@@ -176,7 +176,7 @@ describe("Correct PO", () => {
 
   it("swaps the PO on an Ordered item, checks it, and clears the picked line", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
-    seedItem({ status: "ordered", po_number: "P01111", po_verification: "VERIFIED", odoo_po_line_ids: [501] })
+    seedItem({ status: "purchased", po_number: "P01111", po_verification: "VERIFIED", odoo_po_line_ids: [501] })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
@@ -190,7 +190,7 @@ describe("Correct PO", () => {
 
   it("keeps the old PO when Odoo says the new one doesn't exist", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "not_found" })
-    seedItem({ status: "ordered", po_number: "P01111", po_verification: "VERIFIED" })
+    seedItem({ status: "purchased", po_number: "P01111", po_verification: "VERIFIED" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
@@ -204,7 +204,7 @@ describe("Correct PO", () => {
 
   it("won't send a number that isn't an Odoo PO", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
-    seedItem({ status: "ordered", po_number: "P01111", po_verification: "VERIFIED" })
+    seedItem({ status: "purchased", po_number: "P01111", po_verification: "VERIFIED" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
@@ -215,7 +215,7 @@ describe("Correct PO", () => {
 
   it("is not offered to the sales side", async () => {
     stubPurchaseRequestItemRpcs({ actorId: salesperson.id, odoo: "found" })
-    seedItem({ status: "ordered", po_number: "P01111", po_verification: "VERIFIED" })
+    seedItem({ status: "purchased", po_number: "P01111", po_verification: "VERIFIED" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 

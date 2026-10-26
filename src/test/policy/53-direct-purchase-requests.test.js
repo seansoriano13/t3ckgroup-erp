@@ -61,7 +61,7 @@ describe("opening", () => {
         const { data: req } = await svc().from("purchase_requests").select("opportunity_id, title, created_by, buyer_id").eq("id", id).single()
         expect(req).toEqual({ opportunity_id: null, title: `${MARKER} Office supplies`, created_by: ids.ordinary, buyer_id: null })
 
-        expect(await items(id)).toEqual([expect.objectContaining({ status: "requested", source: "new", requested_by: ids.ordinary })])
+        expect(await items(id)).toEqual([expect.objectContaining({ status: "not_checked", source: "new", requested_by: ids.ordinary })])
 
         const { data: members } = await svc().from("purchase_request_members").select("employee_id, side").eq("request_id", id)
         expect(members).toContainEqual({ employee_id: ids.ordinary, side: "requester" })
@@ -134,7 +134,7 @@ describe("the Requester", () => {
         expect(added.error).toBeNull()
 
         const [first] = await items(id)
-        const moved = await client.rpc("purchase_request_set_item_status", { p_item_id: first.id, p_status: "to_order" })
+        const moved = await client.rpc("purchase_request_set_item_status", { p_item_id: first.id, p_status: "to_purchase" })
         expect(moved.error?.message).toMatch(/can't move/)
         const cancelled = await client.rpc("purchase_request_set_item_status", { p_item_id: first.id, p_status: "cancelled" })
         expect(cancelled.error).toBeNull()
@@ -165,7 +165,7 @@ describe("Purchasing", () => {
         expect((await purchaser.rpc("purchase_request_take", { p_request_id: id })).error).toBeNull()
 
         const [item] = await items(id)
-        for (const status of ["to_order", "ordered", "received"]) {
+        for (const status of ["to_purchase", "purchased", "received"]) {
             const { error } = await purchaser.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: status })
             expect(error, status).toBeNull()
         }
@@ -181,7 +181,7 @@ describe("Purchasing", () => {
         expect((await client.rpc("purchase_request_add_new_item", { p_request_id: id, p_name: `${MARKER} Cable`, p_quantity: 1 })).error).toBeNull()
         expect((await client.rpc("purchase_request_take", { p_request_id: id })).error).toBeNull()
         const [item] = await items(id)
-        expect((await client.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: "from_stock" })).error).toBeNull()
+        expect((await client.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: "available" })).error).toBeNull()
     })
 })
 

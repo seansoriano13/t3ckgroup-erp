@@ -147,6 +147,6 @@ export function isLineRequested(line, items = []) {
  */
 export function poLineNotPicked(item) {
   if (!item?.po_number) return false;
-  if (item.status !== ITEM_STATUS.ORDERED && item.status !== ITEM_STATUS.RECEIVED) return false;
+  if (item.status !== ITEM_STATUS.PURCHASED && item.status !== ITEM_STATUS.RECEIVED) return false;
   return !(item.odoo_po_line_ids?.length > 0);
 }

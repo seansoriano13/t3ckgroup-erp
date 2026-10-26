@@ -9,7 +9,7 @@
  *
  *   - CREATE TABLE  → columns, types, NOT NULL, DEFAULT, UNIQUE, PRIMARY KEY
  *   - CONSTRAINT    → PRIMARY KEY / FOREIGN KEY / CHECK, by name
- *   - ALTER TABLE   → ADD COLUMN, ADD CONSTRAINT, DROP CONSTRAINT
+ *   - ALTER TABLE   → ADD COLUMN, ADD CONSTRAINT, DROP CONSTRAINT, ALTER COLUMN SET DEFAULT
  *
  * Foreign keys are indexed by constraint name because that is exactly how
  * PostgREST disambiguates embedded selects
@@ -420,6 +420,11 @@ function applyAlterTable(sql, registry) {
         /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+drop\s+constraint\s+(?:if\s+exists\s+)?"?([a-z_0-9]+)"?/gi,
     },
     {
+      kind: "setDefault",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+alter\s+column\s+"?([a-z_0-9]+)"?\s+set\s+default\s+([^;]+);/gi,
+    },
+    {
       kind: "renameTable",
       regex:
         /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+rename\s+to\s+"?([a-z_0-9]+)"?\s*;/gi,
@@ -474,6 +479,8 @@ function applyAlterTable(sql, registry) {
         table.unique = table.unique.filter((cols) => cols.join(",") !== key)
         delete table.uniqueByName[statement.payload]
       }
+    } else if (statement.kind === "setDefault") {
+      if (table.columns[statement.payload]) table.columns[statement.payload].default = parseDefault(statement.extra.trim())
     } else if (statement.kind === "renameTable") {
       const newTableName = statement.payload
       registry.tables[newTableName] = table

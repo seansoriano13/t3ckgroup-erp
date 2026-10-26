@@ -35,9 +35,9 @@ function toastPoVerdict(message, updated) {
 }
 
 /**
- * Issue #312 — setting an item Ordered, with its PO number if there is one.
+ * Issue #312 — setting an item Purchased, with its PO number if there is one.
  * The number is checked against Odoo on save and stored with the answer; an
- * item can be Ordered without one.
+ * item can be Purchased without one.
  */
 export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
   const refresh = useRefreshRequest(requestId);
@@ -60,7 +60,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
         ? ` PO ${updated.po_number}: ${PO_VERIFICATION_LABELS[updated.po_verification] || updated.po_verification}.`
         : "";
       const pending = updated?.po_verification === PO_VERIFICATION.PENDING;
-      announce(before, updated, `${item.name}: Ordered.${checked}${pending ? " Saved without being checked." : ""}`, {
+      announce(before, updated, `${item.name}: Purchased.${checked}${pending ? " Saved without being checked." : ""}`, {
         variant: pending ? "warning" : "success",
       });
       close();
@@ -75,7 +75,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       className={OVER_REQUEST_MODAL}
-      crumbs={["Purchase Requests", "Mark as Ordered"]}
+      crumbs={["Purchase Requests", "Mark as Purchased"]}
       onSubmit={(e) => {
         e.preventDefault();
         if (!invalid && !busy) orderMutation.mutate();
@@ -83,7 +83,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
       actions={
         <Button size="lg" type="submit" disabled={invalid || busy}>
           {busy && <Spinner size="sm" />}
-          {po ? "Check PO and mark Ordered" : "Mark Ordered"}
+          {po ? "Check PO and mark Purchased" : "Mark Purchased"}
         </Button>
       }
     >
@@ -93,7 +93,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
           <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" autoFocus />
         </FieldBox>
         <p className={`pl-1 text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
-          {invalid ? PO_NUMBER_HINT : "Without one, the item is Ordered with no PO."}
+          {invalid ? PO_NUMBER_HINT : "Without one, the item is Purchased with no PO."}
         </p>
       </div>
     </ModalShell>
@@ -101,7 +101,7 @@ export function OrderItemDialog({ open, onOpenChange, item, requestId }) {
 }
 
 /**
- * Issue #549 — correcting the PO number on an Ordered item. The new number is
+ * Issue #549 — correcting the PO number on an Purchased item. The new number is
  * checked against Odoo like the first; PO lines picked on the old PO are cleared.
  */
 export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
@@ -162,7 +162,7 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
 }
 
 /**
- * Issue #312 — picking the Odoo PO line(s) an Ordered item is bought on, from
+ * Issue #312 — picking the Odoo PO line(s) an Purchased item is bought on, from
  * the lines its PO has on the IPAS stored Odoo copy (`lineIds`). The caller
  * only offers this when there are lines; the database refuses any other.
  */

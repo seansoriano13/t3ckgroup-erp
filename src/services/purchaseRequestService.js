@@ -456,7 +456,7 @@ export const purchaseRequestService = {
    */
   async orderItem(itemId, { poNumber = "" } = {}) {
     const po = normalizePoNumber(poNumber);
-    if (!po) return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.ORDERED);
+    if (!po) return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.PURCHASED);
     if (!isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
     return purchaseRequestService.applyPoAction("order", itemId, po);
   },
@@ -535,7 +535,7 @@ export const purchaseRequestService = {
 
   /**
    * The Buyer offers a substitute: a new product linked to the item it
-   * replaces, which moves to Substituted so sales can re-price. Returns the
+   * replaces, which is cancelled (the link stays) so sales can re-price. Returns the
    * new item's id.
    */
   async addSubstitute(itemId, { name, quantity, unit = null, description = null, images = [] }) {

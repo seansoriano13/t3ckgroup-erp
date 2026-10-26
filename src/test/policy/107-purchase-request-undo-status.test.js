@@ -20,7 +20,7 @@ async function insert(table, row) {
     return data.id
 }
 
-const seedItem = (status = "requested") =>
+const seedItem = (status = "not_checked") =>
     insert("purchase_request_items", {
         request_id: requestId,
         source: "new",
@@ -71,28 +71,28 @@ afterAll(async () => {
 describe("undo of the last status change", () => {
     it("puts the item back to its previous status", async () => {
         const id = await seedItem()
-        const moved = await setStatus("stageParticipant", id, "to_order")
+        const moved = await setStatus("stageParticipant", id, "to_purchase")
         expect(moved.error).toBeNull()
         const undone = await undo("stageParticipant", id, moved.data.status_changed_at)
         expect(undone.error).toBeNull()
-        expect(undone.data.status).toBe("requested")
+        expect(undone.data.status).toBe("not_checked")
         expect(undone.data.name).toBe(moved.data.name)
-        expect((await item(id)).status).toBe("requested")
+        expect((await item(id)).status).toBe("not_checked")
     })
 
     it("is refused once the item has changed since", async () => {
         const id = await seedItem()
-        const first = await setStatus("stageParticipant", id, "to_order")
-        const second = await setStatus("stageParticipant", id, "canvassing")
+        const first = await setStatus("stageParticipant", id, "to_purchase")
+        const second = await setStatus("stageParticipant", id, "still_canvassing")
         expect(second.error).toBeNull()
         const stale = await undo("stageParticipant", id, first.data.status_changed_at)
         expect(stale.error).not.toBeNull()
-        expect((await item(id)).status).toBe("canvassing")
+        expect((await item(id)).status).toBe("still_canvassing")
     })
 
     it("is refused after the window", async () => {
         const id = await seedItem()
-        const moved = await setStatus("stageParticipant", id, "to_order")
+        const moved = await setStatus("stageParticipant", id, "to_purchase")
         const old = new Date(Date.now() - 20_000).toISOString()
         await svc().from("purchase_request_items").update({ status_changed_at: old }).eq("id", id)
         const late = await undo("stageParticipant", id, old)
@@ -102,15 +102,15 @@ describe("undo of the last status change", () => {
 
     it("is refused to someone other than whoever made the change", async () => {
         const id = await seedItem()
-        const moved = await setStatus("stageParticipant", id, "to_order")
+        const moved = await setStatus("stageParticipant", id, "to_purchase")
         const other = await undo("outsider", id, moved.data.status_changed_at)
         expect(other.error).not.toBeNull()
-        expect((await item(id)).status).toBe("to_order")
+        expect((await item(id)).status).toBe("to_purchase")
     })
 
     it("does not loosen the forward-only path", async () => {
-        const id = await seedItem("to_order")
-        const back = await setStatus("stageParticipant", id, "requested")
+        const id = await seedItem("to_purchase")
+        const back = await setStatus("stageParticipant", id, "not_checked")
         expect(back.error).not.toBeNull()
     })
 })

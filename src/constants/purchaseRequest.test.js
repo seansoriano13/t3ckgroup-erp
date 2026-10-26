@@ -16,18 +16,18 @@ import {
 } from "./purchaseRequest";
 
 const S = ITEM_STATUS;
-const OPEN = [S.REQUESTED, S.TO_ORDER, S.CANVASSING, S.ORDERED];
+const OPEN = [S.NOT_CHECKED, S.TO_PURCHASE, S.STILL_CANVASSING, S.PURCHASED];
 
 describe("the status vocabulary", () => {
-  it("has the nine statuses, each labelled", () => {
-    expect(ITEM_STATUSES).toHaveLength(9);
-    expect(new Set(ITEM_STATUSES).size).toBe(9);
+  it("has the eight statuses, each labelled", () => {
+    expect(ITEM_STATUSES).toHaveLength(8);
+    expect(new Set(ITEM_STATUSES).size).toBe(8);
     for (const status of ITEM_STATUSES) expect(ITEM_STATUS_LABELS[status]).toBeTruthy();
   });
 
-  it("closes From stock, Received and the three ways out, and nothing else", () => {
+  it("closes Available, Received and the two ways out, and nothing else", () => {
     expect([...CLOSED_STATUSES].sort()).toEqual(
-      [S.FROM_STOCK, S.RECEIVED, S.SUBSTITUTED, S.CANNOT_SOURCE, S.CANCELLED].sort(),
+      [S.AVAILABLE, S.RECEIVED, S.CANNOT_SOURCE, S.CANCELLED].sort(),
     );
     for (const status of OPEN) expect(isClosedStatus(status)).toBe(false);
   });
@@ -35,30 +35,30 @@ describe("the status vocabulary", () => {
 
 describe("allowedTransitions — purchasing side", () => {
   const p = (status) => allowedTransitions(status, MEMBER_SIDE.PURCHASING);
-  const waysOut = [S.SUBSTITUTED, S.CANNOT_SOURCE, S.CANCELLED];
+  const waysOut = [S.CANNOT_SOURCE, S.CANCELLED];
 
   it("takes Requested to From stock or To order, or out", () => {
-    expect(p(S.REQUESTED).sort()).toEqual([S.FROM_STOCK, S.TO_ORDER, ...waysOut].sort());
+    expect(p(S.NOT_CHECKED).sort()).toEqual([S.AVAILABLE, S.TO_PURCHASE, ...waysOut].sort());
   });
 
   it("takes To order to Canvassing, or straight to Ordered without a Canvass", () => {
-    expect(p(S.TO_ORDER).sort()).toEqual([S.CANVASSING, S.ORDERED, ...waysOut].sort());
+    expect(p(S.TO_PURCHASE).sort()).toEqual([S.STILL_CANVASSING, S.PURCHASED, ...waysOut].sort());
   });
 
   it("takes Canvassing to Ordered, or out", () => {
-    expect(p(S.CANVASSING).sort()).toEqual([S.ORDERED, ...waysOut].sort());
+    expect(p(S.STILL_CANVASSING).sort()).toEqual([S.PURCHASED, ...waysOut].sort());
   });
 
   it("takes Ordered to Received, or out", () => {
-    expect(p(S.ORDERED).sort()).toEqual([S.RECEIVED, ...waysOut].sort());
+    expect(p(S.PURCHASED).sort()).toEqual([S.RECEIVED, ...waysOut].sort());
   });
 
   it("never skips ahead or steps back on the path", () => {
-    expect(p(S.REQUESTED)).not.toContain(S.CANVASSING);
-    expect(p(S.REQUESTED)).not.toContain(S.ORDERED);
-    expect(p(S.TO_ORDER)).not.toContain(S.RECEIVED);
-    expect(p(S.CANVASSING)).not.toContain(S.TO_ORDER);
-    expect(p(S.ORDERED)).not.toContain(S.CANVASSING);
+    expect(p(S.NOT_CHECKED)).not.toContain(S.STILL_CANVASSING);
+    expect(p(S.NOT_CHECKED)).not.toContain(S.PURCHASED);
+    expect(p(S.TO_PURCHASE)).not.toContain(S.RECEIVED);
+    expect(p(S.STILL_CANVASSING)).not.toContain(S.TO_PURCHASE);
+    expect(p(S.PURCHASED)).not.toContain(S.STILL_CANVASSING);
   });
 
   it("moves a closed item nowhere", () => {
@@ -74,7 +74,7 @@ describe("allowedTransitions — sales side", () => {
   });
 
   it("cannot set Ordered or any other step", () => {
-    expect(allowedTransitions(S.TO_ORDER, MEMBER_SIDE.SALES)).not.toContain(S.ORDERED);
+    expect(allowedTransitions(S.TO_PURCHASE, MEMBER_SIDE.SALES)).not.toContain(S.PURCHASED);
   });
 
   it("cannot reopen or cancel a closed item", () => {
@@ -131,31 +131,31 @@ describe("isSettled", () => {
     });
 
     it("ignores an item raised afterwards", () => {
-      expect(isSettled([{ status: S.REQUESTED, created_at: after, status_changed_at: null }], { asOf })).toBe(true);
+      expect(isSettled([{ status: S.NOT_CHECKED, created_at: after, status_changed_at: null }], { asOf })).toBe(true);
     });
 
     it("counts an item open now and raised by then as open", () => {
-      expect(isSettled([{ status: S.ORDERED, created_at: before, status_changed_at: before }], { asOf })).toBe(false);
+      expect(isSettled([{ status: S.PURCHASED, created_at: before, status_changed_at: before }], { asOf })).toBe(false);
     });
   });
 });
 
 describe("legacyOutcomeToStatus", () => {
   it.each([
-    ["IN_PROGRESS", S.CANVASSING],
-    ["PURCHASED", S.ORDERED],
-    ["ON_ORDER", S.ORDERED],
+    ["IN_PROGRESS", S.STILL_CANVASSING],
+    ["PURCHASED", S.PURCHASED],
+    ["ON_ORDER", S.PURCHASED],
     ["DELIVERED", S.RECEIVED],
-    ["ALREADY_EXISTS", S.FROM_STOCK],
-    ["SUBSTITUTED", S.SUBSTITUTED],
+    ["ALREADY_EXISTS", S.AVAILABLE],
+    ["SUBSTITUTED", S.CANCELLED],
     ["UNAVAILABLE", S.CANNOT_SOURCE],
-    [null, S.REQUESTED],
+    [null, S.NOT_CHECKED],
   ])("maps %s to %s", (outcome, status) => {
     expect(legacyOutcomeToStatus(outcome)).toBe(status);
   });
 
   it("maps a missing outcome to Requested", () => {
-    expect(legacyOutcomeToStatus(undefined)).toBe(S.REQUESTED);
+    expect(legacyOutcomeToStatus(undefined)).toBe(S.NOT_CHECKED);
   });
 
   it("refuses a value the legacy table never allowed", () => {
@@ -197,7 +197,7 @@ describe("a request's kind (#179)", () => {
   });
 
   it("lets the Requester only cancel, like the sales side", () => {
-    expect(allowedTransitions(S.REQUESTED, MEMBER_SIDE.REQUESTER)).toEqual([S.CANCELLED]);
+    expect(allowedTransitions(S.NOT_CHECKED, MEMBER_SIDE.REQUESTER)).toEqual([S.CANCELLED]);
     expect(allowedTransitions(S.RECEIVED, MEMBER_SIDE.REQUESTER)).toEqual([]);
   });
 });

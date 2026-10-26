@@ -8,7 +8,7 @@
 export const DASHBOARD_GROUP = {
   TO_SOURCE: "to_source",
   TO_PRICE: "to_price",
-  TO_ORDER: "to_order",
+  TO_PURCHASE: "to_purchase",
   ON_ORDER: "on_order",
   TO_CHECK: "to_check",
 };
@@ -18,16 +18,16 @@ export const DASHBOARD_GROUPS = Object.values(DASHBOARD_GROUP);
 export const DASHBOARD_GROUP_LABELS = {
   [DASHBOARD_GROUP.TO_SOURCE]: "To source",
   [DASHBOARD_GROUP.TO_PRICE]: "To price",
-  [DASHBOARD_GROUP.TO_ORDER]: "To order",
-  [DASHBOARD_GROUP.ON_ORDER]: "On order",
+  [DASHBOARD_GROUP.TO_PURCHASE]: "To purchase",
+  [DASHBOARD_GROUP.ON_ORDER]: "Purchased",
   [DASHBOARD_GROUP.TO_CHECK]: "To check",
 };
 
 export const DASHBOARD_GROUP_HINTS = {
-  [DASHBOARD_GROUP.TO_SOURCE]: "Requested Items at Requested or To order, and Canvasses with no winner.",
+  [DASHBOARD_GROUP.TO_SOURCE]: "Requested Items at Not checked or To purchase, and Canvasses with no winner.",
   [DASHBOARD_GROUP.TO_PRICE]: "Components with no Acquire, and matrices still waiting on a Bid Decision.",
-  [DASHBOARD_GROUP.TO_ORDER]: "Priced and decided Go, with no PO yet.",
-  [DASHBOARD_GROUP.ON_ORDER]: "Ordered and not yet received, by IPAS where the PO has one.",
+  [DASHBOARD_GROUP.TO_PURCHASE]: "Priced and decided Go, with no PO yet.",
+  [DASHBOARD_GROUP.ON_ORDER]: "Purchased and not yet received, by IPAS where the PO has one.",
   [DASHBOARD_GROUP.TO_CHECK]: "Received and waiting for a Transmittal, or moving through its checks.",
 };
 
@@ -51,7 +51,7 @@ export const ownerKey = (row) => row.opportunity_id ?? `request:${row.request_id
  * `sor` (S number or project title, any case), `buyerId`, `canvasserId`,
  * `minAgeDays`, `lateIpasIds` (a Set: keeps only IPAS rows Order Monitoring
  * marks late by its ageing rules), and `noCanvass`, which keeps only items
- * ordered with no canvass and counts only those.
+ * purchased with no canvass and counts only those.
  */
 export function filterRows(
   rows,

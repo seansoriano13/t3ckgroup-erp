@@ -137,7 +137,7 @@ describe("Purchasing Dashboard page", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
 
     const totals = await screen.findByRole("group", { name: "Stage totals" });
-    for (const label of ["To source", "To price", "To order", "On order", "To check", "Filed", "Late orders"]) {
+    for (const label of ["To source", "To price", "To purchase", "Purchased", "To check", "Filed", "Late orders"]) {
       expect(within(totals).getByText(label)).toBeInTheDocument();
     }
 
@@ -147,7 +147,7 @@ describe("Purchasing Dashboard page", () => {
 
     const tracker = await screen.findByRole("row", { name: /S07983 — Ambulance, open/ });
     expect(within(tracker).getByRole("img", { name: "To source: 4 items" })).toBeInTheDocument();
-    expect(within(tracker).getByRole("img", { name: "On order: 1 items" })).toBeInTheDocument();
+    expect(within(tracker).getByRole("img", { name: "Purchased: 1 items" })).toBeInTheDocument();
     // Purchasing owes the first step on a draft PO, and it is the order's next move.
     expect(within(tracker).getByText("Purchase Order — no PO confirmed yet")).toBeInTheDocument();
   });
@@ -250,7 +250,7 @@ describe("Purchasing Dashboard page", () => {
   it("narrows to a stage from the totals, and by search", async () => {
     stubRpc("purchasing_dashboard_rows", () => [
       PR_ROW,
-      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "to_order", target_kind: "canvass", target_id: "cv-1", target_label: "C-1", item_count: 2 }),
+      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "to_purchase", target_kind: "canvass", target_id: "cv-1", target_label: "C-1", item_count: 2 }),
     ]);
     const user = setupUser();
     renderPage();
@@ -258,7 +258,7 @@ describe("Purchasing Dashboard page", () => {
     expect(await screen.findByRole("row", { name: /S07983/ })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: /S07984/ })).toBeInTheDocument();
 
-    await user.click(within(screen.getByRole("group", { name: "Stage totals" })).getByRole("button", { name: /To order/ }));
+    await user.click(within(screen.getByRole("group", { name: "Stage totals" })).getByRole("button", { name: /To purchase/ }));
     expect(await screen.findByRole("row", { name: /S07984/ })).toBeInTheDocument();
     expect(screen.queryByRole("row", { name: /S07983/ })).not.toBeInTheDocument();
 
@@ -273,7 +273,7 @@ describe("Purchasing Dashboard page", () => {
     stubRpc("ipas_sor_headers", () => [header(ipas, "sor-1")]);
     stubRpc("purchasing_dashboard_rows", () => [
       PR_ROW,
-      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "to_order", target_kind: "canvass", target_id: "cv-1", item_count: 2 }),
+      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "to_purchase", target_kind: "canvass", target_id: "cv-1", item_count: 2 }),
     ]);
     renderPage();
 
@@ -292,7 +292,7 @@ describe("Purchasing Dashboard page", () => {
 
     await user.click(await screen.findByRole("button", { name: /Filters/ }));
     await user.click(await screen.findByRole("button", { name: /With or without a canvass/ }));
-    await user.click(await screen.findByRole("button", { name: "Ordered with no canvass" }));
+    await user.click(await screen.findByRole("button", { name: "Purchased with no canvass" }));
 
     expect(await screen.findByRole("row", { name: /S07984/ })).toBeInTheDocument();
     expect(screen.queryByRole("row", { name: /S07983/ })).not.toBeInTheDocument();
@@ -351,7 +351,7 @@ describe("Purchasing Dashboard page", () => {
       const table = await screen.findByRole("table");
       const headings = within(table).getAllByRole("columnheader");
       for (const heading of headings) expect(heading).not.toHaveClass("whitespace-normal");
-      const circles = headings.filter((heading) => ["To source", "To price", "To order", "On order", "To check", "Filed"].includes(heading.textContent));
+      const circles = headings.filter((heading) => ["To source", "To price", "To purchase", "Purchased", "To check", "Filed"].includes(heading.textContent));
       expect(circles).toHaveLength(6);
       for (const heading of circles) expect(heading).not.toHaveAttribute("aria-sort");
       for (const name of ["SOR", "Next move", "Deadline"]) {

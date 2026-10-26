@@ -55,13 +55,13 @@ describe("groupItems", () => {
   const at = (status) => ({ id: status, status })
 
   it("splits items into To do, In progress and Closed, in that order, leaving out empty groups", () => {
-    const groups = groupItems(["cancelled", "ordered", "requested", "to_order", "received"].map(at))
+    const groups = groupItems(["cancelled", "purchased", "not_checked", "to_purchase", "received"].map(at))
     expect(groups.map((g) => [g.label, g.list.map((i) => i.status)])).toEqual([
-      ["To do", ["requested", "to_order"]],
-      ["In progress", ["ordered"]],
+      ["To do", ["not_checked", "to_purchase"]],
+      ["In progress", ["purchased"]],
       ["Closed", ["cancelled", "received"]],
     ])
-    expect(groupItems([at("requested")]).map((g) => g.label)).toEqual(["To do"])
+    expect(groupItems([at("not_checked")]).map((g) => g.label)).toEqual(["To do"])
   })
 })
 
@@ -87,7 +87,7 @@ describe("RequestedItems", () => {
     const row = await openRow(await screen.findByTestId("requested-item"))
     expect(within(row).getByText("Full Body Harness")).toBeInTheDocument()
     expect(within(row).getByText("10 pc")).toBeInTheDocument()
-    expect(within(row).getByText("Requested")).toBeInTheDocument()
+    expect(within(row).getByText("Not checked")).toBeInTheDocument()
     expect(within(row).getByText("Partial · 4 of 10")).toBeInTheDocument()
     expect(within(row).getByText(/^Stock as of /)).toBeInTheDocument()
     expect(within(row).queryByText("Stale")).not.toBeInTheDocument()
@@ -142,7 +142,7 @@ describe("RequestedItems", () => {
     it("asks for a reason before following the SOR on an Ordered item", async () => {
       const user = setupUser()
       await changeHarness()
-      db.internal.rowsOf("purchase_request_items")[0].status = "ordered"
+      db.internal.rowsOf("purchase_request_items")[0].status = "purchased"
       renderWithProviders(<RequestedItems request={request} />)
 
       const row = await openRow(await screen.findByTestId("requested-item"))
@@ -298,7 +298,7 @@ describe("RequestedItems", () => {
     expect(within(row).getByText("New product", { selector: "dd" })).toBeInTheDocument()
     expect(within(row).getByText("Stainless, per the client's drawing")).toBeInTheDocument()
     expect(within(row).queryByText(/Stock as of/)).not.toBeInTheDocument()
-    expect(within(row).queryByText(/Not checked|Not linked to Odoo|Available|Out of stock/)).not.toBeInTheDocument()
+    expect(within(row).queryByText(/Not linked to Odoo|Available|Out of stock/)).not.toBeInTheDocument()
 
     const [item] = db.rows("purchase_request_items")
     expect(item.images).toEqual([expect.objectContaining({ name: "bracket.png", url: expect.stringMatching(/^https:\/\//) })])

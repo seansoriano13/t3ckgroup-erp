@@ -35,7 +35,7 @@ const seedCanvass = (number, productName, { winner = true, signed = false, subje
 beforeEach(() => {
   purchaser = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true })
   request = db.seed("purchase_requests", { title: "Direct buy", created_by: purchaser.id })
-  stapler = db.seed("purchase_request_items", { request_id: request.id, source: "new", name: "Stapler", quantity: 3, status: "requested", requested_by: purchaser.id })
+  stapler = db.seed("purchase_request_items", { request_id: request.id, source: "new", name: "Stapler", quantity: 3, status: "not_checked", requested_by: purchaser.id })
   stubCanvassListRpcs({ actorId: purchaser.id })
   stubCanvassAddToRequestRpc()
 })

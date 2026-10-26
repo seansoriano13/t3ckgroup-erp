@@ -28,7 +28,7 @@ export function stubCanvassAddToRequestRpc() {
           name: canvass.product_name ?? canvass.number,
           quantity: entry.quantity ?? 1,
           unit: entry.unit ?? null,
-          status: "requested",
+          status: "not_checked",
           description: `From Canvass ${canvass.number}`,
           requested_by: rowsOf("purchase_requests").find((r) => r.id === args.p_request_id)?.created_by ?? null,
         })

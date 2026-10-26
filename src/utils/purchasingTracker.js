@@ -16,7 +16,7 @@ import {
  * things Purchasing used to read on separate tabs, the project work before an
  * order (`purchasing_dashboard_rows()`, grouped by purchasingDashboard.js) and
  * the orders after it (orderMonitoringService), into a single model. An order
- * joins its SORs through the SORs it names; its stage is On order, or To check
+ * joins its SORs through the SORs it names; its stage is Purchased, or To check
  * when the dashboard's rows put its IPAS there.
  */
 
@@ -41,7 +41,7 @@ const NO_SOR = "no-sor";
 
 /** What the person on a project record has to do next, by the kind of record and the group it sits in. */
 function rowAction(row) {
-  if (row.grp === "to_order") return "Place the PO";
+  if (row.grp === "to_purchase") return "Place the PO";
   if (row.grp === "to_check") return "Move the Transmittal check";
   if (row.grp === "to_price") return row.target_kind === "costing_matrix" ? "Finish the Bid Decision" : "Add an Acquire price";
   return row.target_kind === "canvass" ? "Pick a Canvass winner" : "Source the Requested Items";

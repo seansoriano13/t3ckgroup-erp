@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { itemsForVisit, openItems, requestedItemForLine, shapeSorOverview } from "./sorPurchaseRequest"
 
-const item = (over) => ({ id: "i", name: "Hose", source: "sor_line", odoo_product_id: null, status: "requested", created_at: "2026-01-05T00:00:00Z", ...over })
+const item = (over) => ({ id: "i", name: "Hose", source: "sor_line", odoo_product_id: null, status: "not_checked", created_at: "2026-01-05T00:00:00Z", ...over })
 
 describe("requestedItemForLine", () => {
   it("matches by the line's fixed id, so two lines of the same product keep their own items", () => {
@@ -69,7 +69,7 @@ describe("itemsForVisit", () => {
 
 describe("openItems / shapeSorOverview", () => {
   it("counts items not in a closed status", () => {
-    expect(openItems([{ status: "requested" }, { status: "ordered" }, { status: "cancelled" }])).toHaveLength(2)
+    expect(openItems([{ status: "not_checked" }, { status: "purchased" }, { status: "cancelled" }])).toHaveLength(2)
   })
   it("no row is no request", () => {
     expect(shapeSorOverview(undefined)).toBeNull()

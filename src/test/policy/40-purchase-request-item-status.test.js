@@ -17,7 +17,7 @@ import { MARKER, makeSor } from "./support/rows.js"
 const svc = () => serviceClient()
 const NO_ID = "00000000-0000-0000-0000-000000000000"
 const PURCHASERS = ["stageParticipant", "outsider"]
-const CLOSED = ["from_stock", "received", "substituted", "cannot_source", "cancelled"]
+const CLOSED = ["available", "received", "cannot_source", "cancelled"]
 
 let sorId, requestId
 
@@ -28,7 +28,7 @@ async function insert(table, row) {
 }
 
 /** A new item at `status`, seeded directly so each test starts where it needs to. */
-const seedItem = (status = "requested", name = "Full Body Harness") =>
+const seedItem = (status = "not_checked", name = "Full Body Harness") =>
     insert("purchase_request_items", {
         request_id: requestId,
         source: "new",
@@ -130,9 +130,9 @@ describe("purchasing walks the path", () => {
     it("takes an item Requested → To order → Canvassing → Ordered → Received, then nowhere", async () => {
         const id = await seedItem()
         for (const [who, status] of [
-            ["stageParticipant", "to_order"],
-            ["outsider", "canvassing"],
-            ["stageParticipant", "ordered"],
+            ["stageParticipant", "to_purchase"],
+            ["outsider", "still_canvassing"],
+            ["stageParticipant", "purchased"],
             ["outsider", "received"],
         ]) {
             const { data, error } = await setStatus(who, id, status)
@@ -146,25 +146,25 @@ describe("purchasing walks the path", () => {
     })
 
     it("may skip Canvassing: To order → Ordered", async () => {
-        const id = await seedItem("to_order")
-        expect((await setStatus("stageParticipant", id, "ordered")).error).toBeNull()
+        const id = await seedItem("to_purchase")
+        expect((await setStatus("stageParticipant", id, "purchased")).error).toBeNull()
     })
 
-    it("may close a Requested item as From stock", async () => {
+    it("may close a Not checked item as Available", async () => {
         const id = await seedItem()
-        expect((await setStatus("outsider", id, "from_stock")).error).toBeNull()
-        expect((await item(id)).status).toBe("from_stock")
+        expect((await setStatus("outsider", id, "available")).error).toBeNull()
+        expect((await item(id)).status).toBe("available")
     })
 
-    it.each(["substituted", "cannot_source", "cancelled"])("may take the way out to %s from an open status", async (to) => {
-        const id = await seedItem("canvassing")
+    it.each(["cannot_source", "cancelled"])("may take the way out to %s from an open status", async (to) => {
+        const id = await seedItem("still_canvassing")
         expect((await setStatus("stageParticipant", id, to)).error).toBeNull()
     })
 
     it.each([
-        ["skip ahead", "requested", "ordered"],
-        ["go back", "ordered", "to_order"],
-        ["stand still", "to_order", "to_order"],
+        ["skip ahead", "not_checked", "purchased"],
+        ["go back", "purchased", "to_purchase"],
+        ["stand still", "to_purchase", "to_purchase"],
     ])("can't %s (%s → %s)", async (_, from, to) => {
         const id = await seedItem(from)
         const { error } = await setStatus("stageParticipant", id, to)
@@ -175,7 +175,7 @@ describe("purchasing walks the path", () => {
     it.each(CLOSED)("treats %s as closed: nothing moves it", async (closed) => {
         const id = await seedItem(closed)
         for (const who of ["stageParticipant", "dealOwner", "superAdmin"]) {
-            const { error } = await setStatus(who, id, closed === "cancelled" ? "requested" : "cancelled")
+            const { error } = await setStatus(who, id, closed === "cancelled" ? "not_checked" : "cancelled")
             expect(error?.code).toBe("42501")
         }
         expect((await item(id)).status).toBe(closed)
@@ -186,7 +186,7 @@ describe("every change posts in the request", () => {
     it("with who changed it, from what to what, and when", async () => {
         const id = await seedItem()
         const before = Date.now()
-        await setStatus("stageParticipant", id, "to_order")
+        await setStatus("stageParticipant", id, "to_purchase")
         await setStatus("dealOwner", id, "cancelled")
         const after = Date.now()
 
@@ -198,15 +198,15 @@ describe("every change posts in the request", () => {
                 metadata: expect.objectContaining({
                     event: "item_status_changed",
                     item_id: id,
-                    from: "requested",
-                    to: "to_order",
+                    from: "not_checked",
+                    to: "to_purchase",
                     changed_by: ids.stageParticipant,
                 }),
             },
             {
                 author_id: ids.dealOwner,
                 content: `${MARKER} Full Body Harness: To order → Cancelled.`,
-                metadata: expect.objectContaining({ from: "to_order", to: "cancelled", changed_by: ids.dealOwner }),
+                metadata: expect.objectContaining({ from: "to_purchase", to: "cancelled", changed_by: ids.dealOwner }),
             },
         ])
         for (const post of posts) {
@@ -222,23 +222,23 @@ describe("every change posts in the request", () => {
 
     it("a refused change posts nothing", async () => {
         const id = await seedItem()
-        await setStatus("dealOwner", id, "ordered")
+        await setStatus("dealOwner", id, "purchased")
         expect(await eventsFor(id)).toEqual([])
     })
 })
 
 describe("the wrong side is refused", () => {
     it("the sales side can cancel", async () => {
-        const id = await seedItem("ordered")
+        const id = await seedItem("purchased")
         const { data, error } = await setStatus("dealOwner", id, "cancelled")
         expect(error).toBeNull()
         expect(data.status).toBe("cancelled")
     })
 
-    it.each(["ordered", "to_order", "from_stock", "substituted", "cannot_source"])(
+    it.each(["purchased", "to_purchase", "available", "cannot_source"])(
         "the sales side can't set %s",
         async (to) => {
-            const id = await seedItem(to === "ordered" ? "to_order" : "requested")
+            const id = await seedItem(to === "purchased" ? "to_purchase" : "not_checked")
             const { error } = await setStatus("dealOwner", id, to)
             expect(error?.code).toBe("42501")
             expect((await item(id)).status).not.toBe(to)
@@ -259,7 +259,7 @@ describe("the wrong side is refused", () => {
         const id = await seedItem()
         await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
         try {
-            expect((await setStatus("outsider", id, "to_order")).error?.code).toBe("42501")
+            expect((await setStatus("outsider", id, "to_purchase")).error?.code).toBe("42501")
         } finally {
             await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider)
         }
@@ -267,13 +267,13 @@ describe("the wrong side is refused", () => {
 
     it("a Super Admin acts as purchasing", async () => {
         const id = await seedItem()
-        expect((await setStatus("superAdmin", id, "to_order")).error).toBeNull()
+        expect((await setStatus("superAdmin", id, "to_purchase")).error).toBeNull()
     })
 
     it("a direct update of the status is refused", async () => {
         const id = await seedItem()
-        await (await clientFor("stageParticipant")).from("purchase_request_items").update({ status: "ordered" }).eq("id", id)
-        expect((await item(id)).status).toBe("requested")
+        await (await clientFor("stageParticipant")).from("purchase_request_items").update({ status: "purchased" }).eq("id", id)
+        expect((await item(id)).status).toBe("not_checked")
     })
 })
 
@@ -285,18 +285,18 @@ describe("bad input", () => {
 
     it("refuses details a status doesn't take (only Ordered takes a PO number, #312)", async () => {
         const id = await seedItem()
-        expect((await setStatus("stageParticipant", id, "to_order", { po_number: "P01234" })).error?.code).toBe("22023")
-        expect((await setStatus("stageParticipant", id, "to_order", {})).error).toBeNull()
+        expect((await setStatus("stageParticipant", id, "to_purchase", { po_number: "P01234" })).error?.code).toBe("22023")
+        expect((await setStatus("stageParticipant", id, "to_purchase", {})).error).toBeNull()
     })
 
     it("refuses an item that doesn't exist", async () => {
-        expect((await setStatus("stageParticipant", NO_ID, "to_order")).error?.code).toBe("P0002")
+        expect((await setStatus("stageParticipant", NO_ID, "to_purchase")).error?.code).toBe("P0002")
     })
 })
 
 describe("the Buyer adds a substitute", () => {
-    it("linked to the item it replaces, which moves to Substituted; both post", async () => {
-        const original = await seedItem("canvassing")
+    it("linked to the item it replaces, which is Cancelled with the link kept; both post", async () => {
+        const original = await seedItem("still_canvassing")
         const { data: subId, error } = await substitute("stageParticipant", original, { p_description: "Same rating" })
         expect(error).toBeNull()
 
@@ -307,11 +307,11 @@ describe("the Buyer adds a substitute", () => {
             quantity: 10,
             unit: "pc",
             description: "Same rating",
-            status: "requested",
+            status: "not_checked",
             substitute_for_item_id: original,
             requested_by: ids.stageParticipant,
         })
-        expect(await item(original)).toMatchObject({ status: "substituted", status_changed_by: ids.stageParticipant })
+        expect(await item(original)).toMatchObject({ status: "cancelled", status_changed_by: ids.stageParticipant })
 
         expect(await eventsFor(subId, "item_added")).toEqual([
             expect.objectContaining({
@@ -324,8 +324,8 @@ describe("the Buyer adds a substitute", () => {
             expect.objectContaining({
                 author_id: ids.stageParticipant,
                 metadata: expect.objectContaining({
-                    from: "canvassing",
-                    to: "substituted",
+                    from: "still_canvassing",
+                    to: "cancelled",
                     details: { substitute_item_id: subId },
                 }),
             }),
@@ -339,7 +339,7 @@ describe("the Buyer adds a substitute", () => {
     ])("%s can't", async (_, who) => {
         const original = await seedItem()
         expect((await substitute(who, original)).error?.code).toBe("42501")
-        expect((await item(original)).status).toBe("requested")
+        expect((await item(original)).status).toBe("not_checked")
     })
 
     it("not for an item already closed", async () => {
@@ -353,7 +353,7 @@ describe("the Buyer adds a substitute", () => {
     ])("refuses %s, leaving the original open", async (_, fields) => {
         const original = await seedItem()
         expect((await substitute("stageParticipant", original, fields)).error?.code).toBe("22023")
-        expect((await item(original)).status).toBe("requested")
+        expect((await item(original)).status).toBe("not_checked")
     })
 })
 

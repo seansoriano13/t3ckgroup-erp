@@ -26,7 +26,7 @@ describe("purchaseRequestService — PO on Ordered", () => {
       source: "new",
       name: "Full Body Harness",
       quantity: 10,
-      status: "to_order",
+      status: "to_purchase",
       requested_by: salesperson.id,
     }).id
   })
@@ -39,7 +39,7 @@ describe("purchaseRequestService — PO on Ordered", () => {
       return { success: true, found: false }
     })
     const updated = await purchaseRequestService.orderItem(itemId, { poNumber: "  " })
-    expect(updated).toMatchObject({ status: "ordered", po_number: null })
+    expect(updated).toMatchObject({ status: "purchased", po_number: null })
     expect(asked).toBe(false)
   })
 
@@ -57,7 +57,7 @@ describe("purchaseRequestService — PO on Ordered", () => {
   it("stores the PO as verified when Odoo has it", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
     const updated = await purchaseRequestService.orderItem(itemId, { poNumber: "p01234" })
-    expect(updated).toMatchObject({ status: "ordered", po_number: "P01234", po_verification: "VERIFIED" })
+    expect(updated).toMatchObject({ status: "purchased", po_number: "P01234", po_verification: "VERIFIED" })
     expect(db.rows("purchase_request_messages")[0].metadata.details).toEqual({
       po_number: "P01234",
       po_verification: "VERIFIED",
@@ -67,26 +67,26 @@ describe("purchaseRequestService — PO on Ordered", () => {
   it("refuses a PO Odoo doesn't have, naming it, and saves nothing", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "not_found" })
     await expect(purchaseRequestService.orderItem(itemId, { poNumber: "P01234" })).rejects.toThrow(/P01234/)
-    expect(item()).toMatchObject({ status: "to_order", po_number: null })
+    expect(item()).toMatchObject({ status: "to_purchase", po_number: null })
   })
 
   it("saves the PO as not checked when Odoo doesn't answer", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "unreachable" })
     const updated = await purchaseRequestService.orderItem(itemId, { poNumber: "P01234" })
-    expect(updated).toMatchObject({ status: "ordered", po_number: "P01234", po_verification: "PENDING_VERIFICATION" })
+    expect(updated).toMatchObject({ status: "purchased", po_number: "P01234", po_verification: "PENDING_VERIFICATION" })
   })
 
   it("refuses a PO check sent straight to the status move", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id })
     await expect(
-      purchaseRequestService.setItemStatus(itemId, "ordered", { po_number: "P01234", po_verification: "VERIFIED" }),
+      purchaseRequestService.setItemStatus(itemId, "purchased", { po_number: "P01234", po_verification: "VERIFIED" }),
     ).rejects.toMatchObject({ code: "42501" })
   })
 
   it("refuses a number that isn't an Odoo PO before touching anything", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id })
     await expect(purchaseRequestService.orderItem(itemId, { poNumber: "PO-12" })).rejects.toThrow(/P01234/)
-    expect(item().status).toBe("to_order")
+    expect(item().status).toBe("to_purchase")
   })
 
   it("offers no lines and refuses a pick while the PO has no IPAS", async () => {

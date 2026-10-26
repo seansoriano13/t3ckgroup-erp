@@ -53,8 +53,8 @@ describe("Requested Items from the Costing Matrix", () => {
 
     const items = await itemsOf()
     expect(items.map((i) => [i.source, i.component_id, i.name, Number(i.quantity), i.unit, i.odoo_product_id, i.status])).toEqual([
-      ["component", hose, "Hose reel", 4, "pc", 101, "requested"],
-      ["component", nozzle, "Nozzle", 2, "pc", null, "requested"],
+      ["component", hose, "Hose reel", 4, "pc", 101, "not_checked"],
+      ["component", nozzle, "Nozzle", 2, "pc", null, "not_checked"],
     ])
     // The request view reads "1.1 · Hose reel".
     expect(items.map((i) => i.component)).toEqual([
@@ -101,16 +101,16 @@ describe("Requested Items from the Costing Matrix", () => {
   it("serves the grid each Component's Requested Items with their statuses and nothing else", async () => {
     const [first] = await purchaseRequestService.addItemsFromComponents(request.id, [hose])
     await purchaseRequestService.addItemsFromComponents(request.id, [hose, nozzle])
-    db.internal.rowsOf("purchase_request_items").find((i) => i.id === first).status = "ordered"
+    db.internal.rowsOf("purchase_request_items").find((i) => i.id === first).status = "purchased"
     // An item of the other SOR's request does not show on this matrix.
     const otherRequest = db.seed("purchase_requests", { opportunity_id: otherOpportunity.id, created_by: purchaser.id })
     await purchaseRequestService.addItemsFromComponents(otherRequest.id, [foreign])
 
     const requests = await costingMatrixService.componentRequests(opportunity.id)
     expect(requests.map((r) => [r.component_id, r.status])).toEqual([
-      [hose, "ordered"],
-      [hose, "requested"],
-      [nozzle, "requested"],
+      [hose, "purchased"],
+      [hose, "not_checked"],
+      [nozzle, "not_checked"],
     ])
     expect(Object.keys(requests[0]).sort()).toEqual(["component_id", "id", "request_id", "status"])
   })

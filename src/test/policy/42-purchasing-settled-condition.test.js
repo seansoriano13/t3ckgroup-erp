@@ -111,10 +111,10 @@ describe("the gate's evidence", () => {
 
         const open = await statesAs("dealOwner", sorId)
         expect(open.error).toBeNull()
-        expect(open.data.map((i) => i.status)).toEqual(["requested", "requested"])
+        expect(open.data.map((i) => i.status)).toEqual(["not_checked", "not_checked"])
         expect(isSettled(open.data)).toBe(false)
 
-        await close(itemIds[0], "from_stock")
+        await close(itemIds[0], "available")
         expect(isSettled((await statesAs("dealOwner", sorId)).data)).toBe(false)
 
         await close(itemIds[1], "cancelled")
