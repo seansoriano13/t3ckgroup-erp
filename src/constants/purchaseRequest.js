@@ -122,31 +122,65 @@ export const MEMBER_SIDE = {
 };
 
 /**
- * Forward steps on the main path. Canvassing is optional: To purchase may go
- * straight to Purchased, because single-source purchases are routine (#316).
+ * Forward steps on the main path, for Purchasing. Purchased and Received are never chosen (#684):
+ * they follow the P0 attached from Odoo, and the database refuses them. Available and To purchase
+ * are chosen by hand by everyone on the deal (see `CHOOSE_BY_HAND`).
  */
 const NEXT_ON_PATH = {
-  [ITEM_STATUS.NOT_CHECKED]: [ITEM_STATUS.AVAILABLE, ITEM_STATUS.TO_PURCHASE],
-  [ITEM_STATUS.TO_PURCHASE]: [ITEM_STATUS.STILL_CANVASSING, ITEM_STATUS.PURCHASED],
-  [ITEM_STATUS.STILL_CANVASSING]: [ITEM_STATUS.PURCHASED],
-  [ITEM_STATUS.PURCHASED]: [ITEM_STATUS.RECEIVED],
+  [ITEM_STATUS.TO_PURCHASE]: [ITEM_STATUS.STILL_CANVASSING],
+  [ITEM_STATUS.STILL_CANVASSING]: [],
+  [ITEM_STATUS.PURCHASED]: [],
 };
 
 /** The ways out, open to purchasing from any open status. */
 const WAYS_OUT = [ITEM_STATUS.CANNOT_SOURCE, ITEM_STATUS.CANCELLED];
 
 /**
- * The statuses a member on `side` may move an item to from `status`.
+ * #681 — what a member may choose from a product line's status, by hand: Available or To purchase
+ * from the stock check. Purchasing, the sales side and any other deal member may; a Direct request's
+ * Requester has no deal. Open to be chosen again from Not checked, Available and To purchase.
+ */
+export const CHOOSE_BY_HAND = [ITEM_STATUS.AVAILABLE, ITEM_STATUS.TO_PURCHASE];
+const CHOOSE_BY_HAND_FROM = [ITEM_STATUS.NOT_CHECKED, ITEM_STATUS.AVAILABLE, ITEM_STATUS.TO_PURCHASE];
+const CHOOSE_BY_HAND_SIDES = [MEMBER_SIDE.PURCHASING, MEMBER_SIDE.SALES, MEMBER_SIDE.OTHER];
+
+/**
+ * Still canvassing follows a Canvass, Purchased and Received follow the attached P0 (#684): none is
+ * chosen from the status menu, and the database refuses them by hand.
+ * Cannot source is Purchasing's alone.
+ */
+export const NOT_FROM_THE_MENU = [ITEM_STATUS.STILL_CANVASSING];
+
+/**
+ * The statuses a member on `side` may move an item to from `status`; this mirrors the database.
  *
- * Purchasing walks the path and takes any way out; the sales side and a
- * Direct request's Requester may only cancel; anyone else changes nothing. A
- * closed item goes nowhere.
+ * Purchasing walks the path and takes any way out; the sales side and a Direct request's Requester
+ * may only cancel; anyone on the deal may choose Available or To purchase (#681). A closed item
+ * goes nowhere, except that Available may be chosen again (it clears a "Now x free of y" warning).
  */
 export function allowedTransitions(status, side) {
-  if (!ITEM_STATUSES.includes(status) || isClosedStatus(status)) return [];
-  if (side === MEMBER_SIDE.PURCHASING) return [...NEXT_ON_PATH[status], ...WAYS_OUT];
-  if (side === MEMBER_SIDE.SALES || side === MEMBER_SIDE.REQUESTER) return [ITEM_STATUS.CANCELLED];
-  return [];
+  if (!ITEM_STATUSES.includes(status)) return [];
+  const byHand =
+    CHOOSE_BY_HAND_SIDES.includes(side) && CHOOSE_BY_HAND_FROM.includes(status)
+      ? CHOOSE_BY_HAND.filter((to) => to !== status || to === ITEM_STATUS.AVAILABLE)
+      : [];
+  if (isClosedStatus(status)) return byHand;
+  if (side === MEMBER_SIDE.PURCHASING) return [...byHand, ...(NEXT_ON_PATH[status] ?? []), ...WAYS_OUT];
+  if (side === MEMBER_SIDE.SALES) return [...byHand, ITEM_STATUS.CANCELLED];
+  if (side === MEMBER_SIDE.REQUESTER) return [ITEM_STATUS.CANCELLED];
+  return byHand;
+}
+
+/**
+ * #681 — the line's "Now x free of y" warning, or null. A fresh stock check found fewer free than
+ * an Available line needs; any status choice clears it.
+ */
+export function stockWarning(item) {
+  if (!item || item.status !== ITEM_STATUS.AVAILABLE) return null;
+  if (item.stock_short_free == null || item.stock_short_needed == null) return null;
+  const free = Number(item.stock_short_free);
+  const needed = Number(item.stock_short_needed);
+  return { free, needed, label: `Now ${free} free of ${needed}` };
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ChevronDown, ListChecks, Pencil, Replace } from "lucide-react";
+import { ChevronDown, Link2, ListChecks, Pencil, Replace } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,14 +10,16 @@ import Dropdown from "@/components/ui/Dropdown";
 import Spinner from "@/components/ui/Spinner";
 import StatusBadge from "../StatusBadge";
 import ReplaceItemDialog from "./ReplaceItemDialog";
-import { CorrectPoDialog, OrderItemDialog, PickPoLinesDialog } from "./PoDialogs";
+import { AttachP0Dialog, CorrectPoDialog, PickPoLinesDialog } from "./PoDialogs";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
   ITEM_STATUS,
   ITEM_STATUS_LABELS,
   ITEM_STATUS_THEME,
   MEMBER_SIDE,
+  NOT_FROM_THE_MENU,
   allowedTransitions,
+  stockWarning,
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
 import { useRefreshRequest } from "./requestHooks";
@@ -53,12 +55,14 @@ const THEME_STYLES = {
   mauve: "bg-card text-muted-foreground border-mauve-5 hover:bg-mauve-3 hover:border-mauve-7",
 };
 
-function MenuItem({ children, onClick, tone }) {
+function MenuItem({ children, onClick, tone, disabled, title }) {
   return (
     <Button
       type="button"
       variant="ghost"
       onClick={onClick}
+      disabled={disabled}
+      title={title}
       className={cn(
         "h-auto w-full justify-start gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors cursor-pointer",
         tone === "destructive"
@@ -123,8 +127,9 @@ function StatusMenu({ close, children }) {
  * the ways out (and "Replace…", #687); the sales side gets
  * only Cancel; anyone else gets a static StatusBadge.
  *
- * Ordered (#312) opens a dialog for the optional PO number. Once an item is
- * Ordered on a PO, "Pick PO line…" appears only when that PO's IPAS copy has
+ * Purchasing's "Attach P0…" (#684) opens a dialog that lists the P0s made in Odoo for the line;
+ * nobody moves a line to Purchased by hand. Once an item is
+ * Purchased on a PO, "Pick PO line…" appears only when that PO's IPAS copy has
  * lines to pick (none do until IPAS exists).
  */
 export default function RequestedItemActions({ item, request, actor }) {
@@ -132,7 +137,7 @@ export default function RequestedItemActions({ item, request, actor }) {
   const announce = useItemStatusUndo(request?.id);
   const [confirming, setConfirming] = useState(null);
   const [replacing, setReplacing] = useState(false);
-  const [ordering, setOrdering] = useState(false);
+  const [attaching, setAttaching] = useState(false);
   const [pickingLines, setPickingLines] = useState(false);
   const [correctingPo, setCorrectingPo] = useState(false);
   const requestId = request?.id;
@@ -158,7 +163,12 @@ export default function RequestedItemActions({ item, request, actor }) {
     onSettled: refresh,
   });
 
-  const next = allowedTransitions(item.status, side);
+  // #681: Still canvassing follows a Canvass and is never chosen here; choosing Available again is
+  // offered only to clear a "Now x free of y" warning.
+  const warned = !!stockWarning(item);
+  const next = allowedTransitions(item.status, side).filter(
+    (status) => !NOT_FROM_THE_MENU.includes(status) && (status !== item.status || warned),
+  );
   // #687: only Purchasing replaces; a Cancelled or Received line is shut.
   const canReplace =
     side === MEMBER_SIDE.PURCHASING &&
@@ -167,7 +177,11 @@ export default function RequestedItemActions({ item, request, actor }) {
   const canPickLines = onPo && poLineIds.length > 0;
   // #549: Purchasing can correct the PO while the item is Ordered; Received is fixed.
   const canCorrectPo = side === MEMBER_SIDE.PURCHASING && item.status === ITEM_STATUS.PURCHASED;
-  const canInteract = next.length > 0 || canReplace || canPickLines || canCorrectPo;
+  // #684: Purchasing attaches the P0 they made in Odoo; nobody picks Purchased by hand. Off on a
+  // Cancelled or Received line.
+  const isPurchasing = side === MEMBER_SIDE.PURCHASING;
+  const nothingToAttach = item.status === ITEM_STATUS.CANCELLED || item.status === ITEM_STATUS.RECEIVED;
+  const canInteract = next.length > 0 || canReplace || canPickLines || canCorrectPo || (isPurchasing && !nothingToAttach);
 
   if (!canInteract) {
     return (
@@ -179,8 +193,7 @@ export default function RequestedItemActions({ item, request, actor }) {
   }
 
   const choose = (status) => {
-    if (status === ITEM_STATUS.PURCHASED) setOrdering(true);
-    else if (CONFIRM[status]) setConfirming(status);
+    if (CONFIRM[status]) setConfirming(status);
     else moveMutation.mutate(status);
   };
   const busy = moveMutation.isPending;
@@ -202,7 +215,7 @@ export default function RequestedItemActions({ item, request, actor }) {
       {canReplace && replacing && (
         <ReplaceItemDialog open onOpenChange={setReplacing} item={item} requestId={requestId} />
       )}
-      {ordering && <OrderItemDialog open onOpenChange={setOrdering} item={item} requestId={requestId} />}
+      {attaching && <AttachP0Dialog open onOpenChange={setAttaching} item={item} request={request} />}
       {canCorrectPo && correctingPo && (
         <CorrectPoDialog open onOpenChange={setCorrectingPo} item={item} requestId={requestId} />
       )}
@@ -255,6 +268,19 @@ export default function RequestedItemActions({ item, request, actor }) {
                 {ITEM_STATUS_LABELS[status]}
               </MenuItem>
             ))}
+            {isPurchasing && (
+              <MenuItem
+                disabled={nothingToAttach}
+                title={nothingToAttach ? "Nothing to attach to this line." : undefined}
+                onClick={() => {
+                  close();
+                  setAttaching(true);
+                }}
+              >
+                <Link2 size={14} />
+                Attach P0…
+              </MenuItem>
+            )}
             {canPickLines && (
               <MenuItem
                 onClick={() => {
@@ -277,7 +303,7 @@ export default function RequestedItemActions({ item, request, actor }) {
                 Correct PO…
               </MenuItem>
             )}
-            {(onPath.length > 0 || canPickLines || canCorrectPo) && (waysOut.length > 0 || canReplace) && (
+            {(onPath.length > 0 || isPurchasing || canPickLines || canCorrectPo) && (waysOut.length > 0 || canReplace) && (
               <div className="my-1 h-px bg-border" />
             )}
             {canReplace && (

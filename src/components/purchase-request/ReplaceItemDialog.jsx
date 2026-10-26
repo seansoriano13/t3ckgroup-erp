@@ -10,7 +10,6 @@ import { Textarea } from "@/components/ui/textarea";
 import Spinner from "@/components/ui/Spinner";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../../constants/procurement";
-import { ITEM_STATUS } from "../../constants/purchaseRequest";
 import { useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
 
@@ -46,8 +45,7 @@ export default function ReplaceItemDialog({ open, onOpenChange, item, requestId 
       // on its own and B stays at Not checked for Purchasing to attach again.
       if (po) {
         try {
-          await purchaseRequestService.setItemStatus(newId, ITEM_STATUS.TO_PURCHASE);
-          await purchaseRequestService.orderItem(newId, { poNumber: po });
+          await purchaseRequestService.attachP0(newId, po);
         } catch (error) {
           return { newId, poError: refusal(error) };
         }

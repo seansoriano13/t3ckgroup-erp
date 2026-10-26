@@ -26,13 +26,17 @@ const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
  * #312's PO RPCs (20261005130800_purchase_request_item_po.sql): Ordered stores
  * `details.po_number` / `po_verification`; `ipasLines` (`{ [poNumber]: [lineId] }`)
  * stands in for the `_ipas_po_line_ids` seam, empty by default as it ships.
+ *
+ * #684: attaching a P0 is the `odoo-po-verify` edge function's "attach" action, with Odoo faked as
+ * `odoo` and the P0s it holds as `p0s` (`{ [poNumber]: { state, ordered, received, bought_as } }`;
+ * a P0 not listed is confirmed, for the item's quantity, none received).
  * The rules are proven in 43-purchase-request-item-po.test.js.
  *
  * #273's Costing Matrix RPCs (20261018150000_costing_purchase_request_items.sql): `purchasing`
  * stands in for has_purchasing_access(); the Component labels are served. The items of an S0 line
  * are not made by an RPC but by triggers: see sorItemSync.js.
  */
-export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false, ipasLines = {}, purchasing = false, odoo = null }) {
+export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false, ipasLines = {}, purchasing = false, odoo = null, p0s = {} }) {
   const postAdded = (item) => {
     insertRow("purchase_request_messages", {
       request_id: item.request_id,
@@ -195,8 +199,33 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
         })
         return { success: true, verdict: odoo === "found" ? "verified" : "not_checked", item: corrected }
       }
-      const updated = setStatus(item, "purchased", { po_number: po, po_verification: verification }, true)
-      return { success: true, verdict: odoo === "found" ? "verified" : "not_checked", item: updated }
+      if (body.action === "attach") {
+        if (odoo === "unreachable") return { success: false, message: "Odoo didn't answer. The P0 was not attached; try again." }
+        if (sideOf(item.request_id) !== "purchasing") return { success: false, refused: true, message: "only Purchasing attaches a P0" }
+        if (["cancelled", "received"].includes(item.status)) return { success: false, refused: true, message: "nothing to attach to this line" }
+        const facts = { state: "confirmed", ordered: item.quantity, received: 0, bought_as: null, ...(p0s[po] || {}) }
+        const to = facts.state === "rfq" ? "to_purchase" : facts.ordered > 0 && facts.received >= facts.ordered ? "received" : "purchased"
+        const attached = updateRow("purchase_request_items", item, {
+          status: to,
+          status_changed_by: actorId,
+          status_changed_at: new Date().toISOString(),
+          po_number: po,
+          po_verification: "VERIFIED",
+          po_state: facts.state,
+          po_ordered: facts.ordered,
+          po_received: facts.received,
+          bought_as: facts.bought_as,
+          odoo_po_line_ids: item.po_number === po ? item.odoo_po_line_ids : [],
+        })
+        insertRow("purchase_request_messages", {
+          request_id: item.request_id,
+          author_id: actorId,
+          content: `${item.name}: P0 ${po} attached.`,
+          metadata: { event: "item_po_attached", item_id: item.id, to, po_number: po, po_state: facts.state },
+        })
+        return { success: true, verdict: "verified", item: attached }
+      }
+      return { success: false, refused: true, message: `${body.action} is not a PO action` }
     })
   }
 
