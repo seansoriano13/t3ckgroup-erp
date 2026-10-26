@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "../../lib/utils";
 import { salesFlowService } from "../../services/salesFlowService";
-import { flowStageTone, outgoingStages } from "../../constants/salesFlow";
+import { classifyFlowStage, flowStageTone, outgoingStages } from "../../constants/salesFlow";
 import { bracketRuns } from "../flow-canvas/flowCanvasLayout";
 import RevertStageButton from "./RevertStageButton";
 import StageRibbonScroller from "./StageRibbonScroller";
@@ -79,6 +79,19 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
   const currentIndex = current ? sortedStages.findIndex((s) => s.id === current.id) : -1;
   const lastIndex = sortedStages.length - 1;
 
+  // "Left of the current Stage" is not "passed through": Closed Won sits left
+  // of Closed Lost on most canvases, so a lost deal drew Won as completed and
+  // read as won. A terminal Stage is never passed through (deals stop there),
+  // and a lost deal never reached its Won Stage or anything after it.
+  const graph = { stages, edges, wonStageId: flow?.won_stage_id ?? null };
+  const isLost = current ? classifyFlowStage(current.id, graph) === "LOST" : false;
+  const wasPassed = (s) => {
+    if (s.is_terminal) return false;
+    if (!isLost) return true;
+    const role = classifyFlowStage(s.id, graph);
+    return role !== "WON" && role !== "POST_WON";
+  };
+
   // A Stage's own `color` (migration 20260828090000) wins when set; otherwise
   // this falls back to the same role classification FlowCanvasNode draws on
   // the canvas (Entry/Won/Terminal/Plain), so a Stage nobody has recolored
@@ -122,9 +135,9 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
                 >
                   {run.stages.map((s) => {
                     const index = ++globalIndex;
-                    const isCompleted = index < currentIndex;
                     const isCurrent = index === currentIndex;
-                    const isUpcoming = index > currentIndex;
+                    const isCompleted = index < currentIndex && wasPassed(s);
+                    const isUpcoming = !isCurrent && !isCompleted;
 
                     const tone = flowStageTone(s, flow, stages);
                     const classes = TONE_CLASSES[tone] || TONE_CLASSES.mauve;

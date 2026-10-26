@@ -93,6 +93,9 @@ export default function SorModalHeader({
   }, [opportunity?.status, isOpen]);
 
   const currentIndex = pipelineStages.findIndex((s) => s.code === opportunity.status);
+  // Closed Won sorts before Closed Lost, so "left of current" alone drew a
+  // lost deal's Won tile as completed. Neither terminal is ever passed through.
+  const wasPassed = (s) => !s.is_won && !s.is_lost;
   const lastIndex = pipelineStages.length - 1;
   // Issue #407 — a required, empty Stage Field blocks the move exactly like
   // an unsatisfied required Condition (`assertStageGateSatisfied` refuses
@@ -109,9 +112,9 @@ export default function SorModalHeader({
       <StageRibbonScroller>
         <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-12 min-w-full w-max gap-[2px]">
           {pipelineStages.map((s, index) => {
-            const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
-            const isUpcoming = index > currentIndex;
+            const isCompleted = index < currentIndex && wasPassed(s);
+            const isUpcoming = !isCurrent && !isCompleted;
             const tone = s.theme || getStatusTheme(s.code);
             const classes = TONE_CLASSES[tone] || TONE_CLASSES.mauve;
 
