@@ -48,9 +48,14 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     // contain "TASK" anyway. The Purchase Requests list opens the request named
     // by `?request=`.
     // #309: a modal over the current page, no navigation.
+    // A mention lands the cursor in the request's Chat, where it was made.
     window.dispatchEvent(
       new CustomEvent("OPEN_ENTITY_DETAILS", {
-        detail: { id: notif.reference_id, type: "PURCHASE_REQUEST" },
+        detail: {
+          id: notif.reference_id,
+          type: "PURCHASE_REQUEST",
+          focusChat: notif.type === "PURCHASE_REQUEST_MENTION",
+        },
       }),
     );
   } else if (notif.type.startsWith("IPAS_")) {

@@ -24,9 +24,9 @@ const SIDE_PANELS = [
  * at every width, under its header. Everything is read by `requestId`; each
  * part refreshes itself.
  */
-export default function PurchaseRequestView({ requestId, className = "" }) {
+export default function PurchaseRequestView({ requestId, focusChat = false, className = "" }) {
   const { data: request, isLoading, isError, refetch } = usePurchaseRequest(requestId);
-  const [panel, setPanel] = useState(null);
+  const [panel, setPanel] = useState(focusChat ? "chat" : null);
 
   if (isLoading) {
     return (
@@ -82,7 +82,7 @@ export default function PurchaseRequestView({ requestId, className = "" }) {
         )}
         {panel === "chat" && (
           <aside className="w-full shrink-0 overflow-hidden rounded-2xl border border-border md:w-[380px]">
-            <RequestChat request={request} className="h-[28rem] rounded-none border-0" />
+            <RequestChat request={request} focusOnMount={focusChat} className="h-[28rem] rounded-none border-0" />
           </aside>
         )}
       </div>
