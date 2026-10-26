@@ -16,7 +16,7 @@ const row = (over) => ({
   opportunity_id: "sor-1",
   sales_reference: "S1",
   project_title: "Alpha",
-  grp: "to_source",
+  grp: "not_checked",
   target_kind: "purchase_request",
   target_id: "pr-1",
   target_label: "PR one",
@@ -61,9 +61,10 @@ describe("stages", () => {
     });
     const states = stageStates(sors[0]);
     expect(states.map((s) => [s.key, s.n, s.tone])).toEqual([
-      ["to_source", 0, "done"],
+      ["not_checked", 0, "done"],
       ["to_price", 0, "done"],
       ["to_purchase", 3, "open"],
+      ["still_canvassing", 0, "done"],
       ["on_order", 1, "open"],
       ["to_check", 0, "none"],
       ["filed", 0, "none"],
@@ -164,7 +165,7 @@ describe("filters", () => {
   it("narrows to a stage and leaves the stage totals whole", () => {
     const built = buildTracker({ ...data, filters: { stage: "on_order" } });
     expect(built.sors.map((s) => s.salesReference)).toEqual(["S3"]);
-    expect(built.stages.find((s) => s.key === "to_source").count).toBe(4);
+    expect(built.stages.find((s) => s.key === "not_checked").count).toBe(4);
   });
 
   it("narrows project records by buyer and by age", () => {

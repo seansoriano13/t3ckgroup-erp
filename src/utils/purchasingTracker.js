@@ -41,10 +41,12 @@ const NO_SOR = "no-sor";
 
 /** What the person on a project record has to do next, by the kind of record and the group it sits in. */
 function rowAction(row) {
-  if (row.grp === "to_purchase") return "Place the PO";
+  if (row.grp === "to_purchase") return "Place the P0";
+  if (row.grp === "still_canvassing") return "Pick a Canvass winner";
+  if (row.grp === "on_order") return "Follow the delivery";
   if (row.grp === "to_check") return "Move the Transmittal check";
   if (row.grp === "to_price") return row.target_kind === "costing_matrix" ? "Finish the Bid Decision" : "Add an Acquire price";
-  return row.target_kind === "canvass" ? "Pick a Canvass winner" : "Source the Requested Items";
+  return "Check the Requested Items";
 }
 
 /** The next move on a project record (never an IPAS; an order carries its own). */
@@ -110,7 +112,7 @@ export function stageStates(sor) {
   });
 }
 
-/** What a SOR has outstanding, in words: "4 to source, 2 on order". */
+/** What a SOR has outstanding, in words: "4 not checked, 2 purchased (not received)". */
 export function sorSummary(sor) {
   return TRACKER_STAGES.slice(0, LAST_OPEN + 1)
     .map((stage) => (sor.byStage[stage.key] > 0 ? `${sor.byStage[stage.key]} ${stage.label.toLowerCase()}` : null))

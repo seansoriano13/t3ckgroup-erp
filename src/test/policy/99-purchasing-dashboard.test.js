@@ -3,11 +3,11 @@
  * per thing that owns the work, tagged with the group it is in. The groups are derived here and never
  * stored; one SOR sits in as many groups as apply. Counts only: no money column is ever served.
  *
- * One SOR carries work in four groups at once:
- *   To source  one Requested Item at Requested, one Canvass with no winner
- *   To price   one Component with no Acquire (the matrix has a Go decision)
- *   To order   one Component priced, no PO yet
- *   On order   one Requested Item Ordered, on a Component with no Canvass
+ * One SOR carries work in several groups at once (#690: item groups follow the stored line status):
+ *   Not checked       one Requested Item at Not checked
+ *   Still canvassing  one Component Canvass with no winner
+ *   To price          one Component with no Acquire (the matrix has a Go decision)
+ *   Purchased         one Requested Item Purchased, on a Component with no Canvass (grp on_order)
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -113,10 +113,10 @@ describe("who reads the dashboard", () => {
 })
 
 describe("one SOR in many groups", () => {
-    it("puts the SOR in all four groups that apply, and not in To check", async () => {
+    it("puts the SOR in all three-plus groups that apply, and not in To check", async () => {
         const { data } = await dashboard("outsider")
         const groups = [...new Set(mine(data).map((row) => row.grp))].sort()
-        expect(groups).toEqual(["on_order", "to_purchase", "to_price", "to_source"])
+        expect(groups).toEqual(["not_checked", "on_order", "still_canvassing", "to_price"])
     })
 
     it("names the record that owns each piece of work", async () => {
@@ -125,10 +125,9 @@ describe("one SOR in many groups", () => {
         expect(keyed).toEqual(
             [
                 `on_order:purchase_request:${requestId}`,
-                `to_purchase:costing_matrix:${sorId}`,
                 `to_price:costing_matrix:${sorId}`,
-                `to_source:canvass:${canvassId}`,
-                `to_source:purchase_request:${requestId}`,
+                `still_canvassing:canvass:${canvassId}`,
+                `not_checked:purchase_request:${requestId}`,
             ].sort(),
         )
     })
@@ -136,9 +135,10 @@ describe("one SOR in many groups", () => {
     it("counts the items each row holds", async () => {
         const rows = mine((await dashboard("outsider")).data)
         const count = (grp) => rows.filter((row) => row.grp === grp).reduce((sum, row) => sum + row.item_count, 0)
-        expect(count("to_source")).toBe(2)
+        expect(count("not_checked")).toBe(1)
+        expect(count("still_canvassing")).toBe(1)
         expect(count("to_price")).toBe(1)
-        expect(count("to_purchase")).toBe(1)
+        expect(count("to_purchase")).toBe(0)
         expect(count("on_order")).toBe(1)
     })
 
@@ -149,20 +149,20 @@ describe("one SOR in many groups", () => {
 
     it("carries the Buyer and the Canvasser for the filters", async () => {
         const rows = mine((await dashboard("outsider")).data)
-        expect(rows.find((row) => row.target_kind === "purchase_request" && row.grp === "to_source").buyer_id).toBe(ids.outsider)
+        expect(rows.find((row) => row.target_kind === "purchase_request" && row.grp === "not_checked").buyer_id).toBe(ids.outsider)
         expect(rows.find((row) => row.target_kind === "canvass").canvasser_id).toBe(ids.outsider)
     })
 
     it("sends no money", async () => {
         const { data } = await dashboard("superAdmin")
         expect(Object.keys(mine(data)[0]).sort()).toEqual(
-            ["buyer_id", "canvasser_id", "grp", "item_count", "no_canvass_count", "opportunity_id", "project_title", "sales_reference", "request_id", "since", "target_id", "target_kind", "target_label"].sort(),
+            ["buyer_id", "canvasser_id", "delivery_note", "grp", "item_count", "no_canvass_count", "opportunity_id", "project_title", "sales_reference", "request_id", "since", "target_id", "target_kind", "target_label"].sort(),
         )
     })
 })
 
 describe("what moves the SOR between groups", () => {
-    it("drops To source for the Canvass once an Offer wins", async () => {
+    it("drops Still canvassing for the Canvass once an Offer wins", async () => {
         const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvassId, supplier_name: `${MARKER} Win`, is_winner: true }).select("id").single(), "Offer")
         const rows = mine((await dashboard("outsider")).data)
         expect(rows.some((row) => row.target_kind === "canvass")).toBe(false)
@@ -227,7 +227,7 @@ describe("the known gaps (#322 follow-up)", () => {
         await asSvc(svc().from("purchase_request_items").insert({ request_id: directRequestId, name: "Toner", source: "new", requested_by: ids.dealOwner }), "direct item")
         const { data } = await dashboard("outsider")
         const direct = data.find((row) => row.target_id === directRequestId)
-        expect(direct).toMatchObject({ opportunity_id: null, project_title: "Direct request", grp: "to_source", item_count: 1 })
+        expect(direct).toMatchObject({ opportunity_id: null, project_title: "Direct request", grp: "not_checked", item_count: 1 })
         expect(mine((await dashboard("ordinary")).data)).toEqual([])
         expect((await dashboard("ordinary")).data.some((row) => row.target_id === directRequestId)).toBe(false)
     })

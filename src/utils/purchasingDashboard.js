@@ -6,9 +6,10 @@
  */
 
 export const DASHBOARD_GROUP = {
-  TO_SOURCE: "to_source",
+  NOT_CHECKED: "not_checked",
   TO_PRICE: "to_price",
   TO_PURCHASE: "to_purchase",
+  STILL_CANVASSING: "still_canvassing",
   ON_ORDER: "on_order",
   TO_CHECK: "to_check",
 };
@@ -16,18 +17,20 @@ export const DASHBOARD_GROUP = {
 export const DASHBOARD_GROUPS = Object.values(DASHBOARD_GROUP);
 
 export const DASHBOARD_GROUP_LABELS = {
-  [DASHBOARD_GROUP.TO_SOURCE]: "To source",
+  [DASHBOARD_GROUP.NOT_CHECKED]: "Not checked",
   [DASHBOARD_GROUP.TO_PRICE]: "To price",
   [DASHBOARD_GROUP.TO_PURCHASE]: "To purchase",
-  [DASHBOARD_GROUP.ON_ORDER]: "Purchased",
+  [DASHBOARD_GROUP.STILL_CANVASSING]: "Still canvassing",
+  [DASHBOARD_GROUP.ON_ORDER]: "Purchased (not received)",
   [DASHBOARD_GROUP.TO_CHECK]: "To check",
 };
 
 export const DASHBOARD_GROUP_HINTS = {
-  [DASHBOARD_GROUP.TO_SOURCE]: "Requested Items at Not checked or To purchase, and Canvasses with no winner.",
+  [DASHBOARD_GROUP.NOT_CHECKED]: "Product lines nobody has looked at yet.",
   [DASHBOARD_GROUP.TO_PRICE]: "Components with no Acquire, and matrices still waiting on a Bid Decision.",
-  [DASHBOARD_GROUP.TO_PURCHASE]: "Priced and decided Go, with no PO yet.",
-  [DASHBOARD_GROUP.ON_ORDER]: "Purchased and not yet received, by IPAS where the PO has one.",
+  [DASHBOARD_GROUP.TO_PURCHASE]: "Product lines that need buying, with no confirmed P0 yet.",
+  [DASHBOARD_GROUP.STILL_CANVASSING]: "Product lines with supplier offers being collected.",
+  [DASHBOARD_GROUP.ON_ORDER]: "Confirmed on a P0 and not all here yet, with the delivery note, by IPAS where the P0 has one.",
   [DASHBOARD_GROUP.TO_CHECK]: "Received and waiting for a Transmittal, or moving through its checks.",
 };
 
@@ -108,7 +111,7 @@ export function dashboardView(rows, filters = {}, today = new Date()) {
   return { groups };
 }
 
-/** Everything one SOR (or Direct request, by `ownerKey`) has outstanding, every group it is in: "4 to source, 2 on order". */
+/** Everything one SOR (or Direct request, by `ownerKey`) has outstanding, every group it is in: "4 not checked, 2 purchased (not received)". */
 export function sorSummary(rows, owner) {
   return DASHBOARD_GROUPS.map((key) => {
     const count = rows.filter((row) => ownerKey(row) === owner && row.grp === key).reduce((sum, row) => sum + row.item_count, 0);
