@@ -31,6 +31,12 @@ export const ITEM_SOURCE_LABEL = {
  */
 export const isFromS0 = (item) => Boolean(item?.sor_item_id);
 
+/**
+ * #684 — what a P0's Source Document names for this request: the S0 of a Project request, or
+ * the PR number of a Direct request (even one made for a project, which stays Direct).
+ */
+export const p0Reference = (request) => (request?.opportunity_id ? request.sales_reference : request?.pr_number) || null;
+
 /** The section an item sits in, in the screen's words. */
 export const itemSectionLabel = (item) => (isFromS0(item) ? "From the S0" : "Other request");
 

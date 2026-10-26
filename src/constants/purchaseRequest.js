@@ -122,14 +122,14 @@ export const MEMBER_SIDE = {
 };
 
 /**
- * Forward steps on the main path. Canvassing is optional: To purchase may go
- * straight to Purchased, because single-source purchases are routine (#316).
+ * Forward steps a person may take by hand. Purchased and Received are never chosen (#684):
+ * they follow the P0 attached from Odoo, and the database refuses them.
  */
 const NEXT_ON_PATH = {
   [ITEM_STATUS.NOT_CHECKED]: [ITEM_STATUS.AVAILABLE, ITEM_STATUS.TO_PURCHASE],
-  [ITEM_STATUS.TO_PURCHASE]: [ITEM_STATUS.STILL_CANVASSING, ITEM_STATUS.PURCHASED],
-  [ITEM_STATUS.STILL_CANVASSING]: [ITEM_STATUS.PURCHASED],
-  [ITEM_STATUS.PURCHASED]: [ITEM_STATUS.RECEIVED],
+  [ITEM_STATUS.TO_PURCHASE]: [ITEM_STATUS.STILL_CANVASSING],
+  [ITEM_STATUS.STILL_CANVASSING]: [],
+  [ITEM_STATUS.PURCHASED]: [],
 };
 
 /** The ways out, open to purchasing from any open status. */

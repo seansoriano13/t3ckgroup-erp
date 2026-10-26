@@ -123,7 +123,8 @@ describe("purchasing", () => {
     await user.click(within(dialog).getByRole("button", { name: "Cannot source" }))
 
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cannot source")).toBeInTheDocument())
-    expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
+    // Purchasing can still attach a P0 to a Cannot source line, so its menu stays.
+    expect(within(currentRow("Full Body Harness")).getByRole("button", { name: /Change status/ })).toBeInTheDocument()
   })
 
   it("the Buyer offers a substitute, linked to the item it replaces", async () => {

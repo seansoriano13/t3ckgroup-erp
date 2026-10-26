@@ -17,14 +17,20 @@
 //
 // Two modes (#548):
 //   - lookup (no `itemId`): the plain check above.
-//   - save (`itemId`, `poNumber`, optional `action`, default "order"): asks Odoo,
-//     then calls the database's service-role-only
-//     purchase_request_item_apply_po_check as the signed-in caller, which makes
-//     the verdict (verified / refused naming the PO / saved as not checked) and
-//     the item status move. The browser never sends a verdict.
+//   - save (`itemId`, `poNumber`, optional `action`, default "attach"): asks Odoo,
+//     then calls the database as the signed-in caller. The browser never sends
+//     a verdict or a P0 fact.
+//       attach (#684): reads the P0 as it stands in Odoo and calls
+//         purchase_request_item_attach_po, which sets the line from it (an RFQ
+//         stays To purchase; a confirmed P0 is Purchased, or Received once
+//         everything arrived). Odoo must answer; a P0 is never attached unseen.
+//       correct (#549): purchase_request_item_apply_po_check swaps the P0 on a
+//         Purchased line (verified / refused naming the PO / saved as not checked).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { callerEmail } from "../_shared/caller.ts";
+import { readP0s } from "../_shared/odooP0.ts";
+import { p0Facts } from "../_shared/p0Suggestions.ts";
 import {
   authenticate,
   corsHeaders,
@@ -99,10 +105,10 @@ async function askOdoo(ref: string) {
 
 /**
  * The actions that save a PO on an item. Each is a verdict the database makes
- * from Odoo's answer (purchase_request_item_apply_po_check); the browser never
- * names the verdict. "correct" (#549) swaps the PO on an Ordered item.
+ * from Odoo's answer; the browser never names the verdict. "attach" (#684)
+ * sets the line from the P0; "correct" (#549) swaps the PO on a Purchased item.
  */
-const PO_ACTIONS = new Set(["order", "correct"]);
+const PO_ACTIONS = new Set(["attach", "correct"]);
 
 /** The database's refusal, without the function name it leads with. */
 const refusalText = (message: string) => message.replace(/^[a-z_]+: /, "");
@@ -124,7 +130,7 @@ Deno.serve(async (req) => {
   // Save mode (#548): an item is given, so the server checks the PO and makes
   // the move itself. Without an item this is the plain lookup below.
   if (itemId) {
-    const action = String(body.action ?? "order");
+    const action = String(body.action ?? "attach");
     if (!PO_ACTIONS.has(action)) {
       return jsonResponse({ success: false, refused: true, message: `${action} is not a PO action.` });
     }
@@ -142,6 +148,38 @@ Deno.serve(async (req) => {
 
     const odoo = await askOdoo(ref);
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    if (action === "attach") {
+      if (odoo.answer === "not_found") return jsonResponse({ success: false, refused: true, message: odoo.message });
+      if (odoo.answer !== "found") {
+        return jsonResponse({ success: false, message: `${odoo.message} The P0 was not attached; try again.` });
+      }
+      try {
+        // Read the P0 as it stands now; its own number is the canonical one (a typed one may have lost zeroes).
+        const seen = odoo as unknown as { uid: number; order: { id: number } };
+        const [p0] = await readP0s(seen.uid, [["id", "=", seen.order.id]], 1);
+        const { data: row } = await admin
+          .from("purchase_request_items")
+          .select("odoo_product_id")
+          .eq("id", itemId)
+          .maybeSingle();
+        const facts = p0 && p0Facts(p0, row?.odoo_product_id ?? null);
+        if (!facts) {
+          return jsonResponse({ success: false, refused: true, message: `${ref} is cancelled in Odoo, so it can't be attached.` });
+        }
+        const { data, error } = await admin.rpc("purchase_request_item_attach_po", {
+          p_actor_email: email,
+          p_item_id: itemId,
+          p_po_number: p0.name,
+          p_facts: facts,
+        });
+        if (error) return jsonResponse({ success: false, refused: true, message: refusalText(error.message) });
+        return jsonResponse({ success: true, verdict: "verified", item: data });
+      } catch (err) {
+        console.error("odoo-po-verify attach error:", err);
+        return jsonResponse({ success: false, message: err instanceof Error ? err.message : "Odoo lookup failed." });
+      }
+    }
     const { data, error } = await admin.rpc("purchase_request_item_apply_po_check", {
       p_actor_email: email,
       p_item_id: itemId,

@@ -20,7 +20,7 @@ import { purchaseRequestKeys } from "./queryKeys";
 
 /** The one quiet line under a name: the PO, else the stock, else which section it is in. */
 function summaryOf(item, stock) {
-  if (item.po_number) return `PO ${item.po_number}`;
+  if (item.po_number) return item.po_state === "rfq" ? `RFQ ${item.po_number}` : `PO ${item.po_number}`;
   if (stock) return `Stock: ${stock.badge.label}`;
   return itemSectionLabel(item);
 }
