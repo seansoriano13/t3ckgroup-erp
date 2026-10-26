@@ -237,10 +237,12 @@ export const purchaseRequestService = {
    * descriptors ({ url, name, type, bytes }), at most five. Returns the new
    * item's id.
    */
-  async addNewItem(requestId, { name, quantity, unit = null, description = null, images = [] }) {
+  async addNewItem(requestId, { name, quantity, unit = null, description = null, images = [], purpose }) {
     const { data, error } = await supabase.rpc("purchase_request_add_new_item", {
       p_request_id: requestId,
       ...itemArgs({ name, quantity, unit, description, images }),
+      // "client" or "job" (#679); left out, the database says "client".
+      ...(purpose && { p_purpose: purpose }),
     });
     if (error) throw error;
     return data;

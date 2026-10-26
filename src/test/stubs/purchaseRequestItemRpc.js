@@ -79,6 +79,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       quantity: args.p_quantity,
       description: args.p_description || null,
       images: args.p_images || [],
+      purpose: args.p_purpose || "client",
       requested_by: actorId,
     })
     postAdded(item)

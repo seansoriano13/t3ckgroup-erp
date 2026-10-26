@@ -4,7 +4,7 @@ import DetailGrid from "@/components/record/DetailGrid";
 import StatusBadge from "../StatusBadge";
 import StaleStockBadge from "./StaleStockBadge";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
-import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
+import { PO_VERIFICATION_LABELS, REQUEST_PURPOSES } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
 import { componentLabel, isFromS0, itemSectionLabel, poLineNotPicked } from "../../utils/requestedItem";
@@ -50,6 +50,10 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
     // #684: what Sales asked for, and what the attached P0 bought, when they differ.
     item.po_number && item.bought_as && { label: "Asked as", value: item.name },
     item.po_number && item.bought_as && { label: "Bought as", value: <span data-testid="requested-item-bought-as">{item.bought_as}</span> },
+    !isFromS0(item) && item.purpose && {
+      label: "For",
+      value: REQUEST_PURPOSES.find((p) => p.value === item.purpose)?.label || item.purpose,
+    },
     removed && { label: "S0", value: <Warn>Removed from S0</Warn> },
     component && {
       label: "Component",

@@ -74,10 +74,18 @@ describe("Canvass on a Requested Item", () => {
       expect(statusOf(ordered.id)).toBe("purchased")
     })
 
-    it("leaves an item at any other status alone", async () => {
+    it("moves a Not checked product line too (#682)", async () => {
       expect(statusOf(plainItem.id)).toBe("not_checked")
       await seedCanvass({ requestedItemId: plainItem.id }, purchaser.id)
-      expect(statusOf(plainItem.id)).toBe("not_checked")
+      expect(statusOf(plainItem.id)).toBe("still_canvassing")
+    })
+
+    it("leaves a bought or cancelled item alone", async () => {
+      for (const status of ["purchased", "received", "cancelled"]) {
+        const item = db.seed("purchase_request_items", { request_id: request.id, name: status, quantity: 1, source: "new", status, requested_by: purchaser.id })
+        await seedCanvass({ requestedItemId: item.id }, purchaser.id)
+        expect(statusOf(item.id)).toBe(status)
+      }
     })
   })
 

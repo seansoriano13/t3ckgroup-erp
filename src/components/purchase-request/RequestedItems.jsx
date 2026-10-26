@@ -1,12 +1,19 @@
+import { useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import QueryError from "@/components/ui/QueryError";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 
+import Reveal from "@/components/record/Reveal";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import ReadyBar from "./ReadyBar";
+import { isFolded, summarize } from "../../utils/productReadiness";
 import Spinner from "@/components/ui/Spinner";
 import AddRequestedItems from "./AddRequestedItems";
 import LinerList from "@/components/record/LinerList";
 import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
+import ItemCanvass from "./ItemCanvass";
 import StatusBadge from "../StatusBadge";
 import { formatAmount, isFromS0, itemSectionLabel, requestedItemStock } from "../../utils/requestedItem";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
@@ -38,7 +45,7 @@ function summaryOf(item, stock) {
  * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
  * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
  */
-function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null }) {
+function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null, canvass = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   // The S0 dropped this line: the item stays so a bought product is never lost, and says so.
   const removed = isFromS0(item) && item.removed_from_s0 === true;
@@ -62,8 +69,67 @@ function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null
     quantity: formatAmount(item.quantity, item.unit),
     badge: { label: ITEM_STATUS_LABELS[item.status] || item.status, theme: ITEM_STATUS_THEME[item.status] },
     actions,
-    children: <RequestedItemDetails item={item} stock={stock} replaces={replaces} replacedBy={replacedBy} />,
+    children: (
+      <>
+        <RequestedItemDetails item={item} stock={stock} replaces={replaces} replacedBy={replacedBy} />
+        {canvass}
+      </>
+    ),
   };
+}
+
+/**
+ * #680 - one foldable section. The header folds it shut; inside, finished lines (Available,
+ * Received, Cancelled) fold into one "N done" row unless they carry a warning.
+ */
+function ItemSection({ section, rowFor, open, onOpenChange, sectionRef }) {
+  const [showDone, setShowDone] = useState(false);
+  const panelId = useId();
+  const active = section.list.filter((i) => !isFolded(i));
+  const folded = section.list.filter(isFolded);
+  const rows = [
+    ...active.map(rowFor),
+    ...(showDone ? folded.map(rowFor) : []),
+    ...(folded.length > 0
+      ? [
+          {
+            key: `${section.key}-done`,
+            testId: "done-row",
+            main: `${folded.length} done`,
+            sub: "Available, Received and Cancelled lines",
+            actions: (
+              <Button type="button" variant="link" size="sm" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)}>
+                {showDone ? "hide" : "show"}
+              </Button>
+            ),
+          },
+        ]
+      : []),
+  ];
+  return (
+    <section
+      ref={sectionRef}
+      aria-label={section.title}
+      className="flex scroll-mt-4 flex-col gap-1.5 [&_.reveal[data-open='false']>*]:overflow-hidden!"
+      data-testid={`requested-section-${section.key}`}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => onOpenChange(!open)}
+        className="h-auto w-full justify-start gap-2 px-1 py-1.5 text-left hover:bg-muted/50"
+      >
+        <ChevronRight size={16} aria-hidden="true" className={cn("shrink-0 text-muted-foreground transition-transform duration-200", open && "rotate-90")} />
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{section.title}</span>
+        <span className="text-xs font-medium text-muted-foreground">{section.list.length}</span>
+      </Button>
+      <Reveal open={open} id={panelId}>
+        <LinerList label={section.title} empty={section.empty} rows={rows} />
+      </Reveal>
+    </section>
+  );
 }
 
 /**
@@ -77,6 +143,8 @@ function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null
  */
 export default function RequestedItems({ request, renderActions }) {
   const requestId = request?.id;
+  const [openSections, setOpenSections] = useState({ s0: true, other: true });
+  const sectionRefs = { s0: useRef(null), other: useRef(null) };
 
   const itemsQuery = useQuery({
     queryKey: purchaseRequestKeys.items(requestId),
@@ -107,6 +175,26 @@ export default function RequestedItems({ request, renderActions }) {
     { key: "other", title: "Other requests", list: items.filter((i) => !isFromS0(i)), empty: "No other requests." },
   ];
   const open = items.filter((i) => !isClosedStatus(i.status)).length;
+  const jump = (key) => {
+    setOpenSections((prev) => ({ ...prev, [key]: true }));
+    sectionRefs[key].current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  };
+  const rowFor = (item) =>
+    requestedItemRow({
+      item,
+      stockSnapshot,
+      replaces: byId.get(item.substitute_for_item_id),
+      replacedBy: substituteOf.get(item.id),
+      canvass: renderActions ? null : <ItemCanvass item={item} request={request} actor={actor} />,
+      actions: renderActions ? (
+        <div className="flex items-center gap-2">
+          <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />
+          {renderActions(item)}
+        </div>
+      ) : (
+        <RequestedItemActions item={item} request={request} actor={actor} />
+      ),
+    });
 
   return (
     <section className="flex flex-col gap-2.5">
@@ -131,42 +219,29 @@ export default function RequestedItems({ request, renderActions }) {
           onRetry={itemsQuery.refetch}
         />
       ) : (
-        sections.map((section) => (
-          <section
-            key={section.key}
-            aria-label={section.title}
-            className="flex flex-col gap-1.5"
-            data-testid={`requested-section-${section.key}`}
-          >
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {section.title}
-              <span className="ml-2 font-medium normal-case tracking-normal">{section.list.length}</span>
-            </h4>
-            <LinerList
-              label={section.title}
-              empty={section.empty}
-              rows={section.list.map((item) =>
-                requestedItemRow({
-                  item,
-                  stockSnapshot,
-                  replaces: byId.get(item.substitute_for_item_id),
-                  replacedBy: substituteOf.get(item.id),
-                  actions: renderActions ? (
-                    <div className="flex items-center gap-2">
-                      <StatusBadge
-                        label={ITEM_STATUS_LABELS[item.status] || item.status}
-                        theme={ITEM_STATUS_THEME[item.status]}
-                      />
-                      {renderActions(item)}
-                    </div>
-                  ) : (
-                    <RequestedItemActions item={item} request={request} actor={actor} />
-                  ),
-                }),
-              )}
+        <>
+          {items.length > 0 && (
+            <ReadyBar
+              summary={summarize(items)}
+              jumps={sections.map((section) => ({
+                key: section.key,
+                label: section.title,
+                count: section.list.length,
+                onClick: () => jump(section.key),
+              }))}
             />
-          </section>
-        ))
+          )}
+          {sections.map((section) => (
+            <ItemSection
+              key={section.key}
+              section={section}
+              rowFor={rowFor}
+              open={openSections[section.key]}
+              onOpenChange={(v) => setOpenSections((prev) => ({ ...prev, [section.key]: v }))}
+              sectionRef={sectionRefs[section.key]}
+            />
+          ))}
+        </>
       )}
     </section>
   );

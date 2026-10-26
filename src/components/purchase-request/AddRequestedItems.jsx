@@ -15,7 +15,7 @@ import { AttachmentPreviews } from "@/components/ui/Attachments";
 import AddCanvassedItemsDialog from "./AddCanvassedItemsDialog";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
-import { REQUEST_UNITS } from "../../constants/procurement";
+import { REQUEST_PURPOSES, REQUEST_UNITS } from "../../constants/procurement";
 import { purchaseRequestKeys } from "./queryKeys";
 import { useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
@@ -28,6 +28,7 @@ const blankProduct = (from = null) => ({
   quantity: from ? String(Number(from.quantity)) : "1",
   unit: from?.unit || "unit",
   description: "",
+  purpose: "client",
 });
 
 /**
@@ -68,6 +69,7 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
         unit: product.unit,
         description: product.description.trim(),
         images: await attachments.upload(),
+        ...(!substituteFor && { purpose: product.purpose }),
       };
       return substituteFor
         ? purchaseRequestService.addSubstitute(substituteFor.id, fields)
@@ -88,18 +90,18 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       className={OVER_REQUEST_MODAL}
-      crumbs={["Purchase Requests", substituteFor ? "Offer a substitute" : "Request a new product"]}
+      crumbs={["Purchase Requests", substituteFor ? "Offer a substitute" : "Ask for a product"]}
       actions={
         <Button size="lg" disabled={!valid || busy} onClick={() => addMutation.mutate()}>
           {busy && <Spinner size="sm" />}
-          {substituteFor ? "Offer substitute" : "Request it"}
+          {substituteFor ? "Offer substitute" : "Send request"}
         </Button>
       }
     >
       <p className="text-sm text-muted-foreground">
         {substituteFor
           ? `For ${substituteFor.name}. It is cancelled and stays linked, so sales can re-price.`
-          : "For a product that isn't in Odoo. Describe it so Purchasing can source it."}
+          : "Tell us what you need in your own words. Purchasing will find the product. It shows under Other requests as Not checked."}
       </p>
 
         <div
@@ -111,11 +113,11 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
             addImages(files);
           }}
         >
-          <FieldBox bare label="Product name">
+          <FieldBox bare label={substituteFor ? "Product name" : "What do you need?"}>
             <Input
               value={product.name}
               onChange={(e) => set("name")(e.target.value)}
-              placeholder="What does the client need?"
+              placeholder={substituteFor ? "The substitute product" : "e.g. A heavy-duty tarpaulin, green"}
             />
           </FieldBox>
           <div className="grid grid-cols-2 gap-3">
@@ -137,6 +139,11 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
               />
             </FieldBox>
           </div>
+          {!substituteFor && (
+            <FieldBox bare label="What is it for?">
+              <SelectField options={REQUEST_PURPOSES} value={product.purpose} onChange={set("purpose")} />
+            </FieldBox>
+          )}
           <FieldBox bare label="Description">
             <Textarea
               value={product.description}
@@ -209,7 +216,7 @@ export default function AddRequestedItems({ request, items = [] }) {
       )}
       <Button type="button" variant="outline" size="sm" onClick={() => setDialog("new")}>
         <PackagePlus size={14} />
-        New product
+        Ask for a product
       </Button>
 
       {fromCanvass && (
