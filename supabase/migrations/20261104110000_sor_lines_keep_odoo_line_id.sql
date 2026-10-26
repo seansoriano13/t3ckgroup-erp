@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 20261104100000_sor_lines_keep_odoo_line_id.sql
+-- 20261104110000_sor_lines_keep_odoo_line_id.sql
 --
 -- #677 (spec #675): an SOR product line keeps the Odoo S0 line's own id.
 --

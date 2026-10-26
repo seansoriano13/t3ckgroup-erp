@@ -1,6 +1,6 @@
 /**
  * An SOR product line keeps the Odoo S0 line's own id (#677, spec #675;
- * 20261104100000_sor_lines_keep_odoo_line_id.sql).
+ * 20261104110000_sor_lines_keep_odoo_line_id.sql).
  *
  * `sor_replace_items` matches the lines it is given to the stored ones by
  * `odoo_line_id`: the same id updates the line in place, a new id adds one, a

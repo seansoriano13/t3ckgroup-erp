@@ -4,7 +4,7 @@ import { db, insertRow, updateRow, deleteRows } from "@/test/db/store"
 const rowsOf = (table) => db.internal.rowsOf(table)
 
 /**
- * `sor_replace_items` (supabase/migrations/20261104100000_sor_lines_keep_odoo_line_id.sql)
+ * `sor_replace_items` (supabase/migrations/20261104110000_sor_lines_keep_odoo_line_id.sql)
  * lives in Postgres, which the fake database does not execute. Re-implemented
  * here against the same in-memory store, the pattern stubActionRunRpcs
  * established, so opportunityService.replaceItems keeps exercising the real
