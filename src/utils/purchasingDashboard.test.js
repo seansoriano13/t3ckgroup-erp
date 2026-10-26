@@ -8,7 +8,7 @@ const row = (over = {}) => ({
   opportunity_id: "sor-1",
   sales_reference: "S07983",
   project_title: "Ambulance",
-  grp: DASHBOARD_GROUP.TO_SOURCE,
+  grp: DASHBOARD_GROUP.NOT_CHECKED,
   target_kind: "purchase_request",
   target_id: "pr-1",
   target_label: null,
@@ -33,23 +33,24 @@ const ROWS = [
 const groupOf = (view, grp) => view.groups.find((group) => group.key === grp);
 
 describe("dashboardView", () => {
-  it("shows all five groups, in order, with item and SOR counts across every SOR", () => {
+  it("shows all six groups, in order, with item and SOR counts across every SOR", () => {
     const view = dashboardView(ROWS, {}, NOW);
     expect(view.groups.map((group) => group.key)).toEqual([
-      DASHBOARD_GROUP.TO_SOURCE,
+      DASHBOARD_GROUP.NOT_CHECKED,
       DASHBOARD_GROUP.TO_PRICE,
       DASHBOARD_GROUP.TO_PURCHASE,
+      DASHBOARD_GROUP.STILL_CANVASSING,
       DASHBOARD_GROUP.ON_ORDER,
       DASHBOARD_GROUP.TO_CHECK,
     ]);
-    expect(groupOf(view, DASHBOARD_GROUP.TO_SOURCE)).toMatchObject({ itemCount: 5, sorCount: 2 });
+    expect(groupOf(view, DASHBOARD_GROUP.NOT_CHECKED)).toMatchObject({ itemCount: 5, sorCount: 2 });
     expect(groupOf(view, DASHBOARD_GROUP.TO_PURCHASE)).toMatchObject({ itemCount: 0, sorCount: 0 });
   });
 
   it("puts one SOR in every group that applies, with that group's item count", () => {
     const view = dashboardView(ROWS, {}, NOW);
     const sor1 = (grp) => groupOf(view, grp).sors.find((sor) => sor.id === "sor-1");
-    expect(sor1(DASHBOARD_GROUP.TO_SOURCE).itemCount).toBe(4);
+    expect(sor1(DASHBOARD_GROUP.NOT_CHECKED).itemCount).toBe(4);
     expect(sor1(DASHBOARD_GROUP.ON_ORDER).itemCount).toBe(2);
     expect(sor1(DASHBOARD_GROUP.TO_PRICE).itemCount).toBe(1);
     expect(sor1(DASHBOARD_GROUP.TO_CHECK).itemCount).toBe(1);
@@ -57,25 +58,25 @@ describe("dashboardView", () => {
 
   it("filters by SOR, matching the S number or the project title in any case", () => {
     const view = dashboardView(ROWS, { sor: "s08" }, NOW);
-    expect(groupOf(view, DASHBOARD_GROUP.TO_SOURCE).sors.map((sor) => sor.id)).toEqual(["sor-2"]);
+    expect(groupOf(view, DASHBOARD_GROUP.NOT_CHECKED).sors.map((sor) => sor.id)).toEqual(["sor-2"]);
     expect(dashboardView(ROWS, { sor: "radio" }, NOW).groups[0].sorCount).toBe(1);
   });
 
   it("filters by Buyer, by Canvasser and by ageing", () => {
-    expect(dashboardView(ROWS, { buyerId: "emp-b" }, NOW).groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 2, 0]);
+    expect(dashboardView(ROWS, { buyerId: "emp-b" }, NOW).groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 0, 2, 0]);
     expect(dashboardView(ROWS, { canvasserId: "emp-c" }, NOW).groups[0].itemCount).toBe(1);
-    expect(dashboardView(ROWS, { minAgeDays: 14 }, NOW).groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 2, 0]);
+    expect(dashboardView(ROWS, { minAgeDays: 14 }, NOW).groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 0, 2, 0]);
   });
 
   it("filters to items ordered with no canvass, counting only those", () => {
     const view = dashboardView(ROWS, { noCanvass: true }, NOW);
-    expect(view.groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 1, 0]);
+    expect(view.groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 0, 1, 0]);
   });
 });
 
 describe("sorSummary", () => {
   it("reads every group an SOR is in, never one primary group", () => {
-    expect(sorSummary(ROWS, "sor-1")).toBe("4 to source, 1 to price, 2 purchased, 1 to check");
+    expect(sorSummary(ROWS, "sor-1")).toBe("4 not checked, 1 to price, 2 purchased (not received), 1 to check");
   });
 });
 
@@ -96,9 +97,9 @@ describe("Direct requests and the ageing rules", () => {
 
   it("lists a Direct request on its own, keyed by the request", () => {
     const view = dashboardView([...ROWS, direct], {}, NOW);
-    const entry = groupOf(view, DASHBOARD_GROUP.TO_SOURCE).sors.find((sor) => sor.direct);
+    const entry = groupOf(view, DASHBOARD_GROUP.NOT_CHECKED).sors.find((sor) => sor.direct);
     expect(entry).toMatchObject({ id: "request:pr-9", itemCount: 2 });
-    expect(sorSummary([direct], "request:pr-9")).toBe("2 to source");
+    expect(sorSummary([direct], "request:pr-9")).toBe("2 not checked");
   });
 
   it("keeps only IPAS that Order Monitoring marks late", () => {
@@ -108,6 +109,6 @@ describe("Direct requests and the ageing rules", () => {
       row({ item_count: 7 }),
     ];
     const view = dashboardView(rows, { lateIpasIds: new Set(["ip-late"]) }, NOW);
-    expect(view.groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 3, 0]);
+    expect(view.groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 0, 3, 0]);
   });
 });
