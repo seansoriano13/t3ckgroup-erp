@@ -174,9 +174,10 @@ describe("purchaseRequestService — Requested Items", () => {
     expect(items.every((i) => i.status === "requested")).toBe(true)
   })
 
-  it("surfaces the refusal of a line the SOR has since re-saved", async () => {
+  it("surfaces the refusal of a line the SOR no longer has", async () => {
     const harness = await lineNamed("Full Body Harness")
-    await opportunityService.updateOpportunity(opportunity.id, { items: productList }, salesperson.id)
+    // A re-save keeps a line's id (#677), so the line has to be dropped for its id to go.
+    await opportunityService.updateOpportunity(opportunity.id, { items: [productList[1]] }, salesperson.id)
 
     await expect(purchaseRequestService.addItemFromLine(request.id, harness.id)).rejects.toThrow(
       "no longer on this SOR's Product List",

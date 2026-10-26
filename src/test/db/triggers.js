@@ -435,7 +435,7 @@ export const TRIGGERS = {
         const opportunityId = row.opportunity_id
         const total = context
           .rowsOf("sales_opportunity_items")
-          .filter((item) => item.opportunity_id === opportunityId)
+          .filter((item) => item.opportunity_id === opportunityId && !item.removed_from_s0)
           .reduce((sum, item) => sum + Number(item.quantity) * Number(item.unit_price), 0)
 
         const parent = context

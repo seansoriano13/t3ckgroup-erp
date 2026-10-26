@@ -773,7 +773,7 @@ export default function SorModal({
   // 'full'. Both are surfaced here rather than left to a server error.
   const moveDisabled = accessLevel !== "full" || isRestricted;
 
-  const editItemsSum = (editForm.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
+  const editItemsSum = (editForm.items || []).reduce((sum, it) => (it.removed_from_s0 ? sum : sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
   const estimatedValueDisplay = isEditing ? formatPHP(editItemsSum) : formatPHP(opportunity.expected_value);
   const estimatedValueSize = estimatedValueSizeClass(estimatedValueDisplay);
 

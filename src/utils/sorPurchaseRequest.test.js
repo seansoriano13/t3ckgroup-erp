@@ -4,6 +4,17 @@ import { itemsForVisit, openItems, requestedItemForLine, shapeSorOverview } from
 const item = (over) => ({ id: "i", name: "Hose", source: "sor_line", odoo_product_id: null, status: "requested", created_at: "2026-01-05T00:00:00Z", ...over })
 
 describe("requestedItemForLine", () => {
+  it("matches by the line's fixed id, so two lines of the same product keep their own items", () => {
+    const items = [item({ id: "first", sor_item_id: "line-1", odoo_product_id: 7 }), item({ id: "second", sor_item_id: "line-2", odoo_product_id: 7 })]
+    expect(requestedItemForLine({ id: "line-2", odoo_product_id: 7, product_name: "Hose" }, items)?.id).toBe("second")
+    expect(requestedItemForLine({ id: "line-1", odoo_product_id: 7, product_name: "Hose" }, items)?.id).toBe("first")
+  })
+
+  it("does not guess by product for a line whose id belongs to another item", () => {
+    const items = [item({ id: "other", sor_item_id: "line-9", odoo_product_id: 7 })]
+    expect(requestedItemForLine({ id: "line-1", odoo_product_id: 7, product_name: "Hose" }, items)).toBeNull()
+  })
+
   it("matches by Odoo product, whatever the line's id or name now is", () => {
     const items = [item({ id: "a", odoo_product_id: 7, name: "Old name" })]
     expect(requestedItemForLine({ id: "new-id", odoo_product_id: 7, product_name: "Renamed" }, items)?.id).toBe("a")

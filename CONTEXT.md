@@ -1038,8 +1038,16 @@ _Avoid_: Margin, Profit, Projected Revenue (the Offer's projected margin is a Ca
 **Tender Line**:
 One thing the client asked for in the Costing Matrix — its specification,
 quantity, ABC and Final Offer. The offer price is quoted per tender line. Typed,
-or picked from an SOR line whose name, quantity and unit it then keeps.
+or picked from an SOR line whose name, quantity and unit it then keeps. It points
+at that SOR line by the line's fixed id (a real reference), which an SOR save
+never changes (ADR 0041).
 _Avoid_: Line item, Item, SOR line (a different thing)
+
+**Removed from S0**:
+An SOR product line whose Odoo S0 line is gone. The line is kept (a purchase may
+hang off it), marked, and left out of Estimated Value. An SOR line keeps the
+Odoo S0 line's own id, so a line is the same line across reads (ADR 0041).
+_Avoid_: Deleted line
 
 **Component**:
 One thing T3CK supplies toward a Tender Line, with its own brand, sourcing,
