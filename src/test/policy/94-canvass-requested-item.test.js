@@ -144,7 +144,7 @@ describe("the Canvassing status", () => {
     })
 
     it("leaves an item at any other status alone", async () => {
-        for (const status of ["not_checked", "purchased", "cancelled"]) {
+        for (const status of ["purchased", "received", "cancelled"]) {
             const item = await makeItem({ status })
             await asSvc(svc().from("sor_canvasses").insert({ requested_item_id: item, created_by: ids.outsider }), "Canvass")
             expect(await statusOf(item), status).toBe(status)

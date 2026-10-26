@@ -7,6 +7,7 @@ import AddRequestedItems from "./AddRequestedItems";
 import LinerList from "@/components/record/LinerList";
 import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
+import ItemCanvass from "./ItemCanvass";
 import StatusBadge from "../StatusBadge";
 import { formatAmount, isFromS0, itemSectionLabel, requestedItemStock } from "../../utils/requestedItem";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
@@ -38,7 +39,7 @@ function summaryOf(item, stock) {
  * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
  * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
  */
-function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null }) {
+function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null, canvass = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   // The S0 dropped this line: the item stays so a bought product is never lost, and says so.
   const removed = isFromS0(item) && item.removed_from_s0 === true;
@@ -62,7 +63,12 @@ function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null
     quantity: formatAmount(item.quantity, item.unit),
     badge: { label: ITEM_STATUS_LABELS[item.status] || item.status, theme: ITEM_STATUS_THEME[item.status] },
     actions,
-    children: <RequestedItemDetails item={item} stock={stock} replaces={replaces} replacedBy={replacedBy} />,
+    children: (
+      <>
+        <RequestedItemDetails item={item} stock={stock} replaces={replaces} replacedBy={replacedBy} />
+        {canvass}
+      </>
+    ),
   };
 }
 
@@ -151,6 +157,7 @@ export default function RequestedItems({ request, renderActions }) {
                   stockSnapshot,
                   replaces: byId.get(item.substitute_for_item_id),
                   replacedBy: substituteOf.get(item.id),
+                  canvass: renderActions ? null : <ItemCanvass item={item} request={request} actor={actor} />,
                   actions: renderActions ? (
                     <div className="flex items-center gap-2">
                       <StatusBadge
