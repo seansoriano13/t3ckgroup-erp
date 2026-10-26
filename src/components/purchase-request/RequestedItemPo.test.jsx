@@ -4,7 +4,7 @@
  * `odoo-po-verify` stubbed. Who may and which lines are accepted is the
  * policy tier's (43-purchase-request-item-po).
  */
-import { currentRow, openRowNamed } from "@/test/openRequestedItem"
+import { currentRow, openRowNamed, showDoneLines } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
@@ -140,6 +140,7 @@ describe("picking the PO line", () => {
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
+    await showDoneLines()
     const row = await rowNamed("Full Body Harness")
     await user.click(await within(row).findByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
@@ -158,6 +159,7 @@ describe("picking the PO line", () => {
     seedItem({ status: "received", po_number: "P01234", po_verification: "VERIFIED" })
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
+    await showDoneLines()
     const row = await rowNamed("Full Body Harness")
     expect(within(row).getByText("PO P01234")).toBeInTheDocument()
     expect(within(currentRow("Full Body Harness")).getByText("PO line not picked")).toBeInTheDocument()
@@ -231,6 +233,7 @@ describe("Correct PO", () => {
     seedItem({ status: "received", po_number: "P01111", po_verification: "VERIFIED" })
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
+    await showDoneLines()
     const row = await rowNamed("Full Body Harness")
     expect(within(row).queryByRole("button", { name: "Change status of Full Body Harness" })).not.toBeInTheDocument()
   })

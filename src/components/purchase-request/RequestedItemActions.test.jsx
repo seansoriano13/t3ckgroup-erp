@@ -3,7 +3,7 @@
  * database with the item RPCs re-implemented on its store. What each side
  * sees and does; who may is the policy tier's (40-purchase-request-item-status).
  */
-import { currentRow, openRowNamed } from "@/test/openRequestedItem"
+import { currentRow, openRowNamed, showDoneLines } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it } from "vitest"
 import { render, screen, waitFor, within } from "@testing-library/react"
 import { Toaster } from "react-hot-toast"
@@ -143,6 +143,7 @@ describe("purchasing", () => {
     const substitute = await rowNamed("Harness, other brand")
     expect(within(substitute).getByText("Substitute for Full Body Harness")).toBeInTheDocument()
     expect(within(substitute).getByText("Not checked")).toBeInTheDocument()
+    await showDoneLines()
     await rowNamed("Full Body Harness")
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cancelled")).toBeInTheDocument())
     expect(within(currentRow("Full Body Harness")).getByText("Replaced by Harness, other brand")).toBeInTheDocument()
@@ -165,6 +166,7 @@ describe("the sales side", () => {
     const dialog = await screen.findByRole("dialog")
     await user.click(within(dialog).getByRole("button", { name: "Cancel item" }))
 
+    await showDoneLines()
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cancelled")).toBeInTheDocument())
     expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
     expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "cancelled", status_changed_by: salesperson.id })
