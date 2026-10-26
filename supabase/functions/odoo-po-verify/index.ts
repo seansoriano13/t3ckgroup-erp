@@ -174,7 +174,9 @@ Deno.serve(async (req) => {
           p_facts: facts,
         });
         if (error) return jsonResponse({ success: false, refused: true, message: refusalText(error.message) });
-        return jsonResponse({ success: true, verdict: "verified", item: data });
+        // #688: remember the Odoo product on the P0 line, so a new S0 line for the same product can ask "Is this yours?".
+        await admin.from("purchase_request_items").update({ bought_product_id: facts.bought_product_id }).eq("id", itemId);
+        return jsonResponse({ success: true, verdict: "verified", item: { ...data, bought_product_id: facts.bought_product_id } });
       } catch (err) {
         console.error("odoo-po-verify attach error:", err);
         return jsonResponse({ success: false, message: err instanceof Error ? err.message : "Odoo lookup failed." });

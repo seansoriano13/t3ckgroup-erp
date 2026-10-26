@@ -76,6 +76,8 @@ describe("what a P0 does to the line", () => {
     const order = p0("P1", "S1", [line(5, "Other"), line(1, "Mine")]);
     expect(p0Facts(order, 1).bought_as).toBe("Mine");
     expect(p0Facts(order, 9).bought_as).toBe("Other");
+    expect(p0Facts(order, 1).bought_product_id).toBe(1);
+    expect(p0Facts(order, 9).bought_product_id).toBe(5);
     expect(p0Facts({ ...order, state: "cancel" }, 1)).toBeNull();
   });
 });

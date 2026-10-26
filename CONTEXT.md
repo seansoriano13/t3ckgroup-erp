@@ -643,6 +643,9 @@ _Avoid_: Line Item, Procurement Request
 A Requested Item with no SOR line: a product Sales asks for in its own words (brand, spec, photos) that is not on the S0, or material for the job. It sits in the Other requests section of the project request, starts at Not checked, and reaches the Costing Matrix only once it joins the S0 (a later ticket); materials never do. Not the same as a Direct request, which is a whole Purchase Request with no SOR.
 _Avoid_: Free-text item, Extra item
 
+**Is this yours?**:
+The question on a new S0 line whose Odoo product is the one on the P0 attached to an Other request on the same project: "Is this from your purchase request?". Yes moves the P0, its delivery, status and history onto the S0 line and closes the Other request as Cancelled ("Closed · {P0} and its delivery moved onto {S0 line}"); nothing is deleted. No clears the question and changes nothing else (ADR 0050).
+
 **Requested Item Status**:
 The stage of sourcing for a Requested Item (Not checked, Available, To purchase, Still canvassing, Purchased, Received, Cannot source, Cancelled), rendered as an interactive status pill consolidating the status indicator and action controls into one element, allowing permitted members to advance the item along its path or cancel it.
 _Avoid_: Status dropdown, Outcome selector, Status button

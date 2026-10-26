@@ -66,6 +66,8 @@ export function rankP0Suggestions(
 export type P0Facts = {
   state: "rfq" | "confirmed";
   bought_as: string | null;
+  /** #688: the Odoo product id behind bought_as, to tell when a new S0 line is the same product. */
+  bought_product_id: number | null;
   ordered: number;
   received: number;
 };
@@ -85,6 +87,7 @@ export function p0Facts(p0: OdooP0, productId: number | null): P0Facts | null {
   return {
     state: RFQ_STATES.has(p0.state) ? "rfq" : "confirmed",
     bought_as: line?.product_name || null,
+    bought_product_id: line?.product_id ?? null,
     ordered: Number(line?.quantity) || 0,
     received: Number(line?.received) || 0,
   };

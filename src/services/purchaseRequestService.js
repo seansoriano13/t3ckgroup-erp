@@ -482,6 +482,18 @@ export const purchaseRequestService = {
     if (error) throw error;
   },
 
+  /**
+   * #688: answers "Is this from your purchase request?" on an S0 line. `same` true moves the
+   * Other request's P0, status and history onto the S0 line and closes the request (Cancelled,
+   * nothing deleted); false clears the question and changes nothing else. One database call.
+   * Returns the S0 line's item.
+   */
+  async answerYours(itemId, same) {
+    const { data, error } = await supabase.rpc("purchase_request_answer_yours", { p_item_id: itemId, p_same: !!same });
+    if (error) throw error;
+    return data;
+  },
+
   /** Withdraws an item: the one change the sales side may make. */
   async cancelItem(itemId) {
     return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.CANCELLED);

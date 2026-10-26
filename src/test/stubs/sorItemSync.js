@@ -38,6 +38,21 @@ export function syncRequestItems(opportunityId) {
         removed_from_s0: line.removed_from_s0 === true,
         requested_by: request.created_by,
       })
+      // #688: the trigger that asks "Is this yours?" - once, when the S0 line's item is made.
+      const made = rowsOf("purchase_request_items").find((i) => i.sor_item_id === line.id)
+      const other =
+        line.odoo_product_id == null
+          ? null
+          : rowsOf("purchase_request_items").find(
+              (i) =>
+                i.request_id === request.id &&
+                !i.sor_item_id &&
+                i.purpose !== "job" &&
+                i.po_number &&
+                i.status !== "cancelled" &&
+                i.bought_product_id === line.odoo_product_id,
+            )
+      if (other) updateRow("purchase_request_items", made, { new_on_s0: true, yours_item_id: other.id })
       continue
     }
     updateRow("purchase_request_items", existing, {
