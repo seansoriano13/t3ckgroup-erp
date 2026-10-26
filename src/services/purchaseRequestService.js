@@ -127,15 +127,35 @@ export const purchaseRequestService = {
    * Opens a Direct request (#179): no SOR, a title, and new products
    * (`{ name, quantity, unit, description }`). Any employee; returns its id.
    */
-  async openDirect(title, items) {
+  async openDirect(title, items, forOpportunityId = null) {
     const { data, error } = await supabase.rpc("purchase_request_open", {
       p_title: title,
       p_items: items.map(({ name, quantity, unit, description }) =>
         itemFields({ name, quantity, unit, description }),
       ),
+      p_for_opportunity_id: forOpportunityId,
     });
     if (error) throw error;
     return data;
+  },
+
+  /**
+   * The Direct requests made for one SOR (#689): id, title, prNumber, p0 and status.
+   * No money. Empty for a caller who cannot read the SOR.
+   */
+  async directForSor(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase.rpc("direct_requests_for_sor", {
+      p_opportunity_id: opportunityId,
+    });
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      title: row.title,
+      prNumber: row.pr_number,
+      p0: row.p0 ?? null,
+      status: row.status,
+    }));
   },
 
   /** One request, shaped like a `listQueue` row; null when it can't be read. */

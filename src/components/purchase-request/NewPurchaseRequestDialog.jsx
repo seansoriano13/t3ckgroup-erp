@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import ModalShell from "@/components/ui/ModalShell";
@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import Spinner from "@/components/ui/Spinner";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { REQUEST_UNITS } from "../../constants/procurement";
+import { ipasService } from "../../services/ipasService";
+import { ipasSorSearchKey } from "../ipas/ipasKeys";
 import { procurementQueueKey } from "./queryKeys";
 
 /** The database's refusal, without the function name it leads with. */
@@ -25,6 +27,80 @@ const blankItem = () => ({ key: nextKey++, name: "", quantity: "1", unit: REQUES
 
 const isItemReady = (item) => item.name.trim() !== "" && Number(item.quantity) > 0;
 
+const sorLabel = (sor) =>
+  [sor.sor_code, sor.sales_reference, sor.project_title].filter(Boolean).join(" · ");
+
+/**
+ * #689: the optional "for a project" field. Search an SOR by number or project, pick
+ * one, or leave it empty. `value` is the picked SOR (or null).
+ */
+function ProjectField({ value, onChange }) {
+  const [term, setTerm] = useState("");
+  const search = term.trim();
+  const { data: results = [], isError } = useQuery({
+    queryKey: ipasSorSearchKey(search),
+    queryFn: () => ipasService.searchSors(search),
+    enabled: !value && search.length >= 2,
+    staleTime: 30_000,
+  });
+  return (
+    <div className="space-y-1.5">
+      {value ? (
+        <FieldBox bare label="For a project (optional)">
+          <div className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-[13px]">
+            <span className="min-w-0 truncate">{sorLabel(value)}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="ml-auto"
+              aria-label="Remove the project"
+              onClick={() => onChange(null)}
+            >
+              <X size={12} />
+            </Button>
+          </div>
+        </FieldBox>
+      ) : (
+        <>
+          <FieldBox bare label="For a project (optional)">
+            <Input
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              placeholder="SOR number, SO number or project"
+            />
+          </FieldBox>
+          {search.length >= 2 && (
+            <ul className="space-y-1">
+              {results.map((sor) => (
+                <li key={sor.id} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] hover:bg-muted/40">
+                  <span className="min-w-0 truncate">{sorLabel(sor)}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    className="ml-auto"
+                    onClick={() => {
+                      onChange(sor);
+                      setTerm("");
+                    }}
+                  >
+                    Pick
+                  </Button>
+                </li>
+              ))}
+              {isError && <li className="px-2.5 text-xs text-destructive">SORs could not be searched. Try again.</li>}
+            </ul>
+          )}
+        </>
+      )}
+      <p className="pl-1 text-xs text-muted-foreground">
+        Shows on that SOR as a Direct request for this project. It is not added to the project&apos;s products.
+      </p>
+    </div>
+  );
+}
+
 /**
  * Issue #179 — any employee opens a Direct Purchase Request: no SOR, a title,
  * and the products they need. Purchasing hears and takes it from there.
@@ -34,6 +110,7 @@ const isItemReady = (item) => item.name.trim() !== "" && Number(item.quantity) >
 export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
+  const [project, setProject] = useState(null);
   const [items, setItems] = useState(() => [blankItem()]);
 
   const setItem = (key, field) => (value) =>
@@ -41,6 +118,7 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
 
   const close = () => {
     setTitle("");
+    setProject(null);
     setItems([blankItem()]);
     onOpenChange(false);
   };
@@ -52,6 +130,7 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
       purchaseRequestService.openDirect(
         title.trim(),
         items.map((item) => ({ ...item, name: item.name.trim(), description: item.description.trim() })),
+        project?.id ?? null,
       ),
     onSuccess: (id) => {
       toast.success("Purchase Request sent to Purchasing.");
@@ -87,6 +166,8 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
               placeholder="e.g. Printer toner for the 3rd floor"
             />
           </FieldBox>
+
+          <ProjectField value={project} onChange={setProject} />
 
           {items.map((item, index) => (
             <fieldset key={item.key} className="space-y-3 rounded-lg border border-border p-3">
