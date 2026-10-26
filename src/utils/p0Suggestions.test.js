@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   namesReference,
   p0Facts,
+  p0UnitPrice,
   rankP0Suggestions,
   referencesIn,
   statusFromP0,
@@ -82,5 +83,18 @@ describe("what a P0 does to the line", () => {
     expect(p0Facts(order, 1).bought_as).toBe("Mine");
     expect(p0Facts(order, 9).bought_as).toBe("Other");
     expect(p0Facts({ ...order, state: "cancel" }, 1)).toBeNull();
+  });
+});
+
+describe("p0UnitPrice (#686)", () => {
+  const priced = (id, price_unit) => ({ ...line(id), price_unit });
+  it("takes the price of the line for the same product, else the first line", () => {
+    const order = p0("P01", "S01", [priced(1, 10), priced(2, 25)]);
+    expect(p0UnitPrice(order, 2)).toBe(25);
+    expect(p0UnitPrice(order, 99)).toBe(10);
+    expect(p0UnitPrice(order, null)).toBe(10);
+  });
+  it("is null when Odoo gave no price", () => {
+    expect(p0UnitPrice(p0("P01", "S01", [line(1)]), 1)).toBeNull();
   });
 });

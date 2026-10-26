@@ -30,7 +30,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { callerEmail } from "../_shared/caller.ts";
 import { readP0s } from "../_shared/odooP0.ts";
-import { p0Facts } from "../_shared/p0Suggestions.ts";
+import { p0Facts, p0UnitPrice } from "../_shared/p0Suggestions.ts";
 import {
   authenticate,
   corsHeaders,
@@ -174,6 +174,13 @@ Deno.serve(async (req) => {
           p_facts: facts,
         });
         if (error) return jsonResponse({ success: false, refused: true, message: refusalText(error.message) });
+        // The P0's price is the Component's Actual cost (#686). The attach already stands, so a miss here is logged, not fatal.
+        const { error: priceError } = await admin.rpc("costing_set_p0_price", {
+          p_actor_email: email,
+          p_item_id: itemId,
+          p_price: p0UnitPrice(p0, row?.odoo_product_id ?? null),
+        });
+        if (priceError) console.error("odoo-po-verify actual cost error:", priceError.message);
         return jsonResponse({ success: true, verdict: "verified", item: data });
       } catch (err) {
         console.error("odoo-po-verify attach error:", err);

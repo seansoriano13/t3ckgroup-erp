@@ -10,6 +10,7 @@ export type OdooP0Line = {
   product_name: string;
   quantity: number;
   received: number;
+  price_unit?: number | null;
 };
 
 export type OdooP0 = {
@@ -99,4 +100,15 @@ export function p0Facts(p0: OdooP0, productId: number | null): P0Facts | null {
 export function statusFromP0(facts: P0Facts): "to_purchase" | "purchased" | "received" {
   if (facts.state === "rfq") return "to_purchase";
   return facts.ordered > 0 && facts.received >= facts.ordered ? "received" : "purchased";
+}
+
+/**
+ * The unit price on the P0 line that bought this product line's product (the Actual cost, #686).
+ * Same line choice as p0Facts. Null when the line has no price.
+ */
+export function p0UnitPrice(p0: OdooP0, productId: number | null): number | null {
+  const line =
+    (productId != null ? p0.lines.find((l) => l.product_id === productId) : undefined) ?? p0.lines[0];
+  const price = line?.price_unit;
+  return price == null || !Number.isFinite(Number(price)) ? null : Number(price);
 }

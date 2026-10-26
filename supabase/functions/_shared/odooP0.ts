@@ -5,7 +5,7 @@ import { executeKw } from "./odoo.ts";
 import type { OdooP0 } from "./p0Suggestions.ts";
 
 const ORDER_FIELDS = ["id", "name", "state", "partner_id", "date_order", "date_planned", "origin"];
-const LINE_FIELDS = ["order_id", "product_id", "name", "product_qty", "qty_received"];
+const LINE_FIELDS = ["order_id", "product_id", "name", "product_qty", "qty_received", "price_unit"];
 
 export type OdooP0Row = OdooP0 & { id: number; supplier: string | null };
 
@@ -36,6 +36,7 @@ export async function readP0s(uid: number, domain: unknown[], limit = 200): Prom
         product_name: Array.isArray(l.product_id) ? String(l.product_id[1]) : String(l.name ?? ""),
         quantity: Number(l.product_qty) || 0,
         received: Number(l.qty_received) || 0,
+        price_unit: l.price_unit == null ? null : Number(l.price_unit),
       })),
   }));
 }
