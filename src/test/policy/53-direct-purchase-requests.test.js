@@ -159,13 +159,13 @@ describe("the Requester", () => {
 })
 
 describe("Purchasing", () => {
-    it("takes it and buys it through to Received; the Requester hears each step", async () => {
+    it("takes it and moves it along by hand; the Requester hears each step (Purchased and Received follow the P0, not a person)", async () => {
         const id = await opened("ordinary")
         const purchaser = await clientFor("stageParticipant")
         expect((await purchaser.rpc("purchase_request_take", { p_request_id: id })).error).toBeNull()
 
         const [item] = await items(id)
-        for (const status of ["to_purchase", "purchased", "received"]) {
+        for (const status of ["to_purchase", "still_canvassing", "cannot_source"]) {
             const { error } = await purchaser.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: status })
             expect(error, status).toBeNull()
         }

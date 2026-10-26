@@ -54,6 +54,9 @@ beforeAll(async () => {
         .single()
     if (error) throw error
     requestId = data.id
+    // Who may add is read from the request's members (the screen's Open action seeds them).
+    const member = await svc().from("purchase_request_members").insert({ request_id: requestId, employee_id: ids.dealOwner, side: "sales" })
+    if (member.error) throw member.error
 
     const direct = await svc().from("purchase_requests").insert({ title: `${MARKER} Direct`, created_by: ids.dealOwner }).select("id").single()
     if (direct.error) throw direct.error

@@ -66,7 +66,7 @@ describe("Replace", () => {
         expect(error).toBeNull()
 
         expect(await itemRow(a)).toMatchObject({ status: "cancelled", replaced_reason: "Brand out of stock", s0_still_lists: false })
-        expect(await itemRow(bId)).toMatchObject({ name: "Other brand", quantity: "3.00", unit: "pc", status: "not_checked", source: "new", substitute_for_item_id: a, sor_item_id: null })
+        expect(await itemRow(bId)).toMatchObject({ name: "Other brand", quantity: 3, unit: "pc", status: "not_checked", source: "new", substitute_for_item_id: a, sor_item_id: null })
         const stopped = await asSvc(svc().from("sor_canvasses").select("stopped_reason, stopped_at").eq("id", canvass.id).single(), "Canvass")
         expect(stopped.stopped_reason).toBe("Stopped · replaced by Other brand")
         expect(stopped.stopped_at).not.toBeNull()

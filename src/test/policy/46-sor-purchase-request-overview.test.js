@@ -65,7 +65,7 @@ describe("sor_purchase_request_overview", () => {
         expect(rows).toHaveLength(1)
         expect(rows[0]).toMatchObject({ request_id: requestId, buyer_id: ids.stageParticipant })
         expect(rows[0].buyer_name).toBeTruthy()
-        expect(rows[0].items.map((i) => i.status).sort()).toEqual(["received", "not_checked"])
+        expect(rows[0].items.map((i) => i.status).sort()).toEqual(["not_checked", "received"])
         expect(rows[0].items[0]).toHaveProperty("odoo_product_id")
     })
 

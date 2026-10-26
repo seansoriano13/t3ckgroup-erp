@@ -554,7 +554,7 @@ describe("a Tender Line picked from an SOR line", () => {
           { opportunity_id: sorId, product_name: "Rope 11mm", unit: "m", quantity: 100, unit_price: 90, sort_order: 1, odoo_product_id: 9001, odoo_line_id: 7001 },
           { opportunity_id: sorId, product_name: "Rope 11mm", unit: "m", quantity: 40, unit_price: 95, sort_order: 2, odoo_product_id: 9001, odoo_line_id: 7002 },
         ])
-        .select("id")
+        .select("id, sort_order")
         .order("sort_order"),
       "SOR lines",
     )
