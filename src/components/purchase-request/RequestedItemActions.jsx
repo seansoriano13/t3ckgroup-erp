@@ -9,7 +9,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Dropdown from "@/components/ui/Dropdown";
 import Spinner from "@/components/ui/Spinner";
 import StatusBadge from "../StatusBadge";
-import { NewProductDialog } from "./AddRequestedItems";
+import ReplaceItemDialog from "./ReplaceItemDialog";
 import { AttachP0Dialog, CorrectPoDialog, PickPoLinesDialog } from "./PoDialogs";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
@@ -19,7 +19,6 @@ import {
   MEMBER_SIDE,
   NOT_FROM_THE_MENU,
   allowedTransitions,
-  isClosedStatus,
   stockWarning,
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
@@ -125,7 +124,7 @@ function StatusMenu({ close, children }) {
  *
  * `actor` is `purchaseRequestService.itemActor`'s answer (`{ side,
  * canSubstitute }`). Purchasing gets a menu of the next steps on the path and
- * the ways out (and, for the Buyer, "Offer a substitute"); the sales side gets
+ * the ways out (and "Replace…", #687); the sales side gets
  * only Cancel; anyone else gets a static StatusBadge.
  *
  * Purchasing's "Attach P0…" (#684) opens a dialog that lists the P0s made in Odoo for the line;
@@ -137,7 +136,7 @@ export default function RequestedItemActions({ item, request, actor }) {
   const refresh = useRefreshRequest(request?.id);
   const announce = useItemStatusUndo(request?.id);
   const [confirming, setConfirming] = useState(null);
-  const [substituting, setSubstituting] = useState(false);
+  const [replacing, setReplacing] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [pickingLines, setPickingLines] = useState(false);
   const [correctingPo, setCorrectingPo] = useState(false);
@@ -170,7 +169,11 @@ export default function RequestedItemActions({ item, request, actor }) {
   const next = allowedTransitions(item.status, side).filter(
     (status) => !NOT_FROM_THE_MENU.includes(status) && (status !== item.status || warned),
   );
-  const canSubstitute = !!actor?.canSubstitute && !isClosedStatus(item.status);
+  // #687: only Purchasing replaces; a Cancelled or Received line is shut.
+  const canReplace =
+    side === MEMBER_SIDE.PURCHASING &&
+    item.status !== ITEM_STATUS.CANCELLED &&
+    item.status !== ITEM_STATUS.RECEIVED;
   const canPickLines = onPo && poLineIds.length > 0;
   // #549: Purchasing can correct the PO while the item is Ordered; Received is fixed.
   const canCorrectPo = side === MEMBER_SIDE.PURCHASING && item.status === ITEM_STATUS.PURCHASED;
@@ -178,7 +181,7 @@ export default function RequestedItemActions({ item, request, actor }) {
   // Cancelled or Received line.
   const isPurchasing = side === MEMBER_SIDE.PURCHASING;
   const nothingToAttach = item.status === ITEM_STATUS.CANCELLED || item.status === ITEM_STATUS.RECEIVED;
-  const canInteract = next.length > 0 || canSubstitute || canPickLines || canCorrectPo || (isPurchasing && !nothingToAttach);
+  const canInteract = next.length > 0 || canReplace || canPickLines || canCorrectPo || (isPurchasing && !nothingToAttach);
 
   if (!canInteract) {
     return (
@@ -209,13 +212,8 @@ export default function RequestedItemActions({ item, request, actor }) {
         className={OVER_REQUEST_MODAL}
         onConfirm={() => moveMutation.mutate(confirming)}
       />
-      {canSubstitute && substituting && (
-        <NewProductDialog
-          open
-          onOpenChange={(open) => !open && setSubstituting(false)}
-          requestId={requestId}
-          substituteFor={item}
-        />
+      {canReplace && replacing && (
+        <ReplaceItemDialog open onOpenChange={setReplacing} item={item} requestId={requestId} />
       )}
       {attaching && <AttachP0Dialog open onOpenChange={setAttaching} item={item} request={request} />}
       {canCorrectPo && correctingPo && (
@@ -305,18 +303,18 @@ export default function RequestedItemActions({ item, request, actor }) {
                 Correct PO…
               </MenuItem>
             )}
-            {(onPath.length > 0 || isPurchasing || canPickLines || canCorrectPo) && (waysOut.length > 0 || canSubstitute) && (
+            {(onPath.length > 0 || isPurchasing || canPickLines || canCorrectPo) && (waysOut.length > 0 || canReplace) && (
               <div className="my-1 h-px bg-border" />
             )}
-            {canSubstitute && (
+            {canReplace && (
               <MenuItem
                 onClick={() => {
                   close();
-                  setSubstituting(true);
+                  setReplacing(true);
                 }}
               >
                 <Replace size={14} />
-                Offer a substitute…
+                Replace…
               </MenuItem>
             )}
             {waysOut.map((status) => (

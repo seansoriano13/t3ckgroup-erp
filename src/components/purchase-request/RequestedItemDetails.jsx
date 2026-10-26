@@ -8,7 +8,7 @@ import { PO_VERIFICATION_LABELS, REQUEST_PURPOSES } from "../../constants/procur
 import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
 import { stockWarning } from "../../constants/purchaseRequest";
-import { componentLabel, isFromS0, itemSectionLabel, poLineNotPicked } from "../../utils/requestedItem";
+import { componentLabel, isFromS0, itemSectionLabel, poLineNotPicked, replacedNote, s0StillListsNote } from "../../utils/requestedItem";
 import { deliveryNote } from "../../utils/deliveryNote";
 
 /** "PHP 250.50" — the price a Canvass winner gave the item (#582). */
@@ -59,6 +59,10 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
       value: REQUEST_PURPOSES.find((p) => p.value === item.purpose)?.label || item.purpose,
     },
     removed && { label: "S0", value: <Warn>Removed from S0</Warn> },
+    item.s0_still_lists && {
+      label: "S0",
+      value: <Warn>{s0StillListsNote(item)}</Warn>,
+    },
     component && {
       label: "Component",
       value: (
@@ -103,7 +107,7 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
       value: (
         <span className="flex items-center gap-1.5">
           <Replace size={14} className="shrink-0 text-muted-foreground" />
-          {replaces ? `Substitute for ${replaces.name}` : `Replaced by ${replacedBy.name}`}
+          {replaces ? `Substitute for ${replaces.name}` : replacedNote(item, replacedBy)}
         </span>
       ),
     },

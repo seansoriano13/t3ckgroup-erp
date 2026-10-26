@@ -15,7 +15,7 @@ import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
 import ItemCanvass from "./ItemCanvass";
 import StatusBadge from "../StatusBadge";
-import { formatAmount, isFromS0, itemSectionLabel, requestedItemStock } from "../../utils/requestedItem";
+import { formatAmount, isFromS0, itemSectionLabel, replacedNote, requestedItemStock, s0StillListsNote } from "../../utils/requestedItem";
 import { deliveryNote } from "../../utils/deliveryNote";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
@@ -28,7 +28,8 @@ import {
 import { purchaseRequestKeys } from "./queryKeys";
 
 /** The one quiet line under a name: the PO, else the stock, else which section it is in. */
-function summaryOf(item, stock) {
+function summaryOf(item, stock, replacedBy = null) {
+  if (replacedBy && item.status === ITEM_STATUS.CANCELLED) return replacedNote(item, replacedBy);
   const warning = stockWarning(item);
   if (warning) return warning.label;
   if (item.po_number) {
@@ -57,23 +58,27 @@ function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null
   const stock = requestedItemStock(item, stockSnapshot);
   // The S0 dropped this line: the item stays so a bought product is never lost, and says so.
   const removed = isFromS0(item) && item.removed_from_s0 === true;
+  const summary = summaryOf(item, stock, replacedBy);
+  // #687: the S0 still lists a product Purchasing replaced; Sales has to fix the S0.
+  const stillLists = item.s0_still_lists === true;
   return {
     key: item.id,
     testId: "requested-item",
     main: item.name,
     label: item.name,
-    sub: removed ? (
-      <>
-        {summaryOf(item, stock)}
-        {" · "}
-        <span className="inline-flex items-center gap-1 font-medium text-amber-11">
-          <AlertTriangle size={12} className="shrink-0" aria-hidden="true" />
-          Removed from S0
-        </span>
-      </>
-    ) : (
-      summaryOf(item, stock)
-    ),
+    sub:
+      removed || stillLists ? (
+        <>
+          {summary}
+          {" · "}
+          <span className="inline-flex items-center gap-1 font-medium text-amber-11">
+            <AlertTriangle size={12} className="shrink-0" aria-hidden="true" />
+            {stillLists ? s0StillListsNote(item) : "Removed from S0"}
+          </span>
+        </>
+      ) : (
+        summary
+      ),
     quantity: formatAmount(item.quantity, item.unit),
     badge: { label: ITEM_STATUS_LABELS[item.status] || item.status, theme: ITEM_STATUS_THEME[item.status] },
     actions,
