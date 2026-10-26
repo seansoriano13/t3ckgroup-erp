@@ -33,6 +33,7 @@ export default function MentionTextarea({
   disabled,
   maxLength,
   onEnterSubmit,
+  autoFocus,
   "aria-label": ariaLabel,
 }) {
   const areaRef = useRef(null);
@@ -119,6 +120,7 @@ export default function MentionTextarea({
         ref={areaRef}
         rows={rows}
         value={value}
+        autoFocus={autoFocus}
         disabled={disabled}
         placeholder={placeholder}
         aria-label={ariaLabel}
