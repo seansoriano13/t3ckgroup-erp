@@ -215,6 +215,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
           po_ordered: facts.ordered,
           po_received: facts.received,
           bought_as: facts.bought_as,
+          bought_product_id: facts.bought_product_id ?? null,
           odoo_po_line_ids: item.po_number === po ? item.odoo_po_line_ids : [],
         })
         insertRow("purchase_request_messages", {
@@ -232,6 +233,38 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
   const ipasOf = (poNumber) => (poNumber && ipasLines[poNumber]) || []
 
   stubRpc("purchase_request_item_po_lines", (args) => ipasOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
+
+  // #688: 20261105000000_is_this_yours_on_s0.sql. The rules are proven in 240-is-this-yours.test.js.
+  stubRpc("purchase_request_answer_yours", (args) => {
+    const s0 = findRow("purchase_request_items", args.p_item_id)
+    if (!s0) refuse(`purchase_request_answer_yours: item ${args.p_item_id} not found`, "P0002")
+    if (!["purchasing", "sales"].includes(sideOf(s0.request_id))) refuse("purchase_request_answer_yours: only Purchasing or the sales side answers this", "42501")
+    if (!s0.new_on_s0) refuse(`purchase_request_answer_yours: ${s0.name} has no open question`, "22023")
+    if (!args.p_same) return updateRow("purchase_request_items", s0, { new_on_s0: false, yours_item_id: null })
+    const other = { ...findRow("purchase_request_items", s0.yours_item_id) }
+    updateRow("purchase_request_items", findRow("purchase_request_items", other.id), {
+      status: "cancelled",
+      po_number: null,
+      po_state: null,
+      po_ordered: null,
+      po_received: null,
+      bought_as: null,
+      bought_product_id: null,
+      closed_note: `Closed · ${other.po_number} and its delivery moved onto ${s0.name}`,
+    })
+    return updateRow("purchase_request_items", s0, {
+      status: other.status,
+      po_number: other.po_number,
+      po_verification: other.po_verification,
+      po_state: other.po_state,
+      po_ordered: other.po_ordered,
+      po_received: other.po_received,
+      bought_as: other.bought_as,
+      bought_product_id: other.bought_product_id,
+      new_on_s0: false,
+      yours_item_id: null,
+    })
+  })
 
   stubRpc("purchase_request_pick_po_lines", (args) => {
     const item = findRow("purchase_request_items", args.p_item_id)

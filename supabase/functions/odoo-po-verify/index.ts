@@ -174,6 +174,8 @@ Deno.serve(async (req) => {
           p_facts: facts,
         });
         if (error) return jsonResponse({ success: false, refused: true, message: refusalText(error.message) });
+        // #688: remember the Odoo product on the P0 line, so a new S0 line for the same product can ask "Is this yours?".
+        await admin.from("purchase_request_items").update({ bought_product_id: facts.bought_product_id }).eq("id", itemId);
         // The P0's price is the Component's Actual cost (#686). The attach already stands, so a miss here is logged, not fatal.
         const { error: priceError } = await admin.rpc("costing_set_p0_price", {
           p_actor_email: email,
@@ -181,7 +183,7 @@ Deno.serve(async (req) => {
           p_price: p0UnitPrice(p0, row?.odoo_product_id ?? null),
         });
         if (priceError) console.error("odoo-po-verify actual cost error:", priceError.message);
-        return jsonResponse({ success: true, verdict: "verified", item: data });
+        return jsonResponse({ success: true, verdict: "verified", item: { ...data, bought_product_id: facts.bought_product_id } });
       } catch (err) {
         console.error("odoo-po-verify attach error:", err);
         return jsonResponse({ success: false, message: err instanceof Error ? err.message : "Odoo lookup failed." });

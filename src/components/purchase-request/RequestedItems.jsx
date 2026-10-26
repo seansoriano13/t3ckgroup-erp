@@ -14,6 +14,7 @@ import LinerList from "@/components/record/LinerList";
 import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
 import ItemCanvass from "./ItemCanvass";
+import { YoursBadge } from "./YoursDialog";
 import StatusBadge from "../StatusBadge";
 import { formatAmount, isFromS0, itemSectionLabel, replacedNote, requestedItemStock, s0StillListsNote } from "../../utils/requestedItem";
 import { deliveryNote } from "../../utils/deliveryNote";
@@ -22,6 +23,7 @@ import {
   ITEM_STATUS,
   ITEM_STATUS_LABELS,
   ITEM_STATUS_THEME,
+  MEMBER_SIDE,
   isClosedStatus,
   stockWarning,
 } from "../../constants/purchaseRequest";
@@ -29,6 +31,8 @@ import { purchaseRequestKeys } from "./queryKeys";
 
 /** The one quiet line under a name: the PO, else the stock, else which section it is in. */
 function summaryOf(item, stock, replacedBy = null) {
+  // #688: an Other request closed because its P0 moved onto an S0 line says so.
+  if (item.closed_note) return item.closed_note;
   if (replacedBy && item.status === ITEM_STATUS.CANCELLED) return replacedNote(item, replacedBy);
   const warning = stockWarning(item);
   if (warning) return warning.label;
@@ -54,7 +58,7 @@ function summaryOf(item, stock, replacedBy = null) {
  * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
  * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
  */
-function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null, canvass = null }) {
+function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null, canvass = null, yours = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   // The S0 dropped this line: the item stays so a bought product is never lost, and says so.
   const removed = isFromS0(item) && item.removed_from_s0 === true;
@@ -81,7 +85,14 @@ function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null
       ),
     quantity: formatAmount(item.quantity, item.unit),
     badge: { label: ITEM_STATUS_LABELS[item.status] || item.status, theme: ITEM_STATUS_THEME[item.status] },
-    actions,
+    actions: yours ? (
+      <div className="flex items-center gap-2">
+        {yours}
+        {actions}
+      </div>
+    ) : (
+      actions
+    ),
     children: (
       <>
         <RequestedItemDetails item={item} stock={stock} replaces={replaces} replacedBy={replacedBy} />
@@ -214,6 +225,15 @@ export default function RequestedItems({ request, renderActions }) {
       replaces: byId.get(item.substitute_for_item_id),
       replacedBy: substituteOf.get(item.id),
       canvass: renderActions ? null : <ItemCanvass item={item} request={request} actor={actor} />,
+      // #688: a new S0 line that may be the same product as an Other request already bought.
+      yours: item.new_on_s0 ? (
+        <YoursBadge
+          item={item}
+          other={byId.get(item.yours_item_id)}
+          requestId={requestId}
+          canAnswer={[MEMBER_SIDE.PURCHASING, MEMBER_SIDE.SALES].includes(actor?.side)}
+        />
+      ) : null,
       actions: renderActions ? (
         <div className="flex items-center gap-2">
           <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />
