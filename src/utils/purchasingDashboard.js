@@ -6,29 +6,26 @@
  */
 
 export const DASHBOARD_GROUP = {
-  TO_SOURCE: "to_source",
-  TO_PRICE: "to_price",
-  TO_ORDER: "to_order",
-  ON_ORDER: "on_order",
-  TO_CHECK: "to_check",
+  NOT_CHECKED: "not_checked",
+  TO_PURCHASE: "to_purchase",
+  STILL_CANVASSING: "still_canvassing",
+  PURCHASED: "purchased",
 };
 
 export const DASHBOARD_GROUPS = Object.values(DASHBOARD_GROUP);
 
 export const DASHBOARD_GROUP_LABELS = {
-  [DASHBOARD_GROUP.TO_SOURCE]: "To source",
-  [DASHBOARD_GROUP.TO_PRICE]: "To price",
-  [DASHBOARD_GROUP.TO_ORDER]: "To order",
-  [DASHBOARD_GROUP.ON_ORDER]: "On order",
-  [DASHBOARD_GROUP.TO_CHECK]: "To check",
+  [DASHBOARD_GROUP.NOT_CHECKED]: "Not checked",
+  [DASHBOARD_GROUP.TO_PURCHASE]: "To purchase",
+  [DASHBOARD_GROUP.STILL_CANVASSING]: "Still canvassing",
+  [DASHBOARD_GROUP.PURCHASED]: "Purchased (not received)",
 };
 
 export const DASHBOARD_GROUP_HINTS = {
-  [DASHBOARD_GROUP.TO_SOURCE]: "Requested Items at Requested or To order, and Canvasses with no winner.",
-  [DASHBOARD_GROUP.TO_PRICE]: "Components with no Acquire, and matrices still waiting on a Bid Decision.",
-  [DASHBOARD_GROUP.TO_ORDER]: "Priced and decided Go, with no PO yet.",
-  [DASHBOARD_GROUP.ON_ORDER]: "Ordered and not yet received, by IPAS where the PO has one.",
-  [DASHBOARD_GROUP.TO_CHECK]: "Received and waiting for a Transmittal, or moving through its checks.",
+  [DASHBOARD_GROUP.NOT_CHECKED]: "Product lines nobody has looked at yet.",
+  [DASHBOARD_GROUP.TO_PURCHASE]: "Product lines that need buying, with no confirmed P0 yet.",
+  [DASHBOARD_GROUP.STILL_CANVASSING]: "Product lines with supplier offers being collected, and Components still waiting on an Acquire price or a Bid Decision.",
+  [DASHBOARD_GROUP.PURCHASED]: "Confirmed on a P0 and not all here yet, with the delivery note, by IPAS where the P0 has one.",
 };
 
 const DAY = 86_400_000;
@@ -51,7 +48,7 @@ export const ownerKey = (row) => row.opportunity_id ?? `request:${row.request_id
  * `sor` (S number or project title, any case), `buyerId`, `canvasserId`,
  * `minAgeDays`, `lateIpasIds` (a Set: keeps only IPAS rows Order Monitoring
  * marks late by its ageing rules), and `noCanvass`, which keeps only items
- * ordered with no canvass and counts only those.
+ * purchased with no canvass and counts only those.
  */
 export function filterRows(
   rows,
@@ -70,7 +67,7 @@ export function filterRows(
 }
 
 /**
- * The five groups, always in order and always present, each with its item
+ * The four groups, always in order and always present, each with its item
  * count, how many SORs it spans, and per SOR its item count and the rows
  * (records) that hold the work, oldest first.
  */
@@ -108,7 +105,7 @@ export function dashboardView(rows, filters = {}, today = new Date()) {
   return { groups };
 }
 
-/** Everything one SOR (or Direct request, by `ownerKey`) has outstanding, every group it is in: "4 to source, 2 on order". */
+/** Everything one SOR (or Direct request, by `ownerKey`) has outstanding, every group it is in: "4 not checked, 2 purchased (not received)". */
 export function sorSummary(rows, owner) {
   return DASHBOARD_GROUPS.map((key) => {
     const count = rows.filter((row) => ownerKey(row) === owner && row.grp === key).reduce((sum, row) => sum + row.item_count, 0);

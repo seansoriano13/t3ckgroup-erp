@@ -20,12 +20,12 @@ function clearOldOpenAsChoice() {
   }
 }
 
-/** "Purchase Request for S01001 · Stage · 2 open of 5" — the one quiet line under the title. */
+/** "PR_0042 · Purchase Request for S01001 · Stage · 2 open of 5" — the one quiet line under the title. */
 function headerLine(request) {
   const direct = requestKind(request) === REQUEST_KIND.DIRECT;
   const count = request.item_count ? `${request.open_count ?? request.open_item_count ?? 0} open of ${request.item_count}` : null;
   const lead = direct ? "Direct Purchase Request" : `Purchase Request for ${request.sales_reference || "an SOR"}`;
-  return [lead, requestStageLabel(request), count].filter(Boolean).join(" · ");
+  return [request.pr_number, lead, requestStageLabel(request), count].filter(Boolean).join(" · ");
 }
 
 /**
@@ -40,7 +40,7 @@ function headerLine(request) {
  * header button. It sits on the record layer; every dialog the view opens (add
  * items, PO, confirmations) uses OVER_REQUEST_MODAL to show above it.
  */
-export default function PurchaseRequestModal({ requestId, onClose }) {
+export default function PurchaseRequestModal({ requestId, focusChat = false, onClose }) {
   const { data: request } = usePurchaseRequest(requestId);
   useEffect(clearOldOpenAsChoice, []);
   const { reference, title } = requestIdentity(request);
@@ -63,7 +63,7 @@ export default function PurchaseRequestModal({ requestId, onClose }) {
           line={headerLine(request)}
         />
       )}
-      <PurchaseRequestView requestId={requestId} />
+      <PurchaseRequestView requestId={requestId} focusChat={focusChat} />
     </ModalShell>
   );
 }

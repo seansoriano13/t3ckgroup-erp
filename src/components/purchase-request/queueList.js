@@ -25,6 +25,7 @@ export function requestStateOf(row) {
 }
 
 export const QUEUE_EXPORT_HEADER = [
+  "PR number",
   "Request",
   "Name",
   "Stage",
@@ -41,6 +42,7 @@ export function queueExportRows(rows) {
   return rows.map((row) => {
     const { reference, title } = requestIdentity(row);
     return [
+      row.pr_number || null,
       reference,
       title || null,
       requestStageLabel(row) || null,

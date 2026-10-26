@@ -110,8 +110,12 @@ export const COMPONENT_BANDS = {
  * never canvassed, so this stays out of COMPONENT_COST_TIERS / COMPONENT_COST_BANDS, which a
  * cost-only row inherits. Acquire's own audience reads it; Purchasing writes it.
  */
-export const COMPONENT_CANVASS_COST_TIERS = { acquire_from_offer_id: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK] };
-export const COMPONENT_CANVASS_COST_BANDS = { acquire_from_offer_id: [PURCHASING] };
+export const COMPONENT_CANVASS_COST_TIERS = {
+  acquire_from_offer_id: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+  // The P0 line price, the Actual cost (#686), read by the tiers that read Acquire.
+  p0_unit_price: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+};
+export const COMPONENT_CANVASS_COST_BANDS = { acquire_from_offer_id: [PURCHASING], p0_unit_price: [PURCHASING] };
 
 export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
@@ -281,6 +285,7 @@ export const COSTING_COLUMN_LABEL = {
   "costing_components.offer_specification_from_offer_id": "Where the Offer Specification came from",
   "costing_components.documents": "A Component's documents",
   "costing_component_costs.acquire_from_offer_id": "Where Acquire came from",
+  "costing_component_costs.p0_unit_price": "The actual cost from the attached P0",
   "costing_components.compliance": "Compliance",
   "costing_components.compliance_note": "A Compliance note",
   "costing_components.recommended_alternative": "The recommended alternative",

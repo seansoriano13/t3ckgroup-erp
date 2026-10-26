@@ -26,72 +26,81 @@ describe("purchaseRequestService — PO on Ordered", () => {
       source: "new",
       name: "Full Body Harness",
       quantity: 10,
-      status: "to_order",
+      status: "to_purchase",
       requested_by: salesperson.id,
     }).id
   })
 
-  it("orders with no PO number, without asking Odoo", async () => {
-    stubPurchaseRequestItemRpcs({ actorId: buyer.id })
-    let asked = false
-    stubEdgeFunction("odoo-po-verify", () => {
-      asked = true
-      return { success: true, found: false }
-    })
-    const updated = await purchaseRequestService.orderItem(itemId, { poNumber: "  " })
-    expect(updated).toMatchObject({ status: "ordered", po_number: null })
-    expect(asked).toBe(false)
-  })
-
-  it("sends the item and PO to the server check, and no verdict", async () => {
+  it("sends the item and P0 to the server, and no verdict or facts", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id })
     let asked
     stubEdgeFunction("odoo-po-verify", (body) => {
       asked = body
       return { success: true, verdict: "verified", item: { id: itemId } }
     })
-    await purchaseRequestService.orderItem(itemId, { poNumber: "p01234" })
-    expect(asked).toEqual({ action: "order", itemId, poNumber: "P01234" })
+    await purchaseRequestService.attachP0(itemId, "p01234")
+    expect(asked).toEqual({ action: "attach", itemId, poNumber: "P01234" })
   })
 
-  it("stores the PO as verified when Odoo has it", async () => {
-    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
-    const updated = await purchaseRequestService.orderItem(itemId, { poNumber: "p01234" })
-    expect(updated).toMatchObject({ status: "ordered", po_number: "P01234", po_verification: "VERIFIED" })
-    expect(db.rows("purchase_request_messages")[0].metadata.details).toEqual({
-      po_number: "P01234",
-      po_verification: "VERIFIED",
-    })
+  it("makes the line Purchased from a confirmed P0 and keeps what was bought", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found", p0s: { P01234: { bought_as: "Harness XL" } } })
+    const updated = await purchaseRequestService.attachP0(itemId, "p01234")
+    expect(updated).toMatchObject({ status: "purchased", po_number: "P01234", po_verification: "VERIFIED", bought_as: "Harness XL" })
   })
 
-  it("refuses a PO Odoo doesn't have, naming it, and saves nothing", async () => {
+  it("keeps an RFQ at To purchase", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found", p0s: { P01234: { state: "rfq" } } })
+    expect(await purchaseRequestService.attachP0(itemId, "P01234")).toMatchObject({ status: "to_purchase", po_state: "rfq" })
+  })
+
+  it("makes the line Received when everything arrived", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found", p0s: { P01234: { ordered: 10, received: 10 } } })
+    expect(await purchaseRequestService.attachP0(itemId, "P01234")).toMatchObject({ status: "received" })
+  })
+
+  it("refuses a P0 Odoo doesn't have, naming it, and saves nothing", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "not_found" })
-    await expect(purchaseRequestService.orderItem(itemId, { poNumber: "P01234" })).rejects.toThrow(/P01234/)
-    expect(item()).toMatchObject({ status: "to_order", po_number: null })
+    await expect(purchaseRequestService.attachP0(itemId, "P01234")).rejects.toThrow(/P01234/)
+    expect(item()).toMatchObject({ status: "to_purchase", po_number: null })
   })
 
-  it("saves the PO as not checked when Odoo doesn't answer", async () => {
+  it("attaches nothing when Odoo doesn't answer", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "unreachable" })
-    const updated = await purchaseRequestService.orderItem(itemId, { poNumber: "P01234" })
-    expect(updated).toMatchObject({ status: "ordered", po_number: "P01234", po_verification: "PENDING_VERIFICATION" })
+    await expect(purchaseRequestService.attachP0(itemId, "P01234")).rejects.toThrow(/not attached/)
+    expect(item()).toMatchObject({ status: "to_purchase", po_number: null })
   })
 
   it("refuses a PO check sent straight to the status move", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id })
     await expect(
-      purchaseRequestService.setItemStatus(itemId, "ordered", { po_number: "P01234", po_verification: "VERIFIED" }),
+      purchaseRequestService.setItemStatus(itemId, "purchased", { po_number: "P01234", po_verification: "VERIFIED" }),
     ).rejects.toMatchObject({ code: "42501" })
   })
 
-  it("refuses a number that isn't an Odoo PO before touching anything", async () => {
+  it("refuses a number that isn't an Odoo P0 before touching anything", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id })
-    await expect(purchaseRequestService.orderItem(itemId, { poNumber: "PO-12" })).rejects.toThrow(/P01234/)
-    expect(item().status).toBe("to_order")
+    await expect(purchaseRequestService.attachP0(itemId, "PO-12")).rejects.toThrow(/P01234/)
+    expect(item().status).toBe("to_purchase")
+  })
+
+  it("reads the suggested and other P0s", async () => {
+    let asked
+    stubEdgeFunction("odoo-po-suggest", (body) => {
+      asked = body
+      return { success: true, suggested: [{ name: "P1" }], others: [{ name: "P2" }] }
+    })
+    expect(await purchaseRequestService.suggestP0s({ reference: "S01237", productId: 7 })).toEqual({ suggested: [{ name: "P1" }], others: [{ name: "P2" }] })
+    expect(asked).toEqual({ reference: "S01237", productId: 7 })
+  })
+
+  it("throws when Odoo didn't answer, so an outage never reads as no P0s", async () => {
+    stubEdgeFunction("odoo-po-suggest", () => ({ success: false, message: "Odoo is down." }))
+    await expect(purchaseRequestService.suggestP0s({ reference: "S01237" })).rejects.toThrow(/Odoo is down/)
   })
 
   it("offers no lines and refuses a pick while the PO has no IPAS", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
-    await purchaseRequestService.orderItem(itemId, { poNumber: "P01234" })
+    await purchaseRequestService.attachP0(itemId, "P01234")
 
     expect(await purchaseRequestService.poLines(itemId)).toEqual([])
     await expect(purchaseRequestService.pickPoLines(itemId, [501])).rejects.toMatchObject({ code: "22023" })
@@ -99,7 +108,7 @@ describe("purchaseRequestService — PO on Ordered", () => {
 
   it("picks lines from the PO's IPAS copy once it exists", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, ipasLines: { P01234: [501, 502] }, odoo: "found" })
-    await purchaseRequestService.orderItem(itemId, { poNumber: "P01234" })
+    await purchaseRequestService.attachP0(itemId, "P01234")
 
     expect(await purchaseRequestService.poLines(itemId)).toEqual([501, 502])
     expect(await purchaseRequestService.pickPoLines(itemId, [502])).toMatchObject({ odoo_po_line_ids: [502] })

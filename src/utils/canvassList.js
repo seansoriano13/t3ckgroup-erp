@@ -11,7 +11,7 @@ export const REQUEST_FILTER = { NOT_YET: "not_yet", CREATED: "created" };
 
 /**
  * Whether a Purchase Request still has to be made from a Canvass, for the list column and the panel
- * strip: "Needs winner", "Ready to request", or the status of the request's item ("Requested",
+ * strip: "Needs winner", "Ready to request", or the status of the request's item ("Not checked",
  * "Cancelled"); the request's own name rides along as `requestLabel` for a tooltip. A Canvass on a Component has no request in its flow, so it has no state (null).
  * `theme` is a StatusBadge theme.
  */

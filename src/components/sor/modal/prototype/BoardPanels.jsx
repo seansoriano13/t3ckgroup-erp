@@ -91,7 +91,7 @@ export function ProductsPanel({ p, onOpen }) {
       ) : (
         <>
           <ul className="divide-y divide-border/50">
-            {items.slice(0, 5).map((it) => (
+            {items.filter((it) => !it.removed_from_s0).slice(0, 5).map((it) => (
               <li key={it.id} className="flex items-baseline gap-3 py-1.5 text-[13px]">
                 <span className="min-w-0 flex-1 truncate font-semibold text-foreground">{it.product_name}</span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">×{it.quantity}</span>

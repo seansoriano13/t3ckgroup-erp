@@ -17,14 +17,11 @@ const MEMBER_SELECT =
  * Members (#304): a purchasing member or a Super Admin adds and removes them;
  * the database sets a new member's side and window.
  *
- * Requested Items (#305): a sales-side member or the Buyer adds them, picked
- * from an SOR line or described as a new product. Each starts at Requested
- * and posts in the request.
- *
- * From the Costing Matrix (#273): Purchasing access adds one item per picked Component
- * (`addItemsFromComponents`); each copies the Component's name, quantity, unit and Odoo
- * product id and keeps its own copy, and names the Component. `listItems` attaches the
- * Component's number and name ("1.2 · name") as `component`.
+ * Requested Items (#305, #678): every S0 line has one item on the SOR's request, made and
+ * kept in step with the line by the database (no call here). A sales-side member or the Buyer
+ * adds the rest, described as a new product: an Other request. Each starts at Not checked
+ * and posts in the request. `listItems` attaches an item's Component number and name
+ * ("1.2 · name") as `component`.
  *
  * Status (#306): every change goes through `purchase_request_set_item_status`, which checks
  * the transition and the caller's side (purchasing walks the path; the sales
@@ -102,7 +99,7 @@ export const purchaseRequestService = {
    * SOR's locked header (`sales_reference`, `project_title`, `stage_name`, and
    * `sor_closed`: "deleted", "lost" or null) or a Direct request's `title`, the
    * Buyer (`buyer_id`, `buyer_name`, `buyer_avatar_path`), `item_count`,
-   * `open_count`, `created_at`, `last_activity_at`. `filter` narrows it (see
+   * `open_count`, `created_at`, `last_activity_at`, `pr_number` (PR_0042). `filter` narrows it (see
    * `filterQueue`); "mine" needs `userId`.
    */
   async listQueue({ filter, userId = null } = {}) {
@@ -130,15 +127,35 @@ export const purchaseRequestService = {
    * Opens a Direct request (#179): no SOR, a title, and new products
    * (`{ name, quantity, unit, description }`). Any employee; returns its id.
    */
-  async openDirect(title, items) {
+  async openDirect(title, items, forOpportunityId = null) {
     const { data, error } = await supabase.rpc("purchase_request_open", {
       p_title: title,
       p_items: items.map(({ name, quantity, unit, description }) =>
         itemFields({ name, quantity, unit, description }),
       ),
+      p_for_opportunity_id: forOpportunityId,
     });
     if (error) throw error;
     return data;
+  },
+
+  /**
+   * The Direct requests made for one SOR (#689): id, title, prNumber, p0 and status.
+   * No money. Empty for a caller who cannot read the SOR.
+   */
+  async directForSor(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase.rpc("direct_requests_for_sor", {
+      p_opportunity_id: opportunityId,
+    });
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      title: row.title,
+      prNumber: row.pr_number,
+      p0: row.p0 ?? null,
+      status: row.status,
+    }));
   },
 
   /** One request, shaped like a `listQueue` row; null when it can't be read. */
@@ -201,19 +218,6 @@ export const purchaseRequestService = {
   },
 
   /**
-   * The SOR's Product List as it stands, to pick from — `{ id, product_name,
-   * quantity, unit, odoo_product_id, sort_order }`, no prices. Read through
-   * the request, so the Buyer can pick without a window into the SOR.
-   */
-  async pickableLines(requestId) {
-    const { data, error } = await supabase.rpc("purchase_request_pickable_lines", {
-      p_request_id: requestId,
-    });
-    if (error) throw error;
-    return data || [];
-  },
-
-  /**
    * #501 — the request's SOR stock snapshot (#202), `{ fetched_at, data }`,
    * or null. Read through the request, not `sor_stock_snapshots`, whose policy
    * hides it from a Buyer without SOR access; the picker and the saved items
@@ -229,94 +233,33 @@ export const purchaseRequestService = {
   },
 
   /**
-   * Adds an item copied from one Product List line: its Odoo product, name,
-   * quantity and unit, as they are now. Returns the new item's id.
-   *
-   * Lines are re-created on every Product List save, so a line id from a
-   * picker that has been open a while can be gone; the database refuses it
-   * and the caller re-reads the list.
-   */
-  async addItemFromLine(requestId, lineId) {
-    const { data, error } = await supabase.rpc("purchase_request_add_item_from_line", {
-      p_request_id: requestId,
-      p_line_id: lineId,
-    });
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * Makes a line-sourced item say what its SOR line says now (quantity and unit),
-   * and posts the change in the request. The database wants a reason once the item
-   * is Ordered, and refuses a closed item or a line the SOR no longer has.
-   */
-  async updateItemFromSor(itemId, reason = null) {
-    const { error } = await supabase.rpc("purchase_request_update_item_from_sor", {
-      p_item_id: itemId,
-      p_reason: reason,
-    });
-    if (error) throw error;
-  },
-
-  /** "Keep as asked": the item stays as picked, and its "SOR changed" flag stays quiet until the SOR says something else. */
-  async keepItemAsAsked(itemId) {
-    const { error } = await supabase.rpc("purchase_request_keep_item_as_asked", { p_item_id: itemId });
-    if (error) throw error;
-  },
-
-  /**
-   * Adds one Requested Item for each given Component of the request's SOR (#273): the Component's
-   * name, quantity, unit and Odoo product id are copied and the item names the Component. Purchasing
-   * access only; a Component on another SOR's matrix is refused, and so is the whole call. The same
-   * Component may be asked for more than once. Returns the new items' ids.
-   */
-  async addItemsFromComponents(requestId, componentIds) {
-    const { data, error } = await supabase.rpc("purchase_request_add_items_from_components", {
-      p_request_id: requestId,
-      p_component_ids: componentIds,
-    });
-    if (error) throw error;
-    return data || [];
-  },
-
-  /**
    * Adds a product that isn't in Odoo. `images` are the uploaded files'
    * descriptors ({ url, name, type, bytes }), at most five. Returns the new
    * item's id.
    */
-  async addNewItem(requestId, { name, quantity, unit = null, description = null, images = [] }) {
+  async addNewItem(requestId, { name, quantity, unit = null, description = null, images = [], purpose }) {
     const { data, error } = await supabase.rpc("purchase_request_add_new_item", {
       p_request_id: requestId,
       ...itemArgs({ name, quantity, unit, description, images }),
+      // "client" or "job" (#679); left out, the database says "client".
+      ...(purpose && { p_purpose: purpose }),
     });
     if (error) throw error;
     return data;
   },
 
   /**
-   * The request's items, oldest first. A line-sourced item carries `sorLine`,
-   * its SOR line as the SOR says it now (`{ found, quantity, unit }`) — what
-   * `sorLineChange` compares with the snapshot to say "SOR line now says N".
+   * The request's items, oldest first. An item with `sor_item_id` is for an S0 line (and
+   * carries `removed_from_s0` when the S0 dropped it); any other is an Other request.
    */
   async listItems(requestId) {
     if (!requestId) return [];
-    const [items, lines] = await Promise.all([
-      supabase
-        .from("purchase_request_items")
-        .select(ITEM_SELECT)
-        .eq("request_id", requestId)
-        .order("created_at", { ascending: true }),
-      supabase.rpc("purchase_request_item_lines", { p_request_id: requestId }),
-    ]);
+    const items = await supabase
+      .from("purchase_request_items")
+      .select(ITEM_SELECT)
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: true });
     if (items.error) throw items.error;
-    if (lines.error) throw lines.error;
-
-    const lineByItem = new Map(
-      (lines.data || []).map((l) => [
-        l.item_id,
-        { found: l.line_found, quantity: l.line_quantity, unit: l.line_unit },
-      ]),
-    );
 
     // An item bought for a Costing Matrix Component carries its number and name ("1.2 · name") (#273).
     // Read only when some item names one, so a request without any makes no extra call.
@@ -339,7 +282,6 @@ export const purchaseRequestService = {
     return (items.data || []).map((item) => ({
       ...item,
       ...(priceByItem.has(item.id) ? { price: priceByItem.get(item.id) } : {}),
-      ...(lineByItem.has(item.id) ? { sorLine: lineByItem.get(item.id) } : {}),
       ...(componentByItem.has(item.id) ? { component: componentByItem.get(item.id) } : {}),
       ...(canvassByItem.has(item.id) ? { canvass: canvassByItem.get(item.id) } : {}),
     }));
@@ -446,19 +388,49 @@ export const purchaseRequestService = {
   // ── PO number and PO lines (#312) ────────────────────────────────────────
 
   /**
-   * Sets an item Ordered. Without a PO number it is a direct status move. With
-   * one, the `odoo-po-verify` edge function does the work (#548): it asks Odoo,
-   * then moves the item itself with its own verdict. The browser never sends
-   * the check. Verified is saved; a PO Odoo says it doesn't have is refused
-   * (this throws, naming the PO); an Odoo that doesn't answer saves the PO as
-   * "not checked" (PENDING_VERIFICATION) for the screen to warn about. Throws on
-   * a number that isn't an Odoo PO ("P" then digits). Returns the updated item.
+   * Attaches an Odoo P0 to an item (#684). The `odoo-po-verify` edge function reads the P0
+   * as it stands in Odoo and sets the line from it: an RFQ keeps the line To purchase, a
+   * confirmed P0 makes it Purchased, a fully received one Received. The browser never sends
+   * the P0's facts. A number Odoo doesn't have is refused (this throws, naming it); so is an
+   * Odoo that doesn't answer, because a P0 is never attached unseen. Throws on a number that
+   * isn't an Odoo P0 ("P" then digits). Returns the updated item.
    */
-  async orderItem(itemId, { poNumber = "" } = {}) {
+  async attachP0(itemId, poNumber) {
     const po = normalizePoNumber(poNumber);
-    if (!po) return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.ORDERED);
-    if (!isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
-    return purchaseRequestService.applyPoAction("order", itemId, po);
+    if (!po || !isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
+    return purchaseRequestService.applyPoAction("attach", itemId, po);
+  },
+
+  /**
+   * The P0s Purchasing can attach to a line (#684): P0s in Odoo whose Source Document names
+   * `reference` (the S0, or a Direct request's PR number). `suggested` list the line's own
+   * Odoo product; `others` name the reference for another product. Read-only; throws when
+   * Odoo didn't answer, so an outage never reads as "no P0s".
+   */
+  async suggestP0s({ reference, productId = null }) {
+    const { data, error } = await supabase.functions.invoke("odoo-po-suggest", {
+      body: { reference, productId },
+    });
+    if (error) throw new Error("Couldn't read the P0s from Odoo. Try again.");
+    if (!data?.success) throw new Error(data?.message || "Couldn't read the P0s from Odoo. Try again.");
+    return { suggested: data.suggested || [], others: data.others || [] };
+  },
+
+  /**
+   * Refreshes the request's lines from their P0s in Odoo (#685): the `odoo-po-sync` edge
+   * function reads them and sets each line's stored status and delivery figures. Never
+   * throws: when Odoo does not answer the lines keep their last values and this returns
+   * `{ ok: false }`. Otherwise `{ ok: true, changed }`, the number of lines whose status moved.
+   */
+  async syncP0s(requestId) {
+    if (!requestId) return { ok: true, changed: 0 };
+    try {
+      const { data, error } = await supabase.functions.invoke("odoo-po-sync", { body: { requestId } });
+      if (error || !data?.success) return { ok: false, changed: 0 };
+      return { ok: true, changed: data.changed ?? 0 };
+    } catch {
+      return { ok: false, changed: 0 };
+    }
   },
 
   /**
@@ -474,8 +446,7 @@ export const purchaseRequestService = {
 
   /**
    * Saves a PO on an item through the server (`odoo-po-verify`, save mode).
-   * `action` names what to do with it; "order" today, so "Correct PO" can use
-   * the same path.
+   * `action` is "attach" (#684) or "correct" (#549).
    */
   async applyPoAction(action, itemId, poNumber) {
     const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
@@ -528,20 +499,51 @@ export const purchaseRequestService = {
     if (error) throw error;
   },
 
+  /**
+   * #688: answers "Is this from your purchase request?" on an S0 line. `same` true moves the
+   * Other request's P0, status and history onto the S0 line and closes the request (Cancelled,
+   * nothing deleted); false clears the question and changes nothing else. One database call.
+   * Returns the S0 line's item.
+   */
+  async answerYours(itemId, same) {
+    const { data, error } = await supabase.rpc("purchase_request_answer_yours", { p_item_id: itemId, p_same: !!same });
+    if (error) throw error;
+    return data;
+  },
+
   /** Withdraws an item: the one change the sales side may make. */
   async cancelItem(itemId) {
     return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.CANCELLED);
   },
 
   /**
-   * The Buyer offers a substitute: a new product linked to the item it
-   * replaces, which moves to Substituted so sales can re-price. Returns the
-   * new item's id.
+   * Odoo products whose name matches `query`, as `[{ id, name, code }]` (at most 10), for picking
+   * product B when replacing a product (#687). Never throws: with a short query, no match, or Odoo
+   * not answering it gives `[]`, and Purchasing simply types the product.
    */
-  async addSubstitute(itemId, { name, quantity, unit = null, description = null, images = [] }) {
-    const { data, error } = await supabase.rpc("purchase_request_add_substitute", {
+  async searchOdooProducts(query) {
+    const name = String(query ?? "").trim();
+    if (name.length < 2) return [];
+    try {
+      const { data, error } = await supabase.functions.invoke("odoo-product-search", { body: { query: name } });
+      if (error || !data?.success || !Array.isArray(data.products)) return [];
+      return data.products.slice(0, 10).map(({ id, name: product, code }) => ({ id, name: product, code: code ?? null }));
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Purchasing replaces product A with another (#687): A is Cancelled with the reason, A's open
+   * Canvass stops, and B becomes its own Other request with A's quantity. One database call.
+   * The reason is required. Returns the new item's id.
+   */
+  async replaceItem(itemId, { name, reason, odooProductId = null }) {
+    const { data, error } = await supabase.rpc("purchase_request_replace_item", {
       p_item_id: itemId,
-      ...itemArgs({ name, quantity, unit, description, images }),
+      p_name: name,
+      p_reason: reason,
+      ...(odooProductId && { p_odoo_product_id: odooProductId }),
     });
     if (error) throw error;
     return data;

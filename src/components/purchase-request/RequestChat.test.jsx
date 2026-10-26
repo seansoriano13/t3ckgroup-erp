@@ -65,6 +65,26 @@ describe("a member", () => {
   })
 })
 
+describe("opened from a mention", () => {
+  beforeEach(() => {
+    authUser = { id: buyer.id, name: "Ben Cruz" }
+  })
+
+  it("puts the cursor in the message box once the thread is on screen", async () => {
+    renderWithProviders(<RequestChat request={request} focusOnMount />)
+    expect(await screen.findByText("Purchase Request opened.")).toBeInTheDocument()
+
+    expect(screen.getByPlaceholderText(/Message the request/)).toHaveFocus()
+  })
+
+  it("leaves focus alone when not opened from a mention", async () => {
+    renderWithProviders(<RequestChat request={request} />)
+    expect(await screen.findByText("Purchase Request opened.")).toBeInTheDocument()
+
+    expect(screen.getByPlaceholderText(/Message the request/)).not.toHaveFocus()
+  })
+})
+
 describe("a reader who isn't a member", () => {
   it("reads but can't post", async () => {
     const other = makeEmployee({ name: "Cy Lim", department: "OPERATIONS", has_purchasing_flow: true })

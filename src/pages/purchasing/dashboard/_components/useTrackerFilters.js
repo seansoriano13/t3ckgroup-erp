@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { NEXT_FILTER } from "../../../../utils/purchasingTracker";
 
 export const ALL = "ALL";
-/** The Canvass filter's one narrowing choice: items ordered with no canvass. */
+/** The Canvass filter's one narrowing choice: items purchased with no canvass. */
 export const NO_CANVASS = "no-canvass";
 export const FILED_INCLUDED = "included";
 

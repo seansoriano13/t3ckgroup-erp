@@ -219,13 +219,13 @@ describe("one Purchase Request per SOR", () => {
 
 describe("Requested Items", () => {
     const expected = {
-        unanswered: { status: "requested", po_number: null, po_verification: "UNVERIFIED", quantity: 3 },
-        inProgress: { status: "canvassing", po_number: null, po_verification: "UNVERIFIED", quantity: 2 },
-        purchased: { status: "ordered", po_number: "P0123", po_verification: "VERIFIED", quantity: 2 },
-        onOrder: { status: "ordered", po_number: "P0124", po_verification: "PENDING_VERIFICATION", quantity: 2 },
+        unanswered: { status: "not_checked", po_number: null, po_verification: "UNVERIFIED", quantity: 3 },
+        inProgress: { status: "still_canvassing", po_number: null, po_verification: "UNVERIFIED", quantity: 2 },
+        purchased: { status: "purchased", po_number: "P0123", po_verification: "VERIFIED", quantity: 2 },
+        onOrder: { status: "purchased", po_number: "P0124", po_verification: "PENDING_VERIFICATION", quantity: 2 },
         delivered: { status: "received", po_number: "P0125", po_verification: "VERIFIED", quantity: 2 },
-        alreadyExists: { status: "from_stock", po_number: null, po_verification: "UNVERIFIED", quantity: 2 },
-        substituted: { status: "substituted", po_number: null, po_verification: "UNVERIFIED", quantity: 2 },
+        alreadyExists: { status: "available", po_number: null, po_verification: "UNVERIFIED", quantity: 2 },
+        substituted: { status: "cancelled", po_number: null, po_verification: "UNVERIFIED", quantity: 2 },
         unavailable: { status: "cannot_source", po_number: null, po_verification: "UNVERIFIED", quantity: 1 },
     }
 

@@ -61,23 +61,31 @@ describe("Canvass on a Requested Item", () => {
     const statusOf = (id) => db.rows("purchase_request_items").find((i) => i.id === id).status
 
     it("moves a To order item to Canvassing when its Canvass opens", async () => {
-      const item = db.seed("purchase_request_items", { request_id: request.id, name: "Toner", quantity: 2, source: "new", requested_by: purchaser.id, status: "to_order" })
+      const item = db.seed("purchase_request_items", { request_id: request.id, name: "Toner", quantity: 2, source: "new", requested_by: purchaser.id, status: "to_purchase" })
       await seedCanvass({ requestedItemId: item.id }, purchaser.id)
-      expect(statusOf(item.id)).toBe("canvassing")
+      expect(statusOf(item.id)).toBe("still_canvassing")
     })
 
     it("moves the To order items that name a Component when the Component's Canvass opens", async () => {
-      db.internal.rowsOf("purchase_request_items").find((i) => i.id === componentItem.id).status = "to_order"
-      const ordered = db.seed("purchase_request_items", { request_id: request.id, name: "Ambulance Folding Stretcher", quantity: 1, source: "component", component_id: componentId, requested_by: purchaser.id, status: "ordered" })
+      db.internal.rowsOf("purchase_request_items").find((i) => i.id === componentItem.id).status = "to_purchase"
+      const ordered = db.seed("purchase_request_items", { request_id: request.id, name: "Ambulance Folding Stretcher", quantity: 1, source: "component", component_id: componentId, requested_by: purchaser.id, status: "purchased" })
       await seedCanvass({ componentId }, purchaser.id)
-      expect(statusOf(componentItem.id)).toBe("canvassing")
-      expect(statusOf(ordered.id)).toBe("ordered")
+      expect(statusOf(componentItem.id)).toBe("still_canvassing")
+      expect(statusOf(ordered.id)).toBe("purchased")
     })
 
-    it("leaves an item at any other status alone", async () => {
-      expect(statusOf(plainItem.id)).toBe("requested")
+    it("moves a Not checked product line too (#682)", async () => {
+      expect(statusOf(plainItem.id)).toBe("not_checked")
       await seedCanvass({ requestedItemId: plainItem.id }, purchaser.id)
-      expect(statusOf(plainItem.id)).toBe("requested")
+      expect(statusOf(plainItem.id)).toBe("still_canvassing")
+    })
+
+    it("leaves a bought or cancelled item alone", async () => {
+      for (const status of ["purchased", "received", "cancelled"]) {
+        const item = db.seed("purchase_request_items", { request_id: request.id, name: status, quantity: 1, source: "new", status, requested_by: purchaser.id })
+        await seedCanvass({ requestedItemId: item.id }, purchaser.id)
+        expect(statusOf(item.id)).toBe(status)
+      }
     })
   })
 

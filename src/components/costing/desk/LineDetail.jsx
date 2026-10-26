@@ -9,7 +9,7 @@ import { costingMatrixService } from "../../../services/costingMatrixService";
 import { COSTING_BAND, ROW_EDIT_BANDS, inAnyBand, tierReads, tierReadsCost } from "../../../constants/costing";
 import { unitOptionsWith } from "../../../constants/procurement";
 import { formatPHP } from "../../../constants/sor";
-import { describeComplianceRollup } from "../../../utils/costingMath";
+import { describeComplianceRollup, effectiveAcquireUnit } from "../../../utils/costingMath";
 import { linePlay } from "../../../utils/costingPlayground";
 import { Cell, Readout, SelectCell, StockBadge } from "../GridCell";
 import { factorLabel, percentLabel, pesos } from "../gridFormat";
@@ -21,7 +21,7 @@ const HINT = "text-xs text-muted-foreground";
 function partSub(component, showAcquire) {
   const bits = [`${component.quantity} ${component.unit ?? ""}`.trim()];
   if (component.brand) bits.push(component.brand);
-  if (showAcquire) bits.push(component.acquire_unit == null ? "no Acquire yet" : `Acquire ${pesos(component.totals.acquireTotal)}`);
+  if (showAcquire) bits.push(effectiveAcquireUnit(component) == null ? "no Acquire yet" : `Acquire ${pesos(component.totals.acquireTotal)}`);
   if (component.compliance === "deviates") bits.push("deviates");
   return bits.join(" · ");
 }

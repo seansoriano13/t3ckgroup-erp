@@ -7,7 +7,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 const emptyRow = () => ({ product_name: "", unit: "", quantity: 1, unit_price: "" });
 
 const lineTotal = (item) =>
-  (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
+  item.removed_from_s0 ? 0 : (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
 
 /**
  * The product list behind an opportunity's Expected Value. Controlled —
@@ -89,8 +89,8 @@ export default function OpportunityItemsEditor({ items, onChange }) {
                   placeholder="0.00"
                   containerClassName="col-span-2 min-w-0" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
                 />
-                <div className="col-span-1 text-xs font-bold text-foreground text-right truncate">
-                  {formatPHP(lineTotal(item))}
+                <div className="col-span-1 text-xs font-bold text-foreground text-right truncate" title={item.removed_from_s0 ? "Removed from S0: left out of Estimated Value" : undefined}>
+                  {item.removed_from_s0 ? "Removed" : formatPHP(lineTotal(item))}
                 </div>
                 <Button
                   type="button"

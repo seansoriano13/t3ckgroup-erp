@@ -49,7 +49,7 @@ describe("Planned and Actual Revenue on the summary", () => {
       source: "component",
       component_id: first.id,
       name: "Tripod",
-      status: "ordered",
+      status: "purchased",
       requested_by: reader.id,
       po_number: "P02552",
       quantity: 1,

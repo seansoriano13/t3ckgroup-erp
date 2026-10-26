@@ -83,7 +83,7 @@ const KIND_OPTIONS = [
 ];
 
 const matches = (row, term) =>
-  [row.sales_reference, row.project_title, row.title, requestStageLabel(row), row.buyer_name].some((field) =>
+  [row.pr_number, row.sales_reference, row.project_title, row.title, requestStageLabel(row), row.buyer_name].some((field) =>
     field?.toLowerCase().includes(term),
   );
 
@@ -183,7 +183,9 @@ function QueueRow({ row, selected, onOpen, canTake, stageTones }) {
         reference={direct ? undefined : reference}
         word={direct ? reference : undefined}
         name={title}
-      />
+      >
+        {row.pr_number ? <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">{row.pr_number}</span> : null}
+      </IdentityCell>
       <TableCell className="hidden md:table-cell">
         <StageCell row={row} tones={stageTones} />
       </TableCell>

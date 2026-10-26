@@ -189,7 +189,8 @@ export default function ItemsTab({ ctx, hasOpened }) {
     );
   }, [items, search]);
 
-  const total = visible.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
+  // A line the S0 dropped stays on the list, marked, and is left out of the total (#677).
+  const total = visible.reduce((sum, it) => (it.removed_from_s0 ? sum : sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
   const isSyncing = autoSyncingOdoo || pullMutation.isPending;
 
   if (isEditing) {
@@ -262,9 +263,14 @@ export default function ItemsTab({ ctx, hasOpened }) {
           <p className="px-6 py-12 text-center text-sm text-muted-foreground">No product matches that search.</p>
         ) : (
           visible.map((it) => (
-            <div key={it.id} className="grid grid-cols-12 items-center gap-3 px-6 py-3 text-sm transition-colors hover:bg-muted/25">
+            <div key={it.id} className={cn("grid grid-cols-12 items-center gap-3 px-6 py-3 text-sm transition-colors hover:bg-muted/25", it.removed_from_s0 && "opacity-70")}>
               <div className={cn("min-w-0 pr-2", showMoney ? "col-span-6" : "col-span-10")}>
-                <span className="block truncate font-semibold text-foreground">{it.product_name}</span>
+                <span className={cn("block truncate font-semibold text-foreground", it.removed_from_s0 && "line-through")}>{it.product_name}</span>
+                {it.removed_from_s0 && (
+                  <span className="mt-1 block">
+                    <StatusBadge label="Removed from S0" theme="amber" title="The S0 no longer lists this product. It is kept here and left out of Estimated Value." />
+                  </span>
+                )}
                 <RequestedItemStatus line={it} requested={purchaseRequest?.items} />
                 {it.unit && <span className="mt-0.5 inline-block text-[11px] font-medium text-muted-foreground">Unit: {it.unit}</span>}
               </div>
@@ -277,7 +283,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
                 <>
                   <span className="col-span-2 text-right font-medium tabular-nums text-muted-foreground">{formatPHP(it.unit_price)}</span>
                   <span className="col-span-2 text-right font-bold tabular-nums text-foreground">
-                    {formatPHP(Number(it.quantity) * Number(it.unit_price))}
+                    {it.removed_from_s0 ? "—" : formatPHP(Number(it.quantity) * Number(it.unit_price))}
                   </span>
                 </>
               )}

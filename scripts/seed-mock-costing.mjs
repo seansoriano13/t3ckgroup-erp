@@ -174,7 +174,7 @@ async function main() {
         for (const b of bought) {
           await q(
             `insert into purchase_request_items (request_id, source, name, unit, quantity, description, status, po_number, odoo_po_line_ids, requested_by, component_id, status_changed_by, status_changed_at)
-             values ($1,'new',$2,$3,$4,'Mock item bought for the Costing Matrix.','ordered',$5,$6,$7,$8,$7,now())`,
+             values ($1,'new',$2,$3,$4,'Mock item bought for the Costing Matrix.','purchased',$5,$6,$7,$8,$7,now())`,
             [pr.id, b.name, b.unit, b.quantity, spec.ipas.po, [b.lineId], buyer, b.comp],
           )
         }

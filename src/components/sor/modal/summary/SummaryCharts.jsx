@@ -18,6 +18,7 @@ export function MoneyBars({ p, onOpen }) {
   const rows = useMemo(
     () =>
       items
+        .filter((it) => !it.removed_from_s0)
         .map((it) => ({ id: it.id, name: it.product_name, qty: it.quantity, total: (Number(it.quantity) || 0) * (Number(it.unit_price) || 0) }))
         .sort((a, b) => b.total - a.total),
     [items],

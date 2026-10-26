@@ -527,7 +527,7 @@ describe("who can request items", () => {
         const client = await clientFor("outsider")
         await client.rpc("purchase_request_add_new_item", { p_request_id: request.id, p_name: `${MARKER} Item`, p_quantity: 1 })
         const { data: [item] } = await svc().from("purchase_request_items").select("id").eq("request_id", request.id)
-        expect((await client.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: "to_order" })).error).not.toBeNull()
+        expect((await client.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: "to_purchase" })).error).not.toBeNull()
         expect((await client.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: "cancelled" })).error).toBeNull()
     })
 

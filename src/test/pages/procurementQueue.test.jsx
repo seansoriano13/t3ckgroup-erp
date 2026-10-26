@@ -69,8 +69,8 @@ beforeEach(() => {
   salesperson = makeEmployee({ name: "Ana Reyes", department: "SALES" })
   authUser = { id: me.id, name: me.name, has_purchasing_flow: true }
 
-  unassigned = request({ ref: "S01001", title: "Harbour lights", items: [["Floodlight", "requested"]] })
-  taken = request({ ref: "S01002", title: "Bridge rails", buyer: colleague.id, items: [["Rail", "ordered"]] })
+  unassigned = request({ ref: "S01001", title: "Harbour lights", items: [["Floodlight", "not_checked"]] })
+  taken = request({ ref: "S01002", title: "Bridge rails", buyer: colleague.id, items: [["Rail", "purchased"]] })
   done = request({ ref: "S01003", title: "Old depot", buyer: colleague.id, items: [["Bolt", "received"]] })
 
   stubProcurementQueueRpcs({ actorId: me.id })

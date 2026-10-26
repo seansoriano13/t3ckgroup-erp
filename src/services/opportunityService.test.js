@@ -2982,6 +2982,79 @@ describe("opportunityService", () => {
       expect(content).not.toContain("renamed")
     })
 
+    describe("S0 lines keep Odoo's line id (#677)", () => {
+      const s0 = (over = {}) => [
+        { product_name: "Rope", odoo_product_id: 7, odoo_line_id: 501, quantity: 10, unit_price: 100, ...over.rope },
+        { product_name: "Rope", odoo_product_id: 7, odoo_line_id: 502, quantity: 4, unit_price: 90, ...over.rope2 },
+        { product_name: "Harness", odoo_product_id: 8, odoo_line_id: 503, quantity: 2, unit_price: 500, ...over.harness },
+      ]
+      const notesAbout = async (id) =>
+        (await opportunityService.getNotes(id)).filter((n) => n.content?.startsWith("Details updated"))
+
+      it("opening twice with no change in Odoo keeps every line id and logs nothing", async () => {
+        const created = await opportunityService.createOpportunity(payload({ items: s0() }), registrar.id)
+        const first = (await opportunityService.getItems(created.id)).map((i) => i.id)
+        const logged = (await notesAbout(created.id)).length
+
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0() }), registrar.id, { bySystem: true })
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0() }), registrar.id, { bySystem: true })
+
+        expect((await opportunityService.getItems(created.id)).map((i) => i.id)).toEqual(first)
+        expect((await notesAbout(created.id)).length).toBe(logged)
+      })
+
+      it("a quantity change in Odoo updates the same line in place", async () => {
+        const created = await opportunityService.createOpportunity(payload({ items: s0() }), registrar.id)
+        const [rope] = await opportunityService.getItems(created.id)
+
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0({ rope: { quantity: 12 } }) }), registrar.id, { bySystem: true })
+
+        const after = await opportunityService.getItems(created.id)
+        expect(after).toHaveLength(3)
+        expect(after.find((i) => i.id === rope.id)).toMatchObject({ odoo_line_id: 501, quantity: 12 })
+      })
+
+      it("the same product on two lines stays two lines", async () => {
+        const created = await opportunityService.createOpportunity(payload({ items: s0() }), registrar.id)
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0({ rope2: { quantity: 6 } }) }), registrar.id, { bySystem: true })
+        const ropes = (await opportunityService.getItems(created.id)).filter((i) => i.product_name === "Rope")
+        expect(ropes.map((i) => [i.odoo_line_id, Number(i.quantity)])).toEqual([[501, 10], [502, 6]])
+      })
+
+      it("keeps a line the S0 dropped, marks it removed, and leaves it out of Estimated Value", async () => {
+        const created = await opportunityService.createOpportunity(payload({ items: s0() }), registrar.id)
+        const harness = (await opportunityService.getItems(created.id)).find((i) => i.odoo_line_id === 503)
+
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0().slice(0, 2) }), registrar.id, { bySystem: true })
+
+        const after = await opportunityService.getItems(created.id)
+        expect(after).toHaveLength(3)
+        expect(after.find((i) => i.id === harness.id)).toMatchObject({ removed_from_s0: true })
+        expect(Number((await opportunityService.getOpportunityById(created.id)).expected_value)).toBe(10 * 100 + 4 * 90)
+        const note = (await notesAbout(created.id)).at(-1)
+        expect(note.content).toContain("Removed product(s): Harness")
+
+        // Reading the S0 again: the removed line is not "removed" a second time.
+        const logged = (await notesAbout(created.id)).length
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0().slice(0, 2) }), registrar.id, { bySystem: true })
+        expect((await notesAbout(created.id)).length).toBe(logged)
+      })
+
+      it("matches an older line with no Odoo line id once, by Odoo product id", async () => {
+        const created = await opportunityService.createOpportunity(
+          payload({ items: [{ product_name: "Harness", odoo_product_id: 8, quantity: 2, unit_price: 500 }] }),
+          registrar.id,
+        )
+        const [old] = await opportunityService.getItems(created.id)
+
+        await opportunityService.updateOpportunity(created.id, payload({ items: [s0()[2]] }), registrar.id, { bySystem: true })
+
+        const after = await opportunityService.getItems(created.id)
+        expect(after).toHaveLength(1)
+        expect(after[0]).toMatchObject({ id: old.id, odoo_line_id: 503 })
+      })
+    })
+
     it("writes the change note as the System when the save is automatic", async () => {
       const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
@@ -3326,7 +3399,7 @@ describe("opportunityService", () => {
     })
 
     it("lists requested items under the visit they were raised on, by the visit's window (#310)", async () => {
-      const raised = (id, created_at) => ({ id, name: id, status: "requested", source: "sor_line", created_at })
+      const raised = (id, created_at) => ({ id, name: id, status: "not_checked", source: "sor_line", created_at })
       stubRpc("sor_purchase_request_overview", [
         { request_id: "r", buyer_id: null, items: [raised("in-v1", "2026-01-05T00:00:00Z"), raised("in-v2", "2026-01-10T00:00:00Z"), raised("in-v3", "2026-01-25T00:00:00Z")] },
       ])

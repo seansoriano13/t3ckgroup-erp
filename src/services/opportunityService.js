@@ -2102,7 +2102,10 @@ export const opportunityService = {
     checkEmployee('support_sales_2_id', 'support_2', 'Support Sales 2');
 
     const newItems = replacesItems ? payload.items || [] : existingItems;
-    const oldProducts = previousItems.map((i) => i.product_name?.trim()).filter(Boolean);
+    // A line the S0 already dropped (kept, marked removed) is not on the list the
+    // person sees, so it is neither "removed" nor "added" again on the next read (#677).
+    const livePrevious = previousItems.filter((i) => !i.removed_from_s0);
+    const oldProducts = livePrevious.map((i) => i.product_name?.trim()).filter(Boolean);
     const newProducts = newItems.map((i) => i.product_name?.trim()).filter(Boolean);
 
     // A product Odoo renamed keeps its odoo_product_id, so it pairs a
@@ -2114,7 +2117,7 @@ export const opportunityService = {
     for (const name of newProducts.filter((p) => !oldProducts.includes(p))) {
       const productId = idOf(newItems, name);
       const from = productId == null ? undefined : oldProducts.find(
-        (o) => !newProducts.includes(o) && idOf(previousItems, o) === productId && !renamedProducts.some((r) => r.from === o),
+        (o) => !newProducts.includes(o) && idOf(livePrevious, o) === productId && !renamedProducts.some((r) => r.from === o),
       );
       if (from) renamedProducts.push({ from, to: name });
       else addedProducts.push(name);
@@ -2125,7 +2128,7 @@ export const opportunityService = {
     const modifiedProducts = [];
 
     newProducts.forEach((p) => {
-      const oldItem = previousItems.find((i) => i.product_name?.trim() === p);
+      const oldItem = livePrevious.find((i) => i.product_name?.trim() === p);
       const newItem = newItems.find((i) => i.product_name?.trim() === p);
       if (oldItem && newItem) {
         if (
@@ -2769,6 +2772,11 @@ export const opportunityService = {
    */
   async replaceItems(opportunityId, items) {
     const rows = (items || []).map((it) => ({
+      // The stored line this row is, and the Odoo S0 line it mirrors (#677): the
+      // save matches by these and updates in place instead of deleting and re-adding.
+      id: typeof it.id === "string" ? it.id : null,
+      odoo_line_id: Number.isInteger(it.odoo_line_id) ? it.odoo_line_id : null,
+      removed_from_s0: it.removed_from_s0 === true,
       product_name: it.product_name || "",
       unit: it.unit || "",
       quantity: Number(it.quantity) || 0,

@@ -69,7 +69,7 @@ const AGEING = [
 ];
 const CANVASS = [
   { value: ALL, label: "With or without a canvass" },
-  { value: NO_CANVASS, label: "Ordered with no canvass" },
+  { value: NO_CANVASS, label: "Purchased with no canvass" },
 ];
 const FILED = [
   { value: ALL, label: "SORs with something open" },
@@ -363,7 +363,6 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
         {(sor) => (
           <SorPanel
             sor={sor}
-            checkIds={tracker.checkIds}
             labelOf={labelOf}
             today={today}
             onOpenRow={handlers.onOpenRow}

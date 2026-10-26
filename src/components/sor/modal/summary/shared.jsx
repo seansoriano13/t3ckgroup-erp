@@ -339,7 +339,7 @@ export function QuoteActions({ p, stacked = true }) {
 }
 
 export function itemsTotal(items) {
-  return items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
+  return items.reduce((sum, it) => (it.removed_from_s0 ? sum : sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
 }
 export { formatPHP };
 

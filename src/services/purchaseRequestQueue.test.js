@@ -68,6 +68,7 @@ describe("opening a Direct request", () => {
     expect(sent).toEqual({
       p_title: "Office",
       p_items: [{ name: "Toner", quantity: 2, unit: "pc", description: null }],
+      p_for_opportunity_id: null,
     })
   })
 })

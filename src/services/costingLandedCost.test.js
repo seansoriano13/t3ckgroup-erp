@@ -48,7 +48,7 @@ describe("Landed Cost on the Costing Matrix", () => {
 
   const request = () => db.seed("purchase_requests", { opportunity_id: opportunity.id, created_by: owner.id })
   const item = (componentId, fields) =>
-    db.seed("purchase_request_items", { request_id: requestId, source: "component", component_id: componentId, name: "Item", status: "ordered", requested_by: owner.id, po_number: "P02552", odoo_po_line_ids: [], ...fields })
+    db.seed("purchase_request_items", { request_id: requestId, source: "component", component_id: componentId, name: "Item", status: "purchased", requested_by: owner.id, po_number: "P02552", odoo_po_line_ids: [], ...fields })
   let requestId
   const read = () => costingMatrixService.get(opportunity.id)
   const componentsOf = (m) => m.tenderLines.flatMap((l) => l.components)

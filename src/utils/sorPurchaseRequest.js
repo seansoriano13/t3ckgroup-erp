@@ -13,21 +13,23 @@ const time = (value) => (value ? new Date(value).getTime() : null);
 export const openItems = (items) => (items ?? []).filter((item) => !isClosedStatus(item?.status));
 
 /**
- * The Requested Item for a Product List line, or null. Line ids change on
- * every save, so the match is by Odoo product, then by name among items that
- * were picked from a line without one. Only items picked from an SOR line
- * count. Several matches: an open one first, then the newest.
+ * The Requested Item for a Product List line, or null. An item remembers the
+ * line it was picked from by the line's fixed id (#677), and that id is the
+ * match. An item with no line id yet (picked before that) falls back to Odoo
+ * product, then to name among items picked from a line without one. Only items
+ * picked from an SOR line count. Several matches: an open one first, then the
+ * newest.
  */
 export function requestedItemForLine(line, items) {
   if (!line || !items?.length) return null;
   const fromLines = items.filter((item) => item?.source === "sor_line");
-  let matches = [];
-  if (line.odoo_product_id != null) {
-    matches = fromLines.filter((item) => item.odoo_product_id != null && item.odoo_product_id === line.odoo_product_id);
+  let matches = line.id ? fromLines.filter((item) => item.sor_item_id != null && item.sor_item_id === line.id) : [];
+  if (matches.length === 0 && line.odoo_product_id != null) {
+    matches = fromLines.filter((item) => item.sor_item_id == null && item.odoo_product_id != null && item.odoo_product_id === line.odoo_product_id);
   }
   if (matches.length === 0) {
     const name = norm(line.product_name);
-    if (name) matches = fromLines.filter((item) => item.odoo_product_id == null && norm(item.name) === name);
+    if (name) matches = fromLines.filter((item) => item.sor_item_id == null && item.odoo_product_id == null && norm(item.name) === name);
   }
   if (matches.length === 0) return null;
   const newest = (a, b) => (time(b.created_at) ?? 0) - (time(a.created_at) ?? 0);

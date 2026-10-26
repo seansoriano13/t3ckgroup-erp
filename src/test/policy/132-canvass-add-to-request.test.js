@@ -75,7 +75,7 @@ describe("adding a Canvass as a new Requested Item", () => {
         const itemId = data.items[0].item_id
 
         const item = await asSvc(svc().from("purchase_request_items").select("request_id, quantity, unit, status, description").eq("id", itemId).single(), "item")
-        expect(item).toMatchObject({ request_id: requestId, quantity: 5, unit: "box", status: "requested" })
+        expect(item).toMatchObject({ request_id: requestId, quantity: 5, unit: "box", status: "not_checked" })
         expect(item.description).toContain("From Canvass")
         const price = await asSvc(svc().from("purchase_request_item_prices").select("unit_price, currency").eq("item_id", itemId).single(), "price")
         expect(Number(price.unit_price)).toBe(120)
@@ -120,7 +120,7 @@ describe("attaching a Canvass to an item the request already has", () => {
 describe("an item that is past canvassing", () => {
     it("refuses an Ordered item, which would lock the Canvass at once and overwrite its price", async () => {
         const { requestId, itemId } = await openRequest()
-        await asSvc(svc().from("purchase_request_items").update({ status: "ordered" }).eq("id", itemId).select("id"), "order it")
+        await asSvc(svc().from("purchase_request_items").update({ status: "purchased" }).eq("id", itemId).select("id"), "order it")
         const id = await canvassWithWinner("late")
         const { error } = await add("outsider", requestId, [{ canvass_id: id, item_id: itemId }])
         expect(error?.code).toBe(CLOSED)

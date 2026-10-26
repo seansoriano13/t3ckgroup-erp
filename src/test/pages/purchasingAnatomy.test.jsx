@@ -81,7 +81,7 @@ const LISTS = [
         source: "new",
         name: "Floodlight",
         quantity: 1,
-        status: "requested",
+        status: "not_checked",
         requested_by: salesperson.id,
       })
       stubProcurementQueueRpcs({ actorId: buyer.id })
@@ -204,7 +204,7 @@ const LISTS = [
           opportunity_id: "sor-1",
           sales_reference: "S01001",
           project_title: "Harbour lights",
-          grp: "to_source",
+          grp: "not_checked",
           target_kind: "purchase_request",
           target_id: "pr-1",
           request_id: "pr-1",

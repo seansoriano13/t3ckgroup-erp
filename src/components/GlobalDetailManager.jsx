@@ -30,6 +30,8 @@ export default function GlobalDetailManager() {
   // SOR/task (#310 opens it from the SOR), and closing it leaves the page, or
   // whatever was open underneath, exactly as it was.
   const [purchaseRequestId, setPurchaseRequestId] = useState(null);
+  // Set by a mention notification: the request opens with its Chat ready to type in.
+  const [purchaseRequestFocusChat, setPurchaseRequestFocusChat] = useState(false);
 
   const isSuperAdmin = user?.is_super_admin === true || user?.isSuperAdmin === true;
   const isHead = user?.is_head === true || user?.isHead === true;
@@ -38,9 +40,10 @@ export default function GlobalDetailManager() {
 
   useEffect(() => {
     const handleOpenDetails = (e) => {
-      const { id, type, isNew, view } = e.detail;
+      const { id, type, isNew, view, focusChat } = e.detail;
       if (id && type === "PURCHASE_REQUEST") {
         setPurchaseRequestId(id);
+        setPurchaseRequestFocusChat(focusChat === true);
       } else if (id && type) {
         // `view` names the tab an SOR opens on (the Costing Matrix page opens "pms"); absent, it opens on its Summary.
         setActiveItem(view ? { id, type, view } : { id, type });
@@ -303,7 +306,7 @@ export default function GlobalDetailManager() {
   return (
     <>
       {purchaseRequestId && (
-        <PurchaseRequestModal requestId={purchaseRequestId} onClose={() => {
+        <PurchaseRequestModal requestId={purchaseRequestId} focusChat={purchaseRequestFocusChat} onClose={() => {
             // #310: an SOR behind the request re-reads its card and item statuses.
             queryClient.invalidateQueries({ queryKey: ["sor-purchase-request"] });
             queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });

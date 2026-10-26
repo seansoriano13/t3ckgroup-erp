@@ -316,7 +316,7 @@ describe("handleNotificationRoute", () => {
       expect(dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "OPEN_ENTITY_DETAILS",
-          detail: { id: "pr-1", type: "PURCHASE_REQUEST" },
+          detail: { id: "pr-1", type: "PURCHASE_REQUEST", focusChat: type === "PURCHASE_REQUEST_MENTION" },
         }),
       )
       dispatch.mockRestore()

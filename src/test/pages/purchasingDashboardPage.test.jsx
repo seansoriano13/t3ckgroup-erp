@@ -80,8 +80,8 @@ const row = (over) => ({
   ...over,
 });
 
-const PR_ROW = row({ grp: "to_source", target_kind: "purchase_request", target_id: "pr-1", request_id: "pr-1", item_count: 4, target_label: "Ambulance kit" });
-const ipasRow = (ipas, over) => row({ grp: "on_order", target_kind: "ipas", target_id: ipas.id, target_label: ipas.number, item_count: 1, ...over });
+const PR_ROW = row({ grp: "not_checked", target_kind: "purchase_request", target_id: "pr-1", request_id: "pr-1", item_count: 4, target_label: "Ambulance kit" });
+const ipasRow = (ipas, over) => row({ grp: "purchased", target_kind: "ipas", target_id: ipas.id, target_label: ipas.number, item_count: 1, ...over });
 
 function Where() {
   const location = useLocation();
@@ -137,7 +137,7 @@ describe("Purchasing Dashboard page", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
 
     const totals = await screen.findByRole("group", { name: "Stage totals" });
-    for (const label of ["To source", "To price", "To order", "On order", "To check", "Filed", "Late orders"]) {
+    for (const label of ["Not checked", "To purchase", "Still canvassing", "Purchased (not received)", "Filed", "Late orders"]) {
       expect(within(totals).getByText(label)).toBeInTheDocument();
     }
 
@@ -146,8 +146,8 @@ describe("Purchasing Dashboard page", () => {
     expect(screen.getByLabelText("Value of open orders, pre-tax")).toHaveTextContent(/Value open.*1,000/);
 
     const tracker = await screen.findByRole("row", { name: /S07983 — Ambulance, open/ });
-    expect(within(tracker).getByRole("img", { name: "To source: 4 items" })).toBeInTheDocument();
-    expect(within(tracker).getByRole("img", { name: "On order: 1 items" })).toBeInTheDocument();
+    expect(within(tracker).getByRole("img", { name: "Not checked: 4 items" })).toBeInTheDocument();
+    expect(within(tracker).getByRole("img", { name: "Purchased (not received): 1 items" })).toBeInTheDocument();
     // Purchasing owes the first step on a draft PO, and it is the order's next move.
     expect(within(tracker).getByText("Purchase Order — no PO confirmed yet")).toBeInTheDocument();
   });
@@ -190,19 +190,6 @@ describe("Purchasing Dashboard page", () => {
     expect(screen.getByTestId("where")).toHaveTextContent("request=pr-1");
   });
 
-  it("opens a Transmittal from the panel", async () => {
-    stubRpc("purchasing_dashboard_rows", () => [
-      PR_ROW,
-      row({ grp: "to_check", target_kind: "transmittal", target_id: "tr-1", target_label: "TG03-12", item_count: 1 }),
-    ]);
-    const user = setupUser();
-    renderPage("/purchasing/dashboard?sor=sor-1");
-
-    const panel = await screen.findByRole("dialog");
-    await user.click(await within(panel).findByRole("button", { name: /Transmittal TG03-12/ }));
-    expect(screen.getByTestId("where")).toHaveTextContent("/purchasing/transmittals/tr-1");
-  });
-
   it("opens the SOR Register from the panel's footer", async () => {
     renderPage("/purchasing/dashboard?sor=sor-1");
     const panel = await screen.findByRole("dialog");
@@ -226,7 +213,7 @@ describe("Purchasing Dashboard page", () => {
     });
     db.seed("transmittal_lines", { transmittal_id: slip.id, position: 1, kind: "po_line", ipas_id: ipas.id, odoo_po_line_id: 30001, description: "Cutter", quantity: 1 });
     stubRpc("ipas_sor_headers", () => [header(ipas, "sor-1")]);
-    stubRpc("purchasing_dashboard_rows", () => [ipasRow(ipas, { grp: "to_check" })]);
+    stubRpc("purchasing_dashboard_rows", () => [ipasRow(ipas)]);
     renderPage("/purchasing/dashboard?sor=sor-1");
 
     const panel = await screen.findByRole("dialog");
@@ -234,9 +221,27 @@ describe("Purchasing Dashboard page", () => {
     expect(screen.getByTestId("where")).toHaveTextContent(`/purchasing/transmittals/${slip.id}`);
   });
 
+  it("lists the four status groups, and shows a Purchased line's delivery note (#690)", async () => {
+    stubRpc("purchasing_dashboard_rows", () => [
+      PR_ROW,
+      row({ grp: "to_purchase", target_kind: "purchase_request", target_id: "pr-1", request_id: "pr-1", item_count: 2, target_label: "Ambulance kit" }),
+      row({ grp: "still_canvassing", target_kind: "purchase_request", target_id: "pr-1", request_id: "pr-1", item_count: 1, target_label: "Ambulance kit" }),
+      row({ grp: "purchased", target_kind: "purchase_request", target_id: "pr-1", request_id: "pr-1", item_count: 1, target_label: "Ambulance kit", delivery_note: "3 of 6 received" }),
+    ]);
+    stubRpc("ipas_sor_headers", () => []);
+    renderPage("/purchasing/dashboard?sor=sor-1");
+
+    const panel = await screen.findByRole("dialog");
+    for (const label of ["Not checked", "To purchase", "Still canvassing", "Purchased (not received)"]) {
+      expect(await within(panel).findByText(label)).toBeInTheDocument();
+    }
+    for (const gone of ["To price", "To check"]) expect(within(panel).queryByText(gone)).not.toBeInTheDocument();
+    expect(within(panel).getByText("3 of 6 received")).toBeInTheDocument();
+  });
+
   it("gives a Direct request its own row and opens its request from the footer", async () => {
     stubRpc("purchasing_dashboard_rows", () => [
-      row({ opportunity_id: null, sales_reference: null, project_title: null, grp: "to_source", target_kind: "purchase_request", target_id: "pr-9", request_id: "pr-9", item_count: 1, target_label: "Spare tyres" }),
+      row({ opportunity_id: null, sales_reference: null, project_title: null, grp: "not_checked", target_kind: "purchase_request", target_id: "pr-9", request_id: "pr-9", item_count: 1, target_label: "Spare tyres" }),
     ]);
     stubRpc("purchase_request_queue", () => [{ ...QUEUE_ROW, id: "pr-9", opportunity_id: null, sales_reference: null }]);
     renderPage();
@@ -250,7 +255,7 @@ describe("Purchasing Dashboard page", () => {
   it("narrows to a stage from the totals, and by search", async () => {
     stubRpc("purchasing_dashboard_rows", () => [
       PR_ROW,
-      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "to_order", target_kind: "canvass", target_id: "cv-1", target_label: "C-1", item_count: 2 }),
+      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "to_purchase", target_kind: "canvass", target_id: "cv-1", target_label: "C-1", item_count: 2 }),
     ]);
     const user = setupUser();
     renderPage();
@@ -258,7 +263,7 @@ describe("Purchasing Dashboard page", () => {
     expect(await screen.findByRole("row", { name: /S07983/ })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: /S07984/ })).toBeInTheDocument();
 
-    await user.click(within(screen.getByRole("group", { name: "Stage totals" })).getByRole("button", { name: /To order/ }));
+    await user.click(within(screen.getByRole("group", { name: "Stage totals" })).getByRole("button", { name: /To purchase/ }));
     expect(await screen.findByRole("row", { name: /S07984/ })).toBeInTheDocument();
     expect(screen.queryByRole("row", { name: /S07983/ })).not.toBeInTheDocument();
 
@@ -273,7 +278,7 @@ describe("Purchasing Dashboard page", () => {
     stubRpc("ipas_sor_headers", () => [header(ipas, "sor-1")]);
     stubRpc("purchasing_dashboard_rows", () => [
       PR_ROW,
-      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "to_order", target_kind: "canvass", target_id: "cv-1", item_count: 2 }),
+      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "to_purchase", target_kind: "canvass", target_id: "cv-1", item_count: 2 }),
     ]);
     renderPage();
 
@@ -285,14 +290,14 @@ describe("Purchasing Dashboard page", () => {
   it("narrows to items ordered with no canvass, a choice in the Filters popover", async () => {
     stubRpc("purchasing_dashboard_rows", () => [
       PR_ROW,
-      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "on_order", target_kind: "purchase_request", target_id: "pr-2", request_id: "pr-2", item_count: 2, no_canvass_count: 1 }),
+      row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "purchased", target_kind: "purchase_request", target_id: "pr-2", request_id: "pr-2", item_count: 2, no_canvass_count: 1 }),
     ]);
     const user = setupUser();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: /Filters/ }));
     await user.click(await screen.findByRole("button", { name: /With or without a canvass/ }));
-    await user.click(await screen.findByRole("button", { name: "Ordered with no canvass" }));
+    await user.click(await screen.findByRole("button", { name: "Purchased with no canvass" }));
 
     expect(await screen.findByRole("row", { name: /S07984/ })).toBeInTheDocument();
     expect(screen.queryByRole("row", { name: /S07983/ })).not.toBeInTheDocument();
@@ -302,8 +307,8 @@ describe("Purchasing Dashboard page", () => {
     it("marks a SOR near its date, late past it, and shows none without one", async () => {
       stubRpc("purchasing_dashboard_rows", () => [
         PR_ROW,
-        row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "to_source", target_kind: "purchase_request", target_id: "pr-2", request_id: "pr-2", item_count: 1 }),
-        row({ opportunity_id: "sor-3", sales_reference: "S07985", project_title: "Van", grp: "to_source", target_kind: "purchase_request", target_id: "pr-3", request_id: "pr-3", item_count: 1 }),
+        row({ opportunity_id: "sor-2", sales_reference: "S07984", project_title: "Boat", grp: "not_checked", target_kind: "purchase_request", target_id: "pr-2", request_id: "pr-2", item_count: 1 }),
+        row({ opportunity_id: "sor-3", sales_reference: "S07985", project_title: "Van", grp: "not_checked", target_kind: "purchase_request", target_id: "pr-3", request_id: "pr-3", item_count: 1 }),
       ]);
       stubRpc("sor_delivery_deadlines", () => [
         { opportunity_id: "sor-1", due_at: inDays(3), days: 15 },
@@ -344,15 +349,15 @@ describe("Purchasing Dashboard page", () => {
   });
 
   describe("follows the shared list anatomy (#637)", () => {
-    const DIRECT_ROW = row({ opportunity_id: null, sales_reference: null, project_title: null, grp: "to_source", target_kind: "purchase_request", target_id: "pr-9", request_id: "pr-9", item_count: 1, target_label: "Spare tyres", since: timeAgo(1) });
+    const DIRECT_ROW = row({ opportunity_id: null, sales_reference: null, project_title: null, grp: "not_checked", target_kind: "purchase_request", target_id: "pr-9", request_id: "pr-9", item_count: 1, target_label: "Spare tyres", since: timeAgo(1) });
 
     it("keeps headings on one line, sorts all but the stage circles, and ends with the shared pager", async () => {
       renderPage();
       const table = await screen.findByRole("table");
       const headings = within(table).getAllByRole("columnheader");
       for (const heading of headings) expect(heading).not.toHaveClass("whitespace-normal");
-      const circles = headings.filter((heading) => ["To source", "To price", "To order", "On order", "To check", "Filed"].includes(heading.textContent));
-      expect(circles).toHaveLength(6);
+      const circles = headings.filter((heading) => ["Not checked", "To purchase", "Still canvassing", "Purchased (not received)", "Filed"].includes(heading.textContent));
+      expect(circles).toHaveLength(5);
       for (const heading of circles) expect(heading).not.toHaveAttribute("aria-sort");
       for (const name of ["SOR", "Next move", "Deadline"]) {
         expect(headings.find((heading) => heading.textContent === name)).toHaveAttribute("aria-sort");

@@ -21,7 +21,7 @@ vi.mock("../../../context/AuthContext", () => ({ useAuth: () => ({ user: authUse
 const row = (items) => [
   { request_id: "req-1", buyer_id: "emp-b", buyer_name: "Bea Buyer", buyer_avatar_path: null, opened_visit_id: null, created_at: "2026-01-01T00:00:00Z", items },
 ]
-const pr = (over) => ({ id: "x", name: "Item", odoo_product_id: null, quantity: 1, unit: null, status: "requested", source: "sor_line", created_at: "2026-01-02T00:00:00Z", ...over })
+const pr = (over) => ({ id: "x", name: "Item", odoo_product_id: null, quantity: 1, unit: null, status: "not_checked", source: "sor_line", created_at: "2026-01-02T00:00:00Z", ...over })
 
 function open(deal) {
   const owner = makeEmployee()
@@ -38,7 +38,7 @@ function open(deal) {
 
 describe("Purchase Request on the SOR (#310)", () => {
   it("the PMS card shows item count, open count and Buyer, and opens the request", async () => {
-    stubRpc("sor_purchase_request_overview", row([pr({ id: "1" }), pr({ id: "2", status: "ordered" }), pr({ id: "3", status: "received" })]))
+    stubRpc("sor_purchase_request_overview", row([pr({ id: "1" }), pr({ id: "2", status: "purchased" }), pr({ id: "3", status: "received" })]))
     const opened = vi.fn()
     window.addEventListener("OPEN_ENTITY_DETAILS", (e) => opened(e.detail))
     open(makeOpportunity({ status: "QUALIFIED", sales_reference: "S06070" }))
@@ -66,7 +66,7 @@ describe("Purchase Request on the SOR (#310)", () => {
   })
 
   it("Items tab shows the status of a line that has a Requested Item, matched by product", async () => {
-    stubRpc("sor_purchase_request_overview", row([pr({ id: "1", odoo_product_id: 55, name: "Old name", status: "to_order" })]))
+    stubRpc("sor_purchase_request_overview", row([pr({ id: "1", odoo_product_id: 55, name: "Old name", status: "to_purchase" })]))
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S06070" })
     makeOpportunityItem(deal.id, { product_name: "Fire Hose", odoo_product_id: 55, sort_order: 0 })
     makeOpportunityItem(deal.id, { product_name: "Nozzle", odoo_product_id: 56, sort_order: 1 })
@@ -75,7 +75,7 @@ describe("Purchase Request on the SOR (#310)", () => {
     await screen.findByText("Nozzle")
 
     await waitFor(() => expect(screen.getAllByTitle("Requested Item status")).toHaveLength(1))
-    expect(screen.getByTitle("Requested Item status")).toHaveTextContent("To order")
+    expect(screen.getByTitle("Requested Item status")).toHaveTextContent("To purchase")
   })
 
   it("an SOR with no Purchase Request shows none of it", async () => {

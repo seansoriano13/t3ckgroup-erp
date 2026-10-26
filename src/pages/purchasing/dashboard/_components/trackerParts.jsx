@@ -125,6 +125,7 @@ function RecordLine({ row, today, onOpen }) {
       <span className="min-w-0 flex-1 basis-40 truncate font-medium" title={rowLabel(row)}>
         {rowLabel(row)}
       </span>
+      {row.delivery_note && <span className="shrink-0 text-xs text-muted-foreground">{row.delivery_note}</span>}
       <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{pluralize(row.item_count, "item")}</span>
       <Age days={ageDays(row.since, today)} />
     </LineButton>
@@ -159,13 +160,12 @@ function OrderLine({ order, labelOf, onOpen }) {
  * One SOR's whole purchase as a stage-by-stage checklist, each record under
  * the stage it is in. Records are one-line liners, never a table inside a row.
  */
-export function StageChecklist({ sor, checkIds, labelOf, today, onOpenRow, onOpenOrder }) {
+export function StageChecklist({ sor, labelOf, today, onOpenRow, onOpenOrder }) {
   const states = stageStates(sor);
   const projectRows = sor.rows.filter((row) => row.target_kind !== "ipas");
   const ordersIn = (key) => {
     if (key === "filed") return sor.orders.filter((order) => order.group === "filed");
-    if (key !== "on_order" && key !== "to_check") return [];
-    return sor.openOrders.filter((order) => checkIds.has(order.id) === (key === "to_check"));
+    return key === "purchased" ? sor.openOrders : [];
   };
   return (
     <ol className="flex flex-col">

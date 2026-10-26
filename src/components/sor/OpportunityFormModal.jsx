@@ -67,10 +67,15 @@ const fromRecord = (o) => ({
 });
 
 const toRow = (item) => ({
+  // A stored line keeps its own id and its Odoo line id through an edit, so the save updates it in place (#677).
+  ...(item.id ? { id: item.id } : {}),
   product_name: item.product_name || "",
   unit: item.unit || "",
   quantity: item.quantity ?? 1,
   unit_price: item.unit_price ?? "",
+  odoo_product_id: item.odoo_product_id ?? null,
+  odoo_line_id: item.odoo_line_id ?? null,
+  removed_from_s0: item.removed_from_s0 ?? false,
 });
 
 export default function OpportunityFormModal({

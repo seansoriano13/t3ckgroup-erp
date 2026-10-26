@@ -3,7 +3,7 @@ import { canvassRequestState } from "../utils/canvassList";
 
 /**
  * Whether a Purchase Request still has to be made from a Canvass: "Needs winner", "Ready to
- * request", or the status of the request it became ("Requested", "Ordered"). It is a status and
+ * request", or the status of the request it became ("Not checked", "Purchased"). It is a status and
  * nothing more, so it is never a link; the request's name is in its tooltip, and the Canvass panel
  * has the link that opens the request. Shows nothing for a Canvass that has no request in its flow.
  * `source` is a Canvasses list row, or the same fields (kind, winner, requestId, requestLabel,
