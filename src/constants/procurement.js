@@ -238,6 +238,12 @@ export function procurementAffinity(recipient) {
  * how many of what, and a free-text unit produces "pc"/"pcs"/"piece" in the
  * same column. Ordered by how often they come up rather than alphabetically.
  */
+/** What an Other request is for (#679): the client, or material for the job. */
+export const REQUEST_PURPOSES = [
+  { value: "client", label: "For the client" },
+  { value: "job", label: "Material for the job" },
+];
+
 export const REQUEST_UNITS = [
   "unit",
   "pc",
