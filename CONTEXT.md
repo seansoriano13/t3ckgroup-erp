@@ -606,7 +606,7 @@ The Module carrying purchasing's own work — buying against Purchase Requests, 
 _Avoid_: Procurement, PMS (when meaning the Module)
 
 **Purchase Request**:
-Every request for Purchasing to buy something — whether it comes from a project or not. Holds Requested Items, its own members, and its own Chat, so each request's buying talk stays apart from every other's. A Buyer from Purchasing takes it and buys; nobody approves it first. Every Purchase Request, Project ones included, makes every Purchasing holder a member.
+Every request for Purchasing to buy something — whether it comes from a project or not. Holds Requested Items, its own members, and its own Chat, so each request's buying talk stays apart from every other's. Every request has a short number in the Canvass style, PR_0042, from a sequence so a number is never reused; it shows on the request and in the list (searchable by "PR_0042" or "0042"), and Purchasing writes it in a P0's Source Document for a Direct request. A Buyer from Purchasing takes it and buys; nobody approves it first. Every Purchase Request, Project ones included, makes every Purchasing holder a member.
 _Avoid_: Procurement Request, Requisition, PR Batch, Non-SOR Purchase Request
 
 **Project** (a Purchase Request's kind):

@@ -102,7 +102,7 @@ export const purchaseRequestService = {
    * SOR's locked header (`sales_reference`, `project_title`, `stage_name`, and
    * `sor_closed`: "deleted", "lost" or null) or a Direct request's `title`, the
    * Buyer (`buyer_id`, `buyer_name`, `buyer_avatar_path`), `item_count`,
-   * `open_count`, `created_at`, `last_activity_at`. `filter` narrows it (see
+   * `open_count`, `created_at`, `last_activity_at`, `pr_number` (PR_0042). `filter` narrows it (see
    * `filterQueue`); "mine" needs `userId`.
    */
   async listQueue({ filter, userId = null } = {}) {
