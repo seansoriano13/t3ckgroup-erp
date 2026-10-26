@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Brings the local Supabase database up to date with supabase/migrations/.
+# Adds missing migrations only (never resets, never touches staging or prod),
+# skips quietly when the local stack is not running, and never blocks git.
+# Turn off with SKIP_LOCAL_MIGRATIONS=1. Installed by `pnpm install`.
+node "$(git rev-parse --show-toplevel)/scripts/apply-local-migrations.mjs" || true
