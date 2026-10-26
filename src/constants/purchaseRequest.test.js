@@ -43,16 +43,20 @@ describe("allowedTransitions — purchasing side", () => {
     expect(p(S.NOT_CHECKED)).toContain(S.CANNOT_SOURCE);
   });
 
-  it("takes To order to Canvassing, or straight to Ordered without a Canvass", () => {
-    expect(p(S.TO_PURCHASE).sort()).toEqual([S.AVAILABLE, S.STILL_CANVASSING, S.PURCHASED, ...waysOut].sort());
+  it("takes To purchase to Available or Still canvassing, or out", () => {
+    expect(p(S.TO_PURCHASE).sort()).toEqual([S.AVAILABLE, S.STILL_CANVASSING, ...waysOut].sort());
   });
 
-  it("takes Canvassing to Ordered, or out", () => {
-    expect(p(S.STILL_CANVASSING).sort()).toEqual([S.PURCHASED, ...waysOut].sort());
+  it("takes Still canvassing and Purchased only out: a P0 moves them on (#684)", () => {
+    expect(p(S.STILL_CANVASSING).sort()).toEqual([...waysOut].sort());
+    expect(p(S.PURCHASED).sort()).toEqual([...waysOut].sort());
   });
 
-  it("takes Ordered to Received, or out", () => {
-    expect(p(S.PURCHASED).sort()).toEqual([S.RECEIVED, ...waysOut].sort());
+  it("never offers Purchased or Received by hand", () => {
+    for (const status of [S.NOT_CHECKED, S.TO_PURCHASE, S.STILL_CANVASSING, S.PURCHASED]) {
+      expect(p(status)).not.toContain(S.PURCHASED);
+      expect(p(status)).not.toContain(S.RECEIVED);
+    }
   });
 
   it("never skips ahead or steps back on the path", () => {

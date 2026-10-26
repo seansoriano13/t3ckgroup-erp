@@ -122,14 +122,14 @@ export const MEMBER_SIDE = {
 };
 
 /**
- * Forward steps on the main path, for Purchasing. Canvassing is optional: To purchase may go
- * straight to Purchased, because single-source purchases are routine (#316). Available and
- * To purchase are chosen by hand by everyone on the deal (see `CHOOSE_BY_HAND`).
+ * Forward steps on the main path, for Purchasing. Purchased and Received are never chosen (#684):
+ * they follow the P0 attached from Odoo, and the database refuses them. Available and To purchase
+ * are chosen by hand by everyone on the deal (see `CHOOSE_BY_HAND`).
  */
 const NEXT_ON_PATH = {
-  [ITEM_STATUS.TO_PURCHASE]: [ITEM_STATUS.STILL_CANVASSING, ITEM_STATUS.PURCHASED],
-  [ITEM_STATUS.STILL_CANVASSING]: [ITEM_STATUS.PURCHASED],
-  [ITEM_STATUS.PURCHASED]: [ITEM_STATUS.RECEIVED],
+  [ITEM_STATUS.TO_PURCHASE]: [ITEM_STATUS.STILL_CANVASSING],
+  [ITEM_STATUS.STILL_CANVASSING]: [],
+  [ITEM_STATUS.PURCHASED]: [],
 };
 
 /** The ways out, open to purchasing from any open status. */
@@ -145,8 +145,8 @@ const CHOOSE_BY_HAND_FROM = [ITEM_STATUS.NOT_CHECKED, ITEM_STATUS.AVAILABLE, ITE
 const CHOOSE_BY_HAND_SIDES = [MEMBER_SIDE.PURCHASING, MEMBER_SIDE.SALES, MEMBER_SIDE.OTHER];
 
 /**
- * Still canvassing follows a Canvass, Purchased and Received follow the P0: none is chosen from the
- * status menu, whatever the database still allows Purchasing until Attach P0 lands (#675).
+ * Still canvassing follows a Canvass, Purchased and Received follow the attached P0 (#684): none is
+ * chosen from the status menu, and the database refuses them by hand.
  * Cannot source is Purchasing's alone.
  */
 export const NOT_FROM_THE_MENU = [ITEM_STATUS.STILL_CANVASSING];

@@ -31,16 +31,20 @@ describe("purchaseRequestService — item status", () => {
 
   it("walks an item along the path and records who moved it", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id })
-    for (const status of ["to_purchase", "still_canvassing", "purchased", "received"]) {
+    for (const status of ["to_purchase", "still_canvassing"]) {
       const item = await purchaseRequestService.setItemStatus(itemId, status)
       expect(item).toMatchObject({ id: itemId, status, status_changed_by: buyer.id })
     }
-    expect(db.rows("purchase_request_messages").map((m) => m.metadata.to)).toEqual([
-      "to_purchase",
-      "still_canvassing",
-      "purchased",
-      "received",
-    ])
+    expect(db.rows("purchase_request_messages").map((m) => m.metadata.to)).toEqual(["to_purchase", "still_canvassing"])
+  })
+
+  it("won't set Purchased or Received by hand: a P0 does that", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id })
+    await purchaseRequestService.setItemStatus(itemId, "to_purchase")
+    for (const status of ["purchased", "received"]) {
+      await expect(purchaseRequestService.setItemStatus(itemId, status)).rejects.toMatchObject({ code: "42501" })
+    }
+    expect(db.rows("purchase_request_items")[0].status).toBe("to_purchase")
   })
 
   it("lets the sales side cancel or choose To purchase, but not set Purchased", async () => {

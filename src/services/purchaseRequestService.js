@@ -388,19 +388,32 @@ export const purchaseRequestService = {
   // ── PO number and PO lines (#312) ────────────────────────────────────────
 
   /**
-   * Sets an item Ordered. Without a PO number it is a direct status move. With
-   * one, the `odoo-po-verify` edge function does the work (#548): it asks Odoo,
-   * then moves the item itself with its own verdict. The browser never sends
-   * the check. Verified is saved; a PO Odoo says it doesn't have is refused
-   * (this throws, naming the PO); an Odoo that doesn't answer saves the PO as
-   * "not checked" (PENDING_VERIFICATION) for the screen to warn about. Throws on
-   * a number that isn't an Odoo PO ("P" then digits). Returns the updated item.
+   * Attaches an Odoo P0 to an item (#684). The `odoo-po-verify` edge function reads the P0
+   * as it stands in Odoo and sets the line from it: an RFQ keeps the line To purchase, a
+   * confirmed P0 makes it Purchased, a fully received one Received. The browser never sends
+   * the P0's facts. A number Odoo doesn't have is refused (this throws, naming it); so is an
+   * Odoo that doesn't answer, because a P0 is never attached unseen. Throws on a number that
+   * isn't an Odoo P0 ("P" then digits). Returns the updated item.
    */
-  async orderItem(itemId, { poNumber = "" } = {}) {
+  async attachP0(itemId, poNumber) {
     const po = normalizePoNumber(poNumber);
-    if (!po) return purchaseRequestService.setItemStatus(itemId, ITEM_STATUS.PURCHASED);
-    if (!isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
-    return purchaseRequestService.applyPoAction("order", itemId, po);
+    if (!po || !isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
+    return purchaseRequestService.applyPoAction("attach", itemId, po);
+  },
+
+  /**
+   * The P0s Purchasing can attach to a line (#684): P0s in Odoo whose Source Document names
+   * `reference` (the S0, or a Direct request's PR number). `suggested` list the line's own
+   * Odoo product; `others` name the reference for another product. Read-only; throws when
+   * Odoo didn't answer, so an outage never reads as "no P0s".
+   */
+  async suggestP0s({ reference, productId = null }) {
+    const { data, error } = await supabase.functions.invoke("odoo-po-suggest", {
+      body: { reference, productId },
+    });
+    if (error) throw new Error("Couldn't read the P0s from Odoo. Try again.");
+    if (!data?.success) throw new Error(data?.message || "Couldn't read the P0s from Odoo. Try again.");
+    return { suggested: data.suggested || [], others: data.others || [] };
   },
 
   /**
@@ -416,8 +429,7 @@ export const purchaseRequestService = {
 
   /**
    * Saves a PO on an item through the server (`odoo-po-verify`, save mode).
-   * `action` names what to do with it; "order" today, so "Correct PO" can use
-   * the same path.
+   * `action` is "attach" (#684) or "correct" (#549).
    */
   async applyPoAction(action, itemId, poNumber) {
     const { data, error } = await supabase.functions.invoke("odoo-po-verify", {

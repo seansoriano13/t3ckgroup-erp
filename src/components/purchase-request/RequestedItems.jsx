@@ -30,7 +30,7 @@ import { purchaseRequestKeys } from "./queryKeys";
 function summaryOf(item, stock) {
   const warning = stockWarning(item);
   if (warning) return warning.label;
-  if (item.po_number) return `PO ${item.po_number}`;
+  if (item.po_number) return item.po_state === "rfq" ? `RFQ ${item.po_number}` : `PO ${item.po_number}`;
   if (stock) return `Stock: ${stock.figure}`;
   return itemSectionLabel(item);
 }

@@ -50,6 +50,9 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
     },
     { label: "Source", value: itemSectionLabel(item) },
     warning && { label: "Stock", value: <Warn>{warning.label}</Warn> },
+    // #684: what Sales asked for, and what the attached P0 bought, when they differ.
+    item.po_number && item.bought_as && { label: "Asked as", value: item.name },
+    item.po_number && item.bought_as && { label: "Bought as", value: <span data-testid="requested-item-bought-as">{item.bought_as}</span> },
     !isFromS0(item) && item.purpose && {
       label: "For",
       value: REQUEST_PURPOSES.find((p) => p.value === item.purpose)?.label || item.purpose,
@@ -80,6 +83,7 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
             <span data-testid="requested-item-po">
               <span className="font-semibold">{item.po_number}</span>
               <span> · {PO_VERIFICATION_LABELS[item.po_verification] || item.po_verification}</span>
+              {item.po_state === "rfq" && <span> · RFQ, not confirmed yet</span>}
               {lines.length > 0 && (
                 <span>
                   {" "}
