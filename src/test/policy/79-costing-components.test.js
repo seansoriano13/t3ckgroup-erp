@@ -565,7 +565,7 @@ describe("who reads what", () => {
       const read = await readMatrix(who)
       expect(read.tier).toBe("closed_book")
       const costs = tableOf(read, "costing_component_costs").find((c) => c.component_id === plainId)
-      expect(Object.keys(costs).sort(), who).toEqual(["acquire_from_offer_id", "acquire_unit", "component_id", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit", "p0_unit_price"])
+      expect(Object.keys(costs).sort(), who).toEqual(["acquire_from_offer_id", "acquire_unit", "component_id", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit", "p0_currency", "p0_quoted_unit_price", "p0_unit_price"])
       const [row] = tableOf(read, "costing_cost_rows")
       expect(Object.keys(row), who).toEqual(expect.arrayContaining(["acquire_unit", "odoo_unit", "final_acquire_unit", "markup_factor", "description", "quantity"]))
       // The id of an old Inclusion is internal and never served.

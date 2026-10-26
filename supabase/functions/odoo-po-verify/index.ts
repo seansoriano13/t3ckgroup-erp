@@ -176,11 +176,14 @@ Deno.serve(async (req) => {
         if (error) return jsonResponse({ success: false, refused: true, message: refusalText(error.message) });
         // #688: remember the Odoo product on the P0 line, so a new S0 line for the same product can ask "Is this yours?".
         await admin.from("purchase_request_items").update({ bought_product_id: facts.bought_product_id }).eq("id", itemId);
-        // The P0's price is the Component's Actual cost (#686). The attach already stands, so a miss here is logged, not fatal.
+        // The P0's price is the Component's Actual cost (#686), sent in its own currency: the database turns a
+        // foreign one into pesos at the Canvass winner's rate. The attach already stands, so a miss here is logged, not fatal.
+        const actual = p0UnitPrice(p0, row?.odoo_product_id ?? null, row?.odoo_po_line_ids ?? []);
         const { error: priceError } = await admin.rpc("costing_set_p0_price", {
           p_actor_email: email,
           p_item_id: itemId,
-          p_price: p0UnitPrice(p0, row?.odoo_product_id ?? null, row?.odoo_po_line_ids ?? []),
+          p_price: actual.price,
+          p_currency: actual.currency,
         });
         if (priceError) console.error("odoo-po-verify actual cost error:", priceError.message);
         return jsonResponse({ success: true, verdict: "verified", item: { ...data, bought_product_id: facts.bought_product_id } });

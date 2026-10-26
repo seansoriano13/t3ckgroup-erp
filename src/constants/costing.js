@@ -112,10 +112,18 @@ export const COMPONENT_BANDS = {
  */
 export const COMPONENT_CANVASS_COST_TIERS = {
   acquire_from_offer_id: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
-  // The P0 line price, the Actual cost (#686), read by the tiers that read Acquire.
+  // The P0 line price, the Actual cost (#686), read by the tiers that read Acquire: in pesos, and
+  // as Odoo has it with its currency (a foreign P0 is turned into pesos at the Canvass winner's rate).
   p0_unit_price: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+  p0_quoted_unit_price: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+  p0_currency: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
 };
-export const COMPONENT_CANVASS_COST_BANDS = { acquire_from_offer_id: [PURCHASING], p0_unit_price: [PURCHASING] };
+export const COMPONENT_CANVASS_COST_BANDS = {
+  acquire_from_offer_id: [PURCHASING],
+  p0_unit_price: [PURCHASING],
+  p0_quoted_unit_price: [PURCHASING],
+  p0_currency: [PURCHASING],
+};
 
 export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
@@ -286,6 +294,8 @@ export const COSTING_COLUMN_LABEL = {
   "costing_components.documents": "A Component's documents",
   "costing_component_costs.acquire_from_offer_id": "Where Acquire came from",
   "costing_component_costs.p0_unit_price": "The actual cost from the attached P0",
+  "costing_component_costs.p0_quoted_unit_price": "The attached P0's price as Odoo has it",
+  "costing_component_costs.p0_currency": "The attached P0's currency",
   "costing_components.compliance": "Compliance",
   "costing_components.compliance_note": "A Compliance note",
   "costing_components.recommended_alternative": "The recommended alternative",

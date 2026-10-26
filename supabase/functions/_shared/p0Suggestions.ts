@@ -22,6 +22,8 @@ export type OdooP0 = {
   date_order?: string | null;
   /** Odoo's Expected Arrival (YYYY-MM-DD); often only the order date, or not set. */
   date_planned?: string | null;
+  /** The P0's currency in Odoo ("PHP", "USD"); its line prices are in it. */
+  currency?: string | null;
   lines: OdooP0Line[];
 };
 
@@ -130,15 +132,25 @@ export function statusFromP0(facts: P0Facts): "to_purchase" | "purchased" | "rec
 }
 
 /**
- * The unit price this product line was bought at (the Actual cost, #686): over the same lines
- * as p0Facts, weighted by quantity, so free lines (price 0) lower it whatever their order.
- * Null when those lines have no price or no quantity.
+ * The unit price this product line was bought at (the Actual cost, #686), in the P0's own
+ * currency, which may not be pesos: the database turns a foreign one into pesos. Over the same
+ * lines as p0Facts, weighted by quantity, so free lines (price 0) lower it whatever their order.
+ * The price is null when those lines have no price or no quantity; the currency is null when
+ * Odoo did not say, and is never assumed to be PHP.
  */
-export function p0UnitPrice(p0: OdooP0, productId: number | null, pickedLineIds: number[] = []): number | null {
+export function p0UnitPrice(
+  p0: OdooP0,
+  productId: number | null,
+  pickedLineIds: number[] = [],
+): { price: number | null; currency: string | null } {
   const priced = boughtLines(p0, productId, pickedLineIds).filter(
     (l) => l.price_unit != null && Number.isFinite(Number(l.price_unit)),
   );
   const quantity = sum(priced, "quantity");
-  if (!quantity) return null;
-  return priced.reduce((total, l) => total + Number(l.price_unit) * (Number(l.quantity) || 0), 0) / quantity;
+  return {
+    price: quantity
+      ? priced.reduce((total, l) => total + Number(l.price_unit) * (Number(l.quantity) || 0), 0) / quantity
+      : null,
+    currency: p0.currency ? String(p0.currency).trim().toUpperCase() || null : null,
+  };
 }

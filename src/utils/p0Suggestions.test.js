@@ -122,9 +122,9 @@ describe("a P0 that lists the product on several lines", () => {
     const lines = [lineWithId(1, 3, 9, 0, 0), lineWithId(2, 3, 9, 0, 100), lineWithId(3, 3, 2, 0, 100)];
     const forward = p0("P01235", "S03885", lines);
     const backward = p0("P01235", "S03885", [...lines].reverse());
-    expect(p0UnitPrice(forward, 3)).toBe(55);
-    expect(p0UnitPrice(backward, 3)).toBe(55);
-    expect(p0UnitPrice(forward, 3, [1])).toBe(0);
+    expect(p0UnitPrice(forward, 3).price).toBe(55);
+    expect(p0UnitPrice(backward, 3).price).toBe(55);
+    expect(p0UnitPrice(forward, 3, [1]).price).toBe(0);
   });
 });
 
@@ -140,7 +140,7 @@ describe("a request line with no Odoo product, or a P0 for another product", () 
     expect(boughtLines(mixed, null)).toEqual([]);
     expect(p0Facts(mixed, null)).toMatchObject({ ordered: 0, received: 0, bought_as: null, bought_product_id: null });
     expect(statusFromP0(p0Facts(mixed, null))).toBe("purchased");
-    expect(p0UnitPrice(mixed, null)).toBeNull();
+    expect(p0UnitPrice(mixed, null).price).toBeNull();
     expect(p0Facts(mixed, null, [22])).toMatchObject({ ordered: 1, received: 1, bought_product_id: 2 });
   });
 
@@ -154,11 +154,20 @@ describe("p0UnitPrice (#686)", () => {
   const priced = (id, price_unit) => ({ ...line(id), price_unit });
   it("takes the price of the line for the same product, and none from a P0 of other products", () => {
     const order = p0("P01", "S01", [priced(1, 10), priced(2, 25)]);
-    expect(p0UnitPrice(order, 2)).toBe(25);
-    expect(p0UnitPrice(order, 99)).toBeNull();
-    expect(p0UnitPrice(order, null)).toBeNull();
+    expect(p0UnitPrice(order, 2).price).toBe(25);
+    expect(p0UnitPrice(order, 99).price).toBeNull();
+    expect(p0UnitPrice(order, null).price).toBeNull();
   });
   it("is null when Odoo gave no price", () => {
-    expect(p0UnitPrice(p0("P01", "S01", [line(1)]), 1)).toBeNull();
+    expect(p0UnitPrice(p0("P01", "S01", [line(1)]), 1).price).toBeNull();
+  });
+  it("carries the P0's currency, so a USD price is never taken as pesos", () => {
+    // P01235 (Shenzhen Coming Technology): the Light Tower 400 at USD 388.
+    const order = p0("P01235", "S01", [priced(7, 388)], { currency: "USD" });
+    expect(p0UnitPrice(order, 7)).toEqual({ price: 388, currency: "USD" });
+    expect(p0UnitPrice(p0("P01", "S01", [priced(1, 10)], { currency: "PHP" }), 1)).toEqual({ price: 10, currency: "PHP" });
+  });
+  it("does not assume pesos when Odoo did not say the currency", () => {
+    expect(p0UnitPrice(p0("P01", "S01", [priced(1, 10)]), 1)).toEqual({ price: 10, currency: null });
   });
 });

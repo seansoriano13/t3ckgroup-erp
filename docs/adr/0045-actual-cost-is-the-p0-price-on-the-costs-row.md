@@ -29,3 +29,25 @@ price must not be stored on it.
 A P0 whose price changes in Odoo is picked up the next time it is attached
 or refreshed; it is not polled. The product line's own text (without money for
 people who may not see costs) is left to the screen ticket.
+
+## Amendment: a foreign P0 (2026-10-26)
+
+Odoo's `price_unit` is in the P0's own currency, and Acquire is in pesos, so a
+USD P0 read as pesos ("Expected ₱24,641.49 · Actual ₱388.00 (−98.4%)" for
+P01235). Now `odoo-po-verify` sends the P0's `currency_id` with the price, and
+`costing_set_p0_price` keeps both as quoted (`p0_quoted_unit_price`,
+`p0_currency`) and stores `p0_unit_price` in pesos:
+
+- a PHP P0: the price as quoted;
+- a foreign P0: times the comparison rate of the Component's Canvass winner,
+  when the winner is in the same currency. That is the rate that turned the
+  winning Offer into Acquire, so Expected and Actual differ by price only;
+- otherwise (no winner in that currency, or Odoo did not say the currency):
+  null. The matrix shows the price in its own currency, not compared, and the
+  totals keep Acquire.
+
+Not the Reference Rate: it only pre-fills an Offer's comparison rate. Not the
+rate paid: at Attach P0 there is usually no IPAS payment yet, and the rate
+paid is Landed Cost's (still provisional; its full computation is on the
+roadmap). A winner changed after the P0 is attached is picked up the next time
+the P0 is attached, as a changed price is.

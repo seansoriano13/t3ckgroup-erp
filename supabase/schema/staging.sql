@@ -253,7 +253,9 @@ create table if not exists public."costing_component_costs" (
   "final_acquire_unit" numeric(18,2),
   "markup_factor" numeric(10,4),
   "acquire_from_offer_id" uuid,
-  "p0_unit_price" numeric
+  "p0_unit_price" numeric,
+  "p0_quoted_unit_price" numeric,
+  "p0_currency" text
 );
 
 create table if not exists public."costing_components" (
@@ -10945,7 +10947,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.costing_set_p0_price(p_actor_email text, p_item_id uuid, p_price numeric)
+CREATE OR REPLACE FUNCTION public.costing_set_p0_price(p_actor_email text, p_item_id uuid, p_price numeric, p_currency text)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -10954,6 +10956,8 @@ AS $function$
 declare
   v_actor uuid;
   v_component uuid;
+  v_currency text := nullif(upper(btrim(p_currency)), '');
+  v_rate numeric;
 begin
   if p_actor_email is null or btrim(p_actor_email) = '' then
     raise exception 'costing_set_p0_price: not signed in' using errcode = '42501';
@@ -10977,8 +10981,23 @@ begin
     raise exception 'costing_set_p0_price: only Purchasing sets the actual cost' using errcode = '42501';
   end if;
 
+  -- A foreign P0 is turned into pesos at the Canvass winner's rate, when the winner is in the same currency.
+  if v_currency is distinct from 'PHP' then
+    select p.comparison_rate into v_rate
+      from public.sor_canvasses c
+      join public.sor_canvass_offers o on o.canvass_id = c.id and o.is_winner
+      join public.sor_canvass_offer_prices p on p.offer_id = o.id
+     where c.component_id = v_component and o.currency = v_currency;
+  end if;
+
   update public.costing_component_costs
-     set p0_unit_price = p_price
+     set p0_unit_price = case
+           when p_price is null then null
+           when v_currency = 'PHP' then p_price
+           when v_rate is not null then round(p_price * v_rate, 2)
+         end,
+         p0_quoted_unit_price = p_price,
+         p0_currency = v_currency
    where component_id = v_component;
 end;
 $function$

@@ -89,15 +89,26 @@ async function syncActualCosts(
   if (!linked.length) return;
   const { data: costs } = await admin
     .from("costing_component_costs")
-    .select("component_id, p0_unit_price")
+    .select("component_id, p0_quoted_unit_price, p0_currency")
     .in("component_id", linked.map((i) => i.component_id));
-  const stored = new Map((costs ?? []).map((c) => [c.component_id, c.p0_unit_price == null ? null : Number(c.p0_unit_price)]));
+  const stored = new Map(
+    (costs ?? []).map((c) => [
+      c.component_id,
+      { price: c.p0_quoted_unit_price == null ? null : Number(c.p0_quoted_unit_price), currency: c.p0_currency ?? null },
+    ]),
+  );
   for (const item of linked) {
     const p0 = byName.get(String(item.po_number).toUpperCase());
-    if (!p0 || !stored.has(item.component_id)) continue;
-    const price = p0UnitPrice(p0, item.odoo_product_id ?? null, item.odoo_po_line_ids ?? []);
-    if (price === stored.get(item.component_id)) continue;
-    const { error } = await admin.rpc("costing_set_p0_price", { p_actor_email: email, p_item_id: item.id, p_price: price });
+    const was = stored.get(item.component_id);
+    if (!p0 || !was) continue;
+    const actual = p0UnitPrice(p0, item.odoo_product_id ?? null, item.odoo_po_line_ids ?? []);
+    if (actual.price === was.price && actual.currency === was.currency) continue;
+    const { error } = await admin.rpc("costing_set_p0_price", {
+      p_actor_email: email,
+      p_item_id: item.id,
+      p_price: actual.price,
+      p_currency: actual.currency,
+    });
     if (error?.code === "42501") return; // not Purchasing on this request
     if (error) console.error("odoo-po-sync actual cost error:", error.message);
   }

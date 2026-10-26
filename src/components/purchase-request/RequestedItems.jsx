@@ -213,7 +213,7 @@ export default function RequestedItems({ request, renderActions }) {
   if (matrix && tierReadsCost(matrix.tier, "acquire_unit")) {
     for (const line of matrix.tenderLines ?? []) {
       for (const c of line.components ?? []) {
-        const text = costComparisonText({ expected: c.acquire_unit, actual: c.p0_unit_price, fromCanvass: c.fromCanvass?.acquire });
+        const text = costComparisonText({ expected: c.acquire_unit, actual: c.p0_unit_price, quoted: c.p0_quoted_unit_price, currency: c.p0_currency, fromCanvass: c.fromCanvass?.acquire });
         if (text) costByComponent.set(c.id, text);
       }
     }
