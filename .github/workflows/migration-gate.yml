@@ -73,6 +73,12 @@ jobs:
           --db-url postgresql://postgres:postgres@127.0.0.1:54322/postgres
           --check --against supabase/schema/staging.sql
 
+      - name: TEMP show the diff between built schema and the mirror
+        if: always()
+        run: |
+          node scripts/db-snapshot.mjs staging --from-local
+          git --no-pager diff --ignore-space-at-eol supabase/schema/staging.sql | head -400
+
       - name: Stop the local stack
         if: always()
         run: supabase stop --no-backup
