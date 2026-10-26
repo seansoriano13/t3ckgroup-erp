@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QueryError from "@/components/ui/QueryError";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 
@@ -16,6 +16,7 @@ import RequestedItemActions from "./RequestedItemActions";
 import ItemCanvass from "./ItemCanvass";
 import StatusBadge from "../StatusBadge";
 import { formatAmount, isFromS0, itemSectionLabel, requestedItemStock } from "../../utils/requestedItem";
+import { deliveryNote } from "../../utils/deliveryNote";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import {
   ITEM_STATUS,
@@ -30,7 +31,11 @@ import { purchaseRequestKeys } from "./queryKeys";
 function summaryOf(item, stock) {
   const warning = stockWarning(item);
   if (warning) return warning.label;
-  if (item.po_number) return item.po_state === "rfq" ? `RFQ ${item.po_number}` : `PO ${item.po_number}`;
+  if (item.po_number) {
+    if (item.po_state === "rfq") return `RFQ ${item.po_number}`;
+    const delivery = deliveryNote(item);
+    return delivery ? `PO ${item.po_number} · ${delivery}` : `PO ${item.po_number}`;
+  }
   if (stock) return `Stock: ${stock.figure}`;
   return itemSectionLabel(item);
 }
@@ -153,6 +158,21 @@ export default function RequestedItems({ request, renderActions }) {
     queryKey: purchaseRequestKeys.items(requestId),
     queryFn: () => purchaseRequestService.listItems(requestId),
     enabled: !!requestId,
+  });
+  // Opening the request reads its P0s from Odoo once (#685); lines then show the stored values.
+  const queryClient = useQueryClient();
+  const hasP0 = (itemsQuery.data || []).some((i) => i.po_number);
+  useQuery({
+    queryKey: purchaseRequestKeys.p0Sync(requestId),
+    queryFn: async () => {
+      const result = await purchaseRequestService.syncP0s(requestId);
+      if (result.ok) queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.items(requestId) });
+      return result;
+    },
+    enabled: !!requestId && hasP0,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
   const { data: stockSnapshot } = useQuery({
     queryKey: purchaseRequestKeys.stock(requestId),

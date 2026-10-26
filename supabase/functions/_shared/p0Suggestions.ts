@@ -17,6 +17,8 @@ export type OdooP0 = {
   state: string;
   origin: string | null;
   date_order?: string | null;
+  /** Odoo's Expected Arrival (YYYY-MM-DD); often only the order date, or not set. */
+  date_planned?: string | null;
   lines: OdooP0Line[];
 };
 
@@ -68,6 +70,8 @@ export type P0Facts = {
   bought_as: string | null;
   ordered: number;
   received: number;
+  /** Odoo's Expected Arrival, or null when not set (#685). */
+  eta: string | null;
 };
 
 // Odoo's states before the P0 is confirmed.
@@ -87,6 +91,7 @@ export function p0Facts(p0: OdooP0, productId: number | null): P0Facts | null {
     bought_as: line?.product_name || null,
     ordered: Number(line?.quantity) || 0,
     received: Number(line?.received) || 0,
+    eta: p0.date_planned ? String(p0.date_planned).slice(0, 10) : null,
   };
 }
 

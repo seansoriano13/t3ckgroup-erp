@@ -127,6 +127,7 @@ verify_jwt = false
 [functions.odoo-po-ipas]
 [functions.odoo-po-rollup]
 [functions.odoo-po-suggest]
+[functions.odoo-po-sync]
 [functions.odoo-po-verify]
 [functions.odoo-quotation-file]
 [functions.odoo-quotation-link]

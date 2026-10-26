@@ -417,6 +417,23 @@ export const purchaseRequestService = {
   },
 
   /**
+   * Refreshes the request's lines from their P0s in Odoo (#685): the `odoo-po-sync` edge
+   * function reads them and sets each line's stored status and delivery figures. Never
+   * throws: when Odoo does not answer the lines keep their last values and this returns
+   * `{ ok: false }`. Otherwise `{ ok: true, changed }`, the number of lines whose status moved.
+   */
+  async syncP0s(requestId) {
+    if (!requestId) return { ok: true, changed: 0 };
+    try {
+      const { data, error } = await supabase.functions.invoke("odoo-po-sync", { body: { requestId } });
+      if (error || !data?.success) return { ok: false, changed: 0 };
+      return { ok: true, changed: data.changed ?? 0 };
+    } catch {
+      return { ok: false, changed: 0 };
+    }
+  },
+
+  /**
    * Corrects the PO on an Ordered item (#549). The new number is checked against
    * Odoo like the first one; picked PO lines on the old PO are cleared. Throws on
    * a number that isn't an Odoo PO. Returns the updated item.

@@ -9,6 +9,7 @@ import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
 import { stockWarning } from "../../constants/purchaseRequest";
 import { componentLabel, isFromS0, itemSectionLabel, poLineNotPicked } from "../../utils/requestedItem";
+import { deliveryNote } from "../../utils/deliveryNote";
 
 /** "PHP 250.50" — the price a Canvass winner gave the item (#582). */
 const formatPrice = ({ unitPrice, currency }) =>
@@ -84,6 +85,7 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
               <span className="font-semibold">{item.po_number}</span>
               <span> · {PO_VERIFICATION_LABELS[item.po_verification] || item.po_verification}</span>
               {item.po_state === "rfq" && <span> · RFQ, not confirmed yet</span>}
+              {deliveryNote(item) && <span data-testid="requested-item-delivery"> · {deliveryNote(item)}</span>}
               {lines.length > 0 && (
                 <span>
                   {" "}

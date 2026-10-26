@@ -267,7 +267,7 @@ describe("Correct PO", () => {
     await user.type(within(dialog).getByLabelText("New PO number"), "p01234")
     await user.click(within(dialog).getByRole("button", { name: "Check PO and correct" }))
 
-    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("PO P01234")).toBeInTheDocument())
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText(/^PO P01234/)).toBeInTheDocument())
     expect(db.rows("purchase_request_items")[0]).toMatchObject({ po_number: "P01234", po_verification: "VERIFIED", odoo_po_line_ids: [] })
   })
 

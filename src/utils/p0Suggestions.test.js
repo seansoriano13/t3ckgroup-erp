@@ -72,6 +72,11 @@ describe("what a P0 does to the line", () => {
     expect(status("purchase", 4)).toBe("received");
   });
 
+  it("carries Odoo's Expected Arrival, or null when it is not set", () => {
+    expect(p0Facts(p0("P1", "S1", [line(1)], { date_planned: "2026-11-12" }), 1).eta).toBe("2026-11-12");
+    expect(p0Facts(p0("P1", "S1"), 1).eta).toBeNull();
+  });
+
   it("reads the P0 line for the line's product, else the first, and names a cancelled P0 as nothing", () => {
     const order = p0("P1", "S1", [line(5, "Other"), line(1, "Mine")]);
     expect(p0Facts(order, 1).bought_as).toBe("Mine");
