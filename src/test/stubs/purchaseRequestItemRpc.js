@@ -49,7 +49,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
   stubRpc("purchase_request_add_item_from_line", (args) => {
     const request = findRow("purchase_requests", args.p_request_id)
     const line = findRow("sales_opportunity_items", args.p_line_id)
-    if (!request || !line || line.opportunity_id !== request.opportunity_id) {
+    if (!request || !line || line.opportunity_id !== request.opportunity_id || line.removed_from_s0) {
       throw Object.assign(new Error("purchase_request_add_item_from_line: that line is no longer on this SOR's Product List"), {
         code: "P0002",
       })
@@ -60,6 +60,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       request_id: request.id,
       source: "sor_line",
       odoo_product_id: line.odoo_product_id ?? null,
+      sor_item_id: line.id,
       name,
       unit,
       quantity: line.quantity,

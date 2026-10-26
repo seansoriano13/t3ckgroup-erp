@@ -175,7 +175,7 @@ describe("after the SOR's Product List is replaced", () => {
         expect(await item(ropeItem)).toMatchObject({ quantity: 2, unit: "roll" })
     })
 
-    it("reports the line's new quantity, found by its Odoo product", async () => {
+    it("reports the line's new quantity, found by its fixed line id", async () => {
         expect((await lineNow())[harnessItem]).toEqual({
             item_id: harnessItem,
             line_found: true,
