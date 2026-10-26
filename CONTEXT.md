@@ -625,15 +625,23 @@ The one purchaser who owns a Purchase Request — named by the Stage Action that
 _Avoid_: Assignee, Purchaser (when meaning this role)
 
 **Requested Item**:
-One product a Purchase Request asks for — copied from an SOR line or a Costing
-Matrix Component at the moment it was picked, or described as a new product.
-Later edits to the source never rewrite it. It keeps the link to the Component it
-buys for, and once Purchased it records the Odoo purchase order line as well as its
+One product a Purchase Request asks for, and the one product line Sales and
+Purchasing share. Every S0 line has exactly one Requested Item on the SOR's
+project request, made by itself (no picking, no typing) and kept in step with the
+line (name, quantity, unit) whenever the S0 is read; it is unique per SOR line,
+starts at Not checked, and stays with a "Removed from S0" note if Odoo drops the
+line, so a bought product is never lost. The request shows two sections, From the
+S0 and Other requests, with each product's status beside it. A Component reaches
+its item through its SOR line. Once Purchased it records the Odoo purchase order line as well as its
 number, which is how Landed Cost finds its way back. The server checks the PO
 number against Odoo itself: a PO Odoo doesn't know is refused, and when Odoo
 doesn't answer the PO is saved as "Not checked". Purchasing can Correct PO while
 the item is Purchased, which is checked again. Carries its own status: Not checked, then Available, or To purchase → Still canvassing → Purchased → Received; or out via Cannot source or Cancelled. There is no Substituted status: a substitute cancels the old item and keeps the "substitute for" link.
 _Avoid_: Line Item, Procurement Request
+
+**Other request**:
+A Requested Item with no SOR line: a product Sales asks for in its own words (brand, spec, photos) that is not on the S0, or material for the job. It sits in the Other requests section of the project request, starts at Not checked, and reaches the Costing Matrix only once it joins the S0 (a later ticket); materials never do. Not the same as a Direct request, which is a whole Purchase Request with no SOR.
+_Avoid_: Free-text item, Extra item
 
 **Requested Item Status**:
 The stage of sourcing for a Requested Item (Not checked, Available, To purchase, Still canvassing, Purchased, Received, Cannot source, Cancelled), rendered as an interactive status pill consolidating the status indicator and action controls into one element, allowing permitted members to advance the item along its path or cancel it.

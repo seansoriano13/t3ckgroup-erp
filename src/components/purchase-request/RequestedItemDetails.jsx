@@ -3,17 +3,11 @@ import { AlertTriangle, Calculator, Replace } from "lucide-react";
 import DetailGrid from "@/components/record/DetailGrid";
 import StatusBadge from "../StatusBadge";
 import StaleStockBadge from "./StaleStockBadge";
-import SorLineDiff from "./SorLineDiff";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
 import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
-import {
-  ITEM_SOURCE_LABEL,
-  componentLabel,
-  poLineNotPicked,
-  sorLineChange,
-} from "../../utils/requestedItem";
+import { componentLabel, isFromS0, itemSectionLabel, poLineNotPicked } from "../../utils/requestedItem";
 
 /** "PHP 250.50" — the price a Canvass winner gave the item (#582). */
 const formatPrice = ({ unitPrice, currency }) =>
@@ -28,7 +22,7 @@ const Warn = ({ children }) => (
 
 /** An opened item: its fields in the detail grid (uppercase labels over values), then its images. */
 export default function RequestedItemDetails({ item, stock, replaces, replacedBy }) {
-  const change = sorLineChange(item);
+  const removed = isFromS0(item) && item.removed_from_s0 === true;
   const lines = item.odoo_po_line_ids || [];
   const component = componentLabel(item);
 
@@ -52,7 +46,8 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
         </>
       ),
     },
-    { label: "Source", value: ITEM_SOURCE_LABEL[item.source] || "From the SOR" },
+    { label: "Source", value: itemSectionLabel(item) },
+    removed && { label: "S0", value: <Warn>Removed from S0</Warn> },
     component && {
       label: "Component",
       value: (
@@ -99,7 +94,6 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
         </span>
       ),
     },
-    change && { label: "SOR line", value: <SorLineDiff item={item} change={change} /> },
     item.description && { label: "Notes", value: <span className="whitespace-pre-line">{item.description}</span> },
   ].filter(Boolean);
 

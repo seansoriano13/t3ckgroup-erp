@@ -1,5 +1,6 @@
 import { stubRpc } from "@/test/msw/server"
 import { db, insertRow, updateRow, deleteRows } from "@/test/db/store"
+import { syncRequestItems } from "@/test/stubs/sorItemSync"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
@@ -17,6 +18,9 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  * stored line with an Odoo line id that is not sent again is kept and marked
  * `removed_from_s0`; a hand-typed one is deleted. A line already as sent is
  * not written.
+ *
+ * The SOR's Purchase Request, if it has one, then has an item for every line (the line trigger of
+ * 20261104130000_requested_item_follows_s0.sql): see sorItemSync.js.
  *
  * Returns the "before" Product List, same as the real function:
  * `updateOpportunity`'s change log reads its "before" snapshot from this
@@ -83,6 +87,7 @@ export function stubReplaceItemsRpc() {
         deleteRows("sales_opportunity_items", [row])
       }
     }
+    syncRequestItems(opportunityId)
     return before
   })
 }

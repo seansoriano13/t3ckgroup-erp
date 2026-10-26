@@ -10,6 +10,8 @@
  *      staff lists, Costing signer lists, ageing rules, markup presets and the
  *      Evaluation template. Option lists (payment methods etc.) and costing
  *      rates are left as they are: they are the defaults, not a choice.
+ *   4. Requested Items (#678): the demo Purchase Requests list every S0 line as a Not
+ *      checked item, the shape the app now keeps by itself.
  *   3. "Project [FOR DEMO]": the production "Project" Sales Flow, copied from
  *      its latest Flow Snapshot under NEW ids (staging already has the real
  *      Project under the same ids), left as a draft so the demo can add the
@@ -192,6 +194,27 @@ async function retireOldCopies(c) {
   }
 }
 
+/**
+ * #678: the demo's Requested Items in the new shape. Items on the Purchase Requests of the demo
+ * SORs (any copy of the demo Sale Type, old ones included) are cleared, then one Not checked
+ * item is made for every S0 line by the same function the database trigger uses. Staging only,
+ * demo SORs only.
+ */
+async function resetDemoItems(c) {
+  const { rows: requests } = await c.query(
+    `select r.id from public.purchase_requests r
+       join public.sales_opportunities o on o.id = r.opportunity_id
+       join public.sale_types t on t.id = o.sale_type_id
+      where t.name = $1 or t.name like $2`,
+    [DEMO_SALE_TYPE, `${DEMO_SALE_TYPE} (old %`],
+  )
+  for (const { id } of requests) {
+    await c.query("delete from public.purchase_request_items where request_id = $1", [id])
+    await c.query("select public._purchase_request_sync_sor_items($1)", [id])
+  }
+  console.log(`  ${requests.length} demo request(s) now list their S0 lines as Not checked items`)
+}
+
 async function copyProjectFlow(prod, c) {
   const { rows: types } = await prod.query("select * from public.sale_types where name = $1 and archived_at is null", [PROD_SALE_TYPE])
   if (types.length !== 1) throw new Error(`Prod has ${types.length} active Sale Types named "${PROD_SALE_TYPE}".`)
@@ -259,6 +282,8 @@ async function main() {
     console.log(`3. ${DEMO_SALE_TYPE}`)
     await retireOldCopies(c)
     await copyProjectFlow(prod, c)
+    console.log("4. Demo Requested Items (one per S0 line)")
+    await resetDemoItems(c)
     await c.query(apply ? "commit" : "rollback")
     console.log(apply ? "\nCommitted." : "\nRolled back (dry run).")
   } catch (e) {

@@ -1,9 +1,10 @@
 /**
- * Requested Items (issue #305, part of #209) — what an item says about the
- * SOR line it was picked from, and about its product's stock.
+ * Requested Items (issue #305, part of #209) — what an item says about its
+ * product's stock, and which section of the list it belongs to (#678).
  *
- * Both are read beside the item, never stored on it: the item keeps only what
- * was picked (`sor_line_snapshot`), so a later SOR edit can't rewrite it.
+ * An item for an S0 line is kept in step with the line by the database, so
+ * there is no "SOR changed" to read. The Costing Matrix's Tender Lines still
+ * compare themselves with their SOR line (`sorLineChange`).
  */
 
 import { isStockStale, stockBadge } from "@/constants/stock";
@@ -23,34 +24,18 @@ export const ITEM_SOURCE_LABEL = {
   [ITEM_SOURCE.COMPONENT]: "From the Costing Matrix",
 };
 
+/**
+ * #678 — whether an item is for an S0 line ("From the S0"). Any item with no SOR line is an
+ * Other request. The SOR line's fixed id is the only test: an item whose line was deleted
+ * (a hand-typed line) has none and is an Other request from then on.
+ */
+export const isFromS0 = (item) => Boolean(item?.sor_item_id);
+
+/** The section an item sits in, in the screen's words. */
+export const itemSectionLabel = (item) => (isFromS0(item) ? "From the S0" : "Other request");
+
 /** "1.2 · Rescue tripod": the Component a Requested Item buys for, or null when it names none (or it was removed). */
 export const componentLabel = (item) => (item?.component ? `${item.component.number} · ${item.component.name}` : null);
-
-/**
- * The Components of a matrix as a flat pick list for "Add from the Costing Matrix" (#273), in grid
- * order: `{ id, number, name, quantity, unit, forOrder, bundle, requested }`. `forOrder` is the
- * default pick (availability For Order); `requested` counts the request's items that already name
- * the Component (`items`). A Component with no name can't be requested and is left out.
- */
-export function componentPickList(tenderLines, items = []) {
-  const requested = new Map();
-  for (const item of items) {
-    if (item.component_id) requested.set(item.component_id, (requested.get(item.component_id) ?? 0) + 1);
-  }
-  return (tenderLines ?? [])
-    .flatMap((line) => line.components ?? [])
-    .filter((component) => (component.name ?? "").trim() !== "")
-    .map((component) => ({
-      id: component.id,
-      number: component.number,
-      name: component.name.trim(),
-      quantity: component.quantity,
-      unit: component.unit ?? null,
-      forOrder: component.availability === "for_order",
-      bundle: Boolean(component.is_bundle),
-      requested: requested.get(component.id) ?? 0,
-    }));
-}
 
 export const SOR_LINE_CHANGE = {
   CHANGED: "changed",
@@ -121,22 +106,6 @@ export function requestedItemStock(item, stockSnapshot, now = Date.now()) {
     fetchedAt,
     stale: isStockStale(fetchedAt, now),
   };
-}
-
-const sameProduct = (line, item) =>
-  item.odoo_product_id != null
-    ? line.odoo_product_id === item.odoo_product_id
-    : (line.product_name || "").trim().toLowerCase() === (item.sor_line_snapshot?.name || item.name || "").trim().toLowerCase();
-
-/**
- * Whether a Product List line already has a live item on the request, so the
- * picker can say so. Matched the way `purchase_request_item_lines` matches:
- * by Odoo product, else by name. A cancelled item doesn't count.
- */
-export function isLineRequested(line, items = []) {
-  return items.some(
-    (item) => item.source === ITEM_SOURCE.SOR_LINE && item.status !== ITEM_STATUS.CANCELLED && sameProduct(line, item),
-  );
 }
 
 /**

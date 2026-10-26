@@ -17,14 +17,11 @@ const MEMBER_SELECT =
  * Members (#304): a purchasing member or a Super Admin adds and removes them;
  * the database sets a new member's side and window.
  *
- * Requested Items (#305): a sales-side member or the Buyer adds them, picked
- * from an SOR line or described as a new product. Each starts at Requested
- * and posts in the request.
- *
- * From the Costing Matrix (#273): Purchasing access adds one item per picked Component
- * (`addItemsFromComponents`); each copies the Component's name, quantity, unit and Odoo
- * product id and keeps its own copy, and names the Component. `listItems` attaches the
- * Component's number and name ("1.2 · name") as `component`.
+ * Requested Items (#305, #678): every S0 line has one item on the SOR's request, made and
+ * kept in step with the line by the database (no call here). A sales-side member or the Buyer
+ * adds the rest, described as a new product: an Other request. Each starts at Not checked
+ * and posts in the request. `listItems` attaches an item's Component number and name
+ * ("1.2 · name") as `component`.
  *
  * Status (#306): every change goes through `purchase_request_set_item_status`, which checks
  * the transition and the caller's side (purchasing walks the path; the sales
@@ -201,19 +198,6 @@ export const purchaseRequestService = {
   },
 
   /**
-   * The SOR's Product List as it stands, to pick from — `{ id, product_name,
-   * quantity, unit, odoo_product_id, sort_order }`, no prices. Read through
-   * the request, so the Buyer can pick without a window into the SOR.
-   */
-  async pickableLines(requestId) {
-    const { data, error } = await supabase.rpc("purchase_request_pickable_lines", {
-      p_request_id: requestId,
-    });
-    if (error) throw error;
-    return data || [];
-  },
-
-  /**
    * #501 — the request's SOR stock snapshot (#202), `{ fetched_at, data }`,
    * or null. Read through the request, not `sor_stock_snapshots`, whose policy
    * hides it from a Buyer without SOR access; the picker and the saved items
@@ -226,57 +210,6 @@ export const purchaseRequestService = {
     });
     if (error) throw error;
     return data || null;
-  },
-
-  /**
-   * Adds an item copied from one Product List line: its Odoo product, name,
-   * quantity and unit, as they are now. Returns the new item's id.
-   *
-   * Lines are re-created on every Product List save, so a line id from a
-   * picker that has been open a while can be gone; the database refuses it
-   * and the caller re-reads the list.
-   */
-  async addItemFromLine(requestId, lineId) {
-    const { data, error } = await supabase.rpc("purchase_request_add_item_from_line", {
-      p_request_id: requestId,
-      p_line_id: lineId,
-    });
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * Makes a line-sourced item say what its SOR line says now (quantity and unit),
-   * and posts the change in the request. The database wants a reason once the item
-   * is Ordered, and refuses a closed item or a line the SOR no longer has.
-   */
-  async updateItemFromSor(itemId, reason = null) {
-    const { error } = await supabase.rpc("purchase_request_update_item_from_sor", {
-      p_item_id: itemId,
-      p_reason: reason,
-    });
-    if (error) throw error;
-  },
-
-  /** "Keep as asked": the item stays as picked, and its "SOR changed" flag stays quiet until the SOR says something else. */
-  async keepItemAsAsked(itemId) {
-    const { error } = await supabase.rpc("purchase_request_keep_item_as_asked", { p_item_id: itemId });
-    if (error) throw error;
-  },
-
-  /**
-   * Adds one Requested Item for each given Component of the request's SOR (#273): the Component's
-   * name, quantity, unit and Odoo product id are copied and the item names the Component. Purchasing
-   * access only; a Component on another SOR's matrix is refused, and so is the whole call. The same
-   * Component may be asked for more than once. Returns the new items' ids.
-   */
-  async addItemsFromComponents(requestId, componentIds) {
-    const { data, error } = await supabase.rpc("purchase_request_add_items_from_components", {
-      p_request_id: requestId,
-      p_component_ids: componentIds,
-    });
-    if (error) throw error;
-    return data || [];
   },
 
   /**
@@ -294,29 +227,17 @@ export const purchaseRequestService = {
   },
 
   /**
-   * The request's items, oldest first. A line-sourced item carries `sorLine`,
-   * its SOR line as the SOR says it now (`{ found, quantity, unit }`) — what
-   * `sorLineChange` compares with the snapshot to say "SOR line now says N".
+   * The request's items, oldest first. An item with `sor_item_id` is for an S0 line (and
+   * carries `removed_from_s0` when the S0 dropped it); any other is an Other request.
    */
   async listItems(requestId) {
     if (!requestId) return [];
-    const [items, lines] = await Promise.all([
-      supabase
-        .from("purchase_request_items")
-        .select(ITEM_SELECT)
-        .eq("request_id", requestId)
-        .order("created_at", { ascending: true }),
-      supabase.rpc("purchase_request_item_lines", { p_request_id: requestId }),
-    ]);
+    const items = await supabase
+      .from("purchase_request_items")
+      .select(ITEM_SELECT)
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: true });
     if (items.error) throw items.error;
-    if (lines.error) throw lines.error;
-
-    const lineByItem = new Map(
-      (lines.data || []).map((l) => [
-        l.item_id,
-        { found: l.line_found, quantity: l.line_quantity, unit: l.line_unit },
-      ]),
-    );
 
     // An item bought for a Costing Matrix Component carries its number and name ("1.2 · name") (#273).
     // Read only when some item names one, so a request without any makes no extra call.
@@ -339,7 +260,6 @@ export const purchaseRequestService = {
     return (items.data || []).map((item) => ({
       ...item,
       ...(priceByItem.has(item.id) ? { price: priceByItem.get(item.id) } : {}),
-      ...(lineByItem.has(item.id) ? { sorLine: lineByItem.get(item.id) } : {}),
       ...(componentByItem.has(item.id) ? { component: componentByItem.get(item.id) } : {}),
       ...(canvassByItem.has(item.id) ? { canvass: canvassByItem.get(item.id) } : {}),
     }));

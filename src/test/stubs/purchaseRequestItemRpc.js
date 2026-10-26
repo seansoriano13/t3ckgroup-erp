@@ -5,7 +5,6 @@ import { ITEM_STATUS_LABELS, allowedTransitions } from "@/constants/purchaseRequ
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
-const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase()
 
 /**
  * Issue #305 — the Requested Item RPCs (supabase/migrations/
@@ -30,9 +29,8 @@ const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().t
  * The rules are proven in 43-purchase-request-item-po.test.js.
  *
  * #273's Costing Matrix RPCs (20261018150000_costing_purchase_request_items.sql): `purchasing`
- * stands in for has_purchasing_access(). Adding from Components copies name, quantity, unit and
- * Odoo product id and refuses a Component on another SOR's matrix; who may add is proven in
- * 83-costing-purchase-request-items.test.js.
+ * stands in for has_purchasing_access(); the Component labels are served. The items of an S0 line
+ * are not made by an RPC but by triggers: see sorItemSync.js.
  */
 export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false, ipasLines = {}, purchasing = false, odoo = null }) {
   const postAdded = (item) => {
@@ -46,31 +44,6 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
 
   stubRpc("purchase_request_can_add_items", () => true)
 
-  stubRpc("purchase_request_add_item_from_line", (args) => {
-    const request = findRow("purchase_requests", args.p_request_id)
-    const line = findRow("sales_opportunity_items", args.p_line_id)
-    if (!request || !line || line.opportunity_id !== request.opportunity_id || line.removed_from_s0) {
-      throw Object.assign(new Error("purchase_request_add_item_from_line: that line is no longer on this SOR's Product List"), {
-        code: "P0002",
-      })
-    }
-    const name = line.product_name.trim()
-    const unit = (line.unit || "").trim() || null
-    const item = insertRow("purchase_request_items", {
-      request_id: request.id,
-      source: "sor_line",
-      odoo_product_id: line.odoo_product_id ?? null,
-      sor_item_id: line.id,
-      name,
-      unit,
-      quantity: line.quantity,
-      sor_line_snapshot: { name, quantity: Number(line.quantity), unit },
-      requested_by: actorId,
-    })
-    postAdded(item)
-    return item.id
-  })
-
   stubRpc("has_purchasing_access", () => purchasing)
 
   const matrixOf = (componentId) => {
@@ -78,36 +51,6 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     const line = component && findRow("costing_tender_lines", component.tender_line_id)
     return line && findRow("costing_matrices", line.matrix_id)
   }
-
-  stubRpc("purchase_request_add_items_from_components", (args) => {
-    if (!purchasing) {
-      throw pgrstError("42501", "purchase_request_add_items_from_components: only people with Purchasing access may add from the Costing Matrix")
-    }
-    const request = findRow("purchase_requests", args.p_request_id)
-    const ids = args.p_component_ids ?? []
-    if (ids.length === 0) throw pgrstError("22023", "purchase_request_add_items_from_components: pick at least one Component")
-    // All or nothing: check every Component before adding any.
-    for (const id of ids) {
-      if (matrixOf(id)?.opportunity_id !== request?.opportunity_id) {
-        throw pgrstError("P0002", "purchase_request_add_items_from_components: that Component is not on this SOR's Costing Matrix")
-      }
-    }
-    return ids.map((id) => {
-      const component = findRow("costing_components", id)
-      const item = insertRow("purchase_request_items", {
-        request_id: request.id,
-        source: "component",
-        component_id: component.id,
-        odoo_product_id: component.odoo_product_id ?? null,
-        name: component.name.trim(),
-        unit: (component.unit || "").trim() || null,
-        quantity: component.quantity,
-        requested_by: actorId,
-      })
-      postAdded(item)
-      return item.id
-    })
-  })
 
   // The Component's number as the grid numbers it: its line's place in the matrix, then its own place under the line.
   stubRpc("purchase_request_component_labels", (args) => {
@@ -136,99 +79,6 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     })
     postAdded(item)
     return item.id
-  })
-
-  stubRpc("purchase_request_pickable_lines", (args) => {
-    const request = findRow("purchase_requests", args.p_request_id)
-    return rowsOf("sales_opportunity_items")
-      .filter((l) => l.opportunity_id === request?.opportunity_id)
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map(({ id, product_name, quantity, unit, odoo_product_id, sort_order }) => ({
-        id, product_name, quantity, unit, odoo_product_id, sort_order,
-      }))
-  })
-
-  stubRpc("purchase_request_item_lines", (args) => {
-    const request = findRow("purchase_requests", args.p_request_id)
-    const lines = rowsOf("sales_opportunity_items").filter((l) => l.opportunity_id === request?.opportunity_id)
-    return rowsOf("purchase_request_items")
-      .filter((i) => i.request_id === args.p_request_id && i.source === "sor_line")
-      .map((item) => {
-        const picked = item.sor_line_snapshot || {}
-        const line = lines
-          .filter((l) =>
-            item.odoo_product_id != null ? l.odoo_product_id === item.odoo_product_id : sameName(l.product_name, picked.name),
-          )
-          .sort(
-            (a, b) =>
-              (Number(b.quantity) === Number(picked.quantity)) - (Number(a.quantity) === Number(picked.quantity)) ||
-              a.sort_order - b.sort_order,
-          )[0]
-        return {
-          item_id: item.id,
-          line_found: !!line,
-          line_quantity: line ? line.quantity : null,
-          line_unit: line ? (line.unit || "").trim() || null : null,
-        }
-      })
-  })
-
-  // 20261103100000_purchase_request_item_follows_sor.sql: the item follows its SOR line, or is kept as asked.
-  // Who may do it is proven in the policy tier (133-purchase-request-item-follows-sor.test.js).
-  const sorLineOf = (item) => {
-    const request = findRow("purchase_requests", item.request_id)
-    const picked = item.sor_line_snapshot || {}
-    return rowsOf("sales_opportunity_items")
-      .filter((l) => l.opportunity_id === request?.opportunity_id)
-      .filter((l) => (item.odoo_product_id != null ? l.odoo_product_id === item.odoo_product_id : sameName(l.product_name, picked.name)))
-      .sort(
-        (a, b) =>
-          (Number(b.quantity) === Number(picked.quantity)) - (Number(a.quantity) === Number(picked.quantity)) ||
-          a.sort_order - b.sort_order,
-      )[0]
-  }
-  const refuseSor = (message, code = "22023") => {
-    throw pgrstError(code, message)
-  }
-
-  stubRpc("purchase_request_update_item_from_sor", (args) => {
-    const item = findRow("purchase_request_items", args.p_item_id)
-    if (!item) refuseSor("purchase_request_update_item_from_sor: item not found", "P0002")
-    if (["available", "received", "cannot_source", "cancelled"].includes(item.status)) {
-      refuseSor("purchase_request_update_item_from_sor: this item is closed, so it keeps what was asked")
-    }
-    const line = sorLineOf(item)
-    if (!line) refuseSor("purchase_request_update_item_from_sor: the SOR no longer has this line", "P0002")
-    const reason = (args.p_reason || "").trim()
-    if (item.status === "purchased" && !reason) {
-      refuseSor("purchase_request_update_item_from_sor: this item is already ordered, so say why it follows the SOR")
-    }
-    const unit = (line.unit || "").trim() || null
-    const before = `${Number(item.quantity)}${item.unit ? ` ${item.unit}` : ""}`
-    const after = `${Number(line.quantity)}${unit ? ` ${unit}` : ""}`
-    updateRow("purchase_request_items", item, {
-      quantity: line.quantity,
-      unit,
-      sor_line_snapshot: { ...item.sor_line_snapshot, quantity: Number(line.quantity), unit },
-      sor_change_seen: null,
-    })
-    insertRow("purchase_request_messages", {
-      request_id: item.request_id,
-      author_id: actorId,
-      content: `Updated ${item.name} from ${before} to ${after}, as the SOR now says.${reason ? ` Reason: ${reason}` : ""}`,
-      metadata: { event: "item_followed_sor", item_id: item.id, from: before, to: after },
-    })
-    return null
-  })
-
-  stubRpc("purchase_request_keep_item_as_asked", (args) => {
-    const item = findRow("purchase_request_items", args.p_item_id)
-    const line = item && sorLineOf(item)
-    if (!line) refuseSor("purchase_request_keep_item_as_asked: the SOR no longer has this line", "P0002")
-    updateRow("purchase_request_items", item, {
-      sor_change_seen: { quantity: Number(line.quantity), unit: (line.unit || "").trim() || null },
-    })
-    return null
   })
 
   // #501 (20261012100500_purchase_request_stock_snapshot.sql): the request's

@@ -3,9 +3,9 @@ import {
   ITEM_SOURCE,
   SOR_LINE_CHANGE,
   componentLabel,
-  componentPickList,
   formatAmount,
-  isLineRequested,
+  isFromS0,
+  itemSectionLabel,
   poLineNotPicked,
   requestedItemStock,
   sorLineChange,
@@ -130,22 +130,19 @@ describe("requestedItemStock", () => {
   })
 })
 
-describe("isLineRequested", () => {
-  const line = { id: "l1", product_name: "Full Body Harness", odoo_product_id: 101 }
-
-  it("matches a live item on the same Odoo product", () => {
-    expect(isLineRequested(line, [fromLine()])).toBe(true)
+describe("isFromS0 and itemSectionLabel (#678)", () => {
+  it("puts an item with an SOR line in From the S0", () => {
+    const item = fromLine({ sor_item_id: "l1" })
+    expect(isFromS0(item)).toBe(true)
+    expect(itemSectionLabel(item)).toBe("From the S0")
   })
 
-  it("matches a hand-typed line by name", () => {
-    const typed = { id: "l2", product_name: " rope, 11mm ", odoo_product_id: null }
-    const item = fromLine({ odoo_product_id: null, sor_line_snapshot: { name: "Rope, 11mm", quantity: 1, unit: null } })
-    expect(isLineRequested(typed, [item])).toBe(true)
-  })
-
-  it("doesn't count a cancelled item or a new product", () => {
-    expect(isLineRequested(line, [fromLine({ status: "cancelled" })])).toBe(false)
-    expect(isLineRequested(line, [{ source: ITEM_SOURCE.NEW, name: "Full Body Harness", status: "not_checked" }])).toBe(false)
+  it("makes an item with no SOR line an Other request, whatever its source", () => {
+    for (const item of [{ source: ITEM_SOURCE.NEW }, fromLine({ sor_item_id: null }), { source: ITEM_SOURCE.COMPONENT }]) {
+      expect(isFromS0(item)).toBe(false)
+      expect(itemSectionLabel(item)).toBe("Other request")
+    }
+    expect(isFromS0(null)).toBe(false)
   })
 })
 
@@ -176,40 +173,7 @@ describe("poLineNotPicked (#312)", () => {
   })
 })
 
-describe("Requested Items from Components (#273)", () => {
-  const lines = [
-    {
-      components: [
-        { id: "c1", number: "1.1", name: " Hose reel ", quantity: 4, unit: "pc", availability: "for_order", is_bundle: false },
-        { id: "c2", number: "1.2", name: "Nozzle", quantity: 2, unit: null, availability: "available" },
-        { id: "c3", number: "1.3", name: "", quantity: 1, availability: "for_order" },
-      ],
-    },
-    { components: [{ id: "c4", number: "2.1", name: "Pump", quantity: 1, availability: null, is_bundle: true }] },
-    { components: [] },
-  ]
-
-  it("lists the Components in grid order, marking For Order ones and dropping nameless ones", () => {
-    expect(componentPickList(lines).map((c) => [c.number, c.name, c.forOrder, c.bundle])).toEqual([
-      ["1.1", "Hose reel", true, false],
-      ["1.2", "Nozzle", false, false],
-      ["2.1", "Pump", false, true],
-    ])
-  })
-
-  it("counts the request's items that already name each Component", () => {
-    const items = [{ component_id: "c1" }, { component_id: "c1" }, { component_id: "c4" }, { component_id: null }]
-    expect(componentPickList(lines, items).map((c) => [c.id, c.requested])).toEqual([
-      ["c1", 2],
-      ["c2", 0],
-      ["c4", 1],
-    ])
-  })
-
-  it("reads no Components from no matrix", () => {
-    expect(componentPickList(null)).toEqual([])
-  })
-
+describe("Requested Items for Components (#273)", () => {
   it('labels an item "1.2 · name" and nothing when it names no Component', () => {
     expect(componentLabel({ component: { number: "1.2", name: "Nozzle" } })).toBe("1.2 · Nozzle")
     expect(componentLabel({ component: undefined })).toBeNull()

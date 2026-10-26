@@ -94,21 +94,20 @@ describe("purchasing", () => {
     expect(title).toHaveAttribute("title", name)
   })
 
-  it("moves the row to the Closed group when the item is closed", async () => {
+  it("shows the new status on the row, in its section, when the item is closed", async () => {
     seedItem({ status: "still_canvassing" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")
-    expect(within(screen.getByRole("region", { name: "In progress" })).getByText("Full Body Harness")).toBeInTheDocument()
+    expect(within(screen.getByRole("region", { name: "Other requests" })).getByText("Full Body Harness")).toBeInTheDocument()
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
     await user.click(screen.getByRole("button", { name: "Cannot source" }))
     await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Cannot source" }))
 
-    const closed = await screen.findByRole("region", { name: "Closed" })
-    expect(within(closed).getByText("Full Body Harness")).toBeInTheDocument()
-    expect(screen.queryByRole("region", { name: "In progress" })).not.toBeInTheDocument()
+    const other = screen.getByRole("region", { name: "Other requests" })
+    await waitFor(() => expect(within(within(other).getByTestId("requested-item")).getByText("Cannot source")).toBeInTheDocument())
   })
 
   it("asks before a way out", async () => {
