@@ -247,4 +247,34 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     move(original, "cancelled", { substitute_item_id: item.id }, "purchase_request_add_substitute")
     return item.id
   })
+
+  stubRpc("purchase_request_replace_item", (args) => {
+    const original = findRow("purchase_request_items", args.p_item_id)
+    if (!original) refuse(`purchase_request_replace_item: item ${args.p_item_id} not found`, "P0002")
+    if (sideOf(original.request_id) !== "purchasing") refuse("purchase_request_replace_item: only Purchasing can replace a product", "42501")
+    if (["cancelled", "received"].includes(original.status)) refuse(`purchase_request_replace_item: ${original.name} is already ${original.status}, so it can't be replaced`, "22023")
+    if (!String(args.p_name || "").trim()) refuse("purchase_request_replace_item: say which product replaces it", "22023")
+    if (!String(args.p_reason || "").trim()) refuse("purchase_request_replace_item: give a short reason for the replacement", "22023")
+    const item = insertRow("purchase_request_items", {
+      request_id: original.request_id,
+      source: "new",
+      name: args.p_name.trim(),
+      unit: original.unit,
+      quantity: original.quantity,
+      substitute_for_item_id: original.id,
+      requested_by: actorId,
+    })
+    updateRow("purchase_request_items", original, {
+      status: "cancelled",
+      replaced_reason: args.p_reason.trim(),
+      s0_still_lists: !!original.sor_item_id && !original.removed_from_s0,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: original.request_id,
+      author_id: actorId,
+      content: `${original.name} replaced by ${item.name} — ${args.p_reason.trim()}.`,
+      metadata: { event: "item_replaced", item_id: original.id, replacement_item_id: item.id },
+    })
+    return item.id
+  })
 }

@@ -21,6 +21,10 @@ describe("canvassLine", () => {
     expect(canvassLine({ number: "CNV_0007", offers: [{}, {}] })).toBe("Canvass CNV_0007 · 2 of 3 offers")
   })
 
+  it("says a replaced line's Canvass was stopped", () => {
+    expect(canvassLine({ number: "CNV_0007", stopped_reason: "Stopped · replaced by B" })).toBe("Canvass CNV_0007 · Stopped · replaced by B")
+  })
+
   it("is empty when there is no Canvass", () => {
     expect(canvassLine(null)).toBeNull()
   })

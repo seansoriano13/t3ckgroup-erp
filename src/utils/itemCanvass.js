@@ -24,5 +24,7 @@ export function canvassLine(canvass) {
   if (!canvass) return null;
   const offers = canvass.offers?.length ?? canvass.offerCount ?? 0;
   const head = canvass.number ? `Canvass ${canvass.number}` : "Canvass";
+  // #687: a replaced line's open Canvass is closed with the reason ("Stopped · replaced by B").
+  if (canvass.stopped_reason) return `${head} · ${canvass.stopped_reason}`;
   return `${head} · ${offers} of ${MIN_CANVASS_OFFERS} offers`;
 }

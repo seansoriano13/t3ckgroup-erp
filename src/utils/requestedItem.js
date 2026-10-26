@@ -119,3 +119,14 @@ export function poLineNotPicked(item) {
   if (item.status !== ITEM_STATUS.PURCHASED && item.status !== ITEM_STATUS.RECEIVED) return false;
   return !(item.odoo_po_line_ids?.length > 0);
 }
+
+/** #687 — "Replaced by B — reason", the note on a line Purchasing replaced. */
+export function replacedNote(item, replacedBy) {
+  const by = replacedBy?.name ? `Replaced by ${replacedBy.name}` : "Replaced";
+  return item?.replaced_reason ? `${by} — ${item.replaced_reason}` : by;
+}
+
+/** #687 — the warning on a replaced S0 line while the S0 still lists it. */
+export function s0StillListsNote(item) {
+  return `S0 still lists ${item?.name ?? "this product"} · Sales to update the S0`;
+}

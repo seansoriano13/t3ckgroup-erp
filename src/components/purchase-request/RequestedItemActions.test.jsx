@@ -123,10 +123,14 @@ describe("purchasing", () => {
     await user.click(within(dialog).getByRole("button", { name: "Cannot source" }))
 
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cannot source")).toBeInTheDocument())
-    expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
+    // A closed line has no further steps; Purchasing may still Replace it (#687).
+    await user.click(within(currentRow("Full Body Harness")).getByRole("button", { name: /Change status/ }))
+    await statusMenuReady()
+    expect(screen.getByRole("button", { name: /Replace/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Cancel item" })).not.toBeInTheDocument()
   })
 
-  it("the Buyer offers a substitute, linked to the item it replaces", async () => {
+  it("Purchasing replaces a product: it needs a reason, cancels the old line and adds the new one", async () => {
     seedItem({ status: "still_canvassing" })
     const user = setupUser()
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
@@ -134,19 +138,31 @@ describe("purchasing", () => {
     const row = await rowNamed("Full Body Harness")
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
-    await user.click(screen.getByRole("button", { name: /Offer a substitute/ }))
+    await user.click(screen.getByRole("button", { name: /Replace/ }))
     const dialog = await screen.findByRole("dialog")
-    expect(within(dialog).getByLabelText("Quantity")).toHaveValue(10)
-    await user.type(within(dialog).getByLabelText("Product name"), "Harness, other brand")
-    await user.click(within(dialog).getByRole("button", { name: "Offer substitute" }))
+    await user.type(within(dialog).getByLabelText("Replace with"), "Harness, other brand")
+    expect(within(dialog).getByRole("button", { name: "Replace product" })).toBeDisabled()
+    await user.type(within(dialog).getByLabelText("Reason"), "Brand out of stock")
+    await user.click(within(dialog).getByRole("button", { name: "Replace product" }))
 
-    const substitute = await rowNamed("Harness, other brand")
-    expect(within(substitute).getByText("Substitute for Full Body Harness")).toBeInTheDocument()
-    expect(within(substitute).getByText("Not checked")).toBeInTheDocument()
+    const replacement = await rowNamed("Harness, other brand")
+    expect(within(replacement).getByText("Substitute for Full Body Harness")).toBeInTheDocument()
+    expect(within(replacement).getByText("Not checked")).toBeInTheDocument()
     await showDoneLines()
     await rowNamed("Full Body Harness")
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cancelled")).toBeInTheDocument())
-    expect(within(currentRow("Full Body Harness")).getByText("Replaced by Harness, other brand")).toBeInTheDocument()
+    expect(
+      within(currentRow("Full Body Harness")).getAllByText("Replaced by Harness, other brand — Brand out of stock").length,
+    ).toBeGreaterThan(0)
+  })
+
+  it("an S0 line that was replaced says the S0 still lists it and stays out of the folded list", async () => {
+    const old = seedItem({ status: "cancelled", s0_still_lists: true, replaced_reason: "Out of stock" })
+    seedItem({ name: "Other brand", substitute_for_item_id: old.id })
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
+
+    expect((await screen.findAllByText(/S0 still lists Full Body Harness · Sales to update the S0/)).length).toBeGreaterThan(0)
+    expect(screen.queryByTestId("done-row")).not.toBeInTheDocument()
   })
 })
 

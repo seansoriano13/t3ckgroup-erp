@@ -489,6 +489,22 @@ export const purchaseRequestService = {
     return data;
   },
 
+  /**
+   * Purchasing replaces product A with another (#687): A is Cancelled with the reason, A's open
+   * Canvass stops, and B becomes its own Other request with A's quantity. One database call.
+   * The reason is required. Returns the new item's id.
+   */
+  async replaceItem(itemId, { name, reason, odooProductId = null }) {
+    const { data, error } = await supabase.rpc("purchase_request_replace_item", {
+      p_item_id: itemId,
+      p_name: name,
+      p_reason: reason,
+      ...(odooProductId && { p_odoo_product_id: odooProductId }),
+    });
+    if (error) throw error;
+    return data;
+  },
+
   // ── Chat (#307) ──────────────────────────────────────────────────────────
 
   /**
