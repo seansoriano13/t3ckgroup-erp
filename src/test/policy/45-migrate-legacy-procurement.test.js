@@ -17,10 +17,14 @@ import { serviceClient, sql } from "./support/stack.js"
 import { MARKER, makeSor, makeTask } from "./support/rows.js"
 import { tryInsert, tryUpdate, tryDelete, canRead, RLS_VIOLATION } from "./support/access.js"
 
+// The file is the one that ran at `db reset`, when items still had the old status words. The
+// status CHECK now holds only the new ones (#676), so the test re-runs it with the same word
+// swap the #676 migration made inside function bodies.
+const OLD_WORDS = { requested: "not_checked", from_stock: "available", to_order: "to_purchase", canvassing: "still_canvassing", ordered: "purchased", substituted: "cancelled" }
 const MIGRATION = readFileSync(
     "supabase/migrations/20261005131000_migrate_legacy_procurement_requests.sql",
     "utf8",
-)
+).replace(/'(requested|from_stock|to_order|canvassing|ordered|substituted)'/g, (_, word) => `'${OLD_WORDS[word]}'`)
 const PURCHASERS = ["stageParticipant", "outsider"]
 const svc = () => serviceClient()
 const runMigration = () => sql().query(MIGRATION)

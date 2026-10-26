@@ -252,7 +252,8 @@ create table if not exists public."costing_component_costs" (
   "odoo_unit" numeric(18,2),
   "final_acquire_unit" numeric(18,2),
   "markup_factor" numeric(10,4),
-  "acquire_from_offer_id" uuid
+  "acquire_from_offer_id" uuid,
+  "p0_unit_price" numeric
 );
 
 create table if not exists public."costing_components" (
@@ -1111,7 +1112,7 @@ create table if not exists public."purchase_request_items" (
   "description" text,
   "images" jsonb not null default '[]'::jsonb,
   "sor_line_snapshot" jsonb,
-  "status" text not null default 'requested'::text,
+  "status" text not null default 'not_checked'::text,
   "po_number" text,
   "po_verification" text not null default 'UNVERIFIED'::text,
   "substitute_for_item_id" uuid,
@@ -1121,7 +1122,24 @@ create table if not exists public."purchase_request_items" (
   "status_changed_at" timestamp with time zone,
   "created_at" timestamp with time zone not null default now(),
   "legacy_procurement_request_id" uuid,
-  "component_id" uuid
+  "component_id" uuid,
+  "sor_item_id" uuid,
+  "removed_from_s0" boolean not null default false,
+  "purpose" text not null default 'client'::text,
+  "stock_short_free" numeric,
+  "stock_short_needed" numeric,
+  "po_state" text,
+  "po_ordered" numeric,
+  "po_received" numeric,
+  "bought_as" text,
+  "replaced_reason" text,
+  "s0_still_lists" boolean not null default false,
+  "po_eta" date,
+  "po_synced_at" timestamp with time zone,
+  "bought_product_id" integer,
+  "new_on_s0" boolean not null default false,
+  "yours_item_id" uuid,
+  "closed_note" text
 );
 
 create table if not exists public."purchase_request_members" (
@@ -1154,7 +1172,9 @@ create table if not exists public."purchase_requests" (
   "access_until" text not null default 'stage_left'::text,
   "access_until_stage_id" uuid,
   "title" text,
-  "requesters" jsonb
+  "requesters" jsonb,
+  "pr_number" text,
+  "for_opportunity_id" uuid
 );
 
 create table if not exists public."push_subscriptions" (
@@ -1277,7 +1297,9 @@ create table if not exists public."sales_opportunity_items" (
   "sort_order" integer not null default 0,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "odoo_product_id" integer
+  "odoo_product_id" integer,
+  "odoo_line_id" bigint,
+  "removed_from_s0" boolean not null default false
 );
 
 create table if not exists public."sales_opportunity_logs" (
@@ -1407,7 +1429,13 @@ create table if not exists public."sor_canvasses" (
   "number" text,
   "reason" text,
   "product_name" text,
-  "canvasser_id" uuid
+  "canvasser_id" uuid,
+  "request_made_at" timestamp with time zone,
+  "lock_released_at" timestamp with time zone,
+  "lock_released_by" uuid,
+  "stopped_at" timestamp with time zone,
+  "stopped_by" uuid,
+  "stopped_reason" text
 );
 
 create table if not exists public."sor_condition_status" (
@@ -1632,7 +1660,8 @@ create table if not exists public."tasks" (
   "held_prev_status" text,
   "held_from_visit_id" uuid,
   "carried_from_visit_id" uuid,
-  "cancelled_by_visit_id" uuid
+  "cancelled_by_visit_id" uuid,
+  "converted_to_group_task_id" uuid
 );
 
 create table if not exists public."transmittal_cleared_signatures" (
@@ -2133,12 +2162,15 @@ alter table purchase_request_item_prices add constraint "purchase_request_item_p
 alter table purchase_request_item_prices add constraint "purchase_request_item_prices_currency_check" CHECK ((currency ~ '^[A-Z]{3}$'::text));
 alter table purchase_request_items add constraint "purchase_request_items_images_chk" CHECK ((jsonb_typeof(images) = 'array'::text));
 alter table purchase_request_items add constraint "purchase_request_items_name_chk" CHECK ((length(btrim(name)) > 0));
+alter table purchase_request_items add constraint "purchase_request_items_po_state_chk" CHECK (((po_state IS NULL) OR (po_state = ANY (ARRAY['rfq'::text, 'confirmed'::text]))));
 alter table purchase_request_items add constraint "purchase_request_items_po_verification_chk" CHECK ((po_verification = ANY (ARRAY['UNVERIFIED'::text, 'VERIFIED'::text, 'PENDING_VERIFICATION'::text, 'NOT_FOUND'::text])));
+alter table purchase_request_items add constraint "purchase_request_items_purpose_check" CHECK (((purpose = ANY (ARRAY['client'::text, 'job'::text])) AND ((purpose = 'client'::text) OR (sor_item_id IS NULL))));
 alter table purchase_request_items add constraint "purchase_request_items_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table purchase_request_items add constraint "purchase_request_items_source_chk" CHECK ((source = ANY (ARRAY['sor_line'::text, 'new'::text, 'component'::text])));
-alter table purchase_request_items add constraint "purchase_request_items_status_chk" CHECK ((status = ANY (ARRAY['requested'::text, 'from_stock'::text, 'to_order'::text, 'canvassing'::text, 'ordered'::text, 'received'::text, 'substituted'::text, 'cannot_source'::text, 'cancelled'::text])));
+alter table purchase_request_items add constraint "purchase_request_items_status_chk" CHECK ((status = ANY (ARRAY['not_checked'::text, 'available'::text, 'to_purchase'::text, 'still_canvassing'::text, 'purchased'::text, 'received'::text, 'cannot_source'::text, 'cancelled'::text])));
 alter table purchase_request_members add constraint "purchase_request_members_side_chk" CHECK ((side = ANY (ARRAY['purchasing'::text, 'sales'::text, 'requester'::text, 'other'::text])));
 alter table purchase_requests add constraint "purchase_requests_access_until_chk" CHECK ((access_until = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
+alter table purchase_requests add constraint "purchase_requests_for_opportunity_chk" CHECK (((for_opportunity_id IS NULL) OR (opportunity_id IS NULL)));
 alter table purchase_requests add constraint "purchase_requests_title_chk" CHECK ((((title IS NULL) OR ((char_length(title) >= 1) AND (char_length(title) <= 120))) AND ((opportunity_id IS NOT NULL) OR (NULLIF(btrim(title), ''::text) IS NOT NULL))));
 alter table retail_orders add constraint "retail_orders_source_check" CHECK ((source = ANY (ARRAY['sync'::text, 'queue'::text, 'sor'::text])));
 alter table sale_types add constraint "sale_types_name_not_blank" CHECK ((btrim(name) <> ''::text));
@@ -2153,8 +2185,8 @@ alter table sil_leaves add constraint "sil_leaves_status_check" CHECK ((status =
 alter table sor_action_runs add constraint "sor_action_runs_outcome_check" CHECK ((outcome = ANY (ARRAY['pending'::text, 'created'::text, 'skipped'::text, 'failed'::text])));
 alter table sor_canvass_offer_prices add constraint "sor_canvass_offer_prices_rate_chk" CHECK (((comparison_rate IS NULL) OR (comparison_rate > (0)::numeric)));
 alter table sor_canvass_offers add constraint "sor_canvass_offers_currency_chk" CHECK ((currency ~ '^[A-Z]{3}$'::text));
-alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_cleared_reason_chk" CHECK (((kind <> 'cleared'::text) OR (length(btrim(COALESCE(reason, ''::text))) > 0)));
-alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_kind_chk" CHECK ((kind = ANY (ARRAY['signed'::text, 'cleared'::text])));
+alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_cleared_reason_chk" CHECK (((kind = 'signed'::text) OR (length(btrim(COALESCE(reason, ''::text))) > 0)));
+alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_kind_chk" CHECK ((kind = ANY (ARRAY['signed'::text, 'cleared'::text, 'unlocked'::text])));
 alter table sor_canvasses add constraint "sor_canvasses_at_most_one_subject_chk" CHECK (((((component_id IS NOT NULL))::integer + ((requested_item_id IS NOT NULL))::integer) <= 1));
 alter table sor_canvasses add constraint "sor_canvasses_says_what_chk" CHECK (((component_id IS NOT NULL) OR (requested_item_id IS NOT NULL) OR (NULLIF(btrim(COALESCE(product_name, ''::text)), ''::text) IS NOT NULL)));
 alter table sor_inclusions add constraint "sor_inclusions_completeness_check" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
@@ -2251,6 +2283,7 @@ alter table costing_tables add constraint "costing_tables_parent_table_fkey" FOR
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_tender_line_id_fkey" FOREIGN KEY (tender_line_id) REFERENCES costing_tender_lines(id) ON DELETE CASCADE;
 alter table costing_tender_lines add constraint "costing_tender_lines_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_tender_lines add constraint "costing_tender_lines_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
+alter table costing_tender_lines add constraint "costing_tender_lines_sor_item_id_fkey" FOREIGN KEY (sor_item_id) REFERENCES sales_opportunity_items(id) ON DELETE SET NULL;
 alter table currency_rates add constraint "currency_rates_currency_fkey" FOREIGN KEY (currency) REFERENCES currency_rate_currencies(currency) ON UPDATE CASCADE;
 alter table currency_rates add constraint "currency_rates_overridden_by_fkey" FOREIGN KEY (overridden_by) REFERENCES employees(id);
 alter table employee_group_members add constraint "employee_group_members_added_by_fkey" FOREIGN KEY (added_by) REFERENCES employees(id) ON DELETE SET NULL;
@@ -2352,8 +2385,10 @@ alter table purchase_request_item_prices add constraint "purchase_request_item_p
 alter table purchase_request_items add constraint "purchase_request_items_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE SET NULL;
 alter table purchase_request_items add constraint "purchase_request_items_request_id_fkey" FOREIGN KEY (request_id) REFERENCES purchase_requests(id) ON DELETE CASCADE;
 alter table purchase_request_items add constraint "purchase_request_items_requested_by_fkey" FOREIGN KEY (requested_by) REFERENCES employees(id);
+alter table purchase_request_items add constraint "purchase_request_items_sor_item_id_fkey" FOREIGN KEY (sor_item_id) REFERENCES sales_opportunity_items(id) ON DELETE SET NULL;
 alter table purchase_request_items add constraint "purchase_request_items_status_changed_by_fkey" FOREIGN KEY (status_changed_by) REFERENCES employees(id);
 alter table purchase_request_items add constraint "purchase_request_items_substitute_for_item_id_fkey" FOREIGN KEY (substitute_for_item_id) REFERENCES purchase_request_items(id) ON DELETE SET NULL;
+alter table purchase_request_items add constraint "purchase_request_items_yours_item_id_fkey" FOREIGN KEY (yours_item_id) REFERENCES purchase_request_items(id) ON DELETE SET NULL;
 alter table purchase_request_members add constraint "purchase_request_members_added_by_fkey" FOREIGN KEY (added_by) REFERENCES employees(id);
 alter table purchase_request_members add constraint "purchase_request_members_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table purchase_request_members add constraint "purchase_request_members_request_id_fkey" FOREIGN KEY (request_id) REFERENCES purchase_requests(id) ON DELETE CASCADE;
@@ -2362,6 +2397,7 @@ alter table purchase_request_messages add constraint "purchase_request_messages_
 alter table purchase_requests add constraint "purchase_requests_access_until_stage_id_fkey" FOREIGN KEY (access_until_stage_id) REFERENCES flow_stages(id);
 alter table purchase_requests add constraint "purchase_requests_buyer_id_fkey" FOREIGN KEY (buyer_id) REFERENCES employees(id);
 alter table purchase_requests add constraint "purchase_requests_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table purchase_requests add constraint "purchase_requests_for_opportunity_id_fkey" FOREIGN KEY (for_opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
 alter table purchase_requests add constraint "purchase_requests_opened_by_action_id_fkey" FOREIGN KEY (opened_by_action_id) REFERENCES flow_stage_actions(id) ON DELETE SET NULL;
 alter table purchase_requests add constraint "purchase_requests_opened_visit_id_fkey" FOREIGN KEY (opened_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table purchase_requests add constraint "purchase_requests_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
@@ -2415,8 +2451,10 @@ alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_event
 alter table sor_canvasses add constraint "sor_canvasses_canvasser_id_fkey" FOREIGN KEY (canvasser_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sor_canvasses add constraint "sor_canvasses_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
 alter table sor_canvasses add constraint "sor_canvasses_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table sor_canvasses add constraint "sor_canvasses_lock_released_by_fkey" FOREIGN KEY (lock_released_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sor_canvasses add constraint "sor_canvasses_requested_item_id_fkey" FOREIGN KEY (requested_item_id) REFERENCES purchase_request_items(id) ON DELETE CASCADE;
 alter table sor_canvasses add constraint "sor_canvasses_signed_off_by_fkey" FOREIGN KEY (signed_off_by) REFERENCES employees(id);
+alter table sor_canvasses add constraint "sor_canvasses_stopped_by_fkey" FOREIGN KEY (stopped_by) REFERENCES employees(id);
 alter table sor_condition_status add constraint "sor_condition_status_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table sor_condition_status add constraint "sor_condition_status_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE CASCADE;
 alter table sor_condition_status add constraint "sor_requirement_status_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
@@ -2468,6 +2506,7 @@ alter table task_tags add constraint "task_tags_created_by_fkey" FOREIGN KEY (cr
 alter table tasks add constraint "tasks_cancelled_by_visit_id_fkey" FOREIGN KEY (cancelled_by_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_category_fk" FOREIGN KEY (category_id) REFERENCES categories(category_id);
+alter table tasks add constraint "tasks_converted_to_group_task_id_fkey" FOREIGN KEY (converted_to_group_task_id) REFERENCES committee_tasks(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_edited_by_fk" FOREIGN KEY (edited_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_evaluated_by_fkey" FOREIGN KEY (evaluated_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_held_from_visit_id_fkey" FOREIGN KEY (held_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
@@ -2616,9 +2655,13 @@ CREATE INDEX pms_handoff_events_record_idx ON public.pms_handoff_events USING bt
 CREATE INDEX purchase_request_items_component_idx ON public.purchase_request_items USING btree (component_id) WHERE (component_id IS NOT NULL);
 CREATE UNIQUE INDEX purchase_request_items_legacy_procurement_request_id_key ON public.purchase_request_items USING btree (legacy_procurement_request_id) WHERE (legacy_procurement_request_id IS NOT NULL);
 CREATE INDEX purchase_request_items_request_id_idx ON public.purchase_request_items USING btree (request_id);
+CREATE INDEX purchase_request_items_sor_item_id_idx ON public.purchase_request_items USING btree (sor_item_id) WHERE (sor_item_id IS NOT NULL);
+CREATE UNIQUE INDEX purchase_request_items_sor_item_uidx ON public.purchase_request_items USING btree (sor_item_id) WHERE (sor_item_id IS NOT NULL);
 CREATE INDEX purchase_request_members_employee_id_idx ON public.purchase_request_members USING btree (employee_id);
 CREATE INDEX purchase_request_messages_request_id_idx ON public.purchase_request_messages USING btree (request_id, created_at);
+CREATE INDEX purchase_requests_for_opportunity_idx ON public.purchase_requests USING btree (for_opportunity_id) WHERE (for_opportunity_id IS NOT NULL);
 CREATE UNIQUE INDEX purchase_requests_opportunity_id_key ON public.purchase_requests USING btree (opportunity_id);
+CREATE UNIQUE INDEX purchase_requests_pr_number_key ON public.purchase_requests USING btree (pr_number);
 CREATE INDEX purchase_requests_unassigned_idx ON public.purchase_requests USING btree (created_at) WHERE (buyer_id IS NULL);
 CREATE INDEX push_subscriptions_employee_id_idx ON public.push_subscriptions USING btree (employee_id);
 CREATE INDEX retail_orders_ordered_at_idx ON public.retail_orders USING btree (ordered_at DESC);
@@ -2634,6 +2677,7 @@ CREATE INDEX sales_opportunities_reg_date_idx ON public.sales_opportunities USIN
 CREATE INDEX sales_opportunities_registered_by_idx ON public.sales_opportunities USING btree (registered_by);
 CREATE INDEX sales_opportunities_sales_reference_idx ON public.sales_opportunities USING btree (sales_reference);
 CREATE INDEX sales_opportunities_status_idx ON public.sales_opportunities USING btree (status);
+CREATE UNIQUE INDEX sales_opportunity_items_odoo_line_uidx ON public.sales_opportunity_items USING btree (opportunity_id, odoo_line_id) WHERE (odoo_line_id IS NOT NULL);
 CREATE INDEX sales_opportunity_items_opp_idx ON public.sales_opportunity_items USING btree (opportunity_id, sort_order);
 CREATE INDEX sales_opportunity_logs_opp_idx ON public.sales_opportunity_logs USING btree (opportunity_id, created_at);
 CREATE INDEX sales_opportunity_logs_stage_visit_id_idx ON public.sales_opportunity_logs USING btree (stage_visit_id);
@@ -3019,30 +3063,33 @@ create policy "Allow read on committee_task_logs" on public."committee_task_logs
   for select
   to authenticated
   using (true);
-create policy "Allow update for authenticated users" on public."committee_task_members"
-  as permissive
-  for update
-  to authenticated
-  using (true);
 create policy "committee_task_members_delete" on public."committee_task_members"
   as permissive
   for delete
   to authenticated
-  using ((is_super_admin() OR (EXISTS ( SELECT 1
-   FROM committee_tasks ct
-  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))));
+  using (can_manage_group_tasks());
 create policy "committee_task_members_insert" on public."committee_task_members"
   as permissive
   for insert
   to authenticated
   with check ((is_super_admin() OR (EXISTS ( SELECT 1
    FROM committee_tasks ct
-  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))));
+  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()) AND (can_manage_group_tasks() OR group_task_is_stage_action(ct.stage_action_id, ct.opportunity_id)))))));
 create policy "committee_task_members_read" on public."committee_task_members"
   as permissive
   for select
   to authenticated
   using (committee_task_visible(committee_task_id));
+create policy "committee_task_members_update" on public."committee_task_members"
+  as permissive
+  for update
+  to authenticated
+  using (((employee_id = get_employee_id()) OR can_manage_group_tasks() OR (EXISTS ( SELECT 1
+   FROM committee_tasks ct
+  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))))
+  with check (((employee_id = get_employee_id()) OR can_manage_group_tasks() OR (EXISTS ( SELECT 1
+   FROM committee_tasks ct
+  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))));
 create policy "committee_task_tags_delete_owner" on public."committee_task_tags"
   as permissive
   for delete
@@ -3067,11 +3114,16 @@ create policy "Allow update for authenticated users" on public."committee_tasks"
   for update
   to authenticated
   using (true);
+create policy "committee_tasks_delete" on public."committee_tasks"
+  as permissive
+  for delete
+  to authenticated
+  using (can_manage_group_tasks());
 create policy "committee_tasks_insert" on public."committee_tasks"
   as permissive
   for insert
   to authenticated
-  with check ((created_by = get_employee_id()));
+  with check (((created_by = get_employee_id()) AND (can_manage_group_tasks() OR group_task_is_stage_action(stage_action_id, opportunity_id))));
 create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
@@ -4434,6 +4486,20 @@ create policy "undertime_requests_update" on public."undertime_requests"
 -- Functions
 -- ============================================================
 
+CREATE OR REPLACE FUNCTION public._canvass_item_component(p_requested_item_id uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case when count(*) = 1 then (array_agg(c.id))[1] end
+    from public.purchase_request_items i
+    join public.costing_tender_lines l on l.sor_item_id = i.sor_item_id
+    join public.costing_components c on c.tender_line_id = l.id
+   where i.id = p_requested_item_id
+     and i.sor_item_id is not null;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._costing_action_open_args(p_opp sales_opportunities, p_config jsonb, p_visit uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -4617,6 +4683,27 @@ AS $function$
       and e.has_purchasing_flow
       and not coalesce(e.is_deleted, false)
   );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._flag_short_available_items()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  update public.purchase_request_items i
+     set stock_short_free = coalesce((NEW.data->'products'->(i.odoo_product_id::text)->>'free')::numeric, 0),
+         stock_short_needed = i.quantity
+    from public.purchase_requests r
+   where r.id = i.request_id
+     and r.opportunity_id = NEW.opportunity_id
+     and i.status = 'available'
+     and i.odoo_product_id is not null
+     and NEW.data->'products'->(i.odoo_product_id::text)->>'type' = 'product'
+     and coalesce((NEW.data->'products'->(i.odoo_product_id::text)->>'free')::numeric, 0) < i.quantity;
+  return null;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_account_key(p_account text)
@@ -5805,6 +5892,14 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_amount(p_quantity numeric, p_unit text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select trim_scale(p_quantity)::text || coalesce(' ' || nullif(btrim(p_unit), ''), '');
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_for_adding(p_request_id uuid, p_fn text)
  RETURNS purchase_requests
  LANGUAGE plpgsql
@@ -5888,7 +5983,7 @@ CREATE OR REPLACE FUNCTION public._purchase_request_item_is_closed(p_status text
  IMMUTABLE
  SET search_path TO 'public'
 AS $function$
-  select p_status in ('from_stock', 'received', 'substituted', 'cannot_source', 'cancelled');
+  select p_status in ('available', 'received', 'cannot_source', 'cancelled');
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._purchase_request_item_move(p_item purchase_request_items, p_to text, p_side text, p_actor uuid, p_details jsonb, p_fn text)
@@ -5900,7 +5995,7 @@ AS $function$
 declare
   v_item public.purchase_request_items;
 begin
-  if p_item.status = p_to then
+  if p_item.status = p_to and not (p_to = 'available' and p_item.stock_short_free is not null) then
     raise exception '%: the item is already %', p_fn, public._purchase_request_item_status_label(p_to)
       using errcode = '22023';
   end if;
@@ -5917,7 +6012,7 @@ begin
   end if;
 
   update public.purchase_request_items
-     set status = p_to,
+     set status = p_to, stock_short_free = null, stock_short_needed = null,
          status_changed_by = p_actor,
          status_changed_at = now()
    where id = p_item.id
@@ -5950,15 +6045,14 @@ CREATE OR REPLACE FUNCTION public._purchase_request_item_status_label(p_status t
  SET search_path TO 'public'
 AS $function$
   select case p_status
-    when 'requested'     then 'Requested'
-    when 'from_stock'    then 'From stock'
-    when 'to_order'      then 'To order'
-    when 'canvassing'    then 'Canvassing'
-    when 'ordered'       then 'Ordered'
-    when 'received'      then 'Received'
-    when 'substituted'   then 'Substituted'
-    when 'cannot_source' then 'Cannot source'
-    when 'cancelled'     then 'Cancelled'
+    when 'not_checked'      then 'Not checked'
+    when 'available'        then 'Available'
+    when 'to_purchase'      then 'To purchase'
+    when 'still_canvassing' then 'Still canvassing'
+    when 'purchased'        then 'Purchased'
+    when 'received'         then 'Received'
+    when 'cannot_source'    then 'Cannot source'
+    when 'cancelled'        then 'Cancelled'
     else p_status
   end;
 $function$
@@ -5970,14 +6064,14 @@ CREATE OR REPLACE FUNCTION public._purchase_request_item_transition_ok(p_from te
  SET search_path TO 'public'
 AS $function$
   select case
+    when p_to in ('available', 'to_purchase')
+         and p_from in ('not_checked', 'available', 'to_purchase')
+         and p_side in ('purchasing', 'sales', 'other') then true
     when public._purchase_request_item_is_closed(p_from) then false
-    when p_side in ('sales', 'requester') then p_to = 'cancelled'
     when p_side = 'purchasing' then
-      p_to in ('substituted', 'cannot_source', 'cancelled')
-      or (p_from = 'requested'  and p_to in ('from_stock', 'to_order'))
-      or (p_from = 'to_order'   and p_to in ('canvassing', 'ordered'))
-      or (p_from = 'canvassing' and p_to = 'ordered')
-      or (p_from = 'ordered'    and p_to = 'received')
+      p_to in ('cannot_source', 'cancelled')
+      or (p_from = 'to_purchase' and p_to = 'still_canvassing')
+    when p_side in ('sales', 'requester') then p_to = 'cancelled'
     else false
   end;
 $function$
@@ -6331,8 +6425,8 @@ begin
     raise exception 'purchase_request_set_item_status: not signed in' using errcode = '42501';
   end if;
   if p_status is null or p_status not in (
-    'requested', 'from_stock', 'to_order', 'canvassing', 'ordered', 'received',
-    'substituted', 'cannot_source', 'cancelled'
+    'not_checked', 'available', 'to_purchase', 'still_canvassing', 'purchased', 'received',
+    'cannot_source', 'cancelled'
   ) then
     raise exception 'purchase_request_set_item_status: % is not an item status', coalesce(p_status, 'null') using errcode = '22023';
   end if;
@@ -6345,14 +6439,14 @@ begin
       using errcode = '42501';
   end if;
 
-  -- Only Ordered takes details: its PO number and what Odoo said about it.
-  if p_status <> 'ordered' and v_details <> '{}'::jsonb then
+  -- Only Purchased takes details: its PO number and what Odoo said about it.
+  if p_status <> 'purchased' and v_details <> '{}'::jsonb then
     raise exception 'purchase_request_set_item_status: % takes no details', public._purchase_request_item_status_label(p_status)
       using errcode = '22023';
   end if;
   for v_key in select jsonb_object_keys(v_details) loop
     if v_key not in ('po_number', 'po_verification') then
-      raise exception 'purchase_request_set_item_status: Ordered takes a PO number and its check, not %', v_key
+      raise exception 'purchase_request_set_item_status: Purchased takes a PO number and its check, not %', v_key
         using errcode = '22023';
     end if;
   end loop;
@@ -6477,6 +6571,72 @@ begin
     false
   );
   return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_sync_sor_items(p_request_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_line public.sales_opportunity_items;
+begin
+  for v_line in
+    select l.*
+    from public.purchase_requests r
+    join public.sales_opportunity_items l on l.opportunity_id = r.opportunity_id
+    where r.id = p_request_id
+    order by l.sort_order, l.created_at, l.id
+  loop
+    perform public._purchase_request_sync_sor_line(v_line);
+  end loop;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_sync_sor_line(p_line sales_opportunity_items)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_req    public.purchase_requests;
+  v_name   text := btrim(p_line.product_name);
+  v_unit   text := nullif(btrim(p_line.unit), '');
+begin
+  if v_name is null or v_name = '' then
+    return;
+  end if;
+
+  select * into v_req from public.purchase_requests where opportunity_id = p_line.opportunity_id;
+  if v_req.id is null then
+    return;
+  end if;
+
+  insert into public.purchase_request_items
+    (request_id, source, odoo_product_id, sor_item_id, name, unit, quantity, sor_line_snapshot,
+     removed_from_s0, requested_by)
+  values
+    (v_req.id, 'sor_line', p_line.odoo_product_id, p_line.id, v_name, v_unit,
+     case when coalesce(p_line.quantity, 0) > 0 then p_line.quantity else 1 end,
+     jsonb_build_object('name', v_name, 'quantity', p_line.quantity, 'unit', v_unit),
+     p_line.removed_from_s0, v_req.created_by)
+  on conflict (sor_item_id) where sor_item_id is not null do update
+  set odoo_product_id = excluded.odoo_product_id,
+      name = excluded.name,
+      unit = excluded.unit,
+      -- A line with no quantity leaves the item's quantity as it was.
+      quantity = case when coalesce(p_line.quantity, 0) > 0 then p_line.quantity else purchase_request_items.quantity end,
+      sor_line_snapshot = excluded.sor_line_snapshot,
+      removed_from_s0 = excluded.removed_from_s0
+  where (purchase_request_items.odoo_product_id, purchase_request_items.name, purchase_request_items.unit,
+         purchase_request_items.quantity, purchase_request_items.removed_from_s0)
+        is distinct from
+        (excluded.odoo_product_id, excluded.name, excluded.unit,
+         case when coalesce(p_line.quantity, 0) > 0 then p_line.quantity else purchase_request_items.quantity end,
+         excluded.removed_from_s0);
 end;
 $function$
 ;
@@ -7159,6 +7319,20 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.can_manage_group_tasks()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(
+    (select e.is_head or e.is_hr or e.is_super_admin
+       from public.employees e
+      where e.id = public.get_employee_id()),
+    false
+  )
+$function$
+;
 CREATE OR REPLACE FUNCTION public.can_manage_leaves()
  RETURNS boolean
  LANGUAGE sql
@@ -7452,6 +7626,139 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.canvass_add_to_purchase_request(p_request_id uuid, p_items jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_req      public.purchase_requests;
+  v_entry    jsonb;
+  v_id       uuid;
+  v_item_id  uuid;
+  v_seen     uuid[] := '{}';
+  v_seen_items uuid[] := '{}';
+  v_canvass  public.sor_canvasses;
+  v_winner   public.sor_canvass_offers;
+  v_price    public.sor_canvass_offer_prices;
+  v_item     public.purchase_request_items;
+  v_name     text;
+  v_desc     text;
+  v_qty      numeric;
+  v_unit     text;
+  v_made     jsonb := '[]'::jsonb;
+  v_unsigned jsonb := '[]'::jsonb;
+begin
+  v_req := public._purchase_request_for_adding(p_request_id, 'canvass_add_to_purchase_request');
+  if not public.canvass_can_write() then
+    raise exception 'canvass_add_to_purchase_request: only Purchasing adds Canvasses to a Purchase Request'
+      using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'canvass_add_to_purchase_request: pick at least one Canvass' using errcode = '22023';
+  end if;
+  if jsonb_array_length(p_items) > 50 then
+    raise exception 'canvass_add_to_purchase_request: at most 50 Canvasses at once' using errcode = '22023';
+  end if;
+
+  -- Check every entry first, locking each Canvass so nobody else turns it into a request meanwhile.
+  for v_entry in select * from jsonb_array_elements(p_items)
+  loop
+    v_id := nullif(v_entry ->> 'canvass_id', '')::uuid;
+    v_item_id := nullif(v_entry ->> 'item_id', '')::uuid;
+
+    -- The same lock a winner pick takes, so the winner can't change between this check and the copy.
+    perform pg_advisory_xact_lock(hashtext('canvass_winner:' || coalesce(v_id::text, '')));
+    select * into v_canvass from public.sor_canvasses where id = v_id for update;
+    if not found then
+      raise exception 'canvass_add_to_purchase_request: a picked Canvass was not found' using errcode = 'P0002';
+    end if;
+    if v_id = any (v_seen) then
+      raise exception 'canvass_add_to_purchase_request: % is picked twice', v_canvass.number using errcode = '22023';
+    end if;
+    v_seen := v_seen || v_id;
+    if v_canvass.component_id is not null or v_canvass.requested_item_id is not null then
+      raise exception 'canvass_add_to_purchase_request: % already belongs to a Component or a Requested Item', v_canvass.number
+        using errcode = '55000';
+    end if;
+    if not exists (select 1 from public.sor_canvass_offers o where o.canvass_id = v_id and o.is_winner) then
+      raise exception 'canvass_add_to_purchase_request: % has no winner yet', v_canvass.number using errcode = '22023';
+    end if;
+    if v_canvass.signed_off_at is null then
+      v_unsigned := v_unsigned || to_jsonb(v_id);
+    end if;
+
+    if v_item_id is not null then
+      select * into v_item from public.purchase_request_items where id = v_item_id for update;
+      if not found or v_item.request_id <> p_request_id then
+        raise exception 'canvass_add_to_purchase_request: % is not an item of this request', v_item_id using errcode = 'P0002';
+      end if;
+      -- Past Canvassing the buying is done: the Canvass would lock at once and overwrite the item's price.
+      if v_item.status not in ('not_checked', 'to_purchase', 'still_canvassing') then
+        raise exception 'canvass_add_to_purchase_request: % is already past canvassing, so a Canvass can''t be attached to it', v_item.name
+          using errcode = '55000';
+      end if;
+      if v_item_id = any (v_seen_items) then
+        raise exception 'canvass_add_to_purchase_request: two Canvasses were picked for %', v_item.name using errcode = '22023';
+      end if;
+      v_seen_items := v_seen_items || v_item_id;
+      if exists (
+        select 1 from public.sor_canvasses c
+         where c.requested_item_id = v_item_id
+            or (v_item.component_id is not null and c.component_id = v_item.component_id)
+      ) then
+        raise exception 'canvass_add_to_purchase_request: % already has a Canvass', v_item.name using errcode = '55000';
+      end if;
+    end if;
+  end loop;
+
+  for v_entry in select * from jsonb_array_elements(p_items)
+  loop
+    v_id := (v_entry ->> 'canvass_id')::uuid;
+    v_item_id := nullif(v_entry ->> 'item_id', '')::uuid;
+    select * into v_canvass from public.sor_canvasses where id = v_id;
+    select * into v_winner from public.sor_canvass_offers where canvass_id = v_id and is_winner;
+
+    if v_item_id is null then
+      v_name := coalesce(
+        nullif(btrim(coalesce(v_canvass.product_name, '')), ''),
+        nullif(btrim(coalesce(v_winner.brand, '')), ''),
+        v_canvass.number
+      );
+      v_desc := nullif(concat_ws(E'\n',
+        nullif(concat_ws(' · ',
+          nullif(btrim(coalesce(v_winner.supplier_name, '')), ''),
+          nullif(btrim(coalesce(v_winner.brand, '')), '')
+        ), ''),
+        nullif(btrim(coalesce(v_winner.description, '')), ''),
+        'From Canvass ' || v_canvass.number
+      ), '');
+      v_qty := coalesce(nullif(v_entry ->> 'quantity', '')::numeric, 1);
+      v_unit := nullif(btrim(coalesce(v_entry ->> 'unit', '')), '');
+      v_item_id := public.purchase_request_add_new_item(p_request_id, v_name, v_qty, v_unit, v_desc, '[]'::jsonb);
+    end if;
+
+    -- The winner's price goes on the item, in the money table only Purchasing, Finance and
+    -- Super Admin can read (#582). A winner with no price writes nothing.
+    select * into v_price from public.sor_canvass_offer_prices where offer_id = v_winner.id;
+    if found and v_price.unit_price is not null then
+      insert into public.purchase_request_item_prices (item_id, unit_price, currency, comparison_rate)
+      values (v_item_id, v_price.unit_price, v_winner.currency, v_price.comparison_rate)
+      on conflict (item_id) do update
+        set unit_price = excluded.unit_price, currency = excluded.currency,
+            comparison_rate = excluded.comparison_rate, updated_at = now();
+    end if;
+
+    -- The Canvass re-points at the item, keeping its number, Offers and reason; this locks it.
+    update public.sor_canvasses set requested_item_id = v_item_id where id = v_id;
+    v_made := v_made || jsonb_build_array(jsonb_build_object('canvass_id', v_id, 'item_id', v_item_id));
+  end loop;
+
+  return jsonb_build_object('request_id', p_request_id, 'items', v_made, 'unsigned_canvass_ids', v_unsigned);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.canvass_apply_winner(p_canvass_id uuid, p_offer_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -7471,6 +7778,7 @@ declare
   v_kept     jsonb;
   v_docs     jsonb;
   v_spec     boolean;
+  v_component_id uuid;
 begin
   if v_actor is null then
     raise exception 'canvass_apply_winner: sign in first' using errcode = '42501';
@@ -7505,16 +7813,20 @@ begin
   update public.sor_canvass_offers set is_winner = true
     where id = p_offer_id and not is_winner;
 
-  -- A Canvass on a Requested Item fills nothing: there is no matrix row.
-  if v_canvass.component_id is null then
+  -- A Canvass on a product line fills the Component linked to the line's SOR line (#682).
+  v_component_id := v_canvass.component_id;
+  if v_component_id is null and v_canvass.requested_item_id is not null then
+    v_component_id := public._canvass_item_component(v_canvass.requested_item_id);
+  end if;
+  if v_component_id is null then
     return jsonb_build_object('offer_id', p_offer_id, 'filled', v_filled);
   end if;
 
-  select * into v_comp from public.costing_components where id = v_canvass.component_id for update;
+  select * into v_comp from public.costing_components where id = v_component_id for update;
   if not found then
     raise exception 'canvass_apply_winner: not found' using errcode = 'P0002';
   end if;
-  select * into v_cost from public.costing_component_costs where component_id = v_canvass.component_id;
+  select * into v_cost from public.costing_component_costs where component_id = v_component_id;
 
   -- Writes below are the caller's own (auth.uid() is still the caller), so the band triggers judge
   -- them; the flag only tells the mark-nulling trigger this is the fill.
@@ -7525,7 +7837,7 @@ begin
     v_acquire := round(case when v_offer.currency = 'PHP' then v_price else v_price * v_rate end, 2);
     if v_cost.acquire_from_offer_id is not null or v_cost.acquire_unit is null then
       perform public.costing_set_money(
-        'costing_component_costs', v_canvass.component_id,
+        'costing_component_costs', v_component_id,
         jsonb_build_object('acquire_unit', v_acquire, 'acquire_from_offer_id', p_offer_id)
       );
       v_filled := v_filled || jsonb_build_object('acquire', true);
@@ -7534,7 +7846,7 @@ begin
     -- The figure came from an earlier winner and this one has no price: keep the figure, drop
     -- the claim that the Canvass backs it.
     perform public.costing_set_money(
-      'costing_component_costs', v_canvass.component_id,
+      'costing_component_costs', v_component_id,
       jsonb_build_object('acquire_from_offer_id', null)
     );
   end if;
@@ -7559,18 +7871,18 @@ begin
     update public.costing_components
        set offer_specification = btrim(v_offer.description),
            offer_specification_from_offer_id = p_offer_id
-     where id = v_canvass.component_id;
+     where id = v_component_id;
     v_filled := v_filled || jsonb_build_object('offer_specification', true);
   elsif v_comp.offer_specification_from_offer_id is not null
         and nullif(btrim(coalesce(v_offer.description, '')), '') is null then
     -- Same as Acquire: the text stays, the "from Canvass" claim goes.
     update public.costing_components
        set offer_specification_from_offer_id = null
-     where id = v_canvass.component_id;
+     where id = v_component_id;
   end if;
 
   if v_docs is distinct from v_comp.documents then
-    update public.costing_components set documents = v_docs where id = v_canvass.component_id;
+    update public.costing_components set documents = v_docs where id = v_component_id;
     v_filled := v_filled || jsonb_build_object('documents', true);
   end if;
 
@@ -7878,6 +8190,20 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.canvass_is_locked(p_canvass_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(
+    (select c.request_made_at is not null and c.lock_released_at is null
+       from public.sor_canvasses c
+      where c.id = p_canvass_id),
+    false
+  )
+$function$
+;
 CREATE OR REPLACE FUNCTION public.canvass_is_ready(p_canvass_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -7894,7 +8220,7 @@ AS $function$
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.canvass_list()
- RETURNS TABLE(id uuid, number text, kind text, product_name text, subject_name text, component_id uuid, component_number text, requested_item_id uuid, request_id uuid, request_label text, opportunity_id uuid, sales_reference text, project_title text, canvasser_id uuid, canvasser_name text, offer_count integer, winner_offer_id uuid, winner_supplier text, winner_brand text, signed_off_at timestamp with time zone, signer_name text, created_by uuid, created_at timestamp with time zone, updated_at timestamp with time zone)
+ RETURNS TABLE(id uuid, number text, kind text, product_name text, subject_name text, component_id uuid, component_number text, requested_item_id uuid, request_id uuid, request_label text, request_item_status text, opportunity_id uuid, sales_reference text, project_title text, canvasser_id uuid, canvasser_name text, offer_count integer, winner_offer_id uuid, winner_supplier text, winner_brand text, signed_off_at timestamp with time zone, signer_name text, created_by uuid, created_at timestamp with time zone, updated_at timestamp with time zone, locked boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -7917,6 +8243,7 @@ AS $function$
          c.requested_item_id,
          req.id,
          case when req.id is not null then public._purchase_request_label(req.id) end,
+         item.status,
          opp.id,
          opp.sales_reference,
          opp.project_title,
@@ -7930,7 +8257,8 @@ AS $function$
          signer.name,
          c.created_by,
          c.created_at,
-         c.updated_at
+         c.updated_at,
+         public.canvass_is_locked(c.id)
     from public.sor_canvasses c
     left join public.costing_components comp on comp.id = c.component_id
     left join public.costing_tender_lines t on t.id = comp.tender_line_id
@@ -8086,6 +8414,56 @@ AS $function$
     and c.po_rfq_no is not null
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.canvass_refuse_edit_when_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if (new.reason is distinct from old.reason or new.product_name is distinct from old.product_name)
+     and public.canvass_is_locked(old.id) then
+    raise exception 'This Canvass is locked, so its reason and product name can''t change. A Super Admin can unlock it.'
+      using errcode = '55000';
+  end if;
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_refuse_offer_change_when_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_canvass uuid := case when tg_op = 'DELETE' then old.canvass_id else new.canvass_id end;
+begin
+  if public.canvass_is_locked(v_canvass) then
+    raise exception 'This Canvass is locked, so its offers and winner can''t change. A Super Admin can unlock it.'
+      using errcode = '55000';
+  end if;
+  return coalesce(new, old);
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_refuse_price_change_when_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_offer   uuid := case when tg_op = 'DELETE' then old.offer_id else new.offer_id end;
+  v_canvass uuid;
+begin
+  -- The Offer is gone (it was removed, or its Canvass was): its own guard has spoken.
+  select canvass_id into v_canvass from public.sor_canvass_offers where id = v_offer;
+  if v_canvass is not null and public.canvass_is_locked(v_canvass) then
+    raise exception 'This Canvass is locked, so its prices can''t change. A Super Admin can unlock it.'
+      using errcode = '55000';
+  end if;
+  return coalesce(new, old);
+end
+$function$
+;
 CREATE OR REPLACE FUNCTION public.canvass_sign(p_canvass_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -8165,6 +8543,19 @@ begin
          and l.employee_id is distinct from v_creator
     ), '[]'::jsonb)
   );
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_stamp_request_made()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if old.requested_item_id is null and new.requested_item_id is not null and new.request_made_at is null then
+    new.request_made_at := now();
+  end if;
+  return new;
 end
 $function$
 ;
@@ -8257,11 +8648,74 @@ AS $function$
   end
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.canvass_unlock(p_canvass_id uuid, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_reason text := btrim(coalesce(p_reason, ''));
+begin
+  if public.get_employee_id() is null then
+    raise exception 'canvass_unlock: sign in first' using errcode = '42501';
+  end if;
+  if not coalesce(public.is_super_admin(), false) then
+    raise exception 'canvass_unlock: only a Super Admin can unlock a Canvass' using errcode = '42501';
+  end if;
+  if v_reason = '' then
+    raise exception 'canvass_unlock: say why it is being unlocked' using errcode = '22023';
+  end if;
+
+  -- The same lock the winner functions take, so an unlock never interleaves with a pick.
+  perform pg_advisory_xact_lock(hashtext('canvass_winner:' || p_canvass_id::text));
+
+  if not exists (select 1 from public.sor_canvasses where id = p_canvass_id) then
+    raise exception 'canvass_unlock: not found' using errcode = 'P0002';
+  end if;
+  if not public.canvass_is_locked(p_canvass_id) then
+    return jsonb_build_object('canvass_id', p_canvass_id, 'unlocked', false);
+  end if;
+
+  update public.sor_canvasses
+     set lock_released_at = now(), lock_released_by = public.get_employee_id()
+   where id = p_canvass_id;
+
+  insert into public.sor_canvass_signoff_events (canvass_id, kind, actor_id, reason, offer_count)
+  values (
+    p_canvass_id, 'unlocked', public.get_employee_id(), v_reason,
+    (select count(*) from public.sor_canvass_offers where canvass_id = p_canvass_id)
+  );
+
+  return jsonb_build_object('canvass_id', p_canvass_id, 'unlocked', true);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.cash_dist(money, money)
  RETURNS money
  LANGUAGE c
  IMMUTABLE PARALLEL SAFE STRICT
 AS '$libdir/btree_gist', $function$cash_dist$function$
+;
+CREATE OR REPLACE FUNCTION public.chat_message_update_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if coalesce(old.metadata ->> 'removed', 'false') = 'true' then
+    if new.content is distinct from old.content or new.metadata is distinct from old.metadata then
+      raise exception 'This message was removed' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  if current_user in ('authenticated', 'anon') and (old.type = 'COMMENT' or new.type = 'COMMENT') then
+    raise exception 'Chat messages can only be changed through reactions or unsend' using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.clear_issued_password_flag()
  RETURNS void
@@ -8312,6 +8766,37 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.close_windows_for_cancelled_stage_task(p_opportunity_id uuid, p_action_id uuid, p_visit_id uuid, p_employee_ids uuid[])
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if p_opportunity_id is null or p_action_id is null or p_visit_id is null then
+    return;
+  end if;
+  update public.sor_stage_participants
+  set closed_at = now(), closed_reason = 'task_cancelled'
+  where closed_at is null
+    and source = 'action'
+    and opportunity_id = p_opportunity_id
+    and source_id = p_action_id
+    and opened_visit_id = p_visit_id
+    and employee_id = any (p_employee_ids)
+    -- keep a window another live task from the same call-in still holds open
+    and not exists (select 1 from public.tasks t2
+      where t2.status <> 'DELETED' and t2.opportunity_id = p_opportunity_id
+        and t2.stage_action_id = p_action_id and t2.stage_visit_id = p_visit_id
+        and t2.logged_by = sor_stage_participants.employee_id)
+    and not exists (select 1 from public.committee_tasks c2
+      join public.committee_task_members m2 on m2.committee_task_id = c2.id
+      where c2.status <> 'CANCELLED' and c2.opportunity_id = p_opportunity_id
+        and c2.stage_action_id = p_action_id and c2.stage_visit_id = p_visit_id
+        and m2.employee_id = sor_stage_participants.employee_id);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.committee_task_visible(p_task_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -8334,6 +8819,189 @@ AS $function$
   )
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.committee_tasks_cancel_closes_windows()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.status = 'CANCELLED' and old.status is distinct from 'CANCELLED' then
+    perform public.close_windows_for_cancelled_stage_task(
+      new.opportunity_id, new.stage_action_id, new.stage_visit_id,
+      (select coalesce(array_agg(m.employee_id), '{}') from public.committee_task_members m
+        where m.committee_task_id = new.id));
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.committee_tasks_guard_manage()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  -- Only direct end-user writes are checked. SECURITY DEFINER callers (stage revert / hold /
+  -- resume RPCs) run as the function owner, service role and migrations run as other roles, so
+  -- current_user tells a system flow apart from a person at a client. The trigger itself is
+  -- SECURITY INVOKER for exactly this reason.
+  if current_user not in ('authenticated', 'anon') or auth.uid() is null then
+    return new;
+  end if;
+
+  if public.can_manage_group_tasks()
+     or public.group_task_is_stage_action(new.stage_action_id, new.opportunity_id) then
+    return new;
+  end if;
+
+  if new.title is distinct from old.title
+     or new.description is distinct from old.description
+     or new.due_date is distinct from old.due_date
+     or new.start_date is distinct from old.start_date
+     or new.lead_time is distinct from old.lead_time
+     or new.committee_role is distinct from old.committee_role
+     or new.template_id is distinct from old.template_id
+     or new.opportunity_id is distinct from old.opportunity_id
+     or new.created_by is distinct from old.created_by then
+    raise exception 'Only department heads, HR and Super Admins can edit Group Task details'
+      using errcode = '42501';
+  end if;
+
+  -- A manual cancel by a non-manager is refused whatever cancel_reason says.
+  if new.status = 'CANCELLED' and old.status is distinct from 'CANCELLED' then
+    raise exception 'Only department heads, HR and Super Admins can cancel a Group Task'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.convert_task_to_group_task(p_task_id uuid, p_member_ids uuid[] DEFAULT '{}'::uuid[])
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_me uuid := public.get_employee_id();
+  v_task public.tasks%rowtype;
+  v_group_id uuid;
+  v_title text;
+  v_owner_dept text;
+  v_my_dept text;
+  v_member uuid;
+begin
+  if v_me is null or not public.can_manage_group_tasks() then
+    raise exception 'Only department heads, HR and Super Admins can convert a task into a Group Task.'
+      using errcode = '42501';
+  end if;
+
+  select * into v_task from public.tasks where id = p_task_id for update;
+  if not found then
+    raise exception 'Task not found.' using errcode = 'P0002';
+  end if;
+
+  if v_task.converted_to_group_task_id is not null then
+    raise exception 'This task was already converted into a Group Task.' using errcode = '22023';
+  end if;
+  if v_task.stage_action_id is not null then
+    raise exception 'A task made by an SOR Stage Action can''t be converted.' using errcode = '22023';
+  end if;
+  if v_task.status in ('AWAITING APPROVAL', 'COMPLETED', 'DELETED', 'CANCELLED', 'ON_HOLD')
+     or coalesce(v_task.hr_verified, false) then
+    raise exception 'Only an open task can be converted; this one is submitted, approved, cancelled or on hold.'
+      using errcode = '22023';
+  end if;
+
+  -- Reach: Super Admins and HR convert any task; a head only tasks they own, receive or that
+  -- belong to their department.
+  if not (public.is_super_admin() or exists (select 1 from public.employees where id = v_me and is_hr)) then
+    select department into v_my_dept from public.employees where id = v_me;
+    select department into v_owner_dept from public.employees where id = v_task.logged_by;
+    if v_task.logged_by is distinct from v_me
+       and v_task.reported_to is distinct from v_me
+       and v_my_dept is distinct from v_owner_dept then
+      raise exception 'You can only convert tasks you own, receive or that are in your department.'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  v_title := coalesce(nullif(btrim(v_task.project_title), ''), left(btrim(coalesce(v_task.task_description, '')), 80));
+  if v_title = '' then v_title := 'Converted task'; end if;
+
+  insert into public.committee_tasks (title, description, created_by, due_date, status, opportunity_id)
+  values (v_title, v_task.task_description, v_me, v_task.end_at, 'ACTIVE', v_task.opportunity_id)
+  returning id into v_group_id;
+
+  -- Owner first (carries the checklist and attachments), then the chosen members.
+  if v_task.logged_by is not null then
+    insert into public.committee_task_members (committee_task_id, employee_id, task_description, checklist, attachments)
+    values (v_group_id, v_task.logged_by, coalesce(v_task.task_description, ''), v_task.checklist,
+            to_jsonb(coalesce(v_task.attachment_urls, '{}'::text[])));
+  end if;
+  foreach v_member in array coalesce(p_member_ids, '{}') loop
+    if v_member is distinct from v_task.logged_by
+       and not exists (select 1 from public.committee_task_members
+                        where committee_task_id = v_group_id and employee_id = v_member) then
+      insert into public.committee_task_members (committee_task_id, employee_id, task_description)
+      values (v_group_id, v_member, '');
+    end if;
+  end loop;
+
+  -- Chat/activity history: same ids, so replies and reactions that name a message still resolve.
+  insert into public.committee_task_activity (id, task_id, author_id, type, content, metadata, created_at)
+  select a.id, v_group_id, a.author_id, a.type, a.content, a.metadata, a.created_at
+  from public.task_activity a
+  where a.task_id = p_task_id;
+
+  -- Unread state follows the thread.
+  insert into public.chat_read_receipts (user_id, entity_type, entity_id, last_read_at)
+  select r.user_id, 'GROUP_TASK', v_group_id::text, r.last_read_at
+  from public.chat_read_receipts r
+  where r.entity_type = 'TASK' and r.entity_id = p_task_id::text
+  on conflict do nothing;
+
+  -- The old task steps aside; old links read converted_to_group_task_id.
+  update public.tasks
+  set status = 'DELETED', converted_to_group_task_id = v_group_id
+  where id = p_task_id;
+
+  -- Chat and assignment alerts that pointed at the old task now lead to the Group Task. Approval,
+  -- rejection, grading and submit alerts are left alone: conversion only takes open tasks, so those
+  -- are history about the old task, and a Group Task has no matching approval flow to open.
+  update public.notifications n
+  set reference_id = v_group_id::text,
+      type = case n.type
+        when 'TASK_MENTION' then 'GROUP_TASK_MENTION'
+        when 'TASK_REACTION' then 'GROUP_TASK_REACTION'
+        when 'TASK_COMMENT' then 'GROUP_TASK_COMMENT'
+        when 'TASK_ASSIGNED' then 'GROUP_ASSIGNED'
+      end
+  where n.reference_id = p_task_id::text
+    and n.type in ('TASK_MENTION', 'TASK_REACTION', 'TASK_COMMENT', 'TASK_ASSIGNED');
+
+  insert into public.committee_task_logs (committee_task_id, action, actor_id, details)
+  values (v_group_id, 'CREATED', v_me, jsonb_build_object('title', v_title, 'converted_from_task_id', p_task_id));
+
+  insert into public.system_audit_logs (author_id, entity_type, entity_id, content, type, metadata)
+  values (v_me, 'GROUP_TASK', v_group_id::text,
+          'Converted task into Group Task "' || v_title || '"', 'TASK_CONVERTED',
+          jsonb_build_object('task_id', p_task_id, 'group_task_id', v_group_id,
+                             'owner_id', v_task.logged_by, 'member_ids', to_jsonb(coalesce(p_member_ids, '{}'))));
+
+  -- Tell the people added (not the caller).
+  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select m.employee_id, v_me, 'GROUP_ASSIGNED', 'Added to a Group Task',
+         'You were added to the Group Task "' || v_title || '".', v_group_id::text
+  from public.committee_task_members m
+  where m.committee_task_id = v_group_id and m.employee_id <> v_me;
+
+  return v_group_id;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_accept_brand(p_component_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -8352,8 +9020,9 @@ begin
   if v_opp is null then
     raise exception 'costing_accept_brand: not found' using errcode = '22023';
   end if;
-  if not (public.costing_can_read(v_opp) and public.costing_in_band(v_opp, 'sales')) then
-    raise exception 'costing_accept_brand: only the Deal Team can accept a brand' using errcode = '42501';
+  if not (public.costing_can_read(v_opp)
+          and (public.costing_in_band(v_opp, 'sales') or public.costing_in_band(v_opp, 'purchasing'))) then
+    raise exception 'costing_accept_brand: only the Deal Team or Purchasing can accept a brand' using errcode = '42501';
   end if;
 
   select nullif(btrim(coalesce(o.brand, '')), '') into v_brand
@@ -8369,6 +9038,27 @@ begin
 
   return jsonb_build_object('brand', v_brand);
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_actor_can_fill(p_opportunity_id uuid, p_actor uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1
+    from public.employees e
+    join public.sales_opportunities o on o.id = p_opportunity_id
+    where e.id = p_actor
+      and not coalesce(e.is_deleted, false)
+      and (
+        coalesce(e.is_super_admin, false)
+        or public._employee_has_purchasing_access(e.id)
+        or public.sor_is_deal_team(o, e.id)
+        or exists (select 1 from public.costing_signer_lists l where l.list_key = 'final_acquire' and l.employee_id = e.id)
+      )
+  )
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_add_cost_row(p_matrix_id uuid, p_description text DEFAULT ''::text, p_quantity numeric DEFAULT 1)
@@ -8482,7 +9172,9 @@ CREATE OR REPLACE FUNCTION public.costing_can_manage_markup()
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire')
+  select coalesce(public.is_super_admin(), false)
+    or public.costing_on_list('final_acquire')
+    or public.costing_is_open_anywhere()
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_can_read(p_opportunity_id uuid)
@@ -8734,7 +9426,7 @@ AS $function$
     comps.id,
     comps.po_rfq_no,
     (select coalesce(sum(pri.quantity), 0) from public.purchase_request_items pri
-      where pri.component_id = comps.id and pri.status in ('ordered', 'received')),
+      where pri.component_id = comps.id and pri.status in ('purchased', 'received')),
     coalesce((
       select jsonb_agg(jsonb_build_object('item_id', pri.id, 'request_id', pri.request_id, 'name', pri.name, 'po_number', nullif(btrim(pri.po_number), ''), 'status', pri.status, 'odoo_po_line_ids', coalesce(to_jsonb(pri.odoo_po_line_ids), '[]'::jsonb))
         order by pri.created_at)
@@ -8906,7 +9598,7 @@ begin
     raise exception 'costing_bid: matrix not found' using errcode = '22023';
   end if;
   if public.costing_tier(v_opp) is distinct from 'closed_book' then
-    raise exception 'costing_bid: only a Super Admin or the Final Acquire list can decide a bid' using errcode = '42501';
+    raise exception 'costing_bid: only Sales, Purchasing, a Super Admin or the Final Acquire list can decide a bid' using errcode = '42501';
   end if;
   if p_verdict is null or p_verdict not in ('go', 'no_go', 'revise') then
     raise exception 'costing_bid: the verdict must be Go, No-go or Revise' using errcode = '22023';
@@ -9040,6 +9732,104 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_fill_from_sor(p_opportunity_id uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor  uuid := public.get_employee_id();
+  v_matrix uuid;
+  v_pos    integer;
+  v_line   uuid;
+  v_unit   text;
+  v_added  integer := 0;
+  v_item   record;
+begin
+  if v_actor is null then
+    raise exception 'costing_fill: sign in first' using errcode = '42501';
+  end if;
+  select m.id into v_matrix from public.costing_matrices m where m.opportunity_id = p_opportunity_id;
+  if v_matrix is null then
+    raise exception 'costing_fill: this SOR has no Costing Matrix yet' using errcode = '22023';
+  end if;
+  if not (public.costing_can_read(p_opportunity_id)
+          and (public.costing_in_band(p_opportunity_id, 'sales') or public.costing_in_band(p_opportunity_id, 'purchasing'))) then
+    raise exception 'costing_fill: only Sales or Purchasing can fill the matrix from the SOR' using errcode = '42501';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('costing_fill:' || v_matrix::text));
+  perform set_config('costing.bypass', 'on', true);
+
+  select coalesce(max(l.position), 0) into v_pos from public.costing_tender_lines l where l.matrix_id = v_matrix;
+
+  for v_item in
+    select i.*
+    from public.sales_opportunity_items i
+    where i.opportunity_id = p_opportunity_id
+      and not i.removed_from_s0
+      and not exists (
+        select 1 from public.costing_tender_lines l where l.matrix_id = v_matrix and l.sor_item_id = i.id
+      )
+    order by i.sort_order, i.created_at, i.id
+  loop
+    v_pos := v_pos + 1;
+    v_unit := nullif(btrim(coalesce(v_item.unit, '')), '');
+    insert into public.costing_tender_lines (
+      matrix_id, position, source, sor_item_id, odoo_product_id, tender_specification, unit, quantity, sor_line_snapshot, created_by
+    ) values (
+      v_matrix, v_pos, 'sor_line', v_item.id, v_item.odoo_product_id, v_item.product_name, v_unit,
+      case when v_item.quantity > 0 then v_item.quantity else 1 end,
+      jsonb_build_object('name', v_item.product_name, 'quantity', v_item.quantity, 'unit', v_unit),
+      v_actor
+    )
+    returning id into v_line;
+
+    -- A Component's quantity is for the whole line (its totals are unit x quantity), so the product
+    -- carries the line's quantity.
+    insert into public.costing_components (tender_line_id, position, name, quantity, unit, odoo_product_id)
+    values (v_line, 1, v_item.product_name, case when v_item.quantity > 0 then v_item.quantity else 1 end, v_unit, v_item.odoo_product_id);
+
+    v_added := v_added + 1;
+  end loop;
+
+  perform set_config('costing.bypass', '', true);
+  return v_added;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_fill_odoo_costs(p_actor uuid, p_opportunity_id uuid, p_costs jsonb)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_target record;
+  v_cost   numeric;
+  v_filled integer := 0;
+begin
+  if not public.costing_actor_can_fill(p_opportunity_id, p_actor) then
+    raise exception 'costing_fill: only Sales or Purchasing can fill the matrix from Odoo' using errcode = '42501';
+  end if;
+  for v_target in select * from public.costing_odoo_cost_targets(p_actor, p_opportunity_id) loop
+    v_cost := nullif(p_costs ->> v_target.odoo_product_id::text, '')::numeric;
+    if v_cost is null or v_cost <= 0 then
+      continue;
+    end if;
+    v_cost := round(v_cost, 2);
+    insert into public.costing_component_costs (component_id, odoo_unit, acquire_unit)
+    values (v_target.component_id, v_cost, v_cost)
+    on conflict (component_id) do update
+      set odoo_unit = coalesce(public.costing_component_costs.odoo_unit, excluded.odoo_unit),
+          acquire_unit = coalesce(public.costing_component_costs.acquire_unit, excluded.acquire_unit);
+    v_filled := v_filled + 1;
+  end loop;
+  return v_filled;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_history(p_opportunity_id uuid, p_table text DEFAULT NULL::text, p_row uuid DEFAULT NULL::uuid, p_limit integer DEFAULT 100)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -9138,6 +9928,37 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_is_open(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.is_super_admin(), false)
+    or public.has_purchasing_access()
+    or exists (
+      select 1 from public.sales_opportunities o
+      where o.id = p_opportunity_id and public.sor_is_deal_team(o, public.get_employee_id())
+    )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_is_open_anywhere()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with me as (select public.get_employee_id() as id)
+  select coalesce(public.is_super_admin(), false)
+    or public.has_purchasing_access()
+    or exists (
+      select 1 from public.sales_opportunities o, me
+      where me.id is not null
+        and (o.registered_by = me.id or o.deal_owner_id = me.id or o.closing_sales_id = me.id
+          or o.support_sales_1_id = me.id or o.support_sales_2_id = me.id or o.sales_director_id = me.id)
+    )
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -9171,11 +9992,11 @@ AS $function$
     where m.opportunity_id = p_opportunity_id
       and public.costing_can_read_cost(p_opportunity_id)
   ),
-  -- Ordered and Received claim; Cancelled, Substituted and Cannot source claim nothing.
+  -- Purchased and Received claim; Cancelled, Cancelled and Cannot source claim nothing.
   live as (
     select pri.id, pri.component_id, pri.quantity, pri.po_number, coalesce(pri.odoo_po_line_ids, '{}') as picked
     from public.purchase_request_items pri
-    where pri.status in ('ordered', 'received')
+    where pri.status in ('purchased', 'received')
   ),
   items as (
     select live.*, public._lc_ipas_for_po(live.po_number) as ipas_id
@@ -9391,16 +10212,10 @@ CREATE OR REPLACE FUNCTION public.costing_matching_sor_line(p_tender_line_id uui
 AS $function$
   select sl.id
   from public.costing_tender_lines l
-  join public.costing_matrices m on m.id = l.matrix_id
-  join public.sales_opportunity_items sl on sl.opportunity_id = m.opportunity_id
+  join public.sales_opportunity_items sl on sl.id = l.sor_item_id
   where l.id = p_tender_line_id
     and l.source = 'sor_line'
-    and case
-      when l.odoo_product_id is not null then sl.odoo_product_id = l.odoo_product_id
-      else lower(btrim(sl.product_name)) = lower(btrim(l.sor_line_snapshot ->> 'name'))
-    end
-  order by (sl.quantity = (l.sor_line_snapshot ->> 'quantity')::numeric) desc, sl.sort_order, sl.created_at
-  limit 1
+    and not sl.removed_from_s0
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_matrix_backfill(p_dry_run boolean DEFAULT true)
@@ -9585,12 +10400,15 @@ CREATE OR REPLACE FUNCTION public.costing_matrix_page()
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare
+  -- Super Admins and the list read every SOR; anyone else, the SORs they are open on.
+  v_all boolean := coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire');
 begin
   if public.get_employee_id() is null then
     raise exception 'costing_matrix_page: not signed in' using errcode = '42501';
   end if;
-  if not (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire')) then
-    raise exception 'costing_matrix_page: only Super Admins and the Final Acquire list read the Costing Matrix page'
+  if not (v_all or public.costing_is_open_anywhere()) then
+    raise exception 'costing_matrix_page: only Super Admins, Purchasing, the Deal Team and the Final Acquire list read the Costing Matrix page'
       using errcode = '42501';
   end if;
 
@@ -9675,6 +10493,7 @@ begin
   ) ent
   where not coalesce(o.is_deleted, false)
     and not coalesce(o.is_scratch, false)
+    and (v_all or public.costing_is_open(o.id))
   order by o.serial_no desc;
 end;
 $function$
@@ -9778,6 +10597,28 @@ begin
      set component_id = p_component_id,
          position = coalesce((select max(i.position) from public.costing_inclusions i where i.component_id = p_component_id), 0) + 1
    where id = p_inclusion_id;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_odoo_cost_targets(p_actor uuid, p_opportunity_id uuid)
+ RETURNS TABLE(component_id uuid, odoo_product_id integer)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not public.costing_actor_can_fill(p_opportunity_id, p_actor) then
+    raise exception 'costing_fill: only Sales or Purchasing can fill the matrix from Odoo' using errcode = '42501';
+  end if;
+  return query
+  select c.id, c.odoo_product_id
+  from public.costing_components c
+  join public.costing_tender_lines l on l.id = c.tender_line_id
+  join public.costing_matrices m on m.id = l.matrix_id
+  left join public.costing_component_costs cc on cc.component_id = c.id
+  where m.opportunity_id = p_opportunity_id
+    and c.odoo_product_id is not null
+    and (cc.component_id is null or cc.odoo_unit is null or cc.acquire_unit is null);
 end;
 $function$
 ;
@@ -9925,7 +10766,7 @@ AS $function$
   join public.sales_opportunities o on o.id = m.opportunity_id
   left join public.employees own on own.id = o.deal_owner_id
   cross join lateral public.costing_bid_totals(m.id) t
-  where (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire'))
+  where (public.costing_on_list('final_acquire') or public.costing_is_open(m.opportunity_id))
     and not coalesce(o.is_deleted, false)
     and not coalesce(o.is_scratch, false)
     and t.line_count > 0
@@ -10104,6 +10945,44 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_set_p0_price(p_actor_email text, p_item_id uuid, p_price numeric)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid;
+  v_component uuid;
+begin
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'costing_set_p0_price: not signed in' using errcode = '42501';
+  end if;
+  if p_price is not null and p_price < 0 then
+    raise exception 'costing_set_p0_price: a price cannot be negative' using errcode = '22023';
+  end if;
+
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
+  v_actor := public.get_employee_id();
+  if v_actor is null then
+    raise exception 'costing_set_p0_price: not signed in' using errcode = '42501';
+  end if;
+
+  select component_id into v_component from public.purchase_request_items where id = p_item_id;
+  if v_component is null then
+    return;
+  end if;
+  if coalesce(public.purchase_request_actor_side((select request_id from public.purchase_request_items where id = p_item_id)), '') <> 'purchasing' then
+    raise exception 'costing_set_p0_price: only Purchasing sets the actual cost' using errcode = '42501';
+  end if;
+
+  update public.costing_component_costs
+     set p0_unit_price = p_price
+   where component_id = v_component;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_settings_stamp()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -10205,8 +11084,8 @@ begin
     if v_incharge is distinct from v_actor then
       raise exception 'costing_sign: only the Purchasing incharge can sign Costed by' using errcode = '42501';
     end if;
-  elsif not public.costing_on_list('final_acquire') then
-    raise exception 'costing_sign: only someone on the Final Acquire list can approve the Final Acquire and offer' using errcode = '42501';
+  elsif not (public.costing_on_list('final_acquire') or public.costing_is_open(v_opp)) then
+    raise exception 'costing_sign: only Sales, Purchasing or the Final Acquire list can approve the Final Acquire and offer' using errcode = '42501';
   end if;
 
   perform pg_advisory_xact_lock(hashtext('costing_sign:' || p_matrix_id::text));
@@ -10327,8 +11206,7 @@ CREATE OR REPLACE FUNCTION public.costing_tier(p_opportunity_id uuid)
 AS $function$
   select case
     when not exists (select 1 from public.sales_opportunities o where o.id = p_opportunity_id) then null
-    when coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire') then 'closed_book'
-    when public.has_purchasing_access() then 'cost'
+    when public.costing_on_list('final_acquire') or public.costing_is_open(p_opportunity_id) then 'closed_book'
     when exists (
       select 1 from public.sales_opportunities o
       where o.id = p_opportunity_id
@@ -10343,7 +11221,6 @@ AS $function$
         and p.employee_id = public.get_employee_id()
         and p.closed_at is null
     ) then 'participant'
-    -- #545: the Evaluation list reads the matrix with no money, whatever the stage.
     when public.costing_on_list('evaluation')
       and exists (select 1 from public.costing_matrices m where m.opportunity_id = p_opportunity_id)
     then 'participant'
@@ -10970,6 +11847,62 @@ BEGIN
 
   RETURN v_request;
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.direct_requests_for_sor(p_opportunity_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_sor public.sales_opportunities;
+begin
+  select * into v_sor from public.sales_opportunities o where o.id = p_opportunity_id;
+  -- coalesce: an empty deal-team column makes sor_is_deal_team NULL, and `not NULL` would leak.
+  if not found or not coalesce(
+    public.is_super_admin()
+    or public.sor_is_deal_team(v_sor, v_actor)
+    or public.sor_always_sees(v_sor, v_actor),
+    false
+  ) then
+    return '[]'::jsonb;
+  end if;
+
+  return coalesce((
+    select jsonb_agg(
+             jsonb_build_object(
+               'id', r.id,
+               'title', r.title,
+               'pr_number', r.pr_number,
+               'p0', i.p0,
+               'status', i.status
+             )
+             order by r.created_at desc, r.id
+           )
+      from public.purchase_requests r
+      left join lateral (
+        select
+          (select string_agg(distinct it.po_number, ', ')
+             from public.purchase_request_items it
+            where it.request_id = r.id and nullif(btrim(it.po_number), '') is not null) as p0,
+          coalesce(
+            (select it.status
+               from public.purchase_request_items it
+              where it.request_id = r.id and it.status <> 'cancelled'
+              order by array_position(
+                array['not_checked','to_purchase','still_canvassing','purchased','available','received','cannot_source'],
+                it.status)
+              limit 1),
+            case when exists (select 1 from public.purchase_request_items it where it.request_id = r.id)
+                 then 'cancelled' else 'not_checked' end
+          ) as status
+      ) i on true
+     where r.for_opportunity_id = p_opportunity_id
+       and r.opportunity_id is null
+  ), '[]'::jsonb);
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.edit_meeting_request(p_request_id uuid, p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid)
@@ -12447,6 +13380,17 @@ AS $function$BEGIN
     ORDER BY c.latest_created_at DESC
     LIMIT p_limit;
 END;$function$
+;
+CREATE OR REPLACE FUNCTION public.group_task_is_stage_action(p_stage_action_id uuid, p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select p_stage_action_id is not null
+     and p_opportunity_id is not null
+     and exists (select 1 from public.flow_stage_actions a where a.id = p_stage_action_id)
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.group_task_template_can_edit(p_template_id uuid)
  RETURNS boolean
@@ -16613,15 +17557,6 @@ AS $function$
   select public.purchase_request_actor_side(p_request_id);
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.pr_add_substitute(p_item_id uuid, p_name text, p_quantity numeric, p_unit text DEFAULT NULL::text, p_description text DEFAULT NULL::text, p_images jsonb DEFAULT '[]'::jsonb)
- RETURNS uuid
- LANGUAGE sql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select public.purchase_request_add_substitute(p_item_id, p_name, p_quantity, p_unit, p_description, p_images);
-$function$
-;
 CREATE OR REPLACE FUNCTION public.pr_can_add_substitute(p_request_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -16650,7 +17585,7 @@ AS $function$
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.pr_queue(p_request_id uuid DEFAULT NULL::uuid)
- RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone, sor_status text, title text)
+ RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone, sor_status text, title text, pr_number text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -16831,108 +17766,6 @@ AS $function$
     on m.request_id = r.id and m.employee_id = get_employee_id();
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.purchase_request_add_item_from_line(p_request_id uuid, p_line_id uuid)
- RETURNS uuid
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_req public.purchase_requests := public._purchase_request_for_adding(p_request_id, 'purchase_request_add_item_from_line');
-  v_line public.sales_opportunity_items;
-  v_name text;
-  v_unit text;
-  v_item public.purchase_request_items;
-begin
-  select * into v_line from public.sales_opportunity_items where id = p_line_id;
-  if v_line.id is null or v_line.opportunity_id is distinct from v_req.opportunity_id then
-    raise exception 'purchase_request_add_item_from_line: that line is no longer on this SOR''s Product List'
-      using errcode = 'P0002';
-  end if;
-  if coalesce(v_line.quantity, 0) <= 0 then
-    raise exception 'purchase_request_add_item_from_line: that line has no quantity' using errcode = '22023';
-  end if;
-
-  v_name := btrim(v_line.product_name);
-  v_unit := nullif(btrim(v_line.unit), '');
-
-  insert into public.purchase_request_items
-    (request_id, source, odoo_product_id, name, unit, quantity, sor_line_snapshot, requested_by)
-  values
-    (p_request_id, 'sor_line', v_line.odoo_product_id, v_name, v_unit, v_line.quantity,
-     jsonb_build_object('name', v_name, 'quantity', v_line.quantity, 'unit', v_unit),
-     public.get_employee_id())
-  returning * into v_item;
-
-  perform public._purchase_request_item_added(v_item);
-  return v_item.id;
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.purchase_request_add_items_from_components(p_request_id uuid, p_component_ids uuid[])
- RETURNS uuid[]
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_req   public.purchase_requests;
-  v_id    uuid;
-  v_comp  public.costing_components;
-  v_opp   uuid;
-  v_item  public.purchase_request_items;
-  v_added uuid[] := '{}';
-begin
-  if public.get_employee_id() is null then
-    raise exception 'purchase_request_add_items_from_components: not signed in' using errcode = '42501';
-  end if;
-  if not public.has_purchasing_access() then
-    raise exception 'purchase_request_add_items_from_components: only people with Purchasing access may add from the Costing Matrix'
-      using errcode = '42501';
-  end if;
-
-  select * into v_req from public.purchase_requests where id = p_request_id;
-  if v_req.id is null then
-    raise exception 'purchase_request_add_items_from_components: request % not found', p_request_id using errcode = 'P0002';
-  end if;
-  if v_req.opportunity_id is null then
-    raise exception 'purchase_request_add_items_from_components: this request has no SOR, so no Costing Matrix' using errcode = 'P0002';
-  end if;
-  if p_component_ids is null or cardinality(p_component_ids) = 0 then
-    raise exception 'purchase_request_add_items_from_components: pick at least one Component' using errcode = '22023';
-  end if;
-
-  foreach v_id in array p_component_ids loop
-    select * into v_comp from public.costing_components where id = v_id;
-    select m.opportunity_id into v_opp
-    from public.costing_tender_lines l
-    join public.costing_matrices m on m.id = l.matrix_id
-    where l.id = v_comp.tender_line_id;
-
-    if v_comp.id is null or v_opp is distinct from v_req.opportunity_id then
-      raise exception 'purchase_request_add_items_from_components: that Component is not on this SOR''s Costing Matrix'
-        using errcode = 'P0002';
-    end if;
-    if nullif(btrim(v_comp.name), '') is null then
-      raise exception 'purchase_request_add_items_from_components: a Component needs a name before it can be requested'
-        using errcode = '22023';
-    end if;
-
-    insert into public.purchase_request_items
-      (request_id, source, component_id, odoo_product_id, name, unit, quantity, requested_by)
-    values
-      (p_request_id, 'component', v_comp.id, v_comp.odoo_product_id, btrim(v_comp.name), nullif(btrim(v_comp.unit), ''),
-       v_comp.quantity, public.get_employee_id())
-    returning * into v_item;
-
-    perform public._purchase_request_item_added(v_item);
-    v_added := v_added || v_item.id;
-  end loop;
-
-  return v_added;
-end;
-$function$
-;
 CREATE OR REPLACE FUNCTION public.purchase_request_add_member(p_request_id uuid, p_employee_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -16952,7 +17785,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.purchase_request_add_new_item(p_request_id uuid, p_name text, p_quantity numeric, p_unit text DEFAULT NULL::text, p_description text DEFAULT NULL::text, p_images jsonb DEFAULT '[]'::jsonb)
+CREATE OR REPLACE FUNCTION public.purchase_request_add_new_item(p_request_id uuid, p_name text, p_quantity numeric, p_unit text DEFAULT NULL::text, p_description text DEFAULT NULL::text, p_images jsonb DEFAULT '[]'::jsonb, p_purpose text DEFAULT 'client'::text)
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -16969,6 +17802,9 @@ begin
   if p_quantity is null or p_quantity <= 0 then
     raise exception 'purchase_request_add_new_item: the quantity must be more than zero' using errcode = '22023';
   end if;
+  if p_purpose is null or p_purpose not in ('client', 'job') then
+    raise exception 'purchase_request_add_new_item: say whether it is for the client or material for the job' using errcode = '22023';
+  end if;
   if jsonb_typeof(v_images) <> 'array'
      or jsonb_array_length(v_images) > 5
      or exists (
@@ -16979,10 +17815,10 @@ begin
   end if;
 
   insert into public.purchase_request_items
-    (request_id, source, name, unit, quantity, description, images, requested_by)
+    (request_id, source, name, unit, quantity, description, images, purpose, requested_by)
   values
     (v_req.id, 'new', btrim(p_name), nullif(btrim(p_unit), ''), p_quantity,
-     nullif(btrim(p_description), ''), v_images, public.get_employee_id())
+     nullif(btrim(p_description), ''), v_images, p_purpose, public.get_employee_id())
   returning * into v_item;
 
   perform public._purchase_request_item_added(v_item);
@@ -16990,76 +17826,115 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.purchase_request_add_substitute(p_item_id uuid, p_name text, p_quantity numeric, p_unit text DEFAULT NULL::text, p_description text DEFAULT NULL::text, p_images jsonb DEFAULT '[]'::jsonb)
- RETURNS uuid
+CREATE OR REPLACE FUNCTION public.purchase_request_answer_yours(p_item_id uuid, p_same boolean)
+ RETURNS purchase_request_items
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
   v_actor uuid := public.get_employee_id();
-  v_images jsonb := coalesce(p_images, '[]'::jsonb);
-  v_original public.purchase_request_items;
-  v_req public.purchase_requests;
-  v_side text;
-  v_item public.purchase_request_items;
-  v_amount text;
+  v_s0 public.purchase_request_items;
+  v_other public.purchase_request_items;
+  v_po text;
 begin
   if v_actor is null then
-    raise exception 'purchase_request_add_substitute: not signed in' using errcode = '42501';
+    raise exception 'purchase_request_answer_yours: not signed in' using errcode = '42501';
+  end if;
+  if p_same is null then
+    raise exception 'purchase_request_answer_yours: answer yes or no' using errcode = '22023';
   end if;
 
-  select * into v_original from public.purchase_request_items where id = p_item_id for update;
-  if v_original.id is null then
-    raise exception 'purchase_request_add_substitute: item % not found', p_item_id using errcode = 'P0002';
+  select * into v_s0 from public.purchase_request_items where id = p_item_id for update;
+  if v_s0.id is null then
+    raise exception 'purchase_request_answer_yours: item % not found', p_item_id using errcode = 'P0002';
   end if;
-  select * into v_req from public.purchase_requests where id = v_original.request_id;
-
-  v_side := public.purchase_request_actor_side(v_req.id);
-  if not public.purchase_request_can_add_substitute(v_req.id) then
-    raise exception 'purchase_request_add_substitute: only the request''s Buyer may add a substitute' using errcode = '42501';
+  if coalesce(public.purchase_request_actor_side(v_s0.request_id), '') not in ('purchasing', 'sales') then
+    raise exception 'purchase_request_answer_yours: only Purchasing or the sales side answers this' using errcode = '42501';
   end if;
-  if not public._purchase_request_item_transition_ok(v_original.status, 'substituted', v_side) then
-    raise exception 'purchase_request_add_substitute: % is already closed', v_original.name using errcode = '22023';
+  if not v_s0.new_on_s0 then
+    raise exception 'purchase_request_answer_yours: % has no open question', v_s0.name using errcode = '22023';
   end if;
 
-  if nullif(btrim(p_name), '') is null then
-    raise exception 'purchase_request_add_substitute: a substitute needs a name' using errcode = '22023';
-  end if;
-  if p_quantity is null or p_quantity <= 0 then
-    raise exception 'purchase_request_add_substitute: the quantity must be more than zero' using errcode = '22023';
-  end if;
-  if jsonb_typeof(v_images) <> 'array'
-     or jsonb_array_length(v_images) > 5
-     or exists (
-       select 1 from jsonb_array_elements(v_images) img
-       where jsonb_typeof(img) <> 'object' or nullif(img->>'url', '') is null
-     ) then
-    raise exception 'purchase_request_add_substitute: images must be up to 5 uploaded files' using errcode = '22023';
+  if not p_same then
+    update public.purchase_request_items
+       set new_on_s0 = false, yours_item_id = null
+     where id = v_s0.id
+    returning * into v_s0;
+    return v_s0;
   end if;
 
-  insert into public.purchase_request_items
-    (request_id, source, name, unit, quantity, description, images, substitute_for_item_id, requested_by)
-  values
-    (v_req.id, 'new', btrim(p_name), nullif(btrim(p_unit), ''), p_quantity,
-     nullif(btrim(p_description), ''), v_images, v_original.id, v_actor)
-  returning * into v_item;
+  select * into v_other from public.purchase_request_items where id = v_s0.yours_item_id for update;
+  if v_other.id is null or v_other.status = 'cancelled' or v_other.po_number is null then
+    raise exception 'purchase_request_answer_yours: the request this was compared with has changed; answer No, or refresh' using errcode = '22023';
+  end if;
+  if v_s0.po_number is not null then
+    raise exception 'purchase_request_answer_yours: % already has a P0', v_s0.name using errcode = '22023';
+  end if;
+  v_po := v_other.po_number;
 
-  v_amount := trim_scale(v_item.quantity)::text || coalesce(' ' || v_item.unit, '');
+  -- The Other request lets go of the P0 first (a P0 sits on one line).
+  update public.purchase_request_items
+     set status = 'cancelled',
+         status_changed_by = v_actor,
+         status_changed_at = now(),
+         po_number = null,
+         po_verification = 'UNVERIFIED',
+         po_state = null,
+         po_ordered = null,
+         po_received = null,
+         bought_as = null,
+         bought_product_id = null,
+         odoo_po_line_ids = '{}',
+         closed_note = format('Closed · %s and its delivery moved onto %s', v_po, v_s0.name)
+   where id = v_other.id;
+
+  update public.purchase_request_items
+     set status = v_other.status,
+         status_changed_by = v_actor,
+         status_changed_at = now(),
+         po_number = v_other.po_number,
+         po_verification = v_other.po_verification,
+         po_state = v_other.po_state,
+         po_ordered = v_other.po_ordered,
+         po_received = v_other.po_received,
+         bought_as = v_other.bought_as,
+         bought_product_id = v_other.bought_product_id,
+         odoo_po_line_ids = v_other.odoo_po_line_ids,
+         new_on_s0 = false,
+         yours_item_id = null
+   where id = v_s0.id
+  returning * into v_s0;
+
+  -- History, Canvass, price and the links other items hold follow the P0 onto the S0 line.
+  update public.purchase_request_messages
+     set metadata = metadata || jsonb_build_object('item_id', v_s0.id)
+   where request_id = v_s0.request_id and metadata->>'item_id' = v_other.id::text;
+
+  update public.sor_canvasses set requested_item_id = v_s0.id
+   where requested_item_id = v_other.id
+     and not exists (select 1 from public.sor_canvasses c where c.requested_item_id = v_s0.id);
+
+  update public.purchase_request_item_prices set item_id = v_s0.id
+   where item_id = v_other.id
+     and not exists (select 1 from public.purchase_request_item_prices p where p.item_id = v_s0.id);
+
+  update public.purchase_request_items set substitute_for_item_id = v_s0.id
+   where substitute_for_item_id = v_other.id and id <> v_s0.id;
+
   perform public._purchase_request_post_event(
-    v_req.id,
+    v_s0.request_id,
     v_actor,
-    format('Offered %s × %s as a substitute for %s.', v_item.name, v_amount, v_original.name),
-    jsonb_build_object('event', 'item_added', 'item_id', v_item.id, 'source', v_item.source,
-                       'substitute_for_item_id', v_original.id)
+    format('%s: same product as the request for %s. %s and its delivery moved onto the S0 line; the request is closed.', v_s0.name, v_other.name, v_po),
+    jsonb_build_object(
+      'event', 'item_yours_merged',
+      'item_id', v_s0.id,
+      'closed_item_id', v_other.id,
+      'po_number', v_po
+    )
   );
 
-  perform public._purchase_request_item_move(
-    v_original, 'substituted', v_side, v_actor,
-    jsonb_build_object('substitute_item_id', v_item.id), 'purchase_request_add_substitute'
-  );
-
-  return v_item.id;
+  return v_s0;
 end;
 $function$
 ;
@@ -17161,7 +18036,7 @@ declare
   v_item public.purchase_request_items;
   v_old text;
 begin
-  if p_action is null or p_action not in ('order', 'correct') then
+  if p_action is null or p_action not in ('correct') then
     raise exception 'purchase_request_item_apply_po_check: % is not a PO action', coalesce(p_action, 'null') using errcode = '22023';
   end if;
   if p_odoo is null or p_odoo not in ('found', 'not_found', 'unreachable') then
@@ -17174,30 +18049,27 @@ begin
     raise exception 'purchase_request_set_item_status: not signed in' using errcode = '42501';
   end if;
 
-  -- Act as the caller the edge function authenticated: identity is the JWT email claim.
   perform set_config('request.jwt.claims',
     jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
 
-  if p_action = 'correct' then
-    v_actor := public.get_employee_id();
-    if v_actor is null then
-      raise exception 'purchase_request_correct_po: not signed in' using errcode = '42501';
-    end if;
-    select * into v_item from public.purchase_request_items where id = p_item_id for update;
-    if v_item.id is null then
-      raise exception 'purchase_request_correct_po: item % not found', p_item_id using errcode = 'P0002';
-    end if;
-    if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
-      raise exception 'purchase_request_correct_po: only Purchasing corrects an item''s PO' using errcode = '42501';
-    end if;
-    if v_item.status <> 'ordered' then
-      raise exception 'purchase_request_correct_po: % is %, not Ordered; a PO can only be corrected while the item is Ordered',
-        v_item.name, public._purchase_request_item_status_label(v_item.status)
-        using errcode = '22023';
-    end if;
-    if v_item.po_number is not distinct from v_po then
-      raise exception 'purchase_request_correct_po: % is already on PO %', v_item.name, v_po using errcode = '22023';
-    end if;
+  v_actor := public.get_employee_id();
+  if v_actor is null then
+    raise exception 'purchase_request_correct_po: not signed in' using errcode = '42501';
+  end if;
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if v_item.id is null then
+    raise exception 'purchase_request_correct_po: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+  if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
+    raise exception 'purchase_request_correct_po: only Purchasing corrects an item''s PO' using errcode = '42501';
+  end if;
+  if v_item.status <> 'purchased' then
+    raise exception 'purchase_request_correct_po: % is %, not Purchased; a PO can only be corrected while the item is Purchased',
+      v_item.name, public._purchase_request_item_status_label(v_item.status)
+      using errcode = '22023';
+  end if;
+  if v_item.po_number is not distinct from v_po then
+    raise exception 'purchase_request_correct_po: % is already on PO %', v_item.name, v_po using errcode = '22023';
   end if;
 
   v_verification := case p_odoo
@@ -17210,14 +18082,6 @@ begin
       using errcode = '22023';
   end if;
 
-  if p_action = 'order' then
-    return public._purchase_request_set_item_status(
-      p_item_id, 'ordered',
-      jsonb_build_object('po_number', v_po, 'po_verification', v_verification),
-      true);
-  end if;
-
-  -- 'correct': swap the PO, drop lines picked on the old one, and say so in the request.
   v_old := v_item.po_number;
   update public.purchase_request_items
      set po_number = v_po,
@@ -17236,6 +18100,100 @@ begin
       'from_po', v_old,
       'to_po', v_po,
       'po_verification', v_verification
+    )
+  );
+
+  return v_item;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_item_attach_po(p_actor_email text, p_item_id uuid, p_po_number text, p_facts jsonb)
+ RETURNS purchase_request_items
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_po text := nullif(upper(btrim(p_po_number)), '');
+  v_actor uuid;
+  v_item public.purchase_request_items;
+  v_state text := p_facts->>'state';
+  v_ordered numeric;
+  v_received numeric;
+  v_bought text := nullif(btrim(p_facts->>'bought_as'), '');
+  v_to text;
+  v_text text;
+begin
+  if v_po is null or v_po !~ '^P[0-9]+$' then
+    raise exception 'purchase_request_item_attach_po: % isn''t an Odoo P0 number ("P" then digits, e.g. P01234)', coalesce(p_po_number, '') using errcode = '22023';
+  end if;
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'purchase_request_item_attach_po: not signed in' using errcode = '42501';
+  end if;
+  if p_facts is null or jsonb_typeof(p_facts) <> 'object' or v_state is null or v_state not in ('rfq', 'confirmed') then
+    raise exception 'purchase_request_item_attach_po: the P0 facts must say rfq or confirmed' using errcode = '22023';
+  end if;
+  v_ordered := coalesce((p_facts->>'ordered')::numeric, 0);
+  v_received := coalesce((p_facts->>'received')::numeric, 0);
+
+  -- Act as the caller the edge function authenticated: identity is the JWT email claim.
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
+
+  v_actor := public.get_employee_id();
+  if v_actor is null then
+    raise exception 'purchase_request_item_attach_po: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if v_item.id is null then
+    raise exception 'purchase_request_item_attach_po: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+  if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
+    raise exception 'purchase_request_item_attach_po: only Purchasing attaches a P0' using errcode = '42501';
+  end if;
+  if v_item.status in ('cancelled', 'received') then
+    raise exception 'purchase_request_item_attach_po: nothing to attach to this line; % is %',
+      v_item.name, public._purchase_request_item_status_label(v_item.status)
+      using errcode = '22023';
+  end if;
+
+  v_to := case
+    when v_state = 'rfq' then 'to_purchase'
+    when v_ordered > 0 and v_received >= v_ordered then 'received'
+    else 'purchased'
+  end;
+
+  update public.purchase_request_items
+     set status = v_to,
+         status_changed_by = case when status is distinct from v_to then v_actor else status_changed_by end,
+         status_changed_at = case when status is distinct from v_to then now() else status_changed_at end,
+         po_number = v_po,
+         po_verification = 'VERIFIED',
+         po_state = v_state,
+         po_ordered = v_ordered,
+         po_received = v_received,
+         bought_as = v_bought,
+         -- Lines picked on another P0 do not carry over.
+         odoo_po_line_ids = case when po_number is distinct from v_po then '{}' else odoo_po_line_ids end
+   where id = v_item.id
+  returning * into v_item;
+
+  v_text := case v_to
+    when 'to_purchase' then format('%s: RFQ %s attached; still To purchase.', v_item.name, v_po)
+    else format('%s: P0 %s attached; %s.', v_item.name, v_po, public._purchase_request_item_status_label(v_to))
+  end;
+  perform public._purchase_request_post_event(
+    v_item.request_id,
+    v_actor,
+    v_text,
+    jsonb_build_object(
+      'event', 'item_po_attached',
+      'item_id', v_item.id,
+      'to', v_to,
+      'po_number', v_po,
+      'po_state', v_state,
+      'bought_as', v_bought
     )
   );
 
@@ -17296,18 +18254,7 @@ CREATE OR REPLACE FUNCTION public.purchase_request_item_lines(p_request_id uuid)
 AS $function$
   select i.id, l.id is not null, l.quantity, nullif(btrim(l.unit), '')
   from purchase_request_items i
-  join purchase_requests r on r.id = i.request_id
-  left join lateral (
-    select sl.id, sl.quantity, sl.unit
-    from sales_opportunity_items sl
-    where sl.opportunity_id = r.opportunity_id
-      and case
-        when i.odoo_product_id is not null then sl.odoo_product_id = i.odoo_product_id
-        else lower(btrim(sl.product_name)) = lower(btrim(i.sor_line_snapshot->>'name'))
-      end
-    order by (sl.quantity = (i.sor_line_snapshot->>'quantity')::numeric) desc, sl.sort_order, sl.created_at
-    limit 1
-  ) l on true
+  left join sales_opportunity_items l on l.id = i.sor_item_id and not l.removed_from_s0
   where i.request_id = p_request_id
     and i.source = 'sor_line'
     and can_read_purchase_request(p_request_id);
@@ -17373,7 +18320,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.purchase_request_open(p_title text, p_items jsonb)
+CREATE OR REPLACE FUNCTION public.purchase_request_open(p_title text, p_items jsonb, p_for_opportunity_id uuid DEFAULT NULL::uuid)
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -17401,9 +18348,13 @@ begin
   if jsonb_array_length(p_items) > 50 then
     raise exception 'purchase_request_open: at most 50 items at once' using errcode = '22023';
   end if;
+  if p_for_opportunity_id is not null
+     and not exists (select 1 from public.sales_opportunities o where o.id = p_for_opportunity_id) then
+    raise exception 'purchase_request_open: that project does not exist' using errcode = '22023';
+  end if;
 
-  insert into public.purchase_requests (title, created_by)
-  values (v_title, v_actor)
+  insert into public.purchase_requests (title, created_by, for_opportunity_id)
+  values (v_title, v_actor, p_for_opportunity_id)
   returning * into v_req;
 
   -- The Requester, then everyone with Purchasing access (a live request).
@@ -17461,8 +18412,8 @@ begin
   if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
     raise exception 'purchase_request_pick_po_lines: only Purchasing picks an item''s PO line' using errcode = '42501';
   end if;
-  if v_item.status not in ('ordered', 'received') then
-    raise exception 'purchase_request_pick_po_lines: % is %, not Ordered', v_item.name,
+  if v_item.status not in ('purchased', 'received') then
+    raise exception 'purchase_request_pick_po_lines: % is %, not Purchased', v_item.name,
       public._purchase_request_item_status_label(v_item.status)
       using errcode = '22023';
   end if;
@@ -17507,25 +18458,8 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.purchase_request_pickable_lines(p_request_id uuid)
- RETURNS TABLE(id uuid, product_name text, quantity numeric, unit text, odoo_product_id integer, sort_order integer)
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_req public.purchase_requests := public._purchase_request_for_adding(p_request_id, 'purchase_request_pickable_lines');
-begin
-  return query
-    select l.id, l.product_name, l.quantity, l.unit, l.odoo_product_id, l.sort_order
-    from public.sales_opportunity_items l
-    where l.opportunity_id = v_req.opportunity_id
-    order by l.sort_order, l.created_at;
-end;
-$function$
-;
 CREATE OR REPLACE FUNCTION public.purchase_request_queue(p_request_id uuid DEFAULT NULL::uuid)
- RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone, sor_status text, title text)
+ RETURNS TABLE(id uuid, opportunity_id uuid, sales_reference text, project_title text, stage_name text, sor_closed text, buyer_id uuid, buyer_name text, buyer_avatar_path text, created_at timestamp with time zone, updated_at timestamp with time zone, item_count integer, open_count integer, last_activity_at timestamp with time zone, sor_status text, title text, pr_number text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -17546,7 +18480,8 @@ AS $function$
     coalesce(i.open_count, 0)::integer,
     greatest(r.updated_at, m.last_message_at),
     o.status,
-    r.title
+    r.title,
+    r.pr_number
   from public.purchase_requests r
   left join public.sales_opportunities o on o.id = r.opportunity_id
   left join public.flow_stages fs on fs.id = o.flow_stage_id
@@ -17602,6 +18537,101 @@ begin
     and employee_id = p_employee_id and closed_at is null;
 
   perform public._purchase_request_member_event(p_request_id, v_actor, p_employee_id, 'member_removed');
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_replace_item(p_item_id uuid, p_name text, p_reason text, p_odoo_product_id integer DEFAULT NULL::integer)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor    uuid := public.get_employee_id();
+  v_name     text := nullif(btrim(p_name), '');
+  v_reason   text := nullif(btrim(p_reason), '');
+  v_old      public.purchase_request_items;
+  v_new      public.purchase_request_items;
+  v_still    boolean;
+  v_amount   text;
+  v_stopped  integer;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_replace_item: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_old from public.purchase_request_items where id = p_item_id for update;
+  if v_old.id is null then
+    raise exception 'purchase_request_replace_item: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+
+  if public.purchase_request_actor_side(v_old.request_id) is distinct from 'purchasing' then
+    raise exception 'purchase_request_replace_item: only Purchasing can replace a product' using errcode = '42501';
+  end if;
+  if v_old.status in ('cancelled', 'received') then
+    raise exception 'purchase_request_replace_item: % is already %, so it can''t be replaced',
+      v_old.name, public._purchase_request_item_status_label(v_old.status) using errcode = '22023';
+  end if;
+  if v_name is null then
+    raise exception 'purchase_request_replace_item: say which product replaces it' using errcode = '22023';
+  end if;
+  if v_reason is null then
+    raise exception 'purchase_request_replace_item: give a short reason for the replacement' using errcode = '22023';
+  end if;
+
+  -- B: its own line in Other requests, same quantity, Not checked.
+  insert into public.purchase_request_items
+    (request_id, source, odoo_product_id, name, unit, quantity, substitute_for_item_id, requested_by)
+  values
+    (v_old.request_id, 'new', p_odoo_product_id, v_name, v_old.unit, v_old.quantity, v_old.id, v_actor)
+  returning * into v_new;
+
+  v_still := v_old.sor_item_id is not null and not v_old.removed_from_s0;
+
+  -- A: Cancelled, with the reason.
+  update public.purchase_request_items
+     set status = 'cancelled',
+         status_changed_by = v_actor,
+         status_changed_at = now(),
+         replaced_reason = v_reason,
+         s0_still_lists = v_still
+   where id = v_old.id
+  returning * into v_old;
+
+  -- A's open Canvass stops. A signed-off Canvass is a finished record and stays as it is.
+  update public.sor_canvasses
+     set stopped_at = now(),
+         stopped_by = v_actor,
+         stopped_reason = 'Stopped · replaced by ' || v_name
+   where requested_item_id = v_old.id
+     and signed_off_at is null
+     and stopped_at is null;
+  get diagnostics v_stopped = row_count;
+
+  v_amount := trim_scale(v_new.quantity)::text || coalesce(' ' || v_new.unit, '');
+  perform public._purchase_request_post_event(
+    v_old.request_id,
+    v_actor,
+    format('%s replaced by %s × %s — %s.', v_old.name, v_new.name, v_amount, v_reason),
+    jsonb_build_object(
+      'event', 'item_replaced',
+      'item_id', v_old.id,
+      'replacement_item_id', v_new.id,
+      'reason', v_reason,
+      'canvass_stopped', v_stopped > 0,
+      's0_still_lists', v_still
+    )
+  );
+  if v_still then
+    perform public._purchase_request_post_event(
+      v_old.request_id,
+      v_actor,
+      format('S0 still lists %s. Sales to update the S0.', v_old.name),
+      jsonb_build_object('event', 's0_still_lists', 'item_id', v_old.id, 'replacement_item_id', v_new.id)
+    );
+  end if;
+
+  return v_new.id;
 end;
 $function$
 ;
@@ -17679,6 +18709,90 @@ AS $function$
   join sor_stock_snapshots s on s.opportunity_id = r.opportunity_id
   where r.id = p_request_id
     and can_read_purchase_request(p_request_id);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_sync_po_facts(p_actor_email text, p_request_id uuid, p_facts jsonb)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid;
+  v_fact jsonb;
+  v_item public.purchase_request_items;
+  v_state text;
+  v_ordered numeric;
+  v_received numeric;
+  v_eta date;
+  v_bought text;
+  v_to text;
+  v_changed integer := 0;
+begin
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'purchase_request_sync_po_facts: not signed in' using errcode = '42501';
+  end if;
+  if p_facts is null or jsonb_typeof(p_facts) <> 'array' then
+    raise exception 'purchase_request_sync_po_facts: the facts must be a list' using errcode = '22023';
+  end if;
+
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
+
+  v_actor := public.get_employee_id();
+  if v_actor is null or public.purchase_request_actor_side(p_request_id) is null then
+    raise exception 'purchase_request_sync_po_facts: not a member of this request' using errcode = '42501';
+  end if;
+
+  for v_fact in select * from jsonb_array_elements(p_facts) loop
+    v_state := v_fact->>'state';
+    continue when v_state is null or v_state not in ('rfq', 'confirmed');
+
+    select * into v_item from public.purchase_request_items
+     where id = (v_fact->>'item_id')::uuid and request_id = p_request_id
+       for update;
+    continue when v_item.id is null or v_item.po_number is null or v_item.status = 'cancelled';
+
+    v_ordered := coalesce((v_fact->>'ordered')::numeric, 0);
+    v_received := coalesce((v_fact->>'received')::numeric, 0);
+    v_eta := nullif(v_fact->>'eta', '')::date;
+    v_bought := nullif(btrim(v_fact->>'bought_as'), '');
+    v_to := case
+      when v_state = 'rfq' then 'to_purchase'
+      when v_ordered > 0 and v_received >= v_ordered then 'received'
+      else 'purchased'
+    end;
+
+    update public.purchase_request_items
+       set status = v_to,
+           status_changed_by = case when status is distinct from v_to then v_actor else status_changed_by end,
+           status_changed_at = case when status is distinct from v_to then now() else status_changed_at end,
+           po_state = v_state,
+           po_ordered = v_ordered,
+           po_received = v_received,
+           po_eta = v_eta,
+           bought_as = coalesce(v_bought, bought_as),
+           po_synced_at = now()
+     where id = v_item.id;
+
+    if v_item.status is distinct from v_to then
+      v_changed := v_changed + 1;
+      perform public._purchase_request_post_event(
+        p_request_id,
+        v_actor,
+        case v_to
+          when 'to_purchase' then format('%s: RFQ %s; still To purchase.', v_item.name, v_item.po_number)
+          else format('%s: P0 %s is %s in Odoo.', v_item.name, v_item.po_number,
+                      lower(public._purchase_request_item_status_label(v_to)))
+        end,
+        jsonb_build_object('event', 'item_po_synced', 'item_id', v_item.id, 'from', v_item.status, 'to', v_to,
+                           'po_number', v_item.po_number)
+      );
+    end if;
+  end loop;
+
+  return v_changed;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.purchase_request_take(p_request_id uuid)
@@ -17788,12 +18902,12 @@ begin
     raise exception 'purchase_request_undo_item_status: you can no longer change this item' using errcode = '42501';
   end if;
 
-  if v_to = 'canvassing' and exists (
+  if v_to = 'still_canvassing' and exists (
     select 1 from public.sor_canvasses c
     where c.requested_item_id = v_item.id
        or (v_item.component_id is not null and c.component_id = v_item.component_id)
   ) then
-    raise exception 'purchase_request_undo_item_status: % has a Canvass, so it stays Canvassing', v_item.name
+    raise exception 'purchase_request_undo_item_status: % has a Canvass, so it stays Still canvassing', v_item.name
       using errcode = '22023';
   end if;
 
@@ -17822,9 +18936,9 @@ begin
      set status = v_from,
          status_changed_by = v_prev_by,
          status_changed_at = v_prev_at,
-         po_number = case when v_to = 'ordered' then null else po_number end,
-         po_verification = case when v_to = 'ordered' then 'UNVERIFIED' else po_verification end,
-         odoo_po_line_ids = case when v_to = 'ordered' then '{}'::int4[] else odoo_po_line_ids end
+         po_number = case when v_to = 'purchased' then null else po_number end,
+         po_verification = case when v_to = 'purchased' then 'UNVERIFIED' else po_verification end,
+         odoo_po_line_ids = case when v_to = 'purchased' then '{}'::int4[] else odoo_po_line_ids end
    where id = v_item.id
   returning * into v_item;
 
@@ -17878,8 +18992,33 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_requests_assign_number()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  -- Whatever the client sent, the number is the next one.
+  new.pr_number := 'PR_' || lpad(nextval('public.purchase_request_number_seq')::text, 4, '0');
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_requests_keep_number()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.pr_number is distinct from old.pr_number then
+    raise exception 'A Purchase Request number is never changed.' using errcode = '42501';
+  end if;
+  return new;
+end
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchasing_dashboard_rows()
- RETURNS TABLE(opportunity_id uuid, sales_reference text, project_title text, grp text, target_kind text, target_id uuid, target_label text, item_count integer, no_canvass_count integer, buyer_id uuid, canvasser_id uuid, since timestamp with time zone, request_id uuid)
+ RETURNS TABLE(opportunity_id uuid, sales_reference text, project_title text, grp text, target_kind text, target_id uuid, target_label text, item_count integer, no_canvass_count integer, buyer_id uuid, canvasser_id uuid, since timestamp with time zone, request_id uuid, delivery_note text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -17925,25 +19064,22 @@ AS $function$
            m.id as matrix_id, m.opportunity_id, m.verdict, m.decided_at,
            cc.acquire_unit,
            (nullif(btrim(c.po_rfq_no), '') is not null
-             or exists (select 1 from public.purchase_request_items pi where pi.component_id = c.id and pi.status in ('ordered', 'received'))) as is_ordered
+             or exists (select 1 from public.purchase_request_items pi where pi.component_id = c.id and pi.status in ('purchased', 'received'))) as is_ordered
       from public.costing_components c
       join public.costing_tender_lines t on t.id = c.tender_line_id
       join matrices m on m.id = t.matrix_id
       left join public.costing_component_costs cc on cc.component_id = c.id
   ),
+  -- A Canvass on a Component alone (no product line) with no winner. A Canvass on a line is
+  -- counted through the line's own status (Still canvassing).
   canvasses as (
-    select cv.id, cv.number, cv.created_at,
-           coalesce(comp_sor.opportunity_id, item_sor.opportunity_id) as opportunity_id,
-           coalesce(comp_sor.purchasing_incharge_id, item_sor.buyer_id) as canvasser_id,
-           item_sor.buyer_id, item_sor.request_id
+    select cv.id, cv.number, cv.created_at, comp_sor.opportunity_id,
+           comp_sor.purchasing_incharge_id as canvasser_id
       from public.sor_canvasses cv
-      left join comps comp_sor on comp_sor.id = cv.component_id
-      left join items item_sor on item_sor.id = cv.requested_item_id
-     where (comp_sor.id is not null or item_sor.id is not null)
+      join comps comp_sor on comp_sor.id = cv.component_id
+     where cv.requested_item_id is null
        and not exists (select 1 from public.sor_canvass_offers o where o.canvass_id = cv.id and o.is_winner)
-       -- Buying already done without a winner (ordered anyway) is not left to source.
-       and not coalesce(comp_sor.is_ordered, false)
-       and coalesce(item_sor.status, '') not in ('ordered', 'received', 'from_stock', 'substituted', 'cannot_source', 'cancelled')
+       and not comp_sor.is_ordered
   ),
   has_canvass as (
     select i.id as item_id
@@ -17951,76 +19087,82 @@ AS $function$
      where exists (select 1 from public.sor_canvasses cv where cv.requested_item_id = i.id or (i.component_id is not null and cv.component_id = i.component_id))
   ),
   r as (
-  -- To source: Requested Items, one row per Purchase Request
-  select i.opportunity_id, 'to_source'::text as grp, 'purchase_request'::text as target_kind, i.request_id as target_id,
+  -- Not checked: nobody has looked yet. One row per Purchase Request.
+  select i.opportunity_id, 'not_checked'::text as grp, 'purchase_request'::text as target_kind, i.request_id as target_id,
          max(i.request_title) as target_label, count(*)::int as item_count, 0 as no_canvass_count,
-         max(i.buyer_id::text)::uuid as buyer_id, max(i.canvasser_id::text)::uuid as canvasser_id, min(i.created_at) as since, i.request_id as request_id
+         max(i.buyer_id::text)::uuid as buyer_id, max(i.canvasser_id::text)::uuid as canvasser_id, min(i.created_at) as since, i.request_id as request_id,
+         null::text as delivery_note
     from items i
-   where i.status in ('requested', 'to_order')
+   where i.status = 'not_checked'
    group by i.opportunity_id, i.request_id
   union all
-  -- To source: Canvasses with no winner
-  select c.opportunity_id, 'to_source', 'canvass', c.id, c.number, 1, 0, c.buyer_id, c.canvasser_id, c.created_at, c.request_id
+  -- Still canvassing: lines whose Canvass is open, one row per Purchase Request
+  select i.opportunity_id, 'still_canvassing', 'purchase_request', i.request_id,
+         max(i.request_title), count(*)::int, 0,
+         max(i.buyer_id::text)::uuid, max(i.canvasser_id::text)::uuid, min(coalesce(i.status_changed_at, i.created_at)), i.request_id,
+         null::text
+    from items i
+   where i.status = 'still_canvassing'
+   group by i.opportunity_id, i.request_id
+  union all
+  -- Still canvassing: a Component Canvass with no winner and no line
+  select c.opportunity_id, 'still_canvassing', 'canvass', c.id, c.number, 1, 0, null, c.canvasser_id, c.created_at, null,
+         null::text
     from canvasses c
   union all
-  -- To price: unpriced Components, plus the matrix when it still needs a decision
-  select m.opportunity_id, 'to_price', 'costing_matrix', m.opportunity_id, null,
+  -- Still canvassing: Components with no Acquire yet, plus the matrix when it still needs a Bid Decision
+  select m.opportunity_id, 'still_canvassing', 'costing_matrix', m.opportunity_id, null,
          ((select count(*) from comps c where c.matrix_id = m.id and c.acquire_unit is null)
            + case when m.verdict is null or m.verdict = 'revise' then 1 else 0 end)::int,
-         0, null, m.purchasing_incharge_id, m.created_at, null
+         0, null, m.purchasing_incharge_id, m.created_at, null,
+         null::text
     from matrices m
    where coalesce(m.verdict, '') <> 'no_go'
      and ((m.verdict is null or m.verdict = 'revise')
           or exists (select 1 from comps c where c.matrix_id = m.id and c.acquire_unit is null))
   union all
-  -- To order: priced, decided Go, no PO yet
-  select c.opportunity_id, 'to_order', 'costing_matrix', c.opportunity_id, null,
-         count(*)::int, 0, null, max(c.purchasing_incharge_id::text)::uuid, min(c.decided_at), null
-    from comps c
-   where c.verdict = 'go' and c.acquire_unit is not null and not c.is_ordered
-   group by c.opportunity_id
+  -- To purchase: lines that need buying and have no confirmed P0 yet. One row per Purchase Request.
+  select i.opportunity_id, 'to_purchase', 'purchase_request', i.request_id,
+         max(i.request_title), count(*)::int, 0,
+         max(i.buyer_id::text)::uuid, max(i.canvasser_id::text)::uuid, min(coalesce(i.status_changed_at, i.created_at)), i.request_id,
+         null::text
+    from items i
+   where i.status = 'to_purchase'
+   group by i.opportunity_id, i.request_id
   union all
-  -- On order: Ordered, not yet Received. One row per IPAS when the PO has one,
-  -- else per Purchase Request.
-  select i.opportunity_id, 'on_order',
+  -- Purchased (not received): confirmed on a P0, not all here yet. One row per IPAS when the
+  -- P0 has one, else per Purchase Request. The delivery note says how much arrived, or when.
+  select i.opportunity_id, 'purchased',
          case when i.ipas_id is not null then 'ipas' else 'purchase_request' end,
          coalesce(i.ipas_id, i.request_id),
          coalesce((select ip.number from public.ipas ip where ip.id = i.ipas_id), max(i.request_title)),
          count(*)::int,
          count(*) filter (where i.id not in (select item_id from has_canvass))::int,
          max(i.buyer_id::text)::uuid, max(i.canvasser_id::text)::uuid, min(coalesce(i.status_changed_at, i.created_at)),
-         max(i.request_id::text)::uuid
+         max(i.request_id::text)::uuid,
+         case
+           when count(*) = 1 then
+             case
+               when coalesce(max(i.po_received), 0) > 0 and coalesce(max(i.po_received), 0) < coalesce(max(i.po_ordered), 0)
+                 then trim_scale(max(i.po_received))::text || ' of ' || trim_scale(max(i.po_ordered))::text || ' received'
+               when max(i.po_eta) is not null then 'Not received yet · ETA ' || to_char(max(i.po_eta), 'Mon FMDD')
+               else 'Not received yet · no ETA set'
+             end
+           else concat_ws(' · ',
+             case when count(*) filter (where coalesce(i.po_received, 0) = 0) > 0
+                  then (count(*) filter (where coalesce(i.po_received, 0) = 0))::text || ' not received yet' end,
+             case when count(*) filter (where coalesce(i.po_received, 0) > 0) > 0
+                  then (count(*) filter (where coalesce(i.po_received, 0) > 0))::text || ' part received' end,
+             case when min(i.po_eta) filter (where coalesce(i.po_received, 0) = 0) is not null
+                  then 'ETA ' || to_char(min(i.po_eta) filter (where coalesce(i.po_received, 0) = 0), 'Mon FMDD') end)
+         end
     from items i
-   where i.status = 'ordered'
+   where i.status = 'purchased'
    group by i.opportunity_id, i.ipas_id, coalesce(i.ipas_id, i.request_id)
-  union all
-  -- To check: submitted Transmittals moving through their checks
-  select ts.opportunity_id, 'to_check', 'transmittal', t.id, t.number,
-         greatest(1, (select count(*) from public.transmittal_lines l where l.transmittal_id = t.id and l.opportunity_id = ts.opportunity_id))::int,
-         0, null, null, coalesce(t.submitted_at, t.created_at), null
-    from public.transmittals t
-    join public.transmittal_sors ts on ts.transmittal_id = t.id
-    join sors s on s.id = ts.opportunity_id
-   where t.state in ('warehouse_checking', 'warehouse_releasing', 'technical_inspection', 'awaiting_check')
-  union all
-  -- To check: Received on an IPAS that no Transmittal names yet. Items with no
-  -- IPAS are left out: nothing links them to a Transmittal, and older ones were
-  -- received before Transmittals existed.
-  select i.opportunity_id, 'to_check', 'ipas', i.ipas_id,
-         (select ip.number from public.ipas ip where ip.id = i.ipas_id),
-         count(*)::int, 0,
-         max(i.buyer_id::text)::uuid, max(i.canvasser_id::text)::uuid, min(coalesce(i.status_changed_at, i.created_at)),
-         max(i.request_id::text)::uuid
-    from items i
-   where i.status = 'received' and i.ipas_id is not null
-     and not exists (
-       select 1 from public.transmittal_ipas ti join public.transmittals t on t.id = ti.transmittal_id
-        where ti.ipas_id = i.ipas_id and t.state <> 'cancelled')
-   group by i.opportunity_id, i.ipas_id
   )
   -- The SOR's name is filled once here rather than in each branch above.
   select r.opportunity_id, s.sales_reference, coalesce(s.project_title, case when r.opportunity_id is null then 'Direct request' end), r.grp, r.target_kind, r.target_id, r.target_label,
-         r.item_count, r.no_canvass_count, r.buyer_id, r.canvasser_id, r.since, r.request_id
+         r.item_count, r.no_canvass_count, r.buyer_id, r.canvasser_id, r.since, r.request_id, r.delivery_note
     from r left join sors s on s.id = r.opportunity_id
    where r.item_count > 0
 $function$
@@ -19301,17 +20443,31 @@ begin
   for v_item in
     select i.*
       from public.purchase_request_items i
-     where i.status = 'to_order'
+     where i.status in ('not_checked', 'available', 'to_purchase', 'cannot_source')
        and (i.id = new.requested_item_id
             or (new.component_id is not null and i.component_id = new.component_id))
        for update
   loop
-    if v_actor is null then
-      update public.purchase_request_items
-         set status = 'canvassing', status_changed_at = now()
-       where id = v_item.id;
-    else
-      perform public._purchase_request_item_move(v_item, 'canvassing', 'purchasing', v_actor, '{}'::jsonb, 'canvass');
+    update public.purchase_request_items
+       set status = 'still_canvassing',
+           status_changed_by = v_actor,
+           status_changed_at = now()
+     where id = v_item.id;
+
+    if v_actor is not null then
+      perform public._purchase_request_post_event(
+        v_item.request_id,
+        v_actor,
+        format('%s: %s → Still canvassing.', v_item.name, public._purchase_request_item_status_label(v_item.status)),
+        jsonb_build_object(
+          'event', 'item_status_changed',
+          'item_id', v_item.id,
+          'from', v_item.status,
+          'to', 'still_canvassing',
+          'changed_by', v_actor,
+          'changed_at', now()
+        )
+      );
     end if;
   end loop;
   return null;
@@ -20385,12 +21541,12 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_participant_items(p_opportunity_id uuid)
- RETURNS TABLE(id uuid, opportunity_id uuid, product_name text, unit text, quantity numeric, sort_order integer)
+ RETURNS TABLE(id uuid, opportunity_id uuid, product_name text, unit text, quantity numeric, sort_order integer, removed_from_s0 boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select i.id, i.opportunity_id, i.product_name, i.unit, i.quantity, i.sort_order
+  select i.id, i.opportunity_id, i.product_name, i.unit, i.quantity, i.sort_order, i.removed_from_s0
   from public.sales_opportunity_items i
   where i.opportunity_id = p_opportunity_id
     and public.sor_access_level(p_opportunity_id) in ('full', 'participant')
@@ -20559,6 +21715,7 @@ AS $function$
         'id', it.id,
         'name', it.name,
         'odoo_product_id', it.odoo_product_id,
+        'sor_item_id', it.sor_item_id,
         'quantity', it.quantity,
         'unit', it.unit,
         'status', it.status,
@@ -20634,6 +21791,7 @@ begin
     select sum(quantity * unit_price)
     from public.sales_opportunity_items
     where opportunity_id = target_id
+      and not removed_from_s0
   ), 0)
   where id = target_id;
   return null; -- AFTER trigger; return value is ignored
@@ -20645,6 +21803,20 @@ CREATE OR REPLACE FUNCTION public.sor_replace_items(p_opportunity_id uuid, p_ite
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare
+  v_in        record;
+  v_name      text;
+  v_line_id   bigint;
+  v_prod_id   integer;
+  v_item_id   uuid;
+  v_match     uuid;
+  v_matched   uuid[] := '{}';
+  v_seen      bigint[] := '{}';
+  v_unit      text;
+  v_qty       numeric;
+  v_price     numeric;
+  v_removed   boolean;
+  v_order     integer;
 begin
   if public.get_employee_id() is null then
     raise exception 'Not signed in.' using errcode = '42501';
@@ -20659,27 +21831,111 @@ begin
     raise exception 'You cannot edit this opportunity''s Product List.' using errcode = '42501';
   end if;
 
-  -- The "before" snapshot, handed back to the caller for its own change log
-  -- -- captured here, bypassing RLS, rather than left to a separate
-  -- SELECT the caller might not have visibility to run.
+  -- The "before" snapshot, handed back for the caller's change log -- read here,
+  -- bypassing RLS (see 20260929040000).
   return query
     select * from public.sales_opportunity_items where opportunity_id = p_opportunity_id;
 
-  delete from public.sales_opportunity_items where opportunity_id = p_opportunity_id;
+  for v_in in
+    select t.item, t.ordinality
+    from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) with ordinality as t(item, ordinality)
+    order by t.ordinality
+  loop
+    v_name := nullif(trim(v_in.item ->> 'product_name'), '');
+    if v_name is null then
+      continue;
+    end if;
 
-  insert into public.sales_opportunity_items (
-    opportunity_id, product_name, unit, quantity, unit_price, sort_order, odoo_product_id
-  )
-  select
-    p_opportunity_id,
-    trim(item ->> 'product_name'),
-    nullif(trim(item ->> 'unit'), ''),
-    coalesce((item ->> 'quantity')::numeric, 0),
-    coalesce((item ->> 'unit_price')::numeric, 0),
-    (ordinality - 1)::int,
-    nullif(item ->> 'odoo_product_id', '')::int
-  from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) with ordinality as t(item, ordinality)
-  where nullif(trim(item ->> 'product_name'), '') is not null;
+    v_line_id := nullif(v_in.item ->> 'odoo_line_id', '')::bigint;
+    v_prod_id := nullif(v_in.item ->> 'odoo_product_id', '')::int;
+    v_item_id := nullif(v_in.item ->> 'id', '')::uuid;
+    v_unit := nullif(trim(v_in.item ->> 'unit'), '');
+    v_qty := coalesce(nullif(v_in.item ->> 'quantity', '')::numeric, 0);
+    v_price := coalesce(nullif(v_in.item ->> 'unit_price', '')::numeric, 0);
+    v_removed := coalesce(nullif(v_in.item ->> 'removed_from_s0', '')::boolean, false);
+    v_order := (v_in.ordinality - 1)::int;
+
+    -- One Odoo line is one line: a repeat of the same id in one call is ignored.
+    if v_line_id is not null then
+      if v_line_id = any (v_seen) then
+        continue;
+      end if;
+      v_seen := v_seen || v_line_id;
+    end if;
+
+    v_match := null;
+
+    -- 1. The Odoo line id.
+    if v_line_id is not null then
+      select i.id into v_match
+      from public.sales_opportunity_items i
+      where i.opportunity_id = p_opportunity_id and i.odoo_line_id = v_line_id and i.id <> all (v_matched);
+    end if;
+
+    -- 2. The line's own id (a hand edit sends it back). A line already bound to a
+    --    different Odoo line is not this one.
+    if v_match is null and v_item_id is not null then
+      select i.id into v_match
+      from public.sales_opportunity_items i
+      where i.opportunity_id = p_opportunity_id and i.id = v_item_id and i.id <> all (v_matched)
+        and (v_line_id is null or i.odoo_line_id is null or i.odoo_line_id = v_line_id);
+    end if;
+
+    -- 3. An older line with no Odoo line id: matched once by Odoo product id.
+    if v_match is null and v_prod_id is not null then
+      select i.id into v_match
+      from public.sales_opportunity_items i
+      where i.opportunity_id = p_opportunity_id and i.odoo_line_id is null
+        and i.odoo_product_id = v_prod_id and i.id <> all (v_matched)
+      order by i.sort_order, i.created_at, i.id
+      limit 1;
+    end if;
+
+    if v_match is not null then
+      -- Written only when something differs: opening an SOR that has not
+      -- changed in Odoo writes nothing.
+      update public.sales_opportunity_items i
+      set product_name = v_name,
+          unit = v_unit,
+          quantity = v_qty,
+          unit_price = v_price,
+          sort_order = v_order,
+          odoo_product_id = v_prod_id,
+          odoo_line_id = coalesce(v_line_id, i.odoo_line_id),
+          removed_from_s0 = v_removed
+      where i.id = v_match
+        and (i.product_name, i.unit, i.quantity, i.unit_price, i.sort_order, i.odoo_product_id, i.odoo_line_id, i.removed_from_s0)
+            is distinct from
+            (v_name, v_unit, v_qty, v_price, v_order, v_prod_id, coalesce(v_line_id, i.odoo_line_id), v_removed);
+    else
+      insert into public.sales_opportunity_items (
+        opportunity_id, product_name, unit, quantity, unit_price, sort_order, odoo_product_id, odoo_line_id, removed_from_s0
+      ) values (
+        p_opportunity_id, v_name, v_unit, v_qty, v_price, v_order, v_prod_id, v_line_id, v_removed
+      )
+      returning id into v_match;
+    end if;
+
+    v_matched := v_matched || v_match;
+  end loop;
+
+  -- A line the S0 no longer has is kept and marked, never deleted.
+  update public.sales_opportunity_items i
+  set removed_from_s0 = true
+  where i.opportunity_id = p_opportunity_id
+    and i.odoo_line_id is not null
+    and not i.removed_from_s0
+    and i.id <> all (v_matched);
+
+  -- A line typed by hand that is not sent again is deleted, as it always was. A
+  -- Tender Line or Requested Item pointing at it is cleared by its foreign key; the
+  -- bypass keeps the costing band trigger from judging whoever saved the SOR.
+  perform set_config('costing.bypass', 'on', true);
+  delete from public.sales_opportunity_items i
+  where i.opportunity_id = p_opportunity_id
+    and i.odoo_line_id is null
+    and i.id <> all (v_matched);
+  perform set_config('costing.bypass', '', true);
 
   return;
 end;
@@ -21859,6 +23115,21 @@ begin
     null;
   end;
   return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.tasks_cancel_closes_windows()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.status = 'DELETED' and old.status is distinct from 'DELETED' then
+    perform public.close_windows_for_cancelled_stage_task(
+      new.opportunity_id, new.stage_action_id, new.stage_visit_id, array[new.logged_by]);
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -23413,6 +24684,114 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.trg_purchase_request_item_ask_yours()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_other uuid;
+begin
+  if new.sor_item_id is null or new.odoo_product_id is null then
+    return null;
+  end if;
+
+  select o.id into v_other
+    from public.purchase_request_items o
+   where o.request_id = new.request_id
+     and o.sor_item_id is null
+     and o.purpose = 'client'
+     and o.po_number is not null
+     and o.status <> 'cancelled'
+     and o.bought_product_id = new.odoo_product_id
+   order by o.created_at, o.id
+   limit 1;
+
+  if v_other is not null then
+    update public.purchase_request_items
+       set new_on_s0 = true, yours_item_id = v_other
+     where id = new.id;
+  end if;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.trg_purchase_request_item_ask_yours_on_p0()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_s0 uuid;
+begin
+  if new.sor_item_id is not null
+     or new.purpose is distinct from 'client'
+     or new.po_number is null
+     or new.status = 'cancelled'
+     or new.bought_product_id is null then
+    return null;
+  end if;
+
+  select s.id into v_s0
+    from public.purchase_request_items s
+   where s.request_id = new.request_id
+     and s.sor_item_id is not null
+     and s.odoo_product_id = new.bought_product_id
+     and s.po_number is null
+     and s.status <> 'cancelled'
+     and s.new_on_s0 = false
+   order by s.created_at, s.id
+   limit 1;
+
+  if v_s0 is not null then
+    update public.purchase_request_items
+       set new_on_s0 = true, yours_item_id = new.id
+     where id = v_s0;
+  end if;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.trg_purchase_request_items_clear_s0_still_lists()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.removed_from_s0 and new.s0_still_lists then
+    new.s0_still_lists := false;
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.trg_purchase_request_sync_items()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.opportunity_id is not null then
+    perform public._purchase_request_sync_sor_items(new.id);
+  end if;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.trg_sor_line_sync_request_item()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public._purchase_request_sync_sor_line(new);
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ts_dist(timestamp without time zone, timestamp without time zone)
  RETURNS interval
  LANGUAGE c
@@ -23702,6 +25081,52 @@ BEGIN
 
   RETURN v_request;
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.unsend_chat_message(p_table text, p_message_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_author uuid;
+  v_created timestamptz;
+  v_removed jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Not signed in';
+  end if;
+  if p_table not in ('task_activity', 'committee_task_activity') then
+    raise exception 'Invalid table %', p_table;
+  end if;
+
+  execute format('select author_id, created_at from public.%I where id = $1 and type = ''COMMENT''', p_table)
+    into v_author, v_created using p_message_id;
+
+  if v_created is null then
+    raise exception 'Message not found';
+  end if;
+  if v_author is distinct from auth.uid() then
+    raise exception 'You can only unsend your own messages';
+  end if;
+  if now() - v_created > interval '15 minutes' then
+    raise exception 'Messages can only be unsent within 15 minutes';
+  end if;
+
+  v_removed := jsonb_build_object('removed', true, 'removedAt', now());
+
+  execute format('update public.%I set content = ''Message removed'', metadata = $2 where id = $1', p_table)
+    using p_message_id, v_removed;
+
+  execute format($q$update public.%I
+    set metadata = jsonb_set(metadata, '{replyTo}',
+      (metadata->'replyTo') || '{"content":"Message removed","removed":true}'::jsonb)
+    where metadata->'replyTo'->>'id' = $1::text$q$, p_table)
+    using p_message_id;
+
+  return v_removed;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.verify_form_token(lookup_token text)
@@ -24019,6 +25444,9 @@ $function$
 -- Triggers
 -- ============================================================
 
+CREATE TRIGGER trg_committee_task_activity_update_guard BEFORE UPDATE ON public.committee_task_activity FOR EACH ROW EXECUTE FUNCTION chat_message_update_guard();
+CREATE TRIGGER committee_tasks_cancel_closes_windows AFTER UPDATE OF status ON public.committee_tasks FOR EACH ROW EXECUTE FUNCTION committee_tasks_cancel_closes_windows();
+CREATE TRIGGER trg_committee_tasks_guard_manage BEFORE UPDATE ON public.committee_tasks FOR EACH ROW EXECUTE FUNCTION committee_tasks_guard_manage();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_bid_decisions FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_component AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
@@ -24121,9 +25549,15 @@ CREATE TRIGGER packing_lists_guard BEFORE DELETE OR UPDATE ON public.packing_lis
 CREATE TRIGGER pms_evidence_guard BEFORE INSERT OR DELETE OR UPDATE ON public.pms_evidence FOR EACH ROW EXECUTE FUNCTION pms_evidence_guard();
 CREATE TRIGGER pms_handoff_events_no_change BEFORE DELETE OR UPDATE ON public.pms_handoff_events FOR EACH ROW EXECUTE FUNCTION pms_handoff_events_append_only();
 CREATE TRIGGER pms_handoff_events_no_truncate BEFORE TRUNCATE ON public.pms_handoff_events FOR EACH STATEMENT EXECUTE FUNCTION pms_handoff_events_append_only();
+CREATE TRIGGER trg_purchase_request_item_ask_yours AFTER INSERT ON public.purchase_request_items FOR EACH ROW EXECUTE FUNCTION trg_purchase_request_item_ask_yours();
+CREATE TRIGGER trg_purchase_request_item_ask_yours_on_p0 AFTER UPDATE OF po_number, bought_product_id ON public.purchase_request_items FOR EACH ROW WHEN (((new.bought_product_id IS NOT NULL) AND ((old.po_number IS DISTINCT FROM new.po_number) OR (old.bought_product_id IS DISTINCT FROM new.bought_product_id)))) EXECUTE FUNCTION trg_purchase_request_item_ask_yours_on_p0();
+CREATE TRIGGER trg_purchase_request_items_clear_s0_still_lists BEFORE UPDATE OF removed_from_s0 ON public.purchase_request_items FOR EACH ROW EXECUTE FUNCTION trg_purchase_request_items_clear_s0_still_lists();
 CREATE TRIGGER purchase_request_messages_broadcast_change_trigger AFTER INSERT ON public.purchase_request_messages FOR EACH ROW EXECUTE FUNCTION purchase_request_messages_broadcast_change();
 CREATE TRIGGER purchase_request_messages_notify AFTER INSERT ON public.purchase_request_messages FOR EACH ROW EXECUTE FUNCTION _purchase_request_message_notify();
 CREATE TRIGGER purchase_requests_updated_at BEFORE UPDATE ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION set_purchase_requests_updated_at();
+CREATE TRIGGER trg_purchase_requests_assign_number BEFORE INSERT ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION purchase_requests_assign_number();
+CREATE TRIGGER trg_purchase_requests_keep_number BEFORE UPDATE ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION purchase_requests_keep_number();
+CREATE TRIGGER trg_purchase_requests_sync_items AFTER INSERT ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION trg_purchase_request_sync_items();
 CREATE TRIGGER retail_orders_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION retail_orders_broadcast_change();
 CREATE TRIGGER trg_retail_orders_updated_at BEFORE UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION set_retail_orders_updated_at();
 CREATE TRIGGER purchase_request_sor_status_notify AFTER UPDATE OF is_deleted, flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION _purchase_request_sor_status_notify();
@@ -24137,12 +25571,15 @@ CREATE TRIGGER trg_sales_opportunities_guard BEFORE UPDATE ON public.sales_oppor
 CREATE TRIGGER trg_sales_opportunities_require_sales_ref BEFORE INSERT OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_require_sales_ref();
 CREATE TRIGGER trg_sales_opportunity_items_touch BEFORE UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sales_opportunity_items_touch();
 CREATE TRIGGER trg_sor_items_recalc AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sor_recalc_expected_value();
+CREATE TRIGGER trg_sor_line_sync_request_item AFTER INSERT OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION trg_sor_line_sync_request_item();
 CREATE TRIGGER sor_logs_set_stage_visit BEFORE INSERT ON public.sales_opportunity_logs FOR EACH ROW EXECUTE FUNCTION sor_set_log_stage_visit();
 CREATE TRIGGER sil_leaves_guard_head_status BEFORE UPDATE ON public.sil_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER trg_canvass_clear_on_price_change AFTER INSERT OR DELETE OR UPDATE ON public.sor_canvass_offer_prices FOR EACH ROW EXECUTE FUNCTION canvass_clear_on_price_change();
 CREATE TRIGGER trg_sor_canvass_offer_prices_check_rate BEFORE INSERT OR UPDATE ON public.sor_canvass_offer_prices FOR EACH ROW EXECUTE FUNCTION sor_canvass_offer_prices_check_rate();
+CREATE TRIGGER trg_sor_canvass_offer_prices_locked BEFORE INSERT OR DELETE OR UPDATE ON public.sor_canvass_offer_prices FOR EACH ROW EXECUTE FUNCTION canvass_refuse_price_change_when_locked();
 CREATE TRIGGER trg_canvass_clear_on_offer_change AFTER INSERT OR DELETE OR UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION canvass_clear_on_offer_change();
 CREATE TRIGGER trg_sor_canvass_offers_check_currency BEFORE UPDATE OF currency ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION sor_canvass_offers_check_currency();
+CREATE TRIGGER trg_sor_canvass_offers_locked BEFORE INSERT OR DELETE OR UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION canvass_refuse_offer_change_when_locked();
 CREATE TRIGGER trg_sor_canvass_offers_touch BEFORE UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION sor_canvass_offers_touch();
 CREATE TRIGGER trg_sor_canvass_signoff_events_append_only BEFORE DELETE OR UPDATE ON public.sor_canvass_signoff_events FOR EACH ROW EXECUTE FUNCTION sor_canvass_signoff_events_append_only();
 CREATE TRIGGER trg_canvass_clear_on_reason_change AFTER UPDATE OF reason ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION canvass_clear_on_reason_change();
@@ -24150,15 +25587,20 @@ CREATE TRIGGER trg_sor_canvasses_assign_number BEFORE INSERT ON public.sor_canva
 CREATE TRIGGER trg_sor_canvasses_default_canvasser BEFORE INSERT ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_default_canvasser();
 CREATE TRIGGER trg_sor_canvasses_guard_signoff BEFORE INSERT OR UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_guard_signoff();
 CREATE TRIGGER trg_sor_canvasses_keep_number BEFORE UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_keep_number();
+CREATE TRIGGER trg_sor_canvasses_locked BEFORE UPDATE OF reason, product_name ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION canvass_refuse_edit_when_locked();
 CREATE TRIGGER trg_sor_canvasses_mark_canvassing AFTER INSERT ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_mark_canvassing();
 CREATE TRIGGER trg_sor_canvasses_refuse_component_item BEFORE INSERT OR UPDATE OF requested_item_id ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_refuse_component_item();
+CREATE TRIGGER trg_sor_canvasses_stamp_request_made BEFORE UPDATE OF requested_item_id ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION canvass_stamp_request_made();
 CREATE TRIGGER trg_sor_canvasses_touch BEFORE UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_touch();
 CREATE TRIGGER trg_sor_inclusions_touch BEFORE UPDATE ON public.sor_inclusions FOR EACH ROW EXECUTE FUNCTION sor_inclusions_touch();
 CREATE TRIGGER trg_sor_procurement_requests_guard BEFORE UPDATE ON public.sor_procurement_requests FOR EACH ROW EXECUTE FUNCTION sor_procurement_requests_guard();
 CREATE TRIGGER trg_sor_procurement_requests_touch BEFORE UPDATE ON public.sor_procurement_requests FOR EACH ROW EXECUTE FUNCTION sor_procurement_requests_touch();
 CREATE TRIGGER trg_sor_purchase_order_links_touch BEFORE UPDATE ON public.sor_purchase_order_links FOR EACH ROW EXECUTE FUNCTION sor_purchase_order_links_touch();
+CREATE TRIGGER sor_stock_snapshots_flag_short_available AFTER INSERT OR UPDATE OF data ON public.sor_stock_snapshots FOR EACH ROW EXECUTE FUNCTION _flag_short_available_items();
+CREATE TRIGGER trg_task_activity_update_guard BEFORE UPDATE ON public.task_activity FOR EACH ROW EXECUTE FUNCTION chat_message_update_guard();
 CREATE TRIGGER enforce_task_verification_security BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION protect_task_verification();
 CREATE TRIGGER tasks_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION tasks_broadcast_change();
+CREATE TRIGGER tasks_cancel_closes_windows AFTER UPDATE OF status ON public.tasks FOR EACH ROW EXECUTE FUNCTION tasks_cancel_closes_windows();
 CREATE TRIGGER transmittal_cleared_signatures_no_change BEFORE DELETE OR UPDATE ON public.transmittal_cleared_signatures FOR EACH ROW EXECUTE FUNCTION transmittal_cleared_signatures_append_only();
 CREATE TRIGGER transmittal_lines_guard BEFORE INSERT OR DELETE OR UPDATE ON public.transmittal_lines FOR EACH ROW EXECUTE FUNCTION transmittal_lines_guard();
 CREATE TRIGGER transmittal_lines_sync_links AFTER INSERT OR DELETE OR UPDATE ON public.transmittal_lines FOR EACH ROW EXECUTE FUNCTION transmittal_lines_sync_links();
