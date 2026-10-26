@@ -974,13 +974,13 @@ create table if not exists public."offset_leaves" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
-  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
   "hr_override" boolean not null default false,
+  "company_id" uuid,
   "approved_hours" numeric,
   "hr_processed_at" timestamp with time zone
 );
@@ -1025,13 +1025,13 @@ create table if not exists public."overtime_requests" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
-  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
   "hr_override" boolean not null default false,
+  "company_id" uuid,
   "hr_processed_at" timestamp with time zone
 );
 
@@ -1347,13 +1347,13 @@ create table if not exists public."sil_leaves" (
   "approval_credits_snapshot" numeric,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
-  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false
+  "hr_override" boolean not null default false,
+  "company_id" uuid
 );
 
 create table if not exists public."sor_action_runs" (
