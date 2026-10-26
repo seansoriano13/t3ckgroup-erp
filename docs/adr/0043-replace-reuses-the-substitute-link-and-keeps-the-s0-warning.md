@@ -28,5 +28,5 @@ database call, for Purchasing only, with a required reason:
 
 The warning holds A open in the folded list (`s0_still_lists` is one of
 `NEEDS_LOOK_FLAGS`). If the client refuses B, Purchasing replaces again or
-cancels. "Offer a substitute" is gone from the menu; its RPC stays in the
-database for old callers.
+cancels. "Offer a substitute" is gone from the menu, and its RPC is dropped
+(20261105020000).

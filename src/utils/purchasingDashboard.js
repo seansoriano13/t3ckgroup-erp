@@ -7,31 +7,25 @@
 
 export const DASHBOARD_GROUP = {
   NOT_CHECKED: "not_checked",
-  TO_PRICE: "to_price",
   TO_PURCHASE: "to_purchase",
   STILL_CANVASSING: "still_canvassing",
-  ON_ORDER: "on_order",
-  TO_CHECK: "to_check",
+  PURCHASED: "purchased",
 };
 
 export const DASHBOARD_GROUPS = Object.values(DASHBOARD_GROUP);
 
 export const DASHBOARD_GROUP_LABELS = {
   [DASHBOARD_GROUP.NOT_CHECKED]: "Not checked",
-  [DASHBOARD_GROUP.TO_PRICE]: "To price",
   [DASHBOARD_GROUP.TO_PURCHASE]: "To purchase",
   [DASHBOARD_GROUP.STILL_CANVASSING]: "Still canvassing",
-  [DASHBOARD_GROUP.ON_ORDER]: "Purchased (not received)",
-  [DASHBOARD_GROUP.TO_CHECK]: "To check",
+  [DASHBOARD_GROUP.PURCHASED]: "Purchased (not received)",
 };
 
 export const DASHBOARD_GROUP_HINTS = {
   [DASHBOARD_GROUP.NOT_CHECKED]: "Product lines nobody has looked at yet.",
-  [DASHBOARD_GROUP.TO_PRICE]: "Components with no Acquire, and matrices still waiting on a Bid Decision.",
   [DASHBOARD_GROUP.TO_PURCHASE]: "Product lines that need buying, with no confirmed P0 yet.",
-  [DASHBOARD_GROUP.STILL_CANVASSING]: "Product lines with supplier offers being collected.",
-  [DASHBOARD_GROUP.ON_ORDER]: "Confirmed on a P0 and not all here yet, with the delivery note, by IPAS where the P0 has one.",
-  [DASHBOARD_GROUP.TO_CHECK]: "Received and waiting for a Transmittal, or moving through its checks.",
+  [DASHBOARD_GROUP.STILL_CANVASSING]: "Product lines with supplier offers being collected, and Components still waiting on an Acquire price or a Bid Decision.",
+  [DASHBOARD_GROUP.PURCHASED]: "Confirmed on a P0 and not all here yet, with the delivery note, by IPAS where the P0 has one.",
 };
 
 const DAY = 86_400_000;
@@ -73,7 +67,7 @@ export function filterRows(
 }
 
 /**
- * The five groups, always in order and always present, each with its item
+ * The four groups, always in order and always present, each with its item
  * count, how many SORs it spans, and per SOR its item count and the rows
  * (records) that hold the work, oldest first.
  */

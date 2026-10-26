@@ -285,31 +285,6 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     return updated
   })
 
-  stubRpc("purchase_request_add_substitute", (args) => {
-    const original = findRow("purchase_request_items", args.p_item_id)
-    if (!original) refuse(`purchase_request_add_substitute: item ${args.p_item_id} not found`, "P0002")
-    if (!canSubstitute) refuse("purchase_request_add_substitute: only the request's Buyer may add a substitute", "42501")
-    const item = insertRow("purchase_request_items", {
-      request_id: original.request_id,
-      source: "new",
-      name: args.p_name.trim(),
-      unit: args.p_unit || null,
-      quantity: args.p_quantity,
-      description: args.p_description || null,
-      images: args.p_images || [],
-      substitute_for_item_id: original.id,
-      requested_by: actorId,
-    })
-    insertRow("purchase_request_messages", {
-      request_id: item.request_id,
-      author_id: actorId,
-      content: `Offered ${item.name} as a substitute for ${original.name}.`,
-      metadata: { event: "item_added", item_id: item.id, source: "new", substitute_for_item_id: original.id },
-    })
-    move(original, "cancelled", { substitute_item_id: item.id }, "purchase_request_add_substitute")
-    return item.id
-  })
-
   stubRpc("purchase_request_replace_item", (args) => {
     const original = findRow("purchase_request_items", args.p_item_id)
     if (!original) refuse(`purchase_request_replace_item: item ${args.p_item_id} not found`, "P0002")

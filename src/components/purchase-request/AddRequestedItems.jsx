@@ -23,24 +23,20 @@ import { OVER_REQUEST_MODAL } from "./stacking";
 /** The database's refusal, without the function name it leads with. */
 const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
 
-const blankProduct = (from = null) => ({
+const blankProduct = () => ({
   name: "",
-  quantity: from ? String(Number(from.quantity)) : "1",
-  unit: from?.unit || "unit",
+  quantity: "1",
+  unit: "unit",
   description: "",
   purpose: "client",
 });
 
 /**
  * A product that isn't in Odoo: name, quantity, unit, description and images.
- *
- * With `substituteFor` (an item), the Buyer's substitute for it (#306): the
- * amount starts at the original's, and saving cancels the original
- * and keeps the link.
  */
-export function NewProductDialog({ open, onOpenChange, requestId, substituteFor = null }) {
+export function NewProductDialog({ open, onOpenChange, requestId }) {
   const refresh = useRefreshRequest(requestId);
-  const [product, setProduct] = useState(() => blankProduct(substituteFor));
+  const [product, setProduct] = useState(blankProduct);
   const attachments = useFileAttachments();
   const fileRef = useRef(null);
   const set = (key) => (value) => setProduct((prev) => ({ ...prev, [key]: value }));
@@ -53,7 +49,7 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
   };
 
   const close = () => {
-    setProduct(blankProduct(substituteFor));
+    setProduct(blankProduct());
     attachments.clear();
     onOpenChange(false);
   };
@@ -69,14 +65,12 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
         unit: product.unit,
         description: product.description.trim(),
         images: await attachments.upload(),
-        ...(!substituteFor && { purpose: product.purpose }),
+        purpose: product.purpose,
       };
-      return substituteFor
-        ? purchaseRequestService.addSubstitute(substituteFor.id, fields)
-        : purchaseRequestService.addNewItem(requestId, fields);
+      return purchaseRequestService.addNewItem(requestId, fields);
     },
     onSuccess: () => {
-      toast.success(substituteFor ? "Substitute offered." : "Added under Other requests.");
+      toast.success("Added under Other requests.");
       refresh();
       close();
     },
@@ -90,18 +84,16 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       className={OVER_REQUEST_MODAL}
-      crumbs={["Purchase Requests", substituteFor ? "Offer a substitute" : "Ask for a product"]}
+      crumbs={["Purchase Requests", "Ask for a product"]}
       actions={
         <Button size="lg" disabled={!valid || busy} onClick={() => addMutation.mutate()}>
           {busy && <Spinner size="sm" />}
-          {substituteFor ? "Offer substitute" : "Send request"}
+          Send request
         </Button>
       }
     >
       <p className="text-sm text-muted-foreground">
-        {substituteFor
-          ? `For ${substituteFor.name}. It is cancelled and stays linked, so sales can re-price.`
-          : "Tell us what you need in your own words. Purchasing will find the product. It shows under Other requests as Not checked."}
+        Tell us what you need in your own words. Purchasing will find the product. It shows under Other requests as Not checked.
       </p>
 
         <div
@@ -113,11 +105,11 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
             addImages(files);
           }}
         >
-          <FieldBox bare label={substituteFor ? "Product name" : "What do you need?"}>
+          <FieldBox bare label="What do you need?">
             <Input
               value={product.name}
               onChange={(e) => set("name")(e.target.value)}
-              placeholder={substituteFor ? "The substitute product" : "e.g. A heavy-duty tarpaulin, green"}
+              placeholder="e.g. A heavy-duty tarpaulin, green"
             />
           </FieldBox>
           <div className="grid grid-cols-2 gap-3">
@@ -139,11 +131,9 @@ export function NewProductDialog({ open, onOpenChange, requestId, substituteFor 
               />
             </FieldBox>
           </div>
-          {!substituteFor && (
-            <FieldBox bare label="What is it for?">
-              <SelectField options={REQUEST_PURPOSES} value={product.purpose} onChange={set("purpose")} />
-            </FieldBox>
-          )}
+          <FieldBox bare label="What is it for?">
+            <SelectField options={REQUEST_PURPOSES} value={product.purpose} onChange={set("purpose")} />
+          </FieldBox>
           <FieldBox bare label="Description">
             <Textarea
               value={product.description}

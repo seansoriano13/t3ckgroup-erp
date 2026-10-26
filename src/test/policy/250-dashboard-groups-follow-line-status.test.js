@@ -1,6 +1,6 @@
 /**
  * #690 (spec #675): the Purchasing Dashboard's groups are read from the stored line status.
- * Not checked, To purchase, Still canvassing and Purchased (grp on_order) each count the lines
+ * Not checked, To purchase, Still canvassing and Purchased (grp purchased) each count the lines
  * at that status; a Purchased line carries its delivery note; once Received it leaves the groups.
  * A Cancelled line is in none. One SOR sits in as many groups as apply.
  */
@@ -64,13 +64,18 @@ describe("groups follow the stored line status", () => {
         expect(count(rows, "not_checked")).toBe(1)
         expect(count(rows, "to_purchase")).toBe(2)
         expect(count(rows, "still_canvassing")).toBe(1)
-        expect(count(rows, "on_order")).toBe(1)
+        expect(count(rows, "purchased")).toBe(1)
         expect(rows.flatMap((row) => row.item_count).reduce((a, b) => a + b, 0)).toBe(5)
+    })
+
+    it("has only the four status groups", async () => {
+        const rows = await mine()
+        expect([...new Set(rows.map((row) => row.grp))].sort()).toEqual(["not_checked", "purchased", "still_canvassing", "to_purchase"])
     })
 
     it("opens the request from each group", async () => {
         const rows = await mine()
-        for (const grp of ["not_checked", "to_purchase", "still_canvassing", "on_order"]) {
+        for (const grp of ["not_checked", "to_purchase", "still_canvassing", "purchased"]) {
             expect(group(rows, grp)[0]).toMatchObject({ target_kind: "purchase_request", target_id: requestId, request_id: requestId })
         }
     })
@@ -78,17 +83,17 @@ describe("groups follow the stored line status", () => {
 
 describe("the Purchased delivery note", () => {
     it("says Not received yet with the ETA", async () => {
-        expect(group(await mine(), "on_order")[0].delivery_note).toBe("Not received yet · ETA Nov 12")
+        expect(group(await mine(), "purchased")[0].delivery_note).toBe("Not received yet · ETA Nov 12")
     })
 
     it("says no ETA set when Odoo has none", async () => {
         await asSvc(svc().from("purchase_request_items").update({ po_eta: null }).eq("id", itemIds.Waiting), "clear eta")
-        expect(group(await mine(), "on_order")[0].delivery_note).toBe("Not received yet · no ETA set")
+        expect(group(await mine(), "purchased")[0].delivery_note).toBe("Not received yet · no ETA set")
     })
 
     it("says x of y received after a part receipt", async () => {
         await asSvc(svc().from("purchase_request_items").update({ po_received: 3 }).eq("id", itemIds.Waiting), "part receipt")
-        expect(group(await mine(), "on_order")[0].delivery_note).toBe("3 of 5 received")
+        expect(group(await mine(), "purchased")[0].delivery_note).toBe("3 of 5 received")
     })
 
     it("has no note outside Purchased", async () => {
@@ -101,7 +106,7 @@ describe("a Received line leaves the groups", () => {
     it("drops out of Purchased (not received)", async () => {
         await asSvc(svc().from("purchase_request_items").update({ status: "received", po_received: 5 }).eq("id", itemIds.Waiting), "receive")
         const rows = await mine()
-        expect(count(rows, "on_order")).toBe(0)
+        expect(count(rows, "purchased")).toBe(0)
         expect(count(rows, "not_checked") + count(rows, "to_purchase") + count(rows, "still_canvassing")).toBe(4)
     })
 })

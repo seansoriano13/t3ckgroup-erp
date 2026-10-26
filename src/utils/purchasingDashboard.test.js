@@ -24,24 +24,21 @@ const row = (over = {}) => ({
 const ROWS = [
   row({ item_count: 3 }),
   row({ target_kind: "canvass", target_id: "cv-1", item_count: 1, canvasser_id: "emp-c" }),
-  row({ grp: DASHBOARD_GROUP.ON_ORDER, item_count: 2, no_canvass_count: 1, buyer_id: "emp-b", since: daysAgo(30) }),
-  row({ grp: DASHBOARD_GROUP.TO_PRICE, target_kind: "costing_matrix", target_id: "sor-1", request_id: null }),
-  row({ grp: DASHBOARD_GROUP.TO_CHECK, target_kind: "transmittal", target_id: "tr-1", request_id: null }),
+  row({ grp: DASHBOARD_GROUP.PURCHASED, item_count: 2, no_canvass_count: 1, buyer_id: "emp-b", since: daysAgo(30) }),
+  row({ grp: DASHBOARD_GROUP.STILL_CANVASSING, target_kind: "costing_matrix", target_id: "sor-1", request_id: null }),
   row({ opportunity_id: "sor-2", sales_reference: "S08000", project_title: "Radios", target_id: "pr-2", request_id: "pr-2" }),
 ];
 
 const groupOf = (view, grp) => view.groups.find((group) => group.key === grp);
 
 describe("dashboardView", () => {
-  it("shows all six groups, in order, with item and SOR counts across every SOR", () => {
+  it("shows exactly four groups, in order, with item and SOR counts across every SOR", () => {
     const view = dashboardView(ROWS, {}, NOW);
     expect(view.groups.map((group) => group.key)).toEqual([
       DASHBOARD_GROUP.NOT_CHECKED,
-      DASHBOARD_GROUP.TO_PRICE,
       DASHBOARD_GROUP.TO_PURCHASE,
       DASHBOARD_GROUP.STILL_CANVASSING,
-      DASHBOARD_GROUP.ON_ORDER,
-      DASHBOARD_GROUP.TO_CHECK,
+      DASHBOARD_GROUP.PURCHASED,
     ]);
     expect(groupOf(view, DASHBOARD_GROUP.NOT_CHECKED)).toMatchObject({ itemCount: 5, sorCount: 2 });
     expect(groupOf(view, DASHBOARD_GROUP.TO_PURCHASE)).toMatchObject({ itemCount: 0, sorCount: 0 });
@@ -51,9 +48,8 @@ describe("dashboardView", () => {
     const view = dashboardView(ROWS, {}, NOW);
     const sor1 = (grp) => groupOf(view, grp).sors.find((sor) => sor.id === "sor-1");
     expect(sor1(DASHBOARD_GROUP.NOT_CHECKED).itemCount).toBe(4);
-    expect(sor1(DASHBOARD_GROUP.ON_ORDER).itemCount).toBe(2);
-    expect(sor1(DASHBOARD_GROUP.TO_PRICE).itemCount).toBe(1);
-    expect(sor1(DASHBOARD_GROUP.TO_CHECK).itemCount).toBe(1);
+    expect(sor1(DASHBOARD_GROUP.PURCHASED).itemCount).toBe(2);
+    expect(sor1(DASHBOARD_GROUP.STILL_CANVASSING).itemCount).toBe(1);
   });
 
   it("filters by SOR, matching the S number or the project title in any case", () => {
@@ -63,20 +59,20 @@ describe("dashboardView", () => {
   });
 
   it("filters by Buyer, by Canvasser and by ageing", () => {
-    expect(dashboardView(ROWS, { buyerId: "emp-b" }, NOW).groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 0, 2, 0]);
+    expect(dashboardView(ROWS, { buyerId: "emp-b" }, NOW).groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 2]);
     expect(dashboardView(ROWS, { canvasserId: "emp-c" }, NOW).groups[0].itemCount).toBe(1);
-    expect(dashboardView(ROWS, { minAgeDays: 14 }, NOW).groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 0, 2, 0]);
+    expect(dashboardView(ROWS, { minAgeDays: 14 }, NOW).groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 2]);
   });
 
   it("filters to items ordered with no canvass, counting only those", () => {
     const view = dashboardView(ROWS, { noCanvass: true }, NOW);
-    expect(view.groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 0, 1, 0]);
+    expect(view.groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 1]);
   });
 });
 
 describe("sorSummary", () => {
   it("reads every group an SOR is in, never one primary group", () => {
-    expect(sorSummary(ROWS, "sor-1")).toBe("4 not checked, 1 to price, 2 purchased (not received), 1 to check");
+    expect(sorSummary(ROWS, "sor-1")).toBe("4 not checked, 1 still canvassing, 2 purchased (not received)");
   });
 });
 
@@ -104,11 +100,11 @@ describe("Direct requests and the ageing rules", () => {
 
   it("keeps only IPAS that Order Monitoring marks late", () => {
     const rows = [
-      row({ grp: DASHBOARD_GROUP.ON_ORDER, target_kind: "ipas", target_id: "ip-late", item_count: 3 }),
-      row({ grp: DASHBOARD_GROUP.ON_ORDER, target_kind: "ipas", target_id: "ip-fine", item_count: 5 }),
+      row({ grp: DASHBOARD_GROUP.PURCHASED, target_kind: "ipas", target_id: "ip-late", item_count: 3 }),
+      row({ grp: DASHBOARD_GROUP.PURCHASED, target_kind: "ipas", target_id: "ip-fine", item_count: 5 }),
       row({ item_count: 7 }),
     ];
     const view = dashboardView(rows, { lateIpasIds: new Set(["ip-late"]) }, NOW);
-    expect(view.groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 0, 3, 0]);
+    expect(view.groups.map((group) => group.itemCount)).toEqual([0, 0, 0, 3]);
   });
 });

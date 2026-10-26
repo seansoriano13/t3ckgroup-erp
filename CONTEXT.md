@@ -656,8 +656,10 @@ _Avoid_: Procurement Queue, Sourcing List, Purchasing Dashboard (a different thi
 
 **Purchasing Dashboard**:
 Where every project's buying is seen at once, grouped by what is outstanding
-rather than by which record holds it — **Not checked**, **To price**, **To purchase**,
-**Still canvassing**, **Purchased (not received)**, **To check**. The item groups
+rather than by which record holds it — **Not checked**, **To purchase**,
+**Still canvassing**, **Purchased (not received)**: exactly four. A Component still
+needing its Acquire price or a Bid Decision counts under Still canvassing, and a
+Transmittal being checked is not a Dashboard group. The item groups
 read the stored line status, one word for one thing: a line turned Purchased by Odoo
 sits under Purchased (not received) with its delivery note ("Not received yet · ETA …",
 "x of y received") and leaves the groups once it is Received. The groups are derived and never stored, and one SOR

@@ -12,12 +12,13 @@ import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../../constants/procurement";
 import { useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
+import OdooProductField from "./OdooProductField";
 
 /** The database's refusal, without the function name it leads with. */
 const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
 
 /**
- * #687 - Purchasing replaces a product with another. Name the new product, optionally give its
+ * #687 - Purchasing replaces a product with another. Pick the new product from Odoo (or type it if Odoo has none), optionally give its
  * P0, and say why (required). The old line is Cancelled with "Replaced by B - reason", its open
  * Canvass stops, and B joins Other requests with the same quantity. An S0 line keeps warning
  * "S0 still lists A" until Sales updates the S0.
@@ -25,6 +26,8 @@ const refusal = (error) => (error?.message || "Something went wrong.").replace(/
 export default function ReplaceItemDialog({ open, onOpenChange, item, requestId }) {
   const refresh = useRefreshRequest(requestId);
   const [name, setName] = useState("");
+  // Set when product B is picked from Odoo's list; typing afterwards drops it.
+  const [odooProductId, setOdooProductId] = useState(null);
   const [poNumber, setPoNumber] = useState("");
   const [reason, setReason] = useState("");
   const po = normalizePoNumber(poNumber);
@@ -33,6 +36,7 @@ export default function ReplaceItemDialog({ open, onOpenChange, item, requestId 
 
   const close = () => {
     setName("");
+    setOdooProductId(null);
     setPoNumber("");
     setReason("");
     onOpenChange(false);
@@ -40,7 +44,7 @@ export default function ReplaceItemDialog({ open, onOpenChange, item, requestId 
 
   const replaceMutation = useMutation({
     mutationFn: async () => {
-      const newId = await purchaseRequestService.replaceItem(item.id, { name: name.trim(), reason: reason.trim() });
+      const newId = await purchaseRequestService.replaceItem(item.id, { name: name.trim(), reason: reason.trim(), odooProductId });
       // B follows its own P0. The replacement is already saved, so a P0 Odoo refuses is reported
       // on its own and B stays at Not checked for Purchasing to attach again.
       if (po) {
@@ -81,7 +85,18 @@ export default function ReplaceItemDialog({ open, onOpenChange, item, requestId 
       </p>
       <div className="space-y-3">
         <FieldBox bare label="Replace with">
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="The product bought instead" />
+          <OdooProductField
+            value={name}
+            onTyped={(typed) => {
+              setName(typed);
+              setOdooProductId(null);
+            }}
+            onPicked={(product) => {
+              setName(product.name);
+              setOdooProductId(product.id);
+            }}
+            placeholder="Search Odoo, or type a product not in Odoo"
+          />
         </FieldBox>
         <FieldBox bare label="P0 for the new product (optional)">
           <Input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} placeholder="P01234" />

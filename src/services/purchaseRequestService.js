@@ -517,17 +517,20 @@ export const purchaseRequestService = {
   },
 
   /**
-   * The Buyer offers a substitute: a new product linked to the item it
-   * replaces, which is cancelled (the link stays) so sales can re-price. Returns the
-   * new item's id.
+   * Odoo products whose name matches `query`, as `[{ id, name, code }]` (at most 10), for picking
+   * product B when replacing a product (#687). Never throws: with a short query, no match, or Odoo
+   * not answering it gives `[]`, and Purchasing simply types the product.
    */
-  async addSubstitute(itemId, { name, quantity, unit = null, description = null, images = [] }) {
-    const { data, error } = await supabase.rpc("purchase_request_add_substitute", {
-      p_item_id: itemId,
-      ...itemArgs({ name, quantity, unit, description, images }),
-    });
-    if (error) throw error;
-    return data;
+  async searchOdooProducts(query) {
+    const name = String(query ?? "").trim();
+    if (name.length < 2) return [];
+    try {
+      const { data, error } = await supabase.functions.invoke("odoo-product-search", { body: { query: name } });
+      if (error || !data?.success || !Array.isArray(data.products)) return [];
+      return data.products.slice(0, 10).map(({ id, name: product, code }) => ({ id, name: product, code: code ?? null }));
+    } catch {
+      return [];
+    }
   },
 
   /**

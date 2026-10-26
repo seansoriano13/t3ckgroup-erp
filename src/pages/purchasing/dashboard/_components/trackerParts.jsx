@@ -160,13 +160,12 @@ function OrderLine({ order, labelOf, onOpen }) {
  * One SOR's whole purchase as a stage-by-stage checklist, each record under
  * the stage it is in. Records are one-line liners, never a table inside a row.
  */
-export function StageChecklist({ sor, checkIds, labelOf, today, onOpenRow, onOpenOrder }) {
+export function StageChecklist({ sor, labelOf, today, onOpenRow, onOpenOrder }) {
   const states = stageStates(sor);
   const projectRows = sor.rows.filter((row) => row.target_kind !== "ipas");
   const ordersIn = (key) => {
     if (key === "filed") return sor.orders.filter((order) => order.group === "filed");
-    if (key !== "on_order" && key !== "to_check") return [];
-    return sor.openOrders.filter((order) => checkIds.has(order.id) === (key === "to_check"));
+    return key === "purchased" ? sor.openOrders : [];
   };
   return (
     <ol className="flex flex-col">

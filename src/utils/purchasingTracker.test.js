@@ -50,7 +50,7 @@ const order = (over) => ({
   ...over,
 });
 
-const ipasRow = (over) => row({ grp: "on_order", target_kind: "ipas", target_id: "ip-1", target_label: "TGIPAS_1", item_count: 1, ...over });
+const ipasRow = (over) => row({ grp: "purchased", target_kind: "ipas", target_id: "ip-1", target_label: "TGIPAS_1", item_count: 1, ...over });
 
 describe("stages", () => {
   it("counts a SOR's outstanding work per stage, and ticks the stages it is past", () => {
@@ -62,23 +62,16 @@ describe("stages", () => {
     const states = stageStates(sors[0]);
     expect(states.map((s) => [s.key, s.n, s.tone])).toEqual([
       ["not_checked", 0, "done"],
-      ["to_price", 0, "done"],
-      ["to_purchase", 3, "open"],
+            ["to_purchase", 3, "open"],
       ["still_canvassing", 0, "done"],
-      ["on_order", 1, "open"],
-      ["to_check", 0, "none"],
+      ["purchased", 1, "open"],
       ["filed", 0, "none"],
     ]);
   });
 
-  it("marks On order late when one of the SOR's orders is late", () => {
+  it("marks Purchased late when one of the SOR's orders is late", () => {
     const { sors } = buildTracker({ rows: [ipasRow()], orders: [order({ late: true, group: ORDER_GROUP.NEEDS_CHASING })], today: TODAY });
-    expect(stageStates(sors[0]).find((s) => s.key === "on_order").tone).toBe("late");
-  });
-
-  it("puts an order whose IPAS the dashboard rows place in To check under To check", () => {
-    const { sors } = buildTracker({ rows: [ipasRow({ grp: "to_check" })], orders: [order()], today: TODAY });
-    expect(sors[0].byStage).toMatchObject({ on_order: 0, to_check: 1 });
+    expect(stageStates(sors[0]).find((s) => s.key === "purchased").tone).toBe("late");
   });
 
   it("counts filed orders in the Filed stage and shows them only when asked", () => {
@@ -91,7 +84,7 @@ describe("stages", () => {
 
   it("counts an open order the dashboard rows do not know as one item where it stands", () => {
     const { sors } = buildTracker({ rows: [], orders: [order()], today: TODAY });
-    expect(sors[0].byStage.on_order).toBe(1);
+    expect(sors[0].byStage.purchased).toBe(1);
   });
 
   it("keeps an order with no SOR together on one row", () => {
@@ -122,7 +115,7 @@ describe("next move", () => {
   });
 
   it("prefers a step on our side to one we only wait on", () => {
-    const next = nextMoveOf([row({ grp: "to_price", target_kind: "costing_matrix", since: daysAgo(1) })], [order({ daysWaiting: 20 })], { today: TODAY });
+    const next = nextMoveOf([row({ grp: "still_canvassing", target_kind: "costing_matrix", since: daysAgo(1) })], [order({ daysWaiting: 20 })], { today: TODAY });
     expect(next.move.label).toBe("Finish the Bid Decision");
     expect(next.band).toBe(MOVE_BAND.NOW);
   });
@@ -163,7 +156,7 @@ describe("filters", () => {
   });
 
   it("narrows to a stage and leaves the stage totals whole", () => {
-    const built = buildTracker({ ...data, filters: { stage: "on_order" } });
+    const built = buildTracker({ ...data, filters: { stage: "purchased" } });
     expect(built.sors.map((s) => s.salesReference)).toEqual(["S3"]);
     expect(built.stages.find((s) => s.key === "not_checked").count).toBe(4);
   });

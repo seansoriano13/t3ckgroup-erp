@@ -2,17 +2,18 @@
 -- #690 (spec #675): the Purchasing Dashboard's groups use the new status words.
 --
 -- Redefines `purchasing_dashboard_rows()` (20261021110000, status words renamed by #676).
--- The item groups now read the stored line status, one word for one thing:
+-- The Dashboard has exactly four groups, in the line status words:
 --   not_checked       Requested Items at Not checked
 --   to_purchase       Requested Items at To purchase (the old matrix "priced, no PO" branch is gone:
 --                     the product line is the truth now)
---   still_canvassing  Requested Items at Still canvassing, plus any Component Canvass with no winner
---   on_order          Requested Items at Purchased (shown as "Purchased (not received)"); a line
+--   still_canvassing  Requested Items at Still canvassing, any Component Canvass with no winner,
+--                     and the Costing Matrix while a Component still needs its Acquire price or
+--                     the matrix still waits on a Bid Decision
+--   purchased         Requested Items at Purchased, shown as "Purchased (not received)"; a line
 --                     leaves it once Odoo says Received. Rows carry a delivery note.
--- Unchanged: to_price (Components with no Acquire, matrix waiting on a Bid Decision) and to_check
--- (Transmittals moving through their checks).
--- Groups are derived here and never stored. New column: delivery_note, so the return type changes
--- and the function is dropped and recreated (same grants).
+-- The two older groups (pricing, Transmittal checks) are gone. Transmittals are not a Dashboard group (the
+-- Transmittal flow itself is untouched). Groups are derived here and never stored. New column:
+-- delivery_note, so the return type changes and the function is dropped and recreated (same grants).
 --
 -- SAFE TO RUN AT ANY TIME: one read-only function.
 -- ==============================================================================
@@ -128,8 +129,8 @@ as $function$
          null::text
     from canvasses c
   union all
-  -- To price: unpriced Components, plus the matrix when it still needs a decision
-  select m.opportunity_id, 'to_price', 'costing_matrix', m.opportunity_id, null,
+  -- Still canvassing: Components with no Acquire yet, plus the matrix when it still needs a Bid Decision
+  select m.opportunity_id, 'still_canvassing', 'costing_matrix', m.opportunity_id, null,
          ((select count(*) from comps c where c.matrix_id = m.id and c.acquire_unit is null)
            + case when m.verdict is null or m.verdict = 'revise' then 1 else 0 end)::int,
          0, null, m.purchasing_incharge_id, m.created_at, null,
@@ -150,7 +151,7 @@ as $function$
   union all
   -- Purchased (not received): confirmed on a P0, not all here yet. One row per IPAS when the
   -- P0 has one, else per Purchase Request. The delivery note says how much arrived, or when.
-  select i.opportunity_id, 'on_order',
+  select i.opportunity_id, 'purchased',
          case when i.ipas_id is not null then 'ipas' else 'purchase_request' end,
          coalesce(i.ipas_id, i.request_id),
          coalesce((select ip.number from public.ipas ip where ip.id = i.ipas_id), max(i.request_title)),
@@ -177,32 +178,6 @@ as $function$
     from items i
    where i.status = 'purchased'
    group by i.opportunity_id, i.ipas_id, coalesce(i.ipas_id, i.request_id)
-  union all
-  -- To check: submitted Transmittals moving through their checks
-  select ts.opportunity_id, 'to_check', 'transmittal', t.id, t.number,
-         greatest(1, (select count(*) from public.transmittal_lines l where l.transmittal_id = t.id and l.opportunity_id = ts.opportunity_id))::int,
-         0, null, null, coalesce(t.submitted_at, t.created_at), null,
-         null::text
-    from public.transmittals t
-    join public.transmittal_sors ts on ts.transmittal_id = t.id
-    join sors s on s.id = ts.opportunity_id
-   where t.state in ('warehouse_checking', 'warehouse_releasing', 'technical_inspection', 'awaiting_check')
-  union all
-  -- To check: Received on an IPAS that no Transmittal names yet. Items with no
-  -- IPAS are left out: nothing links them to a Transmittal, and older ones were
-  -- received before Transmittals existed.
-  select i.opportunity_id, 'to_check', 'ipas', i.ipas_id,
-         (select ip.number from public.ipas ip where ip.id = i.ipas_id),
-         count(*)::int, 0,
-         max(i.buyer_id::text)::uuid, max(i.canvasser_id::text)::uuid, min(coalesce(i.status_changed_at, i.created_at)),
-         max(i.request_id::text)::uuid,
-         null::text
-    from items i
-   where i.status = 'received' and i.ipas_id is not null
-     and not exists (
-       select 1 from public.transmittal_ipas ti join public.transmittals t on t.id = ti.transmittal_id
-        where ti.ipas_id = i.ipas_id and t.state <> 'cancelled')
-   group by i.opportunity_id, i.ipas_id
   )
   -- The SOR's name is filled once here rather than in each branch above.
   select r.opportunity_id, s.sales_reference, coalesce(s.project_title, case when r.opportunity_id is null then 'Direct request' end), r.grp, r.target_kind, r.target_id, r.target_label,

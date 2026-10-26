@@ -9,7 +9,7 @@ import { DeadlineText, StageChecklist } from "./trackerParts";
  * One SOR in the slide-over: what is next first, who owes it and for how long,
  * then the whole purchase as a checklist. A record opens the place that owns it.
  */
-export default function SorPanel({ sor, checkIds, labelOf, today, onOpenRow, onOpenOrder, onOpenSor }) {
+export default function SorPanel({ sor, labelOf, today, onOpenRow, onOpenOrder, onOpenSor }) {
   const move = sor.next.move;
   return (
     <>
@@ -35,7 +35,7 @@ export default function SorPanel({ sor, checkIds, labelOf, today, onOpenRow, onO
         </section>
         <section aria-label="Where it stands" className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold">Where it stands</h3>
-          <StageChecklist sor={sor} checkIds={checkIds} labelOf={labelOf} today={today} onOpenRow={onOpenRow} onOpenOrder={onOpenOrder} />
+          <StageChecklist sor={sor} labelOf={labelOf} today={today} onOpenRow={onOpenRow} onOpenOrder={onOpenOrder} />
         </section>
       </SlideOverBody>
       {!sor.noSor && (

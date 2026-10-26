@@ -363,7 +363,6 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
         {(sor) => (
           <SorPanel
             sor={sor}
-            checkIds={tracker.checkIds}
             labelOf={labelOf}
             today={today}
             onOpenRow={handlers.onOpenRow}

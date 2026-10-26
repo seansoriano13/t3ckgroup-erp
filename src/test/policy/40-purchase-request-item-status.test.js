@@ -1,7 +1,7 @@
 /**
  * The Requested Item status path (#306, part of #209): every change through
  * `purchase_request_set_item_status`, which checks the transition and the caller's side and
- * posts in the request; the Buyer's substitutes through `purchase_request_add_substitute`.
+ * posts in the request; the Buyer's replacement is proven in 200-replace-a-product.
  *
  * `stageParticipant` is the Buyer and `outsider` a purchasing member who isn't
  * (both given Purchasing access here); `dealOwner` is on the sales side; `hr`
@@ -60,16 +60,6 @@ async function setStatus(who, itemId, status, details) {
     const args = { p_item_id: itemId, p_status: status }
     if (details !== undefined) args.p_details = details
     return (await clientFor(who)).rpc("purchase_request_set_item_status", args)
-}
-
-async function substitute(who, itemId, fields = {}) {
-    return (await clientFor(who)).rpc("purchase_request_add_substitute", {
-        p_item_id: itemId,
-        p_name: `${MARKER} Harness, other brand`,
-        p_quantity: 10,
-        p_unit: "pc",
-        ...fields,
-    })
 }
 
 beforeAll(async () => {
@@ -294,75 +284,11 @@ describe("bad input", () => {
     })
 })
 
-describe("the Buyer adds a substitute", () => {
-    it("linked to the item it replaces, which is Cancelled with the link kept; both post", async () => {
-        const original = await seedItem("still_canvassing")
-        const { data: subId, error } = await substitute("stageParticipant", original, { p_description: "Same rating" })
-        expect(error).toBeNull()
-
-        expect(await item(subId)).toMatchObject({
-            request_id: requestId,
-            source: "new",
-            name: `${MARKER} Harness, other brand`,
-            quantity: 10,
-            unit: "pc",
-            description: "Same rating",
-            status: "not_checked",
-            substitute_for_item_id: original,
-            requested_by: ids.stageParticipant,
-        })
-        expect(await item(original)).toMatchObject({ status: "cancelled", status_changed_by: ids.stageParticipant })
-
-        expect(await eventsFor(subId, "item_added")).toEqual([
-            expect.objectContaining({
-                author_id: ids.stageParticipant,
-                content: `Offered ${MARKER} Harness, other brand × 10 pc as a substitute for ${MARKER} Full Body Harness.`,
-                metadata: expect.objectContaining({ substitute_for_item_id: original }),
-            }),
-        ])
-        expect(await eventsFor(original)).toEqual([
-            expect.objectContaining({
-                author_id: ids.stageParticipant,
-                metadata: expect.objectContaining({
-                    from: "still_canvassing",
-                    to: "cancelled",
-                    details: { substitute_item_id: subId },
-                }),
-            }),
-        ])
-    })
-
-    it.each([
-        ["a purchasing member who isn't the Buyer", "outsider"],
-        ["the sales side", "dealOwner"],
-        ["a non-member", "ordinary"],
-    ])("%s can't", async (_, who) => {
-        const original = await seedItem()
-        expect((await substitute(who, original)).error?.code).toBe("42501")
-        expect((await item(original)).status).toBe("not_checked")
-    })
-
-    it("not for an item already closed", async () => {
-        const original = await seedItem("cancelled")
-        expect((await substitute("stageParticipant", original)).error?.code).toBe("22023")
-    })
-
-    it.each([
-        ["a blank name", { p_name: " " }],
-        ["a quantity of zero", { p_quantity: 0 }],
-    ])("refuses %s, leaving the original open", async (_, fields) => {
-        const original = await seedItem()
-        expect((await substitute("stageParticipant", original, fields)).error?.code).toBe("22023")
-        expect((await item(original)).status).toBe("not_checked")
-    })
-})
-
 describe("someone not signed in", () => {
     it.each([
         ["purchase_request_actor_side", { p_request_id: NO_ID }],
         ["purchase_request_can_add_substitute", { p_request_id: NO_ID }],
         ["purchase_request_set_item_status", { p_item_id: NO_ID, p_status: "cancelled" }],
-        ["purchase_request_add_substitute", { p_item_id: NO_ID, p_name: "x", p_quantity: 1 }],
     ])("cannot call %s at all", async (fn, args) => {
         const { error } = await anonymousClient().rpc(fn, args)
         expect(error?.message).toMatch(/permission denied/i)

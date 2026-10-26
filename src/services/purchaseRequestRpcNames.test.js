@@ -18,7 +18,6 @@ describe("purchaseRequestService — RPC names", () => {
     purchase_request_set_item_status: { id: "item-1" },
     purchase_request_item_po_lines: [7],
     purchase_request_pick_po_lines: { id: "item-1" },
-    purchase_request_add_substitute: "item-2",
     purchase_request_take: { id: "r1" },
     purchase_request_set_buyer: { id: "r1" },
   }
@@ -33,7 +32,7 @@ describe("purchaseRequestService — RPC names", () => {
     }
   })
 
-  it("calls the queue, status, PO line, substitute and Buyer RPCs by their purchase_request_ names", async () => {
+  it("calls the queue, status, PO line and Buyer RPCs by their purchase_request_ names", async () => {
     await purchaseRequestService.listQueue()
     await purchaseRequestService.get("r1")
     await purchaseRequestService.itemActor("r1")
@@ -41,7 +40,6 @@ describe("purchaseRequestService — RPC names", () => {
     await purchaseRequestService.cancelItem("item-1")
     await purchaseRequestService.poLines("item-1")
     await purchaseRequestService.pickPoLines("item-1", [7])
-    await purchaseRequestService.addSubstitute("item-1", { name: "Other brand", quantity: 1 })
     await purchaseRequestService.take("r1")
     await purchaseRequestService.setBuyer("r1", null)
 

@@ -15,7 +15,6 @@ const RENAMED = [
     "actor_side",
     "can_add_substitute",
     "set_item_status",
-    "add_substitute",
     "take",
     "set_buyer",
     "item_po_lines",
@@ -91,7 +90,6 @@ describe("old and new names answer alike", () => {
         ["take", { p_request_id: NO_ID }],
         ["set_buyer", { p_request_id: NO_ID, p_employee_id: null }],
         ["set_item_status", { p_item_id: NO_ID, p_status: "cancelled" }],
-        ["add_substitute", { p_item_id: NO_ID, p_name: "x", p_quantity: 1 }],
         ["item_po_lines", { p_item_id: NO_ID }],
         ["pick_po_lines", { p_item_id: NO_ID, p_line_ids: [1] }],
     ])("both names refuse %s alike", async (fn, args) => {

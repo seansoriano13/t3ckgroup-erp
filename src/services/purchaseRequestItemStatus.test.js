@@ -54,15 +54,6 @@ describe("purchaseRequestService — item status", () => {
     expect(db.rows("purchase_request_items")[0].status).toBe("cancelled")
   })
 
-  it("adds the Buyer's substitute and cancels the original", async () => {
-    stubPurchaseRequestItemRpcs({ actorId: buyer.id, canSubstitute: true })
-    const id = await purchaseRequestService.addSubstitute(itemId, { name: "Harness, other brand", quantity: "10", unit: "pc" })
-
-    const rows = db.rows("purchase_request_items")
-    expect(rows.find((r) => r.id === id)).toMatchObject({ substitute_for_item_id: itemId, status: "not_checked", quantity: 10 })
-    expect(rows.find((r) => r.id === itemId).status).toBe("cancelled")
-  })
-
   it("reads the caller's side and whether they may substitute", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, canSubstitute: true })
     expect(await purchaseRequestService.itemActor(request.id)).toEqual({ side: "purchasing", canSubstitute: true })
