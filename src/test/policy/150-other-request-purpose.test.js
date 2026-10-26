@@ -29,6 +29,11 @@ beforeAll(async () => {
         .single()
     if (error) throw error
     requestId = data.id
+    // Who may add is read from the request's members (the screen's Open action seeds them).
+    for (const [employee, side] of [["dealOwner", "sales"], ["stageParticipant", "purchasing"]]) {
+        const m = await svc().from("purchase_request_members").insert({ request_id: requestId, employee_id: ids[employee], side })
+        if (m.error) throw m.error
+    }
 })
 
 afterAll(async () => {

@@ -24,6 +24,9 @@ beforeAll(async () => {
     sorId = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
     project = await insert({ opportunity_id: sorId, created_by: ids.dealOwner })
     direct = await insert({ created_by: ids.stageParticipant, buyer_id: ids.stageParticipant, title: `${MARKER} Direct` })
+    // The queue lists what the caller may read; the Buyer reads it as a member.
+    const member = await svc().from("purchase_request_members").insert({ request_id: direct.id, employee_id: ids.stageParticipant, side: "purchasing" })
+    if (member.error) throw member.error
 })
 
 afterAll(async () => {

@@ -117,27 +117,33 @@ describe("the caller's side", () => {
 })
 
 describe("purchasing walks the path", () => {
-    it("takes an item Requested → To order → Canvassing → Ordered → Received, then nowhere", async () => {
+    it("takes an item Not checked → To purchase → Still canvassing by hand", async () => {
         const id = await seedItem()
         for (const [who, status] of [
             ["stageParticipant", "to_purchase"],
             ["outsider", "still_canvassing"],
-            ["stageParticipant", "purchased"],
-            ["outsider", "received"],
         ]) {
             const { data, error } = await setStatus(who, id, status)
             expect(error).toBeNull()
             expect(data).toMatchObject({ id, status, status_changed_by: ids[who] })
         }
-        expect((await item(id)).status).toBe("received")
-
-        const { error } = await setStatus("stageParticipant", id, "cancelled")
-        expect(error?.code).toBe("42501")
+        expect((await item(id)).status).toBe("still_canvassing")
     })
 
-    it("may skip Canvassing: To order → Ordered", async () => {
-        const id = await seedItem("to_purchase")
-        expect((await setStatus("stageParticipant", id, "purchased")).error).toBeNull()
+    it.each(["purchased", "received"])("never lets a person choose %s: it follows the P0 in Odoo (#675)", async (to) => {
+        for (const from of ["to_purchase", "still_canvassing", "purchased"]) {
+            if (to === "purchased" && from === "purchased") continue
+            const id = await seedItem(from)
+            const { error } = await setStatus("stageParticipant", id, to)
+            expect(error?.code, `${from} → ${to}`).toBe("42501")
+            expect((await item(id)).status).toBe(from)
+        }
+    })
+
+    it("lets nothing move a Received item", async () => {
+        const id = await seedItem("received")
+        const { error } = await setStatus("stageParticipant", id, "cancelled")
+        expect(error?.code).toBe("42501")
     })
 
     it("may close a Not checked item as Available", async () => {
@@ -184,7 +190,7 @@ describe("every change posts in the request", () => {
         expect(posts.map(({ author_id, content, metadata }) => ({ author_id, content, metadata }))).toEqual([
             {
                 author_id: ids.stageParticipant,
-                content: `${MARKER} Full Body Harness: Requested → To order.`,
+                content: `${MARKER} Full Body Harness: Not checked → To purchase.`,
                 metadata: expect.objectContaining({
                     event: "item_status_changed",
                     item_id: id,
@@ -195,7 +201,7 @@ describe("every change posts in the request", () => {
             },
             {
                 author_id: ids.dealOwner,
-                content: `${MARKER} Full Body Harness: To order → Cancelled.`,
+                content: `${MARKER} Full Body Harness: To purchase → Cancelled.`,
                 metadata: expect.objectContaining({ from: "to_purchase", to: "cancelled", changed_by: ids.dealOwner }),
             },
         ])
