@@ -13,7 +13,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { callerEmail } from "../_shared/caller.ts";
 import { readP0s } from "../_shared/odooP0.ts";
-import { p0Facts } from "../_shared/p0Suggestions.ts";
+import { p0Facts, p0UnitPrice } from "../_shared/p0Suggestions.ts";
 import { authenticate, corsHeaders, isConfigured, jsonResponse } from "../_shared/odoo.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: items, error: itemsError } = await admin
     .from("purchase_request_items")
-    .select("id, po_number, odoo_product_id, status")
+    .select("id, po_number, odoo_product_id, odoo_po_line_ids, component_id, status")
     .eq("request_id", requestId)
     .not("po_number", "is", null)
     .neq("status", "cancelled");
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
     const facts = items.flatMap((item) => {
       const p0 = byName.get(String(item.po_number).toUpperCase());
-      const f = p0 && p0Facts(p0, item.odoo_product_id ?? null);
+      const f = p0 && p0Facts(p0, item.odoo_product_id ?? null, item.odoo_po_line_ids ?? []);
       return f ? [{ item_id: item.id, ...f }] : [];
     });
     if (!facts.length) return jsonResponse({ success: true, changed: 0 });
@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
       p_facts: facts,
     });
     if (error) return jsonResponse({ success: false, message: error.message.replace(/^[a-z_]+: /, "") });
+    await syncActualCosts(admin, email, items, byName);
     return jsonResponse({ success: true, changed: data ?? 0 });
   } catch (err) {
     console.error("odoo-po-sync error:", err);
@@ -71,3 +72,44 @@ Deno.serve(async (req) => {
     return jsonResponse({ success: false, message: err instanceof Error ? err.message : "Odoo lookup failed." });
   }
 });
+
+type SyncedItem = { id: string; po_number: string; odoo_product_id: number | null; odoo_po_line_ids: number[] | null; component_id: string | null };
+
+// The Actual cost follows the P0 too, so a line picked after the attach (P0s that list a
+// product on several lines) gets the price of its own lines. Only Purchasing may set it; for
+// anyone else it keeps its last value until Purchasing opens the request. A miss is logged:
+// the statuses already stand.
+async function syncActualCosts(
+  admin: ReturnType<typeof createClient>,
+  email: string,
+  items: SyncedItem[],
+  byName: Map<string, Parameters<typeof p0UnitPrice>[0]>,
+) {
+  const linked = items.filter((i) => i.component_id);
+  if (!linked.length) return;
+  const { data: costs } = await admin
+    .from("costing_component_costs")
+    .select("component_id, p0_quoted_unit_price, p0_currency")
+    .in("component_id", linked.map((i) => i.component_id));
+  const stored = new Map(
+    (costs ?? []).map((c) => [
+      c.component_id,
+      { price: c.p0_quoted_unit_price == null ? null : Number(c.p0_quoted_unit_price), currency: c.p0_currency ?? null },
+    ]),
+  );
+  for (const item of linked) {
+    const p0 = byName.get(String(item.po_number).toUpperCase());
+    const was = stored.get(item.component_id);
+    if (!p0 || !was) continue;
+    const actual = p0UnitPrice(p0, item.odoo_product_id ?? null, item.odoo_po_line_ids ?? []);
+    if (actual.price === was.price && actual.currency === was.currency) continue;
+    const { error } = await admin.rpc("costing_set_p0_price", {
+      p_actor_email: email,
+      p_item_id: item.id,
+      p_price: actual.price,
+      p_currency: actual.currency,
+    });
+    if (error?.code === "42501") return; // not Purchasing on this request
+    if (error) console.error("odoo-po-sync actual cost error:", error.message);
+  }
+}

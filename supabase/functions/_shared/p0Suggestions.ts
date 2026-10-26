@@ -6,6 +6,8 @@
 // or a Direct request's PR number.
 
 export type OdooP0Line = {
+  /** Odoo's purchase.order.line id; what "Pick PO line…" stores in odoo_po_line_ids. */
+  id?: number | null;
   product_id: number | null;
   product_name: string;
   quantity: number;
@@ -83,20 +85,42 @@ export type P0Facts = {
 const RFQ_STATES = new Set(["draft", "sent", "to approve"]);
 
 /**
- * What the line takes from a P0 as it stands in Odoo. The P0 line for the
- * line's own product is used; when the P0 is for another product, its first
- * line is. Null for a cancelled P0, which cannot be attached.
+ * The P0 lines that bought a product line. A P0 may list one product on several lines
+ * (one per project, or free items at price 0), so the figures are summed over them:
+ *  - the lines Purchasing picked ("Pick PO line…", `pickedLineIds`), when any are on this P0;
+ *  - else every line for the line's own Odoo product;
+ *  - else, when the line has no product (an Other request asked in words) or the P0 is for
+ *    another product, the P0's lines when they are all one product;
+ *  - else none: the P0 holds several other products and nobody picked one.
  */
-export function p0Facts(p0: OdooP0, productId: number | null): P0Facts | null {
+export function boughtLines(p0: OdooP0, productId: number | null, pickedLineIds: number[] = []): OdooP0Line[] {
+  const picked = p0.lines.filter((l) => l.id != null && pickedLineIds.includes(l.id));
+  if (picked.length) return picked;
+  const own = productId != null ? p0.lines.filter((l) => l.product_id === productId) : [];
+  if (own.length) return own;
+  const products = new Set(p0.lines.map((l) => l.product_id ?? l.product_name));
+  return products.size === 1 ? p0.lines : [];
+}
+
+const sum = (lines: OdooP0Line[], key: "quantity" | "received") =>
+  lines.reduce((total, l) => total + (Number(l[key]) || 0), 0);
+
+/**
+ * What the line takes from a P0 as it stands in Odoo, over the lines that bought it
+ * (boughtLines). With none, ordered and received are 0, so the line stays Purchased until
+ * Purchasing picks its line. Null for a cancelled P0, which cannot be attached.
+ */
+export function p0Facts(p0: OdooP0, productId: number | null, pickedLineIds: number[] = []): P0Facts | null {
   if (p0.state === "cancel") return null;
-  const line =
-    (productId != null ? p0.lines.find((l) => l.product_id === productId) : undefined) ?? p0.lines[0];
+  const lines = boughtLines(p0, productId, pickedLineIds);
+  const names = [...new Set(lines.map((l) => l.product_name).filter(Boolean))];
+  const productIds = [...new Set(lines.map((l) => l.product_id))];
   return {
     state: RFQ_STATES.has(p0.state) ? "rfq" : "confirmed",
-    bought_as: line?.product_name || null,
-    bought_product_id: line?.product_id ?? null,
-    ordered: Number(line?.quantity) || 0,
-    received: Number(line?.received) || 0,
+    bought_as: names.join(", ") || null,
+    bought_product_id: productIds.length === 1 ? productIds[0] ?? null : null,
+    ordered: sum(lines, "quantity"),
+    received: sum(lines, "received"),
     eta: p0.date_planned ? String(p0.date_planned).slice(0, 10) : null,
   };
 }
@@ -108,17 +132,25 @@ export function statusFromP0(facts: P0Facts): "to_purchase" | "purchased" | "rec
 }
 
 /**
- * The unit price on the P0 line that bought this product line's product (the Actual cost, #686),
- * in the P0's own currency, which may not be pesos: the database turns a foreign one into pesos.
- * Same line choice as p0Facts. The price is null when the line has none; the currency is null
- * when Odoo did not say, and is never assumed to be PHP.
+ * The unit price this product line was bought at (the Actual cost, #686), in the P0's own
+ * currency, which may not be pesos: the database turns a foreign one into pesos. Over the same
+ * lines as p0Facts, weighted by quantity, so free lines (price 0) lower it whatever their order.
+ * The price is null when those lines have no price or no quantity; the currency is null when
+ * Odoo did not say, and is never assumed to be PHP.
  */
-export function p0UnitPrice(p0: OdooP0, productId: number | null): { price: number | null; currency: string | null } {
-  const line =
-    (productId != null ? p0.lines.find((l) => l.product_id === productId) : undefined) ?? p0.lines[0];
-  const price = line?.price_unit;
+export function p0UnitPrice(
+  p0: OdooP0,
+  productId: number | null,
+  pickedLineIds: number[] = [],
+): { price: number | null; currency: string | null } {
+  const priced = boughtLines(p0, productId, pickedLineIds).filter(
+    (l) => l.price_unit != null && Number.isFinite(Number(l.price_unit)),
+  );
+  const quantity = sum(priced, "quantity");
   return {
-    price: price == null || !Number.isFinite(Number(price)) ? null : Number(price),
+    price: quantity
+      ? priced.reduce((total, l) => total + Number(l.price_unit) * (Number(l.quantity) || 0), 0) / quantity
+      : null,
     currency: p0.currency ? String(p0.currency).trim().toUpperCase() || null : null,
   };
 }
