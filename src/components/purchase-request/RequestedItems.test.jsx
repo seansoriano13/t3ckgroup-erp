@@ -7,7 +7,7 @@
 import { openRow, showDoneLines } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
-import { renderWithProviders, setupUser } from "@/test/support"
+import { renderWithProviders, setupUser, chooseOption } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubRpc } from "@/test/msw/server"
@@ -177,8 +177,8 @@ describe("RequestedItems", () => {
     const user = setupUser()
     renderWithProviders(<RequestedItems request={request} />)
 
-    await user.click(await screen.findByRole("button", { name: "New product" }))
-    await user.type(screen.getByLabelText("Product name"), "Custom mounting bracket")
+    await user.click(await screen.findByRole("button", { name: "Ask for a product" }))
+    await user.type(screen.getByLabelText("What do you need?"), "Custom mounting bracket")
     await user.clear(screen.getByLabelText("Quantity"))
     await user.type(screen.getByLabelText("Quantity"), "4")
     await user.type(screen.getByLabelText("Description"), "Stainless, per the client's drawing")
@@ -186,7 +186,8 @@ describe("RequestedItems", () => {
       document.body.querySelector('input[type="file"]'),
       new File(["png"], "bracket.png", { type: "image/png" }),
     )
-    await user.click(screen.getByRole("button", { name: "Request it" }))
+    await chooseOption(user, screen.getByRole("combobox", { name: "What is it for?" }), "Material for the job")
+    await user.click(screen.getByRole("button", { name: "Send request" }))
 
     const other = screen.getByRole("region", { name: "Other requests" })
     await waitFor(() => expect(within(other).getAllByTestId("requested-item")).toHaveLength(1))
@@ -198,6 +199,7 @@ describe("RequestedItems", () => {
     expect(rows()).toHaveLength(3)
 
     const item = db.rows("purchase_request_items").find((i) => i.name === "Custom mounting bracket")
+    expect(item).toMatchObject({ purpose: "job", status: "not_checked" })
     expect(item.images).toEqual([expect.objectContaining({ name: "bracket.png", url: expect.stringMatching(/^https:\/\//) })])
   })
 
@@ -206,7 +208,7 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     await screen.findAllByTestId("requested-item")
-    expect(screen.queryByRole("button", { name: "New product" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Ask for a product" })).not.toBeInTheDocument()
   })
 
   describe("the price copied from a Canvass winner (#582)", () => {

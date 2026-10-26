@@ -4,7 +4,7 @@ import DetailGrid from "@/components/record/DetailGrid";
 import StatusBadge from "../StatusBadge";
 import StaleStockBadge from "./StaleStockBadge";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
-import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
+import { PO_VERIFICATION_LABELS, REQUEST_PURPOSES } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
 import { componentLabel, isFromS0, itemSectionLabel, poLineNotPicked } from "../../utils/requestedItem";
@@ -47,6 +47,10 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
       ),
     },
     { label: "Source", value: itemSectionLabel(item) },
+    !isFromS0(item) && item.purpose && {
+      label: "For",
+      value: REQUEST_PURPOSES.find((p) => p.value === item.purpose)?.label || item.purpose,
+    },
     removed && { label: "S0", value: <Warn>Removed from S0</Warn> },
     component && {
       label: "Component",
