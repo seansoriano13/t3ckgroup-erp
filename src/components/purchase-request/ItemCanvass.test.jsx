@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
-import { openRowNamed } from "@/test/openRequestedItem"
+import { openRowNamed, showDoneLines } from "@/test/openRequestedItem"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
@@ -14,6 +14,7 @@ import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc
 import { seedCanvass, stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc"
 import RequestedItems from "./RequestedItems"
 
+const DONE = ["available", "cancelled", "received"]
 let salesperson, buyer, request
 
 const seedItem = (fields = {}) =>
@@ -45,6 +46,7 @@ describe("for Purchasing", () => {
   it.each(["not_checked", "available", "to_purchase"])("shows an enabled Canvass button on a %s line", async (status) => {
     seedItem({ status })
     show()
+    if (DONE.includes(status)) await showDoneLines()
     const row = await openRowNamed("Full Body Harness")
     const button = await within(row).findByRole("button", { name: "Canvass Full Body Harness" })
     expect(button).toBeEnabled()
@@ -58,6 +60,7 @@ describe("for Purchasing", () => {
   ])("turns the button off on a %s line and says why", async (status, reason) => {
     seedItem({ status })
     show()
+    if (DONE.includes(status)) await showDoneLines()
     const row = await openRowNamed("Full Body Harness")
     const button = await within(row).findByRole("button", { name: "Canvass Full Body Harness" })
     expect(button).toBeDisabled()
@@ -70,6 +73,7 @@ describe("for Purchasing", () => {
     db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Redleaf Inc." })
     db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Ferno" })
     show()
+    if (DONE.includes(status)) await showDoneLines()
     const row = await openRowNamed("Full Body Harness")
     await waitFor(() => expect(within(row).getByText(`Canvass ${canvass.number} · 2 of 3 offers`)).toBeInTheDocument())
     expect(within(row).getByRole("button", { name: `Open Canvass ${canvass.number} for Full Body Harness` })).toBeEnabled()
@@ -82,6 +86,7 @@ describe("for Sales", () => {
   it("shows no Canvass button", async () => {
     seedItem({ status: "to_purchase" })
     show()
+    if (DONE.includes(status)) await showDoneLines()
     const row = await openRowNamed("Full Body Harness")
     expect(screen.queryByRole("button", { name: /Canvass/ })).not.toBeInTheDocument()
     expect(within(row).queryByTestId("item-canvass")).not.toBeInTheDocument()
