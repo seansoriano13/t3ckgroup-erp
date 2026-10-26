@@ -29,6 +29,7 @@ import { BrandProposal, FromCanvass } from "../ComponentCanvass";
 import SupplierMismatch from "../SupplierMismatch";
 import ComponentPurchases from "../ComponentPurchases";
 import { LandedCostCell } from "../LandedCost";
+import { costComparisonText } from "../../../utils/costComparison";
 
 const toOptions = (labels) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const STATUS_OPTIONS = toOptions(COMPONENT_STATUS_LABEL);
@@ -202,6 +203,10 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
               }
             >
               <Cell label={label("Acquire")} noun="Acquire" value={component.acquire_unit} numeric money placeholder="0.00" readOnly={!canCost("acquire_unit")} onSave={(value) => save({ acquireUnit: value })} />
+              {(() => {
+                const text = costComparisonText({ expected: component.acquire_unit, actual: component.p0_unit_price, fromCanvass: component.fromCanvass?.acquire });
+                return text ? <p className={cn(HINT, "mt-1")} data-testid="cost-comparison">{text}</p> : null;
+              })()}
             </Field>
             <Field label="Acquire total">
               <Readout>{pesos(component.totals.acquireTotal)}</Readout>
