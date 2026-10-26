@@ -34,6 +34,7 @@ export type Path =
   | `/opportunities/commission`
   | `/opportunities/commission-formula`
   | `/profile`
+  | `/prototypes/product-status`
   | `/purchasing`
   | `/purchasing/canvasses`
   | `/purchasing/dashboard`

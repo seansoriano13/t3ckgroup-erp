@@ -10,6 +10,11 @@ import BugReportButton from "../components/BugReportButton";
 
 import PageLoading from "@/components/ui/PageLoading";
 
+// REMOVE-BEFORE-PROD (ADR 0028): prototype pages show example data only, so under
+// the build gate they skip login. The check is inline so a production build folds it
+// to `false`.
+const PROTOTYPES_OPEN = import.meta.env.VITE_APP_ENV === "staging" || import.meta.env.VITE_APP_ENV === "local";
+
 export default function AppLayout() {
   const { user, isAuthLoading } = useAuth();
   const location = useLocation();
@@ -43,6 +48,16 @@ export default function AppLayout() {
     location.pathname.startsWith("/verify/")
   ) {
     return <Outlet />;
+  }
+
+  if (PROTOTYPES_OPEN && location.pathname.startsWith("/prototypes/")) {
+    return (
+      <div className="min-h-screen bg-mauve-2">
+        <div className="wrapper py-10">
+          <Outlet />
+        </div>
+      </div>
+    );
   }
 
   if (isAuthLoading) {

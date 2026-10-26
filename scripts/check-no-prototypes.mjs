@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// REMOVE-BEFORE-PROD gate (ADR 0028). The SOR modal layout prototype lives in
-// the tree, build-gated: staging/local builds load it through a dynamic
+// REMOVE-BEFORE-PROD gate (ADR 0028). The prototypes (the SOR modal layout and the
+// Product status preview) live in the tree,
+// build-gated: staging/local builds load them through a dynamic
 // import(), a production build must contain none of it. This check proves it:
 // it runs a production `vite build` and fails if the output has a prototype
 // marker. It also fails on staging once the sunset date passes while the
@@ -14,18 +15,27 @@ import { execSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-const PROTOTYPE_DIR = "src/components/sor/modal/prototype"
+const PROTOTYPE_DIRS = ["src/components/sor/modal/prototype", "src/components/purchase-request/prototype"]
 const SUNSET = "2026-12-31" // bump on purpose, or delete the prototype
 // Strings that survive minification and only exist inside the prototype.
-const MARKERS = ["sor-modal-layout-v2", "sor-modal-layout-change", "Inbox · master/detail"]
+const MARKERS = [
+  "sor-modal-layout-v2",
+  "sor-modal-layout-change",
+  "Inbox · master/detail",
+  // Product status prototype (src/components/purchase-request/prototype)
+  "Product status prototype",
+  "Sample City Government",
+]
 
 const problems = []
 
 const isStaging = process.argv.includes("--staging")
-if (isStaging && existsSync(PROTOTYPE_DIR)) {
+if (isStaging) {
   const today = new Date().toISOString().slice(0, 10)
-  if (today > SUNSET) {
-    problems.push(`${PROTOTYPE_DIR} is past its sunset (${SUNSET}): delete it, or bump SUNSET in this script on purpose`)
+  for (const dir of PROTOTYPE_DIRS.filter((d) => existsSync(d))) {
+    if (today > SUNSET) {
+      problems.push(`${dir} is past its sunset (${SUNSET}): delete it, or bump SUNSET in this script on purpose`)
+    }
   }
 }
 
