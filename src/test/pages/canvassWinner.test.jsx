@@ -6,10 +6,11 @@ import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { openLines, renderComponentCanvass, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
- * The winner on the Costing Matrix page (#278): Purchasing marks a winner in the Canvass panel and
+ * The winner on the Costing Matrix page (#278): Purchasing marks a winner in the Canvass panel (opened
+ * on the Component directly, since Canvass now opens from a product line, #682) and
  * the row shows "from Canvass" on Acquire and Offer Specification; a winning brand that differs
  * from Brand shows as "Canvass says ..." with an Accept for a Deal Team member only. Real
  * components and services on the fake database; the matrix and winner functions are stubbed. The
@@ -26,10 +27,11 @@ describe("a winner on the Costing Matrix page", () => {
   let canvass;
   let redleaf;
 
-  const mount = ({ tier, bands }) => {
+  const mount = ({ tier, bands, panel = true }) => {
     stubCostingMatrixRpcs({ tier, bands, actorId: purchaser.id });
     stubCanvassWinnerRpcs({ bands });
-    return renderCostingDesk(deal);
+    if (!panel) return renderCostingDesk(deal);
+    return renderComponentCanvass(deal, component, { userId: purchaser.id, withDesk: true });
   };
 
   beforeEach(async () => {
@@ -53,7 +55,6 @@ describe("a winner on the Costing Matrix page", () => {
   it("marks a winner from the panel and shows 'from Canvass' on Acquire and Offer Specification", async () => {
     const user = mount({ tier: "cost", bands: ["purchasing"] });
     await openLines();
-    await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
     await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc\. the winner/ }));
 
     await waitFor(() => expect(db.rows("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner).toBe(true));
@@ -66,7 +67,6 @@ describe("a winner on the Costing Matrix page", () => {
   it("un-picks the winner: no winner, sign-off cleared, values kept, and a note on the row", async () => {
     const user = mount({ tier: "cost", bands: ["purchasing"] });
     await openLines();
-    await user.click(await screen.findByRole("button", { name: /Open Canvass CNV_0001/ }));
     await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc. the winner/ }));
     await waitFor(() => expect(screen.getAllByTestId("from-canvass")).toHaveLength(2));
     expect(screen.queryByTestId("canvass-no-winner-note")).not.toBeInTheDocument();
@@ -91,7 +91,7 @@ describe("a winner on the Costing Matrix page", () => {
 
   it("offers the winning brand with an Accept to the Deal Team", async () => {
     db.internal.rowsOf("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner = true;
-    const user = mount({ tier: "price", bands: ["sales"] });
+    const user = mount({ tier: "price", bands: ["sales"], panel: false });
     await openLines();
 
     const proposal = await screen.findByTestId("brand-proposal");
@@ -104,9 +104,9 @@ describe("a winner on the Costing Matrix page", () => {
 
   it("shows no 'Canvass says' to anyone outside Sales and Purchasing", async () => {
     db.internal.rowsOf("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner = true;
-    mount({ tier: "cost", bands: [] });
+    mount({ tier: "cost", bands: [], panel: false });
     await openLines();
-    await screen.findByTestId("component-canvass");
+    await screen.findByTestId("component");
     expect(screen.queryByTestId("brand-proposal")).not.toBeInTheDocument();
     expect(screen.queryByText(/Canvass says/)).not.toBeInTheDocument();
   });
