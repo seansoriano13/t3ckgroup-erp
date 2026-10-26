@@ -17,8 +17,10 @@ import {
   ITEM_STATUS_LABELS,
   ITEM_STATUS_THEME,
   MEMBER_SIDE,
+  NOT_FROM_THE_MENU,
   allowedTransitions,
   isClosedStatus,
+  stockWarning,
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
 import { useRefreshRequest } from "./requestHooks";
@@ -159,7 +161,12 @@ export default function RequestedItemActions({ item, request, actor }) {
     onSettled: refresh,
   });
 
-  const next = allowedTransitions(item.status, side);
+  // #681: Still canvassing follows a Canvass and is never chosen here; choosing Available again is
+  // offered only to clear a "Now x free of y" warning.
+  const warned = !!stockWarning(item);
+  const next = allowedTransitions(item.status, side).filter(
+    (status) => !NOT_FROM_THE_MENU.includes(status) && (status !== item.status || warned),
+  );
   const canSubstitute = !!actor?.canSubstitute && !isClosedStatus(item.status);
   const canPickLines = onPo && poLineIds.length > 0;
   // #549: Purchasing can correct the PO while the item is Ordered; Received is fixed.

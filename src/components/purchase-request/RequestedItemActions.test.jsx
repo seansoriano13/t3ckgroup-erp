@@ -174,9 +174,9 @@ describe("the sales side", () => {
 })
 
 describe("anyone else", () => {
-  it("sees no controls", async () => {
+  it("sees no controls once the item is past the stock check", async () => {
     stubPurchaseRequestItemRpcs({ actorId: salesperson.id, side: "other" })
-    seedItem()
+    seedItem({ status: "purchased" })
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")

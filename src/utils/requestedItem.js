@@ -7,7 +7,7 @@
  * compare themselves with their SOR line (`sorLineChange`).
  */
 
-import { isStockStale, stockBadge } from "@/constants/stock";
+import { STOCK_BADGE, isStockStale, stockBadge } from "@/constants/stock";
 import { ITEM_STATUS } from "@/constants/purchaseRequest";
 
 export const ITEM_SOURCE = {
@@ -90,6 +90,28 @@ export function sorLineChange(item) {
 }
 
 /**
+ * #681 — a line's Stock Availability in words: "4 free, enough", "1 free of 4", "0 free", "Not read yet".
+ * Judged on free stock, as the badge is. A product Odoo does not track, or a line with no Odoo product,
+ * has no figure to give and says so.
+ */
+export function stockFigure(badge, quantity) {
+  switch (badge.kind) {
+    case STOCK_BADGE.AVAILABLE:
+      return `${badge.free} free, enough`;
+    case STOCK_BADGE.PARTIAL:
+      return `${badge.free} free of ${Number(quantity) || 0}`;
+    case STOCK_BADGE.OUT_OF_STOCK:
+      return "0 free";
+    case STOCK_BADGE.NOT_TRACKED:
+      return "Not tracked";
+    case STOCK_BADGE.NOT_LINKED:
+      return "Not linked to Odoo";
+    default:
+      return "Not read yet";
+  }
+}
+
+/**
  * The item's product stock, judged on the SOR's stock snapshot (#202) against
  * the quantity requested, with the time it was read and whether that reading
  * is stale (#501). Null for a new product: there is nothing in Odoo to look up.
@@ -101,8 +123,10 @@ export function requestedItemStock(item, stockSnapshot, now = Date.now()) {
   if (!item || item.source === ITEM_SOURCE.NEW) return null;
   const product = item.odoo_product_id ? stockSnapshot?.data?.products?.[item.odoo_product_id] || null : null;
   const fetchedAt = product ? stockSnapshot?.fetched_at ?? null : null;
+  const badge = stockBadge({ quantity: item.quantity, product, odooProductId: item.odoo_product_id });
   return {
-    badge: stockBadge({ quantity: item.quantity, product, odooProductId: item.odoo_product_id }),
+    badge,
+    figure: stockFigure(badge, item.quantity),
     fetchedAt,
     stale: isStockStale(fetchedAt, now),
   };

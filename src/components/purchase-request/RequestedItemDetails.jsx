@@ -7,6 +7,7 @@ import { AttachmentEvidence } from "../ui/AttachmentEvidence";
 import { PO_VERIFICATION_LABELS, REQUEST_PURPOSES } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
+import { stockWarning } from "../../constants/purchaseRequest";
 import { componentLabel, isFromS0, itemSectionLabel, poLineNotPicked } from "../../utils/requestedItem";
 
 /** "PHP 250.50" — the price a Canvass winner gave the item (#582). */
@@ -25,14 +26,15 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
   const removed = isFromS0(item) && item.removed_from_s0 === true;
   const lines = item.odoo_po_line_ids || [];
   const component = componentLabel(item);
+  const warning = stockWarning(item);
 
   const fields = [
     stock && {
       label: "Stock",
       value: (
         <span className="flex flex-wrap items-center gap-2">
-          <StatusBadge label={stock.badge.label} theme={STOCK_BADGE_THEME[stock.badge.kind]} />
-          {stock.fetchedAt && <span>Stock as of {formatDate(stock.fetchedAt)}</span>}
+          <StatusBadge label={stock.figure} theme={STOCK_BADGE_THEME[stock.badge.kind]} />
+          {stock.fetchedAt && <span>read {formatDate(stock.fetchedAt)}</span>}
           {stock.stale && <StaleStockBadge />}
         </span>
       ),
@@ -47,6 +49,7 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
       ),
     },
     { label: "Source", value: itemSectionLabel(item) },
+    warning && { label: "Stock", value: <Warn>{warning.label}</Warn> },
     !isFromS0(item) && item.purpose && {
       label: "For",
       value: REQUEST_PURPOSES.find((p) => p.value === item.purpose)?.label || item.purpose,

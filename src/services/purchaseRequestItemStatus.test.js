@@ -43,9 +43,9 @@ describe("purchaseRequestService — item status", () => {
     ])
   })
 
-  it("lets the sales side cancel but not set Ordered", async () => {
+  it("lets the sales side cancel or choose To purchase, but not set Purchased", async () => {
     stubPurchaseRequestItemRpcs({ actorId: salesperson.id })
-    await expect(purchaseRequestService.setItemStatus(itemId, "to_purchase")).rejects.toMatchObject({ code: "42501" })
+    await expect(purchaseRequestService.setItemStatus(itemId, "purchased")).rejects.toMatchObject({ code: "42501" })
     await purchaseRequestService.cancelItem(itemId)
     expect(db.rows("purchase_request_items")[0].status).toBe("cancelled")
   })
