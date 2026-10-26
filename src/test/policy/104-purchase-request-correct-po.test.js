@@ -1,6 +1,6 @@
 /**
- * Correct PO on an Ordered item (#549, spec #544): the 'correct' action of
- * `purchase_request_item_apply_po_check`. Purchasing only, while the item is Ordered; the new PO
+ * Correct PO on a Purchased item (#549, spec #544): the 'correct' action of
+ * `purchase_request_item_apply_po_check`. Purchasing only, while the item is Purchased; the new PO
  * gets the same three Odoo verdicts (Odoo faked by passing its answer), picked PO lines are
  * cleared, and the request's history records the old and new PO. Set-up follows
  * 103-purchase-request-po-check.
@@ -78,7 +78,7 @@ afterAll(async () => {
     if (sorId) await svc().from("sales_opportunities").delete().eq("id", sorId)
 })
 
-describe("Correct PO on an Ordered item", () => {
+describe("Correct PO on a Purchased item", () => {
     it("Odoo has the new PO: verified, picked lines cleared, history shows old and new", async () => {
         const id = await seedItem()
         const { data, error } = await correct("stageParticipant", id, "found", " p01234 ")

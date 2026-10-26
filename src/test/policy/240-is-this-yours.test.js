@@ -113,6 +113,26 @@ describe("when the question is asked", () => {
     })
 })
 
+describe("when the P0 is attached after the S0 line exists", () => {
+    const bought = { po_number: "P01299", po_verification: "VERIFIED", po_state: "confirmed", status: "purchased" }
+
+    it("asks when a P0 for the same Odoo product lands on the Other request", async () => {
+        const otherId = await seedOther(77, { status: "to_purchase", po_number: null, po_state: null, bought_product_id: null })
+        const line = await addS0Line(77)
+        expect(line.new_on_s0).toBe(false)
+        const { error } = await svc().from("purchase_request_items").update({ ...bought, bought_product_id: 77 }).eq("id", otherId)
+        expect(error).toBeNull()
+        expect(await itemOf(line.id)).toMatchObject({ new_on_s0: true, yours_item_id: otherId })
+    })
+
+    it("asks nothing when the attached P0 is a different product", async () => {
+        const otherId = await seedOther(78, { status: "to_purchase", po_number: null, po_state: null, bought_product_id: null })
+        const line = await addS0Line(78)
+        await svc().from("purchase_request_items").update({ ...bought, bought_product_id: 79 }).eq("id", otherId)
+        expect((await itemOf(line.id)).new_on_s0).toBe(false)
+    })
+})
+
 describe("answering Yes", () => {
     it("moves the P0, status and history onto the S0 line and closes the Other request, deleting nothing", async () => {
         const otherId = await seedOther(81)

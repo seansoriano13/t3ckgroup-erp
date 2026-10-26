@@ -28,6 +28,9 @@ import {
   stockWarning,
 } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
+import { useCostingMatrix } from "../costing/useCostingMatrix";
+import { tierReadsCost } from "../../constants/costing";
+import { costComparisonText } from "../../utils/costComparison";
 
 /** The one quiet line under a name: the PO, else the stock, else which section it is in. */
 function summaryOf(item, stock, replacedBy = null) {
@@ -58,7 +61,7 @@ function summaryOf(item, stock, replacedBy = null) {
  * Once Ordered on a PO (#312): the PO number, what Odoo said about it, and the
  * PO line(s) picked — or "PO line not picked" until Purchasing picks them.
  */
-function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null, replacedBy = null, canvass = null, yours = null }) {
+function requestedItemRow({ item, stockSnapshot, costText = null, actions = null, replaces = null, replacedBy = null, canvass = null, yours = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   // The S0 dropped this line: the item stays so a bought product is never lost, and says so.
   const removed = isFromS0(item) && item.removed_from_s0 === true;
@@ -95,7 +98,7 @@ function requestedItemRow({ item, stockSnapshot, actions = null, replaces = null
     ),
     children: (
       <>
-        <RequestedItemDetails item={item} stock={stock} replaces={replaces} replacedBy={replacedBy} />
+        <RequestedItemDetails item={item} stock={stock} costText={costText} replaces={replaces} replacedBy={replacedBy} />
         {canvass}
       </>
     ),
@@ -203,6 +206,17 @@ export default function RequestedItems({ request, renderActions }) {
   });
 
   const items = itemsQuery.data || [];
+  // #686: Expected / Actual cost on a product line, read through the matrix so the viewer's cost tier decides.
+  const { data: matrix } = useCostingMatrix(items.some((i) => i.component_id) ? request?.opportunity_id : null);
+  const costByComponent = new Map();
+  if (matrix && tierReadsCost(matrix.tier, "acquire_unit")) {
+    for (const line of matrix.tenderLines ?? []) {
+      for (const c of line.components ?? []) {
+        const text = costComparisonText({ expected: c.acquire_unit, actual: c.p0_unit_price, fromCanvass: c.fromCanvass?.acquire });
+        if (text) costByComponent.set(c.id, text);
+      }
+    }
+  }
   const byId = new Map(items.map((i) => [i.id, i]));
   const substituteOf = new Map(
     items
@@ -222,6 +236,7 @@ export default function RequestedItems({ request, renderActions }) {
     requestedItemRow({
       item,
       stockSnapshot,
+      costText: item.component_id ? costByComponent.get(item.component_id) ?? null : null,
       replaces: byId.get(item.substitute_for_item_id),
       replacedBy: substituteOf.get(item.id),
       canvass: renderActions ? null : <ItemCanvass item={item} request={request} actor={actor} />,

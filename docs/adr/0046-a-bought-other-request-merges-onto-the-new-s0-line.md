@@ -1,4 +1,4 @@
-# ADR 0050 — A bought Other request merges onto the new S0 line, by one database call
+# ADR 0046 — A bought Other request merges onto the new S0 line, by one database call
 
 ## Status
 Accepted (2026-11-05), spec #675, ticket #688.

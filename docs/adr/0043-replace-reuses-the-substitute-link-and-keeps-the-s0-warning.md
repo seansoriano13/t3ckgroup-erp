@@ -1,4 +1,4 @@
-# ADR 0047 — Replace reuses the substitute link and keeps the S0 warning until Sales fixes the S0
+# ADR 0043 — Replace reuses the substitute link and keeps the S0 warning until Sales fixes the S0
 
 ## Status
 Accepted (2026-11-04), spec #675, ticket #687.

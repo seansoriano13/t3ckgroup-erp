@@ -1,4 +1,4 @@
-# ADR 0049 — The P0's price is the Actual cost, kept on the Component's costs row
+# ADR 0045 — The P0's price is the Actual cost, kept on the Component's costs row
 
 ## Status
 Accepted (2026-11-04), spec #675, ticket #686.
@@ -7,7 +7,7 @@ Accepted (2026-11-04), spec #675, ticket #686.
 
 Costing wants Expected (what a Canvass winner promised) and Actual (what the
 P0 says) side by side. The attached P0 is read from Odoo when it is attached
-(ADR 0048 area, #684). The Requested Item is read by every requester, so a
+(ADR 0044 area, #684). The Requested Item is read by every requester, so a
 price must not be stored on it.
 
 ## Decision

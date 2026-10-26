@@ -1,4 +1,4 @@
-# ADR 0048 — Odoo is the truth for P0 facts; the app reads them
+# ADR 0044 — Odoo is the truth for P0 facts; the app reads them
 
 ## Status
 Accepted (2026-11-04), spec #675, ticket #685.

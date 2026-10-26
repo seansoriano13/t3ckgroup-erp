@@ -1,6 +1,6 @@
 // Reads the P0s attached to a Purchase Request's lines from Odoo and sets each line's
 // stored status and delivery figures from them (#685). Odoo is the truth for P0 facts;
-// the app reads them (ADR 0048).
+// the app reads them (ADR 0044).
 //
 // Body: { requestId }
 // Reply: { success: true, changed: <lines whose status changed> }, or

@@ -9,7 +9,7 @@
 -- purchase_request_replace_item(A, B's name, reason) does it in ONE call:
 --   * A becomes Cancelled, with the reason kept on the row ("Replaced by B -- reason");
 --   * A's open Canvass (not signed off, not already stopped) is closed as
---     "Stopped - replaced by B". Its Offers, winner and reason are never touched;
+--     "Stopped · replaced by B". Its Offers, winner and reason are never touched;
 --   * B becomes its own item in Other requests: same quantity and unit, Not checked,
 --     linked to A by substitute_for_item_id;
 --   * when A was an S0 line, A carries s0_still_lists and the request chat tells Sales
@@ -53,7 +53,7 @@ alter table public.sor_canvasses
   add column if not exists stopped_reason text;
 
 comment on column public.sor_canvasses.stopped_at is
-  '#687: set when the Canvass was closed without a sign-off because its product line was replaced. stopped_reason holds "Stopped - replaced by B".';
+  '#687: set when the Canvass was closed without a sign-off because its product line was replaced. stopped_reason holds "Stopped · replaced by B".';
 
 create or replace function public.purchase_request_replace_item(
   p_item_id uuid,

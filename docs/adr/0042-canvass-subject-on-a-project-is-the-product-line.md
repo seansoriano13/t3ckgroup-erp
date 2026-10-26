@@ -1,4 +1,4 @@
-# ADR 0046 — On a project, the Canvass subject is the product line
+# ADR 0042 — On a project, the Canvass subject is the product line
 
 ## Status
 Accepted (2026-11-04), spec #675, ticket #682. Narrows ADR 0034.

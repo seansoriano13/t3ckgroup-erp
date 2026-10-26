@@ -1,8 +1,8 @@
 /**
- * The PO number and Odoo PO line on Ordered (#312, part of #209).
+ * The P0 number and Odoo PO line on a Purchased line (#312, part of #209; attach path #684).
  *
- * `purchase_request_set_item_status(item, 'purchased', { po_number })` takes
- * an optional PO number and its Odoo check; `purchase_request_pick_po_lines` records the PO
+ * A P0 is attached by the server-only `purchase_request_item_attach_po`, which moves the line to
+ * Purchased; `purchase_request_pick_po_lines` records the PO
  * line(s) the item is bought on, refusing any line not on the PO's IPAS
  * stored Odoo copy. The seam `_ipas_po_line_ids` answers from the live IPAS's
  * copy (#242; proven against real IPAS in 56-ipas-raise.test.js). Nothing here
@@ -60,17 +60,17 @@ async function eventsFor(itemId, event) {
     return data
 }
 
-const order = async (who, itemId, details) =>
+/** The removed hand move to Purchased: the status move now refuses it. */
+const byHand = async (who, itemId, details) =>
     (await clientFor(who)).rpc("purchase_request_set_item_status", { p_item_id: itemId, p_status: "purchased", p_details: details })
 
-/** Ordered with Odoo faked as having the PO, through the server-only path (#548; proven in 103). */
-const orderVerified = (who, itemId, po) =>
-    svc().rpc("purchase_request_item_apply_po_check", {
+/** Attaches the P0 as the edge function does (#684): Odoo's facts say it is confirmed, nothing received. */
+const attachP0 = (who, itemId, po, facts = { state: "confirmed", ordered: 10, received: 0 }) =>
+    svc().rpc("purchase_request_item_attach_po", {
         p_actor_email: castEmail(who),
         p_item_id: itemId,
-        p_action: "order",
         p_po_number: po,
-        p_odoo: "found",
+        p_facts: facts,
     })
 
 const pick = async (who, itemId, lineIds) =>
@@ -121,48 +121,29 @@ afterAll(async () => {
     if (sorId) await svc().from("sales_opportunities").delete().eq("id", sorId)
 })
 
-describe("Ordered takes an optional PO number", () => {
-    it("with no PO number: Ordered, no PO, no lines", async () => {
+describe("a P0 is attached, never typed onto a hand move", () => {
+    it("stores the P0 number, normalised, and moves the line to Purchased; the post carries it", async () => {
         const id = await seedItem()
-        const { data, error } = await order("stageParticipant", id, {})
-        expect(error).toBeNull()
-        expect(data).toMatchObject({ status: "purchased", po_number: null, po_verification: "UNVERIFIED", odoo_po_line_ids: [] })
-    })
-
-    it("stores the PO number, normalised, and what Odoo said about it; the post carries both", async () => {
-        const id = await seedItem()
-        const { data, error } = await orderVerified("stageParticipant", id, " p01234 ")
+        const { data, error } = await attachP0("stageParticipant", id, " p01234 ")
         expect(error).toBeNull()
         expect(data).toMatchObject({ status: "purchased", po_number: "P01234", po_verification: "VERIFIED" })
         expect(await item(id)).toMatchObject({ po_number: "P01234", po_verification: "VERIFIED", odoo_po_line_ids: [] })
 
-        const [post] = await eventsFor(id, "item_status_changed")
-        expect(post.metadata).toMatchObject({
-            to: "purchased",
-            details: { po_number: "P01234", po_verification: "VERIFIED" },
-        })
+        const [post] = await eventsFor(id, "item_po_attached")
+        expect(post.metadata).toMatchObject({ to: "purchased", po_number: "P01234" })
     })
 
-    it("refuses a PO number sent straight to the status move; only the server path saves one", async () => {
+    it("refuses Purchased by hand, with or without a number, saving nothing", async () => {
         const id = await seedItem()
-        expect((await order("stageParticipant", id, { po_number: "P01236" })).error?.code).toBe("42501")
+        expect((await byHand("stageParticipant", id, {})).error?.code).toBe("42501")
+        expect((await byHand("stageParticipant", id, { po_number: "P01236" })).error?.code).toBe("42501")
         expect(await item(id)).toMatchObject({ status: "to_purchase", po_number: null })
     })
 
-    it.each([
-        ["a number that isn't an Odoo PO", { po_number: "PO-1234" }],
-        ["a key Ordered doesn't take", { po_number: "P01234", vendor: "Acme" }],
-        ["the lines, which are picked, not set", { odoo_po_line_ids: [501] }],
-        ["a number that isn't text", { po_number: 1234 }],
-    ])("refuses %s, leaving the item where it was", async (_, details) => {
+    it("the sales side can't attach a P0 or move to Purchased", async () => {
         const id = await seedItem()
-        expect((await order("stageParticipant", id, details)).error?.code).toBe("22023")
-        expect(await item(id)).toMatchObject({ status: "to_purchase", po_number: null })
-    })
-
-    it("the sales side still can't set Ordered, PO number or not", async () => {
-        const id = await seedItem()
-        expect((await order("dealOwner", id, { po_number: "P01234" })).error?.code).toBe("42501")
+        expect((await byHand("dealOwner", id, { po_number: "P01234" })).error?.code).toBe("42501")
+        expect((await attachP0("dealOwner", id, "P01234")).error?.code).toBe("42501")
         expect((await item(id)).po_number).toBeNull()
     })
 })
@@ -170,7 +151,7 @@ describe("Ordered takes an optional PO number", () => {
 describe("a PO with no IPAS yet (the seam answers empty)", () => {
     it("offers no lines, refuses every pick, and the item stays 'PO line not picked'", async () => {
         const id = await seedItem()
-        await orderVerified("stageParticipant", id, IPAS_PO)
+        await attachP0("stageParticipant", id, IPAS_PO)
 
         expect(await poLines("stageParticipant", id)).toMatchObject({ data: [], error: null })
         const { error } = await pick("stageParticipant", id, [501])
@@ -190,7 +171,7 @@ describe("a PO with no IPAS yet (the seam answers empty)", () => {
 describe("a PO whose IPAS exists", () => {
     it("offers the IPAS copy's lines, accepts them later, and posts the pick", async () => {
         const id = await seedItem()
-        await orderVerified("stageParticipant", id, IPAS_PO)
+        await attachP0("stageParticipant", id, IPAS_PO)
 
         await withIpas(async () => {
             expect((await poLines("dealOwner", id)).data).toEqual(IPAS_LINES)
@@ -236,7 +217,7 @@ describe("a PO whose IPAS exists", () => {
 
     it.each([
         ["an item with no PO number", { status: "purchased" }, [501], "22023"],
-        ["an item not yet Ordered", { status: "to_purchase", po_number: IPAS_PO }, [501], "22023"],
+        ["an item not yet Purchased", { status: "to_purchase", po_number: IPAS_PO }, [501], "22023"],
         ["an empty pick", { status: "purchased", po_number: IPAS_PO }, [], "22023"],
     ])("refuses %s", async (_, fields, lines, code) => {
         const id = await seedItem(fields)

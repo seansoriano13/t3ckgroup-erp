@@ -40,6 +40,7 @@ create or replace function public._purchase_request_item_transition_ok(p_from te
 returns boolean
 language sql
 immutable
+set search_path = public
 as $$
   select case
     when public._purchase_request_item_is_closed(p_from) then false

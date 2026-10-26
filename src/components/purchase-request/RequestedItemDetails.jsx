@@ -23,7 +23,7 @@ const Warn = ({ children }) => (
 );
 
 /** An opened item: its fields in the detail grid (uppercase labels over values), then its images. */
-export default function RequestedItemDetails({ item, stock, replaces, replacedBy }) {
+export default function RequestedItemDetails({ item, stock, costText, replaces, replacedBy }) {
   const removed = isFromS0(item) && item.removed_from_s0 === true;
   const lines = item.odoo_po_line_ids || [];
   const component = componentLabel(item);
@@ -80,6 +80,8 @@ export default function RequestedItemDetails({ item, stock, replaces, replacedBy
         </span>
       ),
     },
+    // #686: Expected / Actual cost, passed only to a viewer whose cost tier reads costs.
+    costText && { label: "Cost", value: <span data-testid="requested-item-cost">{costText}</span> },
     (item.po_number || poLineNotPicked(item)) && {
       label: "Purchase order",
       value: (

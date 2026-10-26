@@ -6,6 +6,9 @@
 --   * A new S0 line's item is checked once, when it is made: if an Other request on the same
 --     project has a P0 attached for the same Odoo product, the S0 line is marked `new_on_s0` and
 --     points at that request (`yours_item_id`). The screen shows "Is this yours?".
+--   * The same question is asked when the P0 is attached to the Other request AFTER the S0 line
+--     already exists: the Other request getting a bought product that matches an S0 line (same
+--     Odoo product, no P0 yet) marks that S0 line the same way.
 --   * `purchase_request_answer_yours(item, same)`:
 --       same = false  clears the question and changes nothing else.
 --       same = true   moves the P0, its delivery, status, history, Canvass and price onto the S0
@@ -72,6 +75,55 @@ drop trigger if exists trg_purchase_request_item_ask_yours on public.purchase_re
 create trigger trg_purchase_request_item_ask_yours
   after insert on public.purchase_request_items
   for each row execute function public.trg_purchase_request_item_ask_yours();
+
+-- The other order: a P0 is attached to an Other request when the matching S0 line is already there.
+-- Fires when the bought product (or P0) on the Other request changes, so a "No" is not asked again.
+create or replace function public.trg_purchase_request_item_ask_yours_on_p0()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_s0 uuid;
+begin
+  if new.sor_item_id is not null
+     or new.purpose is distinct from 'client'
+     or new.po_number is null
+     or new.status = 'cancelled'
+     or new.bought_product_id is null then
+    return null;
+  end if;
+
+  select s.id into v_s0
+    from public.purchase_request_items s
+   where s.request_id = new.request_id
+     and s.sor_item_id is not null
+     and s.odoo_product_id = new.bought_product_id
+     and s.po_number is null
+     and s.status <> 'cancelled'
+     and s.new_on_s0 = false
+   order by s.created_at, s.id
+   limit 1;
+
+  if v_s0 is not null then
+    update public.purchase_request_items
+       set new_on_s0 = true, yours_item_id = new.id
+     where id = v_s0;
+  end if;
+  return null;
+end;
+$$;
+
+revoke all on function public.trg_purchase_request_item_ask_yours_on_p0() from public, anon, authenticated;
+
+drop trigger if exists trg_purchase_request_item_ask_yours_on_p0 on public.purchase_request_items;
+create trigger trg_purchase_request_item_ask_yours_on_p0
+  after update of po_number, bought_product_id on public.purchase_request_items
+  for each row
+  when (new.bought_product_id is not null
+        and (old.po_number is distinct from new.po_number or old.bought_product_id is distinct from new.bought_product_id))
+  execute function public.trg_purchase_request_item_ask_yours_on_p0();
 
 -- The answer. Returns the S0 line's item.
 create or replace function public.purchase_request_answer_yours(p_item_id uuid, p_same boolean)

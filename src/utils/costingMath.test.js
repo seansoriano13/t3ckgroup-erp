@@ -519,3 +519,14 @@ describe("Planned and Actual Revenue (#605)", () => {
     expect(revenueComparison({}, settings)).toMatchObject({ planned: null, actual: null, difference: null, itemsBought: 0, itemsTotal: 0, notBought: 0 });
   });
 });
+
+describe("the Actual cost wins in the totals (#686)", () => {
+  it("uses the P0 price when there is one, else Acquire, and leaves Acquire as typed", () => {
+    const component = { quantity: 2, acquire_unit: 100, p0_unit_price: 120 };
+    expect(componentTotals(component).acquireTotal).toBe(240);
+    expect(component.acquire_unit).toBe(100);
+    expect(componentTotals({ quantity: 2, acquire_unit: 100, p0_unit_price: null }).acquireTotal).toBe(200);
+    expect(componentTotals({ quantity: 2, p0_unit_price: 50 }).acquireTotal).toBe(100);
+    expect(lineTotals({ quantity: 1 }, [component, { quantity: 1, acquire_unit: 10 }]).acquireTotal).toBe(250);
+  });
+});
