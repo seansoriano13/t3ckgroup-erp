@@ -621,6 +621,22 @@ export function stubIpasRpcs({
     return updated
   })
 
+  // #712: Purchasing marks the S0 warning checked, with a reason and an event.
+  stubRpc("ipas_mark_sor_warning_checked", (args) => {
+    if (!canWriteMoney) refuse("42501", "ipas_mark_sor_warning_checked: only Purchasing marks the S0 warning checked")
+    const row = findRow("ipas", args.p_ipas_id)
+    if (!row) refuse("22023", `ipas_mark_sor_warning_checked: IPAS ${args.p_ipas_id} not found`)
+    if (row.state !== "open") refuse("22023", `ipas_mark_sor_warning_checked: ${row.number} is ${row.state}`)
+    const reason = String(args.p_reason ?? "").trim()
+    if (!reason) refuse("22023", "ipas_mark_sor_warning_checked: give the reason")
+    const references = args.p_references ?? []
+    const updated = updateRow("ipas", row, {
+      sor_warning_checked: { references, reason, by: actorId, at: new Date().toISOString() },
+    })
+    event(row.id, "sor_warning_checked", { references, reason })
+    return updated
+  })
+
   // #597: which of these IPAS have history beyond the system's own entries.
   stubRpc("ipas_worked_on", (args) => {
     const system = ["created", "odoo_copy_changed", "filled_from_odoo", "odoo_changed_since_filing", "on_hold_set", "on_hold_changed", "on_hold_cleared"]

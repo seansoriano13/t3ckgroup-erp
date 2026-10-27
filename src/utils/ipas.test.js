@@ -14,6 +14,7 @@ import {
   shapeChangeNote,
   shapeIpas,
   sorMismatch,
+  sorWarningChecked,
 } from "./ipas"
 
 describe("parseSalesReferences", () => {
@@ -240,7 +241,7 @@ describe("sorMismatch", () => {
     expect(sorMismatch(copy("S06070 Las Nieves & s04602 Wack"), [sor("S04602"), sor("S06070")])).toBeNull()
   })
 
-  it("says what only Odoo names and what only the IPAS names", () => {
+  it("says what only the IPAS names", () => {
     const result = sorMismatch(copy("S06070 Las Nieves", ["S07920 Capas"]), [sor("S06070"), sor("S01111")])
     expect(result).toEqual({
       odoo: ["S06070", "S07920"],
@@ -250,13 +251,21 @@ describe("sorMismatch", () => {
     })
   })
 
+  it("is null when the PO names more S numbers than the IPAS does", () => {
+    expect(sorMismatch(copy("S06070 Las Nieves", ["S07920 Capas"]), [sor("S06070")])).toBeNull()
+    expect(sorMismatch(copy("S06070"), [])).toBeNull()
+  })
+
   it("has nothing to compare when Odoo names no S number", () => {
     expect(sorMismatch(copy("Stock replenishment"), [sor("S06070")])).toBeNull()
     expect(sorMismatch(copy(null), [])).toBeNull()
   })
 
-  it("warns for a non-Project IPAS when Odoo names an SOR it doesn't", () => {
-    expect(sorMismatch(copy("S06070"), [])).toMatchObject({ onlyInOdoo: ["S06070"], onlyInIpas: [] })
+  it("is hidden once marked checked for every S number it names", () => {
+    const m = sorMismatch(copy("S06070"), [sor("S01111")])
+    expect(sorWarningChecked({ references: ["s01111"] }, m)).toBe(true)
+    expect(sorWarningChecked({ references: ["S09999"] }, m)).toBe(false)
+    expect(sorWarningChecked(null, m)).toBe(false)
   })
 })
 

@@ -721,7 +721,8 @@ create table if not exists public."ipas" (
   "google_sheet" boolean not null default false,
   "gantt_chart" boolean not null default false,
   "on_hold" boolean not null default false,
-  "on_hold_note" text
+  "on_hold_note" text,
+  "sor_warning_checked" jsonb
 );
 
 create table if not exists public."ipas_bank_details" (

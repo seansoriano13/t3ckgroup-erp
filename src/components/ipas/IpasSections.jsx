@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import { Check, CircleAlert, CloudDownload, CloudOff, Pencil, RefreshCw, Undo2 } from "lucide-react";
 
 import { Button } from "../ui/button";
@@ -27,7 +29,10 @@ import {
   ODOO_PO_STATE_LABELS,
   ipasSectionLabel,
 } from "../../constants/ipas";
-import { changeNoteSummary, formatAmount } from "../../utils/ipas";
+import { changeNoteSummary, formatAmount, ipasErrorMessage } from "../../utils/ipas";
+import { ipasService } from "../../services/ipasService";
+import { ipasKey } from "./ipasKeys";
+import { Input } from "../ui/input";
 import { buildBuyerTrack } from "../../utils/ipasDocuments";
 import { formatDay } from "../../utils/ipasPayments";
 import { formatDate } from "../../utils/formatDate.js";
@@ -152,8 +157,21 @@ function typedItem({ label, value, fromOdoo, canChange, onEdit }) {
  * open), an S-number mismatch, a filed IPAS whose PO has since changed, and an
  * Odoo that didn't answer. None of them changes the IPAS.
  */
-export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
+export function IpasWarnings({ ipas, refresh, onRetry, retrying = false, canMarkChecked = false }) {
   const banners = [];
+  const queryClient = useQueryClient();
+  const [reason, setReason] = useState("");
+  const [asking, setAsking] = useState(false);
+  const markChecked = useMutation({
+    mutationFn: (references) => ipasService.markSorWarningChecked(ipas.id, references, reason),
+    onSuccess: () => {
+      setAsking(false);
+      setReason("");
+      toast.success("S0 warning marked checked.");
+      return queryClient.invalidateQueries({ queryKey: ipasKey(ipas.id) });
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
+  });
   // The Odoo-didn't-answer banner can be dismissed; the page keeps the stored copy either way.
   const [refreshDismissed, setRefreshDismissed] = useState(false);
 
@@ -166,14 +184,39 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
         body: "This IPAS stays open until Purchasing cancels it.",
       });
     } else if (warning.code === IPAS_WARNING.SOR_MISMATCH) {
-      const parts = [];
-      if (warning.onlyInOdoo.length) parts.push(`Odoo also names ${warning.onlyInOdoo.join(", ")}`);
-      if (warning.onlyInIpas.length) parts.push(`Odoo doesn't name ${warning.onlyInIpas.join(", ")}`);
       banners.push({
         key: warning.code,
         tone: "amber",
-        title: "Odoo's S numbers differ from this IPAS's SORs",
-        body: `${parts.join("; ")}. Nothing has changed; check the SORs.`,
+        title: "This IPAS names an SOR the Odoo PO doesn't",
+        body: `Odoo doesn't name ${warning.onlyInIpas.join(", ")}. Nothing has changed; check the SORs.`,
+        extra: canMarkChecked ? (
+          asking ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Why is this fine?"
+                aria-label="Reason the S0 warning is fine"
+                maxLength={300}
+                className="h-8 w-64 bg-card"
+              />
+              <Button
+                size="sm"
+                disabled={!reason.trim() || markChecked.isPending}
+                onClick={() => markChecked.mutate(warning.onlyInIpas)}
+              >
+                {markChecked.isPending ? "Saving…" : "Mark checked"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button size="sm" variant="outline" className="mt-2 bg-card" onClick={() => setAsking(true)}>
+              Mark checked
+            </Button>
+          )
+        ) : null,
       });
     } else if (warning.code === IPAS_WARNING.ODOO_CHANGED_SINCE_FILING) {
       banners.push({
@@ -207,7 +250,7 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
 
   return (
     <div className="space-y-2">
-      {banners.map(({ key, tone, alert, onDismiss, icon: Icon = CircleAlert, title, body, retry }) => (
+      {banners.map(({ key, tone, alert, onDismiss, icon: Icon = CircleAlert, title, body, retry, extra }) => (
         <div
           key={key}
           role={alert ? "alert" : "status"}
@@ -220,6 +263,7 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false }) {
             <div>
               <p className="font-semibold">{title}</p>
               <p className="mt-0.5 text-xs opacity-90">{body}</p>
+              {extra}
             </div>
           </div>
           {/* The failed refresh keeps its banner and offers the same refresh again. */}
