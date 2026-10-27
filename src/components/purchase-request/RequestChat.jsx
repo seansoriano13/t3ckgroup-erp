@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "@/utils/formatDate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,10 +35,15 @@ function formatWhen(iso) {
   }, { time: true });
 }
 
-const Message = memo(function Message({ message }) {
+const Message = memo(function Message({ message, highlighted = false }) {
   const isEvent = !!message.metadata?.event;
   return (
-    <li className="flex gap-2.5" data-testid="request-message">
+    <li
+      className={cn("flex gap-2.5 rounded-lg transition-colors duration-700", highlighted && "bg-mauve-3")}
+      data-testid="request-message"
+      data-message-id={message.id}
+      data-highlighted={highlighted || undefined}
+    >
       {isEvent || !message.author ? (
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           <Sparkles size={12} />
@@ -74,8 +79,12 @@ const Message = memo(function Message({ message }) {
  *
  * Who is notified is the database's call (a trigger on every message): the
  * people mentioned always; otherwise the Buyer and the requesters.
+ *
+ * Opened from a mention (`focusOnMount`, again each time `openCount` changes),
+ * it refetches the thread — the cached one predates the mention — and scrolls
+ * to the newest Message that mentions the reader (ADR 0017's Mention Target).
  */
-export default function RequestChat({ request, focusOnMount = false, className = "" }) {
+export default function RequestChat({ request, focusOnMount = false, openCount = 0, className = "" }) {
   const requestId = request?.id;
   const { user } = useAuth();
   const { isSuperAdmin } = getPermissionContext(user);
@@ -104,6 +113,30 @@ export default function RequestChat({ request, focusOnMount = false, className =
   });
 
   const messages = messagesQuery.messages;
+
+  const [highlightId, setHighlightId] = useState(null);
+  // Bumped once the deep link's refetch has landed; the Mention Target is looked for then, once.
+  const [mentionCheck, setMentionCheck] = useState(0);
+  const checkedMention = useRef(0);
+  useEffect(() => {
+    if (!focusOnMount || !requestId) return undefined;
+    let live = true;
+    queryClient
+      .invalidateQueries({ queryKey: purchaseRequestKeys.messages(requestId) })
+      .finally(() => live && setMentionCheck((n) => n + 1));
+    return () => {
+      live = false;
+    };
+  }, [focusOnMount, requestId, openCount, queryClient]);
+  useEffect(() => {
+    if (mentionCheck === checkedMention.current) return;
+    checkedMention.current = mentionCheck;
+    const target = [...messages].reverse().find((m) => m.metadata?.mentions?.some((p) => p.id === user?.id));
+    if (!target) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- marks the Mention Target once the refetch lands
+    setHighlightId(target.id);
+    document.querySelector(`[data-message-id="${target.id}"]`)?.scrollIntoView?.({ block: "center" });
+  }, [mentionCheck, messages, user?.id]);
   const canPost = isSuperAdmin || members.some((m) => m.id === user?.id);
   const people = members.filter((m) => m.id !== user?.id);
 
@@ -166,7 +199,7 @@ export default function RequestChat({ request, focusOnMount = false, className =
         ) : (
           <ul className="space-y-3">
             {messages.map((m) => (
-              <Message key={m.id} message={m} />
+              <Message key={m.id} message={m} highlighted={m.id === highlightId} />
             ))}
           </ul>
         )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MessageSquare, PackageSearch, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,11 +22,17 @@ const SIDE_PANELS = [
  * Items), the Members and Chat toggles, its Requested Items with their
  * statuses, and the side panel the toggles open. The record window mounts it
  * at every width, under its header. Everything is read by `requestId`; each
- * part refreshes itself.
+ * part refreshes itself. `openCount` changes on every open from outside, so a
+ * mention clicked while the request is already open opens the Chat again.
  */
-export default function PurchaseRequestView({ requestId, focusChat = false, className = "" }) {
+export default function PurchaseRequestView({ requestId, focusChat = false, openCount = 0, className = "" }) {
   const { data: request, isLoading, isError, refetch } = usePurchaseRequest(requestId);
   const [panel, setPanel] = useState(focusChat ? "chat" : null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- an open from outside (a mention) picks the panel
+    if (focusChat) setPanel("chat");
+  }, [focusChat, openCount]);
 
   if (isLoading) {
     return (
@@ -82,7 +88,7 @@ export default function PurchaseRequestView({ requestId, focusChat = false, clas
         )}
         {panel === "chat" && (
           <aside className="w-full min-w-0 shrink-0 overflow-hidden rounded-2xl border border-border lg:w-[400px]">
-            <RequestChat request={request} focusOnMount={focusChat} className="h-[28rem] rounded-none border-0" />
+            <RequestChat request={request} focusOnMount={focusChat} openCount={openCount} className="h-[28rem] rounded-none border-0" />
           </aside>
         )}
       </div>
