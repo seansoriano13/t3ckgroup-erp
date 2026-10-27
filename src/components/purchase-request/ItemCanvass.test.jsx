@@ -3,9 +3,10 @@
  * Cancelled, bought or already-canvassing line, and the "Canvass {number} · {n} of 3 offers" line
  * once a Canvass runs. Against the fake database; who may is the policy tier's (180).
  */
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
+import userEvent from "@testing-library/user-event"
 import { openRowNamed, showDoneLines } from "@/test/openRequestedItem"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
@@ -15,7 +16,8 @@ import { seedCanvass, stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc"
 import RequestedItems from "./RequestedItems"
 
 const DONE = ["available", "cancelled", "received"]
-let salesperson, buyer, request
+let salesperson, buyer, request, authUser
+vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }))
 
 const seedItem = (fields = {}) =>
   db.seed("purchase_request_items", {
@@ -41,7 +43,10 @@ beforeEach(() => {
 })
 
 describe("for Purchasing", () => {
-  beforeEach(() => stubPurchaseRequestItemRpcs({ actorId: buyer.id, purchasing: true }))
+  beforeEach(() => {
+    authUser = { id: buyer.id, has_purchasing_flow: true }
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, purchasing: true })
+  })
 
   it.each(["not_checked", "available", "to_purchase"])("shows an enabled Canvass button on a %s line", async (status) => {
     seedItem({ status })
@@ -77,6 +82,31 @@ describe("for Purchasing", () => {
     const row = await openRowNamed("Full Body Harness")
     await waitFor(() => expect(within(row).getByText(`Canvass ${canvass.number} · 2 of 3 offers`)).toBeInTheDocument())
     expect(within(row).getByRole("button", { name: `Open Canvass ${canvass.number} for Full Body Harness` })).toBeEnabled()
+  })
+
+  it("opens a new Canvass in three offer columns, the first to fill and two empty", async () => {
+    seedItem({ status: "to_purchase" })
+    show()
+    const row = await openRowNamed("Full Body Harness")
+    await userEvent.click(await within(row).findByRole("button", { name: "Canvass Full Body Harness" }))
+    const grid = await screen.findByTestId("offers-grid")
+    expect(grid).toHaveClass("md:grid-cols-3")
+    expect(within(grid).getByRole("form", { name: "New offer" })).toBeInTheDocument()
+    expect(within(grid).getAllByTestId("offer-slot-empty")).toHaveLength(2)
+  })
+
+  it("keeps three columns on a running Canvass with one offer", async () => {
+    const item = seedItem({ status: "still_canvassing" })
+    const canvass = await seedCanvass({ requestedItemId: item.id }, buyer.id)
+    db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Redleaf Inc." })
+    show()
+    const row = await openRowNamed("Full Body Harness")
+    await userEvent.click(await within(row).findByRole("button", { name: `Open Canvass ${canvass.number} for Full Body Harness` }))
+    const grid = await screen.findByTestId("offers-grid")
+    await waitFor(() => expect(within(grid).getAllByTestId("offer")).toHaveLength(1))
+    // The offer, the Add offer button, and one empty column.
+    expect(within(grid).getByRole("button", { name: /Add offer/ })).toBeInTheDocument()
+    expect(within(grid).getAllByTestId("offer-slot-empty")).toHaveLength(1)
   })
 })
 

@@ -7,6 +7,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import ModalShell from "./ui/ModalShell";
+import CanvassOffersGrid from "./CanvassOffersGrid";
 import { Button } from "./ui/button";
 import { SelectField } from "./ui/SelectField";
 import CanvassSupplierField, { canvassFieldClass } from "./CanvassSupplierField";
@@ -334,7 +335,7 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <CanvassOffersGrid filled={row.offers.length}>
                 {row.offers.map((offer, c) => (
                   <OfferColumn
                     key={c}
@@ -346,7 +347,7 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
                     onWin={() => patchRow(row.key, { winner: row.winner === c ? null : c })}
                   />
                 ))}
-              </div>
+              </CanvassOffersGrid>
 
               {(issue || warning) && (
                 <p role={issue ? "alert" : undefined} className={`text-[11px] ${issue ? "text-destructive" : "text-muted-foreground"}`}>

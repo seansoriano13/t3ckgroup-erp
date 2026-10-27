@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import ModalShell from "./ui/ModalShell";
+import CanvassOffersGrid from "./CanvassOffersGrid";
 import CanvassSignoffDialog from "./CanvassSignoffDialog";
 import CanvassUnlockDialog from "./CanvassUnlockDialog";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
@@ -958,18 +959,21 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
           <p className="text-xs text-muted-foreground">
             No offers yet. Saving the first offer starts this Canvass and gives it its number.
           </p>
-          <OfferForm
-            canReadMoney
-            isPending={startMutation.isPending}
-            onCancel={() => onOpenChange(false)}
-            onSubmit={(input) => {
-              if (isBare && !productName.trim()) {
-                toast.error("Say what is being bought first.");
-                return;
-              }
-              startMutation.mutate(input);
-            }}
-          />
+          <CanvassOffersGrid filled={1} data-testid="offers-grid">
+            <OfferForm
+              inline
+              canReadMoney
+              isPending={startMutation.isPending}
+              onCancel={() => onOpenChange(false)}
+              onSubmit={(input) => {
+                if (isBare && !productName.trim()) {
+                  toast.error("Say what is being bought first.");
+                  return;
+                }
+                startMutation.mutate(input);
+              }}
+            />
+          </CanvassOffersGrid>
         </div>
       )}
 
@@ -1034,7 +1038,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     No winner picked. Anything an earlier winner filled on the Costing Matrix stays until a new winner replaces it.
                   </p>
                 )}
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3" data-testid="offers-grid">
+                <CanvassOffersGrid filled={offers.length + (canChange ? 1 : 0)} data-testid="offers-grid">
                   {offers.map((offer, index) => (
                     <OfferRow
                       key={offer.id}
@@ -1075,7 +1079,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                       <Plus size={14} /> Add offer
                     </Button>
                   )}
-                </div>
+                </CanvassOffersGrid>
               </section>
 
               <section className="space-y-3">
