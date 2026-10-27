@@ -1454,6 +1454,23 @@ export const ipasService = {
   },
 
   /**
+   * Marks the S0 warning (the IPAS names an SOR the PO doesn't) checked, with a
+   * required reason. Purchasing access, open IPAS; writes a history event and the
+   * warning stops showing. Returns the row.
+   */
+  async markSorWarningChecked(id, references, reason) {
+    const why = (reason || "").trim();
+    if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give the reason the S0 warning is fine.");
+    const { data, error } = await supabase.rpc("ipas_mark_sor_warning_checked", {
+      p_ipas_id: id,
+      p_references: references ?? [],
+      p_reason: why,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
    * Puts an open IPAS On-Hold, or clears it (#597). The one write the IPAS Status
    * has: every other step is worked out. Purchasing access or Finance access; a
    * filed or cancelled IPAS is refused by the database. `note` is optional and

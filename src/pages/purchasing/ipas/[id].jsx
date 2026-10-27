@@ -1007,6 +1007,7 @@ function IpasPage({ onClose }) {
               refresh={refresh.data}
               onRetry={() => refresh.refetch()}
               retrying={refresh.isFetching}
+              canMarkChecked={hasPurchasingFlow && open}
             />
           </div>
 

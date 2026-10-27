@@ -618,6 +618,7 @@ export const IPAS_EVENT_LABELS = {
   approval_undone: "Approval undone",
   filed: "Filed",
   reopened: "Reopened",
+  sor_warning_checked: "S0 warning checked",
   payment_added: "Payment added",
   payment_changed: "Payment changed",
   payment_removed: "Payment removed",
