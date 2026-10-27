@@ -1,4 +1,3 @@
--- allow-out-of-order: staging is already past 20261104; this redefines committee_task_visible and adds a policy that no later migration touches.
 -- Group Tasks: reopen a task that is ON_HOLD.
 --
 -- A Stage Action's group task goes ON_HOLD when its SOR leaves the Stage. When
