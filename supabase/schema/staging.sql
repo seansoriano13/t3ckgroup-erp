@@ -1773,6 +1773,14 @@ create policy "committee_tasks_read" on public."committee_tasks"
   using ((is_super_admin() OR (evaluator_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
   WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR ((created_by = get_employee_id()) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
+create policy "committee_tasks_read_on_hold" on public."committee_tasks"
+  as permissive
+  for select
+  to authenticated
+  using (((status = 'ON_HOLD'::text) AND ((created_by = get_employee_id()) OR (EXISTS ( SELECT 1
+   FROM (employees h
+     JOIN employees c ON ((c.id = committee_tasks.created_by)))
+  WHERE ((h.id = get_employee_id()) AND h.is_head AND (NOT COALESCE(h.is_deleted, false)) AND (h.department IS NOT NULL) AND (h.department = c.department)))))));
 create policy "companies_read" on public."companies"
   as permissive
   for select
@@ -3016,6 +3024,19 @@ AS $function$
           where ctm.committee_task_id = ct.id
             and ctm.employee_id = public.get_employee_id()
         )
+        or (
+          ct.status = 'ON_HOLD'
+          and exists (
+            select 1
+              from public.employees h
+              join public.employees c on c.id = ct.created_by
+             where h.id = public.get_employee_id()
+               and h.is_head
+               and not coalesce(h.is_deleted, false)
+               and h.department is not null
+               and h.department = c.department
+          )
+        )
       )
   )
 $function$
@@ -3623,6 +3644,81 @@ AS $function$BEGIN
     ORDER BY c.latest_created_at DESC
     LIMIT p_limit;
 END;$function$
+;
+CREATE OR REPLACE FUNCTION public.group_task_reopen(p_group_task_id uuid)
+ RETURNS committee_tasks
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_task public.committee_tasks;
+  v_allowed boolean;
+  v_status text;
+  v_held_for interval;
+begin
+  select * into v_task from public.committee_tasks where id = p_group_task_id for update;
+  if v_task.id is null then
+    raise exception 'Reopen: that group task could not be found.' using errcode = 'P0002';
+  end if;
+
+  if v_task.status is distinct from 'ON_HOLD' then
+    raise exception 'Reopen: only a group task on hold can be reopened.' using errcode = 'P0001';
+  end if;
+
+  v_allowed := public.is_super_admin()
+    or (v_actor is not null and v_task.created_by = v_actor)
+    or (
+      v_actor is not null
+      and exists (
+        select 1
+          from public.employees h
+          join public.employees c on c.id = v_task.created_by
+         where h.id = v_actor
+           and h.is_head
+           and not coalesce(h.is_deleted, false)
+           and h.department is not null
+           and h.department = c.department
+      )
+    );
+  if not v_allowed then
+    raise exception 'Reopen: only the creator, a Super Admin or a Head of the creator''s department can reopen this group task.'
+      using errcode = '42501';
+  end if;
+
+  v_status := coalesce(v_task.held_prev_status, 'ACTIVE');
+  v_held_for := case when v_task.held_at is null then interval '0' else now() - v_task.held_at end;
+
+  update public.committee_tasks
+     set status = v_status,
+         due_date = case when due_date is null then null else due_date + v_held_for end,
+         held_at = null,
+         held_from_visit_id = null,
+         held_prev_status = null
+   where id = p_group_task_id
+   returning * into v_task;
+
+  insert into public.committee_task_logs (committee_task_id, action, details, actor_id)
+  values (p_group_task_id, 'REOPENED', jsonb_build_object('status', v_status), v_actor);
+
+  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select distinct r.rid, v_actor, 'GROUP_TASK_REOPENED',
+         'Group task reopened',
+         format('"%s" was on hold and is open again.', v_task.title),
+         p_group_task_id::text
+    from (
+      select m.employee_id as rid from public.committee_task_members m where m.committee_task_id = p_group_task_id
+      union
+      select v_task.created_by
+      union
+      select v_task.evaluator_id
+    ) r
+   where r.rid is not null and r.rid is distinct from v_actor;
+
+  return v_task;
+end;
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.group_task_template_can_edit(p_template_id uuid)
  RETURNS boolean
