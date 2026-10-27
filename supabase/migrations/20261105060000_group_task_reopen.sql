@@ -1,3 +1,6 @@
+-- Renumbered twice (20261104120000, then 20261105050000) because other
+-- migrations took those versions on staging first. Neither earlier name was ever
+-- recorded in a ledger: each push failed on the version collision before it applied.
 -- Group Tasks: reopen a task that is ON_HOLD.
 --
 -- A Stage Action's group task goes ON_HOLD when its SOR leaves the Stage. When
