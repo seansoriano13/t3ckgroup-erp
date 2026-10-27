@@ -38,7 +38,8 @@ export const GROUP_TASK_STATUS = {
   ON_HOLD: "ON_HOLD",
 };
 
-export const HIDDEN_GROUP_TASK_STATUS_FILTER = `(${GROUP_TASK_STATUS.CANCELLED},${GROUP_TASK_STATUS.ON_HOLD})`;
+// On hold stays in the list: its own tab shows it, every other view leaves it out.
+export const HIDDEN_GROUP_TASK_STATUS_FILTER = `(${GROUP_TASK_STATUS.CANCELLED})`;
 
 export const GROUP_MEMBER_STATUS = {
   PENDING: "PENDING",
