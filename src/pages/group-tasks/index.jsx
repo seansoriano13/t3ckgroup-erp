@@ -82,7 +82,7 @@ export default function GroupTasksPage() {
   const { data: groupTasks = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["groupTasks", user?.id],
     queryFn: () =>
-      groupTaskService.getGroupTasks(user?.id, isHead, isSuperAdmin),
+      groupTaskService.getGroupTasks(user?.id, isHead, isSuperAdmin, user?.department),
     enabled: !!user?.id,
   });
 
@@ -189,6 +189,11 @@ export default function GroupTasksPage() {
     [groupTasks, user?.id],
   );
 
+  const onHoldCount = useMemo(
+    () => groupTasks.filter((t) => t.status === "ON_HOLD").length,
+    [groupTasks],
+  );
+
   const clearAllFilters = () => {
     setSearchTerm("");
     setStatusFilter("ALL");
@@ -270,6 +275,16 @@ export default function GroupTasksPage() {
       toast.success("Evaluator changed.");
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  const reopenMutation = useMutation({
+    mutationFn: () => groupTaskService.reopenGroupTask(selectedTask.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group task reopened.");
+      setSelectedTaskId(null);
+    },
+    onError: (err) => toast.error(err.message || "Could not reopen that group task. Try again."),
   });
 
   const addMemberAttachmentMutation = useMutation({
@@ -457,6 +472,7 @@ export default function GroupTasksPage() {
       <EvaluationTabs
         statusFilter={statusFilter}
         count={awaitingMyRating}
+        holdCount={onHoldCount}
         onChange={setStatusFilter}
       />
 
@@ -534,6 +550,8 @@ export default function GroupTasksPage() {
         employees={employees}
         onSendToEvaluation={() => sendToEvaluationMutation.mutate()}
         isSendingToEvaluation={sendToEvaluationMutation.isPending}
+        onReopen={() => reopenMutation.mutate()}
+        isReopening={reopenMutation.isPending}
         onChangeEvaluator={(employeeId) => changeEvaluatorMutation.mutateAsync(employeeId)}
         isChangingEvaluator={changeEvaluatorMutation.isPending}
         onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}

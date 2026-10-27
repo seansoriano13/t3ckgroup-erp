@@ -351,7 +351,7 @@ export const groupTaskService = {
   },
 
   // READ (Heads see all they created or are part of, super admin sees all, employees see where they are members)
-  async getGroupTasks(userId, isHead, isSuperAdmin) {
+  async getGroupTasks(userId, isHead, isSuperAdmin, department = null) {
     let query = supabase
       .from("committee_tasks")
       .select(GROUP_TASK_SELECT)
@@ -367,6 +367,8 @@ export const groupTaskService = {
     return data.filter((ct) => {
       if (ct.created_by === userId) return true; // Created by this head
       if (ct.evaluator_id === userId) return true; // Rates this task
+      // A Head can find a held task of their department to reopen it.
+      if (isHead && ct.status === "ON_HOLD" && department && ct.creator?.department === department) return true;
       return ct.members.some((m) => m.employee_id === userId); // Is a member
     });
   },
@@ -529,6 +531,20 @@ export const groupTaskService = {
 
     await enterAwaitingEvaluation(task, actorId, { automatic: false });
     return { ...task, status: "AWAITING_EVALUATION" };
+  },
+
+  // REOPEN a task on hold: the RPC checks who may, and returns it to the status
+  // it held before.
+  async reopenGroupTask(groupTaskId) {
+    const { data, error } = await supabase.rpc("group_task_reopen", {
+      p_group_task_id: groupTaskId,
+    });
+    if (error) throw error;
+
+    groupTaskActivityService
+      .addSystemEvent(groupTaskId, "The group task was reopened.", { event: "REOPENED" })
+      .catch(console.error);
+    return data;
   },
 
   // RATE EMPLOYEES

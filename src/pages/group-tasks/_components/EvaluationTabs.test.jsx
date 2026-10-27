@@ -28,4 +28,13 @@ describe("EvaluationTabs", () => {
     fireEvent.click(screen.getByRole("tab", { name: "All group tasks" }))
     expect(onChange).toHaveBeenLastCalledWith("ALL")
   })
+
+  it("shows how many tasks are on hold, and opens them", () => {
+    const onChange = vi.fn()
+    render(<EvaluationTabs statusFilter="ALL" count={0} holdCount={2} onChange={onChange} />)
+
+    expect(screen.getByRole("tab", { name: /On hold/ })).toHaveTextContent("2")
+    fireEvent.click(screen.getByRole("tab", { name: /On hold/ }))
+    expect(onChange).toHaveBeenLastCalledWith("ON_HOLD")
+  })
 })

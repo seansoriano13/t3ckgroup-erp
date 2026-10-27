@@ -30,6 +30,13 @@ describe("useGroupTaskFilters", () => {
       expect(filter(tasks).filteredTasks).toHaveLength(2)
     })
 
+    it("keeps tasks on hold off every view but their own", () => {
+      const tasks = [groupTask({ status: "ACTIVE" }), groupTask({ status: "ON_HOLD" })]
+
+      expect(filter(tasks).filteredTasks).toHaveLength(1)
+      expect(filter(tasks, { statusFilter: "ON_HOLD" }).filteredTasks.map((t) => t.status)).toEqual(["ON_HOLD"])
+    })
+
     it("narrows to active work", () => {
       const tasks = [groupTask({ status: "ACTIVE" }), groupTask({ status: "COMPLETED" })]
 

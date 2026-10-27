@@ -103,6 +103,7 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     notif.type === "GROUP_TASK_READY_FOR_HR" ||
     notif.type === "GROUP_TASK_AWAITING_EVALUATION" ||
     notif.type === "GROUP_TASK_EVALUATION_REMINDER" ||
+    notif.type === "GROUP_TASK_REOPENED" ||
     notif.type === "GROUP_MEMBER_DONE"
   ) {
     navigate("/group-tasks");
