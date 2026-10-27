@@ -42,6 +42,12 @@ describe("a member", () => {
     expect(screen.getByText("2 members")).toBeInTheDocument()
   })
 
+  it("gives the composer two lines, so its placeholder is never cut off", async () => {
+    renderWithProviders(<RequestChat request={request} />)
+    await screen.findByText("Purchase Request opened.")
+    expect(screen.getByPlaceholderText(/Message the request/)).toHaveAttribute("rows", "2")
+  })
+
   it("posts a message mentioning another member", async () => {
     const user = setupUser()
     renderWithProviders(<RequestChat request={request} />)

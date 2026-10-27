@@ -48,8 +48,8 @@ export default function PurchaseRequestView({ requestId, focusChat = false, clas
     );
   }
 
-  // Members and Chat sit behind two toggles and open as one side panel (below the items on a phone),
-  // so nothing competes with the list.
+  // Members and Chat sit behind two toggles and open as one side column (below the items until the
+  // window is wide enough for both), so nothing competes with the list.
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
@@ -71,17 +71,17 @@ export default function PurchaseRequestView({ requestId, focusChat = false, clas
           ))}
         </div>
       </div>
-      <div className="flex flex-col gap-4 md:flex-row md:items-start">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1">
           <RequestedItems request={request} />
         </div>
         {panel === "members" && (
-          <aside className="w-full shrink-0 rounded-2xl border border-border bg-muted/20 px-4 py-4 md:w-[300px]">
+          <aside className="w-full shrink-0 rounded-2xl border border-border bg-muted/20 px-4 py-4 lg:w-[300px]">
             <RequestMembers request={request} rail />
           </aside>
         )}
         {panel === "chat" && (
-          <aside className="w-full shrink-0 overflow-hidden rounded-2xl border border-border md:w-[380px]">
+          <aside className="w-full min-w-0 shrink-0 overflow-hidden rounded-2xl border border-border lg:w-[400px]">
             <RequestChat request={request} focusOnMount={focusChat} className="h-[28rem] rounded-none border-0" />
           </aside>
         )}

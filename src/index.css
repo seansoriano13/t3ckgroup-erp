@@ -628,6 +628,10 @@
 */
 .reveal {
   display: grid;
+  /* One column that never grows past the panel: an auto column takes its
+     width from the widest child (a 64rem items table), and once settled that
+     spills over whatever sits beside the panel. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
