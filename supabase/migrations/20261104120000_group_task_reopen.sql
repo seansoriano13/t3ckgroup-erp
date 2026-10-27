@@ -9,6 +9,70 @@
 -- date moves out by the time it was held. It stays linked to the Stage visit it
 -- came from, so it is not held again by a later move.
 
+-- A held task is readable by its creator and by a Head of the creator's
+-- department, with no SOR visibility gate: the SOR has moved on, so the Stage
+-- window that gate needs may be shut, and reopening is the point of reading it.
+-- Added beside committee_tasks_read, which stays as it is.
+drop policy if exists "committee_tasks_read_on_hold" on public.committee_tasks;
+create policy "committee_tasks_read_on_hold" on public.committee_tasks
+  as permissive
+  for select
+  to authenticated
+  using (
+    status = 'ON_HOLD'
+    and (
+      created_by = public.get_employee_id()
+      or exists (
+        select 1
+          from public.employees h
+          join public.employees c on c.id = committee_tasks.created_by
+         where h.id = public.get_employee_id()
+           and h.is_head
+           and not coalesce(h.is_deleted, false)
+           and h.department is not null
+           and h.department = c.department
+      )
+    )
+  );
+
+-- The members and activity of a task read through committee_task_visible(),
+-- so a Head who can now read a held task reads its members too.
+create or replace function public.committee_task_visible(p_task_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.committee_tasks ct
+    where ct.id = p_task_id
+      and (
+        ct.created_by = public.get_employee_id()
+        or ct.evaluator_id = public.get_employee_id()
+        or public.is_super_admin()
+        or exists (
+          select 1 from public.committee_task_members ctm
+          where ctm.committee_task_id = ct.id
+            and ctm.employee_id = public.get_employee_id()
+        )
+        or (
+          ct.status = 'ON_HOLD'
+          and exists (
+            select 1
+              from public.employees h
+              join public.employees c on c.id = ct.created_by
+             where h.id = public.get_employee_id()
+               and h.is_head
+               and not coalesce(h.is_deleted, false)
+               and h.department is not null
+               and h.department = c.department
+          )
+        )
+      )
+  )
+$$;
+
 create or replace function public.group_task_reopen(p_group_task_id uuid)
 returns public.committee_tasks
 language plpgsql
@@ -67,13 +131,18 @@ begin
   values (p_group_task_id, 'REOPENED', jsonb_build_object('status', v_status), v_actor);
 
   insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
-  select distinct m.employee_id, v_actor, 'GROUP_TASK_REOPENED',
+  select distinct r.rid, v_actor, 'GROUP_TASK_REOPENED',
          'Group task reopened',
          format('"%s" was on hold and is open again.', v_task.title),
          p_group_task_id::text
-    from public.committee_task_members m
-   where m.committee_task_id = p_group_task_id
-     and m.employee_id is distinct from v_actor;
+    from (
+      select m.employee_id as rid from public.committee_task_members m where m.committee_task_id = p_group_task_id
+      union
+      select v_task.created_by
+      union
+      select v_task.evaluator_id
+    ) r
+   where r.rid is not null and r.rid is distinct from v_actor;
 
   return v_task;
 end;
