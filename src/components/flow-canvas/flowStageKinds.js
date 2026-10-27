@@ -209,6 +209,7 @@ function deciderSummary(decider, { employees = [], assigneeId = null } = {}) {
     const s = selectors[0]
     if (s.type === "role") return String(s.role || "").replace(/_/g, " ") || "someone"
     if (s.type === "team") return `${s.team} Team`
+    if (s.type === "department") return `${s.department} department`
     if (s.type === "group") return "the group"
     if (s.type === "employee") {
       if (assigneeId && s.id === assigneeId) return "the assignee"

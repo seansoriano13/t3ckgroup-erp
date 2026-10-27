@@ -2046,6 +2046,32 @@ describe("opportunityService", () => {
         expect(result.outcome).toBe("skipped")
       })
 
+      it("resolves an Everyone-in-a-department Decider to that department, not the same-named Team", async () => {
+        const salesRep = makeEmployee({ name: "Sales Sam", department: "SALES", sub_department: "GOV" })
+        const outsider = makeEmployee({ name: "Ops Olive", department: "OPERATIONS", sub_department: "SALES" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "department", department: "Sales" }] },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const recipients = db.internal
+          .rowsOf("notifications")
+          .filter((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE")
+          .map((n) => n.recipient_id)
+        expect(recipients).toContain(salesRep.id)
+        expect(recipients).not.toContain(outsider.id)
+
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        expect(await opportunityService.getPendingActionsForActor(deal.id, salesRep.id)).toHaveLength(1)
+        await expect(opportunityService.decideAction(run.id, "create", outsider.id)).rejects.toThrow()
+        const result = await opportunityService.decideAction(run.id, "create", salesRep.id)
+        expect(result.outcome).toBe("created")
+      })
+
       it("defaults an unconfigured Decider to the Deal Owner", async () => {
         makeStageAction({
           stage_id: qualified.id,

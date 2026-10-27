@@ -184,7 +184,7 @@ export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialD
                 <span className={`${CAPTION_BASE} tracking-widest text-muted-foreground`}>
                   Decider (defaults to the Deal Owner)
                 </span>
-                <PeoplePicker value={decider} onChange={setDecider} allowRoles placeholder="Add Decider" />
+                <PeoplePicker value={decider} onChange={setDecider} allowRoles allowDepartments placeholder="Add Decider" />
               </div>
             )}
           </div>

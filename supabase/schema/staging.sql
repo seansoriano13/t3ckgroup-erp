@@ -20785,6 +20785,13 @@ begin
             and upper(trim(e.sub_department)) = upper(trim(v_selector->>'team'))
         ) then
         v_allowed := true;
+      elsif v_selector->>'type' = 'department'
+        and exists (
+          select 1 from public.employees e
+          where e.id = p_actor_id
+            and nullif(upper(trim(e.department)), '') = upper(trim(v_selector->>'department'))
+        ) then
+        v_allowed := true;
       elsif v_selector->>'type' = 'role' and v_opportunity.id is not null then
         case v_selector->>'role'
           when 'deal_owner' then

@@ -1268,7 +1268,7 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
 async function resolveDeciderIds(deciderSelectors, opportunity) {
   if (!deciderSelectors || deciderSelectors.length === 0) return [];
   const [{ data: employees, error: employeesError }, groups] = await Promise.all([
-    supabase.from("employees").select("id, sub_department, is_deleted"),
+    supabase.from("employees").select("id, department, sub_department, is_deleted"),
     employeeGroupService.list(),
   ]);
   if (employeesError) throw employeesError;
@@ -1316,7 +1316,7 @@ async function resolveEvaluatorId(evaluatorSelectors, opportunity) {
 async function resolveSelectorIds(selectors, opportunity) {
   if (!selectors || selectors.length === 0) return [];
   const [{ data: employees, error: employeesError }, groups] = await Promise.all([
-    supabase.from("employees").select("id, sub_department, is_deleted"),
+    supabase.from("employees").select("id, department, sub_department, is_deleted"),
     employeeGroupService.list(),
   ]);
   if (employeesError) throw employeesError;

@@ -581,7 +581,7 @@ export default function CreateGroupTaskModal({
                   <span className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                     Decider (defaults to the Deal Owner)
                   </span>
-                  <PeoplePicker value={decider} onChange={setDecider} allowRoles placeholder="Add Decider" />
+                  <PeoplePicker value={decider} onChange={setDecider} allowRoles allowDepartments placeholder="Add Decider" />
                 </div>
               )}
             </div>

@@ -215,6 +215,10 @@ export function stubActionRunRpcs() {
         const actor = findRow("employees", args.p_actor_id)
         return Boolean(actor) && normaliseTeam(actor.sub_department) === normaliseTeam(s.team)
       }
+      if (s.type === "department") {
+        const actor = findRow("employees", args.p_actor_id)
+        return Boolean(actor) && Boolean(normaliseTeam(actor.department)) && normaliseTeam(actor.department) === normaliseTeam(s.department)
+      }
       if (s.type === "role" && opportunity) {
         const columns = dealTeamColumnsByRole[s.role] || []
         return columns.some((column) => opportunity[column] === args.p_actor_id)
