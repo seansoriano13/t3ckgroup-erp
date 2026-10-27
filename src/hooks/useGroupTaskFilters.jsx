@@ -6,7 +6,7 @@ const COMPLETED_STATUSES = new Set(["COMPLETED", "HR_PENDING", "HR_VERIFIED"]);
 export function useGroupTaskFilters(rawTasks = [], filters = {}) {
   const {
     searchTerm = "",
-    statusFilter = "ALL", // ALL, ACTIVE, AWAITING_EVALUATION, COMPLETED
+    statusFilter = "ALL", // ALL, ACTIVE, AWAITING_EVALUATION, COMPLETED, ON_HOLD
     creatorFilter = "ALL",
     memberFilter = "ALL",
     deptFilter = "ALL",
@@ -19,7 +19,12 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
 
   const filteredTasks = useMemo(() => {
     const matching = rawTasks.filter((task) => {
-      // 1. Status Filter
+      // 1. Status Filter. A task on hold shows only on its own tab.
+      if (statusFilter === "ON_HOLD") {
+        if (task.status !== "ON_HOLD") return false;
+      } else if (task.status === "ON_HOLD") {
+        return false;
+      }
       if (statusFilter === "ACTIVE" && task.status !== "ACTIVE") return false;
       if (statusFilter === "AWAITING_EVALUATION" && task.status !== "AWAITING_EVALUATION") return false;
       // Completed is a task that was rated: it is with HR or verified.

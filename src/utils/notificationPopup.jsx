@@ -26,6 +26,7 @@ const TYPE_ICONS = {
   NEW_TASK_SUBMITTED: <Clock size={18} className="text-amber-500" />,
   TASK_APPROVED_BY_HEAD: <CheckCircle2 size={18} className="text-amber-600" />,
   GROUP_ASSIGNED: <Briefcase size={18} className="text-violet-9" />,
+  GROUP_TASK_REOPENED: <Briefcase size={18} className="text-violet-9" />,
   GROUP_TASK_COMMENT: <MessageCircle size={18} className="text-violet-9" />,
   GROUP_TASK_READY_FOR_HR: <CheckCircle2 size={18} className="text-violet-10" />,
   GROUP_MEMBER_DONE: <CheckCircle2 size={18} className="text-green-500" />,
