@@ -1217,10 +1217,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
             offerCount: offers.length,
             winnerLabel: winner ? [winner.supplier_name, winner.brand].filter(Boolean).join(" · ") : null,
           }}
-          onSigned={() => {
-            invalidate();
-            queryClient.invalidateQueries({ queryKey: ["canvassSignoffQueue"] });
-          }}
+          onSigned={invalidate}
         />
       )}
     </>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Navigate } from "react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Scale } from "lucide-react";
 import PageLoading from "@/components/ui/PageLoading";
 import QueryError from "@/components/ui/QueryError";
@@ -33,7 +33,6 @@ export default function CanvassSignoffsPage() {
 }
 
 function CanvassSignoffsQueue() {
-  const queryClient = useQueryClient();
   const { user, isCanvassApprover, isTransmittalListsLoading } = useApprovalRoles();
   const [search, setSearch] = useState("");
   const [signing, setSigning] = useState(null);
@@ -104,7 +103,6 @@ function CanvassSignoffsQueue() {
           open
           onOpenChange={(next) => !next && setSigning(null)}
           summary={summary}
-          onSigned={() => queryClient.invalidateQueries({ queryKey: ["canvassSignoffQueue"] })}
         />
       )}
     </ApprovalCenterLayout>

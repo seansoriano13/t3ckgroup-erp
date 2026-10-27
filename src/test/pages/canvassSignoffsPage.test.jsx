@@ -90,6 +90,26 @@ describe("the Canvass sign-off queue", () => {
     expect(sign.mock.calls[0][0]).toEqual({ p_canvass_id: pending().canvass_id });
   });
 
+  it("marks the Canvass signed wherever it is already cached, without a refresh", async () => {
+    stubRpc("canvass_pending_signoffs", [pending({ offer_count: 3 })]);
+    stubRpc("canvass_sign", () => ({ canvass_id: pending().canvass_id, number: "CNV_0142", signed_off_at: "2026-10-18T01:00:00Z", offer_count: 3 }));
+    const user = setupUser();
+    const { client } = renderQueue();
+    // The same Canvass, as its Component's panel and its own record left it in the cache.
+    const cached = { id: pending().canvass_id, number: "CNV_0142", signed_off_at: null, offers: [] };
+    client.setQueryData(["canvass", "component", pending().component_id], cached);
+    client.setQueryData(["canvass", "canvass", pending().canvass_id], cached);
+
+    await user.click(await screen.findByText("Ambulance Folding Stretcher"));
+    await user.click(await screen.findByRole("button", { name: "Sign off" }));
+
+    await waitFor(() =>
+      expect(client.getQueryData(["canvass", "component", pending().component_id])?.signed_off_at).toBe("2026-10-18T01:00:00Z"),
+    );
+    expect(client.getQueryData(["canvass", "canvass", pending().canvass_id]).signed_off_at).toBe("2026-10-18T01:00:00Z");
+    expect(client.getQueryState(["canvass", "canvass", pending().canvass_id]).isInvalidated).toBe(true);
+  });
+
   it("shows no warning at three Offers", async () => {
     stubRpc("canvass_pending_signoffs", [pending({ offer_count: 3 })]);
     const user = setupUser();

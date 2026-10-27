@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { AlertTriangle, BadgeCheck } from "lucide-react";
 
@@ -6,6 +6,8 @@ import ModalShell from "./ui/ModalShell";
 import { Button } from "./ui/button";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import { canvassService } from "../services/canvassService";
+import { CANVASS_LIST_KEY } from "../constants/canvass";
+import { procurementQueueKey } from "./purchase-request/queryKeys";
 import { moreOffersWarning } from "../utils/canvassMath";
 
 /**
@@ -15,8 +17,23 @@ import { moreOffersWarning } from "../utils/canvassMath";
  * the queue's list member may not be able to read the Costing Matrix at all.
  *
  * `summary`: { id, number, subjectLabel, reason, offerCount, winnerLabel }.
+ *
+ * A signature changes the Canvass wherever it is cached, not only where it was signed: the same
+ * Canvass sits under its id, its Requested Item and its Component, in the Canvasses list, on its
+ * request's line and on the Purchasing Dashboard. Every copy is marked signed at once and refetched.
  */
+function refreshSignedCanvass(queryClient, canvassId, signedOffAt) {
+  queryClient.setQueriesData({ queryKey: ["canvass"] }, (old) =>
+    old && !Array.isArray(old) && old.id === canvassId ? { ...old, signed_off_at: signedOffAt ?? old.signed_off_at } : old,
+  );
+  for (const queryKey of [["canvass"], CANVASS_LIST_KEY, ["canvassSignoffQueue"], ["purchase-request"], procurementQueueKey, ["purchasing-dashboard"]]) {
+    queryClient.invalidateQueries({ queryKey });
+  }
+  queryClient.invalidateQueries({ predicate: ({ queryKey }) => queryKey[0] === "costing" && queryKey[2] === "canvasses" });
+}
+
 export default function CanvassSignoffDialog({ open, onOpenChange, summary, onSigned }) {
+  const queryClient = useQueryClient();
   const reason = String(summary?.reason ?? "").trim();
   const warning = moreOffersWarning(new Array(summary?.offerCount ?? 0));
 
@@ -24,6 +41,7 @@ export default function CanvassSignoffDialog({ open, onOpenChange, summary, onSi
     mutationFn: () => canvassService.sign(summary.id),
     onSuccess: (result) => {
       toast.success(`${result?.number || summary.number} signed off.`);
+      refreshSignedCanvass(queryClient, summary.id, result?.signed_off_at);
       onSigned?.(result);
       onOpenChange(false);
     },
