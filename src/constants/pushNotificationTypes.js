@@ -21,6 +21,7 @@ export const PUSH_NOTIFICATION_TYPES = new Set([
   // A task assigned to you.
   "TASK_ASSIGNED",
   "GROUP_ASSIGNED",
+  "GROUP_TASK_REOPENED",
 
   // A decision on your own request — the department head's decision and HR's
   // final one are both a decision on the same request.

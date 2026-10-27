@@ -34,7 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
 import GradeSelector from "../../../components/GradeSelector";
-import { confirmDeleteToast } from "../../../components/ui/CustomToast";
+import { confirmDeleteToast, confirmActionToast } from "../../../components/ui/CustomToast";
 import { activeChatService } from "../../../services/tasks/activeChatService";
 import { formatDateOnly, formatDueDate } from "@/utils/formatDate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -102,6 +102,8 @@ export default function GroupTaskDetailModal({
   onChangeEvaluator,
   isChangingEvaluator,
   onSendToEvaluation,
+  onReopen,
+  isReopening,
   isSendingToEvaluation,
   onAddMember,
   isAddingMember,
@@ -713,6 +715,11 @@ export default function GroupTaskDetailModal({
     !isReadOnly &&
     typeof onSendToEvaluation === "function" &&
     (isCreator || isEvaluator || isSuperAdmin || isHead);
+  // The server also checks that a Head shares the creator's department.
+  const canReopen =
+    task.status === TASK_STATUS.ON_HOLD &&
+    (isCreator || isSuperAdmin || isHead) &&
+    typeof onReopen === "function";
   const isCompletedOrBeyond =
     task.status === "COMPLETED" || isHrPending || isHrVerified;
 
@@ -1709,6 +1716,26 @@ export default function GroupTaskDetailModal({
               >
                 <BookmarkPlus size={14} />
                 <span className="hidden sm:inline">Save as Template</span>
+              </Button>
+            )}
+
+            {canReopen && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  confirmActionToast(
+                    "Reopen Group Task",
+                    "Reopen this group task? It returns to its earlier status and its due date moves out by the time it was on hold.",
+                    "Reopen",
+                    "reopen",
+                    onReopen,
+                  )
+                }
+                disabled={isReopening}
+                className="h-9 rounded-xl px-3 sm:px-4 text-[13px] font-bold"
+              >
+                {isReopening ? "Reopening…" : "Reopen"}
               </Button>
             )}
 

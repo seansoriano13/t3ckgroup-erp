@@ -94,6 +94,7 @@ const TYPE_ICONS = {
   TASK_ASSIGNED: <Briefcase size={18} className="text-blue-600" />,
   TASK_APPROVED_BY_HEAD: <CheckCircle2 size={18} className="text-amber-600" />,
   GROUP_ASSIGNED: <Briefcase size={18} className="text-violet-9" />,
+  GROUP_TASK_REOPENED: <Briefcase size={18} className="text-violet-9" />,
   GROUP_TASK_COMMENT: <MessageCircle size={18} className="text-violet-9" />,
   GROUP_TASK_READY_FOR_HR: (
     <CheckCircle2 size={18} className="text-violet-10" />
