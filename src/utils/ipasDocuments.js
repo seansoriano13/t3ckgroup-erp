@@ -141,6 +141,39 @@ export function requiredDocuments(documents = [], source) {
 }
 
 /**
+ * The document kinds each part needs a file for before its first sign-off (#711),
+ * by Source. Part 2 (finance) is proof of payment on every payment, handled apart.
+ * Mirrors _ipas_missing_documents in the database, which is the real check.
+ */
+const SECTION_DOCUMENT_KINDS = {
+  purchasing: { import: ["Proforma Invoice"], local: ["Quotation (Local)"] },
+  costing: { import: ["BL or Waybill", "Packing List", "Commercial Invoice", "Freight Billing"], local: [] },
+  filing: { import: ["BIR 2307"], local: ["BIR 2307"] },
+};
+
+const dateText = (iso) => {
+  const date = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? String(iso) : date.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+};
+
+/**
+ * The documents each part still lacks a file for: { purchasing, finance, costing,
+ * filing } of label lists. A document counts once its row for that kind has an
+ * attachment; the landed cost sheet is never asked for.
+ */
+export function missingDocumentsByPart(documents = [], payments = [], source) {
+  const has = (label) =>
+    documents.some((doc) => !doc.byHand && doc.attachmentUrl && String(doc.kind?.label ?? "").trim().toLowerCase() === label.toLowerCase());
+  const lacking = (part) => (SECTION_DOCUMENT_KINDS[part]?.[source] ?? []).filter((label) => !has(label));
+  return {
+    purchasing: lacking("purchasing"),
+    finance: payments.filter((payment) => !payment.proof_url).map((payment) => `Proof of payment of ${dateText(payment.paid_on)}`),
+    costing: lacking("costing"),
+    filing: lacking("filing"),
+  };
+}
+
+/**
  * The required documents nobody has ticked: what Filing warns about, each as
  * { id, label, usedFor, appliesTo } and nothing more, so a warning never carries
  * a file or an attachment link.

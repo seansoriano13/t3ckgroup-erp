@@ -25,6 +25,18 @@ const byKey = (gates, key) => gates.find((gate) => gate.key === key);
 const approvedBoth = { s1: { approved: who("Ana") }, s3: { approved: who("Ben") } };
 const approvedAll = { ...approvedBoth, s6: { approved: who("Cy") } };
 
+describe("gatesFor: missing documents (#711)", () => {
+  it("names the missing file and its section on the gate that waits for it", () => {
+    const digest = {
+      ...digestOf({ status: "encoding" }),
+      docs: { missingByPart: { purchasing: ["Proforma Invoice"], finance: [], costing: [], filing: [] } },
+    };
+    const gate = byKey(gatesFor(digest), "purchasing");
+    expect(gate.line).toContain("Missing in");
+    expect(gate.line).toContain("Proforma Invoice");
+  });
+});
+
 describe("gatesFor: the one Now", () => {
   it("is Received, not LC Odoo Done, when the status is encoding and sections 1, 2 and 3 are approved", () => {
     const gates = gatesOf({ status: "encoding", ...approvedAll });
