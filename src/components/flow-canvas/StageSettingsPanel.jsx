@@ -56,6 +56,7 @@ export default function StageSettingsPanel({
   stage,
   isEntry,
   isWon,
+  isAward,
   disabled,
   bracketOptions = [],
   activeTab = "settings",
@@ -70,6 +71,7 @@ export default function StageSettingsPanel({
   onSetTerminalOutcome,
   onSetEntry,
   onSetWon,
+  onSetAward,
   outgoingMoves = [],
   moveTargets = [],
   onAddMove,
@@ -211,6 +213,20 @@ export default function StageSettingsPanel({
                   )}
                 >
                   <Flag size={14} /> {isWon ? "Deals are won here" : "Make it the win"}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  onClick={onSetAward}
+                  disabled={disabled}
+                  className={cn(
+                    ROLE_BUTTON,
+                    isAward
+                      ? "bg-gold-a3 text-gold-11 outline-gold-a6 hover:bg-gold-a3 hover:text-gold-11"
+                      : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                  )}
+                >
+                  <Flag size={14} /> {isAward ? "Notice of Award is here" : "Make it the Notice of Award"}
                 </Button>
 
                 <Button

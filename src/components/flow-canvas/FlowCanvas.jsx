@@ -1781,6 +1781,7 @@ function FlowCanvasInner() {
           stage={selectedStage}
           isEntry={entry?.id === selectedStage.id}
           isWon={flow.won_stage_id === selectedStage.id}
+          isAward={flow.award_stage_id === selectedStage.id}
           disabled={isLocked}
           bracketOptions={bracketOptions}
           activeTab={selection.tab}
@@ -1818,6 +1819,15 @@ function FlowCanvasInner() {
             run(() => salesFlowService.setStageTerminalOutcome(selectedStage.id, outcome, user?.id))
           }
           onSetEntry={() => setAsEntryStage(selectedStage.id)}
+          onSetAward={() =>
+            run(() =>
+              salesFlowService.setAwardStage(
+                flow.id,
+                flow.award_stage_id === selectedStage.id ? null : selectedStage.id,
+                user?.id
+              )
+            )
+          }
           onSetWon={() =>
             run(() =>
               salesFlowService.setWonStage(
