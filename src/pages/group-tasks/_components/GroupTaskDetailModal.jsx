@@ -1051,6 +1051,7 @@ export default function GroupTaskDetailModal({
                         isRolesLoading={isRolesLoading}
                         onManageRoles={() => setIsRoleManagerOpen(true)}
                         onChange={handleDraftChange}
+                        maxDueDate={task?.due_date}
                         canEditAssignment={!draft.id}
                       />
 

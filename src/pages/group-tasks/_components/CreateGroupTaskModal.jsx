@@ -687,6 +687,7 @@ export default function CreateGroupTaskModal({
                   roles={roles}
                   isRolesLoading={isRolesLoading}
                   onManageRoles={() => setIsRoleManagerOpen(true)}
+                  maxDueDate={dueDate}
                   onChange={(field, value) =>
                     handleMemberChange(selectedMemberId, field, value)
                   }

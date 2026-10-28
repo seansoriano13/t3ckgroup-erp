@@ -1,3 +1,4 @@
+import { checklistDueDateError } from "@/utils/checklist";
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { groupTaskActivityService } from "./groupTaskActivityService";
@@ -179,6 +180,12 @@ const GROUP_TASK_SELECT = `
 `;
 
 // Blank typed text means unset, stored as null rather than "".
+// Refuses a checklist whose item due dates run past the task's Due Date.
+const assertChecklistWithinDueDate = (checklist, taskDueDate) => {
+  const message = checklistDueDateError(checklist, taskDueDate);
+  if (message) throw new Error(message);
+};
+
 const blankToNull = (value) => (typeof value === "string" ? value.trim() : value) || null;
 
 // The task-level fields a caller edits, by payload key: its column, and how a
@@ -200,6 +207,16 @@ const toDetailColumns = (payload) =>
       .map(([key, { column, toColumn }]) => [column, toColumn(payload[key])]),
   );
 
+const getTaskDueDate = async (groupTaskId) => {
+  if (!groupTaskId) return null;
+  const { data } = await supabase
+    .from("committee_tasks")
+    .select("due_date")
+    .eq("id", groupTaskId)
+    .single();
+  return data?.due_date ?? null;
+};
+
 export const groupTaskService = {
   // CREATE
   async createGroupTask(payload) {
@@ -208,6 +225,7 @@ export const groupTaskService = {
     if (!members || members.length === 0) {
       throw new Error("Add at least one member to the group task");
     }
+    members.forEach((m) => assertChecklistWithinDueDate(m.checklist, dueDate));
 
     const { data: groupTask, error: groupError } = await supabase
       .from("committee_tasks")
@@ -703,6 +721,10 @@ export const groupTaskService = {
   async updateMemberAssignment(memberId, groupTaskId, payload, actorId) {
     const { taskDescription, checklist, role, customRole } = payload;
 
+    if (checklist !== undefined) {
+      assertChecklistWithinDueDate(checklist, await getTaskDueDate(groupTaskId));
+    }
+
     const updates = {
       task_description: taskDescription ?? "",
       role: role || null,
@@ -851,6 +873,8 @@ export const groupTaskService = {
   // ADD MEMBER ON THE FLY
   async addMemberToTask(groupTaskId, payload, actorId) {
     const { employeeId, taskDescription, checklist, role, customRole } = payload;
+
+    assertChecklistWithinDueDate(checklist, await getTaskDueDate(groupTaskId));
 
     const { error } = await supabase
       .from("committee_task_members")
