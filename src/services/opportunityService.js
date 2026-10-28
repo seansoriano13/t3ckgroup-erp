@@ -1094,7 +1094,7 @@ async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId }
               }
             } else if (created.kind === "open_purchase_request" && created.request_id) {
               await notePurchaseRequestOpened(existing.id, to, action.id, created.request_id, actorId);
-            } else if (created.kind === "open_costing_matrix" && created.matrix_id) {
+            } else if ((created.kind === "open_costing_matrix" || created.kind === "evaluate_specification") && created.matrix_id) {
               await noteCostingMatrixOpened(existing.id, to, action.id, created.matrix_id, actorId);
             } else if (created.kind === "request_packing_list") {
               await notePackingListRequested(existing.id, to, action.id, created.packing_list_id, actorId);
@@ -1589,6 +1589,7 @@ function stageActionName(action) {
   if (typeof named === "string" && named.trim()) return named.trim();
   if (action?.kind === "open_purchase_request") return "Purchase Request";
   if (action?.kind === "open_costing_matrix") return "Costing Matrix";
+  if (action?.kind === "evaluate_specification") return "Evaluation of Specification";
   if (action?.kind === "request_packing_list") return "Packing List request";
   return action?.kind === "create_group_task" ? "Group task" : "Individual task";
 }
@@ -3158,7 +3159,7 @@ export const opportunityService = {
       await notePurchaseRequestOpened(existing.id, stage, action.id, requestId, actorId).catch(() => {});
       return { outcome: "created" };
     }
-    if (action.kind === "open_costing_matrix") {
+    if (action.kind === "open_costing_matrix" || action.kind === "evaluate_specification") {
       const { data: matrixId, error: openError } = await supabase.rpc("sor_open_costing_matrix", {
         p_run_id: runId,
       });
@@ -3251,7 +3252,7 @@ export const opportunityService = {
       const target =
         action.kind === "open_purchase_request"
           ? { kind: "purchase_request" }
-          : action.kind === "open_costing_matrix"
+          : action.kind === "open_costing_matrix" || action.kind === "evaluate_specification"
           ? { kind: "costing_matrix" }
           : action.kind === "request_packing_list"
           ? { kind: "packing_list" }

@@ -29,6 +29,7 @@ describe("flowStageKinds", () => {
     expect(Object.keys(ACTION_KIND_META).sort()).toEqual([
       "create_group_task",
       "create_individual_task",
+      "evaluate_specification",
       "open_costing_matrix",
       "open_purchase_request",
       "request_packing_list",
@@ -38,6 +39,10 @@ describe("flowStageKinds", () => {
   describe("actionTitle", () => {
     it("names a Request Packing List, which carries no title", () => {
       expect(actionTitle({ kind: "request_packing_list", config: {} })).toBe("Request Packing List")
+    })
+
+    it("names an Evaluation of Specification, which carries no title", () => {
+      expect(actionTitle({ kind: "evaluate_specification", config: {} })).toBe("Evaluation of Specification")
     })
 
     it("names an Open Costing Matrix, which carries no title", () => {

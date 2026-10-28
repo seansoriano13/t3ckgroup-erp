@@ -693,3 +693,15 @@ export function costingPriced(inputs) {
   if (inputs.has_purchasing_incharge !== true) failing.push("no_purchasing_incharge");
   return { met: failing.length === 0, failing };
 }
+
+/**
+ * Costing Matrix, the Evaluation of Specification is approved (#707): the one check the
+ * Evaluation of Specification Stage Action holds its Stage to. Reads the same evidence as
+ * costingSettled (`costing_condition_inputs`), key `evaluation_approved`.
+ */
+export function costingEvaluationApproved(inputs) {
+  if (!inputs || inputs.has_matrix !== true) return { met: false, failing: ["no_matrix"] };
+  return inputs.evaluation_approved === true
+    ? { met: true, failing: [] }
+    : { met: false, failing: ["evaluation_not_approved"] };
+}

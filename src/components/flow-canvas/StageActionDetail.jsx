@@ -80,7 +80,7 @@ export default function StageActionDetail({
   const subjectLabel =
     action.kind === "open_purchase_request"
       ? "Purchasing members"
-      : action.kind === "open_costing_matrix"
+      : action.kind === "open_costing_matrix" || action.kind === "evaluate_specification"
       ? "Extra members"
       : action.kind === "request_packing_list"
       ? "Told to pack"
@@ -111,7 +111,7 @@ export default function StageActionDetail({
 
       {action.kind === "request_packing_list" ? (
         <Field label="Packing List">{packingListSummary(config, nameOf)}</Field>
-      ) : action.kind === "open_costing_matrix" ? (
+      ) : action.kind === "open_costing_matrix" || action.kind === "evaluate_specification" ? (
         <>
           <Field label="Costing Matrix">{costingMatrixSummary(config, nameOf)}</Field>
           {config.purchasingIncharge?.id ? null : (
