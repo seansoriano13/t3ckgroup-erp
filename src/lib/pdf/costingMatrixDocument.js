@@ -187,7 +187,7 @@ function findings(money) {
 function figures(money) {
   const s = money.strip;
   const margin = `<div class="blk"><div class="k">Margin</div><div class="rows">
-    ${row('Cost', s.cost, { hint: 'Final Acquire total' })}
+    ${row('Cost', s.cost, { hint: 'cost total' })}
     ${row(s.landedCostMark ? `Landed cost · ${s.landedCostMark}` : 'Landed cost', s.landedCost, { wait: !s.landedCostMark })}
     ${row('Markup target', s.target)}
     ${row('Achieved', s.achieved)}
