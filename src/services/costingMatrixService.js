@@ -247,9 +247,21 @@ export function shapeMatrix(read, settings = null) {
 
   const signoffs = tables.costing_signoffs ?? [];
 
+  // The S0 line most recently seen that was not itself included: the parent of the ₱0 lines after it.
+  let parentLine = null;
   const tenderLines = (tables.costing_tender_lines ?? []).map((line, index) => {
     const { tender_line_id: _link, ...price } = prices.get(line.id) ?? {};
+    // An S0 line priced at ₱0 is included in the line before it (#700): its ABC and Final Offer are ₱0, not blank.
+    // Only a tier sent the S0 price can tell; a first line has no parent and stays a line of its own.
+    const quoted = price.quotation_price_unit;
+    const included = parentLine !== null && line.source === "sor_line" && quoted !== undefined && quoted !== null && Number(quoted) === 0;
     const merged = { ...line, ...price };
+    if (included) {
+      if ("abc_unit" in merged) merged.abc_unit = 0;
+      if ("final_offer_unit" in merged) merged.final_offer_unit = 0;
+    }
+    const includedIn = included ? parentLine.id : null;
+    if (!included) parentLine = line;
     const number = index + 1;
     // A Component's cost columns arrive in their own rows, and only the ones the tier may read.
     const components = (componentsByLine.get(line.id) ?? []).map((component, position) => {
@@ -270,6 +282,8 @@ export function shapeMatrix(read, settings = null) {
     return {
       ...merged,
       number,
+      included,
+      includedIn,
       components,
       totals: lineTotals(merged, components),
       markup: lineMarkup(merged, components, defaultFactor),

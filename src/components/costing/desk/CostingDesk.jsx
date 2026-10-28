@@ -24,6 +24,7 @@ import InchargeSelects from "../InchargeSelects";
 import SignoffBar from "../SignoffBar";
 import { LandedCostRollup } from "../LandedCost";
 import LineDetail from "./LineDetail";
+import CostingSheet from "./CostingSheet";
 import MarkupPlayground from "./MarkupPlayground";
 
 const firstLine = (text) => (text ?? "").split("\n")[0].trim();
@@ -136,16 +137,6 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   };
 
   const stats = [];
-  if (showAbc)
-    stats.push({ key: "abc", label: "ABC (client's budget)", value: pesos(totals.abcTotal), sub: totals.missingAbc ? `${plural(totals.missingAbc, "line")} without one` : "Every line", tone: totals.missingAbc ? "warning" : undefined });
-  if (showOffer)
-    stats.push({
-      key: "offer",
-      label: "Final Offer",
-      value: pesos(totals.finalOfferTotal),
-      sub: totals.missingOffer ? `${plural(totals.missingOffer, "line")} without one` : totals.percentOfAbc == null ? "—" : `${totals.percentOfAbc.toFixed(1)}% of the ABC`,
-      tone: totals.missingOffer || totals.overAbc ? "warning" : undefined,
-    });
   if (showCost)
     stats.push({ key: "cost", label: "Our cost (Acquire)", value: pesos(play.cost), sub: play.cost == null ? "Some costs are blank" : "Products, parts and other costs", tone: play.cost == null ? "warning" : undefined });
   if (showCost)
@@ -222,17 +213,24 @@ export default function CostingDesk({ opportunityId, opportunity }) {
 
           <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
 
-          <section className="space-y-2">
-            <h3 className="text-sm font-bold text-foreground">
-              Lines · {lines.length}
-              <span className="font-normal text-muted-foreground"> · open a line to type into it{showOffer ? "; the right column is its Final Offer total" : ""}</span>
-            </h3>
-            <LinerList
-              label="Tender Lines"
-              rows={rows}
-              empty={canFill ? "No lines yet. Refresh from the SOR, or add one." : "No lines yet."}
-              total={showOffer ? { label: "Final Offer total", value: pesos(totals.finalOfferTotal), testId: "tender-totals" } : undefined}
-            />
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-foreground">Lines · {lines.length}</h3>
+            <CostingSheet matrix={matrix} opportunity={opportunity} writes={writes} canWrite={canWrite} />
+            {/* Every line still opens in place for its parts, costs and evaluation; the later tickets move those onto the grid rows. */}
+            {rows.length > 0 && (
+              <div className="space-y-2" data-testid="line-details">
+                <h4 className="text-sm font-bold text-foreground">
+                  Line details
+                  <span className="font-normal text-muted-foreground"> · open a line for its parts and costs</span>
+                </h4>
+                <LinerList
+                  label="Tender Lines"
+                  rows={rows}
+                  empty="No lines yet."
+                  total={showOffer ? { label: "Final Offer total", value: pesos(totals.finalOfferTotal), testId: "tender-totals" } : undefined}
+                />
+              </div>
+            )}
             {canWrite && (
               <Button type="button" variant="outline" size="sm" disabled={writes.busy} onClick={() => writes.run(() => costingMatrixService.addTenderLine(matrix.matrixId, {}, actorId))}>
                 <Plus size={14} aria-hidden="true" />
