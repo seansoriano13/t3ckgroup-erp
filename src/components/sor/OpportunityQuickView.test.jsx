@@ -108,6 +108,20 @@ describe("your open tasks", () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it("lists a colleague's task too, under the viewer's own, and opens it", async () => {
+    taskService.getMyOpenTasksForOpportunity.mockResolvedValue([
+      { id: "task-1", kind: "task", mine: true, taskDescription: "My own task", status: "INCOMPLETE" },
+      { id: "task-2", kind: "task", mine: false, taskDescription: "Colleague's task", status: "INCOMPLETE" },
+    ])
+    const { onOpenTask } = renderQuickView()
+
+    const own = await screen.findByText("My own task")
+    const theirs = screen.getByText("Colleague's task")
+    expect(own.compareDocumentPosition(theirs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await setupUser().click(theirs)
+    expect(onOpenTask).toHaveBeenCalledWith("task-2")
+  })
+
   it("reads as an obligation: title, what to do, kind, when it is due, checklist progress", async () => {
     taskService.getMyOpenTasksForOpportunity.mockResolvedValue([
       {

@@ -115,7 +115,7 @@ export default function OpportunityQuickView({
         <SlideOverBody>
           <section className="space-y-3">
             <h3 className="flex items-center gap-1.5 text-label font-bold tracking-widest text-muted-foreground uppercase">
-              <ClipboardList size={12} /> Your open tasks
+              <ClipboardList size={12} /> Tasks on this SOR
             </h3>
             {isLoadingTasks ? (
               <div className="flex justify-center py-6">
