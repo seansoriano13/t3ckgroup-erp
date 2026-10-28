@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { ODOO_BASE_URL, odooSaleOrderUrl } from "./odooLinks"
+import { ODOO_BASE_URL, ODOO_NEW_PO_URL, odooSaleOrderUrl } from "./odooLinks"
 
 describe("odooSaleOrderUrl", () => {
   it("opens the sale order form in Odoo's backend", () => {
@@ -25,5 +25,14 @@ describe("odooSaleOrderUrl", () => {
     for (const id of [null, undefined, "", 0, -3, 1.5, "abc", NaN]) {
       expect(odooSaleOrderUrl(id)).toBeNull()
     }
+  })
+})
+
+describe("ODOO_NEW_PO_URL", () => {
+  it("opens a new purchase order form on the company Odoo", () => {
+    expect(ODOO_NEW_PO_URL).toBe(
+      "https://t3ckgrouponline.odoo.com/web#action=purchase.purchase_rfq&model=purchase.order&view_type=form",
+    )
+    expect(ODOO_NEW_PO_URL).not.toContain("id=")
   })
 })
