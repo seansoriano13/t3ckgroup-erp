@@ -41,6 +41,17 @@ const SECTIONS = [
       />
     ),
   },
+  ...[COSTING_SIGNER_LIST.TEAM_RRD, COSTING_SIGNER_LIST.TEAM_IOE].map((listKey) => ({
+    key: listKey,
+    show: ({ isSuperAdmin }) => isSuperAdmin,
+    render: () => (
+      <SignerListsSection
+        listKey={listKey}
+        canEdit
+        description="Marks Complies or Deviates on the rows set to this team, and reads the matrix without money. Nobody else can mark those rows."
+      />
+    ),
+  })),
   {
     key: "evaluation",
     show: ({ isSuperAdmin }) => isSuperAdmin,

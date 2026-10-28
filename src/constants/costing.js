@@ -224,11 +224,17 @@ export const tierReadsBidDecision = (tier) => tierReadsBid(tier, "verdict");
 export const tierDecidesBid = (tier) => tier === COSTING_TIER.CLOSED_BOOK;
 
 /** The signer lists of `costing_signer_lists`: who writes Final Acquire, and who approves an Evaluation of Specification (#271). */
-export const COSTING_SIGNER_LIST = { FINAL_ACQUIRE: "final_acquire", EVALUATION: "evaluation" };
+export const COSTING_SIGNER_LIST = { FINAL_ACQUIRE: "final_acquire", EVALUATION: "evaluation", TEAM_RRD: "team_rrd", TEAM_IOE: "team_ioe" };
+
+/** The Technical teams that judge a row (#706), and the signer list that says who is in each. */
+export const EVALUATION_TEAMS = ["RRD", "IOE"];
+export const EVALUATION_TEAM_LIST = { RRD: COSTING_SIGNER_LIST.TEAM_RRD, IOE: COSTING_SIGNER_LIST.TEAM_IOE };
 
 export const COSTING_SIGNER_LIST_LABEL = {
   [COSTING_SIGNER_LIST.FINAL_ACQUIRE]: "Final Acquire list",
   [COSTING_SIGNER_LIST.EVALUATION]: "Evaluation of Specification list",
+  [COSTING_SIGNER_LIST.TEAM_RRD]: "RRD team",
+  [COSTING_SIGNER_LIST.TEAM_IOE]: "IOE team",
 };
 
 /**
