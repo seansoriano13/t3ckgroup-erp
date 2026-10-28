@@ -283,7 +283,7 @@ export const NAV_MODULES = {
         link: "/approvals/leaves",
         icon: Clock,
         badgeKey: "leaveApprovals",
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead || ctx.isHr,
         exactMatch: true,
       },
       {

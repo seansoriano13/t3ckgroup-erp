@@ -40,7 +40,7 @@ export const APPROVAL_QUEUES = [
     path: "/approvals/leaves",
     label: "Time Off & Overtime",
     icon: CalendarClock,
-    can: (r) => r.isSuperAdmin || r.isHead,
+    can: (r) => r.isSuperAdmin || r.isHead || r.isHr,
   },
   {
     // Meeting Requests (#624): a head approves the ones routed to them, HR gives the final say.
@@ -121,7 +121,7 @@ export function useApprovalRoles() {
  */
 export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
   const roles = useApprovalRoles();
-  const { user, isSuperAdmin, isHead } = roles;
+  const { user, isSuperAdmin, isHead, isHr } = roles;
   const { settings: appSettings } = useAppSettings();
 
   const tasksQuery = useQuery({
@@ -132,11 +132,10 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
 
   const leavesQuery = useQuery({
     queryKey: ["headPendingApprovals", user?.id],
-    queryFn: () => headApprovalService.getPendingForHead(user.id, { all: isSuperAdmin }),
-    enabled: !!user?.id && (isHead || isSuperAdmin),
+    queryFn: () => headApprovalService.getPendingForHead(user.id, { all: isSuperAdmin || isHr }),
+    enabled: !!user?.id && (isHead || isSuperAdmin || isHr),
   });
 
-  const isHr = roles.isHr;
   const meetingsQuery = useQuery({
     queryKey: ["meeting-requests", "approval-queue", user?.id, isHr, isSuperAdmin],
     queryFn: () => meetingRequestService.listPendingForApprover({ employeeId: user.id, isHr, isSuperAdmin }),

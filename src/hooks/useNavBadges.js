@@ -54,11 +54,11 @@ export function useNavBadges(user) {
   // 2. Pending leave/overtime requests routed to this head, awaiting decision.
   const { data: pendingHeadApprovals = [] } = useQuery({
     queryKey: ["navHeadPendingApprovals", user?.id],
-    queryFn: () => headApprovalService.getPendingForHead(user.id, { all: isSuperAdmin }),
-    enabled: !!user?.id && (isSuperAdmin || isHead),
+    queryFn: () => headApprovalService.getPendingForHead(user.id, { all: isSuperAdmin || isHr }),
+    enabled: !!user?.id && (isSuperAdmin || isHead || isHr),
     staleTime: 30000,
   });
-  const leaveApprovals = isSuperAdmin || isHead ? pendingHeadApprovals.length : 0;
+  const leaveApprovals = isSuperAdmin || isHead || isHr ? pendingHeadApprovals.length : 0;
 
   // 2b. Meeting Requests waiting on this person's step (#624): the head's routed ones, or for
   // HR / Super Admin everything at the head or HR step.

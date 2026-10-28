@@ -71,14 +71,22 @@ export async function decideHeadApproval({ table, matchColumn, matchValue, headI
   const employeeId = rows[0].employee_id;
 
   let headSignatureVersion = null;
+  let deciderName = null;
   if (headId) {
     const { data: head } = await supabase
       .from('employees')
-      .select('signature_path')
+      .select('signature_path, name')
       .eq('id', headId)
       .single();
     headSignatureVersion = head?.signature_path ?? null;
+    deciderName = head?.name ?? null;
   }
+
+  // HR and super admins can decide any request, not just ones routed to them.
+  // The update below rewrites head_id to the decider, so the routed head is
+  // kept only in the audit trail.
+  const routedHeadId = rows[0].head_id ?? null;
+  const onBehalf = !!headId && !!routedHeadId && headId !== routedHeadId;
 
   const now = new Date().toISOString();
   const { data: updatedRows, error } = await supabase
@@ -100,15 +108,19 @@ export async function decideHeadApproval({ table, matchColumn, matchValue, headI
     sender_id: headId,
     type: TABLE_NOTIFICATION_TYPE[table],
     title: 'Department Head Decision',
-    message: `Your request was ${status.toLowerCase()} by the department head.`,
+    message: onBehalf
+      ? `Your request was ${status.toLowerCase()} on the department head's behalf${deciderName ? ` by ${deciderName}` : ''}.`
+      : `Your request was ${status.toLowerCase()} by the department head.`,
     reference_id: matchValue,
   });
 
   systemAuditLogService.addApprovalEvent(
     table.toUpperCase(),
     matchValue,
-    `Department head ${status.toLowerCase()} the request.`,
-    { event: 'HEAD_DECISION', status, employeeId },
+    onBehalf
+      ? `${deciderName || 'HR/admin'} ${status.toLowerCase()} the request on behalf of the routed department head.`
+      : `Department head ${status.toLowerCase()} the request.`,
+    { event: 'HEAD_DECISION', status, employeeId, ...(onBehalf ? { onBehalfOfHeadId: routedHeadId } : {}) },
     headId,
   ).catch(console.error);
 

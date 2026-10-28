@@ -104,6 +104,31 @@ describe("headApprovalService", () => {
       expect(mine.type).toBe("SIL_LEAVE_HEAD_DECISION")
     })
 
+    it("says so when HR decides on behalf of the routed head", async () => {
+      const pushed = []
+      stubEdgeFunction("send-push", (body) => {
+        pushed.push(body)
+        return { success: true }
+      })
+
+      const routedHead = makeHead({ name: "Routed Head" })
+      const hr = makeHrEmployee({ name: "HR Officer" })
+      const leave = makeSilLeave({ head_id: routedHead.id, head_status: "PENDING" })
+
+      const [updated] = await decideHeadApproval({
+        table: "sil_leaves",
+        matchColumn: "leave_group_id",
+        matchValue: leave.leave_group_id,
+        headId: hr.id,
+        status: "APPROVED",
+      })
+      await waitForNetworkIdle()
+
+      expect(updated.head_status).toBe("APPROVED")
+      const mine = pushed.find((n) => n.recipient_id === leave.employee_id)
+      expect(JSON.stringify(mine)).toContain("on the department head's behalf by HR Officer")
+    })
+
     it("rejects an unsupported table", async () => {
       await expect(
         decideHeadApproval({ table: "not_a_real_table", matchColumn: "id", matchValue: "x", status: "APPROVED" }),
