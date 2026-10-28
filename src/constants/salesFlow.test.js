@@ -202,6 +202,15 @@ describe("whether a flow may be locked", () => {
     expect(isFlowLockable(lockable)).toBe(true)
   })
 
+  it("refuses to lock when an Auto-move Stage lacks exactly one next Stage (#757)", () => {
+    const stages = STAGES.map((s) => (s.id === "s-qualified" ? { ...s, auto_move: true } : s))
+    const blockers = flowLockBlockers({ ...lockable, stages })
+    expect(blockers).toHaveLength(1)
+    expect(blockers[0]).toMatch(/exactly one next Stage/)
+    const ok = STAGES.map((s) => (s.id === "s-bidding" ? { ...s, auto_move: true } : s))
+    expect(flowLockBlockers({ ...lockable, stages: ok })).toEqual([])
+  })
+
   it("refuses to lock a flow with no Won Stage", () => {
     // Issue #36: the canvas refuses to lock a flow without one, because
     // Realized has no other answer once position stopped meaning anything.
@@ -290,6 +299,7 @@ describe("shaping a draft into a Flow Snapshot's shape", () => {
       followUps: [],
       access: { flow: null, stages: [] },
       wonStageId: "s-won",
+      awardStageId: null,
       saleTypeId: "st-1",
     })
   })
@@ -305,6 +315,7 @@ describe("shaping a draft into a Flow Snapshot's shape", () => {
       followUps: [],
       access: { flow: null, stages: [] },
       wonStageId: null,
+      awardStageId: null,
       saleTypeId: null,
     })
   })

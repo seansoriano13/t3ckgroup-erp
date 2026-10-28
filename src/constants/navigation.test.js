@@ -267,6 +267,7 @@ describe("navigation registry", () => {
         // System Admin and Lead Sources moved into Settings (#177).
         // Commission Pool moved onto the Commission Dashboard's Formula tab (#441).
         "Flow Canvas",
+        "Flow Access",
         // Release Notes moved to Workspace, open to everyone (ADR 0030).
         "Bug Reports",
       ]);

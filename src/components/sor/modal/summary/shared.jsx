@@ -64,6 +64,11 @@ export function detailRows(p) {
       ) : null,
     },
   ];
+  rows.push(
+    { label: "Date of Award", value: formatLongDate(o.date_of_award) },
+    { label: "Date of PDI", value: formatLongDate(o.date_of_pdi) },
+    { label: "Date of Delivery", value: formatLongDate(o.date_of_delivery) },
+  );
   if (o.po_date) rows.push({ label: "PO Date", value: formatLongDate(o.po_date) });
   if (itbGateSatisfiedBy(o)) {
     rows.push({ label: "ITB Number", value: o.itb_number || <span className="text-xs font-bold text-amber-11">{ITB_EXEMPT_LABEL}</span> });

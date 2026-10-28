@@ -40,6 +40,43 @@ const DECISION_VERB = {
   HR_OVERRIDE: 'skipped the head step on',
 };
 
+export const MEETING_TYPE = { ONSITE: 'ONSITE', ONLINE: 'ONLINE', HYBRID: 'HYBRID' };
+export const MEETING_TYPE_LABEL = { ONSITE: 'Onsite', ONLINE: 'Online', HYBRID: 'Hybrid' };
+
+/**
+ * What each type holds. Onsite and Hybrid hold a Venue; Online holds none (so it
+ * never clashes with a room booking). Online and Hybrid carry a pasted meeting link.
+ */
+const MEETING_TYPE_TRAITS = {
+  ONSITE: { holdsVenue: true, carriesLink: false },
+  ONLINE: { holdsVenue: false, carriesLink: true },
+  HYBRID: { holdsVenue: true, carriesLink: true },
+};
+export const needsVenue = (type) => MEETING_TYPE_TRAITS[type]?.holdsVenue ?? false;
+export const needsLink = (type) => MEETING_TYPE_TRAITS[type]?.carriesLink ?? false;
+
+/** Guests as [{ name, email }] from the two saved lists (email is '' when none). */
+export const guestList = (names = [], emails = []) => (names ?? []).map((name, i) => ({ name, email: emails?.[i] ?? '' }));
+
+/** Where a meeting is held, for one-line text: the Venue, the word Online, or both. */
+export function meetingPlace(request) {
+  const venue = request?.venue?.name;
+  if (request?.meeting_type === MEETING_TYPE.ONLINE) return 'Online';
+  if (request?.meeting_type === MEETING_TYPE.HYBRID) return venue ? `${venue} + Online` : 'Hybrid';
+  return venue ?? 'a Venue';
+}
+
+/** One Guest as text: "Name <email>" or just the name. */
+export const guestText = (g) => (g.email ? `${g.name} <${g.email}>` : g.name);
+
+/** Only web links are made clickable. */
+export const safeLink = (url) => (/^https?:\/\//i.test(String(url ?? '').trim()) ? String(url).trim() : null);
+
+const guestParams = (guests) => ({
+  p_guests: guests.map((g) => (typeof g === 'string' ? g : g.name)),
+  p_guest_emails: guests.map((g) => (typeof g === 'string' ? '' : (g.email ?? '').trim())),
+});
+
 const EXCLUSION_VIOLATION = '23P01';
 const REQUEST_SELECT = `*,
   venue:calendar_venues(id, name),
@@ -50,6 +87,7 @@ const REQUEST_SELECT = `*,
 const timeRange = (startsAt, endsAt) => `${manilaTime(startsAt)} to ${manilaTime(endsAt)}`;
 
 async function describeHolder({ venueId, startsAt, endsAt }) {
+  if (!venueId) return 'That time clashes with another booking. Pick another time.';
   const { data } = await supabase.rpc('meeting_request_holder', {
     p_venue_id: venueId,
     p_starts_at: startsAt,
@@ -167,14 +205,16 @@ export const meetingRequestService = {
    * Files a Meeting Request. `startsAt` / `endsAt` are ISO instants (the form builds
    * them from a Manila date and times). Returns the saved request.
    */
-  async fileRequest({ venueId, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, applicant }) {
+  async fileRequest({ meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, applicant }) {
     const { data: id, error } = await supabase.rpc('file_meeting_request', {
-      p_venue_id: venueId,
+      p_meeting_type: meetingType,
+      p_meeting_link: needsLink(meetingType) ? meetingLink : null,
+      p_venue_id: needsVenue(meetingType) ? venueId : null,
       p_starts_at: startsAt,
       p_ends_at: endsAt,
       p_facilitator_id: facilitatorId,
       p_purpose: purpose,
-      p_guests: guests,
+      ...guestParams(guests),
       p_participant_ids: participantIds,
       p_head_id: headId,
     });
@@ -194,7 +234,7 @@ export const meetingRequestService = {
   async afterFiled(request, applicant) {
     const applicantName = applicant?.name ?? request.applicant?.name ?? 'An employee';
     const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
-    const venue = request.venue?.name ?? 'a Venue';
+    const venue = meetingPlace(request);
     const toHr = request.status === MEETING_STATUS.PENDING_HR;
 
     const note = {
@@ -263,14 +303,12 @@ export const meetingRequestService = {
   },
 
   /**
-   * Requests waiting on the signed-in person's step (#624). A head sees the PENDING_HEAD ones
-   * routed to them; HR and Super Admins see PENDING_HR plus every PENDING_HEAD (which they may
-   * override). Nobody is shown their own request.
+   * Requests waiting on HR (#748). Only HR and Super Admins have a queue; nobody is shown their
+   * own request.
    */
   async listPendingForApprover({ employeeId, isHr = false, isSuperAdmin = false } = {}) {
-    let query = supabase.from('meeting_requests').select(REQUEST_SELECT).order('created_at');
-    if (isHr || isSuperAdmin) query = query.in('status', [MEETING_STATUS.PENDING_HEAD, MEETING_STATUS.PENDING_HR]);
-    else query = query.eq('status', MEETING_STATUS.PENDING_HEAD).eq('head_id', employeeId);
+    if (!isHr && !isSuperAdmin) return [];
+    const query = supabase.from('meeting_requests').select(REQUEST_SELECT).eq('status', MEETING_STATUS.PENDING_HR).order('created_at');
     const { data, error } = await query;
     if (error) throw new Error(error.message);
     return (data ?? []).filter((r) => r.applicant_id !== employeeId);
@@ -285,15 +323,17 @@ export const meetingRequestService = {
    * Applicant edit before the start (#628). Pending-HR and approved requests go back to the head;
    * the head is told, and the Facilitator and Participants when it was approved.
    */
-  async editRequest({ requestId, venueId, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, actor }) {
+  async editRequest({ requestId, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, actor }) {
     const { data, error } = await supabase.rpc('edit_meeting_request', {
       p_request_id: requestId,
-      p_venue_id: venueId,
+      p_meeting_type: meetingType,
+      p_meeting_link: needsLink(meetingType) ? meetingLink : null,
+      p_venue_id: needsVenue(meetingType) ? venueId : null,
       p_starts_at: startsAt,
       p_ends_at: endsAt,
       p_facilitator_id: facilitatorId,
       p_purpose: purpose,
-      p_guests: guests,
+      ...guestParams(guests),
       p_participant_ids: participantIds,
       p_head_id: headId,
     });
@@ -333,7 +373,7 @@ export const meetingRequestService = {
    */
   async afterChange(result, { note = '', actor } = {}) {
     const request = await this.getRequest(result.id);
-    const venue = request.venue?.name ?? 'a Venue';
+    const venue = meetingPlace(request);
     const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
     const actorName = actor?.name ?? 'Someone';
     const senderId = actor?.id ?? null;
@@ -430,7 +470,7 @@ export const meetingRequestService = {
    */
   async afterDecision(result, { note = '', actor } = {}) {
     const request = await this.getRequest(result.id);
-    const venue = request.venue?.name ?? 'a Venue';
+    const venue = meetingPlace(request);
     const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
     const actorName = actor?.name ?? 'Someone';
     const senderId = actor?.id ?? null;

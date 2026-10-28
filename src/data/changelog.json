@@ -1,6 +1,24 @@
 [
     {
         "date": "2026-10-28",
+        "title": "October backlog: Awarded SORs, Meal Breaks, flow tools and meeting types",
+        "version": "1.9.72",
+        "changes": [
+            "A Super Admin page now holds the access settings for every flow in one place.",
+            "A flow can be exported to a file, imported back, or duplicated from the canvas toolbar. A Stage can also move on by itself once its last condition is met.",
+            "An SOR now has a Date of Award, Date of PDI and Date of Delivery. When a Date of Award is filled, Purchasing is told and the SOR shows an Awarded badge.",
+            "Outdated SORs can be updated in bulk, one at a time, or taken back to an older version.",
+            "Each Product List line shows its P0, linked to Odoo, and the SOR Quick View lists every task you can read on the SOR.",
+            "Group Tasks need a Start and Due Date and show a due countdown. Checklist items can have a due date and remarks, and ticking one shows right away.",
+            "You can pick a Team or Employee Group for a Group Task, and a role can carry a default checklist.",
+            "Meal Break is now set by the clock in HR settings and replaces the 5-hour lunch rule.",
+            "Meeting Requests are approved by HR only. A meeting can be Onsite, Online or Hybrid, with a link and Guest emails.",
+            "Notifications from one chat are grouped into one row, and the count badge is neutral.",
+            "An open Task, Group Task or SOR window keeps its place in the address, and a file picked from the library links the original file."
+        ]
+    },
+    {
+        "date": "2026-10-28",
         "title": "The S0 Evaluation leads the road to buying",
         "version": "1.9.71",
         "changes": [

@@ -56,6 +56,7 @@ export default function StageSettingsPanel({
   stage,
   isEntry,
   isWon,
+  isAward,
   disabled,
   bracketOptions = [],
   activeTab = "settings",
@@ -66,10 +67,12 @@ export default function StageSettingsPanel({
   onBracketChange,
   onDelete,
   onToggleTerminal,
+  onToggleAutoMove,
   onSetTerminalOutcome,
   onToggleBuyingOpens,
   onSetEntry,
   onSetWon,
+  onSetAward,
   outgoingMoves = [],
   moveTargets = [],
   onAddMove,
@@ -215,6 +218,20 @@ export default function StageSettingsPanel({
 
                 <Button
                   variant="ghost"
+                  onClick={onSetAward}
+                  disabled={disabled}
+                  className={cn(
+                    ROLE_BUTTON,
+                    isAward
+                      ? "bg-gold-a3 text-gold-11 outline-gold-a6 hover:bg-gold-a3 hover:text-gold-11"
+                      : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                  )}
+                >
+                  <Flag size={14} /> {isAward ? "Notice of Award is here" : "Make it the Notice of Award"}
+                </Button>
+
+                <Button
+                  variant="ghost"
                   onClick={onToggleTerminal}
                   disabled={disabled}
                   className={cn(
@@ -245,6 +262,22 @@ export default function StageSettingsPanel({
                     {stage.buying_opens_here ? "Buying opens here" : "Buying opens here?"}
                   </Button>
                 )}
+
+                <Button
+                  variant="ghost"
+                  onClick={onToggleAutoMove}
+                  disabled={disabled || !onToggleAutoMove || (!stage.auto_move && outgoingMoves.length !== 1)}
+                  title={outgoingMoves.length !== 1 ? "Needs exactly one next Stage" : undefined}
+                  className={cn(
+                    ROLE_BUTTON,
+                    stage.auto_move
+                      ? "bg-blue-a3 text-blue-11 outline-blue-a6 hover:bg-blue-a3 hover:text-blue-11"
+                      : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                  )}
+                >
+                  {stage.auto_move ? <Check size={14} /> : <Flag size={14} />}
+                  {stage.auto_move ? "Moves on by itself" : "Auto-move"}
+                </Button>
 
                 <Button
                   variant="ghost"

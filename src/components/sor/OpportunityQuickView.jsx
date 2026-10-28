@@ -94,7 +94,7 @@ export default function OpportunityQuickView({
   });
 
   const { data: checklist = [], isLoading: isLoadingChecklist } = useQuery({
-    queryKey: ["quickViewChecklist", opportunityId, opportunity?.flow_stage_id || opportunity?.status],
+    queryKey: ["quickViewChecklist", opportunityId, opportunity?.flow_stage_id || opportunity?.status, opportunity?.flow_snapshot_id ?? null],
     queryFn: () => opportunityService.getStageChecklist(opportunityId, opportunity),
     enabled: isOpen && !!opportunityId && !!opportunity,
   });
@@ -115,7 +115,7 @@ export default function OpportunityQuickView({
         <SlideOverBody>
           <section className="space-y-3">
             <h3 className="flex items-center gap-1.5 text-label font-bold tracking-widest text-muted-foreground uppercase">
-              <ClipboardList size={12} /> Your open tasks
+              <ClipboardList size={12} /> Tasks on this SOR
             </h3>
             {isLoadingTasks ? (
               <div className="flex justify-center py-6">

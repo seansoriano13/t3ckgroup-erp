@@ -333,7 +333,7 @@ export function QuickViewSample() {
     <SampleProvider
       seed={[
         [["quickViewTasks", SAMPLE_OPPORTUNITY.id, SAMPLE_ACTOR], QUICK_TASKS],
-        [["quickViewChecklist", SAMPLE_OPPORTUNITY.id, SAMPLE_OPPORTUNITY.flow_stage_id], QUICK_CHECKLIST],
+        [["quickViewChecklist", SAMPLE_OPPORTUNITY.id, SAMPLE_OPPORTUNITY.flow_stage_id, SAMPLE_OPPORTUNITY.flow_snapshot_id ?? null], QUICK_CHECKLIST],
       ]}
     >
       <OpenButton label="Open Quick View">

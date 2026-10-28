@@ -75,11 +75,11 @@ describe("Meeting Request from the Calendar page", () => {
     await user.click(await screen.findByRole("button", { name: "New Meeting Request" }));
     const dialog = await screen.findByRole("dialog");
 
-    await user.click(within(dialog).getAllByRole("combobox")[0]);
+    await user.click(within(dialog).getAllByRole("combobox")[1]);
     await user.click(await screen.findByRole("option", { name: "Conference Room" }));
     const date = within(dialog).getByDisplayValue(manilaToday());
     fireEvent.change(date, { target: { value: tomorrow } });
-    await user.click(within(dialog).getAllByRole("combobox")[3]);
+    await user.click(within(dialog).getAllByRole("combobox")[4]);
     await user.click(await screen.findByRole("option", { name: "Head Honcho" }));
     await user.type(within(dialog).getByPlaceholderText("What is the meeting for?"), "Quarterly planning");
 

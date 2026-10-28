@@ -17,7 +17,11 @@ import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 import Dropdown from "@/components/ui/Dropdown";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { groupRoleService } from "../../../services/groupRoleService";
+import { groupRoleService, checklistForRole } from "../../../services/groupRoleService";
+import { resolveMemberSource } from "../../../services/groupTaskService";
+import { employeeGroupService } from "../../../services/employeeGroupService";
+import { teamOptions } from "../../../utils/resolvePeople";
+import { SelectField } from "@/components/ui/SelectField";
 import { groupTaskTemplateService } from "../../../services/groupTaskTemplateService";
 import { confirmActionToast } from "../../../components/ui/CustomToast";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
@@ -150,6 +154,19 @@ export default function CreateGroupTaskModal({
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [employees]);
 
+  const { data: employeeGroups = [] } = useQuery({
+    queryKey: ["employeeGroups", "active"],
+    queryFn: () => employeeGroupService.list(),
+    enabled: isOpen,
+  });
+  const sourceOptions = useMemo(
+    () => [
+      ...teamOptions(employees).map((t) => ({ value: `team:${t}`, label: `Team: ${t}` })),
+      ...employeeGroups.map((g) => ({ value: `group:${g.id}`, label: `Group: ${g.name}` })),
+    ],
+    [employees, employeeGroups],
+  );
+
   const { data: roles = [], isLoading: isRolesLoading } = useQuery({
     queryKey: ["groupRoles"],
     queryFn: groupRoleService.getRoles,
@@ -244,14 +261,55 @@ export default function CreateGroupTaskModal({
 
   const handleMemberChange = (id, field, value) => {
     setMembers((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)),
+      prev.map((m) => {
+        if (m.id !== id) return m;
+        const next = { ...m, [field]: value };
+        // Picking a role fills in its default checklist, but only for a
+        // member with none yet. It stays editable afterwards.
+        if (field === "role" && value) {
+          const role = roles.find((r) => r.role_name === value);
+          const filled = checklistForRole(role, m.checklist);
+          if (filled !== m.checklist) {
+            next.checklist = filled;
+            next.showChecklist = true;
+          }
+        }
+        return next;
+      }),
     );
+  };
+
+  // Copies a Team's or Employee Group's current people in once. No link stays.
+  const handleAddFromSource = async (kind, value) => {
+    if (!value) return;
+    try {
+      const people = await resolveMemberSource({ kind, value });
+      const have = new Set(members.map((m) => m.employeeId).filter(Boolean));
+      const fresh = people
+        .filter((p) => !have.has(p.employeeId))
+        .map((p) => ({ ...makeMember(), employeeId: p.employeeId }));
+      if (fresh.length === 0) {
+        toast("Everyone in that group is already a member.");
+        return;
+      }
+      // A lone empty starter row is replaced rather than left dangling.
+      const base = members.length === 1 && !members[0].employeeId ? [] : members;
+      setMembers([...base, ...fresh]);
+      setSelectedMemberId(fresh[0].id);
+    } catch (err) {
+      toast.error(err.message);
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) {
       toast.error("Title is required.");
+      return;
+    }
+
+    if (mode !== "automation" && (!startDate || !dueDate)) {
+      toast.error("Start Date and Due Date are required.");
       return;
     }
 
@@ -497,7 +555,7 @@ export default function CreateGroupTaskModal({
                           showTimeSelect
                           timeIntervals={15}
                           dateFormat="MMMM d, yyyy h:mm aa"
-                          placeholderText="Optional due date & time"
+                          placeholderText="Required due date & time"
                           className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-60"
                         />
                         <Calendar
@@ -522,7 +580,7 @@ export default function CreateGroupTaskModal({
                           selected={startDate}
                           onChange={(date) => setStartDate(date)}
                           dateFormat="MMMM d, yyyy"
-                          placeholderText="Optional start date"
+                          placeholderText="Required start date"
                           className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-48"
                         />
                         <Calendar
@@ -586,6 +644,24 @@ export default function CreateGroupTaskModal({
               )}
             </div>
 
+            {sourceOptions.length > 0 && (
+              <div className="px-5 py-2 border-b border-border flex items-center gap-2">
+                <span className="text-label font-bold text-muted-foreground uppercase tracking-widest">
+                  Add a whole Team or Group
+                </span>
+                <SelectField
+                  className="w-64"
+                  options={sourceOptions}
+                  value=""
+                  placeholder="Pick a Team or Employee Group"
+                  onChange={(v) => {
+                    const [kind, ...rest] = v.split(":");
+                    handleAddFromSource(kind, rest.join(":"));
+                  }}
+                />
+              </div>
+            )}
+
             {/* MASTER / DETAIL */}
             <div className="flex-1 flex min-h-0">
               <div className="w-[260px] shrink-0 min-h-0">
@@ -611,6 +687,7 @@ export default function CreateGroupTaskModal({
                   roles={roles}
                   isRolesLoading={isRolesLoading}
                   onManageRoles={() => setIsRoleManagerOpen(true)}
+                  maxDueDate={dueDate}
                   onChange={(field, value) =>
                     handleMemberChange(selectedMemberId, field, value)
                   }

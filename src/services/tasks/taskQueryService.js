@@ -223,32 +223,35 @@ export const taskQueryService = {
    */
   async getMyOpenTasksForOpportunity(userId, opportunityId) {
     if (!userId || !opportunityId) return [];
-    const [tasksResult, groupsResult] = await Promise.all([
+    // Every open task on the SOR the viewer may read (RLS decides), not only
+    // their own. The viewer's own come first.
+    const [tasksResult, groupsResult, membersResult] = await Promise.all([
       supabase
         .from("tasks")
-        .select("id, project_title, task_description, checklist, status, priority, end_at, created_at")
-        .eq("logged_by", userId)
+        .select("id, logged_by, project_title, task_description, checklist, status, priority, end_at, created_at")
         .eq("opportunity_id", opportunityId)
         .in("status", [TASK_STATUS.INCOMPLETE, TASK_STATUS.AWAITING_APPROVAL])
         .order("created_at", { ascending: false }),
       supabase
+        .from("committee_tasks")
+        .select("id, title, status, due_date, created_at")
+        .eq("opportunity_id", opportunityId)
+        .eq("status", "ACTIVE"),
+      supabase
         .from("committee_task_members")
-        .select(
-          "task_description, checklist, task:committee_tasks!inner(id, title, status, due_date, opportunity_id, created_at)",
-        )
-        .eq("employee_id", userId)
-        .eq("status", "PENDING")
-        .eq("task.opportunity_id", opportunityId)
-        .eq("task.status", "ACTIVE"),
+        .select("committee_task_id, task_description, checklist, status")
+        .eq("employee_id", userId),
     ]);
     if (tasksResult.error) throw tasksResult.error;
     if (groupsResult.error) throw groupsResult.error;
+    if (membersResult.error) throw membersResult.error;
 
     // Headline is `title`, the line under it is `taskDescription` — for a Group
     // Task that is the viewer's own assignment, not the group's brief.
     const tasks = tasksResult.data.map((task) => ({
       id: task.id,
       kind: "task",
+      mine: task.logged_by === userId,
       title: task.project_title || "",
       taskDescription: resolveDescription(task.task_description, task.checklist),
       checklistProgress: checklistCounts(resolveChecklist(task.task_description, task.checklist)),
@@ -257,21 +260,28 @@ export const taskQueryService = {
       priority: task.priority,
       createdAt: task.created_at,
     }));
-    const groups = groupsResult.data.map(({ task, task_description, checklist }) => ({
-      id: task.id,
-      kind: "group",
-      title: task.title,
-      taskDescription: task_description || "",
-      checklistProgress: checklistCounts(checklist),
-      dueAt: task.due_date || null,
-      status: task.status,
-      priority: null,
-      createdAt: task.created_at,
-    }));
+    const myMemberships = new Map((membersResult.data || []).map((m) => [m.committee_task_id, m]));
+    const groups = groupsResult.data.map((task) => {
+      const membership = myMemberships.get(task.id);
+      const mine = membership?.status === "PENDING";
+      return {
+        id: task.id,
+        kind: "group",
+        mine,
+        title: task.title,
+        taskDescription: mine ? membership.task_description || "" : "",
+        checklistProgress: mine ? checklistCounts(membership.checklist) : null,
+        dueAt: task.due_date || null,
+        status: task.status,
+        priority: null,
+        createdAt: task.created_at,
+      };
+    });
 
-    // What is owed next: soonest due first (an overdue one is simply the
-    // earliest), undated last, newest-created breaking ties.
+    // The viewer's own first; within each, soonest due first (an overdue one is
+    // simply the earliest), undated last, newest-created breaking ties.
     return [...tasks, ...groups].sort((a, b) => {
+      if (a.mine !== b.mine) return a.mine ? -1 : 1;
       if (a.dueAt !== b.dueAt) {
         if (!a.dueAt) return 1;
         if (!b.dueAt) return -1;

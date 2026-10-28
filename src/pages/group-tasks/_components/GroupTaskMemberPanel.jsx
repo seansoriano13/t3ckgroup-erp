@@ -32,6 +32,7 @@ export default function GroupTaskMemberPanel({
   canEditDescription = true,
   canEditChecklist = true,
   lockedReason,
+  maxDueDate = null,
   children,
 }) {
   if (!member) {
@@ -183,6 +184,7 @@ export default function GroupTaskMemberPanel({
                 }
                 onChange={(e) => onChange("checklist", e.target.value)}
                 name="checklist"
+                maxDueDate={maxDueDate}
               />
             </div>
           </>

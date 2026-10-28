@@ -16,6 +16,7 @@ import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
+import SorVersionUpdate from "../SorVersionUpdate";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
@@ -387,6 +388,7 @@ export default function SorModalHeader({
               />
             </div>
           )}
+          {isFlowDeal && <SorVersionUpdate opportunity={opportunity} />}
         </div>
         {isFlowDeal ? (
           <FlowStageControl

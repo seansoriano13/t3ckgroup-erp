@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { AlertTriangle, CalendarDays, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { mealBreakHours } from '../../../../utils/mealBreak';
 import Dot from '@/components/ui/Dot';
 import SlideOver, { SlideOverBody, SlideOverFooter } from '@/components/ui/SlideOver';
 import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailParts';
@@ -112,6 +114,8 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
           </p>
         </DetailSection>
 
+        {pending && <KeepMealHour request={request} onKeep={actions.keepMealIn} />}
+
         {pending && <BalanceImpact request={request} available={availableHours} />}
 
         <DetailSection title="Activity">
@@ -156,6 +160,46 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
         </SlideOverFooter>
       )}
     </>
+  );
+}
+
+/**
+ * When the filed window covers a meal hour that was taken off, HR can put the
+ * hour back in (no break was taken). A reason is required and is saved.
+ */
+function KeepMealHour({ request, onKeep }) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const hour = request.start_time && request.end_time ? mealBreakHours(request.start_time, request.end_time) : 0;
+
+  if (request.meal_break_kept_reason) {
+    return (
+      <DetailSection title="Meal Break">
+        <p className="text-[13px] text-muted-foreground">Meal hour kept in. Reason: {request.meal_break_kept_reason}</p>
+      </DetailSection>
+    );
+  }
+  if (!(hour > 0) || !onKeep) return null;
+
+  const keep = async () => {
+    setBusy(true);
+    try {
+      await onKeep(request, reason);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <DetailSection title="Meal Break">
+      <div className="flex flex-col gap-2">
+        <p className="text-[13px] text-muted-foreground">{hour} hr was taken off for the meal break. If no break was taken, keep it in.</p>
+        <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why was no break taken?" rows={2} aria-label="Reason for keeping the meal hour in" />
+        <Button type="button" variant="outline" disabled={busy || !reason.trim()} onClick={keep}>
+          Keep the hour in
+        </Button>
+      </div>
+    </DetailSection>
   );
 }
 

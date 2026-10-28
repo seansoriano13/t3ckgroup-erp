@@ -29,3 +29,14 @@ export function odooSaleOrderUrl(odooSoId) {
  * request for quotation). The app only links there; it never writes to Odoo.
  */
 export const ODOO_NEW_PO_URL = `${ODOO_BASE_URL}/web#action=purchase.purchase_rfq&model=purchase.order&view_type=form`
+
+/**
+ * The backend form of one Odoo purchase order, from its purchase.order id (kept on the IPAS
+ * as odoo_po_id, never the P0 number). Null while no id is known, so the screen shows the
+ * P0 as plain text rather than a wrong link.
+ */
+export function odooPurchaseOrderUrl(odooPoId) {
+  const id = Number(odooPoId)
+  if (!Number.isInteger(id) || id <= 0) return null
+  return `${ODOO_BASE_URL}/web#id=${id}&model=purchase.order&view_type=form`
+}

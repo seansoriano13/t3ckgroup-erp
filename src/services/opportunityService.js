@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { itemsForVisit, shapeSorOverview } from "../utils/sorPurchaseRequest";
 import { notificationService } from "./notificationService";
+import { sorAwardService } from "./sorAwardService";
 import { accessWindowSummary } from "../utils/stageAudience";
 import { SOURCE_DEAL_TEAM, SOURCE_MENTION } from "../utils/mySorsFilters";
 import { sorStageParticipantService } from "./sorStageParticipantService";
@@ -98,6 +99,11 @@ const RECORD_FIELD_WRITERS = {
   sales_reference: (v) => cleanSalesReference(v),
   expected_award_date: (v) => v || null,
   po_date: (v) => v || null,
+  // Manila dates (ADR 0039). Open to the Deal Team while blank; a set Date of
+  // Award is locked to Super Admin by the database.
+  date_of_award: (v) => v || null,
+  date_of_pdi: (v) => v || null,
+  date_of_delivery: (v) => v || null,
   deal_owner_id: (v) => v || null,
   closing_sales_id: (v) => v || null,
   support_sales_1_id: (v) => v || null,
@@ -248,6 +254,7 @@ async function narrateNewlySatisfied(opportunityId, stageId, flowSnapshotId, bef
   }
   if (!conditions || conditions.length === 0) return;
 
+  let newlySatisfied = false;
   for (const condition of conditions) {
     const wasSatisfied =
       evaluateCondition(condition, before).status === CONDITION_STATUS.SATISFIED;
@@ -256,8 +263,11 @@ async function narrateNewlySatisfied(opportunityId, stageId, flowSnapshotId, bef
 
     if (!wasSatisfied && isSatisfied) {
       await noteConditionSatisfied(opportunityId, condition, actorId);
+      newlySatisfied = true;
     }
   }
+  // #757: that may have been the last condition on an Auto-move Stage.
+  if (newlySatisfied) await autoMoveIfReady(opportunityId, actorId);
 }
 
 /**
@@ -649,6 +659,7 @@ async function snapshotContextFor(opportunity) {
     conditions: d.conditions || [],
     stageFields: d.stageFields || [],
     wonStageId: d.wonStageId ?? null,
+    awardStageId: d.awardStageId ?? null,
   };
 }
 
@@ -725,7 +736,7 @@ async function hasEverMoved(opportunityId) {
  * applied to flow-built deals. `stage_conditions` DO apply to flow-built
  * deals, because they are keyed to `flow_stages(id)`.
  */
-async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = null } = {}) {
+async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = null, auto = false } = {}) {
   // Issue #83 — every rule this move is judged by (which Stages exist, which
   // edges are legal, what conditions gate the stage being left, where the
   // deal is won) is resolved from the SOR's OWN Flow Snapshot, not the live
@@ -735,6 +746,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     stages,
     edges,
     wonStageId,
+    awardStageId,
     conditions: snapshotConditions,
     actions: snapshotActions,
     stageFields: snapshotStageFields,
@@ -795,6 +807,14 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     patch.contract_date = getCurrentLocalDate();
   }
 
+  // ADR 0047 — the flow's Notice of Award Stage fills in a blank Date of
+  // Award. A date the Deal Team typed in earlier is never overwritten.
+  // A Return carries the date through its own RPC.
+  const stampsDateOfAward = awardStageId === to.id && !existing.date_of_award;
+  if (stampsDateOfAward) {
+    patch.date_of_award = getCurrentLocalDate();
+  }
+
   // A Return's move and its choice commit together (sor_move_and_resume /
   // sor_move_and_start_fresh): a refused choice leaves the SOR where it was.
   // It lands before the entry Actions run, so a Start fresh's closed-off
@@ -805,6 +825,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
       p_opportunity_id: existing.id,
       p_flow_stage_id: to.id,
       p_contract_date: patch.contract_date ?? null,
+      p_date_of_award: patch.date_of_award ?? null,
     });
     if (returnChoiceError) throw new Error(returnChoiceError.message.replace(/^(Resume|Start fresh): /, ""));
   }
@@ -824,6 +845,11 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     if (submittedError) console.error("costing_mark_bid_submitted failed", submittedError);
   }
 
+  // #746 — a Date of Award that just went from blank to filled tells Purchasing.
+  if (stampsDateOfAward) {
+    await sorAwardService.notifyPurchasing({ ...existing, date_of_award: patch.date_of_award }, actorId);
+  }
+
   const fromName = from?.name || "—";
   const stageChangeEvent = {
     event: "STAGE_CHANGED",
@@ -831,13 +857,15 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     to: to.id,
     employeeId: actorId,
     stampedContractDate: stampsContractDate,
+    stampedDateOfAward: stampsDateOfAward,
     ...(isReturn ? { returnChoice } : {}),
+    ...(auto ? { auto: true } : {}),
   };
   const returnChoiceLabel =
     returnChoice === RETURN_CHOICE.START_FRESH ? " (started fresh)" : " (resumed previous work)";
   await opportunityService.addSystemNote(
     existing.id,
-    `Stage moved: ${fromName} → ${to.name}${isReturn ? returnChoiceLabel : ""}`,
+    `Stage moved: ${fromName} → ${to.name}${isReturn ? returnChoiceLabel : ""}${auto ? " (moved automatically)" : ""}`,
     stageChangeEvent,
     actorId,
   );
@@ -1790,6 +1818,35 @@ async function shapeAccessWindows(windows) {
   };
 }
 
+/**
+ * Auto-move (#757): after a write that can change whether a Stage Condition is
+ * met, moves the SOR on by itself when its Stage has Auto-move and every
+ * condition is met. A normal move, so Stage Actions fire. A blocked move is
+ * not an error here: the SOR just stays put. Never throws.
+ */
+async function autoMoveIfReady(opportunityId, actorId) {
+  try {
+    const { data: existing, error } = await supabase
+      .from("sales_opportunities")
+      .select("*")
+      .eq("id", opportunityId)
+      .single();
+    if (error || !existing?.flow_snapshot_id || !existing.flow_stage_id) return null;
+
+    const { stages, edges } = await snapshotContextFor(existing);
+    const from = stages.find((s) => s.id === existing.flow_stage_id);
+    if (!from?.auto_move || from.is_terminal) return null;
+
+    const next = edges.filter((e) => e.from_stage_id === from.id);
+    if (next.length !== 1) return null;
+
+    return await moveAlongFlow(existing, next[0].to_stage_id, actorId, { auto: true });
+  } catch (err) {
+    if (!err?.isGateBlock) console.error("Auto-move failed:", err);
+    return null;
+  }
+}
+
 export const opportunityService = {
   /**
    * The SOR Register. Every register count, the board, the matrix, and the
@@ -2087,6 +2144,9 @@ export const opportunityService = {
 
     checkField('expected_award_date', 'Expected Award Date');
     checkField('po_date', 'PO Date');
+    checkField('date_of_award', 'Date of Award');
+    checkField('date_of_pdi', 'Date of PDI');
+    checkField('date_of_delivery', 'Date of Delivery');
 
     const checkEmployee = (idField, objField, label) => {
       if (touched.has(idField) && existing[idField] !== final[idField]) {
@@ -2181,6 +2241,11 @@ export const opportunityService = {
         { event: "OPPORTUNITY_UPDATED", employeeId: noteActorId, changes },
         noteActorId,
       ).catch(console.error);
+    }
+
+    // #746 — typing in a blank Date of Award tells Purchasing, once.
+    if (!existing.date_of_award && final.date_of_award) {
+      await sorAwardService.notifyPurchasing(final, noteActorId);
     }
 
     // A `field`-kind condition on the Stage this deal is still sitting on
@@ -2609,6 +2674,60 @@ export const opportunityService = {
       onProgress?.({ done: Math.min(i + chunkSize, ids.length), total: ids.length });
     }
 
+    return { succeeded, failed };
+  },
+
+  /**
+   * The SORs a bulk update of the Flow Snapshot offers, with enough to name
+   * them in a pick list (#743). Same set as the count above.
+   */
+  async listOpportunitiesEligibleForVersionMove(targetSnapshotId) {
+    const ids = await eligibleOpportunityIdsForVersionMove(targetSnapshotId);
+    if (ids.length === 0) return [];
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select("id, sales_reference, client_name, project_title")
+      .in("id", ids);
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Updates the given SORs to `targetSnapshotId` (newer or older) through
+   * `update_sor_versions` (#743). The database checks who may update which
+   * SOR and refuses a version that lacks an SOR's Stage; refusals come back in
+   * `failed` with a reason. Works in batches like moveOpportunitiesToVersion.
+   * Clears the Stage checklist caches of the SORs it updated (#742).
+   */
+  async updateSorVersions(
+    ids,
+    targetSnapshotId,
+    { onProgress, chunkSize = VERSION_MOVE_BATCH_SIZE, queryClient = null } = {},
+  ) {
+    const succeeded = [];
+    const failed = [];
+    onProgress?.({ done: 0, total: ids.length });
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const batch = ids.slice(i, i + chunkSize);
+      const { data, error } = await supabase.rpc("update_sor_versions", {
+        p_opportunity_ids: batch,
+        p_target_snapshot_id: targetSnapshotId,
+      });
+      if (error) {
+        batch.forEach((id) => failed.push({ id, reason: error.message }));
+      } else {
+        succeeded.push(...(data?.moved || []));
+        failed.push(...(data?.failed || []));
+      }
+      onProgress?.({ done: Math.min(i + chunkSize, ids.length), total: ids.length });
+    }
+    if (queryClient) {
+      for (const { id } of succeeded) {
+        queryClient.invalidateQueries({ queryKey: ["quickViewChecklist", id] });
+        queryClient.invalidateQueries({ queryKey: ["stageChecklist", id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+    }
     return { succeeded, failed };
   },
 
@@ -3385,6 +3504,8 @@ export const opportunityService = {
       actorId,
     );
 
+    await autoMoveIfReady(opportunityId, actorId);
+
     return data;
   },
 
@@ -3398,6 +3519,8 @@ export const opportunityService = {
    * once satisfied stays satisfied (D31), so ticking it again is a no-op
    * that returns the original row rather than overwriting who satisfied it.
    */
+  autoMoveIfReady,
+
   async satisfyCondition(opportunityId, conditionId, actorId) {
     const { data: opp, error: oppError } = await supabase
       .from("sales_opportunities")
@@ -3452,6 +3575,7 @@ export const opportunityService = {
 
     if (result.was_new) {
       await noteConditionSatisfied(opportunityId, condition, actorId);
+      await autoMoveIfReady(opportunityId, actorId);
     }
 
     return result;
@@ -3592,6 +3716,7 @@ export const opportunityService = {
 
     // #478: the SOR code, client, Sales Flow and last activity the filters need.
     const facets = await opportunityService.getMySorsFacets([...byOpportunity.keys()]);
+    const stageColors = await opportunityService.getMySorsStageColors([...byOpportunity.keys()]);
 
     const rows = await Promise.all(
       [...byOpportunity.entries()].map(async ([opportunityId, ownWindows]) => {
@@ -3621,6 +3746,7 @@ export const opportunityService = {
           salesReference: summary?.sales_reference ?? null,
           projectTitle: summary?.project_title ?? null,
           currentStageName: summary?.current_stage_name ?? null,
+          currentStageColor: stageColors[opportunityId] ?? null,
           sorCode: facets[opportunityId]?.sorCode ?? null,
           clientName: facets[opportunityId]?.clientName ?? null,
           saleTypeName: facets[opportunityId]?.saleTypeName ?? null,
@@ -3709,6 +3835,34 @@ export const opportunityService = {
         { sorCode: r.sor_code ?? null, clientName: r.client_name ?? null, saleTypeName: r.sale_type_name ?? null, lastActivityAt: r.last_activity_at ?? null },
       ]),
     );
+  },
+
+  /**
+   * #739: each SOR's current Stage colour, read from the SOR's own pinned Flow
+   * Snapshot (the same `color` key the Flow Canvas paints). A Stage with no
+   * colour, or no snapshot, is simply absent so the badge stays neutral.
+   */
+  async getMySorsStageColors(opportunityIds) {
+    if (!opportunityIds?.length) return {};
+    const { data: opps, error } = await supabase
+      .from("sales_opportunities")
+      .select("id, flow_stage_id, flow_snapshot_id")
+      .in("id", opportunityIds);
+    if (error) throw error;
+    const snapshotIds = [...new Set((opps || []).map((o) => o.flow_snapshot_id).filter(Boolean))];
+    if (!snapshotIds.length) return {};
+    const { data: snaps, error: snapError } = await supabase
+      .from("flow_snapshots")
+      .select("id, snapshot_data")
+      .in("id", snapshotIds);
+    if (snapError) throw snapError;
+    const stagesBySnapshot = new Map((snaps || []).map((s) => [s.id, s.snapshot_data?.stages || []]));
+    const colors = {};
+    for (const o of opps || []) {
+      const stage = (stagesBySnapshot.get(o.flow_snapshot_id) || []).find((st) => st.id === o.flow_stage_id);
+      if (stage?.color) colors[o.id] = stage.color;
+    }
+    return colors;
   },
 
   async countMyOpenSors(employeeId) {

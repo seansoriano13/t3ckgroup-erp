@@ -9,12 +9,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { FieldBox } from '@/components/ui/FieldBox';
 import { SelectField } from '@/components/ui/SelectField';
 import PeoplePicker from '@/components/ui/PeoplePicker';
-import HeadSelectField from '@/components/offsets/HeadSelectField';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
 import { employeeService } from '@/services/employeeService';
-import { meetingRequestService } from '@/services/meetingRequestService';
+import { MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue } from '@/services/meetingRequestService';
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
 import { manilaDate, manilaToday, manilaTime } from '@/lib/manilaDate.js';
 import { TIME_OPTIONS, draftProblem, manilaInstant } from './meetingDraft.js';
@@ -67,6 +66,8 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const queryClient = useQueryClient();
   useMeetingRealtime();
 
+  const [meetingType, setMeetingType] = useState(editing?.meeting_type ?? MEETING_TYPE.ONSITE);
+  const [meetingLink, setMeetingLink] = useState(editing?.meeting_link ?? '');
   const [venuePick, setVenueId] = useState(editing?.venue_id ?? initial.venueId ?? '');
   const [date, setDate] = useState(() => (editing ? manilaDate(editing.starts_at) : (initial.date ?? manilaToday())));
   const [start, setStart] = useState(editing ? manilaTime(editing.starts_at) : (initial.start ?? '09:00'));
@@ -75,10 +76,10 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const [participants, setParticipants] = useState(() =>
     (editing?.participants ?? []).map((p) => ({ type: SELECTOR_TYPES.EMPLOYEE, id: p.employee_id })),
   );
-  const [guests, setGuests] = useState(editing?.guests ?? []);
+  const [guests, setGuests] = useState(() => guestList(editing?.guests, editing?.guest_emails));
   const [guestDraft, setGuestDraft] = useState('');
+  const [guestEmailDraft, setGuestEmailDraft] = useState('');
   const [purpose, setPurpose] = useState(editing?.purpose ?? '');
-  const [headId, setHeadId] = useState(editing?.head_id ?? '');
 
   const { data: venues = [] } = useQuery({ queryKey: ['calendar-venues'], queryFn: () => meetingRequestService.listVenues() });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => employeeService.getAllEmployees() });
@@ -90,7 +91,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
     enabled: Boolean(user?.id),
   });
   // Remembered picks fill in until the applicant chooses something else.
-  const venueId = venuePick || (venues.some((v) => v.id === lastPicks?.venueId) ? lastPicks.venueId : '');
+  const venueId = !needsVenue(meetingType) ? '' : venuePick || (venues.some((v) => v.id === lastPicks?.venueId) ? lastPicks.venueId : '');
   const facilitatorId = facilitatorPick || (heads.some((h) => h.id === lastPicks?.facilitatorId) ? lastPicks.facilitatorId : '');
 
   const { data: dayAll = [] } = useQuery({
@@ -100,7 +101,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   });
   // Editing: the request's own slot is not a clash with itself.
   const dayEntries = useMemo(() => (editing ? dayAll.filter((e) => e.id !== editing.id) : dayAll), [dayAll, editing]);
-  const venueName = venues.find((v) => v.id === venueId)?.name;
+  const venueName = !needsVenue(meetingType) ? undefined : venues.find((v) => v.id === venueId)?.name;
   const startsAt = manilaInstant(date, start);
   const endsAt = manilaInstant(date, end);
   const windowOk = Boolean(date) && end > start;
@@ -117,13 +118,13 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         })
       : [];
 
-  const needsHead = !user?.is_head && !user?.isHead;
-  const problem = clash ? clashMessage(clash) : draftProblem({ venueId, date, start, end, facilitatorId, purpose, headId, needsHead });
+  const problem = clash ? clashMessage(clash) : draftProblem({ meetingType, meetingLink, venueId, date, start, end, facilitatorId, purpose, guests });
 
   const addGuest = () => {
     const name = guestDraft.trim();
-    if (name && !guests.includes(name)) setGuests([...guests, name]);
+    if (name && !guests.some((g) => g.name === name)) setGuests([...guests, { name, email: guestEmailDraft.trim() }]);
     setGuestDraft('');
+    setGuestEmailDraft('');
   };
 
   const mutation = useMutation({
@@ -131,6 +132,8 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       if (editing) {
         const saved = await meetingRequestService.editRequest({
           requestId: editing.id,
+          meetingType,
+          meetingLink,
           venueId,
           startsAt,
           endsAt,
@@ -138,13 +141,14 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           purpose,
           guests,
           participantIds,
-          headId: needsHead ? headId : null,
           actor: user,
         });
         if (resend) await meetingRequestService.resend({ requestId: editing.id, actor: user });
         return saved;
       }
       return meetingRequestService.fileRequest({
+        meetingType,
+        meetingLink,
         venueId,
         startsAt,
         endsAt,
@@ -152,7 +156,6 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         purpose,
         guests,
         participantIds,
-        headId: needsHead ? headId : null,
         applicant: user,
       });
     },
@@ -178,16 +181,39 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <FieldBox label="Venue" className="mb-1.5 block" />
+        <div className="sm:col-span-2">
+          <FieldBox label="Meeting type" className="mb-1.5 block" />
           <SelectField
-            value={venueId || null}
-            onChange={setVenueId}
-            options={venues.map((v) => ({ value: v.id, label: v.name }))}
-            placeholder="Select Venue..."
+            value={meetingType}
+            onChange={setMeetingType}
+            options={Object.values(MEETING_TYPE).map((t) => ({ value: t, label: MEETING_TYPE_LABEL[t] }))}
             className="w-full"
           />
         </div>
+        {needsVenue(meetingType) && (
+          <div>
+            <FieldBox label="Venue" className="mb-1.5 block" />
+            <SelectField
+              value={venueId || null}
+              onChange={setVenueId}
+              options={venues.map((v) => ({ value: v.id, label: v.name }))}
+              placeholder="Select Venue..."
+              className="w-full"
+            />
+          </div>
+        )}
+        {needsLink(meetingType) && (
+          <div className={needsVenue(meetingType) ? '' : 'sm:col-span-2'}>
+            <FieldBox label="Meeting link" className="mb-1.5 block" />
+            <Input
+              type="url"
+              value={meetingLink}
+              onChange={(e) => setMeetingLink(e.target.value)}
+              placeholder="Paste the link, e.g. https://meet.google.com/..."
+              containerClassName="w-full"
+            />
+          </div>
+        )}
         <div>
           <FieldBox label="Date" className="mb-1.5 block" />
           <Input type="date" value={date} min={manilaToday()} onChange={(e) => setDate(e.target.value)} containerClassName="w-full" className="font-semibold" />
@@ -227,7 +253,20 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
                   addGuest();
                 }
               }}
-              placeholder="Type a name"
+              placeholder="Name"
+              containerClassName="flex-1"
+            />
+            <Input
+              type="email"
+              value={guestEmailDraft}
+              onChange={(e) => setGuestEmailDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addGuest();
+                }
+              }}
+              placeholder="Email (optional)"
               containerClassName="flex-1"
             />
             <Button type="button" variant="outline" onClick={addGuest} disabled={!guestDraft.trim()}>
@@ -237,14 +276,14 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           {guests.length > 0 && (
             <ul className="mt-2 flex flex-wrap gap-1.5">
               {guests.map((g) => (
-                <li key={g} className="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs">
-                  {g}
+                <li key={g.name} className="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs">
+                  {g.email ? `${g.name} <${g.email}>` : g.name}
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    aria-label={`Remove ${g}`}
-                    onClick={() => setGuests(guests.filter((x) => x !== g))}
+                    aria-label={`Remove ${g.name}`}
+                    onClick={() => setGuests(guests.filter((x) => x.name !== g.name))}
                   >
                     <X size={12} />
                   </Button>
@@ -257,11 +296,6 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           <FieldBox label="Purpose" className="mb-1.5 block" />
           <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} placeholder="What is the meeting for?" />
         </div>
-        {needsHead && (
-          <div className="sm:col-span-2">
-            <HeadSelectField employee={user} value={headId} onChange={setHeadId} />
-          </div>
-        )}
       </div>
       {warnings.length > 0 && (
         <ul className="mt-2 flex flex-col gap-1 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs" data-testid="soft-warnings">

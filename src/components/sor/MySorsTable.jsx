@@ -94,7 +94,7 @@ export default function MySorsTable({ rows: unsortedRows, onOpen }) {
                 </TableCell>
                 <TableCell>
                   {row.currentStageName ? (
-                    <StatusBadge theme="blue" label={row.currentStageName} />
+                    <StatusBadge theme={row.currentStageColor || "mauve"} label={row.currentStageName} />
                   ) : (
                     "—"
                   )}

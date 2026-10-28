@@ -24,6 +24,7 @@ import StatusBadge from "../../../components/StatusBadge";
 import HighlightText from "../../../components/HighlightText";
 import EmptyState from "../../../components/ui/EmptyState";
 import { formatDueDate } from "../../../utils/formatDate";
+import { getDueCountdown } from "../utils/dueCountdown";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
 import { Button } from "@/components/ui/button";
@@ -354,9 +355,13 @@ export default function GroupTaskTableView({
                             <Calendar size={12} className="shrink-0 opacity-70" />
                             {formatDueDate(task.due_date)}
                           </span>
-                          {isOverdue && (
-                            <span className="text-label font-bold text-destructive uppercase tracking-tight">
-                              Overdue
+                          {task.status === "ACTIVE" && getDueCountdown(task.due_date) && (
+                            <span
+                              className={`text-label font-bold tracking-tight ${
+                                isOverdue ? "text-destructive" : "text-muted-foreground"
+                              }`}
+                            >
+                              {getDueCountdown(task.due_date).label}
                             </span>
                           )}
                         </div>

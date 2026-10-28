@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, act } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
 import { stubRpc } from "@/test/msw/server"
+import { MemoryRouter } from "react-router"
 import GlobalDetailManager from "./GlobalDetailManager"
 
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1", name: "Ana" } }) }))
@@ -37,7 +38,7 @@ beforeEach(() => {
 
 describe("PURCHASE_REQUEST in GlobalDetailManager", () => {
   it("opens the shared request view as a modal", async () => {
-    renderWithProviders(<GlobalDetailManager />)
+    renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>)
     open("pr-1", "PURCHASE_REQUEST")
 
     expect(await screen.findByTestId("pr-view")).toHaveTextContent("view of pr-1")
@@ -46,7 +47,7 @@ describe("PURCHASE_REQUEST in GlobalDetailManager", () => {
 
   it("closing it leaves nothing open", async () => {
     const user = setupUser()
-    renderWithProviders(<GlobalDetailManager />)
+    renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>)
     open("pr-1", "PURCHASE_REQUEST")
     await screen.findByTestId("pr-view")
 
@@ -56,7 +57,7 @@ describe("PURCHASE_REQUEST in GlobalDetailManager", () => {
 
   it("stacks over an open SOR instead of replacing it, and closing returns to the SOR", async () => {
     const user = setupUser()
-    renderWithProviders(<GlobalDetailManager />)
+    renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>)
     open("opp-1", "OPPORTUNITY")
     await screen.findByTestId("sor-modal")
 

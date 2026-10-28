@@ -55,6 +55,7 @@ import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
 import { groupTaskTemplateService } from "@/services/groupTaskTemplateService";
 import { computeDueDateOffsetDays } from "../utils/templateApply";
+import { getDueCountdown } from "../utils/dueCountdown";
 import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
 import {
   hasChecklistContent,
@@ -73,6 +74,7 @@ import { supabase } from "@/lib/supabase";
 import { notificationService } from "@/services/notificationService";
 import { useFileAttachments } from "@/hooks/useFileAttachments";
 import SorLink from "@/components/sor/SorLink";
+import SorChatPane from "./SorChatPane";
 import { AttachmentPreviews, AttachmentList } from "@/components/ui/Attachments";
 import {
   ALLOWED_MIME_TYPES,
@@ -136,6 +138,7 @@ export default function GroupTaskDetailModal({
   // --- Inline chat state ---
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [checklistOverrides, setChecklistOverrides] = useState({});
   const fileInputRef = useRef(null);
   const [messageContent, setMessageContent] = useState("");
   const [mentions, setMentions] = useState([]);
@@ -282,10 +285,16 @@ export default function GroupTaskDetailModal({
     setIsEditingTask(true);
   };
 
+  const countdown = task?.status === "ACTIVE" ? getDueCountdown(task?.due_date) : null;
+
   const handleSaveTaskEdit = async () => {
     if (isReadOnly) return;
     if (!taskEditDraft.title.trim()) {
       toast.error("Title is required");
+      return;
+    }
+    if (!taskEditDraft.startDate || !taskEditDraft.dueDate) {
+      toast.error("Start Date and Due Date are required.");
       return;
     }
     await onUpdateTask(taskEditDraft);
@@ -768,10 +777,10 @@ export default function GroupTaskDetailModal({
         className="z-[70] flex flex-col transition-all duration-300"
       >
         {/* CONTENT WRAPPER — split when isSplitScreen */}
-        <div className={cn("flex flex-1 overflow-hidden", isSplitScreen ? "flex-row" : "flex-col")}>
+        <div className={cn("flex flex-1 min-h-0 overflow-hidden", isSplitScreen ? "flex-row" : "flex-col")}>
 
         {/* TASK PANEL (left in split, full in normal) */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
 
         {/* HEADER */}
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-mauve-3/40 shrink-0 relative overflow-hidden bg-card">
@@ -860,6 +869,11 @@ export default function GroupTaskDetailModal({
                     <div className="flex items-center gap-1.5">
                       <Calendar size={14} className="text-mauve-9" /> Due{" "}
                       {formatDueDate(task.due_date)}
+                      {countdown && (
+                        <span className={countdown.overdue ? "text-destructive font-bold" : ""}>
+                          ({countdown.label})
+                        </span>
+                      )}
                     </div>
                   )}
                   {task.lead_time && (
@@ -958,7 +972,7 @@ export default function GroupTaskDetailModal({
         </div>
 
         {/* TASK CONTENT */}
-        <div className="overflow-y-auto custom-scrollbar bg-card/50 p-6 space-y-8 flex-1">
+        <div className="overflow-y-auto min-h-0 custom-scrollbar bg-card/50 p-6 space-y-8 flex-1">
           {activeTab === "overview" ? (
             <>
               {isReadOnly && (
@@ -1037,6 +1051,7 @@ export default function GroupTaskDetailModal({
                         isRolesLoading={isRolesLoading}
                         onManageRoles={() => setIsRoleManagerOpen(true)}
                         onChange={handleDraftChange}
+                        maxDueDate={task?.due_date}
                         canEditAssignment={!draft.id}
                       />
 
@@ -1178,27 +1193,40 @@ export default function GroupTaskDetailModal({
                               </div>
                               <div className="bg-muted/30 rounded-xl p-3 border border-border/50">
                                 <ChecklistTaskRenderer
-                                  description={member.checklist || checklistItems}
+                                  description={checklistOverrides[member.id] ?? (member.checklist || checklistItems)}
                                   isOwner={isMe}
                                   disabled={!isMe || isDone || isReadOnly}
                                   searchTerm={searchTerm}
                                   onInlineCheck={(next) => {
                                     if (isReadOnly) return;
-                                    if (onInlineCheck) {
-                                      onInlineCheck(member.id, next);
-                                    } else {
-                                      groupTaskService
-                                        .updateMemberChecklist(
+                                    // Show the tick now; put it back if the save fails.
+                                    const previous = checklistOverrides[member.id];
+                                    setChecklistOverrides((o) => ({ ...o, [member.id]: next }));
+                                    const save = onInlineCheck
+                                      ? onInlineCheck(member.id, next)
+                                      : groupTaskService.updateMemberChecklist(
                                           member.id,
                                           next,
                                           task.id,
                                           currentUserId,
-                                        )
-                                        .catch(err => {
-                                          toast.error("Failed to update checklist");
-                                          console.error("Checklist update error:", err);
+                                        );
+                                    Promise.resolve(save)
+                                      .then(() =>
+                                        setChecklistOverrides((o) => {
+                                          const { [member.id]: _done, ...rest } = o;
+                                          return rest;
+                                        }),
+                                      )
+                                      .catch((err) => {
+                                        setChecklistOverrides((o) => {
+                                          const copy = { ...o };
+                                          if (previous === undefined) delete copy[member.id];
+                                          else copy[member.id] = previous;
+                                          return copy;
                                         });
-                                    }
+                                        toast.error(err?.message || "Could not save that change. Try again.");
+                                        console.error("Checklist update error:", err);
+                                      });
                                   }}
                                 />
                               </div>
@@ -1681,6 +1709,11 @@ export default function GroupTaskDetailModal({
               </div>
             </form>
           </div>
+        )}
+
+        {/* SOR CHAT PANEL (#753): only for SOR-sourced tasks the viewer may read */}
+        {isSplitScreen && task.opportunity_id && (
+          <SorChatPane opportunityId={task.opportunity_id} isOpen={isOpen} employees={employees} />
         )}
 
         </div>

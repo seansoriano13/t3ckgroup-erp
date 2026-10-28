@@ -15,6 +15,7 @@ import {
 } from "../../../constants/sor";
 import { deriveProjectType } from "../../../utils/commission";
 import { Button } from "../../ui/button";
+import { useAuth } from "../../../context/AuthContext";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
 
@@ -34,6 +35,51 @@ function Detail({ label, children, isEditing, control, wrapperClass = "w-full" }
         {children || <span className="text-muted-foreground/60">—</span>}
       </div>
     </div>
+  );
+}
+
+// Manila dates (ADR 0039) — one date picker in the Detail box shape.
+function DateDetail({ label, field, isEditing, editForm, setEditForm, readValue }) {
+  const value = editForm?.[field];
+  return (
+    <Detail
+      label={label}
+      isEditing={isEditing}
+      control={
+        <Dropdown
+          usePortal
+          placement="bottom-start"
+          className="w-full"
+          trigger={() => (
+            <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
+              <span className={value ? "text-foreground" : "text-muted-foreground/50"}>{value || "Select date..."}</span>
+            </div>
+          )}
+        >
+          {({ close }) => (
+            <div className="p-1">
+              <DatePicker
+                selected={value ? new Date(value) : null}
+                onChange={(date) => {
+                  if (!date) {
+                    setEditForm((f) => ({ ...f, [field]: "" }));
+                  } else {
+                    const y = date.getFullYear();
+                    const m = String(date.getMonth() + 1).padStart(2, "0");
+                    const d = String(date.getDate()).padStart(2, "0");
+                    setEditForm((f) => ({ ...f, [field]: `${y}-${m}-${d}` }));
+                  }
+                  close();
+                }}
+                inline
+              />
+            </div>
+          )}
+        </Dropdown>
+      }
+    >
+      {readValue}
+    </Detail>
   );
 }
 
@@ -116,6 +162,8 @@ function formatLongDate(dateString) {
  * shell. The panels inside fetch their own data, only once rendered here.
  */
 export default function DetailsTab({ ctx }) {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.is_super_admin === true || user?.isSuperAdmin === true;
   const {
     opportunity,
     isEditing,
@@ -550,6 +598,33 @@ export default function DetailsTab({ ctx }) {
               >
                 {formatLongDate(opportunity.expected_award_date)}
               </Detail>
+
+              {/* Once the Date of Award is set, only a Super Admin changes it (the
+                  database enforces it too). PDI and Delivery stay open to the Deal Team. */}
+              <DateDetail
+                label="Date of Award"
+                field="date_of_award"
+                isEditing={isEditing && (!opportunity.date_of_award || isSuperAdmin)}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                readValue={formatLongDate(opportunity.date_of_award)}
+              />
+              <DateDetail
+                label="Date of PDI"
+                field="date_of_pdi"
+                isEditing={isEditing}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                readValue={formatLongDate(opportunity.date_of_pdi)}
+              />
+              <DateDetail
+                label="Date of Delivery"
+                field="date_of_delivery"
+                isEditing={isEditing}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                readValue={formatLongDate(opportunity.date_of_delivery)}
+              />
 
               <Detail
                 label="Contact Person"

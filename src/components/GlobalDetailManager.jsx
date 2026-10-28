@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
 import { groupTaskService } from "../services/groupTaskService";
@@ -13,12 +13,38 @@ import { useAuth } from "../context/AuthContext";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import toast from "react-hot-toast";
 import { canManageGroupTasks } from "../utils/permissions";
+import { useRecordParam } from "../hooks/useRecordParam";
+import {
+  RECORD_LINK_PARAM,
+  NO_ACCESS_MESSAGE,
+  itemToRecordKey,
+  recordKeyToItem,
+} from "../utils/recordLink";
 
 export default function GlobalDetailManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  // The open record lives in the address (`?open=task:<id>`), so a copied link
+  // reopens it and Back closes it. `view` (the tab an SOR opens on) isn't part
+  // of the link; it rides along in state, matched to the record it was for.
+  const { recordId, open: openRecord, close: closeRecord } = useRecordParam(RECORD_LINK_PARAM);
+  const [openedView, setOpenedView] = useState(null);
   // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }; PURCHASE_REQUEST has its own slot
-  const [activeItem, setActiveItem] = useState(null);
+  const activeItem = useMemo(() => {
+    const linked = recordKeyToItem(recordId);
+    return linked && openedView?.key === recordId ? { ...linked, view: openedView.view } : linked;
+  }, [recordId, openedView]);
+  // Opening or closing in the app writes the address. A fresh open adds a
+  // history entry; swapping one record for another replaces it.
+  const setActiveItem = useCallback(
+    (item) => {
+      const key = itemToRecordKey(item);
+      setOpenedView(key && item.view ? { key, view: item.view } : null);
+      if (!key) closeRecord();
+      else if (key !== recordId) openRecord(key, recordId ? { replace: true } : undefined);
+    },
+    [closeRecord, openRecord, recordId],
+  );
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -58,7 +84,7 @@ export default function GlobalDetailManager() {
 
     window.addEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
     return () => window.removeEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
-  }, []);
+  }, [setActiveItem]);
 
   // Everyone needs the roster, not just managers: the detail modal feeds it to
   // the mention picker, and gating it on `canManage` left a normal employee
@@ -115,7 +141,18 @@ export default function GlobalDetailManager() {
     if (activeItem?.type === "TASK" && taskData?.convertedToGroupTaskId) {
       setActiveItem({ id: taskData.convertedToGroupTaskId, type: "GROUP_TASK" });
     }
-  }, [activeItem?.type, taskData?.convertedToGroupTaskId]);
+  }, [activeItem?.type, taskData?.convertedToGroupTaskId, setActiveItem]);
+
+  // A link to a record the viewer can't read (or that is gone) says so, then
+  // clears the address instead of leaving a blank window.
+  const noAccess =
+    (activeItem?.type === "TASK" && !isLoadingTask && !taskData) ||
+    (activeItem?.type === "GROUP_TASK" && !isLoadingGroupTask && !groupTaskData);
+  useEffect(() => {
+    if (!noAccess) return;
+    toast.error(NO_ACCESS_MESSAGE, { id: "record-no-access" });
+    closeRecord();
+  }, [noAccess, closeRecord]);
 
   useEffect(() => {
     if (activeItem) {
@@ -258,7 +295,6 @@ export default function GlobalDetailManager() {
     onSuccess: () => {
       invalidateGroup();
     },
-    onError: (err) => toast.error(err.message),
   });
 
   const rateMutation = useMutation({
@@ -349,7 +385,7 @@ export default function GlobalDetailManager() {
             onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}
             onUpdateMember={(memberId, payload) => updateMemberMutation.mutateAsync({ memberId, payload })}
             onRemoveMember={(memberId) => removeMemberMutation.mutateAsync(memberId)}
-            onInlineCheck={(memberId, checklist) => updateMemberChecklistMutation.mutate({ memberId, checklist })}
+            onInlineCheck={(memberId, checklist) => updateMemberChecklistMutation.mutateAsync({ memberId, checklist })}
             onVerify={() => verifyMutation.mutate({ id: activeItem.id, remarks: "" })}
             onReject={(remarks) => rejectMutation.mutate({ id: activeItem.id, remarks })}
             onUpdateTask={(payload) => updateGroupTaskMutation.mutateAsync(payload)}
@@ -421,7 +457,7 @@ export default function GlobalDetailManager() {
 
       {/* TASK STACKED ON QUICK VIEW — a drill-down, so it renders alongside
           Quick View rather than replacing it. */}
-      {stackedTaskId && (
+      {stackedTaskId && activeItem && (
         <TaskDetails
           isOpen={true}
           onClose={() => setStackedTaskId(null)}

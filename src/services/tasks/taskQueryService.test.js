@@ -164,7 +164,7 @@ describe("taskQueryService", () => {
   })
 
   describe("getMyOpenTasksForOpportunity", () => {
-    it("returns only this employee's open tasks tied to the deal", async () => {
+    it("returns every open task tied to the deal, the viewer's own first", async () => {
       const opportunity = makeOpportunity({ registered_by: author.id })
       const otherOpportunity = makeOpportunity({ registered_by: author.id })
       const colleague = makeEmployee({ name: "Ben Cruz" })
@@ -174,8 +174,13 @@ describe("taskQueryService", () => {
         opportunity_id: opportunity.id,
         status: "INCOMPLETE",
       })
-      // A colleague's task on the same deal isn't this viewer's.
-      makeTask({ logged_by: colleague.id, category_id: category.category_id, opportunity_id: opportunity.id })
+      // A colleague's task on the same deal is listed too, after the viewer's own.
+      const theirs = makeTask({
+        logged_by: colleague.id,
+        category_id: category.category_id,
+        opportunity_id: opportunity.id,
+        created_at: "2030-01-01T00:00:00.000Z",
+      })
       // The same employee's task on a different deal isn't this deal's.
       makeTask({ logged_by: author.id, category_id: category.category_id, opportunity_id: otherOpportunity.id })
       // Finished work no longer needs acting on.
@@ -188,7 +193,8 @@ describe("taskQueryService", () => {
 
       const tasks = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
 
-      expect(tasks.map((t) => t.id)).toEqual([mine.id])
+      expect(tasks.map((t) => t.id)).toEqual([mine.id, theirs.id])
+      expect(tasks.map((t) => t.mine)).toEqual([true, false])
     })
 
     it("includes a task awaiting approval, not only incomplete ones", async () => {
@@ -215,7 +221,7 @@ describe("taskQueryService", () => {
         status: "PENDING",
         task_description: "Assemble the bid",
       })
-      // Someone else's membership on the same deal isn't this viewer's.
+      // Someone else's group task on the same deal is listed, but not marked as the viewer's.
       const theirs = makeGroupTask({ created_by: colleague.id, opportunity_id: opportunity.id })
       db.seed("committee_task_members", { committee_task_id: theirs.id, employee_id: colleague.id, status: "PENDING", task_description: "" })
       // A member who already finished has nothing left to do.
@@ -229,7 +235,9 @@ describe("taskQueryService", () => {
 
       // The group's title heads the row; the line under it is what this member owes.
       expect(tasks).toEqual([
-        expect.objectContaining({ id: mine.id, kind: "group", title: "Bid pack", taskDescription: "Assemble the bid" }),
+        expect.objectContaining({ id: mine.id, kind: "group", mine: true, title: "Bid pack", taskDescription: "Assemble the bid" }),
+        expect.objectContaining({ id: done.id, kind: "group", mine: false }),
+        expect.objectContaining({ id: theirs.id, kind: "group", mine: false }),
       ])
     })
 

@@ -8,8 +8,9 @@ import { opportunityService } from "../../services/opportunityService";
 import { employeeGroupService } from "../../services/employeeGroupService";
 import { confirmActionToast } from "../ui/CustomToast";
 import { storageService } from "../../services/storageService";
-import { attachmentAcceptType, acceptsLabel } from "../../utils/attachments";
+import { attachmentAcceptType, acceptsLabel, listableAttachments } from "../../utils/attachments";
 import StageChecklistRow from "./StageChecklistRow";
+import BrochureLibraryPicker from "../BrochureLibraryPicker";
 import {
   Dialog,
   DialogContent,
@@ -48,9 +49,12 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   // A flow SOR's `status` never changes (it stays LEAD), so the key follows
   // its flow Stage — otherwise a move keeps showing the old Stage's list.
   const stageCode = opportunity?.flow_stage_id || opportunity?.status;
+  // The Flow Snapshot is in the key too: a version update keeps the Stage but
+  // changes its Conditions, so a cached list must not outlive the version.
+  const snapshotId = opportunity?.flow_snapshot_id ?? null;
 
   const { data: checklist = [] } = useQuery({
-    queryKey: ["stageChecklist", opportunityId, stageCode],
+    queryKey: ["stageChecklist", opportunityId, stageCode, snapshotId],
     // Read fresh, not from the prop: right after a Save or a move the prop can
     // still be the copy from before it.
     queryFn: () => opportunityService.getStageChecklist(opportunityId),
@@ -74,7 +78,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   // turns up again in the list afterward — keep one entry per file.
   const seenFiles = new Set();
   const existingFiles = notes
-    .flatMap((n) => n.metadata?.attachments || [])
+    .flatMap((n) => listableAttachments(n.metadata?.attachments))
     .filter((f) => {
       const key = f.url ?? f.name;
       if (seenFiles.has(key)) return false;
@@ -165,7 +169,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
       if (accepts.length > 0 && !accepts.includes(type)) {
         throw new Error(`This condition only accepts: ${acceptsLabel(accepts)}.`);
       }
-      await stampAndAttach(condition, { ...file });
+      await stampAndAttach(condition, { ...file, linked: true });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stageChecklist", opportunityId, stageCode] });
@@ -283,7 +287,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                 }
                 uploading={uploadingAttachment[condition.id]}
                 onUpload={(file) => handleUpload(condition, file)}
-                onPickExisting={existingFiles.length > 0 ? () => setPickingFor(condition) : undefined}
+                onPickExisting={() => setPickingFor(condition)}
                 assignmentValue={assignmentId[condition.id]}
                 onAssignmentChange={(val) => setAssignmentId((p) => ({ ...p, [condition.id]: val }))}
                 onAssign={() =>
@@ -305,6 +309,10 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-72 space-y-0.5 overflow-y-auto">
+            <BrochureLibraryPicker
+              disabled={pickExistingMutation.isPending}
+              onPick={(file) => pickingFor && pickExistingMutation.mutate({ condition: pickingFor, file })}
+            />
             {existingFiles.length === 0 && (
               <p className="px-1 py-4 text-center text-xs text-muted-foreground">
                 No files on this SOR yet.

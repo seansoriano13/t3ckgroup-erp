@@ -19,6 +19,7 @@ import PageShell from "../../components/ui/PageShell";
 import DesktopNotice from "@/components/ui/DesktopNotice";
 import { formatBuildFingerprint } from "@/utils/buildFingerprint";
 import LeaveCategoriesConfig from "../../components/hr/LeaveCategoriesConfig";
+import MealBreakConfig from "../../components/hr/MealBreakConfig";
 import VenueManager from "../../components/settings/VenueManager";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
 import LeadSourceManager from "../../components/settings/LeadSourceManager";
@@ -291,6 +292,7 @@ function HrPanel() {
   return (
     <>
       <LeaveCategoriesConfig />
+      <MealBreakConfig />
       {isSuperAdmin && <DayShiftConfig />}
     </>
   );

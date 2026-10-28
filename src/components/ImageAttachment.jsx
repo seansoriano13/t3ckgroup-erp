@@ -8,6 +8,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { storageService } from "../services/storageService";
 import { cloudinaryThumb } from "../lib/cloudinaryThumb";
 import toast from "react-hot-toast";
+import { isPasteInsideTextField } from "@/utils/pasteTarget";
 
 export default function ImageAttachment({ 
   taskId, 
@@ -67,6 +68,7 @@ export default function ImageAttachment({
     if (readOnly || taskId === "NEW") return;
 
     const handlePaste = (e) => {
+      if (isPasteInsideTextField(e)) return;
       const items = Array.from(e.clipboardData?.items || []);
       const imageItems = items.filter((item) => item.type.startsWith("image/"));
       if (imageItems.length === 0) return;

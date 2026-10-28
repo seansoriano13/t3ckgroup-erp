@@ -668,6 +668,45 @@ export const salesFlowService = {
     return stagesOf(flowId);
   },
 
+  /**
+   * Auto-move (#757): a Stage with exactly one next Stage can move a deal on
+   * by itself once every condition is met. Refused on a Stage with any other
+   * number of next Stages.
+   */
+  async setStageAutoMove(stageId, autoMove, actorId) {
+    await requireSuperAdmin(actorId);
+    const { stage } = await requireDraftStage(stageId);
+
+    if (autoMove) {
+      const { data: outgoing, error: edgeError } = await supabase
+        .from("flow_edges")
+        .select("id")
+        .eq("from_stage_id", stageId);
+      if (edgeError) throw edgeError;
+      if ((outgoing || []).length !== 1) {
+        throw new Error(`"${stage.name}" needs exactly one next Stage to move on by itself.`);
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("flow_stages")
+      .update({ auto_move: Boolean(autoMove), updated_at: new Date().toISOString() })
+      .eq("id", stageId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "FLOW_STAGE",
+      stageId,
+      `Stage "${data.name}" auto-move turned ${data.auto_move ? "on" : "off"}.`,
+      { event: "FLOW_STAGE_AUTO_MOVE_SET", autoMove: data.auto_move, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
   /** Marks a Stage as one where deals stop. A flow may have many. */
   async setStageTerminal(stageId, isTerminal, actorId) {
     await requireSuperAdmin(actorId);
@@ -910,6 +949,44 @@ export const salesFlowService = {
     await salesFlowService.removeEdge(edge.id, actorId);
 
     return newStage;
+  },
+
+  /**
+   * Names the flow's Notice of Award Stage, the Stage whose first arrival fills
+   * in a blank Date of Award (ADR 0047). Like the Won Stage, it is a column on
+   * the flow, so a flow can name only one. Null clears it.
+   */
+  async setAwardStage(flowId, stageId, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraft(flowId);
+
+    let stageName = "None";
+    if (stageId !== null) {
+      const stages = await stagesOf(flowId);
+      const stage = stages.find((s) => s.id === stageId);
+      if (!stage) {
+        throw new Error("A flow's Notice of Award Stage must be one of its own Stages.");
+      }
+      stageName = stage.name;
+    }
+
+    const { data, error } = await supabase
+      .from("sales_flows")
+      .update({ award_stage_id: stageId, updated_at: new Date().toISOString() })
+      .eq("id", flowId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      flowId,
+      `Notice of Award Stage set to "${stageName}".`,
+      { event: "FLOW_AWARD_STAGE_SET", flowId, stageId, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
   },
 
   /**
@@ -1176,6 +1253,49 @@ export const salesFlowService = {
     await materializeSnapshotIntoFlow(flow, snapshotData, actorId);
 
     return this.getFlow(saleType.id);
+  },
+
+  /**
+   * The flow's current shape as a Flow Snapshot file (issue #756) — the same
+   * `snapshot_data` a publish would write, wrapped so an import can recognise
+   * it. Works on drafts and locked flows alike.
+   */
+  async exportFlow(flowId) {
+    const flow = await loadFlow(flowId);
+    const [stages, edges] = await Promise.all([stagesOf(flowId), edgesOf(flowId)]);
+    const snapshotData = await buildSnapshotData(flow, stages, edges);
+    return {
+      kind: "flow-snapshot",
+      exportedAt: new Date().toISOString(),
+      snapshotData,
+    };
+  },
+
+  /**
+   * Starts a new draft flow from an exported file (text or parsed object),
+   * through `importSnapshot`. A bare `snapshot_data` object is accepted too.
+   */
+  async importFlowFile(file, name, actorId) {
+    let parsed = file;
+    if (typeof file === "string") {
+      try {
+        parsed = JSON.parse(file);
+      } catch {
+        throw new Error("That file is not a Flow Snapshot.");
+      }
+    }
+    const snapshotData = parsed?.kind === "flow-snapshot" ? parsed.snapshotData : parsed;
+    if (!snapshotData || !Array.isArray(snapshotData.stages)) {
+      throw new Error("That file is not a Flow Snapshot.");
+    }
+    return this.importSnapshot(snapshotData, name, actorId);
+  },
+
+  /** Copies a flow into a new Sale Type draft named `name` (issue #756). */
+  async duplicateFlow(flowId, name, actorId) {
+    await requireSuperAdmin(actorId);
+    const exported = await this.exportFlow(flowId);
+    return this.importSnapshot(exported.snapshotData, name, actorId);
   },
 
   /**

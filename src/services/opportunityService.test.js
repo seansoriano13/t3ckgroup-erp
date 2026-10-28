@@ -1032,6 +1032,33 @@ describe("opportunityService", () => {
       })
     })
 
+    describe("auto-move (#757)", () => {
+      it("moves the SOR on when the last condition is met, and the history says so", async () => {
+        db.internal.rowsOf("flow_stages").find((st) => st.id === lead.id).auto_move = true
+        const condition = makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Sign-off" })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+
+        await opportunityService.satisfyCondition(created.id, condition.id, registrar.id)
+
+        const row = db.internal.rowsOf("sales_opportunities").find((o) => o.id === created.id)
+        expect(row.flow_stage_id).toBe(qualified.id)
+        const notes = (await opportunityService.getNotes(created.id)).map((n) => n.content)
+        expect(notes.some((n) => n.includes("(moved automatically)"))).toBe(true)
+      })
+
+      it("stays put when the Stage does not have Auto-move", async () => {
+        const condition = makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Sign-off" })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+
+        await opportunityService.satisfyCondition(created.id, condition.id, registrar.id)
+
+        const row = db.internal.rowsOf("sales_opportunities").find((o) => o.id === created.id)
+        expect(row.flow_stage_id).toBe(lead.id)
+      })
+    })
+
     describe("tickbox", () => {
       it("satisfies a tickbox condition and records who and when", async () => {
         const condition = makeStageCondition({
@@ -1752,6 +1779,52 @@ describe("opportunityService", () => {
       const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
 
       expect(won.contract_date).toBeTruthy()
+    })
+
+    describe("Date of Award (#744, ADR 0047)", () => {
+      beforeEach(() => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).award_stage_id = qualified.id
+      })
+
+      it("fills a blank Date of Award the first time the deal reaches the flow's Notice of Award Stage", async () => {
+        const deal = await register()
+        expect(deal.date_of_award).toBeFalsy()
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.date_of_award).toBeTruthy()
+      })
+
+      it("never overwrites a Date of Award that was typed in earlier", async () => {
+        const deal = await register()
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).date_of_award = "2026-01-15"
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.date_of_award).toBe("2026-01-15")
+      })
+
+      it("fills a blank Date of Award on a Return into the Notice of Award Stage too", async () => {
+        makeFlowEdge(qualified, lead)
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999", sale_type_id: saleType.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).date_of_award = null
+
+        const back = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
+
+        expect(back.date_of_award).toBeTruthy()
+      })
+
+      it("leaves the Date of Award blank on a Stage that is not the Notice of Award Stage", async () => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).award_stage_id = null
+        const deal = await register()
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.date_of_award).toBeFalsy()
+      })
     })
 
     it("keeps the Contract Date when the deal loops back out of the Won Stage", async () => {

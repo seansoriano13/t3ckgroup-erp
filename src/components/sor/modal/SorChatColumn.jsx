@@ -1,11 +1,12 @@
 import { FileInput } from "@/components/ui/FileInput";
+import BrochureLibraryPicker from "@/components/BrochureLibraryPicker";
 import { Clock, KeyRound, Lock, Paperclip, Send, Sparkles } from "lucide-react";
 import EmojiPicker from "../../ui/EmojiPicker";
 import { cn } from "@/lib/utils";
 import Spinner from "../../ui/Spinner";
 import Avatar from "../../Avatar";
 import { AttachmentPreviews, AttachmentList } from "../../ui/Attachments";
-import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING } from "../../../utils/attachments";
+import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING, listableAttachments } from "../../../utils/attachments";
 import MentionTextarea, { NoteText } from "../../ui/MentionTextarea";
 import { Button } from "../../ui/button";
 import TaskCreatedNoteCard from "./TaskCreatedNoteCard";
@@ -167,7 +168,7 @@ export default function SorChatColumn({
                       )
                     )}
                     <AttachmentList
-                      attachments={n.metadata?.attachments}
+                      attachments={listableAttachments(n.metadata?.attachments)}
                       className={n.content ? "mt-2" : "mt-1"}
                     />
                   </div>
@@ -191,6 +192,8 @@ export default function SorChatColumn({
             accept={ALLOWED_EXTENSIONS_STRING}
             onFiles={attachments.addFiles}
           />
+
+          <BrochureLibraryPicker compact disabled={isPosting} onPick={attachments.addLinked} />
 
           {files.length > 0 && (
             <div className="mb-2">

@@ -9,6 +9,7 @@ import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { stubRpc } from "@/test/msw/server"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
+import { MemoryRouter } from "react-router"
 import GlobalDetailManager from "./GlobalDetailManager"
 
 let authUser
@@ -38,7 +39,7 @@ beforeEach(() => {
 
 describe("a Purchase Request opened from a mention", () => {
   it("opens with the cursor in the Chat", async () => {
-    renderWithProviders(<GlobalDetailManager />)
+    renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>)
     act(() => {
       window.dispatchEvent(
         new CustomEvent("OPEN_ENTITY_DETAILS", {
@@ -60,7 +61,7 @@ describe("a Purchase Request opened from a mention", () => {
           }),
         )
       })
-    renderWithProviders(<GlobalDetailManager />)
+    renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>)
     openFromMention()
     expect(await screen.findByText("Can you quote this?")).toBeInTheDocument()
 

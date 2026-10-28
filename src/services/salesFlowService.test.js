@@ -146,6 +146,24 @@ describe("salesFlowService", () => {
       expect(stages.map((s) => s.name)).toEqual(["Qualified", "Lead"])
     })
 
+    it("sets Auto-move only on a Stage with exactly one next Stage (#757)", async () => {
+      const flow = makeSalesFlow()
+      const a = await salesFlowService.addStage(flow.id, "A", admin.id)
+      const b = await salesFlowService.addStage(flow.id, "B", admin.id)
+      const c = await salesFlowService.addStage(flow.id, "C", admin.id)
+
+      await expect(salesFlowService.setStageAutoMove(a.id, true, admin.id)).rejects.toThrow(/exactly one next Stage/)
+
+      await salesFlowService.addEdge(flow.id, a.id, b.id, admin.id)
+      const on = await salesFlowService.setStageAutoMove(a.id, true, admin.id)
+      expect(on.auto_move).toBe(true)
+
+      await salesFlowService.addEdge(flow.id, a.id, c.id, admin.id)
+      await expect(salesFlowService.setStageAutoMove(b.id, true, admin.id)).rejects.toThrow(/exactly one next Stage/)
+      const off = await salesFlowService.setStageAutoMove(a.id, false, admin.id)
+      expect(off.auto_move).toBe(false)
+    })
+
     it("marks a Stage terminal, so the flow records where deals stop", async () => {
       const flow = makeSalesFlow()
       const lost = await salesFlowService.addStage(flow.id, "Lost", admin.id)
@@ -581,6 +599,42 @@ describe("salesFlowService", () => {
       expect(imported.saleType.id).not.toBe(sourceSaleType.id)
       expect(imported.flow.id).not.toBe(sourceFlow.id)
       expect(imported.stages[0].id).not.toBe(lead.id)
+    })
+  })
+
+  describe("export, import file and duplicate (issue #756)", () => {
+    async function buildSource(name) {
+      const st = await salesFlowService.createSaleType(name, admin.id)
+      const flow = (await salesFlowService.getFlow(st.id)).flow
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const won = await salesFlowService.addStage(flow.id, "Awarded", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
+      await salesFlowService.setWonStage(flow.id, won.id, admin.id)
+      return flow
+    }
+
+    it("export then import gives a draft with the same stages and moves", async () => {
+      const flow = await buildSource("Export Source")
+      const file = JSON.stringify(await salesFlowService.exportFlow(flow.id))
+      const imported = await salesFlowService.importFlowFile(file, "Export Copy", admin.id)
+      expect(imported.flow.state).toBe("draft")
+      expect(imported.stages.map((s) => s.name)).toEqual(["Lead", "Awarded"])
+      expect(imported.edges.length).toBe(1)
+      expect(imported.flow.won_stage_id).toBeTruthy()
+    })
+
+    it("rejects a file that is not a Flow Snapshot", async () => {
+      await expect(salesFlowService.importFlowFile("nope", "X", admin.id)).rejects.toThrow(/not a Flow Snapshot/)
+      await expect(salesFlowService.importFlowFile({ a: 1 }, "X", admin.id)).rejects.toThrow(/not a Flow Snapshot/)
+    })
+
+    it("duplicate makes a new draft Sale Type", async () => {
+      const flow = await buildSource("Dup Source")
+      const copy = await salesFlowService.duplicateFlow(flow.id, "Dup Copy", admin.id)
+      expect(copy.saleType.name).toBe("Dup Copy")
+      expect(copy.flow.id).not.toBe(flow.id)
+      expect(copy.flow.state).toBe("draft")
+      expect(copy.stages.length).toBe(2)
     })
   })
 
