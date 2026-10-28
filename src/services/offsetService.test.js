@@ -324,6 +324,22 @@ describe("offsetService", () => {
       expect(await offsetService.getPendingOffsetHours(capped.id)).toBe(0)
     })
 
+    it("still counts a head-declined leave once HR has overridden the decline", async () => {
+      const capped = makeEmployee({ name: "Capped Employee", offset_hours_balance: 4 })
+      makeOffsetLeave({
+        employee_id: capped.id,
+        date: "2026-03-10",
+        start_time: "09:00",
+        end_time: "13:00",
+        hours: 4,
+        status: "PENDING",
+        head_status: "REJECTED",
+        hr_override: true,
+      })
+
+      expect(await offsetService.getPendingOffsetHours(capped.id)).toBe(4)
+    })
+
     it("frees the hours back up for a new application as soon as the pending one is withdrawn", async () => {
       const capped = makeEmployee({ name: "Capped Employee", offset_hours_balance: 4 })
 

@@ -61,7 +61,7 @@ async function getPendingSilHours(employeeId) {
     .select('hours')
     .eq('employee_id', employeeId)
     .eq('status', 'PENDING')
-    .neq('head_status', 'REJECTED');
+    .or('head_status.neq.REJECTED,hr_override.eq.true');
 
   if (error) throw new Error(error.message);
   return (data || []).reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
