@@ -207,17 +207,6 @@ export const purchaseRequestService = {
   },
 
   /**
-   * Whether the signed-in employee has Purchasing access (#273): the only people who may add
-   * Requested Items from the Costing Matrix. A convenience for showing the button; the
-   * database refuses anyone else.
-   */
-  async hasPurchasingAccess() {
-    const { data, error } = await supabase.rpc("has_purchasing_access");
-    if (error) throw error;
-    return data === true;
-  },
-
-  /**
    * #501 — the request's SOR stock snapshot (#202), `{ fetched_at, data }`,
    * or null. Read through the request, not `sor_stock_snapshots`, whose policy
    * hides it from a Buyer without SOR access; the picker and the saved items
