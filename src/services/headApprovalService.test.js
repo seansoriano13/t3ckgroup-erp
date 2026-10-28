@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { assertHeadCleared, decideHeadApproval, hrOverrideApprove } from "./headApprovalService"
+import { assertHeadCleared, decideHeadApproval, getPendingForHead, hrOverrideApprove } from "./headApprovalService"
 import { offsetService } from "./offsetService"
 import { silService } from "./silService"
 import { stubEdgeFunction } from "@/test/msw/server"
@@ -120,6 +120,30 @@ describe("headApprovalService", () => {
           status: "PENDING",
         }),
       ).rejects.toThrow(/head status must be/)
+    })
+  })
+
+  describe("getPendingForHead", () => {
+    it("lists only requests routed to that head by default", async () => {
+      const headA = makeHead({ name: "Head A" })
+      const headB = makeHead({ name: "Head B" })
+      makeOffsetLeave({ head_id: headA.id, head_status: "PENDING" })
+      makeOffsetLeave({ head_id: headB.id, head_status: "PENDING" })
+
+      const rows = await getPendingForHead(headA.id)
+      expect(rows.map((r) => r.head_id)).toEqual([headA.id])
+    })
+
+    it("lists every head's pending requests when asked for all (super admins)", async () => {
+      const headA = makeHead({ name: "Head A" })
+      const headB = makeHead({ name: "Head B" })
+      const admin = makeEmployee({ name: "Super Admin" })
+      makeOffsetLeave({ head_id: headA.id, head_status: "PENDING" })
+      makeOffsetLeave({ head_id: headB.id, head_status: "PENDING" })
+      makeOffsetLeave({ head_id: headB.id, head_status: "APPROVED" })
+
+      const rows = await getPendingForHead(admin.id, { all: true })
+      expect(rows.map((r) => r.head_id).sort()).toEqual([headA.id, headB.id].sort())
     })
   })
 
