@@ -9,7 +9,9 @@ import OpportunityItemsEditor from "../OpportunityItemsEditor";
 import TabSkeleton from "./TabSkeleton";
 import { useSorModalData } from "./useSorModalData";
 import { useSorPurchaseRequest } from "./useSorPurchaseRequest";
-import { requestedItemForLine } from "../../../utils/sorPurchaseRequest";
+import { requestedItemForLine, p0ForLine } from "../../../utils/sorPurchaseRequest";
+import { odooPurchaseOrderUrl } from "../../../utils/odooLinks";
+import { ExternalLink } from "@/components/ui/external-link";
 import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../../../constants/purchaseRequest";
 import { opportunityService } from "../../../services/opportunityService";
 import { stockBadge, STOCK_BADGE_THEME } from "../../../constants/stock";
@@ -33,6 +35,25 @@ function RequestedItemStatus({ line, requested }) {
         theme={ITEM_STATUS_THEME[item.status]}
         title="Requested Item status"
       />
+    </span>
+  );
+}
+
+/** The P0 a bought line was ordered on (#747), linked to Odoo when its order id is known. Nothing before it is bought. */
+function LineP0({ line, requested }) {
+  const p0 = p0ForLine(line, requested);
+  if (!p0) return null;
+  const href = odooPurchaseOrderUrl(p0.odooPoId);
+  return (
+    <span className="mt-0.5 block text-[11px] font-medium text-muted-foreground" data-testid="line-p0">
+      P0:{" "}
+      {href ? (
+        <ExternalLink href={href} className="font-mono font-semibold text-foreground underline underline-offset-2">
+          {p0.poNumber}
+        </ExternalLink>
+      ) : (
+        <span className="font-mono font-semibold text-foreground">{p0.poNumber}</span>
+      )}
     </span>
   );
 }
@@ -272,6 +293,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
                   </span>
                 )}
                 <RequestedItemStatus line={it} requested={purchaseRequest?.items} />
+                <LineP0 line={it} requested={purchaseRequest?.items} />
                 {it.unit && <span className="mt-0.5 inline-block text-[11px] font-medium text-muted-foreground">Unit: {it.unit}</span>}
               </div>
               <div className="col-span-2 text-right">
