@@ -1229,6 +1229,17 @@ export function stubIpasRpcs({
     })
   })
 
+  // #710: the retail multiplier and wholesale discount, Markup list only (the stub's caller is on it).
+  stubRpc("ipas_can_set_markup", () => true)
+  stubRpc("ipas_set_markup", (args) => {
+    const ipas = findRow("ipas", args.p_ipas_id)
+    if (!ipas) refuse("P0002", `ipas_set_markup: IPAS ${args.p_ipas_id} not found`)
+    return updateRow("ipas", ipas, {
+      retail_multiplier: args.p_multiplier ?? null,
+      wholesale_discount_pct: args.p_discount_pct ?? 30,
+    })
+  })
+
   stubRpc("ipas_remove_charge", (args) => {
     requireMoney("ipas_remove_charge")
     const row = findRow("ipas_charges", args.p_charge_id)

@@ -2,13 +2,13 @@ import { CircleAlert, Check, Paperclip, Pencil, Plus, Trash2 } from "lucide-reac
 
 import { Button } from "../ui/button";
 import DetailGrid from "@/components/record/DetailGrid";
-import LinerList from "@/components/record/LinerList";
 import { ExternalLink } from "../ui/external-link";
 import SectionHeader from "../ui/SectionHeader";
 import { SelectField } from "../ui/SelectField";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
 import IpasChargesTable from "./IpasChargesTable";
+import IpasLandedCostTable from "./IpasLandedCostTable";
 import IpasPaymentsTable from "./IpasPaymentsTable";
 import { useEditable } from "@/components/record/sectionChrome";
 import {
@@ -38,17 +38,6 @@ const pesos = (value) => formatAmount(value, "PHP");
 
 /** An amount inside a sentence or a label, in the same monospace figures as the tables. */
 const Amt = ({ children }) => <span className="font-mono tabular-nums">{children}</span>;
-
-/** Pieces of a row's sub line, set apart with a middle dot. */
-function Dotted({ parts }) {
-  const shown = parts.filter(Boolean);
-  return shown.map((part, index) => (
-    <span key={index}>
-      {index > 0 && " · "}
-      {part}
-    </span>
-  ));
-}
 
 /**
  * Section 1's money: the header amounts (P.I/QT Amount typed; DP and FP read
@@ -209,7 +198,7 @@ export function LandedCostBadge({ status, estimate = false }) {
  * the steps before it; LC Odoo Done, once reached, is green (#586). Section 3's
  * sign-offs arrive as `children`, below the Landed Cost.
  */
-export function IpasCostingSection({ ipas, canChange: granted = false, canSetStatus, onSetStatus, onSetSplit, children = null }) {
+export function IpasCostingSection({ ipas, canChange: granted = false, canSetStatus, onSetStatus, onSetSplit, canSetMarkup = false, onSetMarkup, children = null }) {
   const canChange = useEditable(granted);
   const canStep = useEditable(true) && Boolean(onSetStatus);
   const lc = ipas.landedCost;
@@ -339,39 +328,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
                   Nothing on the lines has a price to spread by, so charges are spread equally.
                 </p>
               )}
-              <LinerList
-                label="Landed Cost per line"
-                empty="The Odoo PO has no item lines to cost."
-                total={{
-                  label: (
-                    <>
-                      Goods <Amt>{pesos(lc.totals.goodsPhp)}</Amt> + charges <Amt>{pesos(lc.totals.chargesPhp)}</Amt> + charge fees{" "}
-                      <Amt>{pesos(lc.totals.chargeFeesPhp)}</Amt> + shipping fees <Amt>{pesos(lc.totals.shippingFeesPhp)}</Amt>
-                    </>
-                  ),
-                  value: pesos(lc.totals.landedPhp),
-                }}
-                rows={lc.lines.map((line, index) => ({
-                  key: line.lineId ?? index,
-                  testId: "ipas-landed-line",
-                  main: <span className="whitespace-pre-line">{line.name}</span>,
-                  sub: (
-                    <Dotted
-                      parts={[
-                        `Unit price ${pesos(line.unitPricePhp)}${foreign ? ` (${formatAmount(line.unitPriceForeign, lc.currency)})` : ""}`,
-                        `Goods ${pesos(line.goodsPhp)}`,
-                        `Charges & fees ${pesos(line.spreadPhp)}`,
-                        `Per unit ${pesos(line.landedPerUnitPhp)}`,
-                      ]}
-                    />
-                  ),
-                  subWrap: true,
-                  quantity: `${line.quantity} ${line.unit}`,
-                  actions: (
-                    <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">{pesos(line.landedPhp)}</span>
-                  ),
-                }))}
-              />
+              <IpasLandedCostTable ipas={ipas} canSetMarkup={canSetMarkup} onSetMarkup={onSetMarkup} />
             </>
           )}
         </div>

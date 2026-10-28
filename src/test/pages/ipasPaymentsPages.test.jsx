@@ -572,8 +572,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       renderDetail(row.id, "costing", "edit");
 
       const line = await screen.findByTestId("ipas-landed-line");
-      // 6 x 1,250 + 600 of charges: 8,100 for the line, 1,350 a unit.
-      expect(within(line).getByText(/8,100\.00/)).toBeInTheDocument();
+      // 6 x 1,250 + 600 of charges: 1,350 a unit.
       expect(within(line).getByText(/1,350\.00/)).toBeInTheDocument();
       expect(screen.getAllByText("Provisional").length).toBeGreaterThan(0);
       expect(screen.queryByText("Final")).not.toBeInTheDocument();
@@ -627,11 +626,11 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas")[0].landed_cost_split).toBe("quantity"));
-      // 1,000 over 2 and 8 units: 200 and 800.
+      // 1,000 over 2 and 8 units: 200 and 800, so 200.00 and 150.00 landed a unit.
       await waitFor(() => {
         const lines = screen.getAllByTestId("ipas-landed-line");
-        expect(within(lines[0]).getByText(/400\.00/)).toBeInTheDocument();
-        expect(within(lines[1]).getByText(/1,200\.00/)).toBeInTheDocument();
+        expect(within(lines[0]).getByText(/200\.00/)).toBeInTheDocument();
+        expect(within(lines[1]).getByText(/150\.00/)).toBeInTheDocument();
       });
     });
   });
