@@ -113,8 +113,10 @@ export const paymentDraft = (payment) => ({
   kind: payment.kind ?? IPAS_PAYMENT_KIND.PAYMENT,
   paidOn: payment.paid_on ?? "",
   amount: text(payment.amount),
-  phpDebited: text(payment.php_debited),
-  chargeFeePhp: payment.charge_fee_php ? text(payment.charge_fee_php) : "",
+  forexRate: payment.rate ? text(payment.rate) : "",
+  chargeFeePhp: payment.bank_charge_php ? text(payment.bank_charge_php) : "",
+  docStampPhp: payment.doc_stamp_php ? text(payment.doc_stamp_php) : "",
+  miscFeePhp: payment.misc_fee_php ? text(payment.misc_fee_php) : "",
   methodId: payment.method_id ?? "",
   checkNo: payment.check_no ?? "",
   proofUrl: payment.proof_url ?? "",
@@ -127,8 +129,10 @@ export const newPaymentDraft = () => ({
   kind: IPAS_PAYMENT_KIND.PAYMENT,
   paidOn: getCurrentLocalDate(),
   amount: "",
-  phpDebited: "",
+  forexRate: "",
   chargeFeePhp: "",
+  docStampPhp: "",
+  miscFeePhp: "",
   methodId: "",
   checkNo: "",
   proofUrl: "",
@@ -331,10 +335,14 @@ function paymentProblem(p, isPhp) {
   if (!isIsoDate(p.paidOn)) return "Give the date of the payment.";
   if (!positive(p.amount)) return "Amount must be a number more than zero.";
   // Blank is fine (#604); a figure that is given has to be a number above zero.
-  if (!isPhp && !blank(p.phpDebited) && !positive(p.phpDebited))
-    return "Pesos taken from the bank must be a number more than zero, or left blank.";
+  if (!isPhp && !blank(p.forexRate) && !positive(p.forexRate))
+    return "Forex rate paid must be a number more than zero, or left blank.";
   if (!parseAmountInput(p.chargeFeePhp).ok)
-    return "Charge fee must be a number.";
+    return "Bank charge must be a number.";
+  if (!parseAmountInput(p.docStampPhp).ok)
+    return "Doc stamp must be a number.";
+  if (!parseAmountInput(p.miscFeePhp).ok)
+    return "Misc fee must be a number.";
   if (!p.methodId) return "Pick the payment method.";
   return null;
 }
@@ -357,8 +365,10 @@ const paymentValues = (p) => ({
   kind: p.kind,
   paidOn: p.paidOn,
   amount: p.amount,
-  phpDebited: p.phpDebited,
+  forexRate: p.forexRate,
   chargeFeePhp: p.chargeFeePhp,
+  docStampPhp: p.docStampPhp,
+  miscFeePhp: p.miscFeePhp,
   methodId: p.methodId,
   checkNo: p.checkNo,
   proofUrl: p.proofUrl,

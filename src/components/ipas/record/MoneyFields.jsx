@@ -38,6 +38,7 @@ import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowed
 import { formatAmount } from "@/utils/ipas";
 import { kindsToAdd } from "@/utils/ipasDocuments";
 import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
+import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateDay, formatRateNumber, rateDivergence } from "@/utils/referenceRate";
 import { Field, GroupTitle, PickField, ReadValue } from "./FormFields";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
@@ -121,15 +122,15 @@ export function FreightField({ ipas, form, set, disabled }) {
   return <PickField id="f-freight" label="Freight service" emptyLabel="None" options={options} value={form.freight} disabled={disabled} onChange={(v) => set("freight", v)} />;
 }
 
-/** The one-line explanation under "Pesos taken from the bank" (#604). */
-const PESOS_HINT = "Optional. What the bank took out for this payment, from the bank statement. Left blank, Landed Cost uses the Reference Rate of the payment date.";
+/** The one-line explanation under "Forex rate paid" (#708). */
+const RATE_HINT = "Pre-filled with the Reference Rate of the payment date. Change it to the rate you actually paid; a payment from a dollar account takes the rate those dollars were bought at.";
 
 function RateNote({ ipas, row }) {
   const currency = ipas.currency;
   const amount = parseAmountInput(row.amount);
-  const php = parseAmountInput(row.phpDebited);
+  const rate = parseAmountInput(row.forexRate);
   const { data: referenceRate, isFetched, isError } = useReferenceRate(currency, row.paidOn, { enabled: isIsoDate(row.paidOn) });
-  const typedRate = amount.ok && php.ok && amount.value > 0 && php.value > 0 ? php.value / amount.value : null;
+  const typedRate = amount.ok && rate.ok && amount.value > 0 && rate.value > 0 ? rate.value : null;
   const divergence = rateDivergence(typedRate, referenceRate);
   if (!isFetched) return null;
   return (
@@ -147,7 +148,7 @@ function RateNote({ ipas, row }) {
       )}
       {divergence?.flagged && (
         <span className="mt-0.5 block font-medium text-amber-700 dark:text-amber-400" data-testid="payment-rate-divergence">
-          That is {divergence.pct.toFixed(1)}% away from the reference. Check the pesos taken from the bank against the remittance advice.
+          That is {divergence.pct.toFixed(1)}% away from the reference. Check the rate against the remittance advice.
         </span>
       )}
     </p>
@@ -213,8 +214,19 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
   const methods = optionsForPicker(ipas.options ?? [], IPAS_OPTION_LIST.PAYMENT_METHOD, saved?.method_id ?? null).map(asOption);
   const id = (name) => `pay-${row.key}-${name}`;
   const amount = parseAmountInput(row.amount);
-  const php = parseAmountInput(row.phpDebited);
+  const rate = parseAmountInput(row.forexRate);
   const fee = parseAmountInput(row.chargeFeePhp);
+  const stamp = parseAmountInput(row.docStampPhp);
+  const misc = parseAmountInput(row.miscFeePhp);
+  const inPesos = !isPhp && amount.ok && rate.ok && amount.value > 0 && rate.value > 0 ? pesosFromRate(amount.value, rate.value) : null;
+  const { data: referenceRate } = useReferenceRate(ipas.currency, row.paidOn, { enabled: !isPhp && !saved && isIsoDate(row.paidOn) });
+  // A new payment starts at the day's Reference Rate (#708); once typed over, it is left alone.
+  useEffect(() => {
+    if (!isPhp && !saved && row.forexRate === "" && referenceRate?.php_per_unit) {
+      onPatch({ forexRate: String(referenceRate.php_per_unit) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the reference rate arrives
+  }, [referenceRate?.php_per_unit]);
   const kindLabel = IPAS_PAYMENT_KIND_LABELS[saved?.kind] ?? "payment";
   return (
     <DraftRow
@@ -249,30 +261,51 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
         {!isPhp && (
           <div className="min-w-0">
             <Field
-              id={id("phpDebited")}
-              label="Pesos taken from the bank"
+              id={id("forexRate")}
+              label="Forex rate paid"
               kind="amount"
               prefix="PHP"
-              value={row.phpDebited}
+              value={row.forexRate}
               disabled={disabled}
-              error={row.phpDebited !== "" && !php.ok ? "Not a number" : undefined}
-              onChange={(v) => onPatch({ phpDebited: v })}
+              error={row.forexRate !== "" && !rate.ok ? "Not a number" : undefined}
+              onChange={(v) => onPatch({ forexRate: v })}
             />
             <p className="mt-1 pl-1 text-xs text-muted-foreground" data-testid="payment-pesos-hint">
-              {PESOS_HINT}
+              {RATE_HINT}
             </p>
           </div>
         )}
+        {!isPhp && <ReadValue label="In pesos">{inPesos === null ? null : formatAmount(inPesos, "PHP")}</ReadValue>}
         {!isPhp && <RateNote ipas={ipas} row={row} />}
         <Field
           id={id("chargeFeePhp")}
-          label="Charge fee (PHP)"
+          label="Bank charge (PHP)"
           kind="amount"
           prefix="PHP"
           value={row.chargeFeePhp}
           disabled={disabled}
           error={row.chargeFeePhp !== "" && !fee.ok ? "Not a number" : undefined}
           onChange={(v) => onPatch({ chargeFeePhp: v })}
+        />
+        <Field
+          id={id("docStampPhp")}
+          label="Doc stamp (PHP)"
+          kind="amount"
+          prefix="PHP"
+          value={row.docStampPhp}
+          disabled={disabled}
+          error={row.docStampPhp !== "" && !stamp.ok ? "Not a number" : undefined}
+          onChange={(v) => onPatch({ docStampPhp: v })}
+        />
+        <Field
+          id={id("miscFeePhp")}
+          label="Misc fee (PHP)"
+          kind="amount"
+          prefix="PHP"
+          value={row.miscFeePhp}
+          disabled={disabled}
+          error={row.miscFeePhp !== "" && !misc.ok ? "Not a number" : undefined}
+          onChange={(v) => onPatch({ miscFeePhp: v })}
         />
         <PickField id={id("methodId")} label="Method" required placeholder="Pick a method" options={methods} value={row.methodId} disabled={disabled} onChange={(v) => onPatch({ methodId: v })} />
         <Field id={id("checkNo")} label="Check No." placeholder="When paid by check" value={row.checkNo} disabled={disabled} onChange={(v) => onPatch({ checkNo: v })} />
