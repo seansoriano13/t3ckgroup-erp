@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { itemsForVisit, openItems, requestedItemForLine, shapeSorOverview } from "./sorPurchaseRequest"
+import { itemsForVisit, openItems, p0ForLine, requestedItemForLine, shapeSorOverview } from "./sorPurchaseRequest"
 
 const item = (over) => ({ id: "i", name: "Hose", source: "sor_line", odoo_product_id: null, status: "not_checked", created_at: "2026-01-05T00:00:00Z", ...over })
 
@@ -81,5 +81,25 @@ describe("openItems / shapeSorOverview", () => {
       items: [{ id: "1" }],
     })
     expect(shapeSorOverview({ request_id: "r", buyer_id: null, items: null })).toMatchObject({ buyer: null, items: [] })
+  })
+})
+
+describe("p0ForLine (#747)", () => {
+  const line = { id: "line-1", product_name: "Hose" }
+
+  it("gives the P0 of a bought line, with the Odoo order id when known", () => {
+    const items = [item({ sor_item_id: "line-1", po_number: "P00012", po_state: "confirmed", odoo_po_id: 42 })]
+    expect(p0ForLine(line, items)).toEqual({ poNumber: "P00012", odooPoId: 42 })
+  })
+
+  it("keeps the P0 without a link when no order id is known", () => {
+    const items = [item({ sor_item_id: "line-1", po_number: "P00012", po_state: "confirmed" })]
+    expect(p0ForLine(line, items)).toEqual({ poNumber: "P00012", odooPoId: null })
+  })
+
+  it("shows nothing for a line not bought yet, or only on an RFQ", () => {
+    expect(p0ForLine(line, [item({ sor_item_id: "line-1" })])).toBeNull()
+    expect(p0ForLine(line, [item({ sor_item_id: "line-1", po_number: "P00012", po_state: "rfq" })])).toBeNull()
+    expect(p0ForLine(line, [])).toBeNull()
   })
 })

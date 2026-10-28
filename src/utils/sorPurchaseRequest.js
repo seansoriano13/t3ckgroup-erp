@@ -67,3 +67,14 @@ export function shapeSorOverview(row) {
     items: Array.isArray(row.items) ? row.items : [],
   };
 }
+
+/**
+ * The P0 to show on a Product List line (#747): the Requested Item P0 once the line is bought.
+ * An RFQ is not bought yet, so it shows nothing. odooPoId is the Odoo order id when the IPAS
+ * knows it, else null (the P0 shows without a link). No money here.
+ */
+export function p0ForLine(line, items) {
+  const item = requestedItemForLine(line, items);
+  if (!item?.po_number || item.po_state === "rfq") return null;
+  return { poNumber: item.po_number, odooPoId: item.odoo_po_id ?? null };
+}
