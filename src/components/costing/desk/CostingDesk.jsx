@@ -26,6 +26,7 @@ import { LandedCostRollup } from "../LandedCost";
 import LineDetail from "./LineDetail";
 import CostingSheet from "./CostingSheet";
 import MarkupPlayground from "./MarkupPlayground";
+import S0LinkSuggestions from "./S0LinkSuggestions";
 
 const firstLine = (text) => (text ?? "").split("\n")[0].trim();
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -96,6 +97,13 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     queryFn: () => costingMatrixService.componentRequests(opportunityId),
     enabled: lines.some((l) => l.components.length > 0),
     staleTime: 0,
+    retry: false,
+  });
+  // Typed lines that look like an S0 line (#727): offered, never linked by name.
+  const { data: s0Suggestions } = useQuery({
+    queryKey: costingKeys.s0Suggestions(opportunityId),
+    queryFn: () => costingMatrixService.s0LinkSuggestions(opportunityId),
+    enabled: canFill && lines.some((l) => l.source === "typed" && !l.sor_item_id),
     retry: false,
   });
   const componentIds = lines.flatMap((l) => l.components.map((c) => c.id));
@@ -190,6 +198,13 @@ export default function CostingDesk({ opportunityId, opportunity }) {
               </Button>
             )}
           </div>
+
+          <S0LinkSuggestions
+            suggestions={s0Suggestions}
+            canConfirm={matrix.bands.includes(COSTING_BAND.SALES)}
+            busy={writes.busy}
+            onConfirm={(s) => writes.run(() => costingMatrixService.linkToS0Line(s.tenderLineId, s.sorItemId))}
+          />
 
           {writes.notice && (
             <p role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
