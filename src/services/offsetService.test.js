@@ -99,6 +99,28 @@ describe("offsetService", () => {
       expect(mine[0]).toMatchObject({ hours: 4, start_time: "22:00", end_time: "02:00" })
     })
 
+    it("frees the window when the department head declined the earlier request", async () => {
+      // Head decline sets head_status only; status stays PENDING until HR acts.
+      makeOvertimeRequest({
+        employee_id: employee.id,
+        date: "2026-03-10",
+        start_time: "09:00",
+        end_time: "13:00",
+        status: "PENDING",
+        head_status: "REJECTED",
+      })
+
+      await expect(
+        offsetService.applyOvertime({
+          employeeId: employee.id,
+          date: "2026-03-10",
+          startTime: "09:00",
+          endTime: "13:00",
+          reason: "Retry after head decline",
+        }),
+      ).resolves.not.toThrow()
+    })
+
     it("requires a reason", async () => {
       await expect(
         offsetService.applyOvertime({
