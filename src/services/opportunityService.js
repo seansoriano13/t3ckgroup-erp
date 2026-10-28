@@ -804,8 +804,8 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
 
   // ADR 0047 — the flow's Notice of Award Stage fills in a blank Date of
   // Award. A date the Deal Team typed in earlier is never overwritten.
-  // A Return lands through its own RPC and stamps nothing.
-  const stampsDateOfAward = !isReturn && awardStageId === to.id && !existing.date_of_award;
+  // A Return carries the date through its own RPC.
+  const stampsDateOfAward = awardStageId === to.id && !existing.date_of_award;
   if (stampsDateOfAward) {
     patch.date_of_award = getCurrentLocalDate();
   }
@@ -820,6 +820,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
       p_opportunity_id: existing.id,
       p_flow_stage_id: to.id,
       p_contract_date: patch.contract_date ?? null,
+      p_date_of_award: patch.date_of_award ?? null,
     });
     if (returnChoiceError) throw new Error(returnChoiceError.message.replace(/^(Resume|Start fresh): /, ""));
   }
@@ -2103,6 +2104,9 @@ export const opportunityService = {
 
     checkField('expected_award_date', 'Expected Award Date');
     checkField('po_date', 'PO Date');
+    checkField('date_of_award', 'Date of Award');
+    checkField('date_of_pdi', 'Date of PDI');
+    checkField('date_of_delivery', 'Date of Delivery');
 
     const checkEmployee = (idField, objField, label) => {
       if (touched.has(idField) && existing[idField] !== final[idField]) {

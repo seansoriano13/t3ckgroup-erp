@@ -1777,6 +1777,19 @@ describe("opportunityService", () => {
         expect(moved.date_of_award).toBe("2026-01-15")
       })
 
+      it("fills a blank Date of Award on a Return into the Notice of Award Stage too", async () => {
+        makeFlowEdge(qualified, lead)
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999", sale_type_id: saleType.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).date_of_award = null
+
+        const back = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
+
+        expect(back.date_of_award).toBeTruthy()
+      })
+
       it("leaves the Date of Award blank on a Stage that is not the Notice of Award Stage", async () => {
         db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).award_stage_id = null
         const deal = await register()
