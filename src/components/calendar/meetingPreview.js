@@ -38,7 +38,7 @@ export function softWarnings(entries, { people, venueName, startsAt, endsAt }) {
     if (TIME_OFF_KINDS.has(e.kind) && e.status === 'APPROVED' && byId.has(e.employee?.id)) {
       out.push(`${byId.get(e.employee.id).name} is on approved ${TIME_OFF_LABEL[e.kind]} that day.`);
     }
-    if (isMeeting(e) && e.venue !== venueName && overlaps(e.starts_at, e.ends_at, startsAt, endsAt)) {
+    if (isMeeting(e) && e.venue && e.venue !== venueName && overlaps(e.starts_at, e.ends_at, startsAt, endsAt)) {
       const d = e.details ?? {};
       const inIt = [d.facilitator, ...(d.participants ?? [])].filter((p) => p && byId.has(p.id));
       for (const p of inIt) {

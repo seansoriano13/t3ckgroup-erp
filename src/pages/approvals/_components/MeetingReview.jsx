@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { ExternalLink } from "@/components/ui/external-link";
+import { MEETING_TYPE_LABEL, guestList, guestText, safeLink } from "@/services/meetingRequestService";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
@@ -27,7 +29,7 @@ export function MeetingReview({ item, onDecide, isSubmitting }) {
   const [note, setNote] = useState("");
   const needsNote = note.trim() === "";
   const people = (req.participants ?? []).map((p) => p.employee?.name).filter(Boolean);
-  const guests = req.guests ?? [];
+  const guests = guestList(req.guests, req.guest_emails);
 
   return (
     <>
@@ -36,11 +38,23 @@ export function MeetingReview({ item, onDecide, isSubmitting }) {
 
         <DetailSection title="Meeting">
           <dl className="divide-y divide-border/70">
-            <DetailRow label="Venue">{req.venue?.name}</DetailRow>
+            <DetailRow label="Type">{MEETING_TYPE_LABEL[req.meeting_type] ?? "Onsite"}</DetailRow>
+            {req.venue?.name && <DetailRow label="Venue">{req.venue.name}</DetailRow>}
+            {req.meeting_link && (
+              <DetailRow label="Meeting link">
+                {safeLink(req.meeting_link) ? (
+                  <ExternalLink href={safeLink(req.meeting_link)} className="break-all underline">
+                    {req.meeting_link}
+                  </ExternalLink>
+                ) : (
+                  req.meeting_link
+                )}
+              </DetailRow>
+            )}
             <DetailRow label="When">{`${formatManilaDateTime(req.starts_at)} to ${manilaTime(req.ends_at)}`}</DetailRow>
             <DetailRow label="Facilitator">{req.facilitator?.name}</DetailRow>
             <DetailRow label="Participants">{people.length ? people.join(", ") : "None"}</DetailRow>
-            <DetailRow label="Guests">{guests.length ? guests.join(", ") : "None"}</DetailRow>
+            <DetailRow label="Guests">{guests.length ? guests.map(guestText).join(", ") : "None"}</DetailRow>
             <DetailRow label="Purpose">{req.purpose}</DetailRow>
           </dl>
         </DetailSection>

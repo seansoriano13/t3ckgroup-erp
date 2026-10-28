@@ -12,7 +12,8 @@ vi.mock('@/components/ui/PeoplePicker', () => ({ default: () => null }));
 vi.mock('@/components/offsets/HeadSelectField', () => ({ default: () => null }));
 vi.mock('@/services/calendarService', () => ({ calendarService: { fetchEntries: vi.fn() } }));
 vi.mock('@/services/employeeService', () => ({ employeeService: { getAllEmployees: vi.fn() } }));
-vi.mock('@/services/meetingRequestService', () => ({
+vi.mock('@/services/meetingRequestService', async (importActual) => ({
+  ...(await importActual()),
   meetingRequestService: { listVenues: vi.fn(), lastPicks: vi.fn(), fileRequest: vi.fn() },
 }));
 
