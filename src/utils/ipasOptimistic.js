@@ -197,7 +197,7 @@ export const giveSignoff =
         section,
         role,
         signed_by: by?.id ?? null,
-        signer: by ? { id: by.id, name: by.name, avatar_path: by.avatarPath ?? null } : null,
+        signer: by ? { id: by.id, name: by.name, avatar_path: by.avatarPath ?? null, call_sign: by.callSign ?? null } : null,
         signed_at: nowIso(),
         signature_declined: false,
         cleared_at: null,
