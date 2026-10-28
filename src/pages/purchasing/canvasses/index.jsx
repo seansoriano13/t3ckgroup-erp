@@ -47,7 +47,6 @@ import {
   CANVASS_STATE_TONES,
   LINKED_FILTER,
   REQUEST_FILTER,
-  SIGNED_FILTER,
   WINNER_FILTER,
   canvassExportRows,
   canvassRequestState,
@@ -134,30 +133,25 @@ function CanvassesPage({ userId, canEdit }) {
     ];
   }, [rows]);
 
-  // Search and the dropdowns narrow first; the Open / Signed off / All pills count within that.
+  // Search and the dropdowns narrow first; the Open / Winner picked / Signed off / All pills count within that.
   const narrowed = useMemo(
     () =>
       filterCanvasses(rows, { search, canvasserId, winner, linked, request }),
     [rows, search, canvasserId, winner, linked, request],
   );
+  const countOf = (pill) => filterCanvasses(narrowed, { state: pill }).length;
   const counts = {
-    [CANVASS_STATE.OPEN]: filterCanvasses(narrowed, {
-      signed: SIGNED_FILTER.UNSIGNED,
-    }).length,
-    [CANVASS_STATE.SIGNED]: filterCanvasses(narrowed, {
-      signed: SIGNED_FILTER.SIGNED,
-    }).length,
+    [CANVASS_STATE.OPEN]: countOf(CANVASS_STATE.OPEN),
+    [CANVASS_STATE.WON]: countOf(CANVASS_STATE.WON),
+    [CANVASS_STATE.SIGNED]: countOf(CANVASS_STATE.SIGNED),
     [CANVASS_STATE.ALL]: narrowed.length,
   };
-  const shown = useMemo(() => {
-    if (state === CANVASS_STATE.ALL) return narrowed;
-    return filterCanvasses(narrowed, {
-      signed:
-        state === CANVASS_STATE.SIGNED
-          ? SIGNED_FILTER.SIGNED
-          : SIGNED_FILTER.UNSIGNED,
-    });
-  }, [narrowed, state]);
+  // Signed off is history on old records: its pill shows only while some old Canvass carries it.
+  const hasSignedHistory = rows.some((r) => r.signedOffAt);
+  const shown = useMemo(
+    () => (state === CANVASS_STATE.ALL ? narrowed : filterCanvasses(narrowed, { state })),
+    [narrowed, state],
+  );
   const { sorted: visible, sort, toggle } = useTableSort(shown, CANVASS_SORT);
   const paging = usePaging(visible);
   const exportRows = useMemo(() => canvassExportRows(visible), [visible]);
@@ -205,10 +199,19 @@ function CanvassesPage({ userId, canEdit }) {
                   badge: counts[CANVASS_STATE.OPEN],
                 },
                 {
-                  value: CANVASS_STATE.SIGNED,
-                  label: "Signed off",
-                  badge: counts[CANVASS_STATE.SIGNED],
+                  value: CANVASS_STATE.WON,
+                  label: "Winner picked",
+                  badge: counts[CANVASS_STATE.WON],
                 },
+                ...(hasSignedHistory
+                  ? [
+                      {
+                        value: CANVASS_STATE.SIGNED,
+                        label: "Signed off",
+                        badge: counts[CANVASS_STATE.SIGNED],
+                      },
+                    ]
+                  : []),
                 {
                   value: CANVASS_STATE.ALL,
                   label: "All",

@@ -122,6 +122,8 @@ const PO_ACTIONS = new Set(["attach", "correct", "ipas"]);
  */
 async function autoIpas(admin: ReturnType<typeof createClient>, email: string, itemId: string, po: string) {
   try {
+    // readPo never throws: Odoo not answering comes back as the verdict "unavailable", and the database
+    // then flags the line "IPAS to create" itself. Only that case is a pending retry.
     const answer = await readPo(po);
     const { data, error } = await admin.rpc("purchase_request_item_auto_ipas", {
       p_actor_email: email,
@@ -129,12 +131,15 @@ async function autoIpas(admin: ReturnType<typeof createClient>, email: string, i
       p_verdict: answer.verdict,
       p_odoo_copy: answer.verdict === "found" ? answer.copy : null,
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      // A database refusal (not Purchasing, no verified P0, ...) is an error to show, not a pending flag.
+      console.error("odoo-po-verify auto IPAS error:", error.message);
+      return { result: "error", message: refusalText(error.message) };
+    }
     return data as { result: string; message: string; ipas_number?: string | null };
   } catch (err) {
     console.error("odoo-po-verify auto IPAS error:", err);
-    await admin.from("purchase_request_items").update({ ipas_pending: true }).eq("id", itemId);
-    return { result: "unavailable", message: "The IPAS could not be raised. The P0 stays attached; try again." };
+    return { result: "error", message: "The IPAS could not be raised. The P0 stays attached; try again." };
   }
 }
 
@@ -181,7 +186,7 @@ Deno.serve(async (req) => {
       const { data: line } = await admin.from("purchase_request_items").select("po_number").eq("id", itemId).maybeSingle();
       if (!line?.po_number) return jsonResponse({ success: false, refused: true, message: "Attach a P0 to this line first." });
       const ipas = await autoIpas(admin, email, itemId as string, line.po_number);
-      return jsonResponse({ success: ipas.result !== "unavailable", ipas, message: ipas.message });
+      return jsonResponse({ success: ipas.result !== "unavailable" && ipas.result !== "error", ipas, message: ipas.message });
     }
 
     const odoo = await askOdoo(ref);
@@ -215,7 +220,8 @@ Deno.serve(async (req) => {
         });
         if (error) {
           // "Buying opens here" refusal: the screen offers Order early instead of just showing the text.
-          const code = /buying opens at/i.test(error.message) ? "buying_not_open" : undefined;
+          // The database names it in the error's hint, the repo's refusal code.
+          const code = error.hint === "buying_not_open" ? "buying_not_open" : undefined;
           return jsonResponse({ success: false, refused: true, message: refusalText(error.message), ...(code ? { code } : {}) });
         }
         // #688: remember the Odoo product on the P0 line, so a new S0 line for the same product can ask "Is this yours?".

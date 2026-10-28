@@ -107,7 +107,7 @@ describe("refresh from the S0: matching in order", () => {
 
         const { data, error } = await refresh("dealOwner", sorId)
         expect(error).toBeNull()
-        expect(data).toBe(0)
+        expect(data.added).toBe(0)
         expect(await line(holder.id)).toMatchObject({ sor_item_id: itemId, odoo_line_id: 5001, source: "sor_line" })
         expect(await line(sameProduct.id)).toMatchObject({ sor_item_id: null, source: "typed" })
     })
@@ -119,7 +119,7 @@ describe("refresh from the S0: matching in order", () => {
 
         const { data, error } = await refresh("dealOwner", sorId)
         expect(error).toBeNull()
-        expect(data).toBe(0)
+        expect(data.added).toBe(0)
         const after = await line(typed.id)
         expect(after).toMatchObject({ sor_item_id: itemId, odoo_line_id: 5002, source: "sor_line", odoo_product_id: 8124 })
         expect(after.sor_line_snapshot).toMatchObject({ name: "Fire hose, 65 mm" })
@@ -131,8 +131,8 @@ describe("refresh from the S0: matching in order", () => {
         const itemId = await s0Line(sorId, { product_name: "Gas detector", odoo_product_id: 9001, odoo_line_id: 5003 })
         await typedLine(matrixId, { tender_specification: "Something else", odoo_product_id: 9999 })
 
-        expect((await refresh("dealOwner", sorId)).data).toBe(1)
-        expect((await refresh("dealOwner", sorId)).data).toBe(0)
+        expect((await refresh("dealOwner", sorId)).data.added).toBe(1)
+        expect((await refresh("dealOwner", sorId)).data.added).toBe(0)
         const rows = await lines(matrixId)
         expect(rows).toHaveLength(2)
         expect(rows.find((r) => r.sor_item_id === itemId)).toMatchObject({ source: "sor_line", odoo_line_id: 5003 })
@@ -146,7 +146,7 @@ describe("refresh from the S0: matching in order", () => {
         const a = await typedLine(matrixId, { odoo_product_id: 7001 })
         const b = await typedLine(matrixId, { odoo_product_id: 7001 })
 
-        expect((await refresh("dealOwner", sorId)).data).toBe(0)
+        expect((await refresh("dealOwner", sorId)).data.added).toBe(0)
         expect((await line(a.id)).sor_item_id).toBe(first)
         expect((await line(b.id)).sor_item_id).toBe(second)
     })
@@ -156,7 +156,7 @@ describe("refresh from the S0: matching in order", () => {
         await s0Line(sorId, { product_name: "Rescue tripod", odoo_product_id: 7002, odoo_line_id: 5006 })
         const typed = await typedLine(matrixId, { tender_specification: "Rescue tripod" })
 
-        expect((await refresh("dealOwner", sorId)).data).toBe(1)
+        expect((await refresh("dealOwner", sorId)).data.added).toBe(1)
         expect(await line(typed.id)).toMatchObject({ sor_item_id: null, odoo_line_id: null, source: "typed" })
     })
 
@@ -256,7 +256,8 @@ describe("under a Go lock", () => {
 
         const { data, error } = await refresh("dealOwner", sorId)
         expect(error).toBeNull()
-        expect(data).toBe(0)
+        expect(data.added).toBe(0)
+        expect(data.left_out).toEqual([{ id: expect.any(String), name: "Brand new" }])
         expect((await line(holder.id)).sor_item_id).toBe(byId)
         expect((await line(product.id)).sor_item_id).toBe(byProduct)
         expect(await lines(matrixId)).toHaveLength(2)

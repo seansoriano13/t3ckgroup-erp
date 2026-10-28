@@ -53,10 +53,15 @@ function useFill(matrix, opportunityId, writes) {
 
   const fill = () =>
     writes.run(async () => {
-      const added = await costingMatrixService.fillFromSor(opportunityId);
+      const { added, leftOut } = await costingMatrixService.fillFromSor(opportunityId);
       const odoo = await costingMatrixService.fillOdooCosts(opportunityId);
-      if (!odoo?.success) setOdooNote({ tone: "warning", text: `${added ? `${plural(added, "line")} added. ` : ""}Odoo's costs could not be read (${odoo?.message ?? "no answer"}); type them in, or try again.` });
-      else if (added || odoo.filled) setOdooNote({ tone: "info", text: `${added ? `${plural(added, "line")} added from the SOR. ` : ""}${odoo.filled ? `${plural(odoo.filled, "cost")} filled from Odoo.` : ""}${odoo.unpriced ? ` ${plural(odoo.unpriced, "product")} have no cost in Odoo.` : ""}` });
+      // A Go locks the sheet, so S0 lines that match no row are not added; say which ones.
+      const shown = leftOut.slice(0, 3).map((l) => l.name || "an unnamed line").join(", ");
+      const left = leftOut.length
+        ? ` ${plural(leftOut.length, "S0 line")} left out while the sheet is locked by a Go: ${shown}${leftOut.length > 3 ? `, and ${leftOut.length - 3} more` : ""}.`
+        : "";
+      if (!odoo?.success) setOdooNote({ tone: "warning", text: `${added ? `${plural(added, "line")} added. ` : ""}Odoo's costs could not be read (${odoo?.message ?? "no answer"}); type them in, or try again.${left}` });
+      else if (added || odoo.filled || left) setOdooNote({ tone: left ? "warning" : "info", text: `${added ? `${plural(added, "line")} added from the SOR. ` : ""}${odoo.filled ? `${plural(odoo.filled, "cost")} filled from Odoo.` : ""}${odoo.unpriced ? ` ${plural(odoo.unpriced, "product")} have no cost in Odoo.` : ""}${left}`.trim() });
       else setOdooNote({ tone: "info", text: "Everything on the SOR is already here." });
     });
 

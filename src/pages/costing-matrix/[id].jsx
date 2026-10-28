@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import ModalShell from "../../components/ui/ModalShell";
+import { Button } from "../../components/ui/button";
 import CostingDesk from "../../components/costing/desk/CostingDesk";
 import PrintButton from "../../components/costing/desk/PrintButton";
 import { opportunityService } from "../../services/opportunityService";
@@ -44,13 +45,23 @@ function CostingMatrixWindow() {
     navigate(LIST_PATH);
   };
 
+  // The way to the SOR's PMS tab, where its IPAS are listed (#718, story 58).
+  const openPms = () => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id, type: "OPPORTUNITY", view: "pms" } }));
+
   return (
     <ModalShell
       open
       onOpenChange={(next) => !next && close()}
       size="record"
       crumbs={["S0 Evaluation", opportunity?.sor_code ?? "SOR"]}
-      headerActions={<PrintButton opportunityId={id} opportunity={opportunity} />}
+      headerActions={
+        <>
+          <Button type="button" size="sm" variant="outline" onClick={openPms}>
+            SOR PMS tab
+          </Button>
+          <PrintButton opportunityId={id} opportunity={opportunity} />
+        </>
+      }
     >
       <CostingDesk opportunityId={id} opportunity={opportunity} />
     </ModalShell>

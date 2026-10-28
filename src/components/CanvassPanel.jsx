@@ -795,7 +795,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const offerCount = `${offers.length} offer${offers.length === 1 ? "" : "s"}`;
 
   // The same state and tone the Canvasses list shows, so a Canvass reads the same in both places.
-  const rowState = canvassStateOf({ signedOffAt: canvass?.signed_off_at, requestId: prId });
+  const rowState = canvassStateOf({ signedOffAt: canvass?.signed_off_at, requestId: prId, winner });
   const badge = { label: rowState.label, theme: CANVASS_STATE_TONES[rowState.state] };
 
 

@@ -127,6 +127,18 @@ describe("the flag", () => {
         expect(error?.code).toBe("23505")
         await svc().from("flow_stages").update({ buying_opens_here: false }).eq("id", flagged.lead.id)
     })
+
+    it("flow_stage_set_buying_opens moves the flag to another Stage in one step, and clears it", async () => {
+        const moved = await svc().rpc("flow_stage_set_buying_opens", { p_stage_id: flagged.lead.id, p_on: true })
+        expect(moved.error).toBeNull()
+        expect(moved.data).toMatchObject({ id: flagged.lead.id, buying_opens_here: true })
+        const { data: rows } = await svc().from("flow_stages").select("id, buying_opens_here").eq("flow_id", flagged.flowId)
+        expect(rows.filter((r) => r.buying_opens_here).map((r) => r.id)).toEqual([flagged.lead.id])
+
+        const cleared = await svc().rpc("flow_stage_set_buying_opens", { p_stage_id: flagged.lead.id, p_on: false })
+        expect(cleared.data.buying_opens_here).toBe(false)
+        await svc().from("flow_stages").update({ buying_opens_here: true }).eq("id", flagged.award.id)
+    })
 })
 
 describe("before the SOR has entered the flagged Stage", () => {
@@ -135,6 +147,7 @@ describe("before the SOR has entered the flagged Stage", () => {
         const { error } = await attach(itemId)
         expect(error?.code).toBe("22023")
         expect(error?.message).toMatch(/buying opens at/i)
+        expect(error?.hint).toBe("buying_not_open")
         expect(await itemRow(itemId)).toMatchObject({ status: "to_purchase", po_number: null, ordered_early_reason: null })
     })
 
