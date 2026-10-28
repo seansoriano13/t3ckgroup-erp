@@ -5,6 +5,7 @@ import { CircleAlert, CloudOff, SearchCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import ModalShell from "@/components/ui/ModalShell";
+import NewOdooPoLink from "@/components/ui/NewOdooPoLink";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
@@ -153,6 +154,7 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
         Start from the Odoo purchase order. Its supplier, currency and item
         lines come from Odoo.
       </p>
+      <NewOdooPoLink />
       <div className="space-y-4">
         <form
           className="flex items-end gap-2"

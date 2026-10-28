@@ -23,3 +23,9 @@ export function odooSaleOrderUrl(odooSoId) {
   if (!Number.isInteger(id) || id <= 0) return null
   return `${ODOO_BASE_URL}/web#id=${id}&model=sale.order&view_type=form`
 }
+
+/**
+ * Odoo blank purchase order form (Odoo 17.0 form, no record id, so it opens a new
+ * request for quotation). The app only links there; it never writes to Odoo.
+ */
+export const ODOO_NEW_PO_URL = `${ODOO_BASE_URL}/web#action=purchase.purchase_rfq&model=purchase.order&view_type=form`

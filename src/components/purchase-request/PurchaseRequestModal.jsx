@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import ModalShell from "@/components/ui/ModalShell";
 import RecordHeader from "@/components/record/RecordHeader";
+import NewOdooPoLink from "@/components/ui/NewOdooPoLink";
 import OpenSorButton from "./OpenSorButton";
 import PurchaseRequestView from "./PurchaseRequestView";
 import { usePurchaseRequest } from "./requestHooks";
@@ -52,7 +53,7 @@ export default function PurchaseRequestModal({ requestId, focusChat = false, ope
       onOpenChange={(open) => !open && onClose()}
       size="record"
       crumbs={["Purchase Request", request ? reference : null].filter(Boolean)}
-      headerActions={<OpenSorButton request={request} onBeforeOpen={onClose} />}
+      headerActions={<><NewOdooPoLink /><OpenSorButton request={request} onBeforeOpen={onClose} /></>}
     >
       {request && (
         <RecordHeader
