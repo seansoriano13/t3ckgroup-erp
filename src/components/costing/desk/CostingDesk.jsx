@@ -160,8 +160,8 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     };
   });
 
-  const canSalesIncharge = inAnyBand(matrix.bands, COMPONENT_BANDS.sales_incharge_id);
-  const canPurchasingIncharge = inAnyBand(matrix.bands, COMPONENT_BANDS.purchasing_incharge_id);
+  const canSalesIncharge = inAnyBand(matrix.allBands ?? matrix.bands, COMPONENT_BANDS.sales_incharge_id);
+  const canPurchasingIncharge = inAnyBand(matrix.allBands ?? matrix.bands, COMPONENT_BANDS.purchasing_incharge_id);
 
   return (
     <div className="space-y-6 pb-2" data-testid="costing-desk">

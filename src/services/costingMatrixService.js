@@ -326,6 +326,12 @@ export function shapeMatrix(read, settings = null) {
     const decisions = (tables.costing_bid_decisions ?? []).map(shapeBidDecision);
     shaped.bidDecision = decisions.find((d) => d.clearedAt === null) ?? null;
     shaped.bidDecisionHistory = decisions.filter((d) => d.clearedAt !== null).reverse();
+    // A live Go locks the sheet (#704): every band reads as read-only, `allBands` keeps what the viewer could write.
+    shaped.locked = shaped.bidDecision?.verdict === "go";
+    if (shaped.locked) {
+      shaped.allBands = shaped.bands;
+      shaped.bands = [];
+    }
   }
 
   if (tierReadsSummary(read.tier)) {
@@ -350,9 +356,11 @@ export function shapeBidDecision(row) {
     decidedAt: row.decided_at,
     clearedAt: row.cleared_at ?? null,
     clearedReason: row.cleared_reason ?? null,
+    unlockedBy: row.unlocked_by ?? null,
   };
   if ("final_offer_total" in row) decision.finalOfferTotal = Number(row.final_offer_total);
   if ("abc_total" in row) decision.abcTotal = row.abc_total === null ? null : Number(row.abc_total);
+  if ("planned_cost_total" in row) decision.plannedCostTotal = row.planned_cost_total === null ? null : Number(row.planned_cost_total);
   return decision;
 }
 
@@ -472,7 +480,13 @@ async function withPurchases(shaped, opportunityId) {
   const { landedCost: _none, ...totals } = shaped.totals;
   shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines).landedCost } : totals;
   // Planned Revenue is `summary.revenue`, untouched; Actual sits beside it, never inside it.
-  if (actual) shaped.revenueComparison = revenueComparison(revenueInputs(shaped, { ipasShort: (ipases.data ?? []).some(ipasShortOfLcOdooDone) }), shaped.rates);
+  if (actual) {
+    const inputs = revenueInputs(shaped, { ipasShort: (ipases.data ?? []).some(ipasShortOfLcOdooDone) });
+    // Under a Go, Planned works from the estimate as it stood at the Go (#704); the Actual cost still comes from the real Landed Cost.
+    const stamped = shaped.locked ? shaped.bidDecision?.plannedCostTotal : null;
+    if (stamped !== null && stamped !== undefined) inputs.finalAcquireTotal = stamped;
+    shaped.revenueComparison = revenueComparison(inputs, shaped.rates);
+  }
   return shaped;
 }
 
@@ -1034,6 +1048,14 @@ export const costingMatrixService = {
       p_verdict: verdict,
       p_reason: reason ?? "",
     });
+    if (error) fail(error);
+    return data;
+  },
+
+  /** Unlocks a Go (#704): a reason is required, it is recorded, and the Go has to be taken again. */
+  async unlockBid(matrixId, { reason } = {}) {
+    if (!String(reason ?? "").trim()) throw new CostingRuleError("Write the reason for unlocking.", "22023");
+    const { data, error } = await supabase.rpc("costing_unlock_bid", { p_matrix_id: matrixId, p_reason: reason });
     if (error) fail(error);
     return data;
   },
