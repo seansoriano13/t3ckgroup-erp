@@ -91,6 +91,7 @@ describe("section 7", () => {
     give(3, "approved", "boss", 2),
     give(6, "prepared", "buyer", 1),
     give(6, "approved", "boss", 2),
+    give(8, "approved", "grace", 2),
   ]
   const shaped = (...rows) => shapeSignoffs(rows)
   const LISTS = {

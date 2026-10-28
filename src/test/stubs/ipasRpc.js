@@ -513,6 +513,7 @@ export function stubIpasRpcs({
             3: roles(3, ["prepared", "approved"]),
             6: roles(6, ["prepared", "approved"]),
             7: roles(7, ["received", "noted", "checked", "approved"]),
+            8: roles(8, ["approved"]),
           },
           ...summaryLandedCost(row),
         }
@@ -1423,6 +1424,7 @@ export function stubIpasRpcs({
     "7/noted": "s7_noted",
     "7/checked": "s7_checked",
     "7/approved": "s7_approved",
+    "8/approved": "logistics_signed",
   }
   const SEND_BACK_LIST = { 1: "s1_approved", 3: "s3_approved", 6: "s6_approved" }
   const SECTION_7_LISTS = ["s7_received", "s7_noted", "s7_checked", "s7_approved"]
@@ -1448,6 +1450,7 @@ export function stubIpasRpcs({
     const { p_section: section, p_role: role } = args
     const sheetHasIt =
       ([1, 3, 6].includes(section) && ["prepared", "approved"].includes(role)) ||
+      (section === 8 && role === "approved") ||
       (section === 7 && ["received", "noted", "checked", "approved"].includes(role))
     if (!sheetHasIt) refuse("22023", `ipas_sign: section ${section} has no ${role} sign-off`)
     const ipas = requireOpenIpas("ipas_sign", args.p_ipas_id)
@@ -1465,7 +1468,7 @@ export function stubIpasRpcs({
     if (liveHere.some((s) => s.role === role)) {
       refuse("55000", `ipas_sign: section ${section} is already ${role} on ${ipas.number}`)
     }
-    if (role === "approved" && section !== 7) {
+    if (role === "approved" && section !== 7 && section !== 8) {
       const prepared = liveHere.find((s) => s.role === "prepared")
       if (!prepared) refuse("55000", `ipas_sign: section ${section} hasn't been prepared yet`)
       if (prepared.signed_by === actorId) {
@@ -1475,7 +1478,7 @@ export function stubIpasRpcs({
     if (section === 7) {
       const live = liveSignoffs(ipas.id)
       const has = (sec, r) => live.some((s) => s.section === sec && s.role === r)
-      if (!has(1, "approved") || !has(3, "approved") || !has(6, "approved")) {
+      if (!has(1, "approved") || !has(3, "approved") || !has(6, "approved") || !has(8, "approved")) {
         refuse("55000", "ipas_sign: section 4 opens once sections 1, 2 and 3 are approved")
       }
       if (["noted", "checked"].includes(role) && !has(7, "received")) {
@@ -1520,10 +1523,10 @@ export function stubIpasRpcs({
     } else if (role === "prepared") {
       stage = "section_prepared"
       notify = membersOf([LIST_KEY[`${section}/approved`]])
-    } else if (section === 1 || section === 3 || section === 6) {
+    } else if (section === 1 || section === 3 || section === 6 || section === 8) {
       // The last of sections 1, 2 and 3 to be approved opens section 4 (#590).
       const live = liveSignoffs(ipas.id)
-      const allApproved = [1, 3, 6].every((sec) => live.some((s) => s.section === sec && s.role === "approved"))
+      const allApproved = [1, 3, 6, 8].every((sec) => live.some((s) => s.section === sec && s.role === "approved"))
       if (allApproved && !live.some((s) => s.section === 7)) {
         stage = "received_ready"
         notify = membersOf(["s7_received"])

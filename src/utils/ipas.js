@@ -268,6 +268,7 @@ export function shapeIpas(row, sors = [], extras = null) {
       1: sectionSignoffs(signoffs, 1),
       3: sectionSignoffs(signoffs, 3),
       6: sectionSignoffs(signoffs, 6),
+      8: sectionSignoffs(signoffs, 8),
       7: section7Signoffs(signoffs),
     },
     // The required documents nobody has ticked: what Approving section 7 warns about.

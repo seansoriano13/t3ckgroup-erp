@@ -34,9 +34,9 @@ function missingNote(labels, part) {
  * be passed yet; `moveKeys` are the moves (moves.js) that pass it.
  */
 function gateDefs(digest) {
-  const { s1, s3, s6, s7, costsComplete, computationStatus } = digest;
+  const { s1, s3, s6, s7, s8, costsComplete, computationStatus } = digest;
   const missing = digest.docs?.missingByPart ?? {};
-  const sectionsApproved = Boolean(s1.approved && s3.approved && s6.approved);
+  const sectionsApproved = Boolean(s1.approved && s3.approved && s6.approved && s8?.approved);
   const noteAndCheck = Boolean(s7.noted && s7.checked);
 
   const section = (part, state, moveKeys, { key = part, prereqMet = true, early = null } = {}) => ({
@@ -89,7 +89,7 @@ function gateDefs(digest) {
         ? `Received by ${name(s7.received)}`
         : sectionsApproved
           ? `Waiting for the Received list to receive it${missingNote(missing.filing, "filing")}`
-          : `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} are approved`,
+          : `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} are approved, and Logistics is signed`,
       at: s7.received?.signedAt ?? null,
       moveKeys: ["receive"],
     },

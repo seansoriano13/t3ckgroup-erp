@@ -102,7 +102,16 @@ export function buildBlocks(ctx) {
         onTick={on.tickSheet}
       />
     ),
-    logistics: <IpasLogisticsSection ipas={ipas} canChange={can.change} onPick={on.pickLocation} />,
+    logistics: (
+      <IpasLogisticsSection
+        ipas={ipas}
+        canChange={can.change}
+        onPick={on.pickLocation}
+        signRights={rights[8]}
+        busy={ctx.busy?.signoff}
+        onSign={() => on.approve(8, "logistics")}
+      />
+    ),
     status: (
       <IpasStatusSection
         ipas={ipas}
