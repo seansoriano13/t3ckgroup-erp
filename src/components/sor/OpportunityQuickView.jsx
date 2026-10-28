@@ -94,7 +94,7 @@ export default function OpportunityQuickView({
   });
 
   const { data: checklist = [], isLoading: isLoadingChecklist } = useQuery({
-    queryKey: ["quickViewChecklist", opportunityId, opportunity?.flow_stage_id || opportunity?.status],
+    queryKey: ["quickViewChecklist", opportunityId, opportunity?.flow_stage_id || opportunity?.status, opportunity?.flow_snapshot_id ?? null],
     queryFn: () => opportunityService.getStageChecklist(opportunityId, opportunity),
     enabled: isOpen && !!opportunityId && !!opportunity,
   });

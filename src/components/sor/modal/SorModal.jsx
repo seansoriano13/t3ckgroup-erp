@@ -253,7 +253,7 @@ export default function SorModal({
   });
 
   const { data: checklist = [] } = useQuery({
-    queryKey: ["stageChecklist", id, rawOpportunity?.flow_stage_id || rawOpportunity?.status],
+    queryKey: ["stageChecklist", id, rawOpportunity?.flow_stage_id || rawOpportunity?.status, rawOpportunity?.flow_snapshot_id ?? null],
     queryFn: () => opportunityService.getStageChecklist(id, rawOpportunity),
     enabled: !!id && isOpen && accessLevel !== "locked",
   });
@@ -376,6 +376,7 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityAutomations", id] });
     queryClient.invalidateQueries({ queryKey: ["stageChecklist", id] });
+    queryClient.invalidateQueries({ queryKey: ["quickViewChecklist", id] });
     // A move can hold, resume or cancel the Stage's tasks; the Activity task
     // cards (#399) read each task's live status under these keys.
     queryClient.invalidateQueries({ queryKey: ["globalTask"] });
