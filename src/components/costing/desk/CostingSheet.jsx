@@ -7,6 +7,9 @@ import { Cell } from "../GridCell";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import { tierReads } from "../../../constants/costing";
 import { pesos } from "../gridFormat";
+import { useAuth } from "../../../context/AuthContext";
+import ComplianceColumn from "./ComplianceColumn";
+import { useMyEvaluationTeams } from "./evaluationTeams";
 
 /**
  * The Costing Matrix as one flat grid, one row per line of the SOR's S0 (layout A "Sheet", spec #699,
@@ -44,12 +47,15 @@ const itemName = (line) => line.sor_line_snapshot?.name || firstLine(line.tender
 const askOf = (line) => (line.tender_specification && line.tender_specification !== itemName(line) ? line.tender_specification : "");
 
 export default function CostingSheet({ matrix, opportunity, writes, canWrite }) {
+  const { user } = useAuth();
+  const myTeams = useMyEvaluationTeams(user?.id ?? null);
   const lines = matrix.tenderLines;
   const { totals } = matrix;
   const showAbc = tierReads(matrix.tier, "abc_unit");
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const byId = new Map(lines.map((line) => [line.id, line]));
   const priced = lines.filter((line) => !line.included);
+  const judged = matrix.compliance.total - matrix.compliance.notEvaluated;
 
   const save = (line, fields) => async (value) => {
     await costingMatrixService.updateTenderLine(line.id, fields(value));
@@ -58,13 +64,16 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
 
   return (
     <div className="space-y-3" data-testid="costing-sheet">
-      <div className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-4 sm:divide-y-0">
+      <div className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-5 sm:divide-y-0">
         <Fact label="S0 · client">
           <span className="font-mono text-xs">{opportunity?.sales_reference ?? opportunity?.sor_code ?? "—"}</span>
           {opportunity?.client_name ? ` · ${opportunity.client_name}` : ""}
         </Fact>
         <Fact label="S0 lines" sub={lines.length === priced.length ? undefined : `${lines.length - priced.length} included`}>
           {lines.length}
+        </Fact>
+        <Fact label="Judged">
+          {judged} of {matrix.compliance.total}
         </Fact>
         {showAbc && (
           <Fact label="ABC total" sub={totals.missingAbc ? `${totals.missingAbc} without one` : undefined}>
@@ -87,22 +96,24 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
             <TableRow>
               <th className={cn(GROUP, FROZEN)}>S0 line</th>
               <th className={GROUP} />
-              <th colSpan={1 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0)} className={cn(GROUP, "border-r-0")}>
+              <th colSpan={1 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0)} className={GROUP}>
                 Sales · the client&apos;s ask
               </th>
+              <th className={cn(GROUP, "border-r-0")}>Technical</th>
             </TableRow>
             <TableRow>
               <th className={cn(HEAD, FROZEN)}>Item</th>
               <th className={cn(HEAD, "text-right")}>Qty</th>
-              <th className={cn(HEAD, !showAbc && !showOffer && "border-r-0")}>Client asks for</th>
-              {showAbc && <th className={cn(HEAD, "text-right", !showOffer && "border-r-0")}>ABC / unit</th>}
-              {showOffer && <th className={cn(HEAD, "border-r-0 text-right")}>Final Offer / unit</th>}
+              <th className={HEAD}>Client asks for</th>
+              {showAbc && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
+              {showOffer && <th className={cn(HEAD, "text-right")}>Final Offer / unit</th>}
+              <th className={cn(HEAD, "border-r-0")}>Compliance</th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {lines.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={3 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0)} className="px-3 py-4 text-sm text-muted-foreground">
+                <TableCell colSpan={4 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0)} className="px-3 py-4 text-sm text-muted-foreground">
                   No S0 lines yet.
                 </TableCell>
               </TableRow>
@@ -136,7 +147,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                     {line.quantity}
                     {line.unit && <div className={SUB}>{line.unit}</div>}
                   </TableCell>
-                  <TableCell className={cn(CELL, "min-w-[14rem] max-w-[17rem]", !showAbc && !showOffer && "border-r-0")}>
+                  <TableCell className={cn(CELL, "min-w-[14rem] max-w-[17rem]")}>
                     {kid ? null : (
                       <Cell
                         label={`Client asks for ${line.number}`}
@@ -150,7 +161,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                     )}
                   </TableCell>
                   {showAbc && (
-                    <TableCell className={cn(CELL, NUM, "w-36", !showOffer && "border-r-0")}>
+                    <TableCell className={cn(CELL, NUM, "w-36")}>
                       {kid ? (
                         <span className="text-muted-foreground">incl.</span>
                       ) : (
@@ -170,7 +181,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                     </TableCell>
                   )}
                   {showOffer && (
-                    <TableCell className={cn(CELL, NUM, "w-40 border-r-0")}>
+                    <TableCell className={cn(CELL, NUM, "w-40")}>
                       {kid ? (
                         <span className="text-muted-foreground">incl.</span>
                       ) : (
@@ -192,6 +203,9 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                       )}
                     </TableCell>
                   )}
+                  <TableCell className={cn(CELL, "min-w-[12rem] max-w-[16rem] border-r-0")}>
+                    <ComplianceColumn line={line} myTeams={myTeams} canSetTeam={canWrite} onChanged={writes.refresh} />
+                  </TableCell>
                 </TableRow>
               );
             })}

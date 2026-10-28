@@ -93,7 +93,7 @@ export class CostingRuleError extends Error {
   }
 }
 
-const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid): (.+)$/;
+const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid|team): (.+)$/;
 // The CHECK on costing_components that wants a note whenever the verdict is Deviates (#271).
 const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
 
@@ -104,7 +104,7 @@ const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
 export function toRuleError(error) {
   // A CHECK violation (23514), a rule a matrix function refuses (22023, #556), or a Bid Decision refused to someone who may not take it (42501).
   const ruleRefusal = error?.code === REFUSAL.INVALID && RULE_MESSAGE.test(error?.message ?? "");
-  if (error?.code !== "23514" && !ruleRefusal && !(error?.code === REFUSAL.NOT_ALLOWED && /^costing_bid: /.test(error?.message ?? ""))) return null;
+  if (error?.code !== "23514" && !ruleRefusal && !(error?.code === REFUSAL.NOT_ALLOWED && /^costing_(?:bid|team): /.test(error?.message ?? ""))) return null;
   if (DEVIATION_NOTE_CHECK.test(error.message ?? "")) return new CostingRuleError("A deviation needs a note.", error.code);
   const match = RULE_MESSAGE.exec(error.message ?? "");
   if (!match) return null;
@@ -128,6 +128,7 @@ function lineColumns(fields) {
   if ("tenderSpecification" in fields) columns.tender_specification = fields.tenderSpecification ?? "";
   if ("unit" in fields) columns.unit = blankToNull(fields.unit);
   if ("quantity" in fields) columns.quantity = fields.quantity;
+  if ("evaluatingTeam" in fields) columns.evaluating_team = blankToNull(fields.evaluatingTeam);
   return columns;
 }
 
