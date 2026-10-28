@@ -8,7 +8,7 @@ import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
 import { stockWarning } from "../../constants/purchaseRequest";
-import { componentLabel, isFromS0, itemSectionLabel, poLineNotPicked, replacedNote, s0StillListsNote } from "../../utils/requestedItem";
+import { componentLabel, isFromS0, itemSectionLabel, partialReceiptText, poLineNotPicked, replacedNote, s0StillListsNote } from "../../utils/requestedItem";
 import { askedByText, purposeLabel, splitProductName } from "../../utils/productLine";
 
 /** "PHP 250.50" — the price a Canvass winner gave the item (#582). */
@@ -65,6 +65,7 @@ export default function RequestedItemDetails({ item, stock, costText, replaces, 
         </span>
       ),
     },
+    partialReceiptText(item) && { label: "Received", value: <span data-testid="requested-item-partial">{partialReceiptText(item)}</span> },
     poLineNotPicked(item) && { label: "PO line", value: <Warn>PO line not picked</Warn> },
     item.price && {
       label: "Price each",

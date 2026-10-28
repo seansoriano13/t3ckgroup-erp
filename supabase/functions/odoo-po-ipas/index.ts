@@ -148,6 +148,7 @@ async function fetchLines(uid: number, orderId: number) {
         "product_id",
         "name",
         "product_qty",
+        "qty_received",
         "product_uom",
         "price_unit",
         "price_subtotal",
@@ -175,6 +176,8 @@ async function fetchLines(uid: number, orderId: number) {
       product_id: productId,
       name: text(l.name) || pairName(l.product_id),
       quantity: Number(l.product_qty) || 0,
+      // What Odoo's receipts have brought in so far (#726): read on every refresh.
+      received: Number(l.qty_received) || 0,
       unit: pairName(l.product_uom),
       // Before VAT and withholding: the figure Landed Cost starts from.
       price_unit: Number(l.price_unit) || 0,
