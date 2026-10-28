@@ -8,6 +8,8 @@ export const costingKeys = {
   /** The Canvass chip on each Component row (#276). */
   canvasses: (opportunityId) => ["costing", opportunityId, "canvasses"],
   evaluationList: (opportunityId) => ["costing", opportunityId, "evaluationList"],
+  /** Typed lines that look like an S0 line, for Sales to confirm (#727). */
+  s0Suggestions: (opportunityId) => ["costing", opportunityId, "s0Suggestions"],
   sorLines: (opportunityId) => ["costing", opportunityId, "sorLines"],
   /** The rates and the signer lists (#270) belong to no SOR; the "costing" prefix still refreshes them with the rest. */
   settings: ["costing", "settings"],

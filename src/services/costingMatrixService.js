@@ -778,6 +778,29 @@ export const costingMatrixService = {
   },
 
   /**
+   * Typed lines whose name is similar to an S0 line that is not on a Tender Line yet, for Sales to
+   * confirm after a refresh. Nothing is linked by name. Resolves to
+   * `[{ sorItemId, sorItemName, tenderLineId, tenderLineName, score }]`.
+   */
+  async s0LinkSuggestions(opportunityId) {
+    const { data, error } = await supabase.rpc("costing_s0_link_suggestions", { p_opportunity_id: opportunityId });
+    if (error) fail(error);
+    return (data ?? []).map((r) => ({
+      sorItemId: r.sor_item_id,
+      sorItemName: r.sor_item_name,
+      tenderLineId: r.tender_line_id,
+      tenderLineName: r.tender_line_name,
+      score: Number(r.score),
+    }));
+  },
+
+  /** Sales confirms a suggestion: the typed line becomes that S0 line and keeps its work. Allowed under a Go. */
+  async linkToS0Line(tenderLineId, sorItemId) {
+    const { error } = await supabase.rpc("costing_link_to_s0_line", { p_tender_line_id: tenderLineId, p_sor_item_id: sorItemId });
+    if (error) fail(error);
+  },
+
+  /**
    * Fills blank Odoo unit costs and Acquires from each product's cost in Odoo. The server reads
    * Odoo and writes; nothing typed is overwritten. Resolves to `{ success, filled, unpriced, message }`;
    * `success: false` means Odoo could not be asked, not that there is no cost.
