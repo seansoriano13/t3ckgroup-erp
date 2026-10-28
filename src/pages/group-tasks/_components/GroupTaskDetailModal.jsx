@@ -55,6 +55,7 @@ import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
 import { groupTaskTemplateService } from "@/services/groupTaskTemplateService";
 import { computeDueDateOffsetDays } from "../utils/templateApply";
+import { getDueCountdown } from "../utils/dueCountdown";
 import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
 import {
   hasChecklistContent,
@@ -282,10 +283,16 @@ export default function GroupTaskDetailModal({
     setIsEditingTask(true);
   };
 
+  const countdown = task?.status === "ACTIVE" ? getDueCountdown(task?.due_date) : null;
+
   const handleSaveTaskEdit = async () => {
     if (isReadOnly) return;
     if (!taskEditDraft.title.trim()) {
       toast.error("Title is required");
+      return;
+    }
+    if (!taskEditDraft.startDate || !taskEditDraft.dueDate) {
+      toast.error("Start Date and Due Date are required.");
       return;
     }
     await onUpdateTask(taskEditDraft);
@@ -860,6 +867,11 @@ export default function GroupTaskDetailModal({
                     <div className="flex items-center gap-1.5">
                       <Calendar size={14} className="text-mauve-9" /> Due{" "}
                       {formatDueDate(task.due_date)}
+                      {countdown && (
+                        <span className={countdown.overdue ? "text-destructive font-bold" : ""}>
+                          ({countdown.label})
+                        </span>
+                      )}
                     </div>
                   )}
                   {task.lead_time && (

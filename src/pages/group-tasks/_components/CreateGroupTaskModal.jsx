@@ -255,6 +255,11 @@ export default function CreateGroupTaskModal({
       return;
     }
 
+    if (mode !== "automation" && (!startDate || !dueDate)) {
+      toast.error("Start Date and Due Date are required.");
+      return;
+    }
+
     // An assignment counts as filled in if it has description text OR at least
     // one non-empty checklist item — the two are alternatives now, not a
     // toggle between mutually exclusive fields.
@@ -497,7 +502,7 @@ export default function CreateGroupTaskModal({
                           showTimeSelect
                           timeIntervals={15}
                           dateFormat="MMMM d, yyyy h:mm aa"
-                          placeholderText="Optional due date & time"
+                          placeholderText="Required due date & time"
                           className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-60"
                         />
                         <Calendar
@@ -522,7 +527,7 @@ export default function CreateGroupTaskModal({
                           selected={startDate}
                           onChange={(date) => setStartDate(date)}
                           dateFormat="MMMM d, yyyy"
-                          placeholderText="Optional start date"
+                          placeholderText="Required start date"
                           className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-48"
                         />
                         <Calendar
