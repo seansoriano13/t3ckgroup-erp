@@ -243,7 +243,7 @@ describe("attachment — pick an existing SOR file (issue #203, story 13)", () =
 })
 
 describe("attachment — a picked file is not listed twice", () => {
-  it("lists a file once even when a pick already copied it into a second note", async () => {
+  it("lists a file once even when a pick already linked it into a second note", async () => {
     const user = setupUser()
     opportunityService.getStageChecklist.mockResolvedValue([
       item({ condition: { ...item().condition, kind: "attachment", label: "Notice of Award", config: {} } }),
@@ -252,7 +252,7 @@ describe("attachment — a picked file is not listed twice", () => {
     opportunityService.getNotes.mockResolvedValue([
       { metadata: { attachments: [file] } },
       // what a previous pick leaves behind: same file, stamped for a condition
-      { metadata: { attachments: [{ ...file, conditionId: "req-1", stageVisitId: "visit-1" }] } },
+      { metadata: { attachments: [{ ...file, linked: true, conditionId: "req-1", stageVisitId: "visit-1" }] } },
     ])
 
     renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)

@@ -8,7 +8,7 @@ import { opportunityService } from "../../services/opportunityService";
 import { employeeGroupService } from "../../services/employeeGroupService";
 import { confirmActionToast } from "../ui/CustomToast";
 import { storageService } from "../../services/storageService";
-import { attachmentAcceptType, acceptsLabel } from "../../utils/attachments";
+import { attachmentAcceptType, acceptsLabel, listableAttachments } from "../../utils/attachments";
 import StageChecklistRow from "./StageChecklistRow";
 import {
   Dialog,
@@ -74,7 +74,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   // turns up again in the list afterward — keep one entry per file.
   const seenFiles = new Set();
   const existingFiles = notes
-    .flatMap((n) => n.metadata?.attachments || [])
+    .flatMap((n) => listableAttachments(n.metadata?.attachments))
     .filter((f) => {
       const key = f.url ?? f.name;
       if (seenFiles.has(key)) return false;
@@ -165,7 +165,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
       if (accepts.length > 0 && !accepts.includes(type)) {
         throw new Error(`This condition only accepts: ${acceptsLabel(accepts)}.`);
       }
-      await stampAndAttach(condition, { ...file });
+      await stampAndAttach(condition, { ...file, linked: true });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stageChecklist", opportunityId, stageCode] });

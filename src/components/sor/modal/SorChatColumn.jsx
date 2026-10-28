@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import Spinner from "../../ui/Spinner";
 import Avatar from "../../Avatar";
 import { AttachmentPreviews, AttachmentList } from "../../ui/Attachments";
-import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING } from "../../../utils/attachments";
+import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING, listableAttachments } from "../../../utils/attachments";
 import MentionTextarea, { NoteText } from "../../ui/MentionTextarea";
 import { Button } from "../../ui/button";
 import TaskCreatedNoteCard from "./TaskCreatedNoteCard";
@@ -167,7 +167,7 @@ export default function SorChatColumn({
                       )
                     )}
                     <AttachmentList
-                      attachments={n.metadata?.attachments}
+                      attachments={listableAttachments(n.metadata?.attachments)}
                       className={n.content ? "mt-2" : "mt-1"}
                     />
                   </div>

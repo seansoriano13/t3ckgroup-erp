@@ -417,7 +417,9 @@ function PastVisit({ row, onToggle }) {
   const otherVisitFiles = (visit.attachments || []).filter(
     (a) => !conditionFiles.some((cf) => cf.url === a.url)
   );
-  const allDeliverables = [...conditionFiles, ...otherVisitFiles];
+  const allDeliverables = [...conditionFiles, ...otherVisitFiles].filter(
+    (f, i, all) => all.findIndex((o) => o.url === f.url) === i
+  );
 
   return (
     <div className="rounded-lg border border-border/70 bg-card/50">
