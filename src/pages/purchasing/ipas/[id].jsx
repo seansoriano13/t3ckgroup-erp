@@ -622,6 +622,7 @@ function IpasPage({ onClose }) {
           else await ipasService.overrideField(id, item.field, item.value);
         }
         if (Object.keys(plan.header).length > 0) await ipasService.setHeader(id, plan.header);
+        if (plan.freight !== undefined) await once("freight", () => ipasService.setFreight(id, plan.freight));
         if (plan.location !== undefined) await ipasService.setItemLocation(id, plan.location);
         if (Object.keys(plan.origin).length > 0) await ipasService.setSupplierOrigin(id, plan.origin);
         for (const item of plan.typed) await ipasService.setTypedStatus(id, item.kind, item.date);
@@ -630,7 +631,7 @@ function IpasPage({ onClose }) {
         for (const item of plan.payments.add) await once(item.key, () => ipasService.addPayment(id, item.values, { isPhpPo }));
         for (const item of plan.payments.update) await once(item.key, () => ipasService.updatePayment(item.id, item.values, { isPhpPo }));
         for (const item of plan.charges.add) await once(item.key, () => ipasService.addCharge(id, item.values));
-        for (const item of plan.charges.update) await once(item.key, () => ipasService.updateCharge(item.id, item.values));
+        for (const item of plan.charges.update) await once(item.key, () => ipasService.fillCharge(item.id, item.values));
         for (const item of plan.documents.add) await once(item.key, () => ipasService.addDocument(id, item.choice));
         for (const item of plan.documents.update) {
           await once(item.key, async () => {

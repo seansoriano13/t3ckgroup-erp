@@ -68,7 +68,7 @@ const OVERRIDE_KEYS = {
 /** Which form keys each section owns, for its changed count. The row lists are counted by `changeCount`. */
 export const OWNS = {
   header: ["entity", "remarks"],
-  purchasing: ["contact", "piNumber", "piQtAmount", "freight"],
+  purchasing: ["contact", "piNumber", "piQtAmount", "freight", "freightAmount", "freightCurrency", "freightBilled", "freightUrl"],
   finance: ["bankName", "accountName", "accountNumber"],
   costing: ["split", "computationStatus"],
   filing: [],
@@ -144,6 +144,7 @@ export const chargeDraft = (charge) => ({
   kindId: charge.kind_id ?? "",
   chargedOn: charge.charged_on ?? "",
   amountPhp: text(charge.amount_php),
+  attachmentUrl: charge.attachment_url ?? "",
 });
 
 export const newChargeDraft = () => ({
@@ -152,6 +153,7 @@ export const newChargeDraft = () => ({
   kindId: "",
   chargedOn: getCurrentLocalDate(),
   amountPhp: "",
+  attachmentUrl: "",
 });
 
 export const documentDraft = (document) => ({
@@ -190,6 +192,10 @@ export function formFromIpas(ipas) {
         ? ""
         : String(ipas.piQtAmount),
     freight: ipas.freight_service_id ?? "",
+    freightAmount: text(ipas.freight_amount),
+    freightCurrency: ipas.freight_currency ?? "",
+    freightBilled: Boolean(ipas.freight_billed_by_supplier),
+    freightUrl: ipas.freight_attachment_url ?? "",
     split: ipas.landedCostSplit ?? "value",
     computationStatus: ipas.computationStatus ?? "",
     bankName: bank?.bankName ?? "",
@@ -270,8 +276,11 @@ export function requiredFields(form) {
   form.charges.forEach((c, i) => {
     const n = `Charge ${i + 1}`;
     need("finance", `chg-${c.key}-kindId`, `${n} kind`, c.kindId);
-    need("finance", `chg-${c.key}-chargedOn`, `${n} date`, c.chargedOn);
-    need("finance", `chg-${c.key}-amountPhp`, `${n} amount`, c.amountPhp);
+    // A saved charge may be blank (unknown); only a new one must be filled in.
+    if (!c.id) {
+      need("finance", `chg-${c.key}-chargedOn`, `${n} date`, c.chargedOn);
+      need("finance", `chg-${c.key}-amountPhp`, `${n} amount`, c.amountPhp);
+    }
   });
   form.documents
     .filter((d) => !d.id)
@@ -349,6 +358,12 @@ function paymentProblem(p, isPhp) {
 
 function chargeProblem(c) {
   if (!c.kindId) return "Pick the kind of charge.";
+  if (c.id) {
+    // A saved charge may stay blank (#709): unknown amount, no date yet.
+    if (!blank(c.chargedOn) && !isIsoDate(c.chargedOn)) return "Give the date of the charge.";
+    if (!blank(c.amountPhp) && !positive(c.amountPhp)) return "Amount must be a number more than zero, or left blank.";
+    return null;
+  }
   if (!isIsoDate(c.chargedOn)) return "Give the date of the charge.";
   if (!positive(c.amountPhp)) return "Amount must be a number more than zero.";
   return null;
@@ -423,6 +438,15 @@ export function planSave(form, base) {
   }
   if (changed.has("freight"))
     plan.header.freightServiceId = form.freight || null;
+  if (["freightAmount", "freightCurrency", "freightBilled", "freightUrl"].some((key) => changed.has(key))) {
+    if (!blank(form.freightAmount) && !parseAmountInput(form.freightAmount).ok) fail("Freight must be a number.");
+    plan.freight = {
+      amount: form.freightAmount,
+      currency: form.freightCurrency,
+      billedBySupplier: form.freightBilled,
+      attachmentUrl: form.freightUrl,
+    };
+  }
   if (changed.has("split")) plan.header.landedCostSplit = form.split;
   if (
     changed.has("piQtAmount") &&
@@ -477,6 +501,7 @@ export function planSave(form, base) {
           kindId: row.kindId,
           chargedOn: row.chargedOn,
           amountPhp: row.amountPhp,
+          attachmentUrl: row.attachmentUrl,
         },
       });
     }
@@ -522,6 +547,7 @@ export function planIsEmpty(plan) {
     plan.overrides.length === 0 &&
     Object.keys(plan.header).length === 0 &&
     plan.location === undefined &&
+    plan.freight === undefined &&
     Object.keys(plan.origin).length === 0 &&
     plan.typed.length === 0 &&
     plan.stamp === undefined &&

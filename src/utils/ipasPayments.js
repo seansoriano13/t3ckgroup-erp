@@ -79,7 +79,8 @@ export function shapeCharge(row, options = new Map()) {
   const kind = options.get(row.kind_id) ?? null;
   return {
     ...row,
-    amount_php: finiteNumber(row.amount_php) ?? 0,
+    // Null is a blank charge, an amount not yet known (#709); it counts as nothing in a sum.
+    amount_php: finiteNumber(row.amount_php),
     kind,
     kindLabel: kind?.label ?? null,
   };
