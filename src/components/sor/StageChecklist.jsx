@@ -48,9 +48,12 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   // A flow SOR's `status` never changes (it stays LEAD), so the key follows
   // its flow Stage — otherwise a move keeps showing the old Stage's list.
   const stageCode = opportunity?.flow_stage_id || opportunity?.status;
+  // The Flow Snapshot is in the key too: a version update keeps the Stage but
+  // changes its Conditions, so a cached list must not outlive the version.
+  const snapshotId = opportunity?.flow_snapshot_id ?? null;
 
   const { data: checklist = [] } = useQuery({
-    queryKey: ["stageChecklist", opportunityId, stageCode],
+    queryKey: ["stageChecklist", opportunityId, stageCode, snapshotId],
     // Read fresh, not from the prop: right after a Save or a move the prop can
     // still be the copy from before it.
     queryFn: () => opportunityService.getStageChecklist(opportunityId),

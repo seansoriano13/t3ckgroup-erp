@@ -215,4 +215,27 @@ describe("escalating to the full record", () => {
 
     expect(onViewFullDetails).toHaveBeenCalled()
   })
+
+  it("shows the new version's conditions right after the Flow Snapshot changes", async () => {
+    opportunityService.getStageChecklist
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([condition({ condition: { id: "c-new", label: "Brand new condition" } })])
+    const props = {
+      isOpen: true,
+      onClose: vi.fn(),
+      opportunityId: OPPORTUNITY.id,
+      userId: "emp-1",
+      onViewFullDetails: vi.fn(),
+      onOpenTask: vi.fn(),
+      onOpenGroupTask: vi.fn(),
+    }
+    const { rerender } = renderQuickView({
+      opportunity: { ...OPPORTUNITY, flow_stage_id: "s1", flow_snapshot_id: "v1" },
+    })
+    await vi.waitFor(() => expect(opportunityService.getStageChecklist).toHaveBeenCalledTimes(1))
+    rerender(
+      <OpportunityQuickView {...props} opportunity={{ ...OPPORTUNITY, flow_stage_id: "s1", flow_snapshot_id: "v2" }} />,
+    )
+    expect(await screen.findByText("Brand new condition")).toBeInTheDocument()
+  })
 })
