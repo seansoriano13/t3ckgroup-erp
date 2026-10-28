@@ -176,7 +176,7 @@ export default function MarkupPlayground({ matrix, writes }) {
           <span className="text-xs text-muted-foreground">{changed ? "Nothing changes until you apply." : "The Final Offers already match."}</span>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">Sales and Purchasing set the markup.</p>
+        <p className="text-xs text-muted-foreground">Only the Markup list sets the markup.</p>
       )}
 
       <div className="space-y-1 border-t border-border pt-3" data-testid="markup-overall">

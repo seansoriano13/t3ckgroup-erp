@@ -152,6 +152,8 @@ describe("IPAS signing with the evidence in view", () => {
       signoff(row.id, 3, "approved", approver);
       signoff(row.id, 6, "prepared", purchaser);
       signoff(row.id, 6, "approved", approver);
+      // Filing also waits for the Logistics sign-off (stored 8, #713).
+      signoff(row.id, 8, "approved", approver);
       signIn(approver);
       renderDetail(row.id, "filing");
 
