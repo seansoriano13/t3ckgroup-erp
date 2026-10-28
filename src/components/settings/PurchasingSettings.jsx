@@ -8,6 +8,7 @@ import NextIpasNumber from "./NextIpasNumber";
 import OrderAgeingRules from "./OrderAgeingRules";
 import DeliveryDeadlineSetting from "./DeliveryDeadlineSetting";
 import ReferenceRates from "./ReferenceRates";
+import LandedAddonDefaults from "./LandedAddonDefaults";
 import { IPAS_OPTION_LISTS, IPAS_OPTION_LIST_LABELS } from "../../constants/ipas";
 import { TRANSMITTAL_OPTION_LIST } from "../../constants/transmittals";
 
@@ -64,7 +65,10 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
       </div>
       <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : showNumbering ? NUMBERING_TAB : showAgeing ? AGEING_TAB : showRates ? RATES_TAB : optionList} onChange={setList} tabs={tabs} />
       {showRates ? (
-        <ReferenceRates isSuperAdmin={isSuperAdmin} />
+        <>
+          <ReferenceRates isSuperAdmin={isSuperAdmin} />
+          <LandedAddonDefaults />
+        </>
       ) : showNumbering ? (
         <NextIpasNumber isSuperAdmin={isSuperAdmin} />
       ) : showAgeing ? (

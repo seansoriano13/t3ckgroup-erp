@@ -1,12 +1,13 @@
 import { CornerDownRight } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../ui/table";
 import StatusBadge from "../../StatusBadge";
 import { Cell } from "../GridCell";
 import { costingMatrixService } from "../../../services/costingMatrixService";
-import { COSTING_BAND, tierReads, tierReadsCost } from "../../../constants/costing";
-import { lineCost } from "../../../utils/costingMath";
+import { COSTING_BAND, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
+import { lineCost, lineLanded } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
 import { useAuth } from "../../../context/AuthContext";
 import ComplianceColumn from "./ComplianceColumn";
@@ -94,6 +95,35 @@ function CostCells({ line, canCost, onSave }) {
   );
 }
 
+/**
+ * Landed / unit (#702): the IPAS's real Landed Cost once the row's item has one, else an estimate on the
+ * peso price plus the Import add-on (Local rows take the Local default). The words under it say which.
+ */
+function LandedCell({ line, addons }) {
+  const landed = lineLanded(line, addons);
+  return (
+    <TableCell className={cn(CELL, NUM, "w-40")} data-testid="sheet-landed">
+      {landed ? (
+        <>
+          {pesos(landed.unit)}
+          <div className="mt-1 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+            {landed.kind === "real" ? (
+              <>
+                <span>Real · from the IPAS</span>
+                <StatusBadge label={LANDED_COST_MARK_LABEL[landed.mark]} theme={landed.mark === "final" ? "green" : "amber"} />
+              </>
+            ) : (
+              <span>{landed.local ? "Estimate · local" : `Estimate · +${landed.percent}%`}</span>
+            )}
+          </div>
+        </>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      )}
+    </TableCell>
+  );
+}
+
 export default function CostingSheet({ matrix, opportunity, writes, canWrite }) {
   const { user } = useAuth();
   const myTeams = useMyEvaluationTeams(user?.id ?? null);
@@ -102,6 +132,14 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
   const showAbc = tierReads(matrix.tier, "abc_unit");
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const showCost = tierReadsCost(matrix.tier, "acquire_unit");
+  const showLanded = showCost && tierReadsLandedCost(matrix.tier);
+  const canAddon = showLanded && matrix.bands.includes(COSTING_BAND.PURCHASING);
+  const { data: defaults } = useQuery({
+    queryKey: ["costing", "landed-defaults"],
+    queryFn: () => costingMatrixService.getLandedDefaults(),
+    enabled: showLanded,
+  });
+  const addons = { import: matrix.importAddonPercent ?? defaults?.import ?? 0, local: defaults?.local ?? 0 };
   const canCost = showCost && matrix.bands.includes(COSTING_BAND.PURCHASING);
   const byId = new Map(lines.map((line) => [line.id, line]));
   const priced = lines.filter((line) => !line.included);
@@ -122,7 +160,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
 
   return (
     <div className="space-y-3" data-testid="costing-sheet">
-      <div className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-5 sm:divide-y-0">
+      <div className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-xl border border-border bg-card sm:grid-flow-col sm:auto-cols-fr sm:divide-y-0">
         <Fact label="S0 · client">
           <span className="font-mono text-xs">{opportunity?.sales_reference ?? opportunity?.sor_code ?? "—"}</span>
           {opportunity?.client_name ? ` · ${opportunity.client_name}` : ""}
@@ -146,6 +184,24 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
             {pesos(totals.finalOfferTotal)}
           </Fact>
         )}
+        {showLanded && (
+          <Fact label="Import add-on" sub="on the peso price, until the IPAS has the real one">
+            <Cell
+              label="Import add-on percent"
+              noun="The Import add-on"
+              value={matrix.importAddonPercent ?? defaults?.import ?? 0}
+              numeric
+              align="right"
+              placeholder="0"
+              readOnly={!canAddon}
+              onSave={async (value) => {
+                await costingMatrixService.setImportAddon(matrix.matrixId, value);
+                await writes.refresh();
+              }}
+              className="w-24"
+            />
+          </Fact>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -158,7 +214,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                 Sales · the client&apos;s ask
               </th>
               {showCost && (
-                <th colSpan={2} className={GROUP}>
+                <th colSpan={2 + (showLanded ? 1 : 0)} className={GROUP}>
                   Purchasing · cost
                 </th>
               )}
@@ -172,13 +228,14 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
               {showOffer && <th className={cn(HEAD, "text-right")}>Final Offer / unit</th>}
               {showCost && <th className={cn(HEAD, "text-right")}>Price</th>}
               {showCost && <th className={cn(HEAD, "text-right")}>In pesos</th>}
+              {showLanded && <th className={cn(HEAD, "text-right")}>Landed / unit</th>}
               <th className={cn(HEAD, "border-r-0")}>Compliance</th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {lines.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={4 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0)} className="px-3 py-4 text-sm text-muted-foreground">
+                <TableCell colSpan={4 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0)} className="px-3 py-4 text-sm text-muted-foreground">
                   No S0 lines yet.
                 </TableCell>
               </TableRow>
@@ -269,6 +326,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                     </TableCell>
                   )}
                   {showCost && <CostCells line={line} canCost={canCost} onSave={saveCost(line)} />}
+                  {showLanded && <LandedCell line={line} addons={addons} />}
                   <TableCell className={cn(CELL, "min-w-[12rem] max-w-[16rem] border-r-0")}>
                     <ComplianceColumn line={line} myTeams={myTeams} canSetTeam={canWrite} onChanged={writes.refresh} />
                   </TableCell>

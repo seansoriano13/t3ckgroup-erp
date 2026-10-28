@@ -746,3 +746,40 @@ export function lineCost(line) {
   const sources = new Set(costs.map((cost) => cost.source));
   return { source: sources.size === 1 ? [...sources][0] : "mixed", pesos, price: pesos, currency: "PHP" };
 }
+
+/**
+ * The estimated landed cost of a unit: its peso cost plus the add-on percent (18 means +18%),
+ * rounded to the centavo. Null while the cost is blank or the percent is not a number.
+ */
+export function estimateLanded(pesosCost, percent) {
+  const factor = 1 + Number(percent ?? 0) / 100;
+  if (!Number.isFinite(factor)) return null;
+  const cents = extendedCentavos(pesosCost, factor);
+  return cents === null ? null : pesosFromCentavos(cents);
+}
+
+/**
+ * The Landed / unit figure for one S0 line (#702). Once the line's Components all have an IPAS Landed
+ * Cost, that real figure wins, `{ kind: "real", unit, mark }` (mark "provisional" | "final"). Until then
+ * it is an estimate on the peso cost: a foreign-currency row takes the Import add-on, a peso row the Local
+ * one, `{ kind: "estimate", unit, percent, local }`. Null while the line has no cost, or the viewer's tier
+ * was not sent Landed Cost. Nothing here feeds markup or the price side.
+ *
+ * `addons` is `{ import, local }`, both in percent.
+ */
+export function lineLanded(line, addons) {
+  const real = landedCostRollup(line?.components);
+  const quantity = Number(line?.quantity);
+  if (real && Number.isFinite(quantity) && quantity > 0) {
+    const parts = line.components;
+    const own = parts.length === 1 ? parts[0].landed_cost?.unit : null;
+    const unit = hasValue(own) ? Number(own) : Math.round((real.total / quantity) * 100) / 100;
+    return { kind: "real", unit, mark: real.mark };
+  }
+  const cost = lineCost(line);
+  if (!cost) return null;
+  const local = cost.currency === "PHP";
+  const percent = Number((local ? addons?.local : addons?.import) ?? 0);
+  const unit = estimateLanded(cost.pesos, percent);
+  return unit === null ? null : { kind: "estimate", unit, percent, local };
+}
