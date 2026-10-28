@@ -233,37 +233,6 @@ export function bidDecisionToItem(pending, now = Date.now()) {
     };
 }
 
-/**
- * A Canvass waiting for the purchasing approver's sign-off (canvassService.pendingSignoffs, #279)
- * as an ApprovalItem. The clock runs from the last change that made it ready, and the "person" is
- * whoever opened the Canvass. Names and counts only: the approver list is not a money tier.
- */
-export function canvassSignoffToItem(pending, now = Date.now()) {
-    const winner = [pending.winnerSupplier, pending.winnerBrand].filter(Boolean).join(" · ");
-    const offers = `${pending.offerCount} offer${pending.offerCount === 1 ? "" : "s"}`;
-    return {
-        id: pending.canvassId,
-        queue: "canvass",
-        ref: pending.number || shortRef("CNV", pending.canvassId),
-        title: pending.subjectName || pending.projectTitle || "Canvass",
-        typeLabel: [winner ? `Winner ${winner}` : null, offers].filter(Boolean).join(" · "),
-        person: {
-            id: pending.creatorId,
-            name: pending.creatorName || "Unknown",
-            avatarPath: null,
-            dept: pending.projectTitle || "",
-        },
-        submittedAt: pending.waitingSince,
-        clockAt: pending.waitingSince,
-        isStale: isStaleSince(pending.waitingSince, now),
-        done: false,
-        isHighPriority: pending.offerCount < 3,
-        attachmentCount: 0,
-        chain: [],
-        source: pending,
-    };
-}
-
 const moneyLabel = (value) =>
     `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 

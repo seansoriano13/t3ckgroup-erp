@@ -291,7 +291,7 @@ const RECORDS = [
     hasMore: true,
     yourMove: {
       status: "Next: say why this supplier",
-      steps: ["Offers in", "Winner picked", "Purchase Request", "Sign-off"],
+      steps: ["Offers in", "Winner picked", "Purchase Request"],
     },
   },
   {

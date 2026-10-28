@@ -5,7 +5,6 @@ const APP = "T3CKGROUP ERP";
 // Longest prefix wins. Keep in step with src/pages.
 const TITLES = [
   ["/approvals/bid-decisions", "Bid Decisions"],
-  ["/approvals/canvass-signoffs", "Canvass Sign-offs"],
   ["/approvals/hr-verification", "HR Verification"],
   ["/approvals/ipas", "IPAS Sign-offs"],
   ["/approvals/leaves", "Time Off & Overtime"],

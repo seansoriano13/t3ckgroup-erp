@@ -25,6 +25,7 @@ const EXTRA_CSS = `
   .cnv-compare .sub { margin-top: 2px; }
   .cnv-compare td.num .sub { font-size: 6.6pt; color: var(--ink-faint); white-space: normal; }
   .cnv-group { font-family: var(--mono); font-size: 7pt; color: var(--ink-faint); margin: 2px 0 4px; }
+  .sigs.n1 { grid-template-columns: minmax(0, 1fr); max-width: 33%; }
   .sigs.n3 { grid-template-columns: repeat(3, 1fr); }
   .cnv-slots { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.6pt; }
   .cnv-slots th, .cnv-slots td { border: 1px solid var(--ink); padding: 4px 6px; text-align: left; vertical-align: top; }
@@ -115,9 +116,9 @@ function slotsHtml(slots) {
     .join('')}</tr><tr>${slots.map(cell).join('')}</tr></table></div></section>`;
 }
 
-/** The three signature plates through `sigBlock`, in the band every Purchasing form closes with. */
+/** The signature plates (Canvassed by, and Approved by on an old signed Canvass) through `sigBlock`, in the band every Purchasing form closes with. */
 function bandHtml(blocks) {
-  return `<div class="band"><div class="sigs n3">${blocks
+  return `<div class="band"><div class="sigs n${blocks.length}">${blocks
     .map((b) =>
       sigBlock({
         role: esc(b.role),
@@ -134,11 +135,11 @@ function bandHtml(blocks) {
 /** The whole sheet as markup, in the same furniture as the IPAS, Transmittal and Packing List. */
 export function buildCanvassSheetHtml(vm) {
   const h = vm.header;
-  const approved = vm.signatures[2]?.state === 'signed';
+  const approved = vm.signatures.some((b) => b.role === 'Approved by' && b.state === 'signed');
   return `<div class="sheet">
     <div class="rail"><span class="mark">${MARK}</span>
       <span class="org"><b>T3CKGROUP</b>Purchasing department</span>
-      <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">Canvass · ${approved ? 'Approved' : 'Not approved'}</div></span></div>
+      <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">Canvass${approved ? ' · Approved' : ''}</div></span></div>
     ${headHtml(vm.decision)}
     <div class="hdr">
       ${field(h.subjectKind === 'Component' ? 'SOR · Component' : h.subjectKind, h.subject)}
