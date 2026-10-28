@@ -34,7 +34,7 @@ async function seedFlow(label, { flagged }) {
         svc()
             .from("flow_stages")
             .insert([
-                { flow_id: flowId, name: `${MARKER} Lead`, sort_order: 0 },
+                { flow_id: flowId, name: `${MARKER} Lead`, sort_order: 0, buying_opens_here: false },
                 { flow_id: flowId, name: `${MARKER} Award`, sort_order: 1, buying_opens_here: flagged },
             ])
             .select("*"),

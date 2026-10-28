@@ -40,9 +40,12 @@ const guideAs = async (who) => {
 }
 
 const addRow = async (who, category, description = "Row") =>
-    (await clientFor(who)).then((client) =>
-        client.rpc("costing_add_cost_row", { p_matrix_id: matrixId, p_description: description, p_quantity: 1, ...(category === undefined ? {} : { p_category_key: category }) }),
-    )
+    (await clientFor(who)).rpc("costing_add_cost_row", {
+        p_matrix_id: matrixId,
+        p_description: description,
+        p_quantity: 1,
+        ...(category === undefined ? {} : { p_category_key: category }),
+    })
 
 const categoryOf = (guide, key) => guide.categories.find((c) => c.key === key)
 

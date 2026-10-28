@@ -178,7 +178,7 @@ const LISTS = [
     name: "Canvasses",
     Page: CanvassesPage,
     route: "/purchasing/canvasses",
-    pills: ["Open", "Signed off", "All"],
+    pills: ["Open", "Winner picked", "All"],
     counts: { Open: 1, All: 1 },
     noun: "canvasses",
     seed() {

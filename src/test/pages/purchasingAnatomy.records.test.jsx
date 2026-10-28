@@ -286,7 +286,7 @@ const RECORDS = [
       this.seeded = seedCanvass()
     },
     title: /^CNV_0001\s*·\s*Laser toner$/,
-    badge: "Open",
+    badge: "Winner picked",
     pills: ["Canvasser", "Subject", "Winner"],
     hasMore: true,
     yourMove: {

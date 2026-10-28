@@ -25025,7 +25025,7 @@ begin
    where lower(btrim(i.number)) = lower(btrim(coalesce(p_ipas_number, '')))
      and i.state <> 'cancelled';
   if not found then
-    raise exception 'transmittal_ipas_po_lines: that IPAS doesn''t exist or is cancelled' using errcode = 'P0002';
+    raise exception 'transmittal_ipas_po_lines: that IPAS doesn''t exist or is cancelled' using errcode = '22023';
   end if;
 
   return query

@@ -77,7 +77,7 @@ beforeAll(async () => {
     sorB = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
     requestA = await makeRequest({ opportunity_id: sorA })
     requestB = await makeRequest({ opportunity_id: sorB })
-    directRequest = await makeRequest({})
+    directRequest = await makeRequest({ title: `${MARKER} Direct request` })
 })
 
 afterAll(async () => {

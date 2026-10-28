@@ -79,7 +79,9 @@ describe("the first Offer starts the Canvass", () => {
     it("refuses someone without Purchasing access", async () => {
         const { error } = await start("ordinary", { p_product_name: `${MARKER} nothing` })
         expect(error).not.toBeNull()
-        expect([RLS_DENIED]).toContain(error.code)
+        // A free-standing start is refused for every signed-in person since #729 (22023, a BEFORE INSERT
+        // trigger that fires ahead of the row policy); the policy's 42501 is the other way it is refused.
+        expect([RLS_DENIED, BAD_INPUT]).toContain(error.code)
     })
 })
 

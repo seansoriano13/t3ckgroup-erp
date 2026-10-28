@@ -30,7 +30,8 @@ const makeCanvass = async (label) => {
     )
     created.push(canvass.id)
     for (const supplier of ["Redleaf Inc.", "Ream Co"]) {
-        await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: supplier, currency: "PHP", created_by: ids.outsider }).select("id").single(), "Offer")
+        const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: supplier, currency: "PHP", created_by: ids.outsider }).select("id").single(), "Offer")
+        await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: 1200 }).select("offer_id"), "Price")
     }
     return canvass.id
 }

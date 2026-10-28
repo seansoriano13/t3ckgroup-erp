@@ -15,6 +15,7 @@ import { serviceClient } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
 import { purgeCostingForSors } from "./support/costing.js"
+import { coverSlots } from "./support/canvassSlots.js"
 
 const svc = () => serviceClient()
 const BAD_INPUT = "22023"
@@ -76,6 +77,10 @@ afterAll(async () => {
     await svc().from("purchase_requests").delete().eq("id", requestId)
     await purgeCostingForSors(sorIds)
     await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
+    await svc().from("sales_opportunity_items").delete().in("opportunity_id", sorIds)
+    await svc().from("sales_opportunities").delete().in("id", sorIds)
+    await svc().from("flow_stages").delete().eq("id", stageId)
+    await svc().from("sales_flows").delete().eq("id", flowId)
     await svc().from("sale_types").delete().eq("id", saleTypeId)
 })
 
@@ -125,7 +130,11 @@ describe("Purchasing names the Odoo product", () => {
     })
 
     it("is refused on a line picked from the S0, which keeps the S0's product", async () => {
-        const linked = await typedLine({ source: "sor_line", sor_item_id: crypto.randomUUID(), odoo_product_id: 7001 }, null)
+        const sorItem = await asSvc(
+            svc().from("sales_opportunity_items").insert({ opportunity_id: sorId, product_name: `${MARKER} S0 rope` }).select("id").single(),
+            "S0 line",
+        )
+        const linked = await typedLine({ source: "sor_line", sor_item_id: sorItem.id, odoo_product_id: 7001 }, null)
         const refused = await tryUpdate(await clientFor("outsider"), "costing_tender_lines", linked.id, { odoo_product_id: 7002 })
         expect(refused).toMatchObject({ ok: false, code: BAD_INPUT })
         expect(refused.message).toMatch(/^costing_line: /)
@@ -147,6 +156,7 @@ describe("a typed line is canvassed like any line", () => {
         const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: "Redleaf Inc." }).select("id").single(), "Offer")
         await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: 4250 }), "Offer price")
 
+        await coverSlots(canvass.id)
         const picked = await (await clientFor("outsider")).rpc("canvass_apply_winner", { p_canvass_id: canvass.id, p_offer_id: offer.id })
         expect(picked.error).toBeNull()
         const cost = await asSvc(svc().from("costing_component_costs").select("acquire_unit").eq("component_id", comp).single(), "cost")
@@ -166,20 +176,24 @@ describe("a line with a Canvass or a P0 stays", () => {
         expect(await lineExists(line.id)).toBe(true)
     })
 
-    it("is refused once a Requested Item of its Component has a Canvass", async () => {
+    // A Requested Item that names a Component is never canvassed itself (the Canvass is on the
+    // Component, #720), so a Canvass can't sit on it. The line is still held by the Requested Item.
+    it("is refused once a Requested Item is made from its Component", async () => {
         const line = await typedLine()
         const comp = await component(line.id)
-        const item = await asSvc(
-            svc().from("purchase_request_items").insert({ request_id: requestId, source: "component", component_id: comp, name: "Tripod", quantity: 1, requested_by: ids.dealOwner }).select("id").single(),
+        await asSvc(
+            svc().from("purchase_request_items").insert({ request_id: requestId, source: "component", component_id: comp, name: "Tripod", quantity: 1, requested_by: ids.dealOwner }),
             "Requested Item",
         )
-        await asSvc(svc().from("sor_canvasses").insert({ requested_item_id: item.id, created_by: ids.outsider }), "Canvass")
 
         const refused = await tryDelete(await clientFor("dealOwner"), "costing_tender_lines", line.id)
         expect(refused).toMatchObject({ ok: false, code: BAD_INPUT })
-        expect(refused.message).toMatch(/Canvass/)
+        expect(refused.message).toMatch(/Requested Item/)
+        expect(await lineExists(line.id)).toBe(true)
     })
 
+    // The older "linked to a Requested Item" guard fires before the P0 guard (trigger names sort that
+    // way), so a Requested Item with a P0 is refused with its message.
     it("is refused once a Requested Item of its Component has a P0", async () => {
         const line = await typedLine()
         const comp = await component(line.id)
@@ -192,7 +206,7 @@ describe("a line with a Canvass or a P0 stays", () => {
 
         const refused = await tryDelete(await clientFor("dealOwner"), "costing_tender_lines", line.id)
         expect(refused).toMatchObject({ ok: false, code: BAD_INPUT })
-        expect(refused.message).toBe("costing_line: a line with a P0 can't be removed")
+        expect(refused.message).toMatch(/linked to a Requested Item/)
         expect(await lineExists(line.id)).toBe(true)
     })
 

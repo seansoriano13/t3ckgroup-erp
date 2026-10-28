@@ -419,13 +419,10 @@ describe("Evaluation approved", () => {
         expect(await liveSignoff()).toBeNull()
     })
 
-    it("leaves the other roles to their own signers (#274)", async () => {
-        // This matrix names no incharge: refused, not signed. (Purchasing reads the Closed Book, so it may
-        // approve the Final Acquire and offer since 20261102180000; 88 covers that.)
-        for (const role of ["prepared", "costed"]) {
-            expect((await sign("outsider", role)).error?.code, role).toBe(RLS_VIOLATION)
+    it("signs nothing but the evaluation (#722: Prepared, Costed and Final approved are no longer sign-offs)", async () => {
+        for (const role of ["prepared", "costed", "final_approved", "nonsense"]) {
+            expect((await sign("outsider", role)).error?.code, role).toBe("22023")
         }
-        expect((await sign("outsider", "nonsense")).error?.code).toBe("22023")
         expect(await liveSignoff()).toBeNull()
     })
 
