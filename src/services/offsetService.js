@@ -40,15 +40,17 @@ export async function stampApplication({ employeeId, categoryId, dates, totalHou
   };
 }
 
+// A department head decline sets head_status only; status stays PENDING until HR acts,
+// so a head-declined request must not hold its window or date.
 export async function checkOverlap(employeeId, date, startTime, endTime) {
   const [ot, offset, sil, undertime] = await Promise.all([
-    supabase.from('overtime_requests').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
-    supabase.from('offset_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
-    supabase.from('sil_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
+    supabase.from('overtime_requests').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")').neq('head_status', 'REJECTED'),
+    supabase.from('offset_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")').neq('head_status', 'REJECTED'),
+    supabase.from('sil_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")').neq('head_status', 'REJECTED'),
     // Undertime carries no single start/end pair — the window that actually
     // occupied the employee's day is the actual (worked) window, not the
     // original schedule, so that's what's compared here.
-    supabase.from('undertime_requests').select('actual_start_time, actual_end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
+    supabase.from('undertime_requests').select('actual_start_time, actual_end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")').neq('head_status', 'REJECTED'),
   ]);
 
   const allExisting = [
@@ -88,10 +90,10 @@ export async function getPendingOffsetHours(employeeId) {
 
 export async function checkDateTaken(employeeId, date) {
   const [ot, offset, sil, undertime] = await Promise.all([
-    supabase.from('overtime_requests').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
-    supabase.from('offset_leaves').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
-    supabase.from('sil_leaves').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
-    supabase.from('undertime_requests').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
+    supabase.from('overtime_requests').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")').neq('head_status', 'REJECTED'),
+    supabase.from('offset_leaves').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")').neq('head_status', 'REJECTED'),
+    supabase.from('sil_leaves').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")').neq('head_status', 'REJECTED'),
+    supabase.from('undertime_requests').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")').neq('head_status', 'REJECTED'),
   ]);
 
   if ([...(ot.data || []), ...(offset.data || []), ...(sil.data || []), ...(undertime.data || [])].length > 0) {
