@@ -17,6 +17,7 @@ import {
   IPAS_OPTION_LIST_NOUNS,
   IPAS_OVERRIDE_FIELDS,
   IPAS_PAYMENT_KINDS,
+  IPAS_LOGISTICS_SECTION,
   IPAS_PRE_FILING_SECTIONS,
   IPAS_PRIORITIES,
   IPAS_PURPOSE,
@@ -1471,7 +1472,7 @@ export const ipasService = {
 };
 
 function requireSignoffSection(section) {
-  if (!IPAS_SIGNOFF_SECTIONS.includes(section)) {
+  if (!IPAS_SIGNOFF_SECTIONS.includes(section) && section !== IPAS_LOGISTICS_SECTION) {
     throw new IpasError(
       IPAS_ERROR.INVALID,
       `Sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)}, ${ipasSectionNo(6)} and ${ipasSectionNo(7)} are signed off.`,

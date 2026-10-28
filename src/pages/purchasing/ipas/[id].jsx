@@ -65,6 +65,7 @@ import {
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_HEADER_FIELD,
   IPAS_OVERRIDE_FIELDS,
+  IPAS_SIGNER_LIST,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_STATE,
@@ -764,6 +765,15 @@ function IpasPage({ onClose }) {
       computationStatus: ipas.computationStatus,
     });
 
+  // Logistics (stored 8): one sign-off by its list; no Submit before it.
+  const logisticsRights = {
+    canSign:
+      open &&
+      !ipas.signoffSections[8]?.approved &&
+      Boolean(user?.id) &&
+      (signerLists?.[IPAS_SIGNER_LIST.LOGISTICS_SIGNED] ?? []).some((member) => member.employeeId === user.id),
+  };
+
   // Section 7: what this person may give, from where it stands.
   const filingRights = section7Rights({
     state: ipas.signoffSections[7],
@@ -893,7 +903,7 @@ function IpasPage({ onClose }) {
       hold: canHold,
     },
     onHold: Boolean(digest.figures?.onHold),
-    rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, sendBack7: canReturnSection7 },
+    rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, 8: logisticsRights, sendBack7: canReturnSection7 },
     busy: {
       signoff: signoff.isPending || returnSection.isPending,
       give: give.isPending || returnSection.isPending,

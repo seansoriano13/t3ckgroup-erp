@@ -5,7 +5,7 @@ import { gatesFor, nowGate, waitingSections } from "./gates";
 const who = (name, signedAt = "2026-09-05T06:40:00.000Z") => ({ signedBy: { name }, signedAt });
 
 /** A digest with just what the gates read. */
-function digestOf({ status = "encoding", s1 = {}, s3 = {}, s6 = {}, s7 = {}, open = true, filed = false, cancelled = false } = {}) {
+function digestOf({ status = "encoding", s1 = {}, s3 = {}, s6 = {}, s7 = {}, s8 = {}, open = true, filed = false, cancelled = false } = {}) {
   const costsComplete = status === "lc_odoo_done";
   return {
     open,
@@ -17,13 +17,14 @@ function digestOf({ status = "encoding", s1 = {}, s3 = {}, s6 = {}, s7 = {}, ope
     s3: { prepared: null, approved: null, ...s3 },
     s6: { prepared: null, approved: null, ...s6 },
     s7: { received: null, noted: null, checked: null, approved: null, ...s7 },
+    s8: { approved: null, ...s8 },
   };
 }
 
 const gatesOf = (overrides) => gatesFor(digestOf(overrides));
 const byKey = (gates, key) => gates.find((gate) => gate.key === key);
 const approvedBoth = { s1: { approved: who("Ana") }, s3: { approved: who("Ben") } };
-const approvedAll = { ...approvedBoth, s6: { approved: who("Cy") } };
+const approvedAll = { ...approvedBoth, s6: { approved: who("Cy") }, s8: { approved: who("Gr") } };
 
 describe("gatesFor: the one Now", () => {
   it("is Received, not LC Odoo Done, when the status is encoding and sections 1, 2 and 3 are approved", () => {
@@ -68,7 +69,7 @@ describe("gatesFor: the one Now", () => {
   it("stays the costs gate through LC GS Done, until LC Odoo Done", () => {
     const upTo = { ...approvedBoth, s7: { received: who("Fi"), noted: who("No"), checked: who("Ch") } };
     expect(nowGate(gatesOf({ status: "lc_gs_done", ...upTo }))?.key).toBe("costs");
-    expect(nowGate(gatesOf({ status: "lc_odoo_done", ...upTo, s6: { approved: who("Fa") } }))?.key).toBe("approved");
+    expect(nowGate(gatesOf({ status: "lc_odoo_done", ...upTo, s6: { approved: who("Fa") }, s8: { approved: who("Gr") } }))?.key).toBe("approved");
   });
 
   it("is section 3's sign-off once LC Odoo Done is reached, and not before", () => {
@@ -161,7 +162,7 @@ describe("gatesFor: names, states and lines", () => {
     const gates = gatesOf({ status: "lc_odoo_done", ...approvedBoth });
     const received = byKey(gates, "received");
     expect(received.prereqMet).toBe(false);
-    expect(received.line).toBe("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved");
+    expect(received.line).toBe("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved, and Logistics is signed");
     expect(byKey(gatesOf({ status: "lc_odoo_done", ...approvedAll }), "received").prereqMet).toBe(true);
   });
 

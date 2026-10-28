@@ -106,6 +106,7 @@ describe("IPAS section 7 and Filing", () => {
     signoff(row.id, 3, "approved", boss);
     signoff(row.id, 6, "prepared", purchaser);
     signoff(row.id, 6, "approved", boss);
+    signoff(row.id, 8, "approved", boss);
   };
   const givenThroughChecked = (row) => {
     signoff(row.id, 7, "received", receiver);
@@ -154,9 +155,9 @@ describe("IPAS section 7 and Filing", () => {
       renderDetail(row.id, "filing");
 
       const filing = await screen.findByTestId("ipas-filing");
-      expect(within(filing).getAllByText("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved.")).toHaveLength(4);
+      expect(within(filing).getAllByText("Opens once 1 · Purchasing, 2 · Purchasing & Finance, 3 · Computation status & Landed Cost and 6 · Logistics are signed.")).toHaveLength(4);
       expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
-      expect(screen.getAllByText("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved, and Logistics is signed").length).toBeGreaterThan(0);
     });
 
     it("offers Received to its list, then Noted and Checked, each only to its own list", async () => {

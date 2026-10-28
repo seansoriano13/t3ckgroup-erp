@@ -34,7 +34,7 @@ const SIGNOFF_DETAIL = {
 
 /** Section 4's detail beside its state word. */
 const FILING_DETAIL = {
-  [FILING_STATUS.WAITING]: `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} are approved`,
+  [FILING_STATUS.WAITING]: `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")}, ${ipasSectionLabel("costing")} and ${ipasSectionLabel("logistics")} are signed`,
   [FILING_STATUS.READY]: "Ready to receive",
   [FILING_STATUS.IN_PROGRESS]: "In progress",
   [FILING_STATUS.FILED]: "Filed",
@@ -92,6 +92,7 @@ export function digestIpas(ipas) {
   const s3 = ipas.signoffSections[3];
   const s6 = ipas.signoffSections[6];
   const s7 = ipas.signoffSections[7];
+  const s8 = ipas.signoffSections[8];
   const costsComplete = isLandedCostFinal(ipas.computationStatus);
   const given7 = IPAS_SECTION_7_ROLES.filter((role) => s7[role]).length;
   const purchasingLabel = ipasSectionLabel("purchasing");
@@ -164,7 +165,7 @@ export function digestIpas(ipas) {
     ]),
     filing: s7.opened
       ? join([`${given7} of 4 sign-offs`, `checklist ${docs.filingTicked + (costsComplete ? 1 : 0)} of ${docs.filingTotal + 1}`])
-      : `Opens once ${purchasingLabel}, ${financeLabel} and ${costingLabel} are approved`,
+      : `Opens once ${purchasingLabel}, ${financeLabel} and ${costingLabel} are approved, and Logistics is signed`,
     history: lastEvent
       ? join([
           plural(events.length, "change", "changes"),
@@ -184,6 +185,7 @@ export function digestIpas(ipas) {
     s3,
     s6,
     s7,
+    s8,
     given7,
     costsComplete,
     computationStatus: ipas.computationStatus,
