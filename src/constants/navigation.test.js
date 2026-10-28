@@ -148,6 +148,7 @@ describe("navigation registry", () => {
       const approvalsGroup = groups.find((g) => g.key === "approvals");
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
         "HR Verifications",
+        "Time Off & Overtime",
         "Meeting Requests",
       ]);
 
@@ -330,7 +331,7 @@ describe("navigation registry", () => {
           ?.links.map((l) => l.label) ?? [];
 
       expect(links({ isIpasApprover: true })).toEqual(["IPAS Sign-offs"]);
-      expect(links({ isIpasApprover: true, isHr: true })).toEqual(["HR Verifications", "Meeting Requests", "IPAS Sign-offs"]);
+      expect(links({ isIpasApprover: true, isHr: true })).toEqual(["HR Verifications", "Time Off & Overtime", "Meeting Requests", "IPAS Sign-offs"]);
       expect(links({ isIpasApprover: true, isHead: true })).toContain("IPAS Sign-offs");
       expect(links({ isSuperAdmin: true })).not.toContain("IPAS Sign-offs");
       expect(links({ isIpasSigner: true })).not.toContain("IPAS Sign-offs");
