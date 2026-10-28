@@ -1,6 +1,6 @@
 /**
- * #582 (spec #561): a Purchase Request made from Canvasses copies each winner's price onto its
- * Requested Item. The price lives in purchase_request_item_prices, read only by a member of the
+ * #582 (spec #561): a Requested Item carries a price. (#729: a request is no longer made from
+ * Canvasses, so the rows are set up directly.) The price lives in purchase_request_item_prices, read only by a member of the
  * request who has Purchasing access, Finance access or Super Admin; any other member reads the
  * item and no price.
  */
@@ -10,7 +10,7 @@ import { serviceClient } from "./support/stack.js"
 
 const svc = () => serviceClient()
 
-let requestId, pricedItem, unpricedItem, canvassIds = []
+let requestId, pricedItem, unpricedItem
 
 const asSvc = async (query, what) => {
     const { data, error } = await query
@@ -18,34 +18,24 @@ const asSvc = async (query, what) => {
     return data
 }
 
-const makeWonCanvass = async (name, price, currency = "PHP") => {
-    const canvass = await asSvc(svc().from("sor_canvasses").insert({ product_name: name, created_by: ids.outsider }).select("id").single(), "Canvass")
-    canvassIds.push(canvass.id)
-    const offer = await asSvc(
-        svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: "Paper Co", currency, is_winner: true }).select("id").single(),
-        "Offer",
-    )
-    if (price != null) await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: price }), "Offer price")
-    return canvass.id
-}
-
 beforeAll(async () => {
     await ensureCastLoaded()
     await asSvc(svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider), "purchasing flag")
 
-    const withPrice = await makeWonCanvass("Priced paper", 250.5)
-    const withoutPrice = await makeWonCanvass("Unpriced pens", null)
-
     const purchaser = await clientFor("outsider")
-    const made = await purchaser.rpc("canvass_create_purchase_request", {
+    const made = await purchaser.rpc("purchase_request_open", {
         p_title: "[policy-tier] price copy",
-        p_items: [{ canvass_id: withPrice }, { canvass_id: withoutPrice }],
+        p_items: [
+            { name: "[policy-tier] Priced paper", quantity: 1, unit: "pc" },
+            { name: "[policy-tier] Unpriced pens", quantity: 1, unit: "pc" },
+        ],
     })
-    if (made.error) throw new Error(`canvass_create_purchase_request: ${made.error.message}`)
-    requestId = made.data.request_id
-    const byCanvass = Object.fromEntries(made.data.items.map((i) => [i.canvass_id, i.item_id]))
-    pricedItem = byCanvass[withPrice]
-    unpricedItem = byCanvass[withoutPrice]
+    if (made.error) throw new Error(`purchase_request_open: ${made.error.message}`)
+    requestId = made.data
+    const items = await asSvc(svc().from("purchase_request_items").select("id, name").eq("request_id", requestId), "items")
+    pricedItem = items.find((i) => i.name.includes("Priced paper")).id
+    unpricedItem = items.find((i) => i.name.includes("Unpriced pens")).id
+    await asSvc(svc().from("purchase_request_item_prices").insert({ item_id: pricedItem, unit_price: 250.5, currency: "PHP" }), "price")
 
     await asSvc(svc().from("purchase_request_members").upsert({ request_id: requestId, employee_id: ids.dealOwner, side: "sales" }, { onConflict: "request_id,employee_id" }), "member")
     // Finance reads the price only as a reader of the request, so it joins the request too.
@@ -53,7 +43,6 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-    await svc().from("sor_canvasses").delete().in("id", canvassIds)
     if (requestId) {
         await svc().from("purchase_request_items").delete().eq("request_id", requestId)
         await svc().from("purchase_request_messages").delete().eq("request_id", requestId)
@@ -63,8 +52,8 @@ afterAll(async () => {
     await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
 })
 
-describe("the price on a Requested Item made from a Canvass", () => {
-    it("is filled from the winning Offer, with its currency", async () => {
+describe("the price on a Requested Item", () => {
+    it("is kept with its currency, and only on the item that has one", async () => {
         const rows = await asSvc(svc().from("purchase_request_item_prices").select("item_id, unit_price, currency").in("item_id", [pricedItem, unpricedItem]), "prices")
         expect(rows).toEqual([{ item_id: pricedItem, unit_price: 250.5, currency: "PHP" }])
     })

@@ -4,7 +4,6 @@ import { Navigate, useSearchParams } from "react-router";
 import {
   Link2,
   Lock,
-  Plus,
   Scale,
   Trophy,
   UserRound,
@@ -19,7 +18,6 @@ import FilterBar from "../../../components/ui/FilterBar";
 import TabGroup from "../../../components/ui/TabGroup";
 import { FilterSelect } from "../../../components/ui/FilterDropdown";
 import { Button } from "../../../components/ui/button";
-import { Checkbox } from "../../../components/ui/checkbox";
 import {
   SortHead,
   Table,
@@ -38,12 +36,10 @@ import {
 } from "../../../components/purchasing/list/StateCell";
 import ExportButton from "../../../components/purchasing/list/ExportButton";
 import CanvassPanel from "../../../components/CanvassPanel";
-import NewCanvassModal from "../../../components/NewCanvassModal";
-import CreatePurchaseRequestModal from "../../../components/CreatePurchaseRequestModal";
 import CanvassRequestBadge from "../../../components/CanvassRequestBadge";
 import { useAuth } from "../../../context/AuthContext";
 import { canvassService } from "../../../services/canvassService";
-import { CANVASS_KIND, CANVASS_LIST_KEY } from "../../../constants/canvass";
+import { CANVASS_LIST_KEY } from "../../../constants/canvass";
 import {
   ANY,
   CANVASS_EXPORT_HEADER,
@@ -190,43 +186,10 @@ function CanvassesPage({ userId, canEdit }) {
   );
   const ready = !isLoading && !isError;
   const openCanvass = (id) => setParams({ canvass: id });
-  // New Canvasses with no subject: nothing is written until Save (canvass_start), which makes the
-  // starter their Canvasser and gives each a number. Then each is a row like any other.
-  const [starting, setStarting] = useState(false);
-
-  // Picking Canvasses for one Purchase Request (ADR 0034): only subject-less ones can be picked.
-  const [picked, setPicked] = useState([]);
-  const [creating, setCreating] = useState(false);
-  const pickedRows = rows.filter((r) => picked.includes(r.id));
-  const togglePick = (id) =>
-    setPicked((cur) =>
-      cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id],
-    );
-
   return (
     <PageShell
       title="Canvasses"
       description="Every Canvass in one place, project ones included. Open one to see its Offers."
-      action={
-        canEdit ? (
-          <div className="flex gap-2">
-            {picked.length > 0 && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setCreating(true)}
-              >
-                Create Purchase Request ({picked.length})
-              </Button>
-            )}
-            <Button type="button" size="sm" onClick={() => setStarting(true)}>
-              <Plus className="size-4" aria-hidden="true" />
-              New Canvass
-            </Button>
-          </div>
-        ) : null
-      }
       toolbar={
         ready ? (
           <>
@@ -331,7 +294,7 @@ function CanvassesPage({ userId, canEdit }) {
         <EmptyState
           icon={Scale}
           title="No Canvasses yet"
-          description="A Canvass starts when its first Offer is saved. Use New Canvass to research a product before anyone files a request."
+          description="A Canvass starts on a product line of a project, or on a line of a Direct request, when its first Offer is saved."
         />
       )}
       {ready && rows.length > 0 && shown.length === 0 && (
@@ -380,18 +343,6 @@ function CanvassesPage({ userId, canEdit }) {
                   >
                     <TableCell>
                       <div className="flex items-start gap-2.5">
-                        {canEdit && row.kind === CANVASS_KIND.NONE && (
-                          <span
-                            className="pt-0.5"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Checkbox
-                              aria-label={`Pick Canvass ${row.number}`}
-                              checked={picked.includes(row.id)}
-                              onCheckedChange={() => togglePick(row.id)}
-                            />
-                          </span>
-                        )}
                         <div className="min-w-0">
                           <IdentityText
                             reference={
@@ -433,22 +384,6 @@ function CanvassesPage({ userId, canEdit }) {
           </div>
           <TablePager {...paging} noun="canvasses" />
         </div>
-      )}
-
-      {creating && canEdit && (
-        <CreatePurchaseRequestModal
-          open
-          onOpenChange={setCreating}
-          canvasses={pickedRows}
-          onCreated={() => {
-            setCreating(false);
-            setPicked([]);
-          }}
-        />
-      )}
-
-      {starting && canEdit && (
-        <NewCanvassModal open onOpenChange={setStarting} userId={userId} />
       )}
 
       {openRow && (
