@@ -319,7 +319,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       throw pgrstError("42501", "costing_fill: only Sales or Purchasing can fill the matrix from the SOR", { status: 403 })
     }
     const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
-    if (!matrix) throw pgrstError("22023", "costing_fill: this SOR has no Costing Matrix yet", { status: 400 })
+    if (!matrix) throw pgrstError("22023", "costing_fill: this SOR has no S0 Evaluation yet", { status: 400 })
     const lines = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id)
     let position = Math.max(0, ...lines.map((l) => l.position))
     const items = rowsOf("sales_opportunity_items")

@@ -20,7 +20,7 @@ import { openLines, renderComponentCanvass, renderCostingDesk } from "@/test/sup
 let authUser;
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }));
 
-describe("a winner on the Costing Matrix page", () => {
+describe("a winner on the S0 Evaluation page", () => {
   let purchaser;
   let deal;
   let component;

@@ -13,14 +13,14 @@ export default function PrintButton({ opportunityId, opportunity }) {
   const handlePrint = async () => {
     const printWindow = openCostingMatrixPrintWindow();
     if (!printWindow) {
-      toast.error("Allow pop-ups for this site to print the Costing Matrix.");
+      toast.error("Allow pop-ups for this site to print the S0 Evaluation.");
       return;
     }
     setPrinting(true);
     try {
       await printCostingMatrix(opportunityId, { printWindow, opportunity, printedBy: user?.name ?? null });
     } catch (error) {
-      toast.error(error?.message || "The Costing Matrix could not be printed.");
+      toast.error(error?.message || "The S0 Evaluation could not be printed.");
     } finally {
       setPrinting(false);
     }

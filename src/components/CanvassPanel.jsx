@@ -681,7 +681,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
       if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.all(opportunityId) });
       toast.success(
         hasComponent
-          ? "Winner cleared. The Costing Matrix keeps what it filled until a new winner is picked."
+          ? "Winner cleared. The S0 Evaluation keeps what it filled until a new winner is picked."
           : "Winner cleared.",
       );
     },
@@ -1035,7 +1035,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                 )}
                 {!winner && offers.length > 0 && hasComponent && (
                   <p className="text-xs text-muted-foreground" data-testid="no-winner-note">
-                    No winner picked. Anything an earlier winner filled on the Costing Matrix stays until a new winner replaces it.
+                    No winner picked. Anything an earlier winner filled on the S0 Evaluation stays until a new winner replaces it.
                   </p>
                 )}
                 <CanvassOffersGrid filled={offers.length + (canChange ? 1 : 0)} data-testid="offers-grid">

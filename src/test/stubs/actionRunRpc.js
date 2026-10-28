@@ -84,8 +84,8 @@ function openCostingMatrixOnFake(run, action) {
         recipient_id: recipientId,
         sender_id: null,
         type: "OPPORTUNITY_COSTING_INCHARGE_NEEDED",
-        title: "Costing Matrix needs a Purchasing Incharge",
-        message: "The Costing Matrix opened with no Purchasing Incharge. Please name one.",
+        title: "S0 Evaluation needs a Purchasing Incharge",
+        message: "The S0 Evaluation opened with no Purchasing Incharge. Please name one.",
         reference_id: run.opportunity_id,
       });
     }
@@ -243,7 +243,7 @@ export function stubActionRunRpcs() {
       throw new Error("sor_open_costing_matrix: run is not pending");
     }
     const action = findRow("flow_stage_actions", run.action_id);
-    if (action?.kind !== "open_costing_matrix") throw new Error("sor_open_costing_matrix: not an Open Costing Matrix action");
+    if (action?.kind !== "open_costing_matrix") throw new Error("sor_open_costing_matrix: not an Open S0 Evaluation action");
     return openCostingMatrixOnFake(run, action);
   });
 

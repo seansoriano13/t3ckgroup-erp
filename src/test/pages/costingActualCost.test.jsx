@@ -16,7 +16,7 @@ import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
 let authUser;
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }));
 
-describe("Expected and Actual cost on the Costing Matrix", () => {
+describe("Expected and Actual cost on the S0 Evaluation", () => {
   let purchaser;
   let deal;
   let component;

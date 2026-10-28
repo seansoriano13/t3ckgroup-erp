@@ -76,7 +76,7 @@ const build = (tier, { tables, signoffs = [], people = PEOPLE } = {}) => {
   return buildCostingMatrixViewModel({ matrix, opportunity: OPPORTUNITY, people }, { printedAt: "2026-10-16T04:00:00Z", printedBy: "Sean Soriano" });
 };
 
-describe("the printed Costing Matrix, view model", () => {
+describe("the printed S0 Evaluation, view model", () => {
   it("gives the Closed Book both sheets: the money sheet first, then the appendix", () => {
     const vm = build(COSTING_TIER.CLOSED_BOOK);
     expect(vm.formType).toBe("costing_matrix");
@@ -239,7 +239,7 @@ describe("the printed Costing Matrix, view model", () => {
   });
 });
 
-describe("the printed Costing Matrix, document", () => {
+describe("the printed S0 Evaluation, document", () => {
   it("is landscape A4 in the IPAS paper set, with the owner-band header and the margin column", () => {
     const html = buildCostingMatrixDocument(build(COSTING_TIER.CLOSED_BOOK));
     expect(html).toContain("@page { size: A4 landscape; margin: 0; }");

@@ -102,7 +102,7 @@ describe("SettingsPage", () => {
       "Venues",
       "Sales Configuration",
       "Purchasing",
-      "Costing Matrix",
+      "S0 Evaluation",
       "Employee Groups",
       "System Announcements",
     ]);

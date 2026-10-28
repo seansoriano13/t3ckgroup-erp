@@ -83,7 +83,7 @@ const sheetLabel = (vm, key, name) => `sheet ${vm.sheets.indexOf(key) + 1} of ${
 const rail = (vm, key) => `<div class="rail"><span class="mark">${MARK}</span>
     <span class="org"><b>${esc(vm.entity)}</b>Purchasing department</span>
     <span class="doc"><div class="t">${esc(vm.number)}</div>
-    <div class="s">Costing Matrix · sheet ${vm.sheets.indexOf(key) + 1} of ${vm.sheets.length}</div></span></div>`;
+    <div class="s">S0 Evaluation · sheet ${vm.sheets.indexOf(key) + 1} of ${vm.sheets.length}</div></span></div>`;
 
 const section = (title, aside, body) =>
   `<section class="sec"><h3><span>${title}</span>${aside ? `<b>${aside}</b>` : ''}</h3><div class="body">${body}</div></section>`;
@@ -96,7 +96,7 @@ const tick = (on, cls = '') => `<span class="chk${on ? ' done' : ''}${cls ? ` ${
 function foot(vm, notes, label) {
   const printed = [vm.printedAt ? `printed ${vm.printedAt}` : null, vm.printedBy ? `by ${vm.printedBy}` : null].filter(Boolean).join(' ');
   return `<div class="foot">
-    <span>${esc(vm.number)} · Costing Matrix${printed ? `<br>${esc(printed)}` : ''}</span>
+    <span>${esc(vm.number)} · S0 Evaluation${printed ? `<br>${esc(printed)}` : ''}</span>
     <span class="mid">${esc(notes)}</span>
     <span class="r">${esc(label)}</span>
   </div>`;
@@ -113,7 +113,7 @@ function moneyHead(vm) {
       ? ''
       : `<div class="abc"><div class="bar${s.overAbc ? ' over' : ''}"><span style="width:${s.abcBar.toFixed(1)}%"></span></div></div>`;
   return `<div class="head">
-    <div class="l"><div class="kind">Costing Matrix</div>
+    <div class="l"><div class="kind">S0 Evaluation</div>
       <div class="who">${esc(vm.projectTitle)}</div>
       <div class="meta">${esc([vm.clientName, m.facts.incharge].filter(Boolean).join(' · '))}</div>
       <div class="company"><span class="k">ABC</span> <b>${esc(m.facts.abc)}</b><span class="k">Target markup</span> <b>${esc(m.facts.targetMarkup)}</b></div></div>
@@ -269,7 +269,7 @@ function appendixSheet(vm) {
   const body = vm.appendix.lines.length ? vm.appendix.lines.map(appendixLine).join('') : '<div class="empty">No Tender Lines yet.</div>';
   return `<div class="sheet appendix">
     ${rail(vm, 'appendix')}
-    <div class="head"><div class="l"><div class="kind">Costing Matrix · specification appendix</div>
+    <div class="head"><div class="l"><div class="kind">S0 Evaluation · specification appendix</div>
       <div class="who">${esc(vm.projectTitle)}</div><div class="meta">${esc(vm.clientName)}</div></div></div>
     ${body}
     ${foot(vm, 'The full specification, judged line by line. No figures.', sheetLabel(vm, 'appendix', 'specifications'))}
@@ -289,7 +289,7 @@ export function buildCostingMatrixDocument(vm) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>${esc(vm.number)} · Costing Matrix</title>
+<title>${esc(vm.number)} · S0 Evaluation</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap">
 <style>${CSS}</style>

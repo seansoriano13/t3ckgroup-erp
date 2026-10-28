@@ -33,7 +33,7 @@ const tabNames = () => screen.getAllByRole("tab", { hidden: true }).map((t) => t
  * the Final Acquire list Super Admins keep. The database holds who may write either; the policy
  * tier (81-costing-summary-final-acquire) proves that. This is what the screen offers each person.
  */
-describe("Costing Matrix settings", () => {
+describe("S0 Evaluation settings", () => {
   beforeEach(() => {
     mockUser.current = null;
     toastError.mockClear();
@@ -45,7 +45,7 @@ describe("Costing Matrix settings", () => {
     renderCosting();
 
     const rates = await screen.findByTestId("costing-rates");
-    expect(tabNames()).toEqual(["General", "Costing Matrix"]);
+    expect(tabNames()).toEqual(["General", "S0 Evaluation"]);
     expect(within(rates).getByLabelText("VAT divisor")).toHaveValue("1.12");
     expect(within(rates).getByLabelText("Tax rate (%)")).toHaveValue("6");
     expect(within(rates).getByLabelText("Retention rate (%)")).toHaveValue("1");
@@ -100,7 +100,7 @@ describe("Costing Matrix settings", () => {
     expect(within(list).queryByText("Nobody yet.")).not.toBeInTheDocument();
   });
 
-  it("offers a plain employee no Costing Matrix tab", async () => {
+  it("offers a plain employee no S0 Evaluation tab", async () => {
     mockUser.current = makeEmployee({ name: "Rank And File" });
     renderCosting();
 

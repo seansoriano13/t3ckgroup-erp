@@ -94,7 +94,7 @@ describe("Canvass on a Requested Item", () => {
     expect(await canvassService.getForRequestedItem(null)).toBeNull()
   })
 
-  it("writes nothing to the Costing Matrix when a winner is marked on an item's Canvass", async () => {
+  it("writes nothing to the S0 Evaluation when a winner is marked on an item's Canvass", async () => {
     const canvass = await seedCanvass({ requestedItemId: plainItem.id }, purchaser.id)
     const offer = await canvassService.addOffer(canvass.id, { supplierName: "Paper Co", description: "A4 ream", unitPrice: 250 }, purchaser.id)
 

@@ -24,7 +24,7 @@ function openDesk(deal) {
   return renderCostingDesk(deal);
 }
 
-describe("markup on the Costing Matrix grid", () => {
+describe("markup on the S0 Evaluation grid", () => {
   let deal;
   let matrix;
   let vehicle;

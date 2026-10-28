@@ -106,7 +106,7 @@ describe("the shared costing evaluator", () => {
   it("fails closed when nobody loaded the evidence", () => {
     const result = evaluateCostingCondition("costing_settled", undefined)
     expect(result.met).toBe(false)
-    expect(result.messages).toEqual(["The Costing Matrix could not be checked."])
+    expect(result.messages).toEqual(["The S0 Evaluation could not be checked."])
   })
 })
 
@@ -189,8 +189,8 @@ describe("the shared evaluator for Costing priced (#463)", () => {
     expect(describeFailing(["missing_acquire"], { ...priced, missing_acquire: 1 })).toEqual(["1 row has no Acquire unit cost."])
     expect(describeFailing(["missing_acquire"], { ...priced, missing_acquire: 4 })).toEqual(["4 rows have no Acquire unit cost."])
     expect(describeFailing(["no_components", "no_purchasing_incharge"], priced)).toEqual([
-      "The Costing Matrix has no Components.",
-      "No Purchasing Incharge is named on the Costing Matrix.",
+      "The S0 Evaluation has no Components.",
+      "No Purchasing Incharge is named on the S0 Evaluation.",
     ])
   })
 

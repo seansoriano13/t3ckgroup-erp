@@ -1560,7 +1560,7 @@ function notePurchaseRequestOpened(opportunityId, stage, actionId, requestId, ac
 function noteCostingMatrixOpened(opportunityId, stage, actionId, matrixId, actorId) {
   return opportunityService.addSystemNote(
     opportunityId,
-    `Costing Matrix opened on entering Stage: ${stage.name}.`,
+    `S0 Evaluation opened on entering Stage: ${stage.name}.`,
     { event: "STAGE_ACTION_COSTING_MATRIX_OPENED", stageId: stage.id, actionId, matrixId },
     actorId,
   );
@@ -1588,7 +1588,7 @@ function stageActionName(action) {
   const named = config.title || config.projectTitle;
   if (typeof named === "string" && named.trim()) return named.trim();
   if (action?.kind === "open_purchase_request") return "Purchase Request";
-  if (action?.kind === "open_costing_matrix") return "Costing Matrix";
+  if (action?.kind === "open_costing_matrix") return "S0 Evaluation";
   if (action?.kind === "evaluate_specification") return "Evaluation of Specification";
   if (action?.kind === "request_packing_list") return "Packing List request";
   return action?.kind === "create_group_task" ? "Group task" : "Individual task";

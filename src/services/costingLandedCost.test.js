@@ -12,7 +12,7 @@ import { COSTING_TIER } from "@/constants/costing"
  * roll-ups, the PO and IPAS columns, and "ordered 3 of 5"; for a participant no Landed Cost key.
  * That the SQL does the same sums, and who it refuses, is the policy tier's (95-costing-landed-cost).
  */
-describe("Landed Cost on the Costing Matrix", () => {
+describe("Landed Cost on the S0 Evaluation", () => {
   let owner, opportunity, matrix, line, hose, nozzle, ipas
 
   const ALL_BANDS = ["sales", "purchasing", "management", "finance"]

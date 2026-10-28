@@ -23,9 +23,9 @@ const plural = (n, one, many) => (n === 1 ? one : many);
 
 /** Plain words per failing check, given the evidence (for counts and the Bid verdict). */
 export const WORDING = {
-  no_matrix: () => "No Costing Matrix has been opened for this SOR.",
+  no_matrix: () => "No S0 Evaluation has been opened for this SOR.",
   not_settled: () => "Costing not settled.",
-  no_tender_lines: () => "The Costing Matrix has no Tender Lines.",
+  no_tender_lines: () => "The S0 Evaluation has no Tender Lines.",
   missing_final_offer: (i) => {
     const n = Number(i?.missing_offer) || 0;
     return `${n} Tender ${plural(n, "Line has", "Lines have")} no Final Offer.`;
@@ -39,12 +39,12 @@ export const WORDING = {
   },
   evaluation_not_approved: () => "The Evaluation of Specification is not approved.",
   over_abc: () => "The Final Offer total is over the ABC total.",
-  no_components: () => "The Costing Matrix has no Components.",
+  no_components: () => "The S0 Evaluation has no Components.",
   missing_acquire: (i) => {
     const n = Number(i?.missing_acquire) || 0;
     return `${n} ${plural(n, "row has", "rows have")} no Acquire unit cost.`;
   },
-  no_purchasing_incharge: () => "No Purchasing Incharge is named on the Costing Matrix.",
+  no_purchasing_incharge: () => "No Purchasing Incharge is named on the S0 Evaluation.",
   bid_not_go: (i) =>
     i?.bid_verdict === "no_go"
       ? "The Bid Decision is No-go."
@@ -67,7 +67,7 @@ export function evaluateCostingCondition(kind, inputs) {
   const evaluator = EVALUATORS[kind];
   if (!evaluator) return { met: false, failing: [], messages: [] };
   if (inputs === undefined) {
-    return { met: false, failing: [], messages: ["The Costing Matrix could not be checked."] };
+    return { met: false, failing: [], messages: ["The S0 Evaluation could not be checked."] };
   }
   const { met, failing } = evaluator(inputs);
   return { met, failing, messages: describeFailing(failing, inputs) };
