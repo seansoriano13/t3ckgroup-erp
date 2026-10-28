@@ -14,6 +14,7 @@ import { useFlowData } from "./FlowDataContext";
 import { employeeService } from "../../services/employeeService";
 import { ACTION_KIND_META, actionSummary, actionTitle } from "./flowStageKinds";
 import { DEFAULT_ACCESS } from "../../utils/stageAudience";
+import { CONDITION_KINDS } from "../../constants/stageGate";
 import StageActionDetail from "./StageActionDetail";
 import PurchaseRequestActionModal from "./PurchaseRequestActionModal";
 import OpenCostingMatrixActionModal from "./OpenCostingMatrixActionModal";
@@ -32,7 +33,7 @@ import LogTaskModal from "../LogTaskModal";
  */
 export default function StageActionManager({ stageId, disabled = false }) {
   const { user } = useAuth();
-  const { stageAction: stageActionService } = useFlowData();
+  const { stageAction: stageActionService, stageCondition: stageConditionService } = useFlowData();
   const queryClient = useQueryClient();
   const [addingKind, setAddingKind] = useState(null);
   const [editingAction, setEditingAction] = useState(null);
@@ -111,6 +112,31 @@ export default function StageActionManager({ stageId, disabled = false }) {
   // before the automation could even be read.
   const handleAdd = (kind, config) =>
     addMutation.mutate({ stageId, kind, config: { ...config, access: DEFAULT_ACCESS } });
+
+  // Issue #707: the Evaluation of Specification holds its Stage until the evaluation is approved, so adding
+  // the action also puts the matching condition on the Stage (once). The condition is a normal one the
+  // designer can see and archive.
+  const handleAddEvaluation = async (config) => {
+    try {
+      const existing = await stageConditionService.getForStage(stageId);
+      if (!existing.some((c) => c.kind === CONDITION_KINDS.COSTING_EVALUATION_APPROVED)) {
+        await stageConditionService.add(
+          {
+            stageId,
+            kind: CONDITION_KINDS.COSTING_EVALUATION_APPROVED,
+            label: ACTION_KIND_META.evaluate_specification.label + " approved",
+          },
+          user?.id,
+        );
+        queryClient.invalidateQueries({ queryKey: ["stageConditions", stageId] });
+        queryClient.invalidateQueries({ queryKey: ["stageConditionsByStage"] });
+      }
+    } catch (err) {
+      toast.error(err.message);
+      return;
+    }
+    handleAdd("evaluate_specification", config);
+  };
 
   // Editing the task keeps whatever window the action already had: the modal
   // never asks about it, so it must never silently reset it.
@@ -327,6 +353,27 @@ export default function StageActionManager({ stageId, disabled = false }) {
           onClose={() => setAddingKind(null)}
           onSubmit={(config) => handleAdd("open_costing_matrix", config)}
           isSubmitting={addMutation.isPending}
+        />
+      )}
+
+      {addingKind === "evaluate_specification" && (
+        <OpenCostingMatrixActionModal
+          isOpen={true}
+          title="Evaluation of Specification"
+          onClose={() => setAddingKind(null)}
+          onSubmit={handleAddEvaluation}
+          isSubmitting={addMutation.isPending}
+        />
+      )}
+
+      {editingAction?.kind === "evaluate_specification" && (
+        <OpenCostingMatrixActionModal
+          isOpen={true}
+          title="Evaluation of Specification"
+          onClose={() => setEditingAction(null)}
+          initialData={editingAction.config}
+          onSubmit={handleUpdate}
+          isSubmitting={updateMutation.isPending}
         />
       )}
 
