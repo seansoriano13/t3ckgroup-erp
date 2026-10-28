@@ -589,6 +589,60 @@ describe("groupTaskService", () => {
     })
   })
 
+  describe("checklist item due dates", () => {
+    it("keeps an item's due date and remarks when the task is created", async () => {
+      const task = await createTask({
+        members: [
+          {
+            employeeId: alice.id,
+            checklist: [{ text: "Shelf 1", checked: false, dueDate: "2026-04-20", remarks: "Bring tags" }],
+          },
+        ],
+      })
+      const [m] = await membersOf(task.id)
+      expect(m.checklist).toEqual([
+        { text: "Shelf 1", checked: false, dueDate: "2026-04-20", remarks: "Bring tags" },
+      ])
+    })
+
+    it("accepts an item due on the task's Due Date", async () => {
+      await expect(
+        createTask({
+          members: [{ employeeId: alice.id, checklist: [{ text: "A", dueDate: "2026-04-30" }] }],
+        }),
+      ).resolves.toBeTruthy()
+    })
+
+    it("refuses an item due after the task's Due Date on create", async () => {
+      await expect(
+        createTask({
+          members: [{ employeeId: alice.id, checklist: [{ text: "A", dueDate: "2026-05-01" }] }],
+        }),
+      ).rejects.toThrow(/due after the task's Due Date/)
+    })
+
+    it("refuses a late item when adding a member or editing an assignment", async () => {
+      const task = await createTask()
+      const [assignment] = await membersOf(task.id)
+      const late = [{ text: "A", checked: false, dueDate: "2026-06-01" }]
+
+      await expect(
+        groupTaskService.addMemberToTask(task.id, { employeeId: makeEmployee().id, checklist: late }, creator.id),
+      ).rejects.toThrow(/due after/)
+      await expect(
+        groupTaskService.updateMemberAssignment(assignment.id, task.id, { checklist: late }, creator.id),
+      ).rejects.toThrow(/due after/)
+    })
+
+    it("still opens old checklists without dates", async () => {
+      const task = await createTask({
+        members: [{ employeeId: alice.id, checklist: [{ text: "Old", checked: true }] }],
+      })
+      const [m] = await membersOf(task.id)
+      expect(m.checklist).toEqual([{ text: "Old", checked: true }])
+    })
+  })
+
   describe("editing assignments", () => {
     it("changes what a member was asked to do", async () => {
       const task = await createTask()
