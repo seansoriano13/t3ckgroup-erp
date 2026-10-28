@@ -245,7 +245,7 @@ describe("FlowCanvas", () => {
     expect(screen.queryByText(/skips every Open Costing Matrix action/)).not.toBeInTheDocument()
   })
 
-  it("offers to move deals up after a minor publish, naming how many", async () => {
+  it("offers to update SORs after a minor publish, naming how many", async () => {
     const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
@@ -271,13 +271,13 @@ describe("FlowCanvas", () => {
     await screen.findByText("Changes since the latest version")
     await user.click(screen.getByRole("button", { name: "Publish" }))
 
-    expect(await screen.findByText("Move 1 SOR on 1.x up to v1.1?")).toBeInTheDocument()
+    expect(await screen.findByText("Update 1 SOR on 1.x to v1.1?")).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "Move deals" }))
-    expect(await screen.findByText("Deals moved")).toBeInTheDocument()
-    expect(screen.getByText("1 moved successfully.")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /^Update \d+ SORs?$/ }))
+    expect(await screen.findByText("SORs updated")).toBeInTheDocument()
+    expect(screen.getByText("1 updated successfully.")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Done" }))
-    expect(screen.queryByText("Deals moved")).not.toBeInTheDocument()
+    expect(screen.queryByText("SORs updated")).not.toBeInTheDocument()
   })
 
   it("shows how far the move has got, and cannot be dismissed until it finishes", async () => {
@@ -303,7 +303,7 @@ describe("FlowCanvas", () => {
     const gate = new Promise((resolve) => {
       release = resolve
     })
-    stubRpc("move_opportunities_to_flow_snapshot", async (args) => {
+    stubRpc("update_sor_versions", async (args) => {
       await gate
       return moveOpportunitiesToFlowSnapshot(args)
     })
@@ -314,21 +314,21 @@ describe("FlowCanvas", () => {
     await user.click(await screen.findByRole("button", { name: /Publish v1\.1/ }))
     await screen.findByText("Changes since the latest version")
     await user.click(screen.getByRole("button", { name: "Publish" }))
-    await user.click(await screen.findByRole("button", { name: "Move deals" }))
+    await user.click(await screen.findByRole("button", { name: /^Update \d+ SORs?$/ }))
 
-    expect(await screen.findByText("Moving 2 SORs to v1.1")).toBeInTheDocument()
-    expect(screen.getByText("Moved 0 of 2")).toBeInTheDocument()
+    expect(await screen.findByText("Updating 2 SORs to v1.1")).toBeInTheDocument()
+    expect(screen.getByText("Updated 0 of 2")).toBeInTheDocument()
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0")
     expect(screen.getByText(/Keep this page open/)).toBeInTheDocument()
 
     // Escape must not dismiss it — closing would hide the only sign the move is running.
     await user.keyboard("{Escape}")
-    expect(screen.getByText("Moving 2 SORs to v1.1")).toBeInTheDocument()
+    expect(screen.getByText("Updating 2 SORs to v1.1")).toBeInTheDocument()
 
     release()
-    expect(await screen.findByText("Deals moved")).toBeInTheDocument()
-    expect(screen.getByText("2 moved successfully.")).toBeInTheDocument()
-    expect(screen.queryByText("Moving 2 SORs to v1.1")).not.toBeInTheDocument()
+    expect(await screen.findByText("SORs updated")).toBeInTheDocument()
+    expect(screen.getByText("2 updated successfully.")).toBeInTheDocument()
+    expect(screen.queryByText("Updating 2 SORs to v1.1")).not.toBeInTheDocument()
   })
 
   it("does not offer to move deals after a major publish", async () => {
@@ -362,7 +362,7 @@ describe("FlowCanvas", () => {
       const history = await salesFlowService.listSnapshots(flow.id)
       expect(history[0].version).toBe(2)
     })
-    expect(screen.queryByText(/Move .* SOR.* up to/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Update .* SOR.* on .* to/)).not.toBeInTheDocument()
   })
 
   it("hides every edit control once the flow is locked", async () => {
