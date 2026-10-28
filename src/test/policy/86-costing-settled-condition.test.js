@@ -30,6 +30,10 @@ const asSvc = async (query, what) => {
 }
 
 const inputs = async (who, opportunityId = sorId) => (await clientFor(who)).rpc("costing_condition_inputs", { p_opportunity_id: opportunityId })
+/** Unlocks the live Go (#704: a Go locks the sheet); resolves to the error, or null. */
+const unlock = async (who = "ipasSigner") =>
+    (await (await clientFor(who)).rpc("costing_unlock_bid", { p_matrix_id: matrixId, p_reason: "Unlocking for the test" })).error
+
 const setMoney = async (who, table, row, patch) =>
     (await (await clientFor(who)).rpc("costing_set_money", { p_table: table, p_row: row, p_patch: patch })).error
 const logs = async () =>
@@ -164,9 +168,10 @@ describe("the evidence: who may ask, and what it says", () => {
         await asSvc(svc().from("costing_signoffs").insert({ matrix_id: matrixId, role: "evaluation_approved", signed_by: ids.ipasSigner }), "sign-off")
         expect((await inputs("dealOwner")).data.evaluation_approved).toBe(true)
 
-        const decided = await (await clientFor("ipasSigner")).rpc("costing_decide_bid", { p_matrix_id: matrixId, p_verdict: "go", p_reason: "Margin is fine" })
+        // A Revise, not a Go: a Go locks the sheet (#704), so a Final Offer change could not clear it.
+        const decided = await (await clientFor("ipasSigner")).rpc("costing_decide_bid", { p_matrix_id: matrixId, p_verdict: "revise", p_reason: "Margin is fine" })
         expect(decided.error).toBeNull()
-        expect((await inputs("dealOwner")).data.bid_verdict).toBe("go")
+        expect((await inputs("dealOwner")).data.bid_verdict).toBe("revise")
 
         // An Offer Specification edit clears the approval...
         const edit = await (await clientFor("outsider")).from("costing_components").update({ offer_specification: "Aluminium head" }).eq("id", componentId)
@@ -308,6 +313,8 @@ describe("bid submitted", () => {
     })
 
     it("tells the timeline about a Final Offer change after it, with the line number and no figures", async () => {
+        // The sheet is locked by the Go taken above; the timeline entry is about a change made after an unlock.
+        expect(await unlock()).toBeNull()
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineId, { final_offer_unit: 975.5 })).toBeNull()
         const entries = await logs()
         expect(entries).toHaveLength(1)

@@ -5,6 +5,10 @@
  *
  * Loosened by 20261102170000: the Deal Team and Purchasing read the Closed Book, so they decide too.
  *
+ * Since #704 (spec #699) a live Go locks the sheet and cannot be decided again until it is unlocked with a
+ * reason. So the tests that change the sheet under a decision, or decide over a live one, use a Revise or a
+ * No-go (those are still cleared by a later change); the Go lock itself has its own describe at the end.
+ *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
  *   dealOwner, support  Deal Team                          -> closed_book, decides
  *   outsider            Purchasing access, no part in it   -> closed_book, decides
@@ -46,6 +50,10 @@ const decide = async (who, verdict, reason = "Reason for the decision") => {
     const { data, error } = await (await clientFor(who)).rpc("costing_decide_bid", { p_matrix_id: matrixId, p_verdict: verdict, p_reason: reason })
     return { id: data, error }
 }
+
+/** Unlocks the live Go as `who`; resolves to the error, or null. */
+const unlock = async (who, reason = "Unlocking for the test") =>
+    (await (await clientFor(who)).rpc("costing_unlock_bid", { p_matrix_id: matrixId, p_reason: reason })).error
 
 const setMoney = async (who, table, row, patch) =>
     (await (await clientFor(who)).rpc("costing_set_money", { p_table: table, p_row: row, p_patch: patch })).error
@@ -169,12 +177,12 @@ describe("who decides", () => {
     it("lets a member of the Final Acquire list decide, with no self-approval rule", async () => {
         // The list member also typed the Final Acquire here: that is the boss deciding on the boss's own numbers.
         expect(await setMoney("ipasSigner", "costing_component_costs", componentId, { final_acquire_unit: 900 })).toBeNull()
-        const { id, error } = await decide("ipasSigner", "go", "  Price fits the ABC and the margin is fine  ")
+        const { id, error } = await decide("ipasSigner", "revise", "  Price fits the ABC and the margin is fine  ")
         expect(error).toBeNull()
         expect(id).toBeTruthy()
         const [decision] = await live()
         expect(decision.id).toBe(id)
-        expect(decision.verdict).toBe("go")
+        expect(decision.verdict).toBe("revise")
         expect(decision.reason).toBe("Price fits the ABC and the margin is fine")
         expect(decision.decided_by).toBe(ids.ipasSigner)
         expect(decision.decided_at).toBeTruthy()
@@ -183,7 +191,7 @@ describe("who decides", () => {
 
     it("lets a Super Admin who is not on the list decide, replacing the live decision", async () => {
         const before = await live()
-        const { id, error } = await decide("superAdmin", "revise", "Reprice the harnesses")
+        const { id, error } = await decide("superAdmin", "no_go", "Reprice the harnesses")
         expect(error).toBeNull()
         const now = await live()
         expect(now).toHaveLength(1)
@@ -196,7 +204,7 @@ describe("who decides", () => {
 
     it("lets the Deal Team and Purchasing decide too, each replacing the live decision", async () => {
         for (const who of ["dealOwner", "outsider"]) {
-            const { id, error } = await decide(who, "go", `Go from ${who}`)
+            const { id, error } = await decide(who, "revise", `Revise from ${who}`)
             expect(error, who).toBeNull()
             const now = await live()
             expect(now, who).toHaveLength(1)
@@ -225,7 +233,7 @@ describe("who decides", () => {
 
 describe("what it is stamped with", () => {
     it("stamps the Final Offer total and the ABC total the way costingMath works them", async () => {
-        const { error } = await decide("ipasSigner", "go", "Stamp check")
+        const { error } = await decide("ipasSigner", "revise", "Stamp check")
         expect(error).toBeNull()
         const [decision] = await live()
         const expected = matrixTotals([
@@ -241,7 +249,7 @@ describe("what it is stamped with", () => {
 
     it("stamps no ABC total while a Tender Line has no ABC", async () => {
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineTwoId, { abc_unit: null })).toBeNull()
-        const { error } = await decide("ipasSigner", "go", "No ABC on one line")
+        const { error } = await decide("ipasSigner", "revise", "No ABC on one line")
         expect(error).toBeNull()
         const [decision] = await live()
         expect(Number(decision.final_offer_total)).toBe(3942.88)
@@ -252,7 +260,7 @@ describe("what it is stamped with", () => {
 
 describe("what clears it", () => {
     it("clears the live decision when a Final Offer changes, and says why", async () => {
-        const { id, error } = await decide("ipasSigner", "go", "Good to go")
+        const { id, error } = await decide("ipasSigner", "revise", "Good to go")
         expect(error).toBeNull()
         expect(await live()).toHaveLength(1)
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineTwoId, { final_offer_unit: 490 })).toBeNull()
@@ -265,7 +273,7 @@ describe("what clears it", () => {
     })
 
     it("clears it when a Tender Line's quantity changes, which moves the Final Offer total", async () => {
-        await decide("ipasSigner", "go", "Good to go again")
+        await decide("ipasSigner", "revise", "Good to go again")
         expect(await live()).toHaveLength(1)
         await asSvc(svc().from("costing_tender_lines").update({ quantity: 4 }).eq("id", lineTwoId), "quantity")
         expect(await live()).toHaveLength(0)
@@ -273,21 +281,21 @@ describe("what clears it", () => {
     })
 
     it("clears it when a Component's Final Acquire changes", async () => {
-        const { id } = await decide("ipasSigner", "go", "Good to go once more")
+        const { id } = await decide("ipasSigner", "revise", "Good to go once more")
         expect(await setMoney("ipasSigner", "costing_component_costs", componentId, { final_acquire_unit: 950 })).toBeNull()
         expect(await live()).toHaveLength(0)
         expect((await rows()).find((r) => r.id === id).cleared_reason).toBe("A Final Acquire changed")
     })
 
     it("clears it when a cost-only row's Final Acquire changes", async () => {
-        const { id } = await decide("ipasSigner", "go", "Good to go, row")
+        const { id } = await decide("ipasSigner", "revise", "Good to go, row")
         expect(await setMoney("ipasSigner", "costing_cost_rows", costRowId, { final_acquire_unit: 2500 })).toBeNull()
         expect(await live()).toHaveLength(0)
         expect((await rows()).find((r) => r.id === id).cleared_reason).toBe("A Final Acquire changed")
     })
 
     it("keeps it when something else changes (ABC, Acquire, a Final Offer written to its own value)", async () => {
-        await decide("ipasSigner", "go", "Hold steady")
+        await decide("ipasSigner", "revise", "Hold steady")
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineOneId, { abc_unit: 1200 })).toBeNull()
         expect(await setMoney("outsider", "costing_component_costs", componentId, { acquire_unit: 700 })).toBeNull()
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineOneId, { final_offer_unit: 1001.15 })).toBeNull()
@@ -301,7 +309,7 @@ describe("what clears it", () => {
             await asSvc(svc().from("costing_components").insert({ tender_line_id: lineTwoId, position: 1, name: "Spare", quantity: 1 }).select("id").single(), "extra Component")
         ).id
         expect(await setMoney("ipasSigner", "costing_component_costs", extra, { final_acquire_unit: 10 })).toBeNull()
-        await decide("ipasSigner", "go", "Before removing a Component")
+        await decide("ipasSigner", "revise", "Before removing a Component")
         expect(await live()).toHaveLength(1)
         await asSvc(svc().from("costing_components").delete().eq("id", extra), "remove Component")
         expect(await live()).toHaveLength(0)
@@ -450,9 +458,72 @@ describe("what a No-go or a Revise does", () => {
         }
         expect(await live()).toHaveLength(1)
         expect(await mine()).toHaveLength(0)
+        // The live decision is the Go from the test before; unlocking it clears it.
+        expect(await unlock("ipasSigner", "Back to the queue")).toBeNull()
+        expect(await live()).toHaveLength(0)
+        expect(await mine()).toHaveLength(1)
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineTwoId, { final_offer_unit: 495 })).toBeNull()
         const back = await mine()
         expect(back).toHaveLength(1)
         expect(Number(back[0].final_offer_total)).toBe(3987.88)
+    })
+})
+
+describe("a Go locks the sheet", () => {
+    it("stamps the planned cost with the Go, the way the Costing Matrix page adds it", async () => {
+        // The Component at 950 x 2 and the cost-only row at 2500 x 1.
+        const { id, error } = await decide("ipasSigner", "go", "Locking the sheet")
+        expect(error).toBeNull()
+        const [decision] = await live()
+        expect(decision.id).toBe(id)
+        expect(decision.verdict).toBe("go")
+        expect(Number(decision.planned_cost_total)).toBe(4400)
+    })
+
+    it("refuses any change to the numbers while the Go is live, for everyone, and keeps the Go", async () => {
+        const locked = { code: RLS_VIOLATION, message: "costing_bid: the sheet is locked by a Go. Unlock it, with a reason, to change it" }
+        expect(await setMoney("dealOwner", "costing_tender_line_prices", lineOneId, { abc_unit: 1300 })).toMatchObject(locked)
+        expect(await setMoney("outsider", "costing_component_costs", componentId, { acquire_unit: 701 })).toMatchObject(locked)
+        expect(await setMoney("ipasSigner", "costing_cost_rows", costRowId, { final_acquire_unit: 2600 })).toMatchObject(locked)
+        expect(await live()).toHaveLength(1)
+    })
+
+    it("refuses to decide again over a live Go", async () => {
+        for (const verdict of ["go", "revise", "no_go"]) {
+            const { error } = await decide("superAdmin", verdict)
+            expect(error?.code, verdict).toBe("22023")
+            expect(error?.message, verdict).toBe("costing_bid: the sheet is locked by a Go. Unlock it first")
+        }
+        expect(await live()).toHaveLength(1)
+    })
+
+    it("lets only Closed Book unlock it, and only with a reason", async () => {
+        for (const who of ["stageParticipant", "finance", "ordinary"]) {
+            const error = await unlock(who)
+            expect(error?.code, who).toBe(RLS_VIOLATION)
+            expect(error?.message, who).toBe("costing_bid: only Sales, Purchasing, a Super Admin or the Final Acquire list can unlock a bid")
+        }
+        for (const reason of ["", "   "]) {
+            const error = await unlock("ipasSigner", reason)
+            expect(error?.code).toBe("22023")
+            expect(error?.message).toBe("costing_bid: write the reason for unlocking")
+        }
+        expect(await live()).toHaveLength(1)
+    })
+
+    it("unlocks with a reason, records who did it, and lets the sheet change again", async () => {
+        const [go] = await live()
+        expect(await unlock("dealOwner", "  The supplier moved the price  ")).toBeNull()
+        expect(await live()).toHaveLength(0)
+        const cleared = (await rows()).find((r) => r.id === go.id)
+        expect(cleared.cleared_reason).toBe("Unlocked: The supplier moved the price")
+        expect(cleared.unlocked_by).toBe(ids.dealOwner)
+        expect(await setMoney("dealOwner", "costing_tender_line_prices", lineOneId, { abc_unit: 1300 })).toBeNull()
+    })
+
+    it("has nothing to unlock once it is unlocked", async () => {
+        const error = await unlock("ipasSigner")
+        expect(error?.code).toBe("22023")
+        expect(error?.message).toBe("costing_bid: there is no Go to unlock")
     })
 })

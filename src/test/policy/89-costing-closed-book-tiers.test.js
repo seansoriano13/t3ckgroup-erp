@@ -129,7 +129,7 @@ beforeAll(async () => {
         }),
         "participant window",
     )
-    await asSvc(svc().from("costing_signer_lists").insert({ list_key: "final_acquire", employee_id: ids.ipasSigner }), "signer list")
+    await asSvc(svc().from("costing_signer_lists").insert([{ list_key: "final_acquire", employee_id: ids.ipasSigner }, { list_key: "markup", employee_id: ids.ipasSigner }]), "signer list")
 
     const opened = await svc().rpc("costing_open_matrix", { p_opportunity_id: sorId })
     if (opened.error) throw new Error(`costing_open_matrix: ${opened.error.message}`)
@@ -178,7 +178,7 @@ beforeAll(async () => {
     }
     await asSvc(svc().from("costing_components").update({ compliance: "complies" }).eq("id", componentId), "compliance")
     await asSvc(svc().from("costing_signoffs").insert({ matrix_id: matrixId, role: "prepared", signed_by: ids.outsider }), "sign-off")
-    const decided = await rpc("ipasSigner", "costing_decide_bid", { p_matrix_id: matrixId, p_verdict: "go", p_reason: "Margin is fine" })
+    const decided = await rpc("ipasSigner", "costing_decide_bid", { p_matrix_id: matrixId, p_verdict: "revise", p_reason: "Margin is fine" })
     if (decided.error) throw new Error(`costing_decide_bid: ${decided.error.message}`)
 
     registry = await asSvc(svc().from("costing_column_tiers").select("*"), "registry")
@@ -227,7 +227,7 @@ describe("Always sees (price tier)", () => {
         // No summary inputs (default factor, marketing, OPEX), no stamped bid figures.
         expect("costing_matrix_money" in t).toBe(false)
         const decision = t.costing_bid_decisions.find((r) => r.cleared_at === null)
-        expect(decision.verdict).toBe("go")
+        expect(decision.verdict).toBe("revise")
         expect(decision.reason).toBe("Margin is fine")
         expect(hasAnyKey(t.costing_bid_decisions, ["final_offer_total", "abc_total"])).toEqual([])
         // Compliance travels with every tier.
@@ -494,11 +494,11 @@ describe("write bands still refuse out-of-band writes", () => {
         expect(error?.message).toBe("costing_band:costing_tender_line_prices.final_offer_unit:sales")
     })
 
-    it("refuses the markup factor to anyone outside Sales, Purchasing and the list", async () => {
+    it("refuses the markup factor to anyone outside the Markup list", async () => {
         for (const who of ["stageParticipant"]) {
             const error = await setMoney(who, "costing_component_costs", componentId, { markup_factor: 9 })
             expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error?.message, who).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing,management")
+            expect(error?.message, who).toBe("costing_band:costing_component_costs.markup_factor:markup")
         }
     })
 

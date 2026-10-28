@@ -59,6 +59,7 @@ beforeAll(async () => {
     await asSvc(
         svc().from("costing_signer_lists").insert([
             { list_key: "final_acquire", employee_id: ids.ipasSigner },
+            { list_key: "markup", employee_id: ids.ipasSigner },
             { list_key: "evaluation", employee_id: ids.ordinary },
             { list_key: "evaluation", employee_id: ids.outsider },
             { list_key: "evaluation", employee_id: ids.dealOwner },

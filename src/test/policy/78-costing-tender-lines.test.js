@@ -417,7 +417,7 @@ describe("Tender Lines: who reads what", () => {
     expect(await bands("outsider")).toEqual(["purchasing", "technical"])
     expect(await bands("ipasSigner")).toEqual(["finance", "management"])
     expect(await bands("stageParticipant")).toEqual([])
-    expect(await bands("superAdmin")).toEqual(["purchasing", "sales", "super_admin_only", "technical"])
+    expect(await bands("superAdmin")).toEqual(["markup", "purchasing", "sales", "super_admin_only", "technical"])
   })
 
   it("matches the registry the screen mirrors in src/constants/costing.js", async () => {

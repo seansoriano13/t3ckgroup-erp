@@ -330,11 +330,11 @@ describe("accepting a brand", () => {
 describe("the registry", () => {
     it("holds the new columns as the screen's constants mirror them", async () => {
         const tiers = await asSvc(
-            svc().from("costing_column_tiers").select("table_name, column_name, tiers").in("table_name", ["costing_components", "costing_component_costs"]).in("column_name", ["offer_specification_from_offer_id", "documents", "acquire_from_offer_id", "p0_unit_price", "p0_quoted_unit_price", "p0_currency"]),
+            svc().from("costing_column_tiers").select("table_name, column_name, tiers").in("table_name", ["costing_components", "costing_component_costs"]).in("column_name", ["offer_specification_from_offer_id", "documents", "acquire_from_offer_id", "acquire_source", "p0_unit_price", "p0_quoted_unit_price", "p0_currency"]),
             "tiers",
         )
         const bands = await asSvc(
-            svc().from("costing_column_bands").select("table_name, column_name, bands").in("table_name", ["costing_components", "costing_component_costs"]).in("column_name", ["offer_specification_from_offer_id", "documents", "acquire_from_offer_id", "p0_unit_price", "p0_quoted_unit_price", "p0_currency"]),
+            svc().from("costing_column_bands").select("table_name, column_name, bands").in("table_name", ["costing_components", "costing_component_costs"]).in("column_name", ["offer_specification_from_offer_id", "documents", "acquire_from_offer_id", "acquire_source", "p0_unit_price", "p0_quoted_unit_price", "p0_currency"]),
             "bands",
         )
         const tiersOf = (table, column) => [...(tiers.find((t) => t.table_name === table && t.column_name === column)?.tiers ?? [])].sort()

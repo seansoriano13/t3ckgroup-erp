@@ -76,7 +76,7 @@ beforeAll(async () => {
 
     sorId = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, supportSales1Id: ids.support, saleTypeId, flowStageId: stageId })
     sorIds.push(sorId)
-    await asSvc(svc().from("costing_signer_lists").insert({ list_key: "final_acquire", employee_id: ids.ipasSigner }), "signer list")
+    await asSvc(svc().from("costing_signer_lists").insert([{ list_key: "final_acquire", employee_id: ids.ipasSigner }, { list_key: "markup", employee_id: ids.ipasSigner }]), "signer list")
 
     const opened = await svc().rpc("costing_open_matrix", {
         p_opportunity_id: sorId,
