@@ -99,6 +99,19 @@ export const notificationService = {
   },
 
   /**
+   * Mark several notifications as read (a grouped chat row)
+   */
+  async markManyAsRead(ids) {
+    if (!ids?.length) return;
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .in('id', ids);
+
+    if (error) throw new Error(error.message);
+  },
+
+  /**
    * Mark a single notification as unread
    */
   async markAsUnread(notificationId) {

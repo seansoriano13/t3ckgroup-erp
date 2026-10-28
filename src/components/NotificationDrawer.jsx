@@ -33,6 +33,7 @@ import Dot from "./ui/Dot";
 import { Button } from "./ui/button";
 import { Drawer, DrawerContent, DrawerTitle } from "./ui/drawer";
 import { handleNotificationRoute } from "../utils/notificationRouter";
+import { groupChatNotifications } from "../utils/groupChatNotifications";
 import { showNotificationPopup } from "../utils/notificationPopup";
 
 // ─── Relative Timestamp ───────────────────────────────────────────────────────
@@ -193,6 +194,15 @@ export default function NotificationDrawer({ isOpen, onClose }) {
     },
   });
 
+  const markManyReadMutation = useMutation({
+    mutationFn: (ids) => notificationService.markManyAsRead(ids),
+    onSuccess: (_, ids) => {
+      queryClient.setQueryData(["notifications", user?.id], (old = []) =>
+        old.map((n) => (ids.includes(n.id) ? { ...n, is_read: true } : n)),
+      );
+    },
+  });
+
   const markUnreadMutation = useMutation({
     mutationFn: (id) => notificationService.markAsUnread(id),
     onSuccess: (_, id) => {
@@ -237,13 +247,14 @@ export default function NotificationDrawer({ isOpen, onClose }) {
 
   // ── Derived state ─────────────────────────────────────────────────────────
   const filteredNotifs = useMemo(
-    () => filterNotifs(notifications, activeTab),
+    () => groupChatNotifications(filterNotifs(notifications, activeTab)),
     [notifications, activeTab],
   );
 
   // ── Handler ───────────────────────────────────────────────────────────────
   const handleNotificationClick = (notif) => {
-    if (!notif.is_read) markReadMutation.mutate(notif.id);
+    if (notif.groupIds?.length > 1) markManyReadMutation.mutate(notif.groupIds);
+    else if (!notif.is_read) markReadMutation.mutate(notif.id);
     handleNotificationRoute(notif, user, navigate, onClose);
   };
 
@@ -318,7 +329,11 @@ export default function NotificationDrawer({ isOpen, onClose }) {
                 key={notif.id}
                 notif={notif}
                 avatarMap={avatarMap}
-                onMarkRead={() => markReadMutation.mutate(notif.id)}
+                onMarkRead={() =>
+                  notif.groupIds?.length > 1
+                    ? markManyReadMutation.mutate(notif.groupIds)
+                    : markReadMutation.mutate(notif.id)
+                }
                 onMarkUnread={() => markUnreadMutation.mutate(notif.id)}
                 onDelete={() =>
                   confirmDeleteToast(
@@ -391,6 +406,11 @@ function NotifItem({
             >
               {notif.title}
             </h4>
+            {notif.groupCount > 1 && (
+              <span className="shrink-0 rounded-full bg-primary/10 px-2 text-[11px] font-bold text-primary">
+                {notif.groupCount} messages
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed font-normal">
             {safeRenderMessage(notif.message)}
