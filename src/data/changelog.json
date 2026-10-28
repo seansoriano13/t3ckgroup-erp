@@ -1,10 +1,26 @@
 [
     {
         "date": "2026-10-28",
-        "title": "S0 Evaluation in the costing-sheet shape, and IPAS money that follows it",
+        "title": "The S0 Evaluation leads the road to buying",
+        "version": "1.9.71",
+        "changes": [
+            "The Costing Matrix is now called the S0 Evaluation on every screen, tab, print and notice.",
+            "Purchasing can type lines that are not on the S0 and put them on the S0 Evaluation before the S0 is made. When an S0 arrives, its lines join the sheet and lines that match nothing are added as new rows.",
+            "A Canvass now has three supplier slots. Each slot holds an Offer, or you mark that there is no other supplier. A Canvass has no sign-off any more: picking a winner is enough.",
+            "Each cost on the S0 Evaluation now shows a cost guide, a percentage that tells you how far a price is from what is expected.",
+            "Buying opens at the stage set for it. Before that, a P0 can be attached early with Order early and a reason.",
+            "When a P0 is attached, its IPAS is created for you. If Odoo does not answer, the P0 is marked \"IPAS to create\" so it can be done later.",
+            "A Transmittal can be filled from the IPAS and its P0 lines.",
+            "A Requested Item is marked Received when Odoo shows the goods were received.",
+            "The Canvasses page shows a Canvass as Open until it has a winner. Old Canvasses that were signed off keep that as history."
+        ]
+    },
+    {
+        "date": "2026-10-28",
+        "title": "Costing Matrix in the costing-sheet shape, and IPAS money that follows it",
         "version": "1.9.70",
         "changes": [
-            "The S0 Evaluation is now one flat sheet, one row per line of the S0, with the cost, markup and compliance columns beside the prices. A suggested price now includes the items that come with a tower.",
+            "The Costing Matrix is now one flat sheet, one row per line of the S0, with the cost, markup and compliance columns beside the prices. A suggested price now includes the items that come with a tower.",
             "A Go on the Bid Decision locks the sheet. Only a Super Admin or the people on the decider's list can unlock it, with a reason that is recorded.",
             "The multiplier is now set by the Markup list. Final Acquire has left the matrix screen.",
             "On an IPAS, a payment is its amount times the forex rate paid, plus fees. Landed Cost is worked out from those, with freight counted once, and a retail and wholesale table for stock.",
@@ -26,7 +42,7 @@
         "title": "Actual cost of a foreign P0 in pesos",
         "version": "1.9.68",
         "changes": [
-            "On the S0 Evaluation, a P0 in dollars or another currency now shows its Actual cost in pesos, at the rate of the Canvass winner, with the P0's own price beside it.",
+            "On the Costing Matrix, a P0 in dollars or another currency now shows its Actual cost in pesos, at the rate of the Canvass winner, with the P0's own price beside it.",
             "If no Canvass winner is in the P0's currency, its price is shown in that currency and not compared with the peso cost."
         ]
     },
@@ -69,10 +85,10 @@
     },
     {
         "date": "2026-10-22",
-        "title": "The S0 Evaluation in its own window",
+        "title": "The Costing Matrix in its own window",
         "version": "1.9.63",
         "changes": [
-            "The S0 Evaluation opens in its own window. Open it from an SOR's PMS tab with Open S0 Evaluation, or from a row on the S0 Evaluation page.",
+            "The Costing Matrix opens in its own window. Open it from an SOR's PMS tab with Open Costing Matrix, or from a row on the Costing Matrix page.",
             "The matrix fills itself from the SOR's products, with each product's cost from Odoo. Refresh from the SOR brings in products added later. Nothing you typed is overwritten.",
             "A line is priced from its product. Break it down into parts only when a line needs them.",
             "The markup playground lets you try a markup and see the offer, its share of the ABC and the margin before anything is saved. Apply fills every Final Offer.",
@@ -144,7 +160,7 @@
     },
     {
         "date": "2026-10-21",
-        "title": "IPAS list, record page and S0 Evaluation page get a big upgrade",
+        "title": "IPAS list, record page and Costing Matrix page get a big upgrade",
         "version": "1.9.57",
         "changes": [
             "The IPAS list now shows the Amount, Payment Scheme, Down Payment, Full Payment, Remaining Balance and the new IPAS Status (Pending, Requested, Ongoing, On-Hold, Paid, Done). Pick which columns to show.",
@@ -154,7 +170,7 @@
             "The IPAS record is a full page again, with a money summary at the top and a Supplier bill check that compares the Odoo PO total with the P.I/QT Amount. A mismatch is shown beside Approve for section 1 and never blocks it.",
             "Pesos taken from the bank is now optional on a foreign-currency payment. Left blank, Landed Cost uses the Reference Rate of the payment date and is marked as an estimate. The Computation status can jump to any step.",
             "The SOR picker when raising an IPAS now finds every SOR by SO number, SOR number or project, and a Super Admin can set the number the next IPAS takes in Settings (it can only move forward).",
-            "New S0 Evaluation page for the Closed Book: every SOR with its Planned Revenue and Actual Revenue side by side, with search, filters and totals."
+            "New Costing Matrix page for the Closed Book: every SOR with its Planned Revenue and Actual Revenue side by side, with search, filters and totals."
         ]
     },
     {
@@ -181,7 +197,7 @@
             "Purchasing can start a Canvass on its own, before any Purchase Request exists. It gets its number when its first Offer is saved.",
             "Purchasing can pick several finished Canvasses on the Canvasses page and create one Purchase Request from them. A Canvass that is not signed off yet only gives a warning.",
             "A Purchase Request made from Canvasses now shows each winner's price on its Requested Item, only to members who may see prices (Purchasing, Finance and Super Admin).",
-            "A winner can now be un-picked. This clears the sign-off, is kept in the Canvass history, and leaves the values the winner filled in the S0 Evaluation, with a note that no winner stands behind them.",
+            "A winner can now be un-picked. This clears the sign-off, is kept in the Canvass history, and leaves the values the winner filled in the Costing Matrix, with a note that no winner stands behind them.",
             "The Canvass can be printed side by side, with the Offers next to each other.",
             "Requested Items are now a queue of To do, In progress and Closed groups. Each item is a soft card with its name, quantity, status and PO number. Open it to read stock, who requested it, Canvass, PO and notes in clear, full-length lines. Items glide to their new group when the status changes.",
             "After you change a Requested Item's status, an Undo button shows for about 10 seconds.",
@@ -204,7 +220,7 @@
             "A new stage condition, Goods checked, is met when every submitted Transmittal that names the SOR is Closed. Drafts and cancelled slips are ignored, and an SOR no Transmittal names meets it.",
             "A new stage condition, Orders filed, is met when every IPAS that names the SOR is filed. An SOR no IPAS names meets it. It is not used on Government.",
             "Order Monitoring now shows the client's delivery deadline.",
-            "The S0 Evaluation now opens by itself on SORs that are already past its stage."
+            "The Costing Matrix now opens by itself on SORs that are already past its stage."
         ]
     },
     {
@@ -225,7 +241,7 @@
         "changes": [
             "Purchasing has a new Purchasing Dashboard. It groups all buying by what is still to do: To source, To price, To order, On order and To check, with how many items and SORs are in each.",
             "One SOR shows in every group it has work in, for example \"4 to source, 2 on order\". It is never squeezed into one stage.",
-            "Each entry opens the record that owns the work: the Purchase Request, the SOR's S0 Evaluation, the IPAS, or the Transmittal. Orders whose PO has an IPAS are listed by IPAS.",
+            "Each entry opens the record that owns the work: the Purchase Request, the SOR's Costing Matrix, the IPAS, or the Transmittal. Orders whose PO has an IPAS are listed by IPAS.",
             "To check also shows items received on an IPAS that has no Transmittal yet.",
             "Direct requests, which have no SOR, are counted too.",
             "Filter by SOR, Buyer, Canvasser, ageing, or items ordered with no canvass. The ageing filter can also show only orders that are late by Order Monitoring's ageing rules. The dashboard shows counts only, never money.",
@@ -239,7 +255,7 @@
         "changes": [
             "Canvass: beside each offer on a Component, Purchasing now sees what the cost and the selling price would be if that offer won. It updates when the offer's price or rate changes, and nothing is saved.",
             "An offer in dollars or euros with no rate yet shows no figure, rather than a wrong one.",
-            "The Closed Book also sees what the line's margin and the S0 Evaluation summary would become."
+            "The Closed Book also sees what the line's margin and the Costing Matrix summary would become."
         ]
     },
     {
@@ -255,17 +271,17 @@
     },
     {
         "date": "2026-10-19",
-        "title": "S0 Evaluation: what each purchase actually cost",
+        "title": "Costing Matrix: what each purchase actually cost",
         "version": "1.9.49",
         "changes": [
-            "The S0 Evaluation has a new Landed Cost column, after Final Acquire. It shows what a Component's purchase actually cost, worked out from the PO lines Purchasing picked and that IPAS's payments and charges.",
+            "The Costing Matrix has a new Landed Cost column, after Final Acquire. It shows what a Component's purchase actually cost, worked out from the PO lines Purchasing picked and that IPAS's payments and charges.",
             "Each Landed Cost is marked Provisional until every IPAS it comes from has its costs complete, then Final. Each Tender Line and the whole matrix add theirs up, and stay blank while any Component is still blank.",
             "When there is no figure yet, the matrix says why: Not ordered yet, PO line not picked, Landed Cost not yet available, or Pick the PO line again. Purchasing can pick the line again right there.",
             "Landed Cost changes nothing else. Markup, Final Acquire, the summary, Revenue and Costing settled keep reading the estimates, and no sign-off is cleared.",
             "Under P.O./RFQ No., everyone who can see the matrix now sees the PO numbers of its Requested Items, each PO's IPAS number and state, and a note such as \"ordered 3 of 5\" when the order is short.",
             "A Component with a Requested Item or a typed P.O./RFQ No. can't be removed until it is unlinked, and neither can its Tender Line. Purchasing can unlink a Requested Item from the Component; the history keeps who did it and when.",
             "The IPAS summaries on the PMS tab show each IPAS's Landed Cost and its mark to the people who can see the matrix's costs.",
-            "The printed S0 Evaluation fills its Landed Cost column with each figure and its mark, or \"awaiting purchase\".",
+            "The printed Costing Matrix fills its Landed Cost column with each figure and its mark, or \"awaiting purchase\".",
             "Stage Participants see the PO and IPAS columns but no Landed Cost, on screen and in print."
         ]
     },
@@ -274,7 +290,7 @@
         "title": "Canvass: compare suppliers and pick a winner",
         "version": "1.9.48",
         "changes": [
-            "Purchasing can now canvass an item before ordering it. Open a Canvass from a Component row on the S0 Evaluation, or from any item on a Purchase Request that is not tied to a Component. Each Canvass gets its own number (CNV_0001 and so on).",
+            "Purchasing can now canvass an item before ordering it. Open a Canvass from a Component row on the Costing Matrix, or from any item on a Purchase Request that is not tied to a Component. Each Canvass gets its own number (CNV_0001 and so on).",
             "Add each supplier quote as an offer: the supplier, brand, what was offered, the price, how long the quote holds, the lead time and a brochure. A quote in another currency also shows its peso figure, using the rate you typed. That rate is only for comparing, not what will be paid.",
             "Pick the winning offer and write down why. On a Component, the winner fills in the price, the description and its brochure for you, and marks them \"from Canvass\". If someone types over a filled-in figure, the mark goes away and their figure stays.",
             "If the winning brand is different from the Component's brand, the Deal Team sees it and can accept it with one click. The brand is never changed without that click.",
@@ -287,10 +303,10 @@
     },
     {
         "date": "2026-10-18",
-        "title": "S0 Evaluation: review fixes",
+        "title": "Costing Matrix: review fixes",
         "version": "1.9.47",
         "changes": [
-            "The PMS tab now shows for everyone who can see the SOR, Finance included, with the IPAS summaries, the Purchase Request and the Transmittals. The S0 Evaluation section on it still shows only to people who may read the matrix.",
+            "The PMS tab now shows for everyone who can see the SOR, Finance included, with the IPAS summaries, the Purchase Request and the Transmittals. The Costing Matrix section on it still shows only to people who may read the matrix.",
             "Sales no longer see a Markup Price on cost-only rows, because at ×1.00 it would show Purchasing's cost.",
             "The Costing settled checklist now says only Costing not settled to anyone who is not on the Deal Team, a Super Admin or on the Final Acquire list, so the Bid Decision and the offer against the ABC stay private.",
             "The bid is marked submitted only when the Stage you left really had Costing settled and it was met.",
@@ -302,17 +318,17 @@
         "title": "Flow Canvas: Costing priced",
         "version": "1.9.46",
         "changes": [
-            "A new Stage Condition, Costing priced, marks the hand-off from Purchasing to Sales. It is met when the S0 Evaluation has at least one Component, every Component and cost-only row has an Acquire unit cost, and a Purchasing Incharge is named. Inclusions don't count.",
-            "The Stage checklist lists, in plain words, which of those checks still fail. It is unmet while the SOR has no S0 Evaluation, and it re-checks whenever an Acquire changes.",
-            "When you publish a flow, the Flow Canvas now warns you if Costing priced or Costing settled sits on a Stage that some path reaches without first passing a Stage that opens the S0 Evaluation. It is a warning only: publishing still goes ahead."
+            "A new Stage Condition, Costing priced, marks the hand-off from Purchasing to Sales. It is met when the Costing Matrix has at least one Component, every Component and cost-only row has an Acquire unit cost, and a Purchasing Incharge is named. Inclusions don't count.",
+            "The Stage checklist lists, in plain words, which of those checks still fail. It is unmet while the SOR has no Costing Matrix, and it re-checks whenever an Acquire changes.",
+            "When you publish a flow, the Flow Canvas now warns you if Costing priced or Costing settled sits on a Stage that some path reaches without first passing a Stage that opens the Costing Matrix. It is a warning only: publishing still goes ahead."
         ]
     },
     {
         "date": "2026-10-17",
-        "title": "S0 Evaluation: print it, and sign it off",
+        "title": "Costing Matrix: print it, and sign it off",
         "version": "1.9.45",
         "changes": [
-            "The PMS tab has a Print button. The S0 Evaluation prints on landscape A4: a money sheet with every Tender Line, the summary, the margin and the Bid Decision, then a specification appendix with each Tender Specification in full next to what we offer.",
+            "The PMS tab has a Print button. The Costing Matrix prints on landscape A4: a money sheet with every Tender Line, the summary, the margin and the Bid Decision, then a specification appendix with each Tender Specification in full next to what we offer.",
             "Only Super Admins and the Final Acquire list get the money sheet. Everyone else who can open the matrix prints the specification appendix, which has no figures.",
             "The money sheet has four signature blocks. An unsigned one reads Signature required, and a signer with no stored signature prints as a name.",
             "Prepared by is signed by the Sales Incharge, Costed by by the Purchasing Incharge, and Final Acquire and offer approved by the Final Acquire list. A change to a Final Offer takes back Prepared by and the Final Acquire approval. A change to an Acquire or a markup factor takes back Costed by. A change to a Final Acquire takes back the Final Acquire approval."
@@ -325,25 +341,25 @@
         "changes": [
             "A new Stage Condition, Costing settled, can gate the bid. It is met when every Tender Line has a Final Offer, the summary is complete, the evaluation is approved, the offer is within the ABC and the Bid Decision is Go.",
             "The Stage checklist lists, in plain words, which of those checks still fail. It updates as the matrix changes, so a later edit that clears the approval or the Bid Decision makes it unmet again.",
-            "It is unmet while the SOR has no S0 Evaluation.",
+            "It is unmet while the SOR has no Costing Matrix.",
             "When the SOR leaves a Stage through a met Costing settled, the bid counts as submitted. After that, any change to a Final Offer is noted on the SOR's timeline."
         ]
     },
     {
         "date": "2026-10-16",
-        "title": "Flow Canvas: Open S0 Evaluation",
+        "title": "Flow Canvas: Open Costing Matrix",
         "version": "1.9.43",
         "changes": [
-            "A Stage Action called Open S0 Evaluation can now be added to any Stage. When a deal arrives there, it opens the SOR's S0 Evaluation and names the Sales Incharge and the Purchasing Incharge you chose.",
+            "A Stage Action called Open Costing Matrix can now be added to any Stage. When a deal arrives there, it opens the SOR's Costing Matrix and names the Sales Incharge and the Purchasing Incharge you chose.",
             "It can also set the markup preset as the matrix default and call in extra people, who see the matrix without any money for the window you set. It can wait for a Decider, like Open Purchase Request.",
             "If you do not name a Purchasing Incharge, the people you picked under Who assigns it are told that the matrix opened without one.",
-            "A second Open S0 Evaluation on the same deal opens nothing new. It only fills what is still empty and adds the people who are missing.",
+            "A second Open Costing Matrix on the same deal opens nothing new. It only fills what is still empty and adds the people who are missing.",
             "A Purchase Request can now take the matrix's Purchasing Incharge as its Buyer."
         ]
     },
     {
         "date": "2026-10-16",
-        "title": "S0 Evaluation: the Bid Decision",
+        "title": "Costing Matrix: the Bid Decision",
         "version": "1.9.42",
         "changes": [
             "The Final Acquire list and Super Admins can now decide Go, No-go or Revise on a priced offer, with a reason, under the summary on the PMS tab. It is stamped with the Final Offer and ABC it was taken against.",
@@ -361,38 +377,38 @@
             "Technical marks each Component Complies or Deviates. A deviation needs a note and can name the compliant alternative we recommend instead. Purchasing, Super Admins and the members of the SOR's Evaluation of Specification task can do this.",
             "Each Tender Line and the top of the matrix count the gaps, like '2 of 5 deviate · 1 not evaluated'. A deviation never blocks anything and never changes a price or a total.",
             "Someone on the evaluation list can approve the evaluation once for the whole matrix, after every Component has a verdict. Changing a specification, a verdict or its note, or adding or removing a Tender Line or Component, takes the approval back and says why.",
-            "Settings has an S0 Evaluation tab where Super Admins pick the Evaluation of Specification task template and who is on the evaluation list."
+            "Settings has a Costing Matrix tab where Super Admins pick the Evaluation of Specification task template and who is on the evaluation list."
         ]
     },
     {
         "date": "2026-10-16",
-        "title": "SOR: markup on the S0 Evaluation",
+        "title": "SOR: markup on the Costing Matrix",
         "version": "1.9.40",
         "changes": [
-            "The Final Acquire list can now set a default markup for an S0 Evaluation, such as x1.35 (the same as +35%), typed or picked from a preset like Government. Any Component can have its own markup, and a cost-only row such as the Delivery Charge starts at x1.00.",
+            "The Final Acquire list can now set a default markup for a Costing Matrix, such as x1.35 (the same as +35%), typed or picked from a preset like Government. Any Component can have its own markup, and a cost-only row such as the Delivery Charge starts at x1.00.",
             "Sales sees the suggested Markup Price for each Component and cost-only row, and each Tender Line's total beside its Final Offer. It is only a suggestion: nothing fills in the Final Offer, and changing the markup never changes it.",
             "Sales and Purchasing never see the markup factor, so nobody can work the cost back out of the price. If a cost is still blank, the Markup Price stays blank instead of showing zero.",
             "The Final Acquire list also sees the markup each Tender Line really achieves against its target, and the same for the whole matrix with cost-only rows counted.",
-            "Settings has a new S0 Evaluation tab where Super Admins and the Final Acquire list edit the markup presets. A preset is switched off instead of deleted, and a matrix that used it keeps its markup."
+            "Settings has a new Costing Matrix tab where Super Admins and the Final Acquire list edit the markup presets. A preset is switched off instead of deleted, and a matrix that used it keeps its markup."
         ]
     },
     {
         "date": "2026-10-16",
-        "title": "S0 Evaluation: the summary, Final Acquire and rates",
+        "title": "Costing Matrix: the summary, Final Acquire and rates",
         "version": "1.9.39",
         "changes": [
-            "The S0 Evaluation now works out the sheet's summary for you: VAT-exclusive, Tax, Retention, Collected Amount, ITR and Revenue, to the centavo.",
+            "The Costing Matrix now works out the sheet's summary for you: VAT-exclusive, Tax, Retention, Collected Amount, ITR and Revenue, to the centavo.",
             "Management types Final Acquire on each Component and cost-only row. Until every row has one, Revenue says how many rows still have no cost instead of showing a number.",
-            "The Final Acquire list can type Marketing and OPEX under the summary. Finance and Super Admins can change the rates in Settings under S0 Evaluation.",
+            "The Final Acquire list can type Marketing and OPEX under the summary. Finance and Super Admins can change the rates in Settings under Costing Matrix.",
             "Only Super Admins and the Final Acquire list see the summary. Super Admins choose who is on that list in Settings."
         ]
     },
     {
         "date": "2026-10-16",
-        "title": "Purchase Requests: add items from the S0 Evaluation",
+        "title": "Purchase Requests: add items from the Costing Matrix",
         "version": "1.9.38",
         "changes": [
-            "On a Purchase Request, people with Purchasing access can now press Add from the S0 Evaluation and pick Components. The ones marked For Order are ticked to start with.",
+            "On a Purchase Request, people with Purchasing access can now press Add from the Costing Matrix and pick Components. The ones marked For Order are ticked to start with.",
             "Each Requested Item copies the Component's name, quantity, unit and Odoo product, and shows which Component it buys for, like 1.2 and its name. If the Component changes later, the item stays as it was asked.",
             "A Component can have more than one Requested Item, so a split order stays linked. A Component from another SOR is refused.",
             "On the PMS tab, each Component now shows the status of its Requested Items, such as Requested or Ordered. Everyone who can see the matrix sees the status only, with no names or prices."
@@ -416,7 +432,7 @@
         "version": "1.9.36",
         "changes": [
             "Every SOR you can see now has a PMS tab. The IPAS section and the Transmittals and Packing Lists section moved there from the Summary and This stage.",
-            "Once an SOR's S0 Evaluation is opened, the PMS tab lists its Tender Lines: what the client asked for, with the ABC and our Final Offer. Sales can add them, type them, or pick them from the SOR's products.",
+            "Once an SOR's Costing Matrix is opened, the PMS tab lists its Tender Lines: what the client asked for, with the ABC and our Final Offer. Sales can add them, type them, or pick them from the SOR's products.",
             "A Tender Line you pick from a product keeps its own name, quantity and unit. If the SOR's product changes later, the line says what it now says. A Tender Line over its ABC is flagged.",
             "Each person sees only their own figures. People called into a stage see the Tender Lines with no prices at all, and Purchasing never sees Final Offer."
         ]

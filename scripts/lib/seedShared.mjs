@@ -87,6 +87,7 @@ export const SEED_TABLES = [
   "sor_canvass_offers",
   "sor_canvass_offer_prices",
   "sor_canvass_signoff_events",
+  "sor_canvass_no_other_supplier",
   "sor_purchase_order_links",
   // Purchase Requests (#303). After sales_opportunities, flow_stage_actions
   // and sor_stage_visits, which the request points at; the rest point at it.
@@ -140,13 +141,14 @@ export const SEED_TABLES = [
   // Order Monitoring ageing rules (#262): one number per step, no people in it.
   "order_ageing_rules",
   "order_deadline_setting",
-  // Costing Matrix (#266): settings, presets and signer lists first; the matrix
+  // Costing Matrix (#266): settings, presets, the cost guide categories (#723) and signer lists first; the matrix
   // points at an SOR, its rows at the matrix, money rows at their row, and
   // decisions, sign-offs and events at the matrix.
   "costing_settings",
   "costing_evaluation_settings",
   "costing_markup_presets",
   "costing_landed_defaults",
+  "costing_cost_categories",
   "costing_signer_lists",
   "costing_matrices",
   "costing_matrix_money",

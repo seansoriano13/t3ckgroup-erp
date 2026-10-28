@@ -768,13 +768,14 @@ export const costingMatrixService = {
 
   /**
    * Fills the matrix from the SOR's products (Costing Desk): every product not yet in the matrix
-   * becomes a Tender Line with one Component, the product itself. Re-runnable; resolves to how many
-   * lines it added. Sales or Purchasing.
+   * becomes a Tender Line with one Component, the product itself. Re-runnable; resolves to
+   * `{ added, leftOut: [{ id, name }] }`: how many lines it added, and the S0 lines it left out because
+   * a Go locks the sheet (a new row is a change). Sales or Purchasing.
    */
   async fillFromSor(opportunityId) {
     const { data, error } = await supabase.rpc("costing_fill_from_sor", { p_opportunity_id: opportunityId });
     if (error) fail(error);
-    return data ?? 0;
+    return { added: Number(data?.added ?? 0), leftOut: (data?.left_out ?? []).map((r) => ({ id: r.id, name: r.name })) };
   },
 
   /**
@@ -963,7 +964,7 @@ export const costingMatrixService = {
    */
   async listCostCategories() {
     const { data, error } = await supabase.from("costing_cost_categories").select("*").order("sort", { ascending: true });
-    if (error) throw error;
+    if (error) fail(error);
     return (data ?? []).map(shapeCostCategory);
   },
 
@@ -976,7 +977,7 @@ export const costingMatrixService = {
     }
     if (low < 0 || high > 100 || low > high) throw new CostingRuleError("The low % must be 0 or more, and no higher than the high %, which is at most 100.", "22023");
     const { data, error } = await supabase.from("costing_cost_categories").update({ low_pct: low, high_pct: high }).eq("key", key).select("*");
-    if (error) throw error;
+    if (error) fail(error);
     if (!data?.length) throw new CostingRuleError("Only a Super Admin can change the cost guide.", "42501");
     return shapeCostCategory(data[0]);
   },
@@ -988,7 +989,7 @@ export const costingMatrixService = {
    */
   async costGuide(opportunityId) {
     const { data, error } = await supabase.rpc("costing_cost_guide", { p_opportunity_id: opportunityId });
-    if (error) throw error;
+    if (error) fail(error);
     return shapeCostGuide(data);
   },
 
@@ -1127,11 +1128,11 @@ export const costingMatrixService = {
   },
 
   /**
-   * Signs the matrix off for a role (ADR 0013: the database checks and writes together):
-   * `"prepared"` (the Sales incharge), `"costed"` (the Purchasing incharge), `"evaluation_approved"`
-   * (the evaluation list, every Component with a verdict, #271) or `"final_approved"` (the Final Acquire
-   * list), #274. Otherwise the database refuses and the message says why. `declineSignature` signs
-   * without applying the stored signature, so the print shows the name only. Returns the new sign-off row.
+   * Signs the Evaluation off (ADR 0013: the database checks and writes together). The only sign-off
+   * left is `"evaluation_approved"` (the evaluation list, every Component with a verdict, #271); the
+   * database refuses any other role (#722: Prepared, Costed and Final approved are retired and only
+   * remain as history on old deals) and says why. `declineSignature` signs without applying the
+   * stored signature, so the print shows the name only. Returns the new sign-off row.
    */
   async sign(matrixId, role = "evaluation_approved", { declineSignature = false } = {}) {
     const { data, error } = await supabase.rpc("costing_sign", { p_matrix_id: matrixId, p_role: role, p_decline_signature: Boolean(declineSignature) });

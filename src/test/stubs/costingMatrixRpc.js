@@ -342,7 +342,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       })
       insertRow("costing_components", { tender_line_id: line.id, position: 1, name: item.product_name, quantity, unit, odoo_product_id: item.odoo_product_id ?? null })
     }
-    return items.length
+    return { added: items.length, left_out: [] }
   })
   stubEdgeFunction("odoo-costing-costs", { success: true, filled: 0, unpriced: 0 })
 

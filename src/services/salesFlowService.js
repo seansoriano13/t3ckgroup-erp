@@ -703,25 +703,10 @@ export const salesFlowService = {
    */
   async setStageBuyingOpens(stageId, on, actorId) {
     await requireSuperAdmin(actorId);
-    const { stage } = await requireDraftStage(stageId);
-    const now = new Date().toISOString();
+    await requireDraftStage(stageId);
 
-    if (on) {
-      const { error: clearError } = await supabase
-        .from("flow_stages")
-        .update({ buying_opens_here: false, updated_at: now })
-        .eq("flow_id", stage.flow_id)
-        .eq("buying_opens_here", true)
-        .neq("id", stageId);
-      if (clearError) throw clearError;
-    }
-
-    const { data, error } = await supabase
-      .from("flow_stages")
-      .update({ buying_opens_here: Boolean(on), updated_at: now })
-      .eq("id", stageId)
-      .select()
-      .single();
+    // One database function clears the flag on the flow's other Stage and sets this one, in one transaction.
+    const { data, error } = await supabase.rpc("flow_stage_set_buying_opens", { p_stage_id: stageId, p_on: Boolean(on) });
     if (error) throw error;
 
     systemAuditLogService.addSystemEvent(
