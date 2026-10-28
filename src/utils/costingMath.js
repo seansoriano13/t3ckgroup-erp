@@ -230,6 +230,7 @@ export function matrixTotals(tenderLines) {
  *
  *   finalOfferTotal       the Tender Lines' Final Offers added up
  *   vatExclusive          Final Offer / VAT divisor (1.12)
+ *   finalVat              VAT-exclusive x final VAT rate (12%, #705)
  *   tax                   Final Offer x tax rate (6%), on the gross offer
  *   retention             Final Offer x retention rate (1%)
  *   collected             Final Offer - tax - retention
@@ -267,6 +268,8 @@ export function summary(matrix, settings) {
   const byRate = (centavos, rate) => (centavos === null || rate === null ? null : roundDiv(centavos * rate, MICRO));
 
   const vatExclusive = offer === null || divisor === null || divisor <= 0n ? null : roundDiv(offer * MICRO, divisor);
+  const finalVatRate = scaled(settings?.finalVatRate ?? 0.12);
+  const finalVat = byRate(vatExclusive, finalVatRate);
   const tax = byRate(offer, taxRate);
   const retention = byRate(offer, retentionRate);
   const collected =
@@ -282,6 +285,7 @@ export function summary(matrix, settings) {
   return {
     finalOfferTotal: pesosFromCentavos(offer),
     vatExclusive: pesosFromCentavos(vatExclusive),
+    finalVat: pesosFromCentavos(finalVat),
     tax: pesosFromCentavos(tax),
     retention: pesosFromCentavos(retention),
     collected: pesosFromCentavos(collected),

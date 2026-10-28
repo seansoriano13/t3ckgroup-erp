@@ -1,7 +1,7 @@
 import { Calculator } from "lucide-react";
 
 import { costingMatrixService } from "../../services/costingMatrixService";
-import { MATRIX_MONEY_BANDS, inAnyBand } from "../../constants/costing";
+import { MATRIX_MONEY_BANDS, inAnyBand, summaryLineShown } from "../../constants/costing";
 import { Cell } from "./GridCell";
 import { costIncomplete, offerIncomplete, pesos } from "./gridFormat";
 
@@ -93,6 +93,7 @@ export default function CostingSummary({ matrix, writes }) {
   const { summary, rates, bands, revenueComparison: comparison } = matrix;
   if (!summary) return null;
   const { refresh } = writes;
+  const show = (key) => summaryLineShown(rates, key);
   const { incomplete } = summary;
 
   const offerNote = offerIncomplete(incomplete);
@@ -118,21 +119,37 @@ export default function CostingSummary({ matrix, writes }) {
         <Row label="Final Offer" testId="summary-final-offer">
           {offerFigure(summary.finalOfferTotal)}
         </Row>
+        {show("vatExclusive") && (
         <Row label="VAT-exclusive" hint={`Final Offer ÷ ${Number(rates.vatDivisor)}`} testId="summary-vat">
           {offerFigure(summary.vatExclusive)}
         </Row>
+        )}
+        {show("finalVat") && (
+          <Row label={`Final VAT ${rateLabel(rates.finalVatRate ?? 0.12)}`} hint="on the VAT-exclusive figure" testId="summary-final-vat">
+            {offerFigure(summary.finalVat)}
+          </Row>
+        )}
+        {show("tax") && (
         <Row label={`Less Tax ${rateLabel(rates.taxRate)}`} hint="on the gross offer" testId="summary-tax">
           {offerFigure(summary.tax)}
         </Row>
+        )}
+        {show("retention") && (
         <Row label={`Retention ${rateLabel(rates.retentionRate)}`} testId="summary-retention">
           {offerFigure(summary.retention)}
         </Row>
+        )}
+        {show("collected") && (
         <Row label="Collected Amount" testId="summary-collected">
           {offerFigure(summary.collected)}
         </Row>
+        )}
+        {show("operationalExpenses") && (
         <Row label="Operational Expenses" testId="summary-opex-total">
           {costFigure(summary.operationalExpenses)}
         </Row>
+        )}
+        {show("marketing") && (
         <Row label="Marketing" testId="summary-marketing">
           <Cell
             className="ml-auto w-40"
@@ -146,6 +163,8 @@ export default function CostingSummary({ matrix, writes }) {
             onSave={(value) => saveMoney({ marketing: value })}
           />
         </Row>
+        )}
+        {show("opex") && (
         <Row label="OPEX" testId="summary-opex">
           <Cell
             className="ml-auto w-40"
@@ -159,9 +178,12 @@ export default function CostingSummary({ matrix, writes }) {
             onSave={(value) => saveMoney({ opex: value })}
           />
         </Row>
+        )}
+        {show("itr") && (
         <Row label={`ITR ${rateLabel(rates.itrRate)}`} hint={`of the offer above ${pesos(Number(rates.itrAllowance))}`} testId="summary-itr">
           {offerFigure(summary.itr)}
         </Row>
+        )}
         <Row label="Revenue" strong testId="summary-revenue">
           {summary.revenue === null || summary.revenue === undefined ? (
             <span className="font-normal text-muted-foreground">{revenueNote ?? "—"}</span>

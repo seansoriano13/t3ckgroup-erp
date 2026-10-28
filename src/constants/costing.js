@@ -255,7 +255,25 @@ export const DEFAULT_COSTING_SETTINGS = {
   retentionRate: 0.01,
   itrRate: 0.08,
   itrAllowance: 250000,
+  finalVatRate: 0.12,
+  hiddenLines: ["finalVat"],
 };
+
+/** The summary lines Settings can switch on or off (Final Offer and Revenue always show). */
+export const SUMMARY_LINES = [
+  { key: "vatExclusive", label: "VAT-exclusive" },
+  { key: "finalVat", label: "Final VAT" },
+  { key: "tax", label: "Less Tax (withholding)" },
+  { key: "retention", label: "Retention" },
+  { key: "collected", label: "Collected Amount" },
+  { key: "operationalExpenses", label: "Operational Expenses" },
+  { key: "marketing", label: "Marketing" },
+  { key: "opex", label: "OPEX" },
+  { key: "itr", label: "ITR" },
+];
+
+/** Does Settings leave this summary line on? */
+export const summaryLineShown = (rates, key) => !(rates?.hiddenLines ?? DEFAULT_COSTING_SETTINGS.hiddenLines).includes(key);
 
 /** Who adds and removes Components, Inclusions and cost-only rows. */
 export const ROW_EDIT_BANDS = [SALES, PURCHASING];

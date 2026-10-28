@@ -542,6 +542,8 @@ function shapeSettings(row) {
     retentionRate: Number(row.retention_rate),
     itrRate: Number(row.itr_rate),
     itrAllowance: Number(row.itr_allowance),
+    finalVatRate: Number(row.final_vat_rate ?? 0.12),
+    hiddenLines: Array.isArray(row.summary_hidden_lines) ? row.summary_hidden_lines : ["finalVat"],
     updatedAt: row.updated_at ?? null,
     updatedBy: row.updated_by ?? null,
   };
@@ -620,6 +622,8 @@ export const costingMatrixService = {
     if ("retentionRate" in fields) columns.retention_rate = fields.retentionRate;
     if ("itrRate" in fields) columns.itr_rate = fields.itrRate;
     if ("itrAllowance" in fields) columns.itr_allowance = fields.itrAllowance;
+    if ("finalVatRate" in fields) columns.final_vat_rate = fields.finalVatRate;
+    if ("hiddenLines" in fields) columns.summary_hidden_lines = fields.hiddenLines;
     if (Object.keys(columns).length === 0) return costingMatrixService.getSettings();
     const { data, error } = await supabase.from("costing_settings").update(columns).eq("id", 1).select("*");
     if (error) throw error;
