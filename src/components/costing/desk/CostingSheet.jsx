@@ -5,8 +5,8 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../ui/tab
 import StatusBadge from "../../StatusBadge";
 import { Cell } from "../GridCell";
 import { costingMatrixService } from "../../../services/costingMatrixService";
-import { COSTING_BAND, tierReads, tierReadsCost } from "../../../constants/costing";
-import { lineCost } from "../../../utils/costingMath";
+import { COSTING_BAND, COSTING_TIER, tierReads, tierReadsCost } from "../../../constants/costing";
+import { factorLabel, lineCost, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
 import { useAuth } from "../../../context/AuthContext";
 import ComplianceColumn from "./ComplianceColumn";
@@ -94,6 +94,72 @@ function CostCells({ line, canCost, onSave }) {
   );
 }
 
+/**
+ * Multiplier, Suggested / unit and Margin / unit for one row (#703). Suggested is the bare peso price x
+ * the multiplier; the margin counts the cost of every item included in the row. Sales (the price tier)
+ * is sent only the suggested peso figure, never the cost or the multiplier. An included row shows
+ * "incl." and its cost goes to the row it comes with.
+ */
+function MarkupCells({ line, kid, figures, tier, canMarkup, onSaveFactor }) {
+  const closed = tier === COSTING_TIER.CLOSED_BOOK;
+  const quantity = Number(line.quantity);
+  const suggested = closed ? figures.suggested : line.markup?.priceTotal != null && quantity > 0 ? Math.round((Number(line.markup.priceTotal) / quantity) * 100) / 100 : null;
+  const dash = <span className="text-muted-foreground">—</span>;
+  const incl = <span className="text-muted-foreground">incl.</span>;
+  return (
+    <>
+      {closed && (
+        <TableCell className={cn(CELL, NUM, "w-32")} data-testid="sheet-multiplier">
+          {kid ? (
+            incl
+          ) : (
+            <>
+              <Cell
+                label={`Multiplier ${line.number}`}
+                noun="The multiplier"
+                value={figures.own ? figures.factor : null}
+                numeric
+                align="right"
+                placeholder={figures.factor == null ? "Default" : factorLabel(figures.factor)}
+                readOnly={!canMarkup || line.components.length === 0}
+                onSave={onSaveFactor}
+                className="min-w-20"
+              />
+              <div className={SUB}>{figures.own ? "Own" : "Default"}</div>
+            </>
+          )}
+        </TableCell>
+      )}
+      <TableCell className={cn(CELL, NUM, "w-36")} data-testid="sheet-suggested">
+        {kid ? (
+          incl
+        ) : suggested == null ? (
+          dash
+        ) : (
+          <>
+            {pesos(suggested)}
+            {closed && figures.included > 0 && <div className={SUB}>with {figures.included} included</div>}
+          </>
+        )}
+      </TableCell>
+      {closed && (
+        <TableCell className={cn(CELL, NUM, "w-36")} data-testid="sheet-margin">
+          {kid ? (
+            incl
+          ) : figures.margin == null ? (
+            dash
+          ) : (
+            <>
+              <span className={cn(figures.margin < 0 && "text-destructive")}>{pesos(figures.margin)}</span>
+              {figures.percent != null && <div className={SUB}>{figures.percent}%</div>}
+            </>
+          )}
+        </TableCell>
+      )}
+    </>
+  );
+}
+
 export default function CostingSheet({ matrix, opportunity, writes, canWrite }) {
   const { user } = useAuth();
   const myTeams = useMyEvaluationTeams(user?.id ?? null);
@@ -102,13 +168,32 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
   const showAbc = tierReads(matrix.tier, "abc_unit");
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const showCost = tierReadsCost(matrix.tier, "acquire_unit");
+  const closed = matrix.tier === COSTING_TIER.CLOSED_BOOK;
+  const showSuggested = closed || matrix.tier === COSTING_TIER.PRICE;
+  const markupCols = closed ? 3 : showSuggested ? 1 : 0;
+  const canMarkup = closed && matrix.bands.includes(COSTING_BAND.MARKUP);
+  // The Landed / unit column (#702) will replace this; until then the landed cost is the peso price.
+  const landedOf = (line) => lineCost(line)?.pesos ?? null;
   const canCost = showCost && matrix.bands.includes(COSTING_BAND.PURCHASING);
   const byId = new Map(lines.map((line) => [line.id, line]));
+  const kidsOf = new Map();
+  for (const line of lines) if (line.included && line.includedIn) kidsOf.set(line.includedIn, [...(kidsOf.get(line.includedIn) ?? []), line]);
   const priced = lines.filter((line) => !line.included);
   const judged = matrix.compliance.total - matrix.compliance.notEvaluated;
 
   const save = (line, fields) => async (value) => {
     await costingMatrixService.updateTenderLine(line.id, fields(value));
+    await writes.refresh();
+  };
+
+  // The multiplier lives on each part of the row; a blank puts the row back on the default.
+  const saveFactor = (line) => async (value) => {
+    for (const part of line.components) await costingMatrixService.updateComponent(part.id, { markupFactor: value });
+    await writes.refresh();
+  };
+
+  const saveDefault = async (value) => {
+    await costingMatrixService.setDefaultMarkup(matrix.matrixId, { factor: value === "" || value == null ? null : value });
     await writes.refresh();
   };
 
@@ -122,7 +207,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
 
   return (
     <div className="space-y-3" data-testid="costing-sheet">
-      <div className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-5 sm:divide-y-0">
+      <div className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-xl border border-border bg-card sm:grid-cols-6 sm:divide-y-0">
         <Fact label="S0 · client">
           <span className="font-mono text-xs">{opportunity?.sales_reference ?? opportunity?.sor_code ?? "—"}</span>
           {opportunity?.client_name ? ` · ${opportunity.client_name}` : ""}
@@ -133,6 +218,20 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
         <Fact label="Judged">
           {judged} of {matrix.compliance.total}
         </Fact>
+        {closed && (
+          <Fact label="Default multiplier" sub={canMarkup ? "rows can override it" : "set by the Markup list"}>
+            <Cell
+              label="Default multiplier"
+              noun="The default multiplier"
+              value={matrix.defaultFactor}
+              numeric
+              placeholder="Not set"
+              readOnly={!canMarkup}
+              onSave={saveDefault}
+              className="w-24"
+            />
+          </Fact>
+        )}
         {showAbc && (
           <Fact label="ABC total" sub={totals.missingAbc ? `${totals.missingAbc} without one` : undefined}>
             {pesos(totals.abcTotal)}
@@ -162,6 +261,11 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                   Purchasing · cost
                 </th>
               )}
+              {markupCols > 0 && (
+                <th colSpan={markupCols} className={GROUP}>
+                  {closed ? "Markup" : "Price"}
+                </th>
+              )}
               <th className={cn(GROUP, "border-r-0")}>Technical</th>
             </TableRow>
             <TableRow>
@@ -172,13 +276,16 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
               {showOffer && <th className={cn(HEAD, "text-right")}>Final Offer / unit</th>}
               {showCost && <th className={cn(HEAD, "text-right")}>Price</th>}
               {showCost && <th className={cn(HEAD, "text-right")}>In pesos</th>}
+              {closed && <th className={cn(HEAD, "text-right")}>Multiplier</th>}
+              {showSuggested && <th className={cn(HEAD, "text-right")}>Suggested / unit</th>}
+              {closed && <th className={cn(HEAD, "text-right")}>Margin / unit</th>}
               <th className={cn(HEAD, "border-r-0")}>Compliance</th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {lines.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={4 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0)} className="px-3 py-4 text-sm text-muted-foreground">
+                <TableCell colSpan={4 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
                   No S0 lines yet.
                 </TableCell>
               </TableRow>
@@ -188,6 +295,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
               const parent = kid ? byId.get(line.includedIn) : null;
               const startsBlock = !kid && index > 0;
               const parts = line.components.length;
+              const figures = lineSheetMarkup(line, kid ? [] : (kidsOf.get(line.id) ?? []), matrix.defaultFactor, landedOf);
               return (
                 <TableRow
                   key={line.id}
@@ -269,6 +377,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                     </TableCell>
                   )}
                   {showCost && <CostCells line={line} canCost={canCost} onSave={saveCost(line)} />}
+                  {showSuggested && <MarkupCells line={line} kid={kid} figures={figures} tier={matrix.tier} canMarkup={canMarkup} onSaveFactor={saveFactor(line)} />}
                   <TableCell className={cn(CELL, "min-w-[12rem] max-w-[16rem] border-r-0")}>
                     <ComplianceColumn line={line} myTeams={myTeams} canSetTeam={canWrite} onChanged={writes.refresh} />
                   </TableCell>

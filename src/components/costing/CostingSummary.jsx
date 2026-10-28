@@ -47,7 +47,7 @@ function PlannedVsActual({ comparison, revenueNote }) {
 
         <span className="pt-1.5 text-muted-foreground">
           Cost
-          <span className="ml-2 text-xs text-muted-foreground/80">Final Acquire | Landed Cost</span>
+          <span className="ml-2 text-xs text-muted-foreground/80">Planned | Landed Cost</span>
         </span>
         <span className="pt-1.5 text-right tabular-nums" data-testid="summary-planned-cost">{figure(plannedCost)}</span>
         <span className="pt-1.5 text-right tabular-nums" data-testid="summary-actual-cost">{figure(actualCost)}</span>
@@ -73,7 +73,7 @@ function PlannedVsActual({ comparison, revenueNote }) {
       )}
       {notBought > 0 && (
         <p className="text-xs text-muted-foreground" data-testid="summary-not-bought">
-          {notBought} of {itemsTotal} {itemsTotal === 1 ? "item" : "items"} not bought yet, counted at Final Acquire.
+          {notBought} of {itemsTotal} {itemsTotal === 1 ? "item" : "items"} not bought yet, counted at the planned cost.
         </p>
       )}
     </div>
@@ -130,7 +130,7 @@ export default function CostingSummary({ matrix, writes }) {
         <Row label="Collected Amount" testId="summary-collected">
           {offerFigure(summary.collected)}
         </Row>
-        <Row label="Operational Expenses" hint="Final Acquire total" testId="summary-opex-total">
+        <Row label="Operational Expenses" testId="summary-opex-total">
           {costFigure(summary.operationalExpenses)}
         </Row>
         <Row label="Marketing" testId="summary-marketing">

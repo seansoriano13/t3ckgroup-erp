@@ -22,6 +22,7 @@ export const COSTING_BAND = {
   TECHNICAL: "technical",
   FINANCE: "finance",
   SUPER_ADMIN_ONLY: "super_admin_only",
+  MARKUP: "markup",
 };
 
 export const COSTING_BAND_LABEL = {
@@ -31,6 +32,7 @@ export const COSTING_BAND_LABEL = {
   [COSTING_BAND.TECHNICAL]: "Technical",
   [COSTING_BAND.FINANCE]: "Finance",
   [COSTING_BAND.SUPER_ADMIN_ONLY]: "Super Admins",
+  [COSTING_BAND.MARKUP]: "the Markup list",
 };
 
 /** The tiers that receive a money column of a Tender Line (`costing_column_tiers`). */
@@ -132,7 +134,7 @@ export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
   odoo_unit: [SALES],
   final_acquire_unit: [SALES, PURCHASING, MANAGEMENT],
-  markup_factor: [SALES, PURCHASING, MANAGEMENT],
+  markup_factor: [COSTING_BAND.MARKUP],
 };
 
 /**
@@ -166,8 +168,8 @@ export const MATRIX_MONEY_TIERS = {
 };
 
 export const MATRIX_MONEY_BANDS = {
-  default_factor: [SALES, PURCHASING, MANAGEMENT],
-  default_preset_id: [SALES, PURCHASING, MANAGEMENT],
+  default_factor: [COSTING_BAND.MARKUP],
+  default_preset_id: [COSTING_BAND.MARKUP],
   marketing: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
   opex: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
 };
@@ -227,7 +229,7 @@ export const tierReadsBidDecision = (tier) => tierReadsBid(tier, "verdict");
 export const tierDecidesBid = (tier) => tier === COSTING_TIER.CLOSED_BOOK;
 
 /** The signer lists of `costing_signer_lists`: who writes Final Acquire, and who approves an Evaluation of Specification (#271). */
-export const COSTING_SIGNER_LIST = { FINAL_ACQUIRE: "final_acquire", EVALUATION: "evaluation", TEAM_RRD: "team_rrd", TEAM_IOE: "team_ioe" };
+export const COSTING_SIGNER_LIST = { FINAL_ACQUIRE: "final_acquire", EVALUATION: "evaluation", MARKUP: "markup", TEAM_RRD: "team_rrd", TEAM_IOE: "team_ioe" };
 
 /** The Technical teams that judge a row (#706), and the signer list that says who is in each. */
 export const EVALUATION_TEAMS = ["RRD", "IOE"];
@@ -236,6 +238,7 @@ export const EVALUATION_TEAM_LIST = { RRD: COSTING_SIGNER_LIST.TEAM_RRD, IOE: CO
 export const COSTING_SIGNER_LIST_LABEL = {
   [COSTING_SIGNER_LIST.FINAL_ACQUIRE]: "Final Acquire list",
   [COSTING_SIGNER_LIST.EVALUATION]: "Evaluation of Specification list",
+  [COSTING_SIGNER_LIST.MARKUP]: "Markup list",
   [COSTING_SIGNER_LIST.TEAM_RRD]: "RRD team",
   [COSTING_SIGNER_LIST.TEAM_IOE]: "IOE team",
 };
