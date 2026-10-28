@@ -21,8 +21,8 @@ const clamp = (value) => Math.min(5, Math.max(0.5, Math.round(value * 10000) / 1
  * anything is saved, what every line would be offered at, how that sits against the ABC and what it
  * earns. Apply saves the factor as the matrix's markup and fills every line's Final Offer from it (kept
  * at the line's ABC when asked); a line whose parts have no Acquire yet is left as it is. A part with a
- * factor of its own keeps it. Who may save what is the database's rule: the factor is Sales', Purchasing's
- * and the Final Acquire list's, the Final Offers are Sales'.
+ * factor of its own keeps it. Who may save what is the database's rule: the factor is Sales', and Purchasing's,
+ * the Final Offers are Sales'.
  */
 export default function MarkupPlayground({ matrix, writes }) {
   const { busy, run } = writes;
@@ -176,7 +176,7 @@ export default function MarkupPlayground({ matrix, writes }) {
           <span className="text-xs text-muted-foreground">{changed ? "Nothing changes until you apply." : "The Final Offers already match."}</span>
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">Sales, Purchasing and the Final Acquire list set the markup.</p>
+        <p className="text-xs text-muted-foreground">Only the Markup list sets the markup.</p>
       )}
 
       <div className="space-y-1 border-t border-border pt-3" data-testid="markup-overall">

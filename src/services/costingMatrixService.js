@@ -93,7 +93,7 @@ export class CostingRuleError extends Error {
   }
 }
 
-const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid): (.+)$/;
+const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid|team): (.+)$/;
 // The CHECK on costing_components that wants a note whenever the verdict is Deviates (#271).
 const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
 
@@ -104,7 +104,7 @@ const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
 export function toRuleError(error) {
   // A CHECK violation (23514), a rule a matrix function refuses (22023, #556), or a Bid Decision refused to someone who may not take it (42501).
   const ruleRefusal = error?.code === REFUSAL.INVALID && RULE_MESSAGE.test(error?.message ?? "");
-  if (error?.code !== "23514" && !ruleRefusal && !(error?.code === REFUSAL.NOT_ALLOWED && /^costing_bid: /.test(error?.message ?? ""))) return null;
+  if (error?.code !== "23514" && !ruleRefusal && !(error?.code === REFUSAL.NOT_ALLOWED && /^costing_(?:bid|team): /.test(error?.message ?? ""))) return null;
   if (DEVIATION_NOTE_CHECK.test(error.message ?? "")) return new CostingRuleError("A deviation needs a note.", error.code);
   const match = RULE_MESSAGE.exec(error.message ?? "");
   if (!match) return null;
@@ -128,6 +128,7 @@ function lineColumns(fields) {
   if ("tenderSpecification" in fields) columns.tender_specification = fields.tenderSpecification ?? "";
   if ("unit" in fields) columns.unit = blankToNull(fields.unit);
   if ("quantity" in fields) columns.quantity = fields.quantity;
+  if ("evaluatingTeam" in fields) columns.evaluating_team = blankToNull(fields.evaluatingTeam);
   return columns;
 }
 
@@ -247,9 +248,21 @@ export function shapeMatrix(read, settings = null) {
 
   const signoffs = tables.costing_signoffs ?? [];
 
+  // The S0 line most recently seen that was not itself included: the parent of the ₱0 lines after it.
+  let parentLine = null;
   const tenderLines = (tables.costing_tender_lines ?? []).map((line, index) => {
     const { tender_line_id: _link, ...price } = prices.get(line.id) ?? {};
+    // An S0 line priced at ₱0 is included in the line before it (#700): its ABC and Final Offer are ₱0, not blank.
+    // Only a tier sent the S0 price can tell; a first line has no parent and stays a line of its own.
+    const quoted = price.quotation_price_unit;
+    const included = parentLine !== null && line.source === "sor_line" && quoted !== undefined && quoted !== null && Number(quoted) === 0;
     const merged = { ...line, ...price };
+    if (included) {
+      if ("abc_unit" in merged) merged.abc_unit = 0;
+      if ("final_offer_unit" in merged) merged.final_offer_unit = 0;
+    }
+    const includedIn = included ? parentLine.id : null;
+    if (!included) parentLine = line;
     const number = index + 1;
     // A Component's cost columns arrive in their own rows, and only the ones the tier may read.
     const components = (componentsByLine.get(line.id) ?? []).map((component, position) => {
@@ -270,6 +283,8 @@ export function shapeMatrix(read, settings = null) {
     return {
       ...merged,
       number,
+      included,
+      includedIn,
       components,
       totals: lineTotals(merged, components),
       markup: lineMarkup(merged, components, defaultFactor),
@@ -293,6 +308,8 @@ export function shapeMatrix(read, settings = null) {
     matrix,
     tenderLines,
     totals: matrixTotals(tenderLines),
+    // Cost tiers only: no key means the viewer was not sent it (#702).
+    importAddonPercent: matrix && "import_addon_percent" in matrix ? numberOrNull(matrix.import_addon_percent) : undefined,
     defaultFactor: money ? (defaultFactor === null ? null : Number(defaultFactor)) : undefined,
     defaultPresetId: money ? (money.default_preset_id ?? null) : undefined,
     markup: matrixMarkup(tenderLines, costRows, defaultFactor),
@@ -311,6 +328,12 @@ export function shapeMatrix(read, settings = null) {
     const decisions = (tables.costing_bid_decisions ?? []).map(shapeBidDecision);
     shaped.bidDecision = decisions.find((d) => d.clearedAt === null) ?? null;
     shaped.bidDecisionHistory = decisions.filter((d) => d.clearedAt !== null).reverse();
+    // A live Go locks the sheet (#704): every band reads as read-only, `allBands` keeps what the viewer could write.
+    shaped.locked = shaped.bidDecision?.verdict === "go";
+    if (shaped.locked) {
+      shaped.allBands = shaped.bands;
+      shaped.bands = [];
+    }
   }
 
   if (tierReadsSummary(read.tier)) {
@@ -335,9 +358,11 @@ export function shapeBidDecision(row) {
     decidedAt: row.decided_at,
     clearedAt: row.cleared_at ?? null,
     clearedReason: row.cleared_reason ?? null,
+    unlockedBy: row.unlocked_by ?? null,
   };
   if ("final_offer_total" in row) decision.finalOfferTotal = Number(row.final_offer_total);
   if ("abc_total" in row) decision.abcTotal = row.abc_total === null ? null : Number(row.abc_total);
+  if ("planned_cost_total" in row) decision.plannedCostTotal = row.planned_cost_total === null ? null : Number(row.planned_cost_total);
   return decision;
 }
 
@@ -457,7 +482,13 @@ async function withPurchases(shaped, opportunityId) {
   const { landedCost: _none, ...totals } = shaped.totals;
   shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines).landedCost } : totals;
   // Planned Revenue is `summary.revenue`, untouched; Actual sits beside it, never inside it.
-  if (actual) shaped.revenueComparison = revenueComparison(revenueInputs(shaped, { ipasShort: (ipases.data ?? []).some(ipasShortOfLcOdooDone) }), shaped.rates);
+  if (actual) {
+    const inputs = revenueInputs(shaped, { ipasShort: (ipases.data ?? []).some(ipasShortOfLcOdooDone) });
+    // Under a Go, Planned works from the estimate as it stood at the Go (#704); the Actual cost still comes from the real Landed Cost.
+    const stamped = shaped.locked ? shaped.bidDecision?.plannedCostTotal : null;
+    if (stamped !== null && stamped !== undefined) inputs.finalAcquireTotal = stamped;
+    shaped.revenueComparison = revenueComparison(inputs, shaped.rates);
+  }
   return shaped;
 }
 
@@ -511,6 +542,8 @@ function shapeSettings(row) {
     retentionRate: Number(row.retention_rate),
     itrRate: Number(row.itr_rate),
     itrAllowance: Number(row.itr_allowance),
+    finalVatRate: Number(row.final_vat_rate ?? 0.12),
+    hiddenLines: Array.isArray(row.summary_hidden_lines) ? row.summary_hidden_lines : ["finalVat"],
     updatedAt: row.updated_at ?? null,
     updatedBy: row.updated_by ?? null,
   };
@@ -540,6 +573,33 @@ export const costingMatrixService = {
     return withPurchases(await withCanvass(shapeMatrix(data, settings), opportunityId), opportunityId);
   },
 
+  /** The default add-on percents for the estimated landed cost (#702): `{ import, local }`, 0 when unset. */
+  async getLandedDefaults() {
+    const { data, error } = await supabase.from("costing_landed_defaults").select("import_addon_percent, local_addon_percent").maybeSingle();
+    if (error) throw error;
+    return { import: numberOrNull(data?.import_addon_percent) ?? 0, local: numberOrNull(data?.local_addon_percent) ?? 0 };
+  },
+
+  /** Sets the defaults, `{ import, local }` in percent (0 or more). Purchasing access or a Super Admin. */
+  async setLandedDefaults({ import: importPercent, local }) {
+    const { error } = await supabase
+      .from("costing_landed_defaults")
+      .upsert({ id: true, import_addon_percent: Number(importPercent), local_addon_percent: Number(local) }, { onConflict: "id" });
+    if (error) fail(error);
+    return costingMatrixService.getLandedDefaults();
+  },
+
+  /** Types the matrix's Import add-on percent (Purchasing). Null clears it back to blank. */
+  async setImportAddon(matrixId, percent) {
+    const { data, error } = await supabase
+      .from("costing_matrices")
+      .update({ import_addon_percent: blankToNull(percent) })
+      .eq("id", matrixId)
+      .select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("The add-on could not be changed.");
+  },
+
   /**
    * The summary's rates: `{ vatDivisor, taxRate, retentionRate, itrRate, itrAllowance, updatedAt,
    * updatedBy }`, or null when the row cannot be read. Any signed-in employee may read them.
@@ -562,6 +622,8 @@ export const costingMatrixService = {
     if ("retentionRate" in fields) columns.retention_rate = fields.retentionRate;
     if ("itrRate" in fields) columns.itr_rate = fields.itrRate;
     if ("itrAllowance" in fields) columns.itr_allowance = fields.itrAllowance;
+    if ("finalVatRate" in fields) columns.final_vat_rate = fields.finalVatRate;
+    if ("hiddenLines" in fields) columns.summary_hidden_lines = fields.hiddenLines;
     if (Object.keys(columns).length === 0) return costingMatrixService.getSettings();
     const { data, error } = await supabase.from("costing_settings").update(columns).eq("id", 1).select("*");
     if (error) throw error;
@@ -1019,6 +1081,14 @@ export const costingMatrixService = {
       p_verdict: verdict,
       p_reason: reason ?? "",
     });
+    if (error) fail(error);
+    return data;
+  },
+
+  /** Unlocks a Go (#704): a reason is required, it is recorded, and the Go has to be taken again. */
+  async unlockBid(matrixId, { reason } = {}) {
+    if (!String(reason ?? "").trim()) throw new CostingRuleError("Write the reason for unlocking.", "22023");
+    const { data, error } = await supabase.rpc("costing_unlock_bid", { p_matrix_id: matrixId, p_reason: reason });
     if (error) fail(error);
     return data;
   },

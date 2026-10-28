@@ -78,7 +78,7 @@ describe("Planned and Actual Revenue on the summary", () => {
     expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱423,100.00");
     expect(within(block).getByTestId("summary-planned-revenue")).toHaveTextContent("₱423,100.00");
     expect(within(block).getByTestId("summary-actual-revenue")).toHaveTextContent("₱423,100.00");
-    expect(within(block).getByTestId("summary-not-bought")).toHaveTextContent("2 of 2 items not bought yet, counted at Final Acquire.");
+    expect(within(block).getByTestId("summary-not-bought")).toHaveTextContent("2 of 2 items not bought yet, counted at the planned cost.");
     expect(within(block).getByTestId("summary-difference")).toHaveAttribute("data-lower", "false");
   });
 

@@ -37,7 +37,7 @@ export const SIGNOFF_STATUS = {
   APPROVED: "approved",
 };
 
-const person = (embed, id) => (embed ? { id: embed.id ?? id, name: embed.name ?? null, avatarPath: embed.avatar_path ?? null } : id ? { id, name: null, avatarPath: null } : null);
+const person = (embed, id) => (embed ? { id: embed.id ?? id, name: embed.name ?? null, avatarPath: embed.avatar_path ?? null, callSign: embed.call_sign ?? null } : id ? { id, name: null, avatarPath: null, callSign: null } : null);
 
 /** An `ipas_signoffs` row (with its `signer` and `clearer` employee embeds) as the screens read it. */
 export function shapeSignoff(row) {
@@ -133,7 +133,7 @@ export function signoffRights({ section, sectionState, userId, hasPurchasingFlow
 // ── Section 7 and Filing (#248) ─────────────────────────────────────────────
 
 export const FILING_STATUS = {
-  /** Sections 1, 2 and 3 (stored 1, 3 and 6) aren't all approved yet, so section 7 hasn't opened. */
+  /** Sections 1, 2, 3 and Logistics (stored 1, 3, 6 and 8) aren't all signed yet, so section 7 hasn't opened. */
   WAITING: "waiting",
   /** Open for Received. */
   READY: "ready",
@@ -159,7 +159,10 @@ export function section7Signoffs(signoffs = []) {
   const checked = live(SECTION_7, IPAS_SIGNOFF_ROLE.CHECKED);
   const approved = live(SECTION_7, IPAS_SIGNOFF_ROLE.APPROVED);
   const opened = Boolean(
-    live(1, IPAS_SIGNOFF_ROLE.APPROVED) && live(3, IPAS_SIGNOFF_ROLE.APPROVED) && live(6, IPAS_SIGNOFF_ROLE.APPROVED),
+    live(1, IPAS_SIGNOFF_ROLE.APPROVED) &&
+      live(3, IPAS_SIGNOFF_ROLE.APPROVED) &&
+      live(6, IPAS_SIGNOFF_ROLE.APPROVED) &&
+      live(8, IPAS_SIGNOFF_ROLE.APPROVED),
   );
 
   const next = [];

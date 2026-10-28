@@ -2,12 +2,14 @@ import { CircleAlert, Check, Paperclip, Pencil, Plus, Trash2 } from "lucide-reac
 
 import { Button } from "../ui/button";
 import DetailGrid from "@/components/record/DetailGrid";
-import LinerList from "@/components/record/LinerList";
 import { ExternalLink } from "../ui/external-link";
 import SectionHeader from "../ui/SectionHeader";
 import { SelectField } from "../ui/SelectField";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
+import IpasChargesTable from "./IpasChargesTable";
+import IpasLandedCostTable from "./IpasLandedCostTable";
+import IpasPaymentsTable from "./IpasPaymentsTable";
 import { useEditable } from "@/components/record/sectionChrome";
 import {
   IPAS_COMPUTATION_STATUS,
@@ -22,7 +24,7 @@ import {
   ipasSectionLabel,
 } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
-import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
+import { optionsForPicker } from "../../utils/ipasPayments";
 import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from "../../utils/landedCost";
 
 const SPLIT_OPTIONS = IPAS_LANDED_COST_SPLITS.map((value) => ({
@@ -36,17 +38,6 @@ const pesos = (value) => formatAmount(value, "PHP");
 
 /** An amount inside a sentence or a label, in the same monospace figures as the tables. */
 const Amt = ({ children }) => <span className="font-mono tabular-nums">{children}</span>;
-
-/** Pieces of a row's sub line, set apart with a middle dot. */
-function Dotted({ parts }) {
-  const shown = parts.filter(Boolean);
-  return shown.map((part, index) => (
-    <span key={index}>
-      {index > 0 && " · "}
-      {part}
-    </span>
-  ));
-}
 
 /**
  * Section 1's money: the header amounts (P.I/QT Amount typed; DP and FP read
@@ -131,100 +122,16 @@ export function IpasPaymentsBlock({
         )}
       </SectionHeader>
 
-      <LinerList
-        label="Payments"
-        empty={`No payments recorded yet.${
-          !isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE
+      {payments.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No payments recorded yet.
+          {!isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE
             ? " A foreign-currency Odoo PO needs a payment before Landed Cost can be worked out."
-            : ""
-        }`}
-        total={
-          payments.length > 0
-            ? {
-                label: `Total debited, including charge fees${
-                  sum.missingPhp > 0
-                    ? ` · ${sum.missingPhp} payment${sum.missingPhp === 1 ? "" : "s"} without the pesos taken from the bank`
-                    : ""
-                }`,
-                value: pesos(sum.totalDebitedPhp),
-              }
-            : undefined
-        }
-        rows={payments.map((payment) => {
-          const kind = IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind;
-          return {
-            key: payment.id,
-            testId: "ipas-payment-row",
-            main: (
-              <span className="inline-flex flex-wrap items-center gap-2">
-                {kind}
-                {payment.paid_before_approval && <StatusBadge theme="amber" label="Paid before approval" />}
-              </span>
-            ),
-            sub: (
-              <Dotted
-                parts={[
-                  formatDay(payment.paid_on),
-                  payment.methodLabel ?? "—",
-                  payment.check_no ? `Check No. ${payment.check_no}` : null,
-                  !isPhp && (
-                    <>
-                      Pesos taken from the bank:{" "}
-                      {payment.php_debited === null ? (
-                        <span className="text-amber-11">Not in yet (estimate)</span>
-                      ) : (
-                        <span className="font-mono tabular-nums">{pesos(payment.php_debited)}</span>
-                      )}
-                    </>
-                  ),
-                  <>
-                    Charge fee:{" "}
-                    <span className="font-mono tabular-nums">{payment.charge_fee_php ? pesos(payment.charge_fee_php) : "—"}</span>
-                  </>,
-                ]}
-              />
-            ),
-            subWrap: true,
-            quantity: formatAmount(payment.amount, currency),
-            actions: (
-              <span className="inline-flex shrink-0 items-center gap-2 text-xs">
-                {payment.proof_url ? (
-                  <ExternalLink
-                    href={payment.proof_url}
-                    className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
-                  >
-                    <Paperclip size={12} aria-hidden="true" />
-                    View
-                  </ExternalLink>
-                ) : (
-                  <span className="text-muted-foreground">No proof</span>
-                )}
-                {canRecord && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Edit ${kind ?? "payment"} of ${formatDay(payment.paid_on)}`}
-                      onClick={() => onEditPayment(payment)}
-                    >
-                      <Pencil />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-red-11"
-                      aria-label={`Remove ${kind ?? "payment"} of ${formatDay(payment.paid_on)}`}
-                      onClick={() => onRemovePayment(payment)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </>
-                )}
-              </span>
-            ),
-          };
-        })}
-      />
+            : ""}
+        </p>
+      ) : (
+        <IpasPaymentsTable ipas={ipas} canRecord={canRecord} onEditPayment={onEditPayment} onRemovePayment={onRemovePayment} />
+      )}
     </div>
   );
 }
@@ -242,11 +149,11 @@ export function IpasChargesSection({
   children = null,
 }) {
   const canRecord = useEditable(recordGranted);
-  const { charges, paymentSummary: sum } = ipas;
+  const { charges } = ipas;
 
   return (
     <IpasSection title={ipasSectionLabel("finance")}>
-      <SectionHeader title={`Charges · ${charges.length}`} className="border-b-0 pb-2">
+      <SectionHeader title={`Freight and charges · ${charges.length}`} className="border-b-0 pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddCharge}>
             <Plus size={14} />
@@ -256,39 +163,7 @@ export function IpasChargesSection({
       </SectionHeader>
 
       <div className="mt-3">
-        <LinerList
-          label="Charges"
-          empty="No charges recorded yet. A charge covering several Odoo POs is recorded as this IPAS's own share."
-          total={charges.length > 0 ? { label: "Total charges", value: pesos(sum.chargesPhp) } : undefined}
-          rows={charges.map((charge) => ({
-            key: charge.id,
-            testId: "ipas-charge-row",
-            main: charge.kindLabel ?? "—",
-            sub: formatDay(charge.charged_on),
-            quantity: pesos(charge.amount_php),
-            actions: canRecord ? (
-              <span className="inline-flex shrink-0 items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Edit ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
-                  onClick={() => onEditCharge(charge)}
-                >
-                  <Pencil />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-red-11"
-                  aria-label={`Remove ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
-                  onClick={() => onRemoveCharge(charge)}
-                >
-                  <Trash2 />
-                </Button>
-              </span>
-            ) : undefined,
-          }))}
-        />
+        <IpasChargesTable ipas={ipas} canRecord={canRecord} onEditCharge={onEditCharge} onRemoveCharge={onRemoveCharge} />
       </div>
       {children}
     </IpasSection>
@@ -323,7 +198,7 @@ export function LandedCostBadge({ status, estimate = false }) {
  * the steps before it; LC Odoo Done, once reached, is green (#586). Section 3's
  * sign-offs arrive as `children`, below the Landed Cost.
  */
-export function IpasCostingSection({ ipas, canChange: granted = false, canSetStatus, onSetStatus, onSetSplit, children = null }) {
+export function IpasCostingSection({ ipas, canChange: granted = false, canSetStatus, onSetStatus, onSetSplit, canSetMarkup = false, onSetMarkup, children = null }) {
   const canChange = useEditable(granted);
   const canStep = useEditable(true) && Boolean(onSetStatus);
   const lc = ipas.landedCost;
@@ -423,7 +298,9 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
                     ? `This Odoo PO is in ${lc.currency || "a foreign currency"}. Landed Cost converts at the rate actually paid, so it needs a payment. It is never guessed or taken from Odoo's rate.`
                     : lc.reason === IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE
                       ? `A payment has no pesos taken from the bank yet, and there is no ${lc.currency || "Reference"} Reference Rate on or before its date to estimate with. Fill the pesos in to get Landed Cost.`
-                      : "The Odoo PO has no item lines to cost."}
+                      : lc.reason === IPAS_LANDED_COST_REASON.FREIGHT_CURRENCY
+                        ? "The freight is in a currency that is neither pesos nor the PO's currency, so it can't be converted. Enter the freight in pesos or in the PO's currency."
+                        : "The Odoo PO has no item lines to cost."}
                 </p>
               </div>
             </div>
@@ -453,39 +330,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
                   Nothing on the lines has a price to spread by, so charges are spread equally.
                 </p>
               )}
-              <LinerList
-                label="Landed Cost per line"
-                empty="The Odoo PO has no item lines to cost."
-                total={{
-                  label: (
-                    <>
-                      Goods <Amt>{pesos(lc.totals.goodsPhp)}</Amt> + charges <Amt>{pesos(lc.totals.chargesPhp)}</Amt> + charge fees{" "}
-                      <Amt>{pesos(lc.totals.chargeFeesPhp)}</Amt> + shipping fees <Amt>{pesos(lc.totals.shippingFeesPhp)}</Amt>
-                    </>
-                  ),
-                  value: pesos(lc.totals.landedPhp),
-                }}
-                rows={lc.lines.map((line, index) => ({
-                  key: line.lineId ?? index,
-                  testId: "ipas-landed-line",
-                  main: <span className="whitespace-pre-line">{line.name}</span>,
-                  sub: (
-                    <Dotted
-                      parts={[
-                        `Unit price ${pesos(line.unitPricePhp)}${foreign ? ` (${formatAmount(line.unitPriceForeign, lc.currency)})` : ""}`,
-                        `Goods ${pesos(line.goodsPhp)}`,
-                        `Charges & fees ${pesos(line.spreadPhp)}`,
-                        `Per unit ${pesos(line.landedPerUnitPhp)}`,
-                      ]}
-                    />
-                  ),
-                  subWrap: true,
-                  quantity: `${line.quantity} ${line.unit}`,
-                  actions: (
-                    <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">{pesos(line.landedPhp)}</span>
-                  ),
-                }))}
-              />
+              <IpasLandedCostTable ipas={ipas} canSetMarkup={canSetMarkup} onSetMarkup={onSetMarkup} />
             </>
           )}
         </div>

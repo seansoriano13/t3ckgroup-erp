@@ -44,6 +44,9 @@ export const CONDITION_KINDS = {
   // Issue #463: Purchasing has costed every Component and cost-only row and a Purchasing
   // Incharge is named. Same evidence and evaluator as Costing settled.
   COSTING_PRICED: "costing_priced",
+  // Issue #707: the Costing Matrix's Evaluation of Specification is approved. The Evaluation of
+  // Specification Stage Action adds it to its Stage, so the deal waits there until approval.
+  COSTING_EVALUATION_APPROVED: "costing_evaluation_approved",
   // Issue #465: every submitted, uncancelled Transmittal naming the SOR is Closed.
   GOODS_CHECKED: "goods_checked",
   // Issue #466: every uncancelled IPAS naming the SOR is filed. Not mounted on Government yet.
@@ -66,6 +69,7 @@ export const NEW_CONDITION_KINDS = [
   CONDITION_KINDS.PURCHASING_SETTLED,
   CONDITION_KINDS.COSTING_SETTLED,
   CONDITION_KINDS.COSTING_PRICED,
+  CONDITION_KINDS.COSTING_EVALUATION_APPROVED,
   CONDITION_KINDS.GOODS_CHECKED,
   CONDITION_KINDS.ORDERS_FILED,
 ]
@@ -257,7 +261,8 @@ export function evaluateCondition(condition, {
       return isSettled(purchaseRequestItems, { asOf: purchaseRequestAsOf }) ? satisfied() : unsatisfied()
     }
     case CONDITION_KINDS.COSTING_SETTLED:
-    case CONDITION_KINDS.COSTING_PRICED: {
+    case CONDITION_KINDS.COSTING_PRICED:
+    case CONDITION_KINDS.COSTING_EVALUATION_APPROVED: {
       const { met, failing, messages } = evaluateCostingCondition(condition.kind, costingInputs)
       return met ? satisfied() : unsatisfied({ failing, messages })
     }

@@ -170,6 +170,8 @@ describe("IPAS decider: Your move and the filed state", () => {
     signoff(row.id, 3, "approved", approver);
     signoff(row.id, 6, "prepared", purchaser);
     signoff(row.id, 6, "approved", approver);
+    // Filing also waits for the Logistics sign-off (stored 8, #713).
+    signoff(row.id, 8, "approved", approver);
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
@@ -202,6 +204,8 @@ describe("IPAS decider: Your move and the filed state", () => {
     signoff(row.id, 3, "approved", approver);
     signoff(row.id, 6, "prepared", purchaser);
     signoff(row.id, 6, "approved", approver);
+    // Filing also waits for the Logistics sign-off (stored 8, #713).
+    signoff(row.id, 8, "approved", approver);
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });

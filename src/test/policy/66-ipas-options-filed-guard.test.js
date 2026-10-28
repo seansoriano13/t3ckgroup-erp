@@ -17,11 +17,15 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
-import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, readyToSign } from "./support/ipas.js"
 import { tryUpdate } from "./support/access.js"
 
 const svc = () => serviceClient()
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) => {
+    // A sign-off now asks for documents, a Logistics placement and so on (#711, #713); give it what it asks for.
+    if (name === "ipas_sign") await readyToSign(args.p_ipas_id, args.p_section, args.p_role)
+    return (await clientFor(who)).rpc(name, args)
+}
 const CAST_IDS = () => CAST_KEYS.map((k) => ids[k])
 
 const RUN = Date.now().toString(36)
@@ -100,6 +104,7 @@ async function fileWith(o) {
         await signOk("outsider", ipas.id, section, "prepared")
         await signOk("ipasSigner", ipas.id, section, "approved")
     }
+    await signOk("ipasSigner", ipas.id, 8, "approved")
     await signOk("finance", ipas.id, 7, "received")
     await signOk("ordinary", ipas.id, 7, "noted")
     await signOk("support", ipas.id, 7, "checked")
@@ -116,7 +121,7 @@ beforeAll(async () => {
     must("lists clear", await svc().from("ipas_signer_lists").delete().in("employee_id", CAST_IDS()))
     for (const [key, who] of [
         ["s1_approved", "ipasSigner"], ["s3_approved", "ipasSigner"], ["s6_approved", "ipasSigner"], ["s7_received", "finance"],
-        ["s7_noted", "ordinary"], ["s7_checked", "support"], ["s7_approved", "ipasSigner"],
+        ["s7_noted", "ordinary"], ["s7_checked", "support"], ["s7_approved", "ipasSigner"], ["logistics_signed", "ipasSigner"],
     ]) await onList(key, who)
 
     // The document kind is suggested to every IPAS raised after it, so only the

@@ -1,20 +1,23 @@
 /**
- * The printed IPAS as HTML: two A4 portrait pages (spec #241 "Printed IPAS",
- * issue #250, ADR 0014), drawn in the same document language as the HR leave
- * slips (htmlPrinter.js): rail, serif name, one big mono figure, a right-hand
- * Outcome column, hairlines and a signature band.
+ * The printed IPAS as HTML: one A4 portrait page of "flow rows" (spec #699, ticket #714), drawn in
+ * the same document language as the HR leave slips (htmlPrinter.js): rail, serif name, one big
+ * mono figure, hairlines and the shared signature box.
  *
- *   Page 1   the voucher: supplier and the Landed Cost, how that figure is
- *            built, the header fields, Outcome and sign-offs, and every
- *            signature box of sections 1, 3 and 7
- *   Page 2   the reference, numbered and named as the screen numbers them
- *            (ipasSectionLabel, constants/ipas.js): 1 Purchasing (items and
- *            payments), 2 Purchasing & Finance (charges, documents, bank
- *            details), 3 Computation status & Landed Cost, 4 Filing, 5 Sales &
- *            Operation, 6 Logistics, 7 Status
+ * Each part is a row: what it holds on the left, its own signature boxes in a 54mm column on the
+ * right, so the signatures run down the page in the order the IPAS moved:
  *
- * The view model keeps the stored section names (`section1`, `section3`, ...);
- * only what is printed is renumbered. There is no Transmittals list yet.
+ *   1 Purchasing, 2 Purchasing & Finance, 3 Computation & Landed Cost, 6 Logistics, 4 Filing, 7 Status
+ *
+ * Sales & Operation (5) has no sign-off; it prints as a plain row after Status so nothing the old
+ * print showed is dropped. Numbers are the ones the screen shows (ipasSectionLabel, constants/ipas.js).
+ *
+ * Fitting: the page is set at 7.2pt body and 6.6pt tables so an order of about ten lines, two
+ * payments and five charges fits one A4 sheet. A longer order is not shrunk further: rows never
+ * split (break-inside: avoid), so the rows that do not fit continue on a second sheet; every
+ * sheet's footer carries the IPAS number.
+ *
+ * The view model keeps the stored section names (`section1`, `section3`, ...); only what is
+ * printed is renumbered. There is no Transmittals list yet.
  *
  * Pure: a view model (ipasViewModel.js) in, a complete document string out.
  * `formHTML` and `sigBlock` concatenate strings without escaping, and an IPAS
@@ -25,8 +28,6 @@
 import { ipasSectionLabel } from '../../constants/ipas';
 import { MARK } from './brandMark';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
-
-const PAGE_COUNT = 2;
 
 export const CSS = `
   :root {
@@ -162,6 +163,38 @@ export const CSS = `
   .foot { display: grid; grid-template-columns: 1fr 1.6fr 1fr; align-items: start; gap: 12px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.2pt; color: var(--ink-faint); font-family: var(--mono); margin-top: auto; }
   .foot .mid { text-align: center; }
   .foot .r { text-align: right; }
+
+  /* Flow rows (#714): one A4 page at 7.2pt body, 6.6pt tables. */
+  .sheet { padding: 7mm 10mm 5mm; gap: 2mm; font-size: 7.2pt; }
+  .head { padding: 1.5mm 0 2.5mm; }
+  .head .who { font-size: 14pt; margin-top: 3px; }
+  .head .big { font-size: 19pt; }
+  th, td { font-size: 6.6pt; padding: 1.1px 5px 1.1px 0; }
+  thead th { font-size: 5.4pt; padding-bottom: 2px; }
+  tfoot td { padding-top: 3px; }
+  .build tfoot td { font-size: 8pt; }
+  .build tfoot td:first-child { font-size: 6.6pt; }
+  .sec { gap: 2px; }
+  .sec > h3 { padding-bottom: 2px; font-size: 5.8pt; }
+  .sec > .body { gap: 4px; padding: 1px 0; }
+  .fields { gap: 3px 12px; }
+  .f .v { font-size: 7.6pt; }
+  .f .v.mono { font-size: 7.2pt; }
+  .sig .plate { min-height: 5mm; margin-top: 1px; padding-bottom: 1px; }
+  .sig .plate img { max-height: 4.6mm; }
+  .sig .printed-name { font-size: 9pt; }
+  .sig .who { font-size: 6.9pt; margin-top: 2px; min-height: 0; }
+  .sig .role, .sig .stamp, .sig .pending { font-size: 5.4pt; margin-top: 1px; }
+  .sig .role:empty { display: none; }
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .frow { display: grid; grid-template-columns: 1fr 54mm; gap: 0 5mm; padding: 1.4mm 0; border-bottom: 1px solid var(--rule); break-inside: avoid; page-break-inside: avoid; }
+  .frow:last-child { border-bottom: 0; }
+  .frow > div:first-child { min-width: 0; }
+  .frow .signs { border-left: 1px solid var(--hair); padding-left: 4mm; display: flex; flex-direction: column; gap: 1.6mm; }
+  .frow .signs .none { color: var(--ink-faint); font-style: italic; font-size: 6.6pt; }
+  .frow .sigs { gap: 1.6mm 4mm; }
+  .ticks { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  .ticks span { display: inline-flex; gap: 4px; align-items: center; font-size: 6.6pt; }
 `;
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
@@ -182,40 +215,34 @@ const section = (title, aside, body) =>
 const overridableValue = ({ value }) => (value ? esc(value) : '—');
 const overrideNote = ({ overridden, odoo }) => (overridden ? `overridden · Odoo: ${esc(odoo ?? 'blank')}` : '');
 
-/** The signature boxes: every string escaped before `sigBlock` concatenates it. */
-function sigs(boxes, columns) {
+/** The signature boxes: every string escaped before `sigBlock` concatenates it. A box prints the name with the call sign. */
+function sigs(boxes) {
   const html = boxes
     .map((box) =>
       sigBlock({
         role: esc(box.role),
-        who: esc(box.who),
-        title: esc(box.title),
+        who: esc(box.who ? (box.callSign ? `${box.callSign} · ${box.who}` : box.who) : ''),
+        title: '',
         state: box.state,
         stamp: box.stamp ? esc(box.stamp) : undefined,
         signatureBase64: box.signatureBase64 ? esc(box.signatureBase64) : undefined,
       }),
     )
     .join('');
-  return `<div class="sigs n${columns}">${html}</div>`;
+  return `<div class="sigs n${Math.min(boxes.length, 2)}">${html}</div>`;
 }
 
-/** The page 1 band: one row per section, its name on the left, its boxes beside it. */
-function signoffRows(vm) {
-  return vm.signoffRows
-    .map(
-      (row) =>
-        `<div class="sorow"><div class="soname"><span class="no">${esc(row.no)}</span>${esc(row.name)}</div>${sigs(row.boxes, row.boxes.length)}</div>`,
-    )
-    .join('');
-}
+/** A part's documents as ticks (#711): the files that belong to that part. */
+const docTicks = (docs = []) =>
+  docs.length ? `<div class="ticks">${docs.map((d) => `<span>${tick(d.have)} ${esc(d.label)}</span>`).join('')}</div>` : '';
 
 // ── Chrome ───────────────────────────────────────────────────────────────────
 
-function rail(vm, page) {
+function rail(vm, continued = false) {
   return `<div class="rail"><span class="mark">${MARK}</span>
     <span class="org"><b>T3CKGROUP</b>Purchasing department</span>
     <span class="doc"><div class="t">${esc(vm.number)}${vm.filingCopy ? '<span class="copy-mark">Filing copy</span>' : ''}</div>
-    <div class="s">IPAS · page ${page} of ${PAGE_COUNT}</div></span></div>`;
+    <div class="s">IPAS${continued ? ' · continued' : ''}</div></span></div>`;
 }
 
 /** Page 1's head: who it is from, and the one figure the form exists to prove. */
@@ -246,66 +273,26 @@ function head(vm) {
   </div>`;
 }
 
-/** Who has signed what, in a few rows, from the boxes that print below. */
-function outcome(vm) {
-  const given = (boxes) => boxes.filter((box) => box.state === 'signed').length;
-  const row = (label, boxes) => {
-    const done = given(boxes);
-    const text = done === boxes.length ? 'signed' : `${done} of ${boxes.length}`;
-    return `<div class="row"><span class="a">${esc(label)}</span><span class="b${done === boxes.length ? '' : ' wait'}">${text}</span></div>`;
-  };
-  const computation = vm.section6.computation
-    .map(
-      (c) =>
-        `<div class="row"><span class="a">${esc(c.label)}</span><span class="b${c.reached ? '' : ' wait'}">${c.current ? 'now' : c.reached ? 'done' : 'open'}</span></div>`,
-    )
-    .join('');
-  return `<div class="blk"><div class="k">Outcome</div><div class="v">${esc(vm.stateLabel)}</div></div>
-    <div class="blk"><div class="k">Sign-offs</div><div class="rows">
-      ${row(ipasSectionLabel('purchasing'), vm.section1.signoffs)}
-      ${row(ipasSectionLabel('finance'), vm.section3.signoffs)}
-      ${row(ipasSectionLabel('costing'), vm.section6.signoffs)}
-      ${row(ipasSectionLabel('filing'), vm.section7.signoffs)}
-    </div></div>
-    <div class="blk"><div class="k">Computation</div><div class="rows">${computation}</div></div>`;
-}
-
 /** How the Landed Cost is made: the goods, then everything spread over them. */
 function build(vm) {
   const lc = vm.section6.landedCost;
   if (lc.status === 'unavailable') {
-    return `<div class="sec"><h3><span>How the Landed Cost is built</span></h3><div class="body"><div class="lede">${esc(lc.note ?? 'Landed Cost is not available yet.')}</div></div></div>`;
+    return `<div class="sub">${esc(lc.note ?? 'Landed Cost is not available yet.')}</div>`;
   }
   const rows = lc.build
     .map((r) => `<tr><td>${esc(r.label)}${r.basis ? ` <span class="basis">${esc(r.basis)}</span>` : ''}</td><td class="num">${esc(r.amount)}</td></tr>`)
     .join('');
-  return `<div class="sec"><h3><span>How the Landed Cost is built</span><b>${esc(lc.label)}</b></h3><div class="body">
-    <table class="build"><thead><tr><th>Component</th><th class="num">PHP</th></tr></thead><tbody>${rows}</tbody>
-    <tfoot><tr><td>Landed Cost, ${esc(lc.units)}</td><td class="num">${esc(lc.total)}</td></tr></tfoot></table>
-    ${lc.note ? `<div class="lede">${esc(lc.note)}</div>` : ''}
-  </div></div>`;
+  return `<table class="build"><thead><tr><th>How the Landed Cost is built</th><th class="num">PHP</th></tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr><td>Landed Cost, ${esc(lc.units)}</td><td class="num">${esc(lc.total)}</td></tr></tfoot></table>${lc.note ? `<div class="sub">${esc(lc.note)}</div>` : ''}`;
 }
 
-function header(vm) {
-  const h = vm.header;
-  const s = vm.section1;
-  return `<div class="hdr">
-    ${field('Priority', esc(h.priority))}
-    ${field('Source', esc(h.source))}
-    ${field('Purpose', esc(h.purpose))}
-    ${field('Date created', esc(h.created), { mono: true })}
-    ${field('Created by', esc(h.createdBy))}
-    ${field("Supplier's name", esc(s.contact ?? '—'))}
-  </div>`;
-}
-
-function footer(vm, page, rangeLabel) {
+function footer(vm) {
   const f = vm.footer;
   const middle = [f.landedCost, f.odooRead + (f.odooNote ? ` (${f.odooNote})` : '')].filter(Boolean).map(esc).join(' · ');
   return `<div class="foot">
     <span>${esc(f.reference)}${f.printed ? `<br>${esc(f.printed)}` : ''}</span>
     <span class="mid">${middle}</span>
-    <span class="r">page ${page} of ${PAGE_COUNT}<br>${esc(rangeLabel)}</span>
+    <span class="r">${esc(vm.number)}</span>
   </div>`;
 }
 
@@ -356,7 +343,8 @@ function purchasing(vm) {
       ${s.piQtAmount ? field('P.I/QT Amount', esc(s.piQtAmount), { mono: true }) : ''}
     </div>
     ${items}
-    ${payments}`,
+    ${payments}
+    ${docTicks(s.docs)}`,
   );
 }
 
@@ -387,6 +375,8 @@ function finance(vm) {
   const s = vm.section3;
   const charges = `<table><thead><tr><th>Importation charge</th><th style="width:30%">Date</th><th class="num" style="width:34%">Amount</th></tr></thead>
     <tbody>${
+      s.freight ? `<tr><td>Freight${s.freight.service ? ` · ${esc(s.freight.service)}` : ''}</td><td></td><td class="num">${esc(s.freight.amount)}</td></tr>` : ''
+    }${
       s.charges.length
         ? s.charges
             .map((c) => `<tr><td>${esc(c.kind)}</td><td class="m">${esc(c.date)}</td><td class="num">${esc(c.amount)}</td></tr>`)
@@ -394,17 +384,6 @@ function finance(vm) {
         : '<tr><td colspan="3" class="empty">No charges recorded.</td></tr>'
     }</tbody>
     <tfoot><tr><td colspan="2" style="text-align:right">Total charges</td><td class="num">${esc(s.chargesTotal)}</td></tr></tfoot></table>`;
-
-  const documents = `<table><thead><tr><th>Document</th><th class="center" style="width:24%">Purchasing</th><th class="center" style="width:24%">Finance</th></tr></thead>
-    <tbody>${
-      s.documents.length
-        ? s.documents
-            .map(
-              (d) => `<tr><td>${esc(d.label)}</td><td class="center">${tick(d.purchasing)}</td><td class="center">${tick(d.finance)}</td></tr>`,
-            )
-            .join('')
-        : '<tr><td colspan="3" class="empty">No documents listed.</td></tr>'
-    }</tbody></table>`;
 
   // Bank details exist on paper only for someone who may read them.
   let bank = '';
@@ -424,7 +403,8 @@ function finance(vm) {
   return section(
     esc(ipasSectionLabel('finance')),
     `Charges: ${esc(s.chargesTotal)}`,
-    `<div class="cols2"><div>${charges}</div><div>${documents}</div></div>
+    `${charges}
+    ${docTicks(s.docs)}
     ${bank}`,
   );
 }
@@ -489,24 +469,30 @@ function costing(vm) {
     )
     .join('')}</div></div>`;
 
+  const t = s.landedTable;
+  const cell = (v) => (v === null || v === undefined ? '—' : esc(v));
   const landed =
-    lc.status === 'unavailable'
+    lc.status === 'unavailable' || !t
       ? `<div class="sub">${esc(lc.note ?? '')}</div>`
-      : `<table><thead><tr><th>Item</th><th class="num" style="width:14%">Qty</th><th class="num" style="width:22%">Landed cost per unit</th><th class="num" style="width:22%">Landed cost total</th></tr></thead>
-          <tbody>${lc.lines
+      : `<table><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Duties</th><th class="num">Freight</th><th class="num">Other</th><th class="num">Landed / unit</th>${
+          t.pricing ? '<th class="num">Retail</th><th class="num">Wholesale</th>' : ''
+        }</tr></thead>
+          <tbody>${t.rows
             .map(
-              (l) => `<tr><td class="pre">${esc(l.name)}</td><td class="num">${esc(l.quantity)}${l.unit ? ` ${esc(l.unit)}` : ''}</td>
-                <td class="num">${esc(l.perUnit)}</td><td class="num">${esc(l.total)}</td></tr>`,
+              (r) => `<tr><td class="pre">${esc(r.name)}</td><td class="num">${esc(r.quantity)}</td><td class="num">${cell(r.unitPrice)}</td>
+                <td class="num">${cell(r.duties)}</td><td class="num">${cell(r.freight)}</td><td class="num">${cell(r.other)}</td><td class="num">${cell(r.landed)}</td>${
+                  t.pricing ? `<td class="num">${cell(r.retail)}</td><td class="num">${cell(r.wholesale)}</td>` : ''
+                }</tr>`,
             )
-            .join('')}</tbody>
-          <tfoot><tr><td colspan="3" style="text-align:right">Total landed cost</td><td class="num">${esc(lc.total)}</td></tr></tfoot></table>
-          ${lc.note ? `<div class="sub">${esc(lc.note)}</div>` : ''}`;
+            .join('')}</tbody></table>`;
 
   return section(
     esc(ipasSectionLabel('costing')),
     '',
     `${computation}
-    <div class="box"><div class="group-k">Landed cost calculation ${mark}</div>${landed}</div>`,
+    <div class="box"><div class="group-k">Landed cost ${mark}</div>${landed}</div>
+    ${build(vm)}
+    ${docTicks(s.docs)}`,
   );
 }
 
@@ -521,28 +507,31 @@ function filing(vm) {
           c.detail ? `<span class="d">${esc(c.detail)}</span>` : ''
         }</span>`,
       )
-      .join('')}</div>`,
+      .join('')}</div>${docTicks(s.docs)}`,
   );
 }
 
 // ── The document ─────────────────────────────────────────────────────────────
 
-/** Both pages, as markup. */
+/** A part and its own sign-offs beside it. */
+const flowRow = (sectionHtml, boxes) =>
+  `<div class="frow"><div>${sectionHtml}</div><div class="signs">${boxes ? sigs(boxes) : '<div class="none">No sign-off for this part.</div>'}</div></div>`;
+
+/** The page, as markup: the head, then one row per part in flow order, each with its sign-offs. */
 export function buildIpasPagesHtml(vm) {
-  const first = ipasSectionLabel('purchasing');
-  const last = ipasSectionLabel('status');
-  return `<div class="sheet first">
-    ${rail(vm, 1)}${head(vm)}
-    <div class="cols">
-      <div class="cL">${build(vm)}${header(vm)}</div>
-      <div class="cR">${outcome(vm)}</div>
-    </div>
-    <div class="band">${signoffRows(vm)}</div>
-    ${footer(vm, 1, 'Summary and sign-offs')}
-  </div>
-  <div class="sheet">
-    ${rail(vm, 2)}${purchasing(vm)}${finance(vm)}${costing(vm)}${filing(vm)}${sales(vm)}${logistics(vm)}${status(vm)}
-    ${footer(vm, 2, `Sections ${first} to ${last}`)}
+  const rows = [
+    flowRow(purchasing(vm), vm.section1.signoffs),
+    flowRow(finance(vm), vm.section3.signoffs),
+    flowRow(costing(vm), vm.section6.signoffs),
+    flowRow(logistics(vm), vm.section5.signoffs),
+    flowRow(filing(vm), vm.section7.signoffs),
+    flowRow(status(vm), null),
+    flowRow(sales(vm), null),
+  ].join('');
+  return `<div class="sheet">
+    ${rail(vm)}${head(vm)}
+    <div class="flow">${rows}</div>
+    ${footer(vm)}
   </div>`;
 }
 

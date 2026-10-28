@@ -25,6 +25,53 @@ export const fromCents = (cents) => cents / 100;
 /** Adds pesos (or any currency) exactly, to the centavo. */
 export const sumPesos = (values) => fromCents(values.reduce((sum, v) => sum + toCents(v), 0));
 
+/**
+ * The rate of a payment: the forex rate it was paid at, or (an old payment) its pesos divided by its
+ * amount. Null when neither is known.
+ */
+export function paymentRate(payment) {
+  const stored = finiteNumber(payment?.forex_rate);
+  if (stored !== null && stored > 0) return stored;
+  const php = finiteNumber(payment?.php_debited);
+  const amount = finiteNumber(payment?.amount);
+  return php !== null && amount !== null && amount > 0 ? php / amount : null;
+}
+
+/** The pesos of a foreign payment: amount x rate, to the centavo. Null when there is no rate. */
+export function pesosFromRate(amount, rate) {
+  const a = finiteNumber(amount);
+  const r = finiteNumber(rate);
+  return a === null || r === null ? null : fromCents(Math.round(a * r * 100));
+}
+
+/**
+ * What a payment cost in pesos: amount x the forex rate it was paid at (the database reads it the
+ * same way), or the stored pesos of an old payment with no rate. Null when neither is known.
+ */
+export function paymentPesos(payment) {
+  const rate = finiteNumber(payment?.forex_rate);
+  const amount = finiteNumber(payment?.amount);
+  if (rate !== null && rate > 0 && amount !== null) return pesosFromRate(amount, rate);
+  return finiteNumber(payment?.php_debited);
+}
+
+/**
+ * The blended rate of several payments: all their pesos over all their amounts, so a bigger
+ * payment weighs more. Payments with no rate are left out. Null when none has one.
+ */
+export function blendedRate(payments = []) {
+  let pesos = 0;
+  let amount = 0;
+  for (const payment of payments) {
+    const rate = paymentRate(payment);
+    const paid = finiteNumber(payment?.amount);
+    if (rate === null || paid === null || paid <= 0) continue;
+    pesos += paid * rate;
+    amount += paid;
+  }
+  return amount > 0 ? pesos / amount : null;
+}
+
 /** Whether the PO's currency is the peso. Anything else, or none, is foreign. */
 export function isPhpCurrency(currency) {
   return String(currency ?? "").trim().toUpperCase() === "PHP";
@@ -36,7 +83,7 @@ export function isPhpCurrency(currency) {
  */
 export function paymentPhp(payment, isPhp) {
   if (isPhp) return finiteNumber(payment?.amount);
-  return finiteNumber(payment?.php_debited);
+  return paymentPesos(payment);
 }
 
 /**

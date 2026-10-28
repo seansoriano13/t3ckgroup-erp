@@ -61,6 +61,7 @@ describe("ipasService: section 7 and Filing", () => {
       ["s7_noted", noter],
       ["s7_checked", checker],
       ["s7_approved", approver],
+      ["logistics_signed", approver],
     ]) {
       db.seed("ipas_signer_lists", { list_key: listKey, employee_id: person.id })
     }
@@ -104,6 +105,7 @@ describe("ipasService: section 7 and Filing", () => {
   function approveSection3(ipas) {
     db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "prepared", signed_by: buyer.id })
     db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "approved", signed_by: approver.id })
+    db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 8, role: "approved", signed_by: approver.id })
   }
 
   async function receivedNotedChecked(ipas) {
@@ -169,6 +171,12 @@ describe("ipasService: section 7 and Filing", () => {
       await ipasService.sign(ipas.id, 6, "prepared")
       as(approver)
       await ipasService.sign(ipas.id, 6, "approved")
+      // Logistics (#713) is the fourth thing Filing waits for, and only its list signs it.
+      as(receiver)
+      await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({ code: "55000" })
+      await expect(ipasService.sign(ipas.id, 8, "approved")).rejects.toMatchObject({ code: "42501" })
+      as(approver)
+      await ipasService.sign(ipas.id, 8, "approved")
       as(receiver)
       const out = await ipasService.sign(ipas.id, 7, "received")
       expect(out.signoff).toMatchObject({ section: 7, role: "received", signedBy: { id: receiver.id } })
@@ -433,7 +441,9 @@ describe("ipasService: section 7 and Filing", () => {
       as(buyer)
       await ipasService.sign(ipas.id, 6, "prepared")
       as(approver)
-      const bothApproved = await ipasService.sign(ipas.id, 6, "approved")
+      expect((await ipasService.sign(ipas.id, 6, "approved")).notified).toBe(0)
+      // Logistics is signed last: the Received list is told.
+      const bothApproved = await ipasService.sign(ipas.id, 8, "approved")
       await waitForNetworkIdle()
       expect(bothApproved.notified).toBe(1)
       expect(sent(IPAS_NOTIFICATION.SECTION_7_READY).map((n) => n.recipient_id)).toEqual([receiver.id])
@@ -572,7 +582,7 @@ describe("ipasService: section 7 and Filing", () => {
       const out = await ipasService.reopen(ipas.id, "Charges were misread")
       expect(out.clearedRoles).toEqual(["approved", "checked", "noted", "received"])
       expect(rowOf(ipas.id)).toMatchObject({ state: "open", filed_at: null })
-      expect(live(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared"])
+      expect(live(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared", "8/approved"])
 
       const opened = await read(ipas.id)
       expect(opened.signoffSections[7]).toMatchObject({ status: "ready", approved: null, received: null })

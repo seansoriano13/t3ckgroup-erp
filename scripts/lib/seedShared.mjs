@@ -146,6 +146,7 @@ export const SEED_TABLES = [
   "costing_settings",
   "costing_evaluation_settings",
   "costing_markup_presets",
+  "costing_landed_defaults",
   "costing_signer_lists",
   "costing_matrices",
   "costing_matrix_money",

@@ -28,54 +28,66 @@ describe("Sales & Operation's ticks", () => {
   })
 })
 
-describe("the two A4 pages", () => {
-  it("is two portrait A4 sheets, the first breaking before the second", () => {
+describe("the one A4 page of flow rows", () => {
+  it("is a portrait A4 sheet set at 7.2pt body and 6.6pt tables, with rows that never split", () => {
     const html = doc()
 
     expect(html).toMatch(/@page\s*{\s*size:\s*A4 portrait;\s*margin:\s*0/)
-    expect(html.match(/<div class="sheet/g)).toHaveLength(2)
-    expect(html.match(/<div class="sheet first">/g)).toHaveLength(1)
-    expect(html).toMatch(/\.sheet\.first\s*{[^}]*break-after:\s*page/)
-    expect(html).toContain("page 1 of 2")
-    expect(html).toContain("page 2 of 2")
+    expect(html.match(/<div class="sheet/g)).toHaveLength(1)
+    expect(html).toMatch(/\.sheet \{[^}]*font-size: 7\.2pt/)
+    expect(html).toMatch(/th, td \{[^}]*font-size: 6\.6pt/)
+    expect(html).toMatch(/\.frow \{[^}]*break-inside: avoid/)
+    expect(html).not.toContain("Outcome")
+    expect(html).not.toContain('class="band"')
   })
 
-  it("puts the voucher on page 1 and the seven numbered sections on page 2, in the module's own order", () => {
-    const html = doc()
-    const page2 = html.indexOf("page 2 of 2")
-    const voucher = ["How the Landed Cost is built", "Date created", "Created by", "Outcome", "Sign-offs"].map((label) => html.indexOf(label))
-    const sections = [
-      "<h3><span>1 · Purchasing",
-      "<h3><span>2 · Purchasing &amp; Finance",
-      "<h3><span>3 · Computation status &amp; Landed Cost",
-      "<h3><span>4 · Filing",
-      "<h3><span>5 · Sales &amp; Operation",
-      "<h3><span>6 · Logistics",
-      "<h3><span>7 · Status",
-    ].map((label) => html.indexOf(label))
-
-    expect(voucher.every((at) => at > -1 && at < page2)).toBe(true)
-    expect(sections.every((at) => at > page2)).toBe(true)
-    expect(sections).toEqual([...sections].sort((a, b) => a - b))
-  })
-
-  it("numbers the sections 1 to 7 with none skipped or repeated, and says what each page holds", () => {
+  it("runs the parts in flow order: 1, 2, 3, Logistics 6, Filing 4, Status 7", () => {
     const html = doc()
     const numbers = [...html.matchAll(/<h3><span>(\d) · /g)].map((match) => Number(match[1]))
 
-    expect(numbers).toEqual([1, 2, 3, 4, 5, 6, 7])
-    expect(html).toContain("Summary and sign-offs")
-    expect(html).toContain("Sections 1 · Purchasing to 7 · Status")
+    expect(numbers).toEqual([1, 2, 3, 6, 4, 7, 5])
   })
 
-  it("builds the Landed Cost on page 1 from the same totals the calculation adds", () => {
+  it("prints each part's sign-offs beside that part, Logistics included", () => {
     const html = doc()
-    const page1 = html.slice(0, html.indexOf("page 2 of 2"))
+    const rows = html.split('<div class="frow">').slice(1)
+    const signs = (row) => (row.match(/<div class="sig[ "]/g) ?? []).length
+
+    expect(rows.map(signs)).toEqual([2, 2, 2, 1, 4, 0, 0])
+    expect(rows[3]).toContain("6 · Logistics")
+    expect(rows[3]).toContain("Signed by")
+  })
+
+  it("prints the name with the call sign in a signed box", () => {
+    const html = doc({ signoffs: [signoffRow(1, "prepared", BAUTISTA, { signer: { id: "emp-bautista", name: "J. Bautista", avatar_path: null, call_sign: "JB" } })] })
+
+    expect(html).toContain('<div class="who">JB · J. Bautista</div>')
+  })
+
+  it("builds the Landed Cost from the same totals the calculation adds", () => {
+    const html = doc()
 
     for (const text of ["Goods", "Shipping fees", "Bank charge fees", "Brokerage Fee", "Duties &amp; Taxes", "PHP 93,573.68"]) {
-      expect(page1).toContain(text)
+      expect(html).toContain(text)
     }
-    expect(page1).toContain("PHP 46,786.84 per unit")
+    expect(html).toContain("PHP 46,786.84")
+  })
+
+  it("prints the header the old page 1 held: supplier, source, purpose, priority, creator, entity", () => {
+    const html = doc()
+
+    for (const text of ["Redleaf Medical Supplies", "P02445", "PI-RL-2026-118", "Ambulance Folding Stretcher", "priority", "Entity", "Pesos taken from the bank", "Charge fee", "Proof"]) {
+      expect(html).toContain(text)
+    }
+  })
+
+  it("marks the filing copy in the rail and the window title", () => {
+    const ordinary = doc()
+    const filing = doc({ row: FILED }, { filingCopy: true })
+
+    expect(ordinary).not.toContain("Filing copy")
+    expect(filing.match(/copy-mark">Filing copy/g)).toHaveLength(1)
+    expect(filing).toContain("<title>TGIPAS_050 · P02445 · filing copy</title>")
   })
 
   it("has no Transmittals list", () => {
@@ -83,35 +95,13 @@ describe("the two A4 pages", () => {
 
     expect(html).not.toMatch(/transmittal/i)
   })
-
-  it("prints every field the ticket lists for the header and section 1", () => {
-    const html = doc()
-
-    for (const text of ["Priority", "Source", "Purpose", "Date created", "Created by", "Redleaf Medical Supplies", "P02445", "PI-RL-2026-118", "Ambulance Folding Stretcher", "Pesos taken from the bank", "Charge fee", "Proof"]) {
-      expect(html).toContain(text)
-    }
-  })
-
-  it("marks the filing copy on both pages and in the window title", () => {
-    const ordinary = doc()
-    const filing = doc({ row: FILED }, { filingCopy: true })
-
-    expect(ordinary).not.toContain("Filing copy")
-    expect(filing.match(/copy-mark">Filing copy/g)).toHaveLength(2)
-    expect(filing).toContain("<title>TGIPAS_050 · P02445 · filing copy</title>")
-  })
 })
 
-describe("sign-off band", () => {
-  it("prints one row per section with the section name on the left, section 3 included", () => {
-    const html = doc()
-    expect(html.match(/<div class="sorow">/g)).toHaveLength(4)
-    expect(html).toContain('<div class="soname"><span class="no">3</span>Computation status &amp; Landed Cost</div>')
-  })
 
+describe("sign-off column", () => {
   it("leaves room for the typed name so it cannot run over its label", () => {
     const html = doc()
-    expect(html).toMatch(/\.sig \.plate \{[^}]*min-height: 9mm/)
+    expect(html).toMatch(/\.sig \.plate \{[^}]*min-height: 5mm/)
     expect(html).toMatch(/\.sig \.printed-name \{[^}]*white-space: nowrap/)
   })
 })
@@ -137,9 +127,9 @@ describe("signatures", () => {
     // Name only: printed in the plate in the printed-name style, no image.
     expect(html).toContain('<div class="printed-name">M. Ramos</div>')
     expect(html).toMatch(/name only, no signature on file/)
-    // Waiting: section 3's two boxes (stored 6), section 2's two and Filing's four, each printed once, on page 1.
-    expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(8)
-    expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(8)
+    // Waiting: section 2's two, section 3's two, Logistics' one and Filing's four, each printed once.
+    expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(9)
+    expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(9)
   })
 
   it("prints a declined signature as the name only, never the image", () => {
@@ -173,7 +163,7 @@ describe("marks and the legend", () => {
 
     expect(html).toContain("● stamped from Odoo")
     expect(html.match(/class="odoo" title="stamped from Odoo">●/g)).toHaveLength(3)
-    expect(html.match(/Odoo copy read Sep 15, 2026 09:12/g)).toHaveLength(2)
+    expect(html.match(/Odoo copy read Sep 15, 2026 09:12/g)).toHaveLength(1)
   })
 
   it("prints Landed Cost provisional before Costs complete and final after", () => {
@@ -192,7 +182,7 @@ describe("marks and the legend", () => {
   it("prints Landed Cost per unit and in total", () => {
     const html = doc()
 
-    expect(html).toContain("Landed cost per unit")
+    expect(html).toContain("Landed / unit")
     expect(html).toContain("PHP 46,786.84")
     expect(html).toContain("PHP 93,573.68")
   })

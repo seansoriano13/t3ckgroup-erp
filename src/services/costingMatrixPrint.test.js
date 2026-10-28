@@ -132,7 +132,7 @@ describe("the printed Costing Matrix, view model", () => {
       ["Prepared by", "awaiting"],
       ["Costed by", "awaiting"],
       ["Evaluation approved", "awaiting"],
-      ["Final Acquire & offer approved", "awaiting"],
+      ["Management & offer approved", "awaiting"],
     ]);
     expect(vm.money.signoffs[0].who).toBe("Rosa Mendoza");
     const html = buildCostingMatrixDocument(vm);

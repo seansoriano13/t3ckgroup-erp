@@ -240,6 +240,8 @@ export const IPAS_LANDED_COST_REASON = {
   NO_LINES: "no_lines",
   /** A payment's pesos are blank and no Reference Rate exists on or before its date (#604). */
   NO_REFERENCE_RATE: "no_reference_rate",
+  /** The freight is in a currency that is neither pesos nor the PO's, so it can't be converted (#709). */
+  FREIGHT_CURRENCY: "freight_currency",
 };
 
 /** The option lists (ipas_options.list). Options are deactivated, never deleted. */
@@ -457,6 +459,8 @@ export const IPAS_UNDO_APPROVAL_SECTIONS = [1, 3, 6];
 /** The stored section that is Filing (shown as 4) and the one that is Computation status & Landed Cost (shown as 3). */
 export const IPAS_FILING_SECTION = 7;
 export const IPAS_COSTING_SECTION = 6;
+/** The stored section that is the Logistics sign-off (shown as 6): one Approved, which Filing waits for (#713). */
+export const IPAS_LOGISTICS_SECTION = 8;
 /** The stored section that is Purchasing's first sign-off (shown as 1): its Submit is what makes an IPAS Requested. */
 export const IPAS_REQUEST_SECTION = 1;
 /** The sections signed before Filing opens: every sign-off section but Filing. */
@@ -510,7 +514,7 @@ export const IPAS_PART_NAMES = {
 };
 
 /** The part a stored sign-off section (1, 3, 6 or 7) is. */
-export const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 6: "costing", 7: "filing" };
+export const IPAS_SECTION_PART = { 1: "purchasing", 3: "finance", 6: "costing", 7: "filing", 8: "logistics" };
 
 /**
  * The number a stored sign-off section (1, 3, 6 or 7) shows as: 1, 2, 3, 4 (#552, #586).
@@ -561,6 +565,7 @@ export const IPAS_SIGNER_LIST = {
   S7_NOTED: "s7_noted",
   S7_CHECKED: "s7_checked",
   S7_APPROVED: "s7_approved",
+  LOGISTICS_SIGNED: "logistics_signed",
 };
 
 export const IPAS_SIGNER_LISTS = Object.values(IPAS_SIGNER_LIST);
@@ -581,6 +586,7 @@ export const IPAS_SIGNER_LIST_LABELS = {
   [IPAS_SIGNER_LIST.S7_NOTED]: `Section ${ipasSectionNo(7)} · Noted`,
   [IPAS_SIGNER_LIST.S7_CHECKED]: `Section ${ipasSectionNo(7)} · Checked`,
   [IPAS_SIGNER_LIST.S7_APPROVED]: `Section ${ipasSectionNo(7)} · Approved (files the IPAS)`,
+  [IPAS_SIGNER_LIST.LOGISTICS_SIGNED]: `Section ${ipasSectionNo(8)} · Logistics signed`,
 };
 
 /** The list that approves a section: the Approved of stored sections 1, 3 and 6. */
@@ -618,6 +624,7 @@ export const IPAS_EVENT_LABELS = {
   approval_undone: "Approval undone",
   filed: "Filed",
   reopened: "Reopened",
+  sor_warning_checked: "S0 warning checked",
   payment_added: "Payment added",
   payment_changed: "Payment changed",
   payment_removed: "Payment removed",

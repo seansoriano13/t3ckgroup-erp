@@ -10,7 +10,7 @@
  *   outsider            Purchasing access, no part in it  -> closed_book tier, Purchasing band
  *   stageParticipant    open Stage Participant window     -> participant tier, no band
  *   finance             Finance access alone              -> no tier
- *   ipasSigner          on the final_acquire list         -> closed_book, Management band
+ *   ipasSigner          on the final_acquire and markup lists -> closed_book, Management and Markup bands (#703)
  *   superAdmin                                            -> closed_book, Sales + Purchasing
  *   ordinary            nobody                            -> no tier
  *
@@ -154,6 +154,7 @@ beforeAll(async () => {
     )
 
     await asSvc(svc().from("costing_signer_lists").insert({ list_key: "final_acquire", employee_id: ids.ipasSigner }), "signer list")
+    await asSvc(svc().from("costing_signer_lists").insert({ list_key: "markup", employee_id: ids.ipasSigner }), "markup list")
 
     const opened = await svc().rpc("costing_open_matrix", { p_opportunity_id: sorId })
     if (opened.error) throw new Error(`costing_open_matrix: ${opened.error.message}`)
@@ -279,12 +280,16 @@ describe("Component costs: who writes", () => {
         expect(await setCost("outsider", plainId, { acquire_unit: 18250.5 })).toBeNull()
     })
 
-    it("lets Sales, Purchasing, a Super Admin and the Final Acquire list write Final Acquire and the markup factor", async () => {
+    it("lets Sales, Purchasing, a Super Admin and the Final Acquire list write Final Acquire, and the Markup list and a Super Admin the markup factor (#703)", async () => {
         for (const who of ["outsider", "dealOwner", "superAdmin"]) {
-            expect(await setCost(who, plainId, { final_acquire_unit: 1, markup_factor: 1.2 }), who).toBeNull()
+            expect(await setCost(who, plainId, { final_acquire_unit: 1 }), who).toBeNull()
+        }
+        expect(await setCost("superAdmin", plainId, { markup_factor: 1.2 })).toBeNull()
+        // The multiplier belongs to the Markup list: Sales and Purchasing no longer write it.
+        for (const who of ["outsider", "dealOwner", "stageParticipant"]) {
+            expect((await setCost(who, plainId, { markup_factor: 1.5 }))?.message, who).toBe("costing_band:costing_component_costs.markup_factor:markup")
         }
         expect((await setCost("stageParticipant", plainId, { final_acquire_unit: 2 }))?.message).toBe("costing_band:costing_component_costs.final_acquire_unit:sales,purchasing,management")
-        expect((await setCost("stageParticipant", plainId, { markup_factor: 1.5 }))?.message).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing,management")
         expect(await setCost("ipasSigner", plainId, { final_acquire_unit: 17900, markup_factor: 1.35 })).toBeNull()
         const row = await asSvc(svc().from("costing_component_costs").select("*").eq("component_id", plainId).single(), "costs")
         expect(Number(row.final_acquire_unit)).toBe(17900)
@@ -432,7 +437,8 @@ describe("cost-only rows", () => {
     expect((await setRowMoney("dealOwner", rowId, { acquire_unit: 1 }))?.message).toBe("costing_band:costing_cost_rows.acquire_unit:purchasing")
     expect((await setRowMoney("outsider", rowId, { odoo_unit: 1 }))?.message).toBe("costing_band:costing_cost_rows.odoo_unit:sales")
     expect(await setRowMoney("superAdmin", rowId, { final_acquire_unit: 1 })).toBeNull()
-    expect(await setRowMoney("outsider", rowId, { markup_factor: 2 })).toBeNull()
+    expect((await setRowMoney("outsider", rowId, { markup_factor: 2 }))?.message).toBe("costing_band:costing_cost_rows.markup_factor:markup")
+    expect(await setRowMoney("superAdmin", rowId, { markup_factor: 2 })).toBeNull()
     expect((await setRowMoney("stageParticipant", rowId, { final_acquire_unit: 2 }))?.message).toBe("costing_band:costing_cost_rows.final_acquire_unit:sales,purchasing,management")
     expect(await setRowMoney("ipasSigner", rowId, { final_acquire_unit: 75000, markup_factor: 1 })).toBeNull()
     const row = await asSvc(svc().from("costing_cost_rows").select("*").eq("id", rowId).single(), "cost row")
@@ -565,7 +571,7 @@ describe("who reads what", () => {
       const read = await readMatrix(who)
       expect(read.tier).toBe("closed_book")
       const costs = tableOf(read, "costing_component_costs").find((c) => c.component_id === plainId)
-      expect(Object.keys(costs).sort(), who).toEqual(["acquire_from_offer_id", "acquire_unit", "component_id", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit", "p0_currency", "p0_quoted_unit_price", "p0_unit_price"])
+      expect(Object.keys(costs).sort(), who).toEqual(["acquire_from_offer_id", "acquire_source", "acquire_unit", "component_id", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit", "p0_currency", "p0_quoted_unit_price", "p0_unit_price"])
       const [row] = tableOf(read, "costing_cost_rows")
       expect(Object.keys(row), who).toEqual(expect.arrayContaining(["acquire_unit", "odoo_unit", "final_acquire_unit", "markup_factor", "description", "quantity"]))
       // The id of an old Inclusion is internal and never served.

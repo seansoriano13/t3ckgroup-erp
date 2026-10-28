@@ -411,6 +411,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### SaveDefaultButton
 `ui/SaveDefaultButton.jsx`. "Save filters as default" control for a filter bar: Save / Default saved (with clear) / Update default (with clear) once the filters drift. Pair with `useSavedFilters`. Props: `hasSavedDefault`, `isDirty`, `onSave`, `onClear`, `className`.
 
+#### NewOdooPoLink
+`ui/NewOdooPoLink.jsx`. Plain "Create a PO in Odoo" link to Odoo's blank purchase order form, in a new tab (on ExternalLink). No props. The app writes nothing to Odoo.
+
 #### Page structure
 `ui/PageContainer.jsx` (`maxWidth`, `spaceY`, `className`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `showGradient`, `lastWordColor`, `className`), `ui/SectionHeader.jsx` (Sentence-case `title`, `description`, `rangeLabel`, `children`, `className`), `ui/FilterBar.jsx` (one line: `search` `{value, onChange, placeholder}`, `chips` (up to three `FilterSelect`s), `filters` (the Filters popover body, a node or `({close}) =>`), `activeCount` (badge on Filters), `saveDefault` (SaveDefaultButton props), `actions`, `hasActiveFilters` + `onClearAll` (Clear all), `className`). Companions: `FilterSelect` and `FilterTriggerButton` in `ui/FilterDropdown.jsx` (a whole single-choice filter: `options`, `value`, `onChange`, `icon`, `label`, `allValue`, `disabled`), and `ui/PeriodFilter.jsx` (`timeframe`, `onTimeframeChange`, `value`, `onChange`; a Daily/Weekly/Monthly/Yearly chip with its date).
 

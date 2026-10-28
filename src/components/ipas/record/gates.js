@@ -23,13 +23,20 @@ function waitingOnNoteOrCheck(s7) {
   return s7.noted ? "whoever checks it" : "whoever notes it";
 }
 
+/** " · Missing in 2 · Purchasing & Finance: Proof of payment of Oct 14, 2026" while a part's files are missing (#711). */
+function missingNote(labels, part) {
+  if (!labels || labels.length === 0) return "";
+  return ` · Missing in ${ipasSectionLabel(part)}: ${labels.join(", ")}`;
+}
+
 /**
  * The gate definitions, from the digest. `prereqMet` says whether the gate can
  * be passed yet; `moveKeys` are the moves (moves.js) that pass it.
  */
 function gateDefs(digest) {
-  const { s1, s3, s6, s7, costsComplete, computationStatus } = digest;
-  const sectionsApproved = Boolean(s1.approved && s3.approved && s6.approved);
+  const { s1, s3, s6, s7, s8, costsComplete, computationStatus } = digest;
+  const missing = digest.docs?.missingByPart ?? {};
+  const sectionsApproved = Boolean(s1.approved && s3.approved && s6.approved && s8?.approved);
   const noteAndCheck = Boolean(s7.noted && s7.checked);
 
   const section = (part, state, moveKeys, { key = part, prereqMet = true, early = null } = {}) => ({
@@ -43,7 +50,7 @@ function gateDefs(digest) {
       ? `Approved by ${name(state.approved)}`
       : state.prepared
         ? `Submitted by ${name(state.prepared)}, waiting for an approver`
-        : (early ?? "Waiting for Purchasing to submit it"),
+        : (early ?? "Waiting for Purchasing to submit it") + missingNote(missing[part], part),
     at: state.approved?.signedAt ?? null,
     moveKeys,
   });
@@ -81,8 +88,8 @@ function gateDefs(digest) {
       line: s7.received
         ? `Received by ${name(s7.received)}`
         : sectionsApproved
-          ? "Waiting for the Received list to receive it"
-          : `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} are approved`,
+          ? `Waiting for the Received list to receive it${missingNote(missing.filing, "filing")}`
+          : `Opens once ${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")} are approved, and Logistics is signed`,
       at: s7.received?.signedAt ?? null,
       moveKeys: ["receive"],
     },

@@ -180,8 +180,8 @@ export function flowPublishWarnings({ stages = [], edges = [], conditionsByStage
   const entry = entryStage(stages)
   if (!entry) return []
 
-  const opensMatrix = (id) => (actionsByStage[id] ?? []).some((a) => a.kind === "open_costing_matrix")
-  const costingKinds = ["costing_priced", "costing_settled"]
+  const opensMatrix = (id) => (actionsByStage[id] ?? []).some((a) => a.kind === "open_costing_matrix" || a.kind === "evaluate_specification")
+  const costingKinds = ["costing_priced", "costing_settled", "costing_evaluation_approved"]
 
   // Walk from the entry, never through (or onto) a Stage that opens the matrix.
   const seen = new Set()

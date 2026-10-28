@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import { Button } from "../../ui/button";
+import { Checkbox } from "../../ui/checkbox";
+import { SUMMARY_LINES } from "../../../constants/costing";
 import { FieldBox } from "../../ui/FieldBox";
 import { Input } from "../../ui/input";
 import PageLoading from "../../ui/PageLoading";
@@ -20,16 +22,18 @@ const toDrafts = (rates) => ({
   retentionRate: asPercent(rates.retentionRate),
   itrRate: asPercent(rates.itrRate),
   itrAllowance: String(rates.itrAllowance),
+  finalVatRate: asPercent(rates.finalVatRate ?? 0.12),
+  hiddenLines: [...(rates.hiddenLines ?? [])].sort(),
 });
 
-const RATE_NAME = { taxRate: "tax", retentionRate: "retention", itrRate: "ITR" };
+const RATE_NAME = { taxRate: "tax", retentionRate: "retention", itrRate: "ITR", finalVatRate: "final VAT" };
 
 /** The typed drafts as the service takes them, or the sentence saying what is wrong with them. */
 function parseDrafts(drafts) {
   const number = (text) => (String(text).trim() === "" ? NaN : Number(text));
   const vatDivisor = number(drafts.vatDivisor);
   const itrAllowance = number(drafts.itrAllowance);
-  const percents = { taxRate: number(drafts.taxRate), retentionRate: number(drafts.retentionRate), itrRate: number(drafts.itrRate) };
+  const percents = { taxRate: number(drafts.taxRate), retentionRate: number(drafts.retentionRate), itrRate: number(drafts.itrRate), finalVatRate: number(drafts.finalVatRate) };
   if (!Number.isFinite(vatDivisor) || vatDivisor < 1) return { error: "The VAT divisor is a number of 1 or more, like 1.12." };
   for (const [key, value] of Object.entries(percents)) {
     if (!Number.isFinite(value) || value < 0 || value > 100) return { error: `The ${RATE_NAME[key]} rate is a percentage from 0 to 100.` };
@@ -42,6 +46,8 @@ function parseDrafts(drafts) {
       retentionRate: asFraction(percents.retentionRate),
       itrRate: asFraction(percents.itrRate),
       itrAllowance,
+      finalVatRate: asFraction(percents.finalVatRate),
+      hiddenLines: drafts.hiddenLines,
     },
   };
 }
@@ -75,6 +81,10 @@ export default function RatesSection({ canEdit = false }) {
 
   const shown = drafts ?? toDrafts(rates.data);
   const change = (key) => (event) => setDrafts({ ...shown, [key]: event.target.value });
+  const toggleLine = (key, on) => {
+    const rest = shown.hiddenLines.filter((k) => k !== key);
+    setDrafts({ ...shown, hiddenLines: (on ? rest : [...rest, key]).sort() });
+  };
   const dirty = JSON.stringify(shown) !== JSON.stringify(toDrafts(rates.data));
 
   const submit = (event) => {
@@ -102,8 +112,25 @@ export default function RatesSection({ canEdit = false }) {
         {field("vatDivisor", "VAT divisor", "Final Offer ÷ this gives the VAT-exclusive figure")}
         {field("taxRate", "Tax rate (%)", "of the gross Final Offer")}
         {field("retentionRate", "Retention rate (%)", "of the Final Offer")}
+        {field("finalVatRate", "Final VAT rate (%)", "of the VAT-exclusive figure")}
         {field("itrRate", "ITR rate (%)", "of the offer above the allowance")}
         {field("itrAllowance", "ITR allowance (₱)", "the offer is only taxed above this")}
+        <fieldset className="w-full" data-testid="costing-summary-lines">
+          <legend className="text-xs font-medium text-muted-foreground">Summary lines shown</legend>
+          <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
+            {SUMMARY_LINES.map(({ key, label }) => (
+              <FieldBox key={key} inline className="text-sm text-foreground">
+                <Checkbox
+                  checked={!shown.hiddenLines.includes(key)}
+                  disabled={!canEdit || save.isPending}
+                  onCheckedChange={(on) => toggleLine(key, on)}
+                  aria-label={label}
+                />
+                {label}
+              </FieldBox>
+            ))}
+          </div>
+        </fieldset>
         {canEdit && (
           <Button type="submit" variant="outline" className="self-end" disabled={save.isPending || !dirty}>
             Save rates

@@ -40,7 +40,8 @@ import {
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   ODOO_PO_STATE_LABELS,
 } from '../../constants/ipas';
-import { filingChecklist } from '../../utils/ipasDocuments';
+import { SECTION_DOCUMENT_KINDS, filingChecklist } from '../../utils/ipasDocuments';
+import { landedTable } from '../../utils/ipasLandedTable';
 import { formatDay } from '../../utils/ipasPayments';
 import { isLandedCostFinal } from '../../utils/ipasSignoffs';
 import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote, landedCostMarkLabel } from '../../utils/landedCost';
@@ -134,9 +135,10 @@ const SIGN_LABELS = {
 export function signoffBox(role, section, signoff) {
   const label = SIGN_LABELS[role] ?? IPAS_SIGNOFF_ROLE_LABELS[role] ?? role;
   const title = ipasSectionName(section);
-  if (!signoff) return { role: label, who: '', title, state: 'awaiting', signaturePath: null, signatureDeclined: false };
+  if (!signoff) return { role: label, who: '', callSign: null, title, state: 'awaiting', signaturePath: null, signatureDeclined: false };
 
   const who = text(signoff.signedBy?.name) ?? 'Unknown signer';
+  const callSign = text(signoff.signedBy?.callSign);
   const declined = Boolean(signoff.signatureDeclined);
   const path = !declined ? text(signoff.signatureVersion) : null;
   const when = printDateTime(signoff.signedAt);
@@ -146,7 +148,7 @@ export function signoffBox(role, section, signoff) {
   else if (declined) stamp = `signed${when ? ` ${when}` : ''} · signature not applied`;
   else stamp = `signed${when ? ` ${when}` : ''} · name only, no signature on file`;
 
-  return { role: label, who, title, state: 'signed', signaturePath: path, signatureDeclined: declined, stamp };
+  return { role: label, who, callSign, title, state: 'signed', signaturePath: path, signatureDeclined: declined, stamp };
 }
 
 const signoffPair = (section, state = {}) => [
@@ -207,7 +209,9 @@ function landedCostOf(ipas, filed, charges) {
         ? `This Odoo PO is in ${lc.currency || 'a foreign currency'}. Landed Cost converts at the rate actually paid, so it needs a payment.`
         : lc.reason === IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE
           ? `A payment has no pesos taken from the bank yet, and there is no Reference Rate on or before its date to estimate with.`
-          : 'The Odoo PO has no item lines to cost.';
+          : lc.reason === IPAS_LANDED_COST_REASON.FREIGHT_CURRENCY
+            ? "The freight is in a currency that is neither pesos nor the PO's currency, so it can't be converted."
+            : 'The Odoo PO has no item lines to cost.';
     return { status: lc.status, label: 'Not available', note, lines: [], total: null, build: [], perUnit: null, units: null };
   }
 
@@ -254,6 +258,41 @@ function landedCostOf(ipas, filed, charges) {
       total: peso(line.landedPhp),
     })),
     total: peso(lc.totals?.landedPhp),
+  };
+}
+
+/** The documents that sit under one part (#711): its own kinds; Filing's items; Finance holds the rest. */
+function documentsOf(part, documents) {
+  const own = (key) => new Set(Object.values(SECTION_DOCUMENT_KINDS[key] ?? {}).flat().map((label) => label.toLowerCase()));
+  const kindOf = (doc) => String(doc.kind?.label ?? doc.label ?? '').trim().toLowerCase();
+  const claimed = new Set([...own('purchasing'), ...own('costing')]);
+  const pick = {
+    purchasing: (doc) => own('purchasing').has(kindOf(doc)),
+    costing: (doc) => own('costing').has(kindOf(doc)),
+    filing: (doc) => doc.isFiling,
+    finance: (doc) => !doc.isFiling && !claimed.has(kindOf(doc)),
+  }[part];
+  return documents.filter(pick).map((doc) => ({ label: doc.label, have: Boolean(doc.purchasingHas || doc.financeHas) }));
+}
+
+/** The Landed cost table's rows (ticket #710) as paper reads them. */
+function landedTableOf(ipas) {
+  if (!ipas.landedCost || ipas.landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE) return null;
+  const table = landedTable(ipas);
+  if (!table) return null;
+  return {
+    pricing: table.pricing && table.rows.some((row) => row.retail !== null),
+    rows: table.rows.map((row) => ({
+      name: row.name || BLANK,
+      quantity: `${row.quantity}${text(row.unit) ? ` ${row.unit}` : ''}`,
+      unitPrice: peso(row.unitPrice),
+      duties: peso(row.duties),
+      freight: peso(row.freight),
+      other: peso(row.other),
+      landed: peso(row.landed),
+      retail: row.retail === null ? null : peso(row.retail),
+      wholesale: row.wholesale === null ? null : peso(row.wholesale),
+    })),
   };
 }
 
@@ -333,6 +372,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     }),
     totalDebited: peso(summary.totalDebitedPhp ?? 0),
     missingPhp: Number(summary.missingPhp) || 0,
+    docs: documentsOf('purchasing', documents),
     signoffs: signoffPair(1, ipas.signoffSections?.[1]),
   };
 
@@ -364,7 +404,9 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       flagged: Boolean(details?.flagged),
     };
   }
+  const freightPhp = Number(ipas.landedCost?.totals?.freightPhp) || 0;
   const section3 = {
+    freight: freightPhp > 0 ? { service: text(ipas.freightService?.label), amount: peso(freightPhp) } : null,
     charges: charges.map((charge) => ({
       kind: text(charge.kindLabel) ?? BLANK,
       date: charge.charged_on ? formatDay(charge.charged_on) : BLANK,
@@ -377,6 +419,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       finance: Boolean(doc.financeHas),
     })),
     bank,
+    docs: documentsOf('finance', documents),
     signoffs: signoffPair(3, ipas.signoffSections?.[3]),
   };
 
@@ -390,6 +433,8 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       stateLabel: text(slip.stateLabel),
       naCount: slip.naCount ?? 0,
     })),
+    // Logistics' one sign-off (stored 8, #713).
+    signoffs: [{ ...signoffBox(IPAS_SIGNOFF_ROLE.APPROVED, 8, ipas.signoffSections?.[8]?.approved), role: 'Signed by' }],
   };
 
   // ── Section 6 ──
@@ -413,6 +458,8 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     buyerTrack,
     computation,
     landedCost,
+    landedTable: landedTableOf(ipas),
+    docs: documentsOf('costing', documents),
     // Section 3's sign-offs (stored section 6): Submitted and Approved.
     signoffs: signoffPair(6, ipas.signoffSections?.[6]),
     // The legend prints whenever a status carries the mark.
@@ -441,6 +488,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   ];
   const section7 = {
     checklist,
+    docs: documentsOf('filing', documents),
     signoffs: [
       signoffBox(IPAS_SIGNOFF_ROLE.RECEIVED, 7, state7.received),
       signoffBox(IPAS_SIGNOFF_ROLE.NOTED, 7, state7.noted),
@@ -482,6 +530,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       [1, section1],
       [3, section3],
       [6, section6],
+      [8, section5],
       [7, section7],
     ].map(([stored, section]) => ({
       no: ipasSectionNo(stored),

@@ -19,7 +19,7 @@ import { formatDate } from "../../utils/formatDate.js";
 import { useInDrawer } from "@/components/record/sectionChrome";
 
 /** The sign-off sections that open section 7, as a person reads them. */
-const OPENING_SECTIONS = `${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")} and ${ipasSectionLabel("costing")}`;
+const OPENING_SECTIONS = `${ipasSectionLabel("purchasing")}, ${ipasSectionLabel("finance")}, ${ipasSectionLabel("costing")} and ${ipasSectionLabel("logistics")}`;
 
 const STATUS_BADGE = {
   [FILING_STATUS.WAITING]: { label: `Waiting for ${OPENING_SECTIONS}` },
@@ -30,7 +30,7 @@ const STATUS_BADGE = {
 
 /** What each box says while it is empty, from where section 7 stands. */
 function waitingText(role, state) {
-  if (!state.opened) return `Opens once ${OPENING_SECTIONS} are approved.`;
+  if (!state.opened) return `Opens once ${OPENING_SECTIONS} are signed.`;
   if (role === IPAS_SIGNOFF_ROLE.RECEIVED) return "Comes first.";
   if (!state.received) return "After Received.";
   if (role === IPAS_SIGNOFF_ROLE.APPROVED) {

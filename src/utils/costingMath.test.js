@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { summaryLineShown } from "../constants/costing";
 import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
@@ -281,6 +282,18 @@ describe("summary", () => {
   it("changes every figure with a rate", () => {
     const changed = summary(matrix({ offer: 2980000, acquires: [2338500] }), { ...settings, taxRate: 0.05, itrAllowance: 0, vatDivisor: 1.1 });
     expect(changed).toMatchObject({ vatExclusive: 2709090.91, tax: 149000, itr: 238400, revenue: 403100 });
+  });
+
+  it("works Final VAT from the configured rate on the VAT-exclusive figure (#705)", () => {
+    const s = summary(matrix({ offer: 1120000, acquires: [500000] }), { ...settings, vatDivisor: 1.12, finalVatRate: 0.1 });
+    expect(s.vatExclusive).toBe(1000000);
+    expect(s.finalVat).toBe(100000);
+  });
+
+  it("summaryLineShown follows the configured hidden lines (#705)", () => {
+    expect(summaryLineShown({ hiddenLines: ["itr"] }, "itr")).toBe(false);
+    expect(summaryLineShown({ hiddenLines: ["itr"] }, "tax")).toBe(true);
+    expect(summaryLineShown({}, "finalVat")).toBe(false);
   });
 
   it("marks the offer figures incomplete while a Tender Line has no Final Offer, and never treats it as zero", () => {

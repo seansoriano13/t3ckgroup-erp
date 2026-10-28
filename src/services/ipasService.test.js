@@ -833,21 +833,28 @@ describe("ipasService", () => {
         expect(read.statuses.purchaseOrder.ticked).toBe(false)
       })
 
-      it("warns when Odoo's S numbers differ from the SORs, and changes nothing", async () => {
+      it("warns only when the IPAS names an SOR the PO doesn't, and Mark checked hides it", async () => {
         const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920" })
 
         odoo = { ...odoo, po: { ...odoo.po, name: "P04000", origin: "S07920 Capas" } }
         const project = await raise({ poNumber: "P04000", purpose: "project", sorIds: [sor.id] })
         expect((await ipasService.get(project.id)).warnings.map((w) => w.code)).not.toContain(IPAS_WARNING.SOR_MISMATCH)
 
+        // More S numbers in Odoo than the IPAS names: no warning.
         odoo = { ...odoo, po: { ...odoo.po, origin: "S07920 Capas & S06070 Las Nieves" } }
-        const read = await ipasService.get(project.id)
+        expect((await ipasService.get(project.id)).warnings.map((w) => w.code)).not.toContain(IPAS_WARNING.SOR_MISMATCH)
 
+        // The IPAS names one the PO doesn't: warning, and nothing changes.
+        odoo = { ...odoo, po: { ...odoo.po, origin: "S06070 Las Nieves" } }
+        const read = await ipasService.get(project.id)
         const warning = read.warnings.find((w) => w.code === IPAS_WARNING.SOR_MISMATCH)
-        expect(warning).toMatchObject({ onlyInOdoo: ["S06070"], onlyInIpas: [] })
-        expect(read.purpose).toBe("project")
+        expect(warning).toMatchObject({ onlyInOdoo: ["S06070"], onlyInIpas: ["S07920"] })
         expect(read.sors.map((s) => s.salesReference)).toEqual(["S07920"])
-        expect(db.rows("ipas_sors").filter((s) => s.ipas_id === project.id)).toHaveLength(1)
+
+        await expect(ipasService.markSorWarningChecked(project.id, ["S07920"], "  ")).rejects.toThrow()
+        await ipasService.markSorWarningChecked(project.id, ["S07920"], "Quoted under the parent S0")
+        expect((await ipasService.get(project.id)).warnings.map((w) => w.code)).not.toContain(IPAS_WARNING.SOR_MISMATCH)
+        expect(db.rows("ipas_events").some((e) => e.ipas_id === project.id && e.kind === "sor_warning_checked")).toBe(true)
       })
 
       it("says nothing when Odoo names no S number to compare", async () => {

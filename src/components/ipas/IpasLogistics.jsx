@@ -1,11 +1,15 @@
+import { Check } from "lucide-react";
 import { Link } from "react-router";
 import DetailGrid from "@/components/record/DetailGrid";
 import LinerList from "@/components/record/LinerList";
+import { Button } from "../ui/button";
 import { SelectField } from "../ui/SelectField";
 import { IpasSection } from "./IpasSections";
 import { IPAS_OPTION_LIST, ipasSectionLabel } from "../../constants/ipas";
 import { optionsForPicker } from "../../utils/ipasPayments";
 import { formatPreparedAt } from "../../utils/preparedAt";
+import { formatDate } from "../../utils/formatDate.js";
+import { logisticsMissing } from "../../utils/ipasLogistics";
 import { useEditable } from "@/components/record/sectionChrome";
 
 const NONE = "__none__";
@@ -16,8 +20,10 @@ const NONE = "__none__";
  * typed), and the TG03 Transmittals carrying this IPAS's lines, with links.
  *
  *   canChange   Purchasing on an open IPAS
+ *   signRights  { canSign }: on the Logistics signer list, IPAS open, not signed yet (#713)
+ *   onSign      gives the Logistics sign-off; Filing waits for it
  */
-export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick }) {
+export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick, signRights, onSign, busy = false }) {
   const canChange = useEditable(granted);
   const options = [
     { value: NONE, label: "Not set" },
@@ -27,6 +33,8 @@ export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick 
     })),
   ];
   const transmittals = ipas.slips ?? [];
+  const signed = ipas.signoffSections?.[8]?.approved ?? null;
+  const missing = logisticsMissing(ipas);
 
   return (
     <IpasSection title={ipasSectionLabel("logistics")}>
@@ -76,6 +84,38 @@ export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick 
             };
           })}
         />
+      </div>
+      <div className="mt-4" data-testid="ipas-logistics-signoff">
+        <DetailGrid
+          items={[
+            {
+              label: "Logistics signed",
+              value: signed ? (
+                <>
+                  <span className="flex items-center gap-1.5 font-semibold">
+                    <Check size={14} className="text-green-11" aria-hidden="true" />
+                    {signed.signedBy?.name ?? "Someone"}
+                  </span>
+                  <span className="block text-xs font-normal text-muted-foreground">{formatDate(signed.signedAt)}</span>
+                </>
+              ) : (
+                <span className="font-normal text-muted-foreground">Signed once the goods are at their location. Filing waits for it.</span>
+              ),
+            },
+          ]}
+        />
+        {signRights?.canSign && (
+          <>
+            <Button size="sm" className="mt-2" disabled={busy || missing.length > 0} onClick={onSign} data-testid="ipas-logistics-sign">
+              Sign Logistics
+            </Button>
+            {missing.length > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground" data-testid="ipas-logistics-missing">
+                Needs {missing.join(", ")} first.
+              </p>
+            )}
+          </>
+        )}
       </div>
     </IpasSection>
   );

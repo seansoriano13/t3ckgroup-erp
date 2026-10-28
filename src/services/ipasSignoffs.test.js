@@ -64,6 +64,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
   const approveSection3 = (ipas) => {
     db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "prepared", signed_by: buyer.id })
     db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 6, role: "approved", signed_by: approver.id })
+    db.seed("ipas_signoffs", { ipas_id: ipas.id, section: 8, role: "approved", signed_by: approver.id })
   }
 
   let poSeq = 0
@@ -387,7 +388,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       await waitForNetworkIdle()
 
       expect(out.clearedSection7).toEqual(["noted", "received"])
-      expect(live()).toEqual(["1/approved", "1/prepared", "6/approved", "6/prepared"])
+      expect(live()).toEqual(["1/approved", "1/prepared", "6/approved", "6/prepared", "8/approved"])
       const seven = (await read(ipas.id)).signoffSections[7]
       expect(seven.received).toBeNull()
       expect(seven.history.map((entry) => entry.clearedReason)).toEqual(
@@ -438,7 +439,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       await waitForNetworkIdle()
 
       expect(out).toMatchObject({ clearedRoles: ["checked", "noted", "received"], notified: 2 })
-      expect(live()).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared"])
+      expect(live()).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared", "8/approved"])
 
       const seven = (await read(ipas.id)).signoffSections[7]
       expect(seven.received).toBeNull()

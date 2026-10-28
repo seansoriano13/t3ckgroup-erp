@@ -13,6 +13,7 @@
  */
 
 import { IPAS_SIGNOFF_ROLE, ipasSectionNo } from "../constants/ipas";
+import { pesosFromRate, sumPesos } from "./landedCost";
 import { shapeIpas } from "./ipas";
 import { parseAmountInput } from "./ipasPayments";
 
@@ -78,14 +79,22 @@ function mapRows(key, id, edit) {
 /** A payment form's values as the stored row's columns. */
 function paymentColumns(values, isPhpPo) {
   const amount = parseAmountInput(values.amount).value;
-  const php = parseAmountInput(values.phpDebited).value;
-  const fee = parseAmountInput(values.chargeFeePhp).value;
+  const rate = parseAmountInput(values.forexRate).value;
+  const php = rate === null ? null : pesosFromRate(amount, rate);
+  const bank = parseAmountInput(values.chargeFeePhp).value ?? 0;
+  const stamp = parseAmountInput(values.docStampPhp).value ?? 0;
+  const misc = parseAmountInput(values.miscFeePhp).value ?? 0;
   return {
     kind: values.kind,
     paid_on: values.paidOn,
     amount,
     php_debited: isPhpPo ? null : php,
-    charge_fee_php: fee ?? 0,
+    charge_fee_php: sumPesos([bank, stamp, misc]),
+    forex_rate: isPhpPo ? null : rate,
+    doc_stamp_php: stamp,
+    misc_fee_php: misc,
+    bank_charge_php: bank,
+    rate: isPhpPo ? null : rate,
     method_id: values.methodId,
     check_no: (values.checkNo || "").trim() || null,
     proof_url: (values.proofUrl || "").trim() || null,
@@ -188,7 +197,7 @@ export const giveSignoff =
         section,
         role,
         signed_by: by?.id ?? null,
-        signer: by ? { id: by.id, name: by.name, avatar_path: by.avatarPath ?? null } : null,
+        signer: by ? { id: by.id, name: by.name, avatar_path: by.avatarPath ?? null, call_sign: by.callSign ?? null } : null,
         signed_at: nowIso(),
         signature_declined: false,
         cleared_at: null,

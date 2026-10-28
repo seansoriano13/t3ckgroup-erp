@@ -16,7 +16,7 @@ import {
   IPAS_LANDED_COST_STATUS,
   IPAS_PAYMENT_KIND,
 } from "@/constants/ipas"
-import { finiteNumber, isPhpCurrency, paymentPhp } from "@/utils/landedCost"
+import { finiteNumber, isPhpCurrency, paymentPesos, paymentPhp } from "@/utils/landedCost"
 
 const FINAL_STATUSES = new Set([IPAS_COMPUTATION_STATUS.LC_ODOO_DONE, IPAS_COMPUTATION_STATUS.CHECKED])
 
@@ -33,7 +33,7 @@ export function paidRate(payments = []) {
   let foreign = 0;
   let used = 0;
   for (const payment of payments) {
-    const debited = finiteNumber(payment?.php_debited);
+    const debited = paymentPesos(payment);
     const amount = finiteNumber(payment?.amount);
     if (debited === null || amount === null || debited <= 0 || amount <= 0) continue;
     php += debited;
@@ -80,7 +80,7 @@ export function blendedRate(payments = [], currency, referenceRates = []) {
   const estimates = [];
   for (const payment of rows) {
     const amount = finiteNumber(payment.amount);
-    const debited = finiteNumber(payment.php_debited);
+    const debited = paymentPesos(payment);
     let pesosOfPayment;
     if (debited !== null && debited > 0) {
       pesosOfPayment = debited;
@@ -145,6 +145,7 @@ export function allocate(total, weights) {
  * @param {object} input.copy              the stored Odoo copy ({ po, lines })
  * @param {object[]} [input.payments]      ipas_payments rows
  * @param {object[]} [input.charges]       ipas_charges rows
+ * @param {object}   [input.freight]       { amount, currency, billedBySupplier } (#709)
  * @param {string}   [input.split]         value | quantity | equal
  * @param {string}   [input.computationStatus]
  * @param {boolean}  [input.filed]         a filed IPAS is always final
@@ -167,6 +168,7 @@ export function computeLandedCost({
   copy,
   payments = [],
   charges = [],
+  freight = null,
   split = IPAS_LANDED_COST_SPLIT.VALUE,
   computationStatus = IPAS_COMPUTATION_STATUS.ENCODING,
   filed = false,
@@ -222,7 +224,23 @@ export function computeLandedCost({
   }
   // A foreign shipping fee counts at its pesos, or its estimated pesos while those are blank.
   if (!isPhp) shippingC = shippingForeignC;
-  const poolC = chargesC + feesC + shippingC;
+  // Freight (#709): a typed freight amount is the freight, and the older shipping-fee payments stop
+  // counting (they would be the same freight twice). Freight the supplier billed is inside the
+  // payments already, so it adds nothing. In the PO's currency it converts at the blended rate; a
+  // peso freight is taken as it is; any other currency can't be converted, so there is no figure.
+  let freightC = 0;
+  const freightAmount = finiteNumber(freight?.amount);
+  if (freightAmount !== null) {
+    shippingC = 0;
+    const freightCurrency = String(freight?.currency || "PHP").toUpperCase();
+    if (!isPhpCurrency(freightCurrency) && (isPhp || freightCurrency !== String(currency).toUpperCase())) {
+      return unavailable(IPAS_LANDED_COST_REASON.FREIGHT_CURRENCY);
+    }
+    if (!freight?.billedBySupplier) {
+      freightC = isPhpCurrency(freightCurrency) ? centavos(freightAmount) : Math.round(freightAmount * rate * 100);
+    }
+  }
+  const poolC = chargesC + freightC + feesC + shippingC;
 
   // Each line's goods, in PHP.
   const items = poLines.map((line) => {
@@ -282,6 +300,7 @@ export function computeLandedCost({
     totals: {
       goodsPhp: pesos(goodsC),
       chargesPhp: pesos(chargesC),
+      freightPhp: pesos(freightC),
       chargeFeesPhp: pesos(feesC),
       shippingFeesPhp: pesos(shippingC),
       spreadPhp: pesos(poolC),

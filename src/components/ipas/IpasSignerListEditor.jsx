@@ -26,6 +26,7 @@ const WHO = {
   [IPAS_SIGNER_LIST.S7_NOTED]: "Notes the IPAS at filing, after it is received.",
   [IPAS_SIGNER_LIST.S7_CHECKED]: "Checks the IPAS at filing, after it is received.",
   [IPAS_SIGNER_LIST.S7_APPROVED]: `Approves section ${ipasSectionNo(7)}, which files the IPAS.`,
+  [IPAS_SIGNER_LIST.LOGISTICS_SIGNED]: `Signs section ${ipasSectionNo(8)}, Logistics, once the goods are at their location. Filing waits for it.`,
   [TRANSMITTAL_STAFF_LIST.WAREHOUSE]: "Signs a Transmittal's Warehouse checking and releasing; may raise one and sign Received in Odoo. Reads Transmittals, not the IPAS.",
   [TRANSMITTAL_STAFF_LIST.TECHNICAL]: "Signs a Transmittal's Technical inspection and is the TCA in-charge. Reads Transmittals, not the IPAS.",
   [TRANSMITTAL_STAFF_LIST.LOGISTICS]: "May raise a Transmittal. Reads Transmittals, not the IPAS.",

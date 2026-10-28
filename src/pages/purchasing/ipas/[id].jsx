@@ -65,6 +65,7 @@ import {
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_HEADER_FIELD,
   IPAS_OVERRIDE_FIELDS,
+  IPAS_SIGNER_LIST,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_STATE,
@@ -336,6 +337,18 @@ function IpasPage({ onClose }) {
   // The card's next computation status, or any step the body's control picks.
   // The card's step is undoable: its toast restores the status it came from,
   // through this same mutation.
+  // #710: only the Markup list sets the retail multiplier and the wholesale discount.
+  const { data: canSetMarkup = false } = useQuery({
+    queryKey: ["ipas-can-set-markup"],
+    queryFn: () => ipasService.canSetMarkup(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const setMarkup = useMutation({
+    mutationFn: (values) => ipasService.setMarkup(id, values),
+    onSuccess: () => changed(),
+    onError: (error, vars) => failChange(error, () => setMarkup.mutate(vars)),
+  });
+
   const setStatus = useMutation({
     mutationFn: ({ computationStatus }) => ipasService.setHeader(id, { computationStatus }),
     onMutate: ({ computationStatus }) => ({
@@ -622,6 +635,7 @@ function IpasPage({ onClose }) {
           else await ipasService.overrideField(id, item.field, item.value);
         }
         if (Object.keys(plan.header).length > 0) await ipasService.setHeader(id, plan.header);
+        if (plan.freight !== undefined) await once("freight", () => ipasService.setFreight(id, plan.freight));
         if (plan.location !== undefined) await ipasService.setItemLocation(id, plan.location);
         if (Object.keys(plan.origin).length > 0) await ipasService.setSupplierOrigin(id, plan.origin);
         for (const item of plan.typed) await ipasService.setTypedStatus(id, item.kind, item.date);
@@ -630,7 +644,7 @@ function IpasPage({ onClose }) {
         for (const item of plan.payments.add) await once(item.key, () => ipasService.addPayment(id, item.values, { isPhpPo }));
         for (const item of plan.payments.update) await once(item.key, () => ipasService.updatePayment(item.id, item.values, { isPhpPo }));
         for (const item of plan.charges.add) await once(item.key, () => ipasService.addCharge(id, item.values));
-        for (const item of plan.charges.update) await once(item.key, () => ipasService.updateCharge(item.id, item.values));
+        for (const item of plan.charges.update) await once(item.key, () => ipasService.fillCharge(item.id, item.values));
         for (const item of plan.documents.add) await once(item.key, () => ipasService.addDocument(id, item.choice));
         for (const item of plan.documents.update) {
           await once(item.key, async () => {
@@ -764,6 +778,15 @@ function IpasPage({ onClose }) {
       computationStatus: ipas.computationStatus,
     });
 
+  // Logistics (stored 8): one sign-off by its list; no Submit before it.
+  const logisticsRights = {
+    canSign:
+      open &&
+      !ipas.signoffSections[8]?.approved &&
+      Boolean(user?.id) &&
+      (signerLists?.[IPAS_SIGNER_LIST.LOGISTICS_SIGNED] ?? []).some((member) => member.employeeId === user.id),
+  };
+
   // Section 7: what this person may give, from where it stands.
   const filingRights = section7Rights({
     state: ipas.signoffSections[7],
@@ -871,6 +894,7 @@ function IpasPage({ onClose }) {
     setComputationStatus: (computationStatus, from) =>
       setStatus.mutate({ computationStatus, from, undoTo: ipas.computationStatus }),
     setSplit: (landedCostSplit) => pick.mutate({ landedCostSplit }),
+    setMarkup: (values) => setMarkup.mutate(values),
     prepare: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.PREPARED, from }),
     approve: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.APPROVED, from }),
     openReturn: (section, from) => setReturning({ section, from }),
@@ -891,9 +915,10 @@ function IpasPage({ onClose }) {
       printFiling: filed && ipas.canReadBankDetails,
       // On-Hold (#597), from the More menu: Purchasing access or Finance access, on an open IPAS.
       hold: canHold,
+      markup: canSetMarkup,
     },
     onHold: Boolean(digest.figures?.onHold),
-    rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, sendBack7: canReturnSection7 },
+    rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, 8: logisticsRights, sendBack7: canReturnSection7 },
     busy: {
       signoff: signoff.isPending || returnSection.isPending,
       give: give.isPending || returnSection.isPending,
@@ -1007,6 +1032,7 @@ function IpasPage({ onClose }) {
               refresh={refresh.data}
               onRetry={() => refresh.refetch()}
               retrying={refresh.isFetching}
+              canMarkChecked={hasPurchasingFlow && open}
             />
           </div>
 

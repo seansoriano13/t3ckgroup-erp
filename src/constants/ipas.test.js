@@ -51,6 +51,7 @@ describe("ipasSectionNo (#552)", () => {
       s7_noted: "Section 4 · Noted",
       s7_checked: "Section 4 · Checked",
       s7_approved: "Section 4 · Approved (files the IPAS)",
+      logistics_signed: "Section 6 · Logistics signed",
     });
   });
 });

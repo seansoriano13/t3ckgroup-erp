@@ -529,49 +529,45 @@ describe("the Costing Desk", () => {
       }
     });
 
-    it("lets the Final Acquire list type Final Acquire and Marketing, and the summary follows", async () => {
-      seedSummary();
+    it("lets the Final Acquire list type Marketing, and the summary follows (Final Acquire has left the screen, #703)", async () => {
+      seedSummary({ finalAcquire: 2338500 });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
       const user = openDesk(deal);
 
       await openLines();
       const row = await screen.findByTestId("component");
-      await user.type(within(row).getByLabelText("Final Acquire 1.1"), "2338500");
-      await user.tab();
+      expect(within(row).queryByLabelText("Final Acquire 1.1")).not.toBeInTheDocument();
       await waitFor(() => expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱423,100.00"));
-      expect(db.rows("costing_component_costs")[0].final_acquire_unit).toBe(2338500);
 
       await user.type(within(screen.getByTestId("summary-marketing")).getByLabelText("Marketing"), "12000");
       await user.tab();
       await waitFor(() => expect(db.rows("costing_matrix_money")[0]?.marketing).toBe(12000));
     });
 
-    it("makes Final Acquire, Marketing and OPEX read-only for a Closed Book reader outside Sales and Purchasing", async () => {
+    it("makes Marketing and OPEX read-only for a Closed Book reader outside Sales and Purchasing", async () => {
       seedSummary({ finalAcquire: 2338500 });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["technical"] });
       openDesk(deal);
 
       await openLines();
 
-      const row = await screen.findByTestId("component");
-      expect(within(row).getByLabelText("Final Acquire 1.1")).toHaveTextContent("₱2,338,500.00");
-      expect(within(row).getByLabelText("Final Acquire 1.1").tagName).toBe("SPAN");
+      await screen.findByTestId("component");
       expect(within(screen.getByTestId("summary-marketing")).getByLabelText("Marketing").tagName).toBe("SPAN");
       expect(within(screen.getByTestId("summary-opex")).getByLabelText("OPEX").tagName).toBe("SPAN");
     });
 
-    it("shows a refused Final Acquire beside its cell", async () => {
-      seedSummary();
-      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management"] });
+    it("shows a refused Marketing beside its cell", async () => {
+      seedSummary({ finalAcquire: 2338500 });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
       const user = openDesk(deal);
       await openLines();
-      const row = await screen.findByTestId("component");
+      await screen.findByTestId("component");
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["technical"] });
 
-      await user.type(within(row).getByLabelText("Final Acquire 1.1"), "5");
+      await user.type(within(screen.getByTestId("summary-marketing")).getByLabelText("Marketing"), "5");
       await user.tab();
 
-      expect(await within(row).findByRole("alert")).toHaveTextContent("Final Acquire is written by Sales (the Deal Team) or Purchasing or the Final Acquire list.");
+      expect(await within(screen.getByTestId("summary-marketing")).findByRole("alert")).toHaveTextContent(/Marketing is written by/);
     });
 
     it("types another cost's Final Acquire", async () => {
@@ -647,9 +643,25 @@ describe("the Costing Desk", () => {
       expect(within(panel).getByTestId("bid-decision-reason")).toHaveTextContent("Fits the budget");
       expect(within(panel).getByTestId("bid-decision-live")).toHaveTextContent("Boss Person");
       expect(within(panel).getByTestId("bid-decision-figures")).toHaveTextContent("Final Offer of ₱2,980,000.00 and an ABC of ₱3,200,000.00");
+      // A Go locks the sheet (#704): the verdict buttons give way to Unlock.
+      expect(within(panel).getByTestId("bid-decision-locked")).toHaveTextContent("The sheet is locked");
+      expect(within(panel).getByRole("button", { name: "Unlock" })).toBeDisabled();
+      expect(within(panel).queryByRole("button", { name: "Revise" })).not.toBeInTheDocument();
+    });
+
+    it("shows Revise and No-go as well as Go while no Go stands", async () => {
+      seedPriced();
+      seedDecision({ verdict: "no_go", reason: "Too far over" });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      openDesk(deal);
+
+      await openLines();
+
+      const panel = await screen.findByTestId("bid-decision");
       expect(within(panel).getByRole("button", { name: "Go" })).toBeInTheDocument();
       expect(within(panel).getByRole("button", { name: "Revise" })).toBeInTheDocument();
       expect(within(panel).getByRole("button", { name: "No-go" })).toBeInTheDocument();
+      expect(within(panel).queryByTestId("bid-decision-locked")).not.toBeInTheDocument();
     });
 
     it("takes a decision: the reason is needed, then the buttons record it at the summary", async () => {

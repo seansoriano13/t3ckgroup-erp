@@ -34,7 +34,7 @@ describe("shaping sign-offs", () => {
       signatureVersion: "sig.png",
       clearedAt: null,
     })
-    expect(shapeSignoff(row({ signer: null })).signedBy).toEqual({ id: "buyer", name: null, avatarPath: null })
+    expect(shapeSignoff(row({ signer: null })).signedBy).toEqual({ id: "buyer", name: null, avatarPath: null, callSign: null })
     expect(shapeSignoff(row({ signer: null, signed_by: null })).signedBy).toBeNull()
   })
 

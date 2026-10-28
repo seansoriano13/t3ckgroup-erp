@@ -22,6 +22,7 @@ export const COSTING_BAND = {
   TECHNICAL: "technical",
   FINANCE: "finance",
   SUPER_ADMIN_ONLY: "super_admin_only",
+  MARKUP: "markup",
 };
 
 export const COSTING_BAND_LABEL = {
@@ -31,6 +32,7 @@ export const COSTING_BAND_LABEL = {
   [COSTING_BAND.TECHNICAL]: "Technical",
   [COSTING_BAND.FINANCE]: "Finance",
   [COSTING_BAND.SUPER_ADMIN_ONLY]: "Super Admins",
+  [COSTING_BAND.MARKUP]: "the Markup list",
 };
 
 /** The tiers that receive a money column of a Tender Line (`costing_column_tiers`). */
@@ -112,6 +114,8 @@ export const COMPONENT_BANDS = {
  */
 export const COMPONENT_CANVASS_COST_TIERS = {
   acquire_from_offer_id: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+  // Where Acquire came from (#701): canvass, odoo or typed. Same audience as the mark above.
+  acquire_source: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
   // The P0 line price, the Actual cost (#686), read by the tiers that read Acquire: in pesos, and
   // as Odoo has it with its currency (a foreign P0 is turned into pesos at the Canvass winner's rate).
   p0_unit_price: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
@@ -120,6 +124,7 @@ export const COMPONENT_CANVASS_COST_TIERS = {
 };
 export const COMPONENT_CANVASS_COST_BANDS = {
   acquire_from_offer_id: [PURCHASING],
+  acquire_source: [PURCHASING],
   p0_unit_price: [PURCHASING],
   p0_quoted_unit_price: [PURCHASING],
   p0_currency: [PURCHASING],
@@ -129,7 +134,7 @@ export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
   odoo_unit: [SALES],
   final_acquire_unit: [SALES, PURCHASING, MANAGEMENT],
-  markup_factor: [SALES, PURCHASING, MANAGEMENT],
+  markup_factor: [COSTING_BAND.MARKUP],
 };
 
 /**
@@ -163,8 +168,8 @@ export const MATRIX_MONEY_TIERS = {
 };
 
 export const MATRIX_MONEY_BANDS = {
-  default_factor: [SALES, PURCHASING, MANAGEMENT],
-  default_preset_id: [SALES, PURCHASING, MANAGEMENT],
+  default_factor: [COSTING_BAND.MARKUP],
+  default_preset_id: [COSTING_BAND.MARKUP],
   marketing: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
   opex: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
 };
@@ -212,6 +217,8 @@ export const BID_DECISION_TIERS = {
   cleared_reason: [PRICE, CLOSED_BOOK],
   final_offer_total: [CLOSED_BOOK],
   abc_total: [CLOSED_BOOK],
+  planned_cost_total: [CLOSED_BOOK],
+  unlocked_by: [PRICE, CLOSED_BOOK],
 };
 
 /** Does this tier receive the named column of a Bid Decision? */
@@ -220,15 +227,25 @@ export const tierReadsBid = (tier, column) => (BID_DECISION_TIERS[column] ?? [])
 /** Does this tier receive the Bid Decision at all (its verdict and reason)? */
 export const tierReadsBidDecision = (tier) => tierReadsBid(tier, "verdict");
 
+/** Where a row's cost came from (`resolveCost` / `lineCost` in utils/costingMath.js, #701). MIXED is a line whose parts disagree. */
+export const COST_SOURCE = { TYPED: "typed", CANVASS: "canvass", P0: "p0", ODOO: "odoo", MIXED: "mixed" };
+
 /** Who takes a Bid Decision: the Closed Book tier (a Super Admin or the Final Acquire list). The database decides. */
 export const tierDecidesBid = (tier) => tier === COSTING_TIER.CLOSED_BOOK;
 
 /** The signer lists of `costing_signer_lists`: who writes Final Acquire, and who approves an Evaluation of Specification (#271). */
-export const COSTING_SIGNER_LIST = { FINAL_ACQUIRE: "final_acquire", EVALUATION: "evaluation" };
+export const COSTING_SIGNER_LIST = { FINAL_ACQUIRE: "final_acquire", EVALUATION: "evaluation", MARKUP: "markup", TEAM_RRD: "team_rrd", TEAM_IOE: "team_ioe" };
+
+/** The Technical teams that judge a row (#706), and the signer list that says who is in each. */
+export const EVALUATION_TEAMS = ["RRD", "IOE"];
+export const EVALUATION_TEAM_LIST = { RRD: COSTING_SIGNER_LIST.TEAM_RRD, IOE: COSTING_SIGNER_LIST.TEAM_IOE };
 
 export const COSTING_SIGNER_LIST_LABEL = {
   [COSTING_SIGNER_LIST.FINAL_ACQUIRE]: "Final Acquire list",
   [COSTING_SIGNER_LIST.EVALUATION]: "Evaluation of Specification list",
+  [COSTING_SIGNER_LIST.MARKUP]: "Markup list",
+  [COSTING_SIGNER_LIST.TEAM_RRD]: "RRD team",
+  [COSTING_SIGNER_LIST.TEAM_IOE]: "IOE team",
 };
 
 /**
@@ -241,7 +258,25 @@ export const DEFAULT_COSTING_SETTINGS = {
   retentionRate: 0.01,
   itrRate: 0.08,
   itrAllowance: 250000,
+  finalVatRate: 0.12,
+  hiddenLines: ["finalVat"],
 };
+
+/** The summary lines Settings can switch on or off (Final Offer and Revenue always show). */
+export const SUMMARY_LINES = [
+  { key: "vatExclusive", label: "VAT-exclusive" },
+  { key: "finalVat", label: "Final VAT" },
+  { key: "tax", label: "Less Tax (withholding)" },
+  { key: "retention", label: "Retention" },
+  { key: "collected", label: "Collected Amount" },
+  { key: "operationalExpenses", label: "Operational Expenses" },
+  { key: "marketing", label: "Marketing" },
+  { key: "opex", label: "OPEX" },
+  { key: "itr", label: "ITR" },
+];
+
+/** Does Settings leave this summary line on? */
+export const summaryLineShown = (rates, key) => !(rates?.hiddenLines ?? DEFAULT_COSTING_SETTINGS.hiddenLines).includes(key);
 
 /** Who adds and removes Components, Inclusions and cost-only rows. */
 export const ROW_EDIT_BANDS = [SALES, PURCHASING];

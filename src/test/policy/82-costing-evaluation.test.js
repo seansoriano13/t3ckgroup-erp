@@ -24,15 +24,13 @@ import { serviceClient, rlsStatus, sql } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { canRead, tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
 import { purgeCostingForSors } from "./support/costing.js"
-import { replayCostingFunctions } from "./support/replay.js"
+import { snapshotCostingFunctions } from "./support/replay.js"
 import { COMPONENT_BANDS, INCLUSION_BANDS } from "../../constants/costing.js"
 
 const svc = () => serviceClient()
 const CHECK_VIOLATION = "23514"
 const WRONG_STATE = "22023"
 const MIGRATION = readFileSync("supabase/migrations/20261018140000_costing_matrix_evaluation.sql", "utf8")
-const REFUSAL_MIGRATION = "supabase/migrations/20261023210000_refusal_codes.sql"
-const OPEN_MIGRATION = "supabase/migrations/20261102180000_costing_open_review_fixes.sql"
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId
@@ -60,6 +58,11 @@ const history = async (who, args = {}) => {
 }
 
 const sign = async (who, role = "evaluation_approved") => (await clientFor(who)).rpc("costing_sign", { p_matrix_id: matrixId, p_role: role })
+
+const onTeam = async (listKey, who) =>
+    asSvc(svc().from("costing_signer_lists").upsert({ list_key: listKey, employee_id: ids[who] }, { onConflict: "list_key,employee_id" }), `${who} onto ${listKey}`)
+const offTeam = async (listKey, who) =>
+    asSvc(svc().from("costing_signer_lists").delete().eq("list_key", listKey).eq("employee_id", ids[who]), `${who} off ${listKey}`)
 
 const setCompliance = (who, id, patch) => clientFor(who).then((client) => tryUpdate(client, "costing_components", id, patch))
 
@@ -152,6 +155,8 @@ beforeAll(async () => {
     await asSvc(svc().from("committee_task_members").insert({ committee_task_id: otherTaskId, employee_id: ids.stageParticipant, task_description: "Something else" }), "other member")
 
     await asSvc(svc().from("costing_signer_lists").insert({ list_key: "evaluation", employee_id: ids.outsider }), "evaluation list")
+    // #706: only a member of the row's team marks it. Technical is on the RRD team, and the row is RRD's.
+    await asSvc(svc().from("costing_signer_lists").insert({ list_key: "team_rrd", employee_id: ids.technical }), "RRD team list")
 
     const opened = await svc().rpc("costing_open_matrix", { p_opportunity_id: sorId })
     if (opened.error) throw new Error(`costing_open_matrix: ${opened.error.message}`)
@@ -159,7 +164,7 @@ beforeAll(async () => {
 
     lineId = (
         await asSvc(
-            svc().from("costing_tender_lines").insert({ matrix_id: matrixId, position: 1, tender_specification: "Rescue tripod, 3 m, 22 kN", quantity: 2, created_by: ids.dealOwner }).select("id").single(),
+            svc().from("costing_tender_lines").insert({ matrix_id: matrixId, position: 1, tender_specification: "Rescue tripod, 3 m, 22 kN", quantity: 2, created_by: ids.dealOwner, evaluating_team: "RRD" }).select("id").single(),
             "Tender Line",
         )
     ).id
@@ -179,6 +184,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await svc().from("costing_signer_lists").delete().eq("employee_id", ids.outsider).eq("list_key", "evaluation")
+    await svc().from("costing_signer_lists").delete().eq("employee_id", ids.technical).eq("list_key", "team_rrd")
     await svc().from("employees").update({ has_purchasing_flow: false, call_sign: null }).in("id", [ids.outsider, ids.ipasSigner])
     await svc().from("costing_evaluation_settings").update({ evaluation_template_id: previousTemplateId }).eq("id", true)
     await purgeCostingForSors(sorIds)
@@ -272,35 +278,74 @@ describe("the Technical band", () => {
         expect(row.compliance).toBeNull()
     })
 
-    it("lets Purchasing access and a Super Admin write Compliance without being on the task", async () => {
-        expect(await setCompliance("outsider", compC, { compliance: "complies" })).toEqual({ ok: true, affected: 1 })
-        expect(await setCompliance("superAdmin", compC, { compliance: null })).toEqual({ ok: true, affected: 1 })
-        expect(await setCompliance("superAdmin", compC, { recommended_alternative: "Model X" })).toEqual({ ok: true, affected: 1 })
-        expect(await setCompliance("superAdmin", compC, { recommended_alternative: null })).toEqual({ ok: true, affected: 1 })
+    it("lets Purchasing access and a Super Admin through the Technical band, but only the row's team marks it (#706)", async () => {
+        // The band is open to them, so the refusal is the team's, in its own words.
+        for (const who of ["outsider", "superAdmin"]) {
+            const refused = await setCompliance(who, compC, { compliance: "complies" })
+            expect(refused, who).toMatchObject({ ok: false, code: RLS_VIOLATION })
+            expect(refused.message, who).toBe("costing_team: only the RRD team can mark this row")
+        }
+        // On the RRD team they write it, and the mark is stamped with who made it.
+        for (const who of ["outsider", "superAdmin"]) await onTeam("team_rrd", who)
+        try {
+            expect(await setCompliance("outsider", compC, { compliance: "complies" })).toEqual({ ok: true, affected: 1 })
+            expect((await asSvc(svc().from("costing_components").select("complied_by").eq("id", compC).single(), "stamp")).complied_by).toBe(ids.outsider)
+            expect(await setCompliance("superAdmin", compC, { compliance: null })).toEqual({ ok: true, affected: 1 })
+            expect(await setCompliance("superAdmin", compC, { recommended_alternative: "Model X" })).toEqual({ ok: true, affected: 1 })
+            expect(await setCompliance("superAdmin", compC, { recommended_alternative: null })).toEqual({ ok: true, affected: 1 })
+        } finally {
+            for (const who of ["outsider", "superAdmin"]) await offTeam("team_rrd", who)
+        }
     })
 
-    it("refuses the write once the member is removed from the task, and again when they are put back", async () => {
+    it("refuses a row that has no team yet, even to a team member (#706)", async () => {
+        const bareLine = (
+            await asSvc(svc().from("costing_tender_lines").insert({ matrix_id: matrixId, position: 8, tender_specification: "No team named", quantity: 1, created_by: ids.dealOwner }).select("id").single(), "bare line")
+        ).id
+        const bare = (await asSvc(svc().from("costing_components").insert({ tender_line_id: bareLine, position: 1, name: "Bare", quantity: 1 }).select("id").single(), "bare Component")).id
+        const refused = await setCompliance("technical", bare, { compliance: "complies" })
+        expect(refused).toMatchObject({ ok: false, code: RLS_VIOLATION })
+        expect(refused.message).toBe("costing_team: name the team (RRD or IOE) that judges this row first")
+        // Take the row away again: an Evaluation counts every Component that has no verdict.
+        await asSvc(svc().from("costing_components").delete().eq("id", bare), "remove bare Component")
+        await asSvc(svc().from("costing_tender_lines").delete().eq("id", bareLine), "remove bare line")
+    })
+
+    it("keeps the write while the member is on the team, and drops it with the task and the team (#706)", async () => {
+        // Being on the RRD team is a door of its own: leaving the task does not close it.
         await asSvc(svc().from("committee_task_members").delete().eq("id", memberRowId), "remove member")
+        expect(await setCompliance("technical", compA, { compliance_note: "Still on the team" })).toEqual({ ok: true, affected: 1 })
+
+        await offTeam("team_rrd", "technical")
         const refused = await setCompliance("technical", compA, { compliance_note: "Looks fine" })
         expect(refused).toMatchObject({ ok: false, code: RLS_VIOLATION })
         expect(refused.message).toBe("costing_band:costing_components.compliance_note:technical")
         // They still read the matrix: the window is a separate door.
         expect((await readMatrix("technical")).tier).toBe("participant")
 
+        // Back on the task alone: the band lets them in, and the team refuses them.
         memberRowId = (
             await asSvc(
                 svc().from("committee_task_members").insert({ committee_task_id: taskId, employee_id: ids.technical, task_description: "Evaluate the offer" }).select("id").single(),
                 "member again",
             )
         ).id
-        expect(await setCompliance("technical", compA, { compliance_note: "Looks fine" })).toEqual({ ok: true, affected: 1 })
+        expect((await setCompliance("technical", compA, { compliance_note: "Looks fine" })).message).toBe("costing_team: only the RRD team can mark this row")
+        await onTeam("team_rrd", "technical")
         expect(await setCompliance("technical", compA, { compliance_note: null })).toEqual({ ok: true, affected: 1 })
     })
 
     it("grants nothing from a cancelled task, or a task from another template", async () => {
-        await asSvc(svc().from("committee_tasks").update({ status: "CANCELLED" }).eq("id", taskId), "cancel")
-        expect((await setCompliance("technical", compA, { compliance_note: "again" })).message).toBe("costing_band:costing_components.compliance_note:technical")
-        await asSvc(svc().from("committee_tasks").update({ status: "ACTIVE" }).eq("id", taskId), "reopen")
+        // Off the team, so the task is the only door.
+        await offTeam("team_rrd", "technical")
+        try {
+            await asSvc(svc().from("committee_tasks").update({ status: "CANCELLED" }).eq("id", taskId), "cancel")
+            expect((await setCompliance("technical", compA, { compliance_note: "again" })).message).toBe("costing_band:costing_components.compliance_note:technical")
+            await asSvc(svc().from("committee_tasks").update({ status: "ACTIVE" }).eq("id", taskId), "reopen")
+            expect((await setCompliance("technical", compA, { compliance_note: "again" })).message).toBe("costing_team: only the RRD team can mark this row")
+        } finally {
+            await onTeam("team_rrd", "technical")
+        }
         expect(await setCompliance("technical", compA, { compliance_note: null })).toEqual({ ok: true, affected: 1 })
 
         // stageParticipant is on a task from another template: still refused.
@@ -308,9 +353,16 @@ describe("the Technical band", () => {
     })
 
     it("follows the settings row: with no template named, no task grants the write", async () => {
-        await asSvc(svc().from("costing_evaluation_settings").update({ evaluation_template_id: null }).eq("id", true), "clear template")
-        expect((await setCompliance("technical", compA, { compliance_note: "x" })).message).toBe("costing_band:costing_components.compliance_note:technical")
-        await asSvc(svc().from("costing_evaluation_settings").update({ evaluation_template_id: templateId }).eq("id", true), "restore template")
+        await offTeam("team_rrd", "technical")
+        try {
+            await asSvc(svc().from("costing_evaluation_settings").update({ evaluation_template_id: null }).eq("id", true), "clear template")
+            expect((await setCompliance("technical", compA, { compliance_note: "x" })).message).toBe("costing_band:costing_components.compliance_note:technical")
+            await asSvc(svc().from("costing_evaluation_settings").update({ evaluation_template_id: templateId }).eq("id", true), "restore template")
+            expect((await setCompliance("technical", compA, { compliance_note: "x" })).message).toBe("costing_team: only the RRD team can mark this row")
+        } finally {
+            await asSvc(svc().from("costing_evaluation_settings").update({ evaluation_template_id: templateId }).eq("id", true), "restore template")
+            await onTeam("team_rrd", "technical")
+        }
         expect(await setCompliance("technical", compA, { compliance_note: null })).toEqual({ ok: true, affected: 1 })
     })
 })
@@ -520,7 +572,10 @@ describe("what clears it", () => {
 
 describe("a deviation leaves the money alone", () => {
     it("changes nothing in the money tables and nothing in the money read", async () => {
-        await svc().from("costing_signer_lists").insert({ list_key: "final_acquire", employee_id: ids.ipasSigner })
+        await svc().from("costing_signer_lists").insert([
+            { list_key: "final_acquire", employee_id: ids.ipasSigner },
+            { list_key: "markup", employee_id: ids.ipasSigner },
+        ])
         try {
             const outsider = await clientFor("outsider")
             expect((await outsider.rpc("costing_set_money", { p_table: "costing_component_costs", p_row: compA, p_patch: { acquire_unit: 18250.5 } })).error).toBeNull()
@@ -544,7 +599,7 @@ describe("a deviation leaves the money alone", () => {
             expect(await tryUpdate(await clientFor("technical"), "costing_components", compA, { compliance: null })).toEqual({ ok: true, affected: 1 })
             expect(await money()).toEqual(before)
         } finally {
-            await svc().from("costing_signer_lists").delete().eq("employee_id", ids.ipasSigner).eq("list_key", "final_acquire")
+            await svc().from("costing_signer_lists").delete().eq("employee_id", ids.ipasSigner).in("list_key", ["final_acquire", "markup"])
         }
     })
 })
@@ -594,6 +649,8 @@ describe("the registries and settings", () => {
     })
 
     it("seeds the evaluation list with call sign 1001 and the template by name, and runs again without harm", async () => {
+        // Replaying the migration puts its older costing functions back; the snapshot puts the live ones back after.
+        const restoreFunctions = await snapshotCostingFunctions(sql())
         // Nobody has call sign 1001: nothing is seeded and nothing fails.
         await sql().query(MIGRATION)
 
@@ -613,10 +670,7 @@ describe("the registries and settings", () => {
             await svc().from("group_task_templates").delete().eq("id", named.id)
             await svc().from("costing_signer_lists").delete().eq("employee_id", ids.ipasSigner).eq("list_key", "evaluation")
             await svc().from("employees").update({ call_sign: null }).eq("id", ids.ipasSigner)
-            // The replays above put this migration's older costing_sign back; put the latest one back (#556),
-            // then the costing functions 20261102180000 carried forward on top of it.
-            await replayCostingFunctions(sql(), REFUSAL_MIGRATION)
-            await replayCostingFunctions(sql(), OPEN_MIGRATION)
+            await restoreFunctions()
         }
         expect(await canRead(await clientFor("outsider"), "costing_components", compA)).toBe(true)
     })

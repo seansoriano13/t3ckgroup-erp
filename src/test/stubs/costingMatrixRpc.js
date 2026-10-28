@@ -252,6 +252,9 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     if (lines.length === 0 || totals.missingOffer > 0) {
       refuse("23514", "every Tender Line needs a Final Offer before the bid can be decided", 400)
     }
+    if (rowsOf("costing_bid_decisions").some((d) => d.matrix_id === args.p_matrix_id && d.cleared_at == null && d.verdict === "go")) {
+      refuse("22023", "the sheet is locked by a Go. Unlock it first", 400)
+    }
     for (const live of rowsOf("costing_bid_decisions").filter((d) => d.matrix_id === args.p_matrix_id && d.cleared_at == null)) {
       updateRow("costing_bid_decisions", live, { cleared_at: new Date().toISOString(), cleared_reason: "Decided again" })
     }
@@ -263,7 +266,22 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       decided_at: new Date().toISOString(),
       final_offer_total: totals.finalOfferTotal,
       abc_total: totals.abcTotal,
+      planned_cost_total: null,
+      unlocked_by: null,
     }).id
+  })
+
+  // #704: unlocking a Go takes a reason, clears the Go and records it.
+  stubRpc("costing_unlock_bid", (args) => {
+    const refuse = (code, message, status) => {
+      throw pgrstError(code, `costing_bid: ${message}`, { status })
+    }
+    if (tier !== "closed_book") refuse("42501", "only a Super Admin or the people on the decider's list can unlock a bid", 403)
+    if (!String(args.p_reason ?? "").trim()) refuse("22023", "write the reason for unlocking", 400)
+    const live = rowsOf("costing_bid_decisions").find((d) => d.matrix_id === args.p_matrix_id && d.cleared_at == null && d.verdict === "go")
+    if (!live) refuse("22023", "there is no Go to unlock", 400)
+    updateRow("costing_bid_decisions", live, { cleared_at: new Date().toISOString(), cleared_reason: `Unlocked: ${String(args.p_reason).trim()}` })
+    return live.id
   })
 
   stubRpc("costing_move_inclusion", (args) => {

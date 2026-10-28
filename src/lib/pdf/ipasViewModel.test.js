@@ -215,12 +215,14 @@ describe("sign-off rows on page 1", () => {
       [1, "Purchasing"],
       [2, "Purchasing & Finance"],
       [3, "Computation status & Landed Cost"],
+      [6, "Logistics"],
       [4, "Filing"],
     ])
     expect(model.signoffRows.map((row) => row.boxes)).toEqual([
       model.section1.signoffs,
       model.section3.signoffs,
       model.section6.signoffs,
+      model.section5.signoffs,
       model.section7.signoffs,
     ])
     expect(model.signoffRows[2].boxes).toHaveLength(2)
@@ -394,7 +396,21 @@ describe("the page's content", () => {
   })
 
   it("carries section 5's Item Location", () => {
-    expect(vm().section5).toEqual({ itemLocation: "BM Office", tg03: [] })
+    expect(vm()).toMatchObject({ section5: { itemLocation: "BM Office", tg03: [] } })
+  })
+
+  it("gives Logistics its one sign-off box, waiting until it is signed", () => {
+    const [box] = vm().section5.signoffs
+    expect(box).toMatchObject({ role: "Signed by", state: "awaiting", title: "Logistics" })
+  })
+
+  it("carries each part's documents and the landed table for the flow rows", () => {
+    const model = vm()
+    expect(model.section6.landedTable.rows).toHaveLength(1)
+    expect(model.section6.landedTable.rows[0]).toMatchObject({ name: "Ambulance Folding Stretcher", landed: "PHP 46,786.84" })
+    for (const docs of [model.section1.docs, model.section3.docs, model.section6.docs, model.section7.docs]) {
+      expect(Array.isArray(docs)).toBe(true)
+    }
   })
 
   it("prints Supplier Origin on an Import IPAS and leaves it out of a Local one", () => {

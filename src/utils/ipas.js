@@ -157,10 +157,11 @@ export function odooStatuses(copy) {
 }
 
 /**
- * Whether Odoo's S numbers (Source Document and analytic account names) differ
- * from the IPAS's SORs. Null when Odoo names none (nothing to compare) or the
- * two agree; otherwise `{ odoo, ipas, onlyInOdoo, onlyInIpas }`. It only says
- * so: nothing changes automatically.
+ * Whether the IPAS names an SOR the PO does not mention. One way only: extra S
+ * numbers in Odoo raise nothing. Null when Odoo names none (nothing to compare)
+ * or every SOR the IPAS names is in the PO; otherwise
+ * `{ odoo, ipas, onlyInOdoo, onlyInIpas }`. It only says so: nothing changes
+ * automatically.
  */
 export function sorMismatch(copy, sors = []) {
   const odoo = Object.keys(salesReferencesIn(copy));
@@ -168,8 +169,15 @@ export function sorMismatch(copy, sors = []) {
   const named = sors.map((s) => String(s.salesReference || "").toUpperCase()).filter(Boolean);
   const onlyInOdoo = odoo.filter((reference) => !named.includes(reference));
   const onlyInIpas = named.filter((reference) => !odoo.includes(reference));
-  if (onlyInOdoo.length === 0 && onlyInIpas.length === 0) return null;
+  if (onlyInIpas.length === 0) return null;
   return { odoo, ipas: named, onlyInOdoo, onlyInIpas };
+}
+
+/** Whether a purchaser already marked this warning checked for every S number it names. */
+export function sorWarningChecked(checked, mismatch) {
+  if (!mismatch || !checked || !Array.isArray(checked.references)) return false;
+  const seen = checked.references.map((r) => String(r).toUpperCase());
+  return mismatch.onlyInIpas.every((reference) => seen.includes(reference));
 }
 
 /**
@@ -232,10 +240,10 @@ export function shapeIpas(row, sors = [], extras = null) {
   if (poCancelledInOdoo && row.state !== IPAS_STATE.CANCELLED) {
     warnings.push({ code: IPAS_WARNING.PO_CANCELLED_IN_ODOO, message: "Odoo PO cancelled" });
   }
-  if (mismatch && row.state !== IPAS_STATE.CANCELLED) {
+  if (mismatch && !sorWarningChecked(row.sor_warning_checked, mismatch) && row.state !== IPAS_STATE.CANCELLED) {
     warnings.push({
       code: IPAS_WARNING.SOR_MISMATCH,
-      message: "Odoo's S numbers differ from this IPAS's SORs",
+      message: "This IPAS names an SOR the Odoo PO doesn't",
       ...mismatch,
     });
   }
@@ -260,6 +268,7 @@ export function shapeIpas(row, sors = [], extras = null) {
       1: sectionSignoffs(signoffs, 1),
       3: sectionSignoffs(signoffs, 3),
       6: sectionSignoffs(signoffs, 6),
+      8: sectionSignoffs(signoffs, 8),
       7: section7Signoffs(signoffs),
     },
     // The required documents nobody has ticked: what Approving section 7 warns about.

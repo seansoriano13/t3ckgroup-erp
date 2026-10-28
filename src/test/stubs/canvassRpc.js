@@ -176,7 +176,7 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"], superAdmin = fal
     try {
       const unit = price?.unit_price
       if (!blank(unit)) {
-        if (cost?.acquire_from_offer_id || blank(cost?.acquire_unit)) {
+        if (cost?.acquire_from_offer_id || blank(cost?.acquire_unit) || cost?.acquire_source === "odoo") {
           requireBand("costing_component_costs", "acquire_unit", ["purchasing"])
           const patch = { acquire_unit: roundCentavo(offer.currency === "PHP" ? unit : Number(unit) * Number(rate)), acquire_from_offer_id: offer.id }
           if (cost) updateRow("costing_component_costs", cost, patch)

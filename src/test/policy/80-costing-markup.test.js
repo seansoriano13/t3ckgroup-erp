@@ -9,7 +9,7 @@
  *   outsider            Purchasing access, no part in it  -> closed_book, Purchasing band
  *   stageParticipant    open Stage Participant window     -> participant tier, no band
  *   finance             Finance access alone              -> no tier
- *   ipasSigner          on the final_acquire list         -> closed_book, Management band
+ *   ipasSigner          on the final_acquire and markup lists -> closed_book, Management and Markup bands (#703)
  *   superAdmin                                            -> closed_book, Sales and Purchasing
  *   ordinary            nobody                            -> no tier
  *
@@ -96,6 +96,7 @@ beforeAll(async () => {
         "participant window",
     )
     await asSvc(svc().from("costing_signer_lists").insert({ list_key: "final_acquire", employee_id: ids.ipasSigner }), "signer list")
+    await asSvc(svc().from("costing_signer_lists").insert({ list_key: "markup", employee_id: ids.ipasSigner }), "markup list")
 
     const opened = await svc().rpc("costing_open_matrix", { p_opportunity_id: sorId })
     if (opened.error) throw new Error(`costing_open_matrix: ${opened.error.message}`)
@@ -237,10 +238,11 @@ describe("markup presets: who reads and writes", () => {
     })
 })
 
-describe("the default factor: Sales, Purchasing and the Final Acquire list write it", () => {
-    it("lets Sales, Purchasing and a Super Admin write it", async () => {
-        for (const [who, factor] of [["dealOwner", 1.21], ["support", 1.22], ["outsider", 1.23], ["superAdmin", 1.24]]) {
-            expect(await setMatrixMoney(who, { default_factor: factor }), who).toBeNull()
+describe("the default factor: the Markup list and a Super Admin write it (#703)", () => {
+    it("lets a Super Admin write it, and refuses Sales and Purchasing, who no longer do", async () => {
+        expect(await setMatrixMoney("superAdmin", { default_factor: 1.24 })).toBeNull()
+        for (const who of ["dealOwner", "support", "outsider"]) {
+            expect((await setMatrixMoney(who, { default_factor: 1.21 }))?.message, who).toBe("costing_band:costing_matrix_money.default_factor:markup")
         }
         const row = await asSvc(svc().from("costing_matrix_money").select("*").eq("matrix_id", matrixId).single(), "money")
         expect(Number(row.default_factor)).toBe(1.24)
@@ -249,15 +251,15 @@ describe("the default factor: Sales, Purchasing and the Final Acquire list write
     it("refuses a Stage Participant, a plain employee and Finance, naming the band", async () => {
         const error = await setMatrixMoney("stageParticipant", { default_factor: 1.35 })
         expect(error?.code).toBe(RLS_VIOLATION)
-        expect(error.message).toBe("costing_band:costing_matrix_money.default_factor:sales,purchasing,management")
+        expect(error.message).toBe("costing_band:costing_matrix_money.default_factor:markup")
         for (const who of ["ordinary", "finance"]) {
             expect((await setMatrixMoney(who, { default_factor: 1.35 }))?.code, who).toBe(RLS_VIOLATION)
         }
         const preset = await setMatrixMoney("stageParticipant", { default_preset_id: govPreset })
-        expect(preset.message).toBe("costing_band:costing_matrix_money.default_preset_id:sales,purchasing,management")
+        expect(preset.message).toBe("costing_band:costing_matrix_money.default_preset_id:markup")
     })
 
-    it("lets the Final Acquire list type a factor or take a preset, and refuses a factor of zero", async () => {
+    it("lets the Markup list type a factor or take a preset, and refuses a factor of zero", async () => {
         expect(await setMatrixMoney("ipasSigner", { default_factor: 1.35 })).toBeNull()
         let row = await asSvc(svc().from("costing_matrix_money").select("*").eq("matrix_id", matrixId).single(), "money")
         expect(Number(row.default_factor)).toBe(1.35)
@@ -308,21 +310,21 @@ describe("the default factor: Sales, Purchasing and the Final Acquire list write
 })
 
 describe("row overrides: the same band", () => {
-    it("lets Sales, Purchasing, a Super Admin and the Final Acquire list set a Component's factor, and refuses anyone else", async () => {
-        for (const [who, factor] of [["dealOwner", 2.1], ["outsider", 2.2], ["superAdmin", 2.3]]) {
-            expect(await setCost(who, boltsId, { markup_factor: factor }), who).toBeNull()
+    it("lets a Super Admin and the Markup list set a Component's factor, and refuses anyone else, Sales and Purchasing included", async () => {
+        expect(await setCost("superAdmin", boltsId, { markup_factor: 2.3 })).toBeNull()
+        for (const who of ["dealOwner", "outsider", "stageParticipant"]) {
+            expect((await setCost(who, boltsId, { markup_factor: 2 }))?.message, who).toBe("costing_band:costing_component_costs.markup_factor:markup")
         }
-        expect((await setCost("stageParticipant", boltsId, { markup_factor: 2 }))?.message).toBe("costing_band:costing_component_costs.markup_factor:sales,purchasing,management")
         expect((await setCost("ordinary", boltsId, { markup_factor: 2 }))?.code).toBe(RLS_VIOLATION)
         expect(await setCost("ipasSigner", boltsId, { markup_factor: 2 })).toBeNull()
         expect(await setCost("ipasSigner", boltsId, { markup_factor: null })).toBeNull()
     })
 
-    it("lets the same people set a cost-only row's factor, and refuses a Stage Participant", async () => {
-        for (const [who, factor] of [["dealOwner", 2.1], ["outsider", 2.2], ["superAdmin", 2.3]]) {
-            expect(await setRowMoney(who, plainRowId, { markup_factor: factor }), who).toBeNull()
+    it("lets the same people set a cost-only row's factor, and refuses everyone else", async () => {
+        expect(await setRowMoney("superAdmin", plainRowId, { markup_factor: 2.3 })).toBeNull()
+        for (const who of ["dealOwner", "outsider", "stageParticipant"]) {
+            expect((await setRowMoney(who, plainRowId, { markup_factor: 2 }))?.message, who).toBe("costing_band:costing_cost_rows.markup_factor:markup")
         }
-        expect((await setRowMoney("stageParticipant", plainRowId, { markup_factor: 2 }))?.message).toBe("costing_band:costing_cost_rows.markup_factor:sales,purchasing,management")
         expect(await setRowMoney("ipasSigner", plainRowId, { markup_factor: 1.2 })).toBeNull()
         expect(await setRowMoney("ipasSigner", plainRowId, { markup_factor: null })).toBeNull()
     })

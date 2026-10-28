@@ -7,7 +7,8 @@ import { makeEmployee, makeOpportunity } from "@/test/factories";
 import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
- * Markup on the Costing Matrix grid (#269): the Closed Book sees each factor as ×1.35 and +35%, a
+ * Markup on the Costing Matrix grid (#269, #703: only the Markup list writes the multiplier, so the tests that
+ * write it hold the markup band): the Closed Book sees each factor as ×1.35 and +35%, a
  * row's Markup Price, each Tender Line's Markup Price beside Final Offer, the achieved markup against
  * the target (per line and overall) and sets the default factor; Sales sees the peso Markup Price and
  * nothing behind it; Purchasing sees neither. Real components and services on the fake database, with
@@ -49,7 +50,7 @@ describe("markup on the Costing Matrix grid", () => {
 
   it("shows the Closed Book each factor as x and +%, the Markup Price per row, and the line's sum", async () => {
     seed();
-    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management"] });
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management", "markup"] });
     openDesk(deal);
 
     await openLines();
@@ -129,7 +130,7 @@ describe("markup on the Costing Matrix grid", () => {
     db.seed("costing_markup_presets", { label: "Government", factor: 1.35, sort: 1, active: true });
     db.seed("costing_markup_presets", { label: "Private", factor: 2.4, sort: 2, active: true });
     db.seed("costing_markup_presets", { label: "Retired", factor: 9, sort: 3, active: false });
-    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management"] });
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management", "markup"] });
     const user = openDesk(deal);
 
     await openLines();
@@ -153,7 +154,7 @@ describe("markup on the Costing Matrix grid", () => {
 
   it("applies a tried markup to the Final Offers, and can price every part at it", async () => {
     seed();
-    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management", "markup"] });
     const user = openDesk(deal);
 
     await openLines();
@@ -176,7 +177,7 @@ describe("markup on the Costing Matrix grid", () => {
 
   it("saves a typed markup and a Component's own override", async () => {
     seed({ defaultFactor: null });
-    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management"] });
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management", "markup"] });
     const user = openDesk(deal);
 
     await openLines();
@@ -206,7 +207,7 @@ describe("markup on the Costing Matrix grid", () => {
     expect(await screen.findByTestId("markup-default-shown")).toHaveTextContent("×1.35 +35%");
     // They may try a markup, and save nothing.
     expect(screen.queryByRole("button", { name: /Apply|Save/ })).not.toBeInTheDocument();
-    expect(screen.getByText("Sales, Purchasing and the Final Acquire list set the markup.")).toBeInTheDocument();
+    expect(screen.getByText("Only the Markup list sets the markup.")).toBeInTheDocument();
     expect(within(screen.getAllByTestId("component")[0]).getByLabelText("Markup factor 1.1").tagName).toBe("SPAN");
   });
 

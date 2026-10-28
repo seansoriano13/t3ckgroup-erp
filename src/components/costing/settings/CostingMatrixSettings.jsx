@@ -42,6 +42,28 @@ const SECTIONS = [
     ),
   },
   {
+    key: "markup-list",
+    show: ({ isSuperAdmin }) => isSuperAdmin,
+    render: () => (
+      <SignerListsSection
+        listKey={COSTING_SIGNER_LIST.MARKUP}
+        canEdit
+        description="Changes the default multiplier and any row's multiplier. Nobody else can; the database refuses them. Starts with 101 and 201."
+      />
+    ),
+  },
+  ...[COSTING_SIGNER_LIST.TEAM_RRD, COSTING_SIGNER_LIST.TEAM_IOE].map((listKey) => ({
+    key: listKey,
+    show: ({ isSuperAdmin }) => isSuperAdmin,
+    render: () => (
+      <SignerListsSection
+        listKey={listKey}
+        canEdit
+        description="Marks Complies or Deviates on the rows set to this team, and reads the matrix without money. Nobody else can mark those rows."
+      />
+    ),
+  })),
+  {
     key: "evaluation",
     show: ({ isSuperAdmin }) => isSuperAdmin,
     render: () => <EvaluationSection />,

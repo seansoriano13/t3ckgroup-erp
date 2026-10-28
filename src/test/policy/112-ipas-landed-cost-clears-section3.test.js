@@ -15,10 +15,14 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
-import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs, readyToSign } from "./support/ipas.js"
 
 const svc = () => serviceClient()
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) => {
+    // A sign-off now asks for documents, a Logistics placement and so on (#711, #713); give it what it asks for.
+    if (name === "ipas_sign") await readyToSign(args.p_ipas_id, args.p_section, args.p_role)
+    return (await clientFor(who)).rpc(name, args)
+}
 
 let poSeq = 0
 let chargeKindId = null
@@ -98,6 +102,7 @@ async function lists() {
     await onList("s1_approved", "ipasSigner")
     await onList("s3_approved", "ipasSigner")
     await onList("s6_approved", "ipasSigner")
+    await onList("logistics_signed", "ipasSigner")
     await onList("s7_received", "ipasSigner")
     await onList("s7_noted", "superAdmin")
     await onList("s7_checked", "finance")
@@ -112,11 +117,14 @@ async function approvedAll() {
         await signOk("outsider", ipas.id, section, "prepared")
         await signOk("ipasSigner", ipas.id, section, "approved")
     }
+    // Logistics (stored 8) is the fourth gate on section 4 (#713).
+    await signOk("ipasSigner", ipas.id, 8, "approved")
     return ipas
 }
 
 const SECTION_3 = ["6/approved", "6/prepared"]
-const OTHERS = ["1/approved", "1/prepared", "3/approved", "3/prepared"]
+// Logistics (stored 8) stands through every Landed Cost change: it is about where the goods are (#713).
+const OTHERS = ["1/approved", "1/prepared", "3/approved", "3/prepared", "8/approved"]
 const ALL = [...OTHERS, ...SECTION_3].sort()
 
 beforeAll(async () => {

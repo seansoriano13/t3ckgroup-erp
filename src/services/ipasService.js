@@ -17,6 +17,7 @@ import {
   IPAS_OPTION_LIST_NOUNS,
   IPAS_OVERRIDE_FIELDS,
   IPAS_PAYMENT_KINDS,
+  IPAS_LOGISTICS_SECTION,
   IPAS_PRE_FILING_SECTIONS,
   IPAS_PRIORITIES,
   IPAS_PURPOSE,
@@ -51,6 +52,7 @@ import {
   shapeIpas,
 } from "../utils/ipas";
 import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
+import { sumPesos } from "../utils/landedCost";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
@@ -71,7 +73,7 @@ const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, ava
 const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
 const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
 const SIGNOFF_SELECT =
-  "*, signer:employees!ipas_signoffs_signed_by_fkey(id, name, avatar_path)," +
+  "*, signer:employees!ipas_signoffs_signed_by_fkey(id, name, avatar_path, call_sign)," +
   " clearer:employees!ipas_signoffs_cleared_by_fkey(id, name)";
 
 /**
@@ -639,7 +641,7 @@ export const ipasService = {
    */
   async addPayment(id, payment, { isPhpPo = true } = {}) {
     const args = paymentArgs(payment, isPhpPo);
-    const { data, error } = await supabase.rpc("ipas_add_payment", { p_ipas_id: id, ...args });
+    const { data, error } = await supabase.rpc("ipas_save_payment", { p_ipas_id: id, p_payment_id: null, ...args });
     if (error) throw error;
     return data;
   },
@@ -647,7 +649,7 @@ export const ipasService = {
   /** Changes a payment on an open IPAS: the same fields as addPayment, all of them. */
   async updatePayment(paymentId, payment, { isPhpPo = true } = {}) {
     const args = paymentArgs(payment, isPhpPo);
-    const { data, error } = await supabase.rpc("ipas_update_payment", { p_payment_id: paymentId, ...args });
+    const { data, error } = await supabase.rpc("ipas_save_payment", { p_ipas_id: null, p_payment_id: paymentId, ...args });
     if (error) throw error;
     return data;
   },
@@ -670,6 +672,69 @@ export const ipasService = {
   async updateCharge(chargeId, charge) {
     const args = chargeArgs(charge);
     const { data, error } = await supabase.rpc("ipas_update_charge", { p_charge_id: chargeId, ...args });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Fills (or blanks) a charge: `{ chargedOn, amountPhp, attachmentUrl }` (#709). A blank amount means
+   * unknown and blocks section 3; a charge with an amount needs its file before section 3.
+   */
+  async fillCharge(chargeId, charge) {
+    const { chargedOn, amountPhp, attachmentUrl } = charge || {};
+    const hasAmount = !(amountPhp === undefined || amountPhp === null || String(amountPhp).trim() === "");
+    const read = hasAmount ? parseAmountInput(amountPhp) : { ok: true, value: null };
+    if (!read.ok || (read.value !== null && read.value <= 0)) {
+      throw new IpasError(IPAS_ERROR.INVALID, "The amount must be a number more than zero, or left blank.");
+    }
+    if (chargedOn && !isIsoDate(chargedOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the charge.");
+    const { data, error } = await supabase.rpc("ipas_fill_charge", {
+      p_charge_id: chargeId,
+      p_charged_on: chargedOn || null,
+      p_amount_php: read.value,
+      p_attachment_url: attachmentUrl || null,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * The IPAS's freight (#709): `{ amount, currency, billedBySupplier, attachmentUrl }`. Freight the
+   * supplier billed is inside the payments already, so Landed Cost does not add it again.
+   */
+  async setFreight(id, freight) {
+    const { amount, currency, billedBySupplier, attachmentUrl } = freight || {};
+    const hasAmount = !(amount === undefined || amount === null || String(amount).trim() === "");
+    const read = hasAmount ? parseAmountInput(amount) : { ok: true, value: null };
+    if (!read.ok || (read.value !== null && read.value < 0)) {
+      throw new IpasError(IPAS_ERROR.INVALID, "The freight must be a number, or left blank.");
+    }
+    const { data, error } = await supabase.rpc("ipas_set_freight", {
+      p_ipas_id: id,
+      p_amount: read.value,
+      p_currency: currency || null,
+      p_billed_by_supplier: Boolean(billedBySupplier),
+      p_attachment_url: attachmentUrl || null,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Whether the caller is on the Markup list (or a Super Admin): the only ones who set the multiplier and discount (#710). */
+  async canSetMarkup() {
+    const { data, error } = await supabase.rpc("ipas_can_set_markup");
+    if (error) throw error;
+    return Boolean(data);
+  },
+
+  /** The retail multiplier and the wholesale discount percent of an IPAS (#710). Markup list only. */
+  async setMarkup(id, { multiplier, discount }) {
+    const mult = multiplier === null || multiplier === undefined || multiplier === "" ? null : Number(multiplier);
+    const disc = Number(discount);
+    if ((mult !== null && !(mult > 0)) || !Number.isFinite(disc) || disc < 0 || disc >= 100) {
+      throw new IpasError(IPAS_ERROR.INVALID, "The multiplier must be more than zero, and the discount from 0 up to 100.");
+    }
+    const { data, error } = await supabase.rpc("ipas_set_markup", { p_ipas_id: id, p_multiplier: mult, p_discount_pct: disc });
     if (error) throw error;
     return data;
   },
@@ -1454,6 +1519,23 @@ export const ipasService = {
   },
 
   /**
+   * Marks the S0 warning (the IPAS names an SOR the PO doesn't) checked, with a
+   * required reason. Purchasing access, open IPAS; writes a history event and the
+   * warning stops showing. Returns the row.
+   */
+  async markSorWarningChecked(id, references, reason) {
+    const why = (reason || "").trim();
+    if (!why) throw new IpasError(IPAS_ERROR.INVALID, "Give the reason the S0 warning is fine.");
+    const { data, error } = await supabase.rpc("ipas_mark_sor_warning_checked", {
+      p_ipas_id: id,
+      p_references: references ?? [],
+      p_reason: why,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
    * Puts an open IPAS On-Hold, or clears it (#597). The one write the IPAS Status
    * has: every other step is worked out. Purchasing access or Finance access; a
    * filed or cancelled IPAS is refused by the database. `note` is optional and
@@ -1471,7 +1553,7 @@ export const ipasService = {
 };
 
 function requireSignoffSection(section) {
-  if (!IPAS_SIGNOFF_SECTIONS.includes(section)) {
+  if (!IPAS_SIGNOFF_SECTIONS.includes(section) && section !== IPAS_LOGISTICS_SECTION) {
     throw new IpasError(
       IPAS_ERROR.INVALID,
       `Sections ${ipasSectionNo(1)}, ${ipasSectionNo(3)}, ${ipasSectionNo(6)} and ${ipasSectionNo(7)} are signed off.`,
@@ -1606,7 +1688,7 @@ function unavailable(po) {
 
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, phpDebited, chargeFeePhp, methodId, checkNo, proofUrl } = payment || {};
+  const { kind, paidOn, amount, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, checkNo, proofUrl } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -1615,23 +1697,35 @@ function paymentArgs(payment, isPhpPo) {
     throw new IpasError(IPAS_ERROR.INVALID, "The amount must be a number more than zero.");
   }
 
-  const phpRead = parseAmountInput(phpDebited);
-  if (!phpRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "Pesos taken from the bank must be a number.");
-  // Blank is allowed (#604): Landed Cost is an estimate until the bank statement's pesos are in.
-  if (!isPhpPo && phpRead.value !== null && phpRead.value <= 0) {
-    throw new IpasError(IPAS_ERROR.INVALID, "Pesos taken from the bank must be more than zero, or left blank until the bank statement arrives.");
+  const rateRead = parseAmountInput(forexRate);
+  if (!rateRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The forex rate paid must be a number.");
+  // Blank is allowed (#604): Landed Cost is an estimate until the rate is in.
+  if (!isPhpPo && rateRead.value !== null && rateRead.value <= 0) {
+    throw new IpasError(IPAS_ERROR.INVALID, "The forex rate paid must be more than zero, or left blank until the bank statement arrives.");
   }
 
-  const feeRead = parseAmountInput(chargeFeePhp);
-  if (!feeRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The charge fee must be a number.");
+  const fees = [
+    ["The bank charge", chargeFeePhp],
+    ["The doc stamp", docStampPhp],
+    ["The misc fee", miscFeePhp],
+  ].map(([label, raw]) => {
+    const read = parseAmountInput(raw);
+    if (!read.ok) throw new IpasError(IPAS_ERROR.INVALID, `${label} must be a number.`);
+    return read.value ?? 0;
+  });
   if (!methodId) throw new IpasError(IPAS_ERROR.INVALID, "Pick the payment method.");
 
+  // One RPC writes the payment, its pesos (amount x rate, worked out in the database) and the fees
+  // together, so a failure can't leave a half-saved payment.
   return {
     p_kind: kind,
     p_paid_on: paidOn,
     p_amount: amountRead.value,
-    p_php_debited: isPhpPo ? null : phpRead.value,
-    p_charge_fee_php: feeRead.value ?? 0,
+    p_forex_rate: isPhpPo ? null : rateRead.value,
+    p_doc_stamp_php: fees[1],
+    p_misc_fee_php: fees[2],
+    // charge_fee_php holds every fee: bank charge + doc stamp + misc (#708).
+    p_charge_fee_php: sumPesos(fees),
     p_method_id: methodId,
     p_check_no: (checkNo || "").trim() || null,
     p_proof_url: (proofUrl || "").trim() || null,

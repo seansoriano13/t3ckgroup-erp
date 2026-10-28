@@ -458,6 +458,7 @@ export function stubIpasRpcs({
       copy: row.odoo_copy,
       payments: rowsOf("ipas_payments").filter((p) => p.ipas_id === row.id),
       charges: rowsOf("ipas_charges").filter((p) => p.ipas_id === row.id),
+      freight: { amount: row.freight_amount, currency: row.freight_currency, billedBySupplier: row.freight_billed_by_supplier },
       split: row.landed_cost_split || "value",
       computationStatus: row.computation_status || "encoding",
       filed: row.state === "filed",
@@ -513,6 +514,7 @@ export function stubIpasRpcs({
             3: roles(3, ["prepared", "approved"]),
             6: roles(6, ["prepared", "approved"]),
             7: roles(7, ["received", "noted", "checked", "approved"]),
+            8: roles(8, ["approved"]),
           },
           ...summaryLandedCost(row),
         }
@@ -526,6 +528,7 @@ export function stubIpasRpcs({
       copy: row.odoo_copy,
       payments: rowsOf("ipas_payments").filter((p) => p.ipas_id === row.id),
       charges: rowsOf("ipas_charges").filter((p) => p.ipas_id === row.id),
+      freight: { amount: row.freight_amount, currency: row.freight_currency, billedBySupplier: row.freight_billed_by_supplier },
       split: row.landed_cost_split || "value",
       computationStatus: row.computation_status || "encoding",
       filed: row.state === "filed",
@@ -618,6 +621,22 @@ export function stubIpasRpcs({
       note,
       previous_note: previousNote,
     })
+    return updated
+  })
+
+  // #712: Purchasing marks the S0 warning checked, with a reason and an event.
+  stubRpc("ipas_mark_sor_warning_checked", (args) => {
+    if (!canWriteMoney) refuse("42501", "ipas_mark_sor_warning_checked: only Purchasing marks the S0 warning checked")
+    const row = findRow("ipas", args.p_ipas_id)
+    if (!row) refuse("22023", `ipas_mark_sor_warning_checked: IPAS ${args.p_ipas_id} not found`)
+    if (row.state !== "open") refuse("22023", `ipas_mark_sor_warning_checked: ${row.number} is ${row.state}`)
+    const reason = String(args.p_reason ?? "").trim()
+    if (!reason) refuse("22023", "ipas_mark_sor_warning_checked: give the reason")
+    const references = args.p_references ?? []
+    const updated = updateRow("ipas", row, {
+      sor_warning_checked: { references, reason, by: actorId, at: new Date().toISOString() },
+    })
+    event(row.id, "sor_warning_checked", { references, reason })
     return updated
   })
 
@@ -984,6 +1003,14 @@ export function stubIpasRpcs({
 
   // ── Payments and charges (#244) ──────────────────────────────────────────
 
+  // The payment functions the combined ipas_save_payment calls in turn.
+  const paymentRpcs = new Map()
+  const stubPaymentRpc = (name, handler) => {
+    paymentRpcs.set(name, handler)
+    stubRpc(name, handler)
+  }
+  const callStub = (name, args) => paymentRpcs.get(name)(args)
+
   const requireOpenIpas = (fn, id) => {
     const row = findRow("ipas", id)
     requireOpen(fn, row)
@@ -1016,7 +1043,7 @@ export function stubIpasRpcs({
     return { amount, php, fee, label, proof }
   }
 
-  stubRpc("ipas_add_payment", (args) => {
+  stubPaymentRpc("ipas_add_payment", (args) => {
     requireMoney("ipas_add_payment")
     const ipas = requireOpenIpas("ipas_add_payment", args.p_ipas_id)
     const clean_ = cleanPayment("ipas_add_payment", ipas, args, null)
@@ -1050,7 +1077,7 @@ export function stubIpasRpcs({
     return row
   })
 
-  stubRpc("ipas_update_payment", (args) => {
+  stubPaymentRpc("ipas_update_payment", (args) => {
     requireMoney("ipas_update_payment")
     const before = findRow("ipas_payments", args.p_payment_id)
     if (!before) refuse("P0002", `ipas_update_payment: payment ${args.p_payment_id} not found`)
@@ -1088,6 +1115,46 @@ export function stubIpasRpcs({
     })
     event(ipas.id, "payment_changed", { payment_id: updated.id, kind: updated.kind, changes })
     return updated
+  })
+
+  stubPaymentRpc("ipas_set_payment_money", (args) => {
+    requireMoney("ipas_set_payment_money")
+    const before = findRow("ipas_payments", args.p_payment_id)
+    if (!before) refuse("P0002", `ipas_set_payment_money: payment ${args.p_payment_id} not found`)
+    requireOpenIpas("ipas_set_payment_money", before.ipas_id)
+    const rate = args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
+    if (rate !== null && !(rate > 0)) refuse("22023", "ipas_set_payment_money: the forex rate must be more than zero")
+    return updateRow("ipas_payments", before, {
+      forex_rate: rate,
+      doc_stamp_php: round2(Number(args.p_doc_stamp_php ?? 0)),
+      misc_fee_php: round2(Number(args.p_misc_fee_php ?? 0)),
+    })
+  })
+
+  // One call for the whole payment (add or change), as the real ipas_save_payment: pesos are
+  // amount x rate, and a refusal in any step keeps nothing.
+  stubRpc("ipas_save_payment", (args) => {
+    const ipas = args.p_payment_id
+      ? findRow("ipas", findRow("ipas_payments", args.p_payment_id)?.ipas_id)
+      : findRow("ipas", args.p_ipas_id)
+    if (!ipas) refuse("22023", "ipas_save_payment: payment not found")
+    const rate = isPhpCopy(ipas.odoo_copy) || args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
+    if (rate !== null && !(rate > 0)) refuse("22023", "ipas_save_payment: the forex rate must be more than zero")
+    const base = {
+      p_kind: args.p_kind,
+      p_paid_on: args.p_paid_on,
+      p_amount: args.p_amount,
+      p_php_debited: rate === null ? null : round2(Number(args.p_amount) * rate),
+      p_charge_fee_php: args.p_charge_fee_php,
+      p_method_id: args.p_method_id,
+      p_check_no: args.p_check_no,
+      p_proof_url: args.p_proof_url,
+    }
+    const money = (row) => ({ p_payment_id: row.id, p_forex_rate: rate, p_doc_stamp_php: args.p_doc_stamp_php, p_misc_fee_php: args.p_misc_fee_php })
+    const saved = args.p_payment_id
+      ? callStub("ipas_update_payment", { p_payment_id: args.p_payment_id, ...base })
+      : callStub("ipas_add_payment", { p_ipas_id: args.p_ipas_id, ...base })
+    return callStub("ipas_set_payment_money", money(saved))
   })
 
   stubRpc("ipas_remove_payment", (args) => {
@@ -1165,6 +1232,51 @@ export function stubIpasRpcs({
     })
     event(ipas.id, "charge_changed", { charge_id: updated.id, kind: c.label, changes })
     return updated
+  })
+
+  // #709: fill a charge's date, amount and file; a blank amount is "unknown".
+  stubRpc("ipas_fill_charge", (args) => {
+    requireMoney("ipas_fill_charge")
+    const before = findRow("ipas_charges", args.p_charge_id)
+    if (!before) refuse("P0002", `ipas_fill_charge: charge ${args.p_charge_id} not found`)
+    requireOpenIpas("ipas_fill_charge", before.ipas_id)
+    const amount = args.p_amount_php === null || args.p_amount_php === undefined ? null : Math.round(args.p_amount_php * 100) / 100
+    if (amount !== null && amount <= 0) refuse("22023", "ipas_fill_charge: the amount must be more than zero")
+    return updateRow("ipas_charges", before, {
+      charged_on: args.p_charged_on ?? null,
+      amount_php: amount,
+      attachment_url: args.p_attachment_url || null,
+    })
+  })
+
+  // #709: freight amount, currency, the supplier-billed mark and its file.
+  stubRpc("ipas_set_freight", (args) => {
+    requireMoney("ipas_set_freight")
+    const ipas = requireOpenIpas("ipas_set_freight", args.p_ipas_id)
+    const amount = args.p_amount === null || args.p_amount === undefined ? null : Math.round(args.p_amount * 100) / 100
+    if (amount !== null && amount < 0) refuse("22023", "ipas_set_freight: the freight can't be negative")
+    const freightCurrency = amount === null ? null : String(args.p_currency || "PHP").toUpperCase()
+    const poCurrency = String(ipas.odoo_copy?.po?.currency ?? "").trim().toUpperCase()
+    if (freightCurrency && freightCurrency !== "PHP" && freightCurrency !== poCurrency) {
+      refuse("22023", `ipas_set_freight: freight can only be in pesos or in the PO's currency (${poCurrency || "PHP"})`)
+    }
+    return updateRow("ipas", ipas, {
+      freight_amount: amount,
+      freight_currency: amount === null ? (args.p_currency || null) : (args.p_currency || "PHP").toUpperCase(),
+      freight_billed_by_supplier: Boolean(args.p_billed_by_supplier),
+      freight_attachment_url: args.p_attachment_url || null,
+    })
+  })
+
+  // #710: the retail multiplier and wholesale discount, Markup list only (the stub's caller is on it).
+  stubRpc("ipas_can_set_markup", () => true)
+  stubRpc("ipas_set_markup", (args) => {
+    const ipas = findRow("ipas", args.p_ipas_id)
+    if (!ipas) refuse("P0002", `ipas_set_markup: IPAS ${args.p_ipas_id} not found`)
+    return updateRow("ipas", ipas, {
+      retail_multiplier: args.p_multiplier ?? null,
+      wholesale_discount_pct: args.p_discount_pct ?? 30,
+    })
   })
 
   stubRpc("ipas_remove_charge", (args) => {
@@ -1393,6 +1505,7 @@ export function stubIpasRpcs({
     "7/noted": "s7_noted",
     "7/checked": "s7_checked",
     "7/approved": "s7_approved",
+    "8/approved": "logistics_signed",
   }
   const SEND_BACK_LIST = { 1: "s1_approved", 3: "s3_approved", 6: "s6_approved" }
   const SECTION_7_LISTS = ["s7_received", "s7_noted", "s7_checked", "s7_approved"]
@@ -1418,6 +1531,7 @@ export function stubIpasRpcs({
     const { p_section: section, p_role: role } = args
     const sheetHasIt =
       ([1, 3, 6].includes(section) && ["prepared", "approved"].includes(role)) ||
+      (section === 8 && role === "approved") ||
       (section === 7 && ["received", "noted", "checked", "approved"].includes(role))
     if (!sheetHasIt) refuse("22023", `ipas_sign: section ${section} has no ${role} sign-off`)
     const ipas = requireOpenIpas("ipas_sign", args.p_ipas_id)
@@ -1435,7 +1549,7 @@ export function stubIpasRpcs({
     if (liveHere.some((s) => s.role === role)) {
       refuse("55000", `ipas_sign: section ${section} is already ${role} on ${ipas.number}`)
     }
-    if (role === "approved" && section !== 7) {
+    if (role === "approved" && section !== 7 && section !== 8) {
       const prepared = liveHere.find((s) => s.role === "prepared")
       if (!prepared) refuse("55000", `ipas_sign: section ${section} hasn't been prepared yet`)
       if (prepared.signed_by === actorId) {
@@ -1445,7 +1559,7 @@ export function stubIpasRpcs({
     if (section === 7) {
       const live = liveSignoffs(ipas.id)
       const has = (sec, r) => live.some((s) => s.section === sec && s.role === r)
-      if (!has(1, "approved") || !has(3, "approved") || !has(6, "approved")) {
+      if (!has(1, "approved") || !has(3, "approved") || !has(6, "approved") || !has(8, "approved")) {
         refuse("55000", "ipas_sign: section 4 opens once sections 1, 2 and 3 are approved")
       }
       if (["noted", "checked"].includes(role) && !has(7, "received")) {
@@ -1490,10 +1604,10 @@ export function stubIpasRpcs({
     } else if (role === "prepared") {
       stage = "section_prepared"
       notify = membersOf([LIST_KEY[`${section}/approved`]])
-    } else if (section === 1 || section === 3 || section === 6) {
+    } else if (section === 1 || section === 3 || section === 6 || section === 8) {
       // The last of sections 1, 2 and 3 to be approved opens section 4 (#590).
       const live = liveSignoffs(ipas.id)
-      const allApproved = [1, 3, 6].every((sec) => live.some((s) => s.section === sec && s.role === "approved"))
+      const allApproved = [1, 3, 6, 8].every((sec) => live.some((s) => s.section === sec && s.role === "approved"))
       if (allApproved && !live.some((s) => s.section === 7)) {
         stage = "received_ready"
         notify = membersOf(["s7_received"])

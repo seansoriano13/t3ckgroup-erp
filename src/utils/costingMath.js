@@ -1,3 +1,5 @@
+import { COST_SOURCE } from "../constants/costing";
+
 /**
  * The Costing Matrix's figures (#267, spec #266). Pure: no network, no React.
  * The service, the screen, the print and the Stage Condition evaluators all
@@ -230,6 +232,7 @@ export function matrixTotals(tenderLines) {
  *
  *   finalOfferTotal       the Tender Lines' Final Offers added up
  *   vatExclusive          Final Offer / VAT divisor (1.12)
+ *   finalVat              VAT-exclusive x final VAT rate (12%, #705)
  *   tax                   Final Offer x tax rate (6%), on the gross offer
  *   retention             Final Offer x retention rate (1%)
  *   collected             Final Offer - tax - retention
@@ -267,6 +270,8 @@ export function summary(matrix, settings) {
   const byRate = (centavos, rate) => (centavos === null || rate === null ? null : roundDiv(centavos * rate, MICRO));
 
   const vatExclusive = offer === null || divisor === null || divisor <= 0n ? null : roundDiv(offer * MICRO, divisor);
+  const finalVatRate = scaled(settings?.finalVatRate ?? 0.12);
+  const finalVat = byRate(vatExclusive, finalVatRate);
   const tax = byRate(offer, taxRate);
   const retention = byRate(offer, retentionRate);
   const collected =
@@ -282,6 +287,7 @@ export function summary(matrix, settings) {
   return {
     finalOfferTotal: pesosFromCentavos(offer),
     vatExclusive: pesosFromCentavos(vatExclusive),
+    finalVat: pesosFromCentavos(finalVat),
     tax: pesosFromCentavos(tax),
     retention: pesosFromCentavos(retention),
     collected: pesosFromCentavos(collected),
@@ -692,4 +698,177 @@ export function costingPriced(inputs) {
   if (!isZeroCount(inputs.missing_acquire)) failing.push("missing_acquire");
   if (inputs.has_purchasing_incharge !== true) failing.push("no_purchasing_incharge");
   return { met: failing.length === 0, failing };
+}
+
+// ---------------------------------------------------------------------------
+// Where a row's cost came from (#701)
+// ---------------------------------------------------------------------------
+
+const hasValue = (value) => value !== null && value !== undefined && value !== "";
+
+/**
+ * A Component's cost and where it came from, or null while it has none. A typed cost wins over
+ * every other source (a fill never replaces it); then the Canvass winner, the attached P0's price,
+ * Odoo's `standard_price`.
+ *
+ * Returns `{ source, pesos, price, currency }`: `source` is "typed" | "canvass" | "p0" | "odoo",
+ * `pesos` the unit cost in pesos, `price` the figure as quoted (the same as `pesos`, except for a
+ * foreign P0). A viewer whose tier was not sent the cost columns gets null.
+ */
+export function resolveCost(component) {
+  const c = component ?? {};
+  const acquire = c.acquire_unit;
+  const own = (source) => ({ source, pesos: acquire, price: acquire, currency: "PHP" });
+  if (hasValue(acquire) && c.acquire_source === COST_SOURCE.TYPED) return own(COST_SOURCE.TYPED);
+  if (hasValue(acquire) && c.acquire_from_offer_id) return own(COST_SOURCE.CANVASS);
+  if (hasValue(c.p0_unit_price)) {
+    return {
+      source: COST_SOURCE.P0,
+      pesos: c.p0_unit_price,
+      price: hasValue(c.p0_quoted_unit_price) ? c.p0_quoted_unit_price : c.p0_unit_price,
+      currency: c.p0_currency || "PHP",
+    };
+  }
+  if (hasValue(acquire)) return own(c.acquire_source === COST_SOURCE.ODOO ? COST_SOURCE.ODOO : COST_SOURCE.TYPED);
+  if (hasValue(c.odoo_unit)) return { source: COST_SOURCE.ODOO, pesos: c.odoo_unit, price: c.odoo_unit, currency: "PHP" };
+  return null;
+}
+
+/**
+ * The cost of one S0 line, per unit of the line. One Component: its own resolved cost. Several: their
+ * costs added up over the line's quantity, `source` the one they share or "mixed". Null while any
+ * part has no cost, or the line has no Component.
+ */
+export function lineCost(line) {
+  const parts = line?.components ?? [];
+  if (parts.length === 0) return null;
+  const costs = parts.map(resolveCost);
+  if (costs.some((cost) => cost === null)) return null;
+  if (parts.length === 1) return costs[0];
+  const quantity = Number(line.quantity);
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+  const total = parts.reduce((sum, part, i) => sum + (extendedCentavos(costs[i].pesos, part.quantity) ?? 0n), 0n);
+  const pesos = Math.round(Number(total) / quantity) / 100;
+  const sources = new Set(costs.map((cost) => cost.source));
+  return { source: sources.size === 1 ? [...sources][0] : COST_SOURCE.MIXED, pesos, price: pesos, currency: "PHP" };
+}
+
+/**
+ * The estimated landed cost of a unit: its peso cost plus the add-on percent (18 means +18%),
+ * rounded to the centavo. Null while the cost is blank or the percent is not a number.
+ */
+export function estimateLanded(pesosCost, percent) {
+  const factor = 1 + Number(percent ?? 0) / 100;
+  if (!Number.isFinite(factor)) return null;
+  const cents = extendedCentavos(pesosCost, factor);
+  return cents === null ? null : pesosFromCentavos(cents);
+}
+
+/**
+ * The Landed / unit figure for one S0 line (#702). Once the line's Components all have an IPAS Landed
+ * Cost, that real figure wins, `{ kind: "real", unit, mark }` (mark "provisional" | "final"). Until then
+ * it is an estimate on the peso cost: a foreign-currency row takes the Import add-on, a peso row the Local
+ * one, `{ kind: "estimate", unit, percent, local }`. Null while the line has no cost, or the viewer's tier
+ * was not sent Landed Cost. Nothing here feeds markup or the price side.
+ *
+ * `addons` is `{ import, local }`, both in percent.
+ */
+export function lineLanded(line, addons) {
+  const real = landedCostRollup(line?.components);
+  const quantity = Number(line?.quantity);
+  if (real && Number.isFinite(quantity) && quantity > 0) {
+    const parts = line.components;
+    const own = parts.length === 1 ? parts[0].landed_cost?.unit : null;
+    const unit = hasValue(own) ? Number(own) : Math.round((real.total / quantity) * 100) / 100;
+    return { kind: "real", unit, mark: real.mark };
+  }
+  const cost = lineCost(line);
+  if (!cost) return null;
+  const local = cost.currency === "PHP";
+  const percent = Number((local ? addons?.local : addons?.import) ?? 0);
+  const unit = estimateLanded(cost.pesos, percent);
+  return unit === null ? null : { kind: "estimate", unit, percent, local };
+}
+
+/**
+ * Costing Matrix, the Evaluation of Specification is approved (#707): the one check the
+ * Evaluation of Specification Stage Action holds its Stage to. Reads the same evidence as
+ * costingSettled (`costing_condition_inputs`), key `evaluation_approved`.
+ */
+export function costingEvaluationApproved(inputs) {
+  if (!inputs || inputs.has_matrix !== true) return { met: false, failing: ["no_matrix"] };
+  return inputs.evaluation_approved === true
+    ? { met: true, failing: [] }
+    : { met: false, failing: ["evaluation_not_approved"] };
+}
+
+// ---------------------------------------------------------------------------
+// The sheet's markup columns (#703)
+// ---------------------------------------------------------------------------
+
+/**
+ * The multiplier an S0 line is priced at. A line's own is the one its parts all carry; else the matrix
+ * default. `own` says which. `factor` is a number, or null while neither is known (a viewer whose tier
+ * is not sent the multiplier).
+ */
+export function lineMultiplier(line, defaultFactor) {
+  const parts = line?.components ?? [];
+  const owns = parts.map((part) => scaled(part?.markup_factor));
+  if (parts.length > 0 && owns.every((own) => own !== null && own === owns[0])) {
+    return { factor: Number(owns[0]) / 1_000_000, own: true };
+  }
+  const fallback = scaled(defaultFactor);
+  return { factor: fallback === null ? null : Number(fallback) / 1_000_000, own: false };
+}
+
+const toCentavos = (value) => (blank(value) || !Number.isFinite(Number(value)) ? null : Math.round(Number(value) * 100));
+
+/**
+ * One S0 line's markup figures, per unit of the line (spec #699, ticket #703):
+ *
+ *   suggested   the bare peso price x the multiplier (not x the landed cost), to the centavo. A tower's
+ *               price carries what comes with it: the bare peso price of every included item, spread over
+ *               the line's quantity, goes in before the multiplier ("with N included")
+ *   cost        what the line really costs per unit: its own landed cost plus the landed cost of every item
+ *               included in it (a tower's parts), spread over the line's quantity
+ *   margin      suggested - cost, and `percent` of the suggested price
+ *   included    how many items come with the line
+ *
+ * `landedOf(line)` gives a line's landed cost per unit in pesos (null when unknown); `kids` are the lines
+ * included in this one. Every figure is null while an input is unknown.
+ */
+export function lineSheetMarkup(line, kids, defaultFactor, landedOf) {
+  const { factor, own } = lineMultiplier(line, defaultFactor);
+  const cost = lineCost(line);
+  const quantity = Number(line?.quantity);
+  let groupPesos = cost ? toCentavos(cost.pesos) : null;
+  for (const kid of kids ?? []) {
+    const kidCost = lineCost(kid);
+    const kidCentavos = kidCost ? toCentavos(kidCost.pesos) : null;
+    if (groupPesos === null || kidCentavos === null || !(quantity > 0)) {
+      groupPesos = null;
+      break;
+    }
+    groupPesos += Math.round((kidCentavos * Number(kid.quantity)) / quantity);
+  }
+  const suggestedCentavos = groupPesos !== null && factor !== null ? toCentavos(markupPriceUnit(groupPesos / 100, factor)) : null;
+  let costCentavos = toCentavos(landedOf(line));
+  for (const kid of kids ?? []) {
+    const kidLanded = toCentavos(landedOf(kid));
+    if (costCentavos === null || kidLanded === null || !(quantity > 0)) {
+      costCentavos = null;
+      break;
+    }
+    costCentavos += Math.round((kidLanded * Number(kid.quantity)) / quantity);
+  }
+  const marginCentavos = suggestedCentavos === null || costCentavos === null ? null : suggestedCentavos - costCentavos;
+  return {
+    factor,
+    own,
+    suggested: suggestedCentavos === null ? null : suggestedCentavos / 100,
+    cost: costCentavos === null ? null : costCentavos / 100,
+    margin: marginCentavos === null ? null : marginCentavos / 100,
+    percent: marginCentavos === null || !suggestedCentavos ? null : Math.round((marginCentavos / suggestedCentavos) * 1000) / 10,
+    included: (kids ?? []).length,
+  };
 }

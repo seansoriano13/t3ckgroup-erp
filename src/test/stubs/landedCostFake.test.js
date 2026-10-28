@@ -331,6 +331,60 @@ describe("computeLandedCost", () => {
   })
 })
 
+describe("computeLandedCost freight (#709)", () => {
+  const oneLine = copy("USD", [line(1, 10, 100)])
+  const paid = [pay("full_payment", 1000, { php_debited: 59320 })]
+
+  it("converts freight in the PO's currency at the blended rate", () => {
+    const result = computeLandedCost({ copy: oneLine, payments: paid, freight: { amount: 470, currency: "USD" } })
+    expect(result.totals.freightPhp).toBe(27880.4)
+    expect(result.totals.landedPhp).toBe(59320 + 27880.4)
+  })
+
+  it("does not add freight the supplier billed again", () => {
+    const result = computeLandedCost({
+      copy: oneLine,
+      payments: paid,
+      freight: { amount: 470, currency: "USD", billedBySupplier: true },
+    })
+    expect(result.totals.freightPhp).toBe(0)
+    expect(result.totals.landedPhp).toBe(59320)
+  })
+
+  it("takes a peso freight as it is", () => {
+    const result = computeLandedCost({ copy: oneLine, payments: paid, freight: { amount: 1500, currency: "PHP" } })
+    expect(result.totals.freightPhp).toBe(1500)
+  })
+
+  it("counts a typed freight once: the older shipping-fee payments stop counting (review fix)", () => {
+    const withShipping = [...paid, pay("shipping_fee", 100, { php_debited: 5900 })]
+    const old = computeLandedCost({ copy: oneLine, payments: withShipping })
+    expect(old.totals.shippingFeesPhp).toBe(5900)
+    const typed = computeLandedCost({ copy: oneLine, payments: withShipping, freight: { amount: 1500, currency: "PHP" } })
+    expect(typed.totals.shippingFeesPhp).toBe(0)
+    expect(typed.totals.freightPhp).toBe(1500)
+    const billed = computeLandedCost({ copy: oneLine, payments: withShipping, freight: { amount: 1500, currency: "PHP", billedBySupplier: true } })
+    expect(billed.totals.spreadPhp).toBe(0)
+  })
+
+  it("says Landed Cost is unavailable for freight in a third currency, rather than dropping it", () => {
+    const result = computeLandedCost({ copy: oneLine, payments: paid, freight: { amount: 20, currency: "EUR" } })
+    expect(result.status).toBe(IPAS_LANDED_COST_STATUS.UNAVAILABLE)
+    expect(result.reason).toBe(IPAS_LANDED_COST_REASON.FREIGHT_CURRENCY)
+  })
+
+  it("reads a payment's pesos as amount x forex rate, not the separately-written php_debited", () => {
+    const result = computeLandedCost({ copy: oneLine, payments: [pay("full_payment", 1000, { forex_rate: 60, php_debited: 1 })] })
+    expect(result.rate.rate).toBe(60)
+    expect(result.totals.goodsPhp).toBe(60000)
+  })
+
+  it("counts a blank charge as nothing", () => {
+    const result = computeLandedCost({ copy: oneLine, payments: paid, charges: [{ amount_php: null }, charge(200)] })
+    expect(result.totals.chargesPhp).toBe(200)
+  })
+})
+
 describe("allocate", () => {
   it("shares whole centavos in proportion and sums exactly to the total", () => {
     expect(allocate(100, [1, 1, 1])).toEqual([34, 33, 33])
