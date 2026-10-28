@@ -387,7 +387,6 @@ export default function GroupTasksPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
     },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const verifyMutation = useMutation({
@@ -568,7 +567,7 @@ export default function GroupTasksPage() {
           removeMemberMutation.mutateAsync(memberId)
         }
         onInlineCheck={(memberId, checklist) =>
-          updateMemberChecklistMutation.mutate({ memberId, checklist })
+          updateMemberChecklistMutation.mutateAsync({ memberId, checklist })
         }
         onVerify={() =>
           verifyMutation.mutate({ id: selectedTaskId, remarks: "" })

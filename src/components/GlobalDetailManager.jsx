@@ -258,7 +258,6 @@ export default function GlobalDetailManager() {
     onSuccess: () => {
       invalidateGroup();
     },
-    onError: (err) => toast.error(err.message),
   });
 
   const rateMutation = useMutation({
@@ -349,7 +348,7 @@ export default function GlobalDetailManager() {
             onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}
             onUpdateMember={(memberId, payload) => updateMemberMutation.mutateAsync({ memberId, payload })}
             onRemoveMember={(memberId) => removeMemberMutation.mutateAsync(memberId)}
-            onInlineCheck={(memberId, checklist) => updateMemberChecklistMutation.mutate({ memberId, checklist })}
+            onInlineCheck={(memberId, checklist) => updateMemberChecklistMutation.mutateAsync({ memberId, checklist })}
             onVerify={() => verifyMutation.mutate({ id: activeItem.id, remarks: "" })}
             onReject={(remarks) => rejectMutation.mutate({ id: activeItem.id, remarks })}
             onUpdateTask={(payload) => updateGroupTaskMutation.mutateAsync(payload)}

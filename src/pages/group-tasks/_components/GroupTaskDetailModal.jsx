@@ -138,6 +138,7 @@ export default function GroupTaskDetailModal({
   // --- Inline chat state ---
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [checklistOverrides, setChecklistOverrides] = useState({});
   const fileInputRef = useRef(null);
   const [messageContent, setMessageContent] = useState("");
   const [mentions, setMentions] = useState([]);
@@ -1191,27 +1192,40 @@ export default function GroupTaskDetailModal({
                               </div>
                               <div className="bg-muted/30 rounded-xl p-3 border border-border/50">
                                 <ChecklistTaskRenderer
-                                  description={member.checklist || checklistItems}
+                                  description={checklistOverrides[member.id] ?? (member.checklist || checklistItems)}
                                   isOwner={isMe}
                                   disabled={!isMe || isDone || isReadOnly}
                                   searchTerm={searchTerm}
                                   onInlineCheck={(next) => {
                                     if (isReadOnly) return;
-                                    if (onInlineCheck) {
-                                      onInlineCheck(member.id, next);
-                                    } else {
-                                      groupTaskService
-                                        .updateMemberChecklist(
+                                    // Show the tick now; put it back if the save fails.
+                                    const previous = checklistOverrides[member.id];
+                                    setChecklistOverrides((o) => ({ ...o, [member.id]: next }));
+                                    const save = onInlineCheck
+                                      ? onInlineCheck(member.id, next)
+                                      : groupTaskService.updateMemberChecklist(
                                           member.id,
                                           next,
                                           task.id,
                                           currentUserId,
-                                        )
-                                        .catch(err => {
-                                          toast.error("Failed to update checklist");
-                                          console.error("Checklist update error:", err);
+                                        );
+                                    Promise.resolve(save)
+                                      .then(() =>
+                                        setChecklistOverrides((o) => {
+                                          const { [member.id]: _done, ...rest } = o;
+                                          return rest;
+                                        }),
+                                      )
+                                      .catch((err) => {
+                                        setChecklistOverrides((o) => {
+                                          const copy = { ...o };
+                                          if (previous === undefined) delete copy[member.id];
+                                          else copy[member.id] = previous;
+                                          return copy;
                                         });
-                                    }
+                                        toast.error(err?.message || "Could not save that change. Try again.");
+                                        console.error("Checklist update error:", err);
+                                      });
                                   }}
                                 />
                               </div>
