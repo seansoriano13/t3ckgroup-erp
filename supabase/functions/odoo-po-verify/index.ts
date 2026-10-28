@@ -21,7 +21,8 @@
 //     then calls the database as the signed-in caller. The browser never sends
 //     a verdict or a P0 fact.
 //       attach (#684): reads the P0 as it stands in Odoo and calls
-//         purchase_request_item_attach_po, which sets the line from it (an RFQ
+//         purchase_request_item_attach_po (#724: with `orderEarly` and `orderEarlyReason` from
+//         the body when buying has not opened yet), which sets the line from it (an RFQ
 //         stays To purchase; a confirmed P0 is Purchased, or Received once
 //         everything arrived). Odoo must answer; a P0 is never attached unseen.
 //       correct (#549): purchase_request_item_apply_po_check swaps the P0 on a
@@ -172,8 +173,15 @@ Deno.serve(async (req) => {
           p_item_id: itemId,
           p_po_number: p0.name,
           p_facts: facts,
+          // #724: Order early. The database decides whether the SOR's stage needs it.
+          p_order_early: body.orderEarly === true,
+          p_order_early_reason: typeof body.orderEarlyReason === "string" ? body.orderEarlyReason : null,
         });
-        if (error) return jsonResponse({ success: false, refused: true, message: refusalText(error.message) });
+        if (error) {
+          // "Buying opens here" refusal: the screen offers Order early instead of just showing the text.
+          const code = /buying opens at/i.test(error.message) ? "buying_not_open" : undefined;
+          return jsonResponse({ success: false, refused: true, message: refusalText(error.message), ...(code ? { code } : {}) });
+        }
         // #688: remember the Odoo product on the P0 line, so a new S0 line for the same product can ask "Is this yours?".
         await admin.from("purchase_request_items").update({ bought_product_id: facts.bought_product_id }).eq("id", itemId);
         // The P0's price is the Component's Actual cost (#686), sent in its own currency: the database turns a
