@@ -35,7 +35,7 @@ export async function snapshotCostingFunctions(sql) {
     const { rows } = await sql.query(
         `select pg_get_functiondef(p.oid) as def
            from pg_proc p
-          where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.proname like 'costing\_%'`,
+          where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.proname like 'costing\\_%'`,
     )
     return async () => {
         for (const { def } of rows) await sql.query(def)

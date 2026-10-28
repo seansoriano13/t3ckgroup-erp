@@ -197,7 +197,7 @@ async function giveWhatTheSignoffAsks(ipasId, section, role) {
 }
 
 /** An Item Location, a bare Transmittal carrying the IPAS, and for an import the received date. */
-async function placeGoods(ipasId, source) {
+async function placeGoods(ipasId) {
     const { rows: loc } = await sql().query(
         `select id from public.ipas_options where list = 'item_location' order by sort, label limit 1`,
     )
