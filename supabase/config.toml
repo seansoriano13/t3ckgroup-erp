@@ -129,6 +129,7 @@ verify_jwt = false
 [functions.odoo-po-suggest]
 [functions.odoo-po-sync]
 [functions.odoo-po-verify]
+[functions.brochure-search]
 [functions.odoo-product-search]
 [functions.odoo-quotation-file]
 [functions.odoo-quotation-link]
