@@ -1192,6 +1192,49 @@ export const salesFlowService = {
   },
 
   /**
+   * The flow's current shape as a Flow Snapshot file (issue #756) — the same
+   * `snapshot_data` a publish would write, wrapped so an import can recognise
+   * it. Works on drafts and locked flows alike.
+   */
+  async exportFlow(flowId) {
+    const flow = await loadFlow(flowId);
+    const [stages, edges] = await Promise.all([stagesOf(flowId), edgesOf(flowId)]);
+    const snapshotData = await buildSnapshotData(flow, stages, edges);
+    return {
+      kind: "flow-snapshot",
+      exportedAt: new Date().toISOString(),
+      snapshotData,
+    };
+  },
+
+  /**
+   * Starts a new draft flow from an exported file (text or parsed object),
+   * through `importSnapshot`. A bare `snapshot_data` object is accepted too.
+   */
+  async importFlowFile(file, name, actorId) {
+    let parsed = file;
+    if (typeof file === "string") {
+      try {
+        parsed = JSON.parse(file);
+      } catch {
+        throw new Error("That file is not a Flow Snapshot.");
+      }
+    }
+    const snapshotData = parsed?.kind === "flow-snapshot" ? parsed.snapshotData : parsed;
+    if (!snapshotData || !Array.isArray(snapshotData.stages)) {
+      throw new Error("That file is not a Flow Snapshot.");
+    }
+    return this.importSnapshot(snapshotData, name, actorId);
+  },
+
+  /** Copies a flow into a new Sale Type draft named `name` (issue #756). */
+  async duplicateFlow(flowId, name, actorId) {
+    await requireSuperAdmin(actorId);
+    const exported = await this.exportFlow(flowId);
+    return this.importSnapshot(exported.snapshotData, name, actorId);
+  },
+
+  /**
    * Reopens `flowId`'s draft and rebuilds it as `snapshotId`'s shape — the
    * explicit, audited "we went back to how it worked before" that a change
    * turning out wrong needs to be cheap to undo.

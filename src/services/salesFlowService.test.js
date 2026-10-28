@@ -602,6 +602,42 @@ describe("salesFlowService", () => {
     })
   })
 
+  describe("export, import file and duplicate (issue #756)", () => {
+    async function buildSource(name) {
+      const st = await salesFlowService.createSaleType(name, admin.id)
+      const flow = (await salesFlowService.getFlow(st.id)).flow
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const won = await salesFlowService.addStage(flow.id, "Awarded", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
+      await salesFlowService.setWonStage(flow.id, won.id, admin.id)
+      return flow
+    }
+
+    it("export then import gives a draft with the same stages and moves", async () => {
+      const flow = await buildSource("Export Source")
+      const file = JSON.stringify(await salesFlowService.exportFlow(flow.id))
+      const imported = await salesFlowService.importFlowFile(file, "Export Copy", admin.id)
+      expect(imported.flow.state).toBe("draft")
+      expect(imported.stages.map((s) => s.name)).toEqual(["Lead", "Awarded"])
+      expect(imported.edges.length).toBe(1)
+      expect(imported.flow.won_stage_id).toBeTruthy()
+    })
+
+    it("rejects a file that is not a Flow Snapshot", async () => {
+      await expect(salesFlowService.importFlowFile("nope", "X", admin.id)).rejects.toThrow(/not a Flow Snapshot/)
+      await expect(salesFlowService.importFlowFile({ a: 1 }, "X", admin.id)).rejects.toThrow(/not a Flow Snapshot/)
+    })
+
+    it("duplicate makes a new draft Sale Type", async () => {
+      const flow = await buildSource("Dup Source")
+      const copy = await salesFlowService.duplicateFlow(flow.id, "Dup Copy", admin.id)
+      expect(copy.saleType.name).toBe("Dup Copy")
+      expect(copy.flow.id).not.toBe(flow.id)
+      expect(copy.flow.state).toBe("draft")
+      expect(copy.stages.length).toBe(2)
+    })
+  })
+
   describe("restoring a Flow Snapshot into the live draft", () => {
     async function buildLockedFlow(stageNames) {
       const saleType = await salesFlowService.createSaleType(`Flow ${Math.random()}`, admin.id)
