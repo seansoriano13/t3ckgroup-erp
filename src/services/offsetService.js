@@ -3,6 +3,7 @@ import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { deriveHours, describeLeaveRange, formatWindow, windowsOverlap } from '../utils/time';
 import { generateApplicationHash } from '../utils/formHashes';
+import { netHoursAfterMealBreak } from '../utils/mealBreak';
 import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, deriveUndertimeHours, assertWithinAvailableBalance } from './leaveRules';
 import { assertHeadCleared } from './headApprovalService';
 
@@ -111,7 +112,7 @@ export const offsetService = {
    * Apply for Overtime (Employee)
    */
   async applyOvertime({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
-    const parsedHours = deriveHours(startTime, endTime, true);
+    const parsedHours = netHoursAfterMealBreak(deriveHours(startTime, endTime, true), startTime, endTime);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
     }

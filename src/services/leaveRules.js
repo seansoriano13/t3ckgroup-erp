@@ -1,4 +1,5 @@
 import { deriveHours } from '../utils/time';
+import { netHoursAfterMealBreak } from '../utils/mealBreak';
 
 /**
  * Business rules shared by every leave-filing path (Offset single-day,
@@ -35,15 +36,20 @@ export function assertNotWeekend(dateStr, dateLabel) {
  * whether the figure came from a start/end window (single-day) or was typed
  * directly for a day inside a range.
  */
-export function applyLunchDeduction(hours) {
-  return hours >= 5 ? hours - 1 : hours;
+export function applyLunchDeduction(hours, meals) {
+  // Hours-only days (typed inside a range) are taken as starting at the
+  // 08:00 workday start, so the Meal Break rule still decides by the clock.
+  const end = 8 * 60 + Math.round(hours * 60);
+  const hh = String(Math.floor(end / 60) % 24).padStart(2, '0');
+  const mm = String(end % 60).padStart(2, '0');
+  return netHoursAfterMealBreak(hours, '08:00', `${hh}:${mm}`, meals ? { meals } : {});
 }
 
 /**
- * Net leave hours for a start/end window, lunch hour already deducted.
+ * Net leave hours for a start/end window, Meal Break already taken off.
  */
-export function deriveLeaveHours(startTime, endTime) {
-  return applyLunchDeduction(deriveHours(startTime, endTime, false));
+export function deriveLeaveHours(startTime, endTime, options = {}) {
+  return netHoursAfterMealBreak(deriveHours(startTime, endTime, false), startTime, endTime, options);
 }
 
 /**

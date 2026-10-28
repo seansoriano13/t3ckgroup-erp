@@ -118,7 +118,7 @@ describe("silService", () => {
       await silService.applySilLeave({
         employeeId: capped.id,
         date: "2026-03-10",
-        startTime: '09:00', endTime: '13:00', // 4 hrs, exactly the balance
+        startTime: '13:00', endTime: '17:00', // 4 hrs, exactly the balance
         reason: "First",
       })
 
@@ -126,7 +126,7 @@ describe("silService", () => {
         silService.applySilLeave({
           employeeId: capped.id,
           date: "2026-03-11",
-          startTime: '09:00', endTime: '13:00',
+          startTime: '13:00', endTime: '17:00',
           reason: "Second",
         }),
       ).rejects.toThrow("Insufficient SIL hours. 4 hrs already committed to pending applications, leaving 0 hrs available.")
@@ -255,8 +255,8 @@ describe("silService", () => {
       await silService.applySilLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        startTime: "09:00",
-        endTime: "13:30",
+        startTime: "13:00",
+        endTime: "17:30",
         reason: "Half day",
       })
 
