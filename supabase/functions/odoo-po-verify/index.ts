@@ -25,11 +25,14 @@
 //         the body when buying has not opened yet), which sets the line from it (an RFQ
 //         stays To purchase; a confirmed P0 is Purchased, or Received once
 //         everything arrived). Odoo must answer; a P0 is never attached unseen.
+//         #730: it then raises the P0's IPAS, or adds the line's SOR to the live one, and answers `ipas`.
+//       ipas (#730): retries that step for a line whose Odoo did not answer ("IPAS to create").
 //       correct (#549): purchase_request_item_apply_po_check swaps the P0 on a
 //         Purchased line (verified / refused naming the PO / saved as not checked).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { callerEmail } from "../_shared/caller.ts";
+import { readPo } from "../_shared/odooIpasCopy.ts";
 import { readP0s } from "../_shared/odooP0.ts";
 import { p0Facts, p0UnitPrice } from "../_shared/p0Suggestions.ts";
 import {
@@ -109,7 +112,31 @@ async function askOdoo(ref: string) {
  * from Odoo's answer; the browser never names the verdict. "attach" (#684)
  * sets the line from the P0; "correct" (#549) swaps the PO on a Purchased item.
  */
-const PO_ACTIONS = new Set(["attach", "correct"]);
+const PO_ACTIONS = new Set(["attach", "correct", "ipas"]);
+
+/**
+ * #730: raises the IPAS of an attached P0, or adds the line's SOR to the live one. The server reads the PO
+ * from Odoo itself (the same read as odoo-po-ipas) and the database decides: raised, SOR added, filed (nothing
+ * added), or Odoo silent (the line is flagged "IPAS to create" for a retry). Never throws: the P0 stays attached
+ * whatever happens here.
+ */
+async function autoIpas(admin: ReturnType<typeof createClient>, email: string, itemId: string, po: string) {
+  try {
+    const answer = await readPo(po);
+    const { data, error } = await admin.rpc("purchase_request_item_auto_ipas", {
+      p_actor_email: email,
+      p_item_id: itemId,
+      p_verdict: answer.verdict,
+      p_odoo_copy: answer.verdict === "found" ? answer.copy : null,
+    });
+    if (error) throw new Error(error.message);
+    return data as { result: string; message: string; ipas_number?: string | null };
+  } catch (err) {
+    console.error("odoo-po-verify auto IPAS error:", err);
+    await admin.from("purchase_request_items").update({ ipas_pending: true }).eq("id", itemId);
+    return { result: "unavailable", message: "The IPAS could not be raised. The P0 stays attached; try again." };
+  }
+}
 
 /** The database's refusal, without the function name it leads with. */
 const refusalText = (message: string) => message.replace(/^[a-z_]+: /, "");
@@ -147,8 +174,17 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, refused: true, message: "Sign in to change an item." }, 401);
     }
 
-    const odoo = await askOdoo(ref);
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // #730: retry "IPAS to create" for a line whose P0 is already attached. The P0 is the line's own.
+    if (action === "ipas") {
+      const { data: line } = await admin.from("purchase_request_items").select("po_number").eq("id", itemId).maybeSingle();
+      if (!line?.po_number) return jsonResponse({ success: false, refused: true, message: "Attach a P0 to this line first." });
+      const ipas = await autoIpas(admin, email, itemId as string, line.po_number);
+      return jsonResponse({ success: ipas.result !== "unavailable", ipas, message: ipas.message });
+    }
+
+    const odoo = await askOdoo(ref);
 
     if (action === "attach") {
       if (odoo.answer === "not_found") return jsonResponse({ success: false, refused: true, message: odoo.message });
@@ -194,7 +230,9 @@ Deno.serve(async (req) => {
           p_currency: actual.currency,
         });
         if (priceError) console.error("odoo-po-verify actual cost error:", priceError.message);
-        return jsonResponse({ success: true, verdict: "verified", item: { ...data, bought_product_id: facts.bought_product_id } });
+        // #730: the IPAS follows the attach. A miss here never undoes it.
+        const ipas = await autoIpas(admin, email, itemId as string, p0.name);
+        return jsonResponse({ success: true, verdict: "verified", item: { ...data, bought_product_id: facts.bought_product_id }, ipas });
       } catch (err) {
         console.error("odoo-po-verify attach error:", err);
         return jsonResponse({ success: false, message: err instanceof Error ? err.message : "Odoo lookup failed." });
