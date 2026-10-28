@@ -3592,6 +3592,7 @@ export const opportunityService = {
 
     // #478: the SOR code, client, Sales Flow and last activity the filters need.
     const facets = await opportunityService.getMySorsFacets([...byOpportunity.keys()]);
+    const stageColors = await opportunityService.getMySorsStageColors([...byOpportunity.keys()]);
 
     const rows = await Promise.all(
       [...byOpportunity.entries()].map(async ([opportunityId, ownWindows]) => {
@@ -3621,6 +3622,7 @@ export const opportunityService = {
           salesReference: summary?.sales_reference ?? null,
           projectTitle: summary?.project_title ?? null,
           currentStageName: summary?.current_stage_name ?? null,
+          currentStageColor: stageColors[opportunityId] ?? null,
           sorCode: facets[opportunityId]?.sorCode ?? null,
           clientName: facets[opportunityId]?.clientName ?? null,
           saleTypeName: facets[opportunityId]?.saleTypeName ?? null,
@@ -3709,6 +3711,34 @@ export const opportunityService = {
         { sorCode: r.sor_code ?? null, clientName: r.client_name ?? null, saleTypeName: r.sale_type_name ?? null, lastActivityAt: r.last_activity_at ?? null },
       ]),
     );
+  },
+
+  /**
+   * #739: each SOR's current Stage colour, read from the SOR's own pinned Flow
+   * Snapshot (the same `color` key the Flow Canvas paints). A Stage with no
+   * colour, or no snapshot, is simply absent so the badge stays neutral.
+   */
+  async getMySorsStageColors(opportunityIds) {
+    if (!opportunityIds?.length) return {};
+    const { data: opps, error } = await supabase
+      .from("sales_opportunities")
+      .select("id, flow_stage_id, flow_snapshot_id")
+      .in("id", opportunityIds);
+    if (error) throw error;
+    const snapshotIds = [...new Set((opps || []).map((o) => o.flow_snapshot_id).filter(Boolean))];
+    if (!snapshotIds.length) return {};
+    const { data: snaps, error: snapError } = await supabase
+      .from("flow_snapshots")
+      .select("id, snapshot_data")
+      .in("id", snapshotIds);
+    if (snapError) throw snapError;
+    const stagesBySnapshot = new Map((snaps || []).map((s) => [s.id, s.snapshot_data?.stages || []]));
+    const colors = {};
+    for (const o of opps || []) {
+      const stage = (stagesBySnapshot.get(o.flow_snapshot_id) || []).find((st) => st.id === o.flow_stage_id);
+      if (stage?.color) colors[o.id] = stage.color;
+    }
+    return colors;
   },
 
   async countMyOpenSors(employeeId) {
