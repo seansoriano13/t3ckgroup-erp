@@ -374,4 +374,7 @@ begin
     'notify_ids', to_jsonb(v_notify)
   );
 end;
+$$;
 
+revoke all on function public.ipas_sign(uuid, integer, text, boolean) from public, anon;
+grant execute on function public.ipas_sign(uuid, integer, text, boolean) to authenticated;
