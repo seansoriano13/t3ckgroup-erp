@@ -746,3 +746,62 @@ export function lineCost(line) {
   const sources = new Set(costs.map((cost) => cost.source));
   return { source: sources.size === 1 ? [...sources][0] : "mixed", pesos, price: pesos, currency: "PHP" };
 }
+
+// ---------------------------------------------------------------------------
+// The sheet's markup columns (#703)
+// ---------------------------------------------------------------------------
+
+/**
+ * The multiplier an S0 line is priced at. A line's own is the one its parts all carry; else the matrix
+ * default. `own` says which. `factor` is a number, or null while neither is known (a viewer whose tier
+ * is not sent the multiplier).
+ */
+export function lineMultiplier(line, defaultFactor) {
+  const parts = line?.components ?? [];
+  const owns = parts.map((part) => scaled(part?.markup_factor));
+  if (parts.length > 0 && owns.every((own) => own !== null && own === owns[0])) {
+    return { factor: Number(owns[0]) / 1_000_000, own: true };
+  }
+  const fallback = scaled(defaultFactor);
+  return { factor: fallback === null ? null : Number(fallback) / 1_000_000, own: false };
+}
+
+const toCentavos = (value) => (blank(value) || !Number.isFinite(Number(value)) ? null : Math.round(Number(value) * 100));
+
+/**
+ * One S0 line's markup figures, per unit of the line (spec #699, ticket #703):
+ *
+ *   suggested   the bare peso price x the multiplier (not x the landed cost), to the centavo
+ *   cost        what the line really costs per unit: its own landed cost plus the landed cost of every item
+ *               included in it (a tower's parts), spread over the line's quantity
+ *   margin      suggested - cost, and `percent` of the suggested price
+ *   included    how many items come with the line
+ *
+ * `landedOf(line)` gives a line's landed cost per unit in pesos (null when unknown); `kids` are the lines
+ * included in this one. Every figure is null while an input is unknown.
+ */
+export function lineSheetMarkup(line, kids, defaultFactor, landedOf) {
+  const { factor, own } = lineMultiplier(line, defaultFactor);
+  const cost = lineCost(line);
+  const suggestedCentavos = cost && factor !== null ? toCentavos(markupPriceUnit(cost.pesos, factor)) : null;
+  const quantity = Number(line?.quantity);
+  let costCentavos = toCentavos(landedOf(line));
+  for (const kid of kids ?? []) {
+    const kidLanded = toCentavos(landedOf(kid));
+    if (costCentavos === null || kidLanded === null || !(quantity > 0)) {
+      costCentavos = null;
+      break;
+    }
+    costCentavos += Math.round((kidLanded * Number(kid.quantity)) / quantity);
+  }
+  const marginCentavos = suggestedCentavos === null || costCentavos === null ? null : suggestedCentavos - costCentavos;
+  return {
+    factor,
+    own,
+    suggested: suggestedCentavos === null ? null : suggestedCentavos / 100,
+    cost: costCentavos === null ? null : costCentavos / 100,
+    margin: marginCentavos === null ? null : marginCentavos / 100,
+    percent: marginCentavos === null || !suggestedCentavos ? null : Math.round((marginCentavos / suggestedCentavos) * 1000) / 10,
+    included: (kids ?? []).length,
+  };
+}
