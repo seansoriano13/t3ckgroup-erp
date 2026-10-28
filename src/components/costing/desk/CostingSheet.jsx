@@ -367,7 +367,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                         <div className={cn(!kid && "font-semibold")}>{itemName(line)}</div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
                           <span>{kid ? `comes with ${parent ? itemName(parent) : "the line above"}` : `line ${line.number}`}</span>
-                          {line.source !== "sor_line" && <StatusBadge label="Not on the S0" theme="amber" />}
+                          {line.source === "typed" && !line.sor_item_id && <StatusBadge label="Not on the S0" theme="amber" />}
                           {parts > 1 && <span>· {parts} parts</span>}
                         </div>
                       </div>

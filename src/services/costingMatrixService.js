@@ -93,7 +93,7 @@ export class CostingRuleError extends Error {
   }
 }
 
-const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid|team): (.+)$/;
+const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid|team|line): (.+)$/;
 // The CHECK on costing_components that wants a note whenever the verdict is Deviates (#271).
 const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
 
@@ -129,6 +129,8 @@ function lineColumns(fields) {
   if ("unit" in fields) columns.unit = blankToNull(fields.unit);
   if ("quantity" in fields) columns.quantity = fields.quantity;
   if ("evaluatingTeam" in fields) columns.evaluating_team = blankToNull(fields.evaluatingTeam);
+  // Sales or Purchasing names the Odoo product on a typed line (#720).
+  if ("odooProductId" in fields) columns.odoo_product_id = blankToNull(fields.odooProductId);
   return columns;
 }
 
@@ -774,7 +776,7 @@ export const costingMatrixService = {
     await writePrices(lineId, fields);
   },
 
-  /** Removes a Tender Line and the prices it carries. Sales band. */
+  /** Removes a Tender Line and the prices it carries. Sales band. Refused once it has a Canvass or a P0. */
   async removeTenderLine(lineId) {
     const { data, error } = await supabase.from("costing_tender_lines").delete().eq("id", lineId).select("id");
     if (error) fail(error);
