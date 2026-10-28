@@ -149,32 +149,39 @@ export async function hrOverrideApprove({ table, matchColumn, matchValue, hrId, 
  * three request types — the Approval Center queue reads this instead of
  * hitting sil/offset/overtime services separately and merging client-side.
  */
-export async function getPendingForHead(headId) {
+export async function getPendingForHead(headId, { all = false } = {}) {
   if (!headId) return [];
 
+  // Super admins review every head's queue; everyone else only their own.
+  const routedTo = (query) => (all ? query : query.eq('head_id', headId));
+
   const [sil, offset, overtime, undertime] = await Promise.all([
-    supabase
-      .from('sil_leaves')
-      .select('*, employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
-      .eq('head_id', headId)
+    routedTo(
+      supabase
+        .from('sil_leaves')
+        .select('*, employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+      )
       .eq('head_status', 'PENDING')
       .order('date', { ascending: true }),
-    supabase
-      .from('offset_leaves')
-      .select('*, employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
-      .eq('head_id', headId)
+    routedTo(
+      supabase
+        .from('offset_leaves')
+        .select('*, employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+      )
       .eq('head_status', 'PENDING')
       .order('date', { ascending: true }),
-    supabase
-      .from('overtime_requests')
-      .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
-      .eq('head_id', headId)
+    routedTo(
+      supabase
+        .from('overtime_requests')
+        .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+      )
       .eq('head_status', 'PENDING')
       .order('date', { ascending: true }),
-    supabase
-      .from('undertime_requests')
-      .select('*, employee:employees!undertime_requests_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
-      .eq('head_id', headId)
+    routedTo(
+      supabase
+        .from('undertime_requests')
+        .select('*, employee:employees!undertime_requests_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+      )
       .eq('head_status', 'PENDING')
       .order('date', { ascending: true }),
   ]);
