@@ -217,6 +217,8 @@ export const BID_DECISION_TIERS = {
   cleared_reason: [PRICE, CLOSED_BOOK],
   final_offer_total: [CLOSED_BOOK],
   abc_total: [CLOSED_BOOK],
+  planned_cost_total: [CLOSED_BOOK],
+  unlocked_by: [PRICE, CLOSED_BOOK],
 };
 
 /** Does this tier receive the named column of a Bid Decision? */
