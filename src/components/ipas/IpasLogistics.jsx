@@ -9,6 +9,7 @@ import { IPAS_OPTION_LIST, ipasSectionLabel } from "../../constants/ipas";
 import { optionsForPicker } from "../../utils/ipasPayments";
 import { formatPreparedAt } from "../../utils/preparedAt";
 import { formatDate } from "../../utils/formatDate.js";
+import { logisticsMissing } from "../../utils/ipasLogistics";
 import { useEditable } from "@/components/record/sectionChrome";
 
 const NONE = "__none__";
@@ -33,6 +34,7 @@ export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick,
   ];
   const transmittals = ipas.slips ?? [];
   const signed = ipas.signoffSections?.[8]?.approved ?? null;
+  const missing = logisticsMissing(ipas);
 
   return (
     <IpasSection title={ipasSectionLabel("logistics")}>
@@ -103,9 +105,16 @@ export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick,
           ]}
         />
         {signRights?.canSign && (
-          <Button size="sm" className="mt-2" disabled={busy} onClick={onSign} data-testid="ipas-logistics-sign">
-            Sign Logistics
-          </Button>
+          <>
+            <Button size="sm" className="mt-2" disabled={busy || missing.length > 0} onClick={onSign} data-testid="ipas-logistics-sign">
+              Sign Logistics
+            </Button>
+            {missing.length > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground" data-testid="ipas-logistics-missing">
+                Needs {missing.join(", ")} first.
+              </p>
+            )}
+          </>
         )}
       </div>
     </IpasSection>
