@@ -13,11 +13,8 @@ export const sorAwardService = {
   async forSors(opportunityIds) {
     const ids = [...new Set((opportunityIds ?? []).filter(Boolean))];
     if (ids.length === 0) return new Map();
-    const { data, error } = await supabase
-      .from("sales_opportunities")
-      .select("id, date_of_award")
-      .in("id", ids)
-      .not("date_of_award", "is", null);
+    // A database function, not a table read: sor_read hides SORs the Purchasing user is not on.
+    const { data, error } = await supabase.rpc("sor_award_dates", { p_opportunity_ids: ids });
     if (error) return new Map();
     return new Map((data ?? []).map((row) => [row.id, row.date_of_award]));
   },

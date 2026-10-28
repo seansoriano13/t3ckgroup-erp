@@ -17,7 +17,7 @@ let venue
 let slot = 0
 
 // One 15-minute slot per request, on a day no other file uses, so nothing ever clashes.
-const seed = async (status = "PENDING_HR", { applicant = "ordinary", head = ids.head } = {}) => {
+const seed = async (status = "PENDING_HR", { applicant = "ordinary" } = {}) => {
     slot += 1
     const start = new Date(Date.UTC(2032, 5, 1, 1, 0, 0) + slot * 15 * 60_000)
     const end = new Date(start.getTime() + 15 * 60_000)
