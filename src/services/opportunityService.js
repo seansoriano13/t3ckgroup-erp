@@ -248,6 +248,7 @@ async function narrateNewlySatisfied(opportunityId, stageId, flowSnapshotId, bef
   }
   if (!conditions || conditions.length === 0) return;
 
+  let newlySatisfied = false;
   for (const condition of conditions) {
     const wasSatisfied =
       evaluateCondition(condition, before).status === CONDITION_STATUS.SATISFIED;
@@ -256,8 +257,11 @@ async function narrateNewlySatisfied(opportunityId, stageId, flowSnapshotId, bef
 
     if (!wasSatisfied && isSatisfied) {
       await noteConditionSatisfied(opportunityId, condition, actorId);
+      newlySatisfied = true;
     }
   }
+  // #757: that may have been the last condition on an Auto-move Stage.
+  if (newlySatisfied) await autoMoveIfReady(opportunityId, actorId);
 }
 
 /**
@@ -725,7 +729,7 @@ async function hasEverMoved(opportunityId) {
  * applied to flow-built deals. `stage_conditions` DO apply to flow-built
  * deals, because they are keyed to `flow_stages(id)`.
  */
-async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = null } = {}) {
+async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = null, auto = false } = {}) {
   // Issue #83 — every rule this move is judged by (which Stages exist, which
   // edges are legal, what conditions gate the stage being left, where the
   // deal is won) is resolved from the SOR's OWN Flow Snapshot, not the live
@@ -832,12 +836,13 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     employeeId: actorId,
     stampedContractDate: stampsContractDate,
     ...(isReturn ? { returnChoice } : {}),
+    ...(auto ? { auto: true } : {}),
   };
   const returnChoiceLabel =
     returnChoice === RETURN_CHOICE.START_FRESH ? " (started fresh)" : " (resumed previous work)";
   await opportunityService.addSystemNote(
     existing.id,
-    `Stage moved: ${fromName} → ${to.name}${isReturn ? returnChoiceLabel : ""}`,
+    `Stage moved: ${fromName} → ${to.name}${isReturn ? returnChoiceLabel : ""}${auto ? " (moved automatically)" : ""}`,
     stageChangeEvent,
     actorId,
   );
@@ -1788,6 +1793,35 @@ async function shapeAccessWindows(windows) {
       createdAt: w.created_at ?? null,
     };
   };
+}
+
+/**
+ * Auto-move (#757): after a write that can change whether a Stage Condition is
+ * met, moves the SOR on by itself when its Stage has Auto-move and every
+ * condition is met. A normal move, so Stage Actions fire. A blocked move is
+ * not an error here: the SOR just stays put. Never throws.
+ */
+async function autoMoveIfReady(opportunityId, actorId) {
+  try {
+    const { data: existing, error } = await supabase
+      .from("sales_opportunities")
+      .select("*")
+      .eq("id", opportunityId)
+      .single();
+    if (error || !existing?.flow_snapshot_id || !existing.flow_stage_id) return null;
+
+    const { stages, edges } = await snapshotContextFor(existing);
+    const from = stages.find((s) => s.id === existing.flow_stage_id);
+    if (!from?.auto_move || from.is_terminal) return null;
+
+    const next = edges.filter((e) => e.from_stage_id === from.id);
+    if (next.length !== 1) return null;
+
+    return await moveAlongFlow(existing, next[0].to_stage_id, actorId, { auto: true });
+  } catch (err) {
+    if (!err?.isGateBlock) console.error("Auto-move failed:", err);
+    return null;
+  }
 }
 
 export const opportunityService = {
@@ -3385,6 +3419,8 @@ export const opportunityService = {
       actorId,
     );
 
+    await autoMoveIfReady(opportunityId, actorId);
+
     return data;
   },
 
@@ -3398,6 +3434,8 @@ export const opportunityService = {
    * once satisfied stays satisfied (D31), so ticking it again is a no-op
    * that returns the original row rather than overwriting who satisfied it.
    */
+  autoMoveIfReady,
+
   async satisfyCondition(opportunityId, conditionId, actorId) {
     const { data: opp, error: oppError } = await supabase
       .from("sales_opportunities")
@@ -3452,6 +3490,7 @@ export const opportunityService = {
 
     if (result.was_new) {
       await noteConditionSatisfied(opportunityId, condition, actorId);
+      await autoMoveIfReady(opportunityId, actorId);
     }
 
     return result;

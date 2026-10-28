@@ -1032,6 +1032,33 @@ describe("opportunityService", () => {
       })
     })
 
+    describe("auto-move (#757)", () => {
+      it("moves the SOR on when the last condition is met, and the history says so", async () => {
+        db.internal.rowsOf("flow_stages").find((st) => st.id === lead.id).auto_move = true
+        const condition = makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Sign-off" })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+
+        await opportunityService.satisfyCondition(created.id, condition.id, registrar.id)
+
+        const row = db.internal.rowsOf("sales_opportunities").find((o) => o.id === created.id)
+        expect(row.flow_stage_id).toBe(qualified.id)
+        const notes = (await opportunityService.getNotes(created.id)).map((n) => n.content)
+        expect(notes.some((n) => n.includes("(moved automatically)"))).toBe(true)
+      })
+
+      it("stays put when the Stage does not have Auto-move", async () => {
+        const condition = makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Sign-off" })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+
+        await opportunityService.satisfyCondition(created.id, condition.id, registrar.id)
+
+        const row = db.internal.rowsOf("sales_opportunities").find((o) => o.id === created.id)
+        expect(row.flow_stage_id).toBe(lead.id)
+      })
+    })
+
     describe("tickbox", () => {
       it("satisfies a tickbox condition and records who and when", async () => {
         const condition = makeStageCondition({
