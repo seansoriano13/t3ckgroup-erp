@@ -77,12 +77,14 @@ export async function checkOverlap(employeeId, date, startTime, endTime) {
  * `offset_hours_balance` column doesn't know about, since nothing is
  * deducted from it until approval.
  */
+// Head-declined leaves stay PENDING until HR acts but no longer claim the balance.
 export async function getPendingOffsetHours(employeeId) {
   const { data, error } = await supabase
     .from('offset_leaves')
     .select('hours')
     .eq('employee_id', employeeId)
-    .eq('status', 'PENDING');
+    .eq('status', 'PENDING')
+    .neq('head_status', 'REJECTED');
 
   if (error) throw new Error(error.message);
   return (data || []).reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
