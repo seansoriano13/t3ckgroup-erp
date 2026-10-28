@@ -125,8 +125,20 @@ _Avoid_: Done, Ready to Rate, Pending Rating
 
 **Start Date** (of a Group Task):
 The day a Group Task's work begins. Independent of when the task was created
-and of its Due Date — neither is derived from the other.
+and of its Due Date — neither is derived from the other. Required.
 _Avoid_: Start Time
+
+**Due Date** (of a Group Task):
+The day a Group Task's work must be finished; what its countdown counts down
+to, and what it is overdue against. Required, as is the Start Date. "End date"
+and "deadline" mean this same date.
+_Avoid_: End Date, Deadline
+
+**Checklist Item**:
+One step on a task's checklist, ticked when done. It may carry its own due
+date, never later than the task's Due Date, and remarks: a short note anyone
+on the task may write.
+_Avoid_: Subtask, To-do
 
 **Lead Time** (of a Group Task):
 A free-text note on how long a Group Task's work is given — "120 calendar
@@ -174,6 +186,13 @@ _Avoid_: Comp time, Offset leave balance
 Paid leave drawn from the employee's SIL balance. The printed form calls it Leave With Pay (LWP).
 _Avoid_: Paid leave (as a separate type)
 
+**Meal Break**:
+The unpaid hour taken off a filed time window that covers a meal hour —
+lunch is 12–1pm. Dinner and breakfast are meal hours HR may switch on
+later; until then only lunch counts. Taken off by the clock, not by the window's length; HR may
+keep the hour in on review when no break was taken, giving a reason.
+_Avoid_: Lunch deduction, Break time
+
 **LWOP (Leave Without Pay)**:
 Time an employee was away with no pay and no balance spent, whether they filed for it ahead or simply did not come in. Kept for records only. HR may record one after the fact for an employee who never filed, and it stands as approved.
 _Avoid_: Absent, AWOL, Unpaid leave
@@ -193,7 +212,7 @@ A room a meeting is held in: today the Conference Room or the Admin Office. Each
 _Avoid_: Room, Location
 
 **Facilitator**:
-The department head who runs a meeting. Not the head who approves its Meeting Request, who is the applicant's own department head.
+The department head who runs a meeting. Not its approver: every Meeting Request is approved by HR alone, never by a department head.
 _Avoid_: Host, Organizer, Chair
 
 **Participant**:
@@ -201,7 +220,7 @@ An employee named on a Meeting Request as attending. People from outside the com
 _Avoid_: Attendee, Invitee
 
 **Return** (of a Meeting Request):
-A head or HR sending a Meeting Request back to its applicant with a note to fix it. Sending it again starts approval over at the head. Not a decline, which ends the request.
+HR sending a Meeting Request back to its applicant with a note to fix it. Only HR returns one. Sending it again puts it back in front of HR. Not a decline, which ends the request.
 _Avoid_: Reject, Send back
 
 ### Commission
@@ -237,8 +256,8 @@ Supporting Sales Team is one combined percentage for up to 2 support-salesperson
 _Avoid_: Role Split
 
 **Contract Date**:
-Set automatically the first time an Opportunity reaches the Awarded pipeline stage; not manually editable. Anchors which dated Commission Rate applies to that Opportunity going forward. Before an Opportunity has a Contract Date, its Commission Pool figure is a moving estimate priced off whatever rate is effective today.
-_Avoid_: Award Date, Sign Date
+The day of the client's PO or contract (the Client PO), kept on the SOR; on paper, "Date of P.O. or Contract". Filled in by itself the first time the SOR reaches the Stage its Sales Flow names for it (CA / PO on the Project flow), or typed in by Sales before then. Anchors which dated Commission Rate applies to that Opportunity going forward. Before an Opportunity has a Contract Date, its Commission Pool figure is a moving estimate priced off whatever rate is effective today.
+_Avoid_: Award Date (that is the Date of Award), Sign Date, Date of P.O.
 
 **Commission Share**:
 What one employee is attributed from one Opportunity — their role's (or position's) percentage of their Department's Allocation. Calculated live, never entered or stored.
@@ -389,7 +408,9 @@ _Avoid_: Sub-department
 **Employee Group**:
 A named set of employees — hand-picked, or a whole Team — kept in one place and
 pointed at by any "who" setting in a Sales Flow. Always means its current
-members, so editing a group changes every flow that uses it.
+members, so editing a group changes every flow that uses it. A Group Task is
+the exception: picking a group or a Team as members copies in whoever is in
+it at that moment, and later changes to the group leave the task alone.
 _Avoid_: Distribution List, Roster
 
 **Stage Action**:
@@ -479,9 +500,25 @@ so reminders chase silence rather than the calendar. Every reminder and every
 Logged Follow-up lands on the SOR's timeline.
 _Avoid_: Reminder (unqualified), Recurring Notification
 
+**Date of Award**:
+The day the client's Notice of Award was given, kept on the SOR. Filled in by
+itself when the SOR reaches its Notice of Award Stage, or typed in earlier by
+Sales; either way, a filled-in Date of Award is what makes an SOR **Awarded**,
+whatever Stage it sits at. Purchasing is told the moment it is filled in.
+_Avoid_: Award Date, NOA date
+
+**Date of PDI**:
+The day of the client's Pre-Delivery Inspection, kept on the SOR.
+_Avoid_: Inspection Date
+
+**Date of Delivery**:
+The day the contract requires delivery, kept on the SOR. A promise, not an
+event: when goods actually went out is recorded by Transmittals.
+_Avoid_: Delivery Date (unqualified), Actual Delivery
+
 **Won Stage**:
-The one Stage per Sales Flow that means the deal has been won. Reaching it
-stamps the Contract Date, which fixes that SOR's commission pricing forever.
+The one Stage per Sales Flow that means the deal has been won. It does not stamp
+the Contract Date; the Stage that holds the client's contract does.
 Exactly one per flow; a Sales Flow cannot be published without one. Set by the
 developer, never presented to Operations in commission vocabulary.
 _Avoid_: Anchor, Anchor Stage, Award Stage
@@ -596,6 +633,23 @@ notes all read `vX.Y` (issue #188, ADR 0020) rather than naming the entity;
 "Flow Snapshot" is the vocabulary for talking about the record, not for what
 appears on screen.
 _Avoid_: Backup, Export
+
+**Outdated SOR**:
+An SOR still pinned to an older Flow Snapshot of its Sales Flow than the
+latest published one. It keeps working on its own version until it is
+updated — in bulk (all, chosen ones, or all but chosen ones) or one at a time
+when someone opens it and is offered the update. An SOR may also be put back
+on an older version, but never on one that lacks the Stage it sits at.
+Changing an SOR's version is an update, never a "move": moving is going
+between Stages.
+_Avoid_: Stale SOR, Old-version SOR, Move (when meaning a version change)
+
+**Auto-move** (of a Stage):
+A Stage set to move an SOR on by itself the moment its last Stage Condition is
+met. Only a Stage with exactly one next Stage may have it. It counts as a
+normal move — its Stage Actions fire — and History records it as moved
+automatically, by no one.
+_Avoid_: Auto-advance, Auto-progress
 
 ### Purchasing
 
