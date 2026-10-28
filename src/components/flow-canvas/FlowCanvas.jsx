@@ -58,6 +58,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/FileInput";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { UPDATE_MODE, idsForUpdateMode } from "@/utils/sorVersionUpdate";
@@ -1558,26 +1559,17 @@ function FlowCanvasInner() {
                 </Dropdown>
 
                 <Tooltip content="Import flow from file" side="bottom">
-                  <Button
+                  <FileInput
+                    ref={importInputRef}
+                    accept="application/json,.json"
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Import flow"
-                    onClick={() => importInputRef.current?.click()}
+                    onFiles={([file]) => importFlowFile.mutate(file)}
                   >
                     <Upload size={14} />
-                  </Button>
+                  </FileInput>
                 </Tooltip>
-                <input
-                  ref={importInputRef}
-                  type="file"
-                  accept="application/json,.json"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (file) importFlowFile.mutate(file);
-                  }}
-                />
                 {flow && (
                   <>
                     <Tooltip content="Export flow to file" side="bottom">

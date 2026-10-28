@@ -43,10 +43,17 @@ const DECISION_VERB = {
 export const MEETING_TYPE = { ONSITE: 'ONSITE', ONLINE: 'ONLINE', HYBRID: 'HYBRID' };
 export const MEETING_TYPE_LABEL = { ONSITE: 'Onsite', ONLINE: 'Online', HYBRID: 'Hybrid' };
 
-/** Onsite and Hybrid hold a Venue; Online holds none (so it never clashes with a room booking). */
-export const needsVenue = (type) => type !== MEETING_TYPE.ONLINE;
-/** Online and Hybrid carry a pasted meeting link. */
-export const needsLink = (type) => type !== MEETING_TYPE.ONSITE;
+/**
+ * What each type holds. Onsite and Hybrid hold a Venue; Online holds none (so it
+ * never clashes with a room booking). Online and Hybrid carry a pasted meeting link.
+ */
+const MEETING_TYPE_TRAITS = {
+  ONSITE: { holdsVenue: true, carriesLink: false },
+  ONLINE: { holdsVenue: false, carriesLink: true },
+  HYBRID: { holdsVenue: true, carriesLink: true },
+};
+export const needsVenue = (type) => MEETING_TYPE_TRAITS[type]?.holdsVenue ?? false;
+export const needsLink = (type) => MEETING_TYPE_TRAITS[type]?.carriesLink ?? false;
 
 /** Guests as [{ name, email }] from the two saved lists (email is '' when none). */
 export const guestList = (names = [], emails = []) => (names ?? []).map((name, i) => ({ name, email: emails?.[i] ?? '' }));
