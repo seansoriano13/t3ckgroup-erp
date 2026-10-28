@@ -104,6 +104,22 @@ function refuseRateOnPhpOffer(row, old, context) {
  */
 export const canvassFill = { on: false }
 
+/**
+ * costing_set_acquire_source() (20261107100000_701_cost_source.sql): Acquire's source follows the write.
+ * Canvass while the winning Offer backs it, odoo while an Odoo fill is writing, otherwise typed.
+ */
+export const odooFill = { on: false }
+
+function setAcquireSource(row, old) {
+  if (row.acquire_unit === null || row.acquire_unit === undefined) {
+    row.acquire_source = null
+  } else if (row.acquire_from_offer_id) {
+    row.acquire_source = "canvass"
+  } else if (!old || row.acquire_unit !== old.acquire_unit || !row.acquire_source || row.acquire_source === "canvass") {
+    row.acquire_source = odooFill.on ? "odoo" : "typed"
+  }
+}
+
 function nullFillMark(markColumn, fieldColumn) {
   return (row, old) => {
     if (canvassFill.on) return
@@ -477,7 +493,8 @@ export const TRIGGERS = {
   },
 
   costing_component_costs: {
-    beforeUpdate: [nullFillMark("acquire_from_offer_id", "acquire_unit")],
+    beforeInsert: [(row) => setAcquireSource(row, null)],
+    beforeUpdate: [nullFillMark("acquire_from_offer_id", "acquire_unit"), setAcquireSource],
   },
 
   sor_canvasses: {

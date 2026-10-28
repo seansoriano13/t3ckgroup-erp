@@ -112,6 +112,8 @@ export const COMPONENT_BANDS = {
  */
 export const COMPONENT_CANVASS_COST_TIERS = {
   acquire_from_offer_id: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+  // Where Acquire came from (#701): canvass, odoo or typed. Same audience as the mark above.
+  acquire_source: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
   // The P0 line price, the Actual cost (#686), read by the tiers that read Acquire: in pesos, and
   // as Odoo has it with its currency (a foreign P0 is turned into pesos at the Canvass winner's rate).
   p0_unit_price: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
@@ -120,6 +122,7 @@ export const COMPONENT_CANVASS_COST_TIERS = {
 };
 export const COMPONENT_CANVASS_COST_BANDS = {
   acquire_from_offer_id: [PURCHASING],
+  acquire_source: [PURCHASING],
   p0_unit_price: [PURCHASING],
   p0_quoted_unit_price: [PURCHASING],
   p0_currency: [PURCHASING],

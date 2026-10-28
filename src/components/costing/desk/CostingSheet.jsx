@@ -5,11 +5,21 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../ui/tab
 import StatusBadge from "../../StatusBadge";
 import { Cell } from "../GridCell";
 import { costingMatrixService } from "../../../services/costingMatrixService";
-import { tierReads } from "../../../constants/costing";
+import { COSTING_BAND, tierReads, tierReadsCost } from "../../../constants/costing";
+import { lineCost } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
 import { useAuth } from "../../../context/AuthContext";
 import ComplianceColumn from "./ComplianceColumn";
 import { useMyEvaluationTeams } from "./evaluationTeams";
+
+/** The word and colour under a price for where it came from; a cost Purchasing typed is amber. */
+const SOURCE_BADGE = {
+  canvass: { label: "Canvass", theme: "mauve" },
+  p0: { label: "P0", theme: "mauve" },
+  odoo: { label: "Odoo", theme: "mauve" },
+  typed: { label: "Typed", theme: "amber" },
+  mixed: { label: "Mixed", theme: "mauve" },
+};
 
 /**
  * The Costing Matrix as one flat grid, one row per line of the SOR's S0 (layout A "Sheet", spec #699,
@@ -46,6 +56,44 @@ const itemName = (line) => line.sor_line_snapshot?.name || firstLine(line.tender
 /** The client's ask is shown only where it says more than the item's own name (the fill copies the name in). */
 const askOf = (line) => (line.tender_specification && line.tender_specification !== itemName(line) ? line.tender_specification : "");
 
+/**
+ * Price and In pesos for one row (Purchasing · cost, #701). The price is a box Purchasing can type in
+ * when the row has one part (or none yet); typing one makes it "Typed", which no fill replaces. With
+ * several parts the price is their sum, read-only. The source badge sits under the price, and while
+ * the box is editable so does the currency. A foreign P0 shows its quoted price here and the peso
+ * figure beside it.
+ */
+function CostCells({ line, canCost, onSave }) {
+  const cost = lineCost(line);
+  const single = line.components.length <= 1;
+  const badge = cost ? SOURCE_BADGE[cost.source] : null;
+  return (
+    <>
+      <TableCell className={cn(CELL, NUM, "w-40")} data-testid="sheet-price">
+        <Cell
+          label={`Price ${line.number}`}
+          noun="The price"
+          value={cost?.price}
+          numeric
+          money
+          align="right"
+          placeholder="Type a cost"
+          readOnly={!canCost || !single || (cost && cost.currency !== "PHP")}
+          onSave={onSave}
+          className="min-w-28"
+        />
+        <div className="mt-1 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+          {canCost && single && cost && <span>{cost.currency}</span>}
+          {badge && <StatusBadge label={badge.label} theme={badge.theme} />}
+        </div>
+      </TableCell>
+      <TableCell className={cn(CELL, NUM, "w-36")} data-testid="sheet-pesos">
+        {cost ? pesos(cost.pesos) : <span className="text-muted-foreground">—</span>}
+      </TableCell>
+    </>
+  );
+}
+
 export default function CostingSheet({ matrix, opportunity, writes, canWrite }) {
   const { user } = useAuth();
   const myTeams = useMyEvaluationTeams(user?.id ?? null);
@@ -53,12 +101,22 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
   const { totals } = matrix;
   const showAbc = tierReads(matrix.tier, "abc_unit");
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
+  const showCost = tierReadsCost(matrix.tier, "acquire_unit");
+  const canCost = showCost && matrix.bands.includes(COSTING_BAND.PURCHASING);
   const byId = new Map(lines.map((line) => [line.id, line]));
   const priced = lines.filter((line) => !line.included);
   const judged = matrix.compliance.total - matrix.compliance.notEvaluated;
 
   const save = (line, fields) => async (value) => {
     await costingMatrixService.updateTenderLine(line.id, fields(value));
+    await writes.refresh();
+  };
+
+  // Typing a price writes the row's one part (made on the spot when the line has none yet); it reads "Typed" from then on.
+  const saveCost = (line) => async (value) => {
+    const [part] = line.components;
+    if (part) await costingMatrixService.updateComponent(part.id, { acquireUnit: value });
+    else await costingMatrixService.addComponent(line.id, { name: itemName(line), quantity: line.quantity, unit: line.unit, acquireUnit: value });
     await writes.refresh();
   };
 
@@ -99,6 +157,11 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
               <th colSpan={1 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0)} className={GROUP}>
                 Sales · the client&apos;s ask
               </th>
+              {showCost && (
+                <th colSpan={2} className={GROUP}>
+                  Purchasing · cost
+                </th>
+              )}
               <th className={cn(GROUP, "border-r-0")}>Technical</th>
             </TableRow>
             <TableRow>
@@ -107,13 +170,15 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
               <th className={HEAD}>Client asks for</th>
               {showAbc && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
               {showOffer && <th className={cn(HEAD, "text-right")}>Final Offer / unit</th>}
+              {showCost && <th className={cn(HEAD, "text-right")}>Price</th>}
+              {showCost && <th className={cn(HEAD, "text-right")}>In pesos</th>}
               <th className={cn(HEAD, "border-r-0")}>Compliance</th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {lines.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={4 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0)} className="px-3 py-4 text-sm text-muted-foreground">
+                <TableCell colSpan={4 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0)} className="px-3 py-4 text-sm text-muted-foreground">
                   No S0 lines yet.
                 </TableCell>
               </TableRow>
@@ -203,6 +268,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                       )}
                     </TableCell>
                   )}
+                  {showCost && <CostCells line={line} canCost={canCost} onSave={saveCost(line)} />}
                   <TableCell className={cn(CELL, "min-w-[12rem] max-w-[16rem] border-r-0")}>
                     <ComplianceColumn line={line} myTeams={myTeams} canSetTeam={canWrite} onChanged={writes.refresh} />
                   </TableCell>
