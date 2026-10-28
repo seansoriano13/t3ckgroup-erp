@@ -145,7 +145,7 @@ export function requiredDocuments(documents = [], source) {
  * by Source. Part 2 (finance) is proof of payment on every payment, handled apart.
  * Mirrors _ipas_missing_documents in the database, which is the real check.
  */
-const SECTION_DOCUMENT_KINDS = {
+export const SECTION_DOCUMENT_KINDS = {
   purchasing: { import: ["Proforma Invoice"], local: ["Quotation (Local)"] },
   costing: { import: ["BL or Waybill", "Packing List", "Commercial Invoice", "Freight Billing"], local: [] },
   filing: { import: ["BIR 2307"], local: ["BIR 2307"] },

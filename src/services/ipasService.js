@@ -73,7 +73,7 @@ const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, ava
 const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
 const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
 const SIGNOFF_SELECT =
-  "*, signer:employees!ipas_signoffs_signed_by_fkey(id, name, avatar_path)," +
+  "*, signer:employees!ipas_signoffs_signed_by_fkey(id, name, avatar_path, call_sign)," +
   " clearer:employees!ipas_signoffs_cleared_by_fkey(id, name)";
 
 /**

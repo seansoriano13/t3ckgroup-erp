@@ -37,7 +37,7 @@ export const SIGNOFF_STATUS = {
   APPROVED: "approved",
 };
 
-const person = (embed, id) => (embed ? { id: embed.id ?? id, name: embed.name ?? null, avatarPath: embed.avatar_path ?? null } : id ? { id, name: null, avatarPath: null } : null);
+const person = (embed, id) => (embed ? { id: embed.id ?? id, name: embed.name ?? null, avatarPath: embed.avatar_path ?? null, callSign: embed.call_sign ?? null } : id ? { id, name: null, avatarPath: null, callSign: null } : null);
 
 /** An `ipas_signoffs` row (with its `signer` and `clearer` employee embeds) as the screens read it. */
 export function shapeSignoff(row) {
