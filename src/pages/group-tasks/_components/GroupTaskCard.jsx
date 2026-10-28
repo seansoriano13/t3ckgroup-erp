@@ -5,6 +5,7 @@ import GradeSelector from "../../../components/GradeSelector";
 import Avatar from "../../../components/Avatar";
 import AvatarGroup from "../../../components/AvatarGroup";
 import { formatDueDate } from "../../../utils/formatDate";
+import { getDueCountdown } from "../utils/dueCountdown";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
@@ -198,6 +199,9 @@ export default function GroupTaskCard({
               }
             >
               {formatDueDate(task.due_date)}
+              {task.status === "ACTIVE" && getDueCountdown(task.due_date) && (
+                <> · {getDueCountdown(task.due_date).label}</>
+              )}
             </span>
           </div>
         )}
