@@ -308,6 +308,8 @@ export function shapeMatrix(read, settings = null) {
     matrix,
     tenderLines,
     totals: matrixTotals(tenderLines),
+    // Cost tiers only: no key means the viewer was not sent it (#702).
+    importAddonPercent: matrix && "import_addon_percent" in matrix ? numberOrNull(matrix.import_addon_percent) : undefined,
     defaultFactor: money ? (defaultFactor === null ? null : Number(defaultFactor)) : undefined,
     defaultPresetId: money ? (money.default_preset_id ?? null) : undefined,
     markup: matrixMarkup(tenderLines, costRows, defaultFactor),
@@ -567,6 +569,33 @@ export const costingMatrixService = {
     // The rates are only needed for the summary, which only the Closed Book tier is given.
     const settings = data && tierReadsSummary(data.tier) ? await costingMatrixService.getSettings() : null;
     return withPurchases(await withCanvass(shapeMatrix(data, settings), opportunityId), opportunityId);
+  },
+
+  /** The default add-on percents for the estimated landed cost (#702): `{ import, local }`, 0 when unset. */
+  async getLandedDefaults() {
+    const { data, error } = await supabase.from("costing_landed_defaults").select("import_addon_percent, local_addon_percent").maybeSingle();
+    if (error) throw error;
+    return { import: numberOrNull(data?.import_addon_percent) ?? 0, local: numberOrNull(data?.local_addon_percent) ?? 0 };
+  },
+
+  /** Sets the defaults, `{ import, local }` in percent (0 or more). Purchasing access or a Super Admin. */
+  async setLandedDefaults({ import: importPercent, local }) {
+    const { error } = await supabase
+      .from("costing_landed_defaults")
+      .upsert({ id: true, import_addon_percent: Number(importPercent), local_addon_percent: Number(local) }, { onConflict: "id" });
+    if (error) fail(error);
+    return costingMatrixService.getLandedDefaults();
+  },
+
+  /** Types the matrix's Import add-on percent (Purchasing). Null clears it back to blank. */
+  async setImportAddon(matrixId, percent) {
+    const { data, error } = await supabase
+      .from("costing_matrices")
+      .update({ import_addon_percent: blankToNull(percent) })
+      .eq("id", matrixId)
+      .select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("The add-on could not be changed.");
   },
 
   /**
