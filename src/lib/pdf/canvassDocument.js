@@ -26,6 +26,10 @@ const EXTRA_CSS = `
   .cnv-compare td.num .sub { font-size: 6.6pt; color: var(--ink-faint); white-space: normal; }
   .cnv-group { font-family: var(--mono); font-size: 7pt; color: var(--ink-faint); margin: 2px 0 4px; }
   .sigs.n3 { grid-template-columns: repeat(3, 1fr); }
+  .cnv-slots { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.6pt; }
+  .cnv-slots th, .cnv-slots td { border: 1px solid var(--ink); padding: 4px 6px; text-align: left; vertical-align: top; }
+  .cnv-slots th { font-size: 7.4pt; text-transform: uppercase; letter-spacing: .06em; }
+  .cnv-slots .cnv-by { font-size: 7.4pt; opacity: .7; }
   .cnv-warning { font-size: 8.2pt; font-weight: 600; color: var(--flag); border-top: 1px solid var(--ink); padding-top: 5px; }
 `;
 
@@ -101,6 +105,16 @@ function offersHtml(offers, groups) {
     ${groups.map((group) => compareTable(group, groups.length > 1 ? perTable : group.offers.length)).join('')}</div></section>`;
 }
 
+/** The three supplier slots, with the reason for each "No other supplier" (#721). */
+function slotsHtml(slots) {
+  if (slots.length === 0) return '';
+  const cell = (s) =>
+    `<td data-testid="print-slot-${s.slot}"><b>${esc(s.label)}</b>${s.reason ? `<div>${esc(s.reason)}</div>` : ''}${s.by ? `<div class="cnv-by">${esc(s.by)}</div>` : ''}</td>`;
+  return `<section class="sec"><h3><span>Supplier slots</span><b>3</b></h3><div class="body"><table class="cnv-slots"><tr>${slots
+    .map((s) => `<th>Supplier ${s.slot}</th>`)
+    .join('')}</tr><tr>${slots.map(cell).join('')}</tr></table></div></section>`;
+}
+
 /** The three signature plates through `sigBlock`, in the band every Purchasing form closes with. */
 function bandHtml(blocks) {
   return `<div class="band"><div class="sigs n3">${blocks
@@ -132,6 +146,7 @@ export function buildCanvassSheetHtml(vm) {
       ${field('Offers', String(h.offerCount), { mono: true })}
     </div>
     ${reasonHtml(vm.decision.reason)}
+    ${slotsHtml(vm.slots ?? [])}
     ${offersHtml(vm.offers, vm.offerGroups ?? [{ offers: vm.offers, label: null }])}
     ${vm.warning ? `<div class="cnv-warning" data-testid="more-offers-warning">${esc(vm.warning)}</div>` : ''}
     ${bandHtml(vm.signatures)}

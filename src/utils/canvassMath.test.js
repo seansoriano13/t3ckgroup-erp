@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { brandProposal, isExpired, moreOffersWarning, needsMoreOffers, normaliseSupplierName, offerCurrency, phpFigure, supplierMismatch } from "./canvassMath"
+import { brandProposal, canPickWinner, slotsCovered, supplierSlots, isExpired, moreOffersWarning, needsMoreOffers, normaliseSupplierName, offerCurrency, phpFigure, supplierMismatch } from "./canvassMath"
 
 // The prototype's sample (#236): CNV_0142 against 1.2 of S07983.
 const redleaf = { supplier_name: "Redleaf Inc.", currency: "PHP", unit_price: 78000 }
@@ -129,5 +129,31 @@ describe("supplierMismatch (#281)", () => {
   it("normalises a name for comparing", () => {
     expect(normaliseSupplierName("Acme Co., Ltd.")).toBe("acme")
     expect(normaliseSupplierName("Co-Op Supplies")).toBe("co op supplies")
+  })
+})
+
+describe("supplier slots (#721)", () => {
+  const mark = (slot) => ({ slot, reason: "Sole distributor" })
+
+  it("counts Offers plus explained empty slots", () => {
+    expect(slotsCovered([redleaf], [mark(2)])).toBe(2)
+    expect(slotsCovered([redleaf], [mark(2), mark(3)])).toBe(3)
+    expect(slotsCovered([redleaf, ferno, hongKong, redleaf])).toBe(4)
+  })
+
+  it("ignores a mark on a slot that has an Offer", () => {
+    expect(slotsCovered([redleaf, ferno], [mark(2)])).toBe(2)
+    expect(supplierSlots([redleaf, ferno], [mark(2)]).slots[1].kind).toBe("offer")
+  })
+
+  it("allows a winner from three covered slots", () => {
+    expect(canPickWinner([redleaf], [mark(2)])).toBe(false)
+    expect(canPickWinner([redleaf], [mark(2), mark(3)])).toBe(true)
+    expect(canPickWinner([redleaf, ferno, hongKong, redleaf])).toBe(true)
+  })
+
+  it("drops the warning once the slots are explained", () => {
+    expect(moreOffersWarning([redleaf], [mark(2), mark(3)])).toBeNull()
+    expect(moreOffersWarning([redleaf], [mark(2)])).toBe("One offer only — below the three-offer minimum")
   })
 })

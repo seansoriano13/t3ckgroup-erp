@@ -99,7 +99,7 @@ function OfferColumn({ label, offer, canWin, isWinner, onChange, onWin }) {
           disabled={!canWin}
           aria-pressed={isWinner}
           aria-label={`${isWinner ? "Clear" : "Pick"} ${label.toLowerCase()} as the winner`}
-          title={canWin ? "Mark this offer the winner" : "Fill in this offer first"}
+          title={canWin ? "Mark this offer the winner" : "Fill in this offer and all three supplier slots first"}
           onClick={onWin}
           className={`h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold ${
             isWinner ? "text-amber-11" : "text-muted-foreground hover:bg-amber-a3 hover:text-amber-11"
@@ -341,7 +341,7 @@ export default function NewCanvassModal({ open, onOpenChange, userId }) {
                     key={c}
                     label={`Canvass ${number} offer ${c + 1}`}
                     offer={offer}
-                    canWin={hasText(offer) && !needsRate(offer)}
+                    canWin={hasText(offer) && !needsRate(offer) && filledOffers.length >= MIN_CANVASS_OFFERS}
                     isWinner={row.winner === c}
                     onChange={(patch) => patchOffer(row.key, c, patch)}
                     onWin={() => patchRow(row.key, { winner: row.winner === c ? null : c })}

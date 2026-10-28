@@ -50,6 +50,8 @@ describe("a winner on the Costing Matrix page", () => {
       purchaser.id,
     );
     await canvassService.addOffer(canvass.id, { supplierName: "Ferno", brand: "Ferno", unitPrice: 82500 }, purchaser.id);
+    // A winner needs three slots filled or explained (#721).
+    db.seed("sor_canvass_no_other_supplier", { canvass_id: canvass.id, slot: 3, reason: "No third dealer" });
   });
 
   it("marks a winner from the panel and shows 'from Canvass' on Acquire and Offer Specification", async () => {

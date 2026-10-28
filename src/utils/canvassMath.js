@@ -34,9 +34,38 @@ export const needsMoreOffers = (offers = []) =>
 
 const COUNT_WORD = ["No", "One", "Two"];
 
-/** "Two offers only — below the three-offer minimum", or null when there are enough. */
-export function moreOffersWarning(offers = []) {
-  if (!needsMoreOffers(offers)) return null;
+/**
+ * The Canvass's three supplier slots (#721, ADR 0047), in order. Slot n holds Offer n when there is
+ * one; an empty slot 2 or 3 holds its "No other supplier" mark when it has one; otherwise it is
+ * open. More than three Offers are allowed: the extras come after the third slot as `extra`.
+ * `marks` are `{ slot, reason, ... }` rows. A mark on a slot that has since got an Offer is ignored,
+ * as the database ignores it.
+ */
+export function supplierSlots(offers = [], marks = []) {
+  const list = Array.isArray(offers) ? offers : [];
+  const slots = Array.from({ length: MIN_CANVASS_OFFERS }, (_, i) => {
+    const slot = i + 1;
+    const offer = list[i];
+    if (i < list.length) return { slot, kind: "offer", offer };
+    const mark = (Array.isArray(marks) ? marks : []).find((m) => Number(m.slot) === slot);
+    if (mark) return { slot, kind: "none", mark };
+    return { slot, kind: "empty" };
+  });
+  return { slots, extra: list.slice(MIN_CANVASS_OFFERS) };
+}
+
+/** Offers plus explained empty slots: what `canvass_apply_winner` counts against three. */
+export function slotsCovered(offers = [], marks = []) {
+  const { slots, extra } = supplierSlots(offers, marks);
+  return slots.filter((s) => s.kind !== "empty").length + extra.length;
+}
+
+/** Whether a winner may be picked (the database refuses otherwise). */
+export const canPickWinner = (offers = [], marks = []) => slotsCovered(offers, marks) >= MIN_CANVASS_OFFERS;
+
+/** "Two offers only — below the three-offer minimum", or null when the three slots are covered. */
+export function moreOffersWarning(offers = [], marks = []) {
+  if (canPickWinner(offers, marks)) return null;
   const count = (Array.isArray(offers) ? offers : []).length;
   const lead = count === 0 ? "No offers yet" : `${COUNT_WORD[count]} ${count === 1 ? "offer" : "offers"} only`;
   return `${lead} — below the three-offer minimum`;

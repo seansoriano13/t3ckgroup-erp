@@ -266,3 +266,33 @@ describe('a Canvass with no subject yet (ADR 0034)', () => {
     expect(buildCanvassDocument(vm)).toContain('Laser printer toner');
   });
 });
+
+describe('the supplier slots on paper (#721)', () => {
+  const mark = (slot, reason) => ({ slot, reason, created_at: '2026-11-13T02:00:00Z', actor: { name: 'Ben Cruz' } });
+  const withOne = () => ({ ...canvass(), offers: offers().slice(0, 1) });
+
+  it('prints the three slots: the supplier, then No other supplier with its reason and who, then Not filled', () => {
+    const vm = buildCanvassViewModel({
+      canvass: { ...withOne(), noOtherSupplier: [mark(2, 'Sole distributor')] },
+      subject: { product: { name: 'Toner' } },
+      people: { creator },
+    });
+    expect(vm.slots.map((s) => s.kind)).toEqual(['offer', 'none', 'empty']);
+    expect(vm.slots[0].label).toBe('Redleaf Medical Supplies');
+    expect(vm.slots[1]).toMatchObject({ label: 'No other supplier', reason: 'Sole distributor' });
+    expect(vm.slots[1].by).toContain('Ben Cruz');
+    const html = buildCanvassDocument(vm);
+    expect(html).toContain('Sole distributor');
+    expect(html).toContain('Not filled');
+  });
+
+  it('prints one reason under both slots when it serves both', () => {
+    const vm = buildCanvassViewModel({
+      canvass: { ...withOne(), noOtherSupplier: [mark(2, 'Only dealer'), mark(3, 'Only dealer')] },
+      subject: { product: { name: 'Toner' } },
+      people: { creator },
+    });
+    expect(vm.slots.filter((s) => s.reason === 'Only dealer')).toHaveLength(2);
+    expect(vm.warning).toBeNull();
+  });
+});

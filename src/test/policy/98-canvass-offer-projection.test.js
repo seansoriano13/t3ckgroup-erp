@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
+import { coverSlots } from "./support/canvassSlots.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { purgeCostingForSors } from "./support/costing.js"
 
@@ -197,6 +198,7 @@ describe("agreeing with the winner", () => {
         const offer = await makeOffer(canvass, extra, price)
 
         const projected = byOffer((await project("outsider", canvass)).data, offer).acquire_unit
+        await coverSlots(canvass)
         const won = await (await clientFor("outsider")).rpc("canvass_apply_winner", { p_canvass_id: canvass, p_offer_id: offer.id })
         expect(won.error).toBeNull()
         const filled = (await svc().from("costing_component_costs").select("acquire_unit").eq("component_id", comp).single()).data.acquire_unit
