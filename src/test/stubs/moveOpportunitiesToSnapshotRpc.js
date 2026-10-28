@@ -92,4 +92,6 @@ export function moveOpportunitiesToFlowSnapshot(args) {
 
 export function stubMoveOpportunitiesToSnapshotRpc() {
   stubRpc("move_opportunities_to_flow_snapshot", moveOpportunitiesToFlowSnapshot)
+  // update_sor_versions (#743) shares the per-SOR rules; who-may-update is the policy tier's.
+  stubRpc("update_sor_versions", moveOpportunitiesToFlowSnapshot)
 }

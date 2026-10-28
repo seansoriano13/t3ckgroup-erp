@@ -2666,6 +2666,60 @@ export const opportunityService = {
     return { succeeded, failed };
   },
 
+  /**
+   * The SORs a bulk update of the Flow Snapshot offers, with enough to name
+   * them in a pick list (#743). Same set as the count above.
+   */
+  async listOpportunitiesEligibleForVersionMove(targetSnapshotId) {
+    const ids = await eligibleOpportunityIdsForVersionMove(targetSnapshotId);
+    if (ids.length === 0) return [];
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select("id, sales_reference, client_name, project_title")
+      .in("id", ids);
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Updates the given SORs to `targetSnapshotId` (newer or older) through
+   * `update_sor_versions` (#743). The database checks who may update which
+   * SOR and refuses a version that lacks an SOR's Stage; refusals come back in
+   * `failed` with a reason. Works in batches like moveOpportunitiesToVersion.
+   * Clears the Stage checklist caches of the SORs it updated (#742).
+   */
+  async updateSorVersions(
+    ids,
+    targetSnapshotId,
+    { onProgress, chunkSize = VERSION_MOVE_BATCH_SIZE, queryClient = null } = {},
+  ) {
+    const succeeded = [];
+    const failed = [];
+    onProgress?.({ done: 0, total: ids.length });
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const batch = ids.slice(i, i + chunkSize);
+      const { data, error } = await supabase.rpc("update_sor_versions", {
+        p_opportunity_ids: batch,
+        p_target_snapshot_id: targetSnapshotId,
+      });
+      if (error) {
+        batch.forEach((id) => failed.push({ id, reason: error.message }));
+      } else {
+        succeeded.push(...(data?.moved || []));
+        failed.push(...(data?.failed || []));
+      }
+      onProgress?.({ done: Math.min(i + chunkSize, ids.length), total: ids.length });
+    }
+    if (queryClient) {
+      for (const { id } of succeeded) {
+        queryClient.invalidateQueries({ queryKey: ["quickViewChecklist", id] });
+        queryClient.invalidateQueries({ queryKey: ["stageChecklist", id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+    }
+    return { succeeded, failed };
+  },
+
   async deleteOpportunity(id, actorId) {
     const { data, error } = await supabase
       .from("sales_opportunities")

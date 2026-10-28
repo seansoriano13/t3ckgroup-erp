@@ -56,9 +56,11 @@ import "@xyflow/react/dist/style.css";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { UPDATE_MODE, idsForUpdateMode } from "@/utils/sorVersionUpdate";
 import {
   Dialog,
   DialogContent,
@@ -227,6 +229,8 @@ function FlowCanvasInner() {
   // major publish or a first publish — the offer is opt-in, so nothing here
   // moves a deal until the Operations Manager accepts it.
   const [moveOffer, setMoveOffer] = useState(null);
+  const [offerMode, setOfferMode] = useState(UPDATE_MODE.ALL);
+  const [offerPicked, setOfferPicked] = useState([]);
   const [moveResult, setMoveResult] = useState(null);
   // { done, total, targetLabel } while a move is running, else null. Drives
   // the progress dialog that cannot be dismissed (issue #190 follow-up).
@@ -624,13 +628,15 @@ function FlowCanvasInner() {
       // be stranded or have its Realized timing shift.
       if (!snapshot || snapshot.version_minor === 0) return;
 
-      const count = await opportunityService.countOpportunitiesEligibleForVersionMove(snapshot.id);
-      if (count > 0) {
+      const sors = await opportunityService.listOpportunitiesEligibleForVersionMove(snapshot.id);
+      if (sors.length > 0) {
+        setOfferMode(UPDATE_MODE.ALL);
+        setOfferPicked([]);
         setMoveOffer({
           targetSnapshotId: snapshot.id,
           majorLabel: `${snapshot.version}.x`,
           targetLabel: formatVersionNumber(snapshot.version, snapshot.version_minor),
-          count,
+          sors,
         });
       }
     },
@@ -655,8 +661,9 @@ function FlowCanvasInner() {
   });
 
   const acceptMoveOffer = useMutation({
-    mutationFn: ({ targetSnapshotId, targetLabel }) =>
-      opportunityService.moveOpportunitiesToVersion(targetSnapshotId, user?.id, {
+    mutationFn: ({ targetSnapshotId, targetLabel, ids }) =>
+      opportunityService.updateSorVersions(ids, targetSnapshotId, {
+        queryClient,
         onProgress: ({ done, total }) => setMoveProgress({ done, total, targetLabel }),
       }),
     onSuccess: (result) => {
@@ -1941,22 +1948,73 @@ function FlowCanvasInner() {
         onConfirm={() => restoreMutation.mutate(viewingSnapshot.id)}
       />
 
-      {/* ── Move-deals-up offer, after a minor publish (issue #190) ──────── */}
-      <ConfirmDialog
-        open={Boolean(moveOffer)}
-        onOpenChange={(open) => {
-          if (!open) setMoveOffer(null);
-        }}
-        title={`Move ${moveOffer?.count} SOR${moveOffer?.count === 1 ? "" : "s"} on ${moveOffer?.majorLabel} up to ${moveOffer?.targetLabel}?`}
-        description="Every earlier version in this major contains every Stage of the new one and shares its Won Stage, so no deal can be stranded and no deal's Realized timing changes. This is opt-in — nothing moves unless you choose to."
-        confirmLabel="Move deals"
-        onConfirm={() =>
-          acceptMoveOffer.mutate({
-            targetSnapshotId: moveOffer?.targetSnapshotId,
-            targetLabel: moveOffer?.targetLabel,
-          })
-        }
-      />
+      {/* ── Update-SORs offer, after a minor publish (issues #190, #743) ──── */}
+      {(() => {
+        const sors = moveOffer?.sors ?? [];
+        const chosenIds = idsForUpdateMode(offerMode, sors.map((o) => o.id), offerPicked);
+        const modes = [
+          [UPDATE_MODE.ALL, "Update all SORs"],
+          [UPDATE_MODE.ONLY, "Update only the ones I pick"],
+          [UPDATE_MODE.ALL_BUT, "Update all except the ones I pick"],
+        ];
+        return (
+          <ConfirmDialog
+            open={Boolean(moveOffer)}
+            onOpenChange={(open) => {
+              if (!open) setMoveOffer(null);
+            }}
+            title={`Update ${sors.length} SOR${sors.length === 1 ? "" : "s"} on ${moveOffer?.majorLabel} to ${moveOffer?.targetLabel}?`}
+            description="Every earlier version in this major contains every Stage of the new one and shares its Won Stage, so no deal can be stranded and no deal's Realized timing changes. This is opt-in — nothing is updated unless you choose to."
+            confirmLabel={`Update ${chosenIds.length} SOR${chosenIds.length === 1 ? "" : "s"}`}
+            confirmDisabled={chosenIds.length === 0}
+            onConfirm={() =>
+              acceptMoveOffer.mutate({
+                targetSnapshotId: moveOffer?.targetSnapshotId,
+                targetLabel: moveOffer?.targetLabel,
+                ids: chosenIds,
+              })
+            }
+          >
+            <div className="space-y-3 text-sm">
+              <div role="group" aria-label="Which SORs" className="flex flex-wrap gap-2">
+                {modes.map(([value, label]) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    size="sm"
+                    variant={offerMode === value ? "default" : "outline"}
+                    aria-pressed={offerMode === value}
+                    onClick={() => setOfferMode(value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              {offerMode !== UPDATE_MODE.ALL && (
+                <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
+                  {sors.map((o) => {
+                    const text = [o.sales_reference, o.client_name, o.project_title].filter(Boolean).join(" · ");
+                    return (
+                      <li key={o.id} className="flex items-center gap-2">
+                        <Checkbox
+                          aria-label={text}
+                          checked={offerPicked.includes(o.id)}
+                          onCheckedChange={(checked) =>
+                            setOfferPicked((prev) =>
+                              checked ? [...prev, o.id] : prev.filter((x) => x !== o.id),
+                            )
+                          }
+                        />
+                        <span className="truncate">{text}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </ConfirmDialog>
+        );
+      })()}
 
       {/* ── Move progress ────────────────────────────────────────────────── */}
       {/* Not dismissable: closing it would hide the only sign a move is still
@@ -1965,17 +2023,17 @@ function FlowCanvasInner() {
         <DialogContent className="sm:max-w-md" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>
-              {`Moving ${moveProgress?.total} SOR${moveProgress?.total === 1 ? "" : "s"} to ${moveProgress?.targetLabel}`}
+              {`Updating ${moveProgress?.total} SOR${moveProgress?.total === 1 ? "" : "s"} to ${moveProgress?.targetLabel}`}
             </DialogTitle>
             <DialogDescription>
-              Keep this page open until it finishes. Closing or reloading it stops the move; the
-              SORs not yet moved stay on their current version.
+              Keep this page open until it finishes. Closing or reloading it stops the update; the
+              SORs not yet updated stay on their current version.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <div
               role="progressbar"
-              aria-label="Move progress"
+              aria-label="Update progress"
               aria-valuemin={0}
               aria-valuemax={moveProgress?.total ?? 0}
               aria-valuenow={moveProgress?.done ?? 0}
@@ -1989,7 +2047,7 @@ function FlowCanvasInner() {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              {`Moved ${moveProgress?.done ?? 0} of ${moveProgress?.total ?? 0}`}
+              {`Updated ${moveProgress?.done ?? 0} of ${moveProgress?.total ?? 0}`}
             </p>
           </div>
         </DialogContent>
@@ -2001,12 +2059,12 @@ function FlowCanvasInner() {
         onOpenChange={(open) => {
           if (!open) setMoveResult(null);
         }}
-        title="Deals moved"
+        title="SORs updated"
         confirmLabel="Done"
         onConfirm={() => setMoveResult(null)}
       >
         <div className="space-y-2 text-sm">
-          <p>{moveResult?.succeeded?.length ?? 0} moved successfully.</p>
+          <p>{moveResult?.succeeded?.length ?? 0} updated successfully.</p>
           {moveResult?.failed?.length > 0 && (
             <div className="space-y-1">
               <p className="font-semibold text-destructive">{moveResult.failed.length} failed:</p>
