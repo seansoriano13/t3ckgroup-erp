@@ -10,6 +10,7 @@ import { confirmActionToast } from "../ui/CustomToast";
 import { storageService } from "../../services/storageService";
 import { attachmentAcceptType, acceptsLabel, listableAttachments } from "../../utils/attachments";
 import StageChecklistRow from "./StageChecklistRow";
+import BrochureLibraryPicker from "../BrochureLibraryPicker";
 import {
   Dialog,
   DialogContent,
@@ -286,7 +287,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                 }
                 uploading={uploadingAttachment[condition.id]}
                 onUpload={(file) => handleUpload(condition, file)}
-                onPickExisting={existingFiles.length > 0 ? () => setPickingFor(condition) : undefined}
+                onPickExisting={() => setPickingFor(condition)}
                 assignmentValue={assignmentId[condition.id]}
                 onAssignmentChange={(val) => setAssignmentId((p) => ({ ...p, [condition.id]: val }))}
                 onAssign={() =>
@@ -308,6 +309,10 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-72 space-y-0.5 overflow-y-auto">
+            <BrochureLibraryPicker
+              disabled={pickExistingMutation.isPending}
+              onPick={(file) => pickingFor && pickExistingMutation.mutate({ condition: pickingFor, file })}
+            />
             {existingFiles.length === 0 && (
               <p className="px-1 py-4 text-center text-xs text-muted-foreground">
                 No files on this SOR yet.

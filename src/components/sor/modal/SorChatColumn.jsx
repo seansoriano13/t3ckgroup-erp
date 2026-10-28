@@ -1,4 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
+import BrochureLibraryPicker from "@/components/BrochureLibraryPicker";
 import { Clock, KeyRound, Lock, Paperclip, Send, Sparkles } from "lucide-react";
 import EmojiPicker from "../../ui/EmojiPicker";
 import { cn } from "@/lib/utils";
@@ -191,6 +192,8 @@ export default function SorChatColumn({
             accept={ALLOWED_EXTENSIONS_STRING}
             onFiles={attachments.addFiles}
           />
+
+          <BrochureLibraryPicker compact disabled={isPosting} onPick={attachments.addLinked} />
 
           {files.length > 0 && (
             <div className="mb-2">

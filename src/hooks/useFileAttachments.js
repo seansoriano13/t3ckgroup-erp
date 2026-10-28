@@ -69,6 +69,32 @@ export function useFileAttachments({
     [files.length, max, maxBytes, anyType],
   );
 
+  /**
+   * Holds an already-hosted file (a brochure from the library) without
+   * uploading it. It shows in `files` like any other pick, but upload() hands
+   * back its descriptor untouched — `linked: true`, same as picking an
+   * existing SOR file.
+   */
+  const addLinked = useCallback(
+    (descriptor) => {
+      if (!descriptor?.url) return;
+      if (files.length >= max) {
+        toast.error(`You can attach at most ${max} files.`);
+        return;
+      }
+      if (files.some((f) => f.linked?.url === descriptor.url)) return;
+      setFiles((prev) => [
+        ...prev,
+        {
+          file: { name: descriptor.name, type: descriptor.type || "", size: descriptor.bytes || 0 },
+          preview: null,
+          linked: { ...descriptor, linked: true },
+        },
+      ]);
+    },
+    [files, max],
+  );
+
   const removeFile = useCallback((index) => {
     setFiles((prev) => {
       const next = [...prev];
@@ -91,7 +117,7 @@ export function useFileAttachments({
     setIsUploading(true);
     try {
       return await Promise.all(
-        files.map((f) => uploadFile(f.file)),
+        files.map((f) => f.linked ?? uploadFile(f.file)),
       );
     } finally {
       setIsUploading(false);
@@ -113,5 +139,5 @@ export function useFileAttachments({
     [addFiles],
   );
 
-  return { files, isUploading, addFiles, addFromPaste, removeFile, clear, upload, max, maxBytes, anyType };
+  return { files, isUploading, addFiles, addLinked, addFromPaste, removeFile, clear, upload, max, maxBytes, anyType };
 }

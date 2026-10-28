@@ -13,6 +13,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { FileInput } from "@/components/ui/FileInput";
+import BrochureLibraryPicker from "@/components/BrochureLibraryPicker";
 import { AttachmentList, AttachmentPreviews } from "@/components/ui/Attachments";
 import MentionTextarea, { NoteText } from "@/components/ui/MentionTextarea";
 import ChatScroller from "@/components/ui/ChatScroller";
@@ -214,6 +215,7 @@ export default function RequestChat({ request, focusOnMount = false, openCount =
           }}
         >
           <FileInput ref={fileInputRef} multiple accept={ALLOWED_EXTENSIONS_STRING} onFiles={attachments.addFiles} />
+          <BrochureLibraryPicker compact disabled={isPosting} onPick={attachments.addLinked} />
           {files.length > 0 && (
             <div className="mb-2">
               <AttachmentPreviews files={files} onRemove={attachments.removeFile} disabled={isPosting} />
