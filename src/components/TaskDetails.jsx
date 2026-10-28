@@ -499,12 +499,12 @@ export default function TaskDetails({
         {/* CONTENT WRAPPER */}
         <div
           className={cn(
-            "flex flex-1 overflow-hidden",
+            "flex flex-1 min-h-0 overflow-hidden",
             isSplitScreen ? "flex-row" : "flex-col",
           )}
         >
           {/* TASK PANEL */}
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
             <TaskHeader
               isEditing={isEditing}
               isHrVerified={task.hrVerified}
@@ -560,7 +560,7 @@ export default function TaskDetails({
               }
             />
 
-            <div className="p-6 flex-1 overflow-y-auto space-y-6 custom-scrollbar bg-card">
+            <div className="p-6 flex-1 min-h-0 overflow-y-auto space-y-6 custom-scrollbar bg-card">
               {task.status === "DELETED" && !isClosedOff && (
                 <div className="bg-destructive/5 border border-destructive/30 rounded-xl p-4 flex items-center gap-3 text-destructive shadow-sm mt-0 -mb-4">
                   <div className="bg-red-100 p-2 rounded-lg">
