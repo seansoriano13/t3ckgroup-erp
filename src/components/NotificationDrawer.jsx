@@ -407,7 +407,7 @@ function NotifItem({
               {notif.title}
             </h4>
             {notif.groupCount > 1 && (
-              <span className="shrink-0 rounded-full bg-primary/10 px-2 text-[11px] font-bold text-primary">
+              <span className="shrink-0 rounded-full bg-muted px-2 text-[11px] font-bold text-foreground">
                 {notif.groupCount} messages
               </span>
             )}
