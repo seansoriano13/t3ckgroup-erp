@@ -231,7 +231,9 @@ create table if not exists public."costing_bid_decisions" (
   "final_offer_total" numeric(18,2) not null,
   "abc_total" numeric(18,2),
   "cleared_at" timestamp with time zone,
-  "cleared_reason" text
+  "cleared_reason" text,
+  "planned_cost_total" numeric(18,2),
+  "unlocked_by" uuid
 );
 
 create table if not exists public."costing_column_bands" (
@@ -253,10 +255,10 @@ create table if not exists public."costing_component_costs" (
   "final_acquire_unit" numeric(18,2),
   "markup_factor" numeric(10,4),
   "acquire_from_offer_id" uuid,
-  "acquire_source" text,
   "p0_unit_price" numeric,
   "p0_quoted_unit_price" numeric,
-  "p0_currency" text
+  "p0_currency" text,
+  "acquire_source" text
 );
 
 create table if not exists public."costing_components" (
@@ -281,7 +283,8 @@ create table if not exists public."costing_components" (
   "compliance_note" text,
   "recommended_alternative" text,
   "offer_specification_from_offer_id" uuid,
-  "documents" jsonb not null default '[]'::jsonb
+  "documents" jsonb not null default '[]'::jsonb,
+  "complied_by" uuid
 );
 
 create table if not exists public."costing_cost_rows" (
@@ -325,6 +328,14 @@ create table if not exists public."costing_inclusions" (
   "created_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."costing_landed_defaults" (
+  "id" boolean not null default true,
+  "import_addon_percent" numeric(7,2) not null default 0,
+  "local_addon_percent" numeric(7,2) not null default 0,
+  "updated_by" uuid,
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."costing_markup_presets" (
   "id" uuid not null default gen_random_uuid(),
   "label" text not null,
@@ -342,7 +353,8 @@ create table if not exists public."costing_matrices" (
   "purchasing_incharge_id" uuid,
   "bid_submitted_at" timestamp with time zone,
   "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
+  "updated_at" timestamp with time zone not null default now(),
+  "import_addon_percent" numeric(7,2)
 );
 
 create table if not exists public."costing_matrix_money" (
@@ -363,7 +375,9 @@ create table if not exists public."costing_settings" (
   "itr_rate" numeric(10,6) not null default 0.08,
   "itr_allowance" numeric(18,2) not null default 250000,
   "updated_at" timestamp with time zone not null default now(),
-  "updated_by" uuid
+  "updated_by" uuid,
+  "final_vat_rate" numeric(10,6) not null default 0.12,
+  "summary_hidden_lines" text[] not null default '{finalVat}'::text[]
 );
 
 create table if not exists public."costing_signer_lists" (
@@ -413,7 +427,8 @@ create table if not exists public."costing_tender_lines" (
   "odoo_product_id" integer,
   "sor_line_snapshot" jsonb,
   "created_by" uuid,
-  "created_at" timestamp with time zone not null default now()
+  "created_at" timestamp with time zone not null default now(),
+  "evaluating_team" text
 );
 
 create table if not exists public."costing_virtual_columns" (
@@ -723,7 +738,13 @@ create table if not exists public."ipas" (
   "gantt_chart" boolean not null default false,
   "on_hold" boolean not null default false,
   "on_hold_note" text,
-  "sor_warning_checked" jsonb
+  "sor_warning_checked" jsonb,
+  "freight_amount" numeric(14,2),
+  "freight_currency" text,
+  "freight_billed_by_supplier" boolean not null default false,
+  "freight_attachment_url" text,
+  "retail_multiplier" numeric(10,4),
+  "wholesale_discount_pct" numeric(5,2) not null default 30
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -741,11 +762,12 @@ create table if not exists public."ipas_charges" (
   "id" uuid not null default gen_random_uuid(),
   "ipas_id" uuid not null,
   "kind_id" uuid not null,
-  "charged_on" date not null,
-  "amount_php" numeric(14,2) not null,
+  "charged_on" date,
+  "amount_php" numeric(14,2),
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
+  "updated_at" timestamp with time zone not null default now(),
+  "attachment_url" text
 );
 
 create table if not exists public."ipas_documents" (
@@ -796,7 +818,10 @@ create table if not exists public."ipas_payments" (
   "paid_before_approval" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
+  "updated_at" timestamp with time zone not null default now(),
+  "forex_rate" numeric(14,6),
+  "doc_stamp_php" numeric(14,2) not null default 0,
+  "misc_fee_php" numeric(14,2) not null default 0
 );
 
 create table if not exists public."ipas_signer_list_log" (
@@ -1863,6 +1888,7 @@ alter table costing_cost_rows add constraint "costing_cost_rows_pkey" PRIMARY KE
 alter table costing_evaluation_settings add constraint "costing_evaluation_settings_pkey" PRIMARY KEY (id);
 alter table costing_events add constraint "costing_events_pkey" PRIMARY KEY (id);
 alter table costing_inclusions add constraint "costing_inclusions_pkey" PRIMARY KEY (id);
+alter table costing_landed_defaults add constraint "costing_landed_defaults_pkey" PRIMARY KEY (id);
 alter table costing_markup_presets add constraint "costing_markup_presets_pkey" PRIMARY KEY (id);
 alter table costing_matrices add constraint "costing_matrices_pkey" PRIMARY KEY (id);
 alter table costing_matrix_money add constraint "costing_matrix_money_pkey" PRIMARY KEY (matrix_id);
@@ -2029,9 +2055,10 @@ alter table commission_splits add constraint "commission_splits_share_role_chk" 
 alter table costing_bid_decisions add constraint "costing_bid_decisions_cleared_chk" CHECK (((cleared_at IS NULL) = (cleared_reason IS NULL)));
 alter table costing_bid_decisions add constraint "costing_bid_decisions_reason_chk" CHECK ((length(btrim(reason)) > 0));
 alter table costing_bid_decisions add constraint "costing_bid_decisions_verdict_chk" CHECK ((verdict = ANY (ARRAY['go'::text, 'no_go'::text, 'revise'::text])));
-alter table costing_column_bands add constraint "costing_column_bands_bands_chk" CHECK ((bands <@ ARRAY['sales'::text, 'purchasing'::text, 'management'::text, 'technical'::text, 'finance'::text, 'super_admin_only'::text]));
+alter table costing_column_bands add constraint "costing_column_bands_bands_chk" CHECK ((bands <@ ARRAY['sales'::text, 'purchasing'::text, 'management'::text, 'technical'::text, 'finance'::text, 'super_admin_only'::text, 'markup'::text]));
 alter table costing_column_tiers add constraint "costing_column_tiers_tiers_chk" CHECK ((tiers <@ ARRAY['participant'::text, 'price'::text, 'cost'::text, 'closed_book'::text]));
 alter table costing_component_costs add constraint "costing_component_costs_acquire_chk" CHECK (((acquire_unit IS NULL) OR (acquire_unit >= (0)::numeric)));
+alter table costing_component_costs add constraint "costing_component_costs_acquire_source_chk" CHECK ((acquire_source = ANY (ARRAY['canvass'::text, 'odoo'::text, 'typed'::text])));
 alter table costing_component_costs add constraint "costing_component_costs_factor_chk" CHECK (((markup_factor IS NULL) OR (markup_factor > (0)::numeric)));
 alter table costing_component_costs add constraint "costing_component_costs_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
 alter table costing_component_costs add constraint "costing_component_costs_odoo_chk" CHECK (((odoo_unit IS NULL) OR (odoo_unit >= (0)::numeric)));
@@ -2050,23 +2077,29 @@ alter table costing_evaluation_settings add constraint "costing_evaluation_setti
 alter table costing_events add constraint "costing_events_kind_chk" CHECK ((kind = ANY (ARRAY['added'::text, 'changed'::text, 'removed'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_completeness_chk" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_quantity_chk" CHECK ((quantity > (0)::numeric));
+alter table costing_landed_defaults add constraint "costing_landed_defaults_import_chk" CHECK ((import_addon_percent >= (0)::numeric));
+alter table costing_landed_defaults add constraint "costing_landed_defaults_local_chk" CHECK ((local_addon_percent >= (0)::numeric));
+alter table costing_landed_defaults add constraint "costing_landed_defaults_one_row_chk" CHECK ((id = true));
 alter table costing_markup_presets add constraint "costing_markup_presets_factor_chk" CHECK ((factor > (0)::numeric));
+alter table costing_matrices add constraint "costing_matrices_import_addon_chk" CHECK (((import_addon_percent IS NULL) OR (import_addon_percent >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_factor_chk" CHECK (((default_factor IS NULL) OR (default_factor > (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_marketing_chk" CHECK (((marketing IS NULL) OR (marketing >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_opex_chk" CHECK (((opex IS NULL) OR (opex >= (0)::numeric)));
 alter table costing_settings add constraint "costing_settings_allowance_chk" CHECK ((itr_allowance >= (0)::numeric));
+alter table costing_settings add constraint "costing_settings_final_vat_chk" CHECK (((final_vat_rate >= (0)::numeric) AND (final_vat_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_itr_chk" CHECK (((itr_rate >= (0)::numeric) AND (itr_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_retention_chk" CHECK (((retention_rate >= (0)::numeric) AND (retention_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_single_chk" CHECK ((id = 1));
 alter table costing_settings add constraint "costing_settings_tax_chk" CHECK (((tax_rate >= (0)::numeric) AND (tax_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_vat_chk" CHECK ((vat_divisor >= (1)::numeric));
-alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text])));
+alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text, 'team_rrd'::text, 'team_ioe'::text, 'markup'::text])));
 alter table costing_signoffs add constraint "costing_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL)) OR ((cleared_at IS NOT NULL) AND (NULLIF(btrim(cleared_reason), ''::text) IS NOT NULL))));
 alter table costing_signoffs add constraint "costing_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'costed'::text, 'evaluation_approved'::text, 'final_approved'::text])));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_abc_chk" CHECK (((abc_unit IS NULL) OR (abc_unit >= (0)::numeric)));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_offer_chk" CHECK (((final_offer_unit IS NULL) OR (final_offer_unit >= (0)::numeric)));
 alter table costing_tender_lines add constraint "costing_tender_lines_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table costing_tender_lines add constraint "costing_tender_lines_source_chk" CHECK ((source = ANY (ARRAY['typed'::text, 'sor_line'::text])));
+alter table costing_tender_lines add constraint "costing_tender_lines_team_chk" CHECK (((evaluating_team IS NULL) OR (evaluating_team = ANY (ARRAY['RRD'::text, 'IOE'::text]))));
 alter table currency_rate_currencies add constraint "currency_rate_currencies_currency_check" CHECK (((currency ~ '^[A-Z]{3}$'::text) AND (currency <> 'PHP'::text)));
 alter table currency_rate_currencies add constraint "currency_rate_currencies_divergence_pct_check" CHECK ((divergence_pct > (0)::numeric));
 alter table currency_rates add constraint "currency_rates_php_per_unit_check" CHECK ((php_per_unit > (0)::numeric));
@@ -2077,7 +2110,7 @@ alter table flow_form_fields add constraint "flow_form_fields_custom_shape_chk" 
 alter table flow_form_fields add constraint "flow_form_fields_default_key_chk" CHECK ((((source = 'default'::text) AND (default_key IS NOT NULL)) OR ((source = 'custom'::text) AND (default_key IS NULL))));
 alter table flow_form_fields add constraint "flow_form_fields_source_chk" CHECK ((source = ANY (ARRAY['default'::text, 'custom'::text])));
 alter table flow_form_fields add constraint "flow_form_fields_type_chk" CHECK (((field_type IS NULL) OR (field_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'choice'::text]))));
-alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text, 'open_purchase_request'::text, 'open_costing_matrix'::text, 'request_packing_list'::text])));
+alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text, 'open_purchase_request'::text, 'open_costing_matrix'::text, 'request_packing_list'::text, 'evaluate_specification'::text])));
 alter table flow_stage_fields add constraint "flow_stage_fields_label_not_blank" CHECK ((btrim(label) <> ''::text));
 alter table flow_stage_fields add constraint "flow_stage_fields_sor_field_chk" CHECK ((((source = 'sor'::text) AND (sor_field IS NOT NULL)) OR ((source = 'custom'::text) AND (sor_field IS NULL))));
 alter table flow_stage_fields add constraint "flow_stage_fields_source_chk" CHECK ((source = ANY (ARRAY['sor'::text, 'custom'::text])));
@@ -2092,6 +2125,7 @@ alter table ipas add constraint "ipas_actual_checking_pair_chk" CHECK (((actual_
 alter table ipas add constraint "ipas_cancelled_chk" CHECK (((state <> 'cancelled'::text) OR ((cancelled_at IS NOT NULL) AND (cancel_reason IS NOT NULL) AND (length(btrim(cancel_reason)) > 0))));
 alter table ipas add constraint "ipas_change_note_chk" CHECK (((odoo_change_note IS NULL) OR (jsonb_typeof(odoo_change_note) = 'object'::text)));
 alter table ipas add constraint "ipas_computation_status_chk" CHECK ((computation_status = ANY (ARRAY['encoding'::text, 'encoded'::text, 'lc_gs_done'::text, 'lc_odoo_done'::text])));
+alter table ipas add constraint "ipas_freight_amount_chk" CHECK (((freight_amount IS NULL) OR (freight_amount >= (0)::numeric)));
 alter table ipas add constraint "ipas_import_clearance_import_chk" CHECK (((source = 'import'::text) OR (import_clearance_on IS NULL)));
 alter table ipas add constraint "ipas_landed_cost_split_chk" CHECK ((landed_cost_split = ANY (ARRAY['value'::text, 'quantity'::text, 'equal'::text])));
 alter table ipas add constraint "ipas_odoo_copy_chk" CHECK ((jsonb_typeof(odoo_copy) = 'object'::text));
@@ -2101,13 +2135,16 @@ alter table ipas add constraint "ipas_pi_qt_amount_chk" CHECK (((pi_qt_amount IS
 alter table ipas add constraint "ipas_po_number_chk" CHECK ((po_number ~ '^P[0-9]+$'::text));
 alter table ipas add constraint "ipas_priority_chk" CHECK ((priority = ANY (ARRAY['very_high'::text, 'high'::text, 'medium'::text])));
 alter table ipas add constraint "ipas_purpose_chk" CHECK ((purpose = ANY (ARRAY['project'::text, 'inventory'::text, 'supplies'::text, 'events'::text])));
+alter table ipas add constraint "ipas_retail_multiplier_chk" CHECK (((retail_multiplier IS NULL) OR (retail_multiplier > (0)::numeric)));
+alter table ipas add constraint "ipas_sor_warning_checked_chk" CHECK (((sor_warning_checked IS NULL) OR (jsonb_typeof(sor_warning_checked) = 'object'::text)));
 alter table ipas add constraint "ipas_source_chk" CHECK ((source = ANY (ARRAY['import'::text, 'local'::text])));
 alter table ipas add constraint "ipas_state_chk" CHECK ((state = ANY (ARRAY['open'::text, 'filed'::text, 'cancelled'::text])));
 alter table ipas add constraint "ipas_supplier_origin_import_chk" CHECK (((source = 'import'::text) OR ((shipped_out_on IS NULL) AND (onboard_on IS NULL) AND (arrived_in_ph_on IS NULL) AND (arrived_in_whs_on IS NULL))));
+alter table ipas add constraint "ipas_wholesale_discount_chk" CHECK (((wholesale_discount_pct >= (0)::numeric) AND (wholesale_discount_pct < (100)::numeric)));
 alter table ipas_bank_details add constraint "ipas_bank_details_account_name_chk" CHECK (((account_name IS NULL) OR (length(account_name) <= 200)));
 alter table ipas_bank_details add constraint "ipas_bank_details_account_number_chk" CHECK (((account_number IS NULL) OR (length(account_number) <= 100)));
 alter table ipas_bank_details add constraint "ipas_bank_details_bank_name_chk" CHECK (((bank_name IS NULL) OR (length(bank_name) <= 200)));
-alter table ipas_charges add constraint "ipas_charges_amount_chk" CHECK ((amount_php > (0)::numeric));
+alter table ipas_charges add constraint "ipas_charges_amount_chk" CHECK (((amount_php IS NULL) OR (amount_php > (0)::numeric)));
 alter table ipas_documents add constraint "ipas_documents_attachment_url_chk" CHECK (((attachment_url IS NULL) OR (attachment_url ~* '^https?://'::text)));
 alter table ipas_documents add constraint "ipas_documents_kind_or_label_chk" CHECK ((((kind_id IS NOT NULL) AND (label IS NULL)) OR ((kind_id IS NULL) AND (label IS NOT NULL) AND (length(btrim(label)) > 0) AND (length(label) <= 200))));
 alter table ipas_events add constraint "ipas_events_detail_chk" CHECK ((jsonb_typeof(detail) = 'object'::text));
@@ -2122,15 +2159,16 @@ alter table ipas_payments add constraint "ipas_payments_amount_chk" CHECK ((amou
 alter table ipas_payments add constraint "ipas_payments_charge_fee_chk" CHECK ((charge_fee_php >= (0)::numeric));
 alter table ipas_payments add constraint "ipas_payments_check_no_chk" CHECK (((check_no IS NULL) OR (length(btrim(check_no)) > 0)));
 alter table ipas_payments add constraint "ipas_payments_kind_chk" CHECK ((kind = ANY (ARRAY['down_payment'::text, 'payment'::text, 'full_payment'::text, 'shipping_fee'::text])));
+alter table ipas_payments add constraint "ipas_payments_money_chk" CHECK ((((forex_rate IS NULL) OR (forex_rate > (0)::numeric)) AND (doc_stamp_php >= (0)::numeric) AND (misc_fee_php >= (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_php_debited_chk" CHECK (((php_debited IS NULL) OR (php_debited > (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_proof_url_chk" CHECK (((proof_url IS NULL) OR (proof_url ~* '^https?://'::text)));
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_action_chk" CHECK ((action = ANY (ARRAY['added'::text, 'removed'::text])));
-alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
-alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
+alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL) AND (cleared_by IS NULL)) OR ((cleared_at IS NOT NULL) AND (cleared_reason IS NOT NULL) AND (length(btrim(cleared_reason)) > 0))));
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
 alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
-alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 6, 7])));
+alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 6, 7, 8])));
 alter table lwop_leaves add constraint "lwop_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table lwop_leaves add constraint "lwop_leaves_hours_check" CHECK ((hours > (0)::numeric));
 alter table lwop_leaves add constraint "lwop_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
@@ -2203,7 +2241,7 @@ alter table sor_stage_participants add constraint "sor_stage_participants_source
 alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_return_choice_check" CHECK ((return_choice = ANY (ARRAY['resume'::text, 'start_fresh'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_check" CHECK ((revert_choice = ANY (ARRAY['keep'::text, 'remove'::text])));
-alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text, 'costing_priced'::text, 'goods_checked'::text, 'orders_filed'::text])));
+alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text, 'costing_priced'::text, 'goods_checked'::text, 'orders_filed'::text, 'costing_evaluation_approved'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_kind_chk" CHECK ((kind = ANY (ARRAY['stage'::text, 'odoo'::text, 'check_by'::text])));
@@ -2263,8 +2301,10 @@ alter table committee_tasks add constraint "committee_tasks_stage_visit_id_fkey"
 alter table committee_tasks add constraint "committee_tasks_template_id_fkey" FOREIGN KEY (template_id) REFERENCES group_task_templates(id) ON DELETE SET NULL;
 alter table costing_bid_decisions add constraint "costing_bid_decisions_decided_by_fkey" FOREIGN KEY (decided_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_bid_decisions add constraint "costing_bid_decisions_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
+alter table costing_bid_decisions add constraint "costing_bid_decisions_unlocked_by_fkey" FOREIGN KEY (unlocked_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_component_costs add constraint "costing_component_costs_acquire_from_offer_id_fkey" FOREIGN KEY (acquire_from_offer_id) REFERENCES sor_canvass_offers(id) ON DELETE SET NULL;
 alter table costing_component_costs add constraint "costing_component_costs_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
+alter table costing_components add constraint "costing_components_complied_by_fkey" FOREIGN KEY (complied_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_components add constraint "costing_components_offer_specification_from_offer_id_fkey" FOREIGN KEY (offer_specification_from_offer_id) REFERENCES sor_canvass_offers(id) ON DELETE SET NULL;
 alter table costing_components add constraint "costing_components_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_components add constraint "costing_components_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
@@ -2274,6 +2314,7 @@ alter table costing_evaluation_settings add constraint "costing_evaluation_setti
 alter table costing_events add constraint "costing_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table costing_events add constraint "costing_events_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_inclusions add constraint "costing_inclusions_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
+alter table costing_landed_defaults add constraint "costing_landed_defaults_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table costing_matrices add constraint "costing_matrices_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
@@ -2766,6 +2807,7 @@ alter table public."costing_cost_rows" enable row level security;
 alter table public."costing_evaluation_settings" enable row level security;
 alter table public."costing_events" enable row level security;
 alter table public."costing_inclusions" enable row level security;
+alter table public."costing_landed_defaults" enable row level security;
 alter table public."costing_markup_presets" enable row level security;
 alter table public."costing_matrices" enable row level security;
 alter table public."costing_matrix_money" enable row level security;
@@ -3238,6 +3280,22 @@ create policy "costing_inclusions_update" on public."costing_inclusions"
   to authenticated
   using ((costing_row_tier('costing_inclusions'::text, jsonb_build_object('component_id', component_id)) IS NOT NULL))
   with check ((costing_row_tier('costing_inclusions'::text, jsonb_build_object('component_id', component_id)) IS NOT NULL));
+create policy "costing_landed_defaults_insert" on public."costing_landed_defaults"
+  as permissive
+  for insert
+  to authenticated
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
+create policy "costing_landed_defaults_read" on public."costing_landed_defaults"
+  as permissive
+  for select
+  to authenticated
+  using ((get_employee_id() IS NOT NULL));
+create policy "costing_landed_defaults_update" on public."costing_landed_defaults"
+  as permissive
+  for update
+  to authenticated
+  using ((has_purchasing_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
 create policy "costing_markup_presets_insert" on public."costing_markup_presets"
   as permissive
   for insert
@@ -4733,6 +4791,7 @@ AS $function$
       or public._ipas_on_list('s7_noted', p_employee_id)
       or public._ipas_on_list('s7_checked', p_employee_id)
       or public._ipas_on_list('s7_approved', p_employee_id)
+    when p_section = 8 then public._ipas_on_list('logistics_signed', p_employee_id)
     else false
   end;
 $function$
@@ -5169,10 +5228,10 @@ AS $function$
     select count(distinct s.section)
       from public.ipas_signoffs s
      where s.ipas_id = p_ipas_id
-       and s.section in (1, 3, 6)
+       and s.section in (1, 3, 6, 8)
        and s.role = 'approved'
        and s.cleared_at is null
-  ) = 3;
+  ) = 4;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
@@ -5204,6 +5263,7 @@ declare
   v_charges   numeric;
   v_fees      numeric;
   v_shipping  numeric;
+  v_freight   numeric := 0;
   v_pool      numeric;
   v_lines     jsonb;
   v_goods     numeric;
@@ -5257,16 +5317,17 @@ begin
     v_foreign := 0;
     v_payments := 0;
     for r in
-      select p.id, p.kind, p.paid_on, p.amount, p.php_debited
+      select p.id, p.kind, p.paid_on, p.amount,
+             case when p.forex_rate > 0 then round(p.amount * p.forex_rate, 2) else p.php_debited end as pesos
       from public.ipas_payments p
       where p.ipas_id = p_ipas_id and p.amount > 0
       order by p.paid_on, p.id
     loop
       v_payments := v_payments + 1;
       v_foreign := v_foreign + r.amount;
-      if r.php_debited > 0 then
-        v_est_php := r.php_debited;
-        v_php_paid := v_php_paid + r.php_debited;
+      if r.pesos > 0 then
+        v_est_php := r.pesos;
+        v_php_paid := v_php_paid + r.pesos;
       else
         v_ref := null;
         select rr.php_per_unit, rr.rate_date into v_ref, v_ref_date
@@ -5301,14 +5362,32 @@ begin
   select
     coalesce(sum(round(coalesce(p.charge_fee_php, 0) * 100)), 0),
     coalesce(sum(case when p.kind = 'shipping_fee'
-      then round(coalesce(case when v_php then p.amount else p.php_debited end, 0) * 100) else 0 end), 0)
+      then round(coalesce(case when v_php then p.amount else case when p.forex_rate > 0 then round(p.amount * p.forex_rate, 2) else p.php_debited end end, 0) * 100) else 0 end), 0)
     into v_fees, v_shipping
   from public.ipas_payments p where p.ipas_id = p_ipas_id;
   -- A foreign payment's shipping fee is its pesos, or its estimated pesos while those are blank.
   if not v_php then
     v_shipping := v_ship_c;
   end if;
-  v_pool := v_charges + v_fees + v_shipping;
+  -- Freight (#709). Its own amount is the freight when one is typed; the older shipping-fee payments
+  -- then no longer count (they would be the same freight twice). Freight the supplier billed is
+  -- already inside the payments, so nothing is added for it. Freight in the PO's currency converts
+  -- at the blended rate; a peso freight is taken as it is; any other currency can't be converted.
+  if v_ipas.freight_amount is not null then
+    v_shipping := 0;
+    if upper(btrim(coalesce(v_ipas.freight_currency, 'PHP'))) <> 'PHP'
+       and (v_php or upper(btrim(v_ipas.freight_currency)) <> upper(btrim(coalesce(v_currency, '')))) then
+      return v_base || jsonb_build_object('status', 'unavailable', 'reason', 'freight_currency');
+    end if;
+    if not coalesce(v_ipas.freight_billed_by_supplier, false) then
+      if upper(btrim(coalesce(v_ipas.freight_currency, 'PHP'))) = 'PHP' then
+        v_freight := round(v_ipas.freight_amount * 100);
+      else
+        v_freight := round(v_ipas.freight_amount * v_rate * 100);
+      end if;
+    end if;
+  end if;
+  v_pool := v_charges + v_freight + v_fees + v_shipping;
 
   with lines as (
     select e.ord, e.l as line,
@@ -5374,6 +5453,7 @@ begin
     'totals', jsonb_build_object(
       'goodsPhp', v_goods / 100,
       'chargesPhp', v_charges / 100,
+      'freightPhp', v_freight / 100,
       'chargeFeesPhp', v_fees / 100,
       'shippingFeesPhp', v_shipping / 100,
       'spreadPhp', v_pool / 100,
@@ -5485,6 +5565,82 @@ begin
     raise exception '%: % is cancelled', p_fn, v_row.number using errcode = '22023';
   end if;
   return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_logistics_missing(p_ipas_id uuid)
+ RETURNS text[]
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select array_remove(array[
+    case when i.item_location_id is null and not exists (
+      select 1 from public.transmittal_ipas ti
+        join public.transmittals t on t.id = ti.transmittal_id
+       where ti.ipas_id = i.id and t.item_location_id is not null
+    ) then 'the Item Location' end,
+    case when not exists (select 1 from public.transmittal_ipas ti where ti.ipas_id = i.id)
+      then 'a Transmittal' end,
+    case when i.arrived_in_whs_on is null then 'the received date' end
+  ], null)
+  from public.ipas i
+  where i.id = p_ipas_id;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_missing_documents(p_ipas_id uuid, p_section integer)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_source text;
+  v_kinds text[];
+  v_kind text;
+  v_missing text[] := '{}';
+  v_pay record;
+begin
+  select source into v_source from public.ipas where id = p_ipas_id;
+  if v_source is null then
+    return '[]'::jsonb;
+  end if;
+
+  if p_section = 3 then
+    for v_pay in
+      select paid_on from public.ipas_payments
+       where ipas_id = p_ipas_id and proof_url is null
+       order by paid_on, created_at
+    loop
+      v_missing := v_missing || ('Proof of payment of ' || to_char(v_pay.paid_on, 'Mon DD, YYYY'));
+    end loop;
+    return to_jsonb(v_missing);
+  end if;
+
+  v_kinds := case p_section
+    when 1 then case when v_source = 'import' then array['Proforma Invoice'] else array['Quotation (Local)'] end
+    when 6 then case when v_source = 'import'
+                     then array['BL or Waybill', 'Packing List', 'Commercial Invoice', 'Freight Billing']
+                     else '{}'::text[] end
+    when 7 then array['BIR 2307']
+    else '{}'::text[]
+  end;
+
+  foreach v_kind in array v_kinds loop
+    if not exists (
+      select 1
+        from public.ipas_documents d
+        join public.ipas_options o on o.id = d.kind_id
+       where d.ipas_id = p_ipas_id
+         and o.list = 'document_kind'
+         and lower(btrim(o.label)) = lower(v_kind)
+         and d.attachment_url is not null
+    ) then
+      v_missing := v_missing || v_kind;
+    end if;
+  end loop;
+
+  return to_jsonb(v_missing);
 end;
 $function$
 ;
@@ -5662,7 +5818,25 @@ CREATE OR REPLACE FUNCTION public._ipas_section_no(p_section integer)
  IMMUTABLE
  SET search_path TO 'public'
 AS $function$
-  select case p_section when 3 then 2 when 6 then 3 when 7 then 4 else p_section end;
+  select case p_section when 3 then 2 when 6 then 3 when 7 then 4 when 8 then 6 else p_section end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_seed_blank_charges()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.source = 'import' then
+    insert into public.ipas_charges (ipas_id, kind_id, charged_on, amount_php)
+    select new.id, o.id, null, null
+      from public.ipas_options o
+     where o.list = 'charge_kind' and o.active
+     order by o.sort, o.label;
+  end if;
+  return new;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_seed_s6_approved()
@@ -5687,6 +5861,55 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_signoff_charges_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_blank integer;
+  v_nofile integer;
+begin
+  if new.section = 6 and new.role = 'prepared' then
+    select count(*) filter (where amount_php is null),
+           count(*) filter (where amount_php is not null and attachment_url is null)
+      into v_blank, v_nofile
+      from public.ipas_charges where ipas_id = new.ipas_id;
+    if v_blank > 0 then
+      raise exception 'ipas_sign: % charge(s) are blank. Fill each in or remove it first', v_blank
+        using errcode = '22023';
+    end if;
+    if v_nofile > 0 then
+      raise exception 'ipas_sign: % charge(s) with an amount have no file', v_nofile
+        using errcode = '22023';
+    end if;
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_signoff_documents_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_missing jsonb;
+begin
+  if (new.section in (1, 3, 6) and new.role = 'prepared')
+     or (new.section = 7 and new.role = 'received') then
+    v_missing := public._ipas_missing_documents(new.ipas_id, new.section::integer);
+    if jsonb_array_length(v_missing) > 0 then
+      raise exception 'ipas_sign: section % needs % first',
+        public._ipas_section_no(new.section::integer),
+        (select string_agg(x, ', ') from jsonb_array_elements_text(v_missing) as x)
+        using errcode = '22023';
+    end if;
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_signoff_list_key(p_section integer, p_role text)
  RETURNS text
  LANGUAGE sql
@@ -5700,8 +5923,28 @@ AS $function$
     when p_section = 7 and p_role = 'noted' then 's7_noted'
     when p_section = 7 and p_role = 'checked' then 's7_checked'
     when p_section = 7 and p_role = 'approved' then 's7_approved'
+    when p_section = 8 and p_role = 'approved' then 'logistics_signed'
     else null
   end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_signoff_logistics_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_missing text[];
+begin
+  if new.section = 8 then
+    v_missing := public._ipas_logistics_missing(new.ipas_id);
+    if coalesce(array_length(v_missing, 1), 0) > 0 then
+      raise exception 'ipas_sign: Logistics needs % first', array_to_string(v_missing, ', ')
+        using errcode = '22023';
+    end if;
+  end if;
+  return new;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_signoff_pair_ok(p_section integer, p_role text)
@@ -5710,7 +5953,8 @@ CREATE OR REPLACE FUNCTION public._ipas_signoff_pair_ok(p_section integer, p_rol
  IMMUTABLE
 AS $function$
   select (p_section in (1, 3, 6) and p_role in ('prepared', 'approved'))
-      or (p_section = 7 and p_role in ('received', 'noted', 'checked', 'approved'));
+      or (p_section = 7 and p_role in ('received', 'noted', 'checked', 'approved'))
+      or (p_section = 8 and p_role = 'approved');
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_suggest_documents(p_ipas_id uuid, p_actor uuid)
@@ -9377,6 +9621,41 @@ exception when others then
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_compliance_team_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_team  text;
+  v_actor uuid := public.get_employee_id();
+begin
+  if (new.compliance is not distinct from old.compliance)
+     and (new.compliance_note is not distinct from old.compliance_note)
+     and (new.recommended_alternative is not distinct from old.recommended_alternative) then
+    return new;
+  end if;
+  if auth.uid() is null
+     or coalesce(auth.role(), '') = 'service_role'
+     or coalesce(current_setting('costing.bypass', true), '') = 'on' then
+    return new;
+  end if;
+
+  select l.evaluating_team into v_team from public.costing_tender_lines l where l.id = new.tender_line_id;
+  if v_team is null then
+    raise exception 'costing_team: name the team (RRD or IOE) that judges this row first' using errcode = '42501';
+  end if;
+  if not public.costing_on_list('team_' || lower(v_team)) then
+    raise exception 'costing_team: only the % team can mark this row', v_team using errcode = '42501';
+  end if;
+  if new.compliance is distinct from old.compliance or new.compliance_note is distinct from old.compliance_note then
+    new.complied_by := v_actor;
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_component_delete_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -9614,6 +9893,10 @@ begin
   -- One decision at a time per matrix (ADR 0013).
   perform 1 from public.costing_matrices where id = p_matrix_id for update;
 
+  if exists (select 1 from public.costing_bid_decisions where matrix_id = p_matrix_id and cleared_at is null and verdict = 'go') then
+    raise exception 'costing_bid: the sheet is locked by a Go. Unlock it first' using errcode = '22023';
+  end if;
+
   select * into v_totals from public.costing_bid_totals(p_matrix_id);
   if v_totals.line_count = 0 or v_totals.missing_offer > 0 then
     raise exception 'costing_bid: every Tender Line needs a Final Offer before the bid can be decided' using errcode = '22023';
@@ -9623,15 +9906,14 @@ begin
      set cleared_at = now(), cleared_reason = 'Decided again'
    where matrix_id = p_matrix_id and cleared_at is null;
 
-  insert into public.costing_bid_decisions (matrix_id, verdict, reason, decided_by, final_offer_total, abc_total)
-  values (p_matrix_id, p_verdict, btrim(p_reason), v_actor, v_totals.final_offer_total, v_totals.abc_total)
+  insert into public.costing_bid_decisions (matrix_id, verdict, reason, decided_by, final_offer_total, abc_total, planned_cost_total)
+  values (p_matrix_id, p_verdict, btrim(p_reason), v_actor, v_totals.final_offer_total, v_totals.abc_total,
+          public.costing_planned_cost_total(p_matrix_id))
   returning id into v_id;
 
   if p_verdict in ('no_go', 'revise') then
     select o.project_title into v_title from public.sales_opportunities o where o.id = v_opp;
     v_label := case p_verdict when 'no_go' then 'No-go' else 'Revise' end;
-    -- The Deal Team, once each, never the decider. The message carries the verdict and the
-    -- reason, and no figure: Sales never reads the numbers a decision was taken against.
     for v_member in
       select distinct t.employee_id
       from public.sales_opportunities o
@@ -9817,6 +10099,7 @@ begin
   if not public.costing_actor_can_fill(p_opportunity_id, p_actor) then
     raise exception 'costing_fill: only Sales or Purchasing can fill the matrix from Odoo' using errcode = '42501';
   end if;
+  perform set_config('costing.fill_source', 'odoo', true);
   for v_target in select * from public.costing_odoo_cost_targets(p_actor, p_opportunity_id) loop
     v_cost := nullif(p_costs ->> v_target.odoo_product_id::text, '')::numeric;
     if v_cost is null or v_cost <= 0 then
@@ -9830,6 +10113,7 @@ begin
           acquire_unit = coalesce(public.costing_component_costs.acquire_unit, excluded.acquire_unit);
     v_filled := v_filled + 1;
   end loop;
+  perform set_config('costing.fill_source', '', true);
   return v_filled;
 end;
 $function$
@@ -9913,6 +10197,7 @@ AS $function$
     when 'technical' then coalesce(public.is_super_admin(), false) or public.costing_is_technical(p_opportunity_id)
     when 'finance' then public.has_finance_access() or public.costing_on_list('final_acquire')
     when 'super_admin_only' then coalesce(public.is_super_admin(), false)
+    when 'markup' then coalesce(public.is_super_admin(), false) or public.costing_on_list('markup')
     else false
   end
 $function$
@@ -9970,6 +10255,8 @@ CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
  SET search_path TO 'public'
 AS $function$
   select public.has_purchasing_access()
+    or public.costing_on_list('team_rrd')
+    or public.costing_on_list('team_ioe')
     or exists (
       select 1
       from public.committee_tasks t
@@ -10069,6 +10356,17 @@ AS $function$
       when per.unavailable or per.total is null then 'landed_cost_unavailable'
     end as reason
   ) r
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_landed_defaults_stamp()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  new.updated_at = now();
+  new.updated_by = coalesce(public.get_employee_id(), new.updated_by);
+  return new;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_log_final_offer_change()
@@ -10220,6 +10518,20 @@ AS $function$
   where l.id = p_tender_line_id
     and l.source = 'sor_line'
     and not sl.removed_from_s0
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_matrices_default_addon()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.import_addon_percent is null then
+    new.import_addon_percent := (select import_addon_percent from public.costing_landed_defaults where id);
+  end if;
+  return new;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_matrix_backfill(p_dry_run boolean DEFAULT true)
@@ -10552,7 +10864,7 @@ begin
 
   -- The write bands the caller is in, so the screen can show a cell read-only.
   select coalesce(array_agg(b), '{}') into v_bands
-    from unnest(array['sales', 'purchasing', 'management', 'technical', 'finance', 'super_admin_only']) b
+    from unnest(array['sales', 'purchasing', 'management', 'technical', 'finance', 'super_admin_only', 'markup']) b
    where public.costing_in_band(p_opportunity_id, b);
 
   return jsonb_build_object('tier', v_tier, 'matrix_id', v_matrix, 'bands', to_jsonb(v_bands), 'tables', v_tables);
@@ -10791,6 +11103,26 @@ AS $function$
   where e.key = any (p_cols)
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_planned_cost_total(p_matrix_id uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case when count(*) > 0 and bool_and(x.fa is not null) then sum(round(x.fa * x.q, 2)) end
+  from (
+    select cc.final_acquire_unit as fa, c.quantity as q
+    from public.costing_components c
+    join public.costing_tender_lines t on t.id = c.tender_line_id
+    left join public.costing_component_costs cc on cc.component_id = c.id
+    where t.matrix_id = p_matrix_id
+    union all
+    select r.final_acquire_unit, r.quantity
+    from public.costing_cost_rows r
+    where r.matrix_id = p_matrix_id
+  ) x
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_quotation_price_unit(p_tender_line_id uuid)
  RETURNS numeric
  LANGUAGE sql
@@ -10800,6 +11132,31 @@ AS $function$
   select sl.unit_price
   from public.sales_opportunity_items sl
   where sl.id = public.costing_matching_sor_line(p_tender_line_id)
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_refuse_when_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row    jsonb := case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end;
+  v_matrix uuid;
+begin
+  if auth.uid() is null or coalesce(auth.role(), '') = 'service_role' then
+    return case when tg_op = 'DELETE' then old else new end;
+  end if;
+  v_matrix := public.costing_matrix_of(tg_table_name, v_row);
+  -- The matrix is going (an SOR cascade): nothing left to protect.
+  if v_matrix is not null
+     and exists (select 1 from public.costing_matrices where id = v_matrix)
+     and exists (select 1 from public.costing_bid_decisions d
+                  where d.matrix_id = v_matrix and d.cleared_at is null and d.verdict = 'go') then
+    raise exception 'costing_bid: the sheet is locked by a Go. Unlock it, with a reason, to change it' using errcode = '42501';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_remove_cost_row(p_row_id uuid)
@@ -10862,6 +11219,26 @@ CREATE OR REPLACE FUNCTION public.costing_row_tier(p_table text, p_row jsonb)
  SET search_path TO 'public'
 AS $function$
   select public.costing_tier(public.costing_matrix_opp(public.costing_matrix_of(p_table, p_row)))
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_set_acquire_source()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.acquire_unit is null then
+    new.acquire_source := null;
+  elsif new.acquire_from_offer_id is not null then
+    new.acquire_source := 'canvass';
+  elsif tg_op = 'INSERT'
+        or new.acquire_unit is distinct from old.acquire_unit
+        or new.acquire_source is null
+        or new.acquire_source = 'canvass' then
+    -- Typed, unless Odoo is filling; a figure whose Canvass claim was dropped is now typed.
+    new.acquire_source := case when coalesce(current_setting('costing.fill_source', true), '') = 'odoo' then 'odoo' else 'typed' end;
+  end if;
+  return new;
+end
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_set_money(p_table text, p_row uuid, p_patch jsonb)
@@ -11122,6 +11499,14 @@ begin
   end if;
 
   if p_role = 'evaluation_approved' then
+    if exists (
+      select 1
+      from public.costing_components c
+      join public.costing_tender_lines l on l.id = c.tender_line_id
+      where l.matrix_id = p_matrix_id and c.complied_by = v_actor
+    ) then
+      raise exception 'costing_sign: you marked some of these rows, so someone else has to approve the evaluation' using errcode = '42501';
+    end if;
     select count(*) into v_missing
     from public.costing_components c
     join public.costing_tender_lines l on l.id = c.tender_line_id
@@ -11227,7 +11612,7 @@ CREATE OR REPLACE FUNCTION public.costing_tier(p_opportunity_id uuid)
 AS $function$
   select case
     when not exists (select 1 from public.sales_opportunities o where o.id = p_opportunity_id) then null
-    when public.costing_on_list('final_acquire') or public.costing_is_open(p_opportunity_id) then 'closed_book'
+    when public.costing_is_open(p_opportunity_id) then 'closed_book'
     when exists (
       select 1 from public.sales_opportunities o
       where o.id = p_opportunity_id
@@ -11242,7 +11627,7 @@ AS $function$
         and p.employee_id = public.get_employee_id()
         and p.closed_at is null
     ) then 'participant'
-    when public.costing_on_list('evaluation')
+    when (public.costing_on_list('evaluation') or public.costing_on_list('team_rrd') or public.costing_on_list('team_ioe'))
       and exists (select 1 from public.costing_matrices m where m.opportunity_id = p_opportunity_id)
     then 'participant'
     else null
@@ -11256,6 +11641,43 @@ AS $function$
 begin
   new.updated_at = now();
   return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_unlock_bid(p_matrix_id uuid, p_reason text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_opp   uuid := public.costing_matrix_opp(p_matrix_id);
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'costing_bid: sign in first' using errcode = '42501';
+  end if;
+  if v_opp is null then
+    raise exception 'costing_bid: matrix not found' using errcode = '22023';
+  end if;
+  if not (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire')) then
+    raise exception 'costing_bid: only a Super Admin or the people on the decider''s list can unlock a bid' using errcode = '42501';
+  end if;
+  if p_reason is null or length(btrim(p_reason)) = 0 then
+    raise exception 'costing_bid: write the reason for unlocking' using errcode = '22023';
+  end if;
+
+  perform 1 from public.costing_matrices where id = p_matrix_id for update;
+
+  update public.costing_bid_decisions
+     set cleared_at = now(), cleared_reason = 'Unlocked: ' || btrim(p_reason), unlocked_by = v_actor
+   where matrix_id = p_matrix_id and cleared_at is null and verdict = 'go'
+  returning id into v_id;
+  if v_id is null then
+    raise exception 'costing_bid: there is no Go to unlock' using errcode = '22023';
+  end if;
+  return v_id;
 end;
 $function$
 ;
@@ -13878,6 +14300,15 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_can_set_markup()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.is_super_admin(), false) or public.costing_on_list('markup')
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_cancel(p_ipas_id uuid, p_reason text)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -14051,6 +14482,50 @@ begin
     );
   end if;
   return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_fill_charge(p_charge_id uuid, p_charged_on date, p_amount_php numeric, p_attachment_url text)
+ RETURNS ipas_charges
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_money_writer('ipas_fill_charge');
+  v_ipas_id uuid;
+  v_ipas public.ipas;
+  v_before public.ipas_charges;
+  v_row public.ipas_charges;
+  v_amount numeric := round(p_amount_php, 2);
+  v_url text := nullif(btrim(coalesce(p_attachment_url, '')), '');
+begin
+  select ipas_id into v_ipas_id from public.ipas_charges where id = p_charge_id;
+  if v_ipas_id is null then
+    raise exception 'ipas_fill_charge: charge % not found', p_charge_id using errcode = 'P0002';
+  end if;
+  v_ipas := public._ipas_lock_open('ipas_fill_charge', v_ipas_id);
+  select * into v_before from public.ipas_charges where id = p_charge_id for update;
+  if v_amount is not null and v_amount <= 0 then
+    raise exception 'ipas_fill_charge: the amount must be more than zero' using errcode = '22023';
+  end if;
+  if v_before.charged_on is not distinct from p_charged_on
+     and v_before.amount_php is not distinct from v_amount
+     and v_before.attachment_url is not distinct from v_url then
+    return v_before;
+  end if;
+
+  update public.ipas_charges
+     set charged_on = p_charged_on, amount_php = v_amount, attachment_url = v_url
+   where id = v_before.id
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'charge_changed', jsonb_build_object(
+    'charge_id', v_row.id,
+    'kind', (select o.label from public.ipas_options o where o.id = v_row.kind_id),
+    'changes', jsonb_build_object('amount_php', jsonb_build_object('from', v_before.amount_php, 'to', v_amount))
+  ));
+  return v_row;
 end;
 $function$
 ;
@@ -14250,6 +14725,52 @@ AS $function$
   from lc
   cross join lateral jsonb_array_elements(lc.r -> 'lines') as l
   where lc.r ->> 'status' <> 'unavailable'
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_mark_sor_warning_checked(p_ipas_id uuid, p_references text[], p_reason text)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.ipas;
+  v_reason text := nullif(btrim(p_reason), '');
+  v_refs text[] := coalesce(p_references, '{}'::text[]);
+begin
+  if v_actor is null then
+    raise exception 'ipas_mark_sor_warning_checked: not signed in' using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception 'ipas_mark_sor_warning_checked: only Purchasing marks the S0 warning checked' using errcode = '42501';
+  end if;
+  if v_reason is null then
+    raise exception 'ipas_mark_sor_warning_checked: give the reason' using errcode = '22023';
+  end if;
+
+  -- Open IPAS only: _ipas_lock_open refuses a filed or cancelled one.
+  perform public._ipas_lock_open('ipas_mark_sor_warning_checked', p_ipas_id);
+
+  update public.ipas
+     set sor_warning_checked = jsonb_build_object(
+           'references', to_jsonb(v_refs),
+           'reason', v_reason,
+           'by', v_actor,
+           'at', now()
+         )
+   where id = p_ipas_id
+  returning * into v_row;
+
+  perform public._ipas_write_event(
+    v_row.id,
+    v_actor,
+    'sor_warning_checked',
+    jsonb_build_object('references', to_jsonb(v_refs), 'reason', v_reason)
+  );
+
+  return v_row;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_next_number()
@@ -14922,6 +15443,49 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text)
+ RETURNS ipas_payments
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ipas public.ipas;
+  v_php boolean;
+  v_rate numeric := round(p_forex_rate, 6);
+  v_pesos numeric;
+  v_row public.ipas_payments;
+begin
+  if p_payment_id is null then
+    v_ipas := public._ipas_lock_open('ipas_save_payment', p_ipas_id);
+  else
+    select i.* into v_ipas
+      from public.ipas i join public.ipas_payments p on p.ipas_id = i.id
+     where p.id = p_payment_id;
+    if v_ipas.id is null then
+      raise exception 'ipas_save_payment: payment % not found', p_payment_id using errcode = '22023';
+    end if;
+  end if;
+  v_php := upper(btrim(coalesce(v_ipas.odoo_copy #>> '{po,currency}', ''))) = 'PHP';
+  if v_php then
+    v_rate := null;
+  elsif v_rate is not null and v_rate <= 0 then
+    raise exception 'ipas_save_payment: the forex rate must be more than zero' using errcode = '22023';
+  end if;
+  v_pesos := case when v_rate is null then null else round(p_amount * v_rate, 2) end;
+
+  -- One transaction: if any step refuses, nothing is kept.
+  if p_payment_id is null then
+    v_row := public.ipas_add_payment(v_ipas.id, p_kind, p_paid_on, p_amount, v_pesos, p_charge_fee_php,
+                                     p_method_id, p_check_no, p_proof_url);
+  else
+    v_row := public.ipas_update_payment(p_payment_id, p_kind, p_paid_on, p_amount, v_pesos, p_charge_fee_php,
+                                        p_method_id, p_check_no, p_proof_url);
+  end if;
+  return public.ipas_set_payment_money(v_row.id, v_rate, p_doc_stamp_php, p_misc_fee_php);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_send_back(p_ipas_id uuid, p_section integer, p_reason text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -15211,6 +15775,56 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_set_freight(p_ipas_id uuid, p_amount numeric, p_currency text, p_billed_by_supplier boolean, p_attachment_url text)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_money_writer('ipas_set_freight');
+  v_ipas public.ipas;
+  v_amount numeric := round(p_amount, 2);
+  v_currency text := nullif(upper(btrim(coalesce(p_currency, ''))), '');
+  v_po text;
+  v_url text := nullif(btrim(coalesce(p_attachment_url, '')), '');
+  v_row public.ipas;
+begin
+  v_ipas := public._ipas_lock_open('ipas_set_freight', p_ipas_id);
+  v_po := upper(btrim(coalesce(v_ipas.odoo_copy #>> '{po,currency}', '')));
+  if v_amount is not null and v_amount < 0 then
+    raise exception 'ipas_set_freight: the freight can''t be negative' using errcode = '22023';
+  end if;
+  if v_amount is not null and v_currency is null then
+    v_currency := 'PHP';
+  end if;
+  if v_amount is not null and v_currency <> 'PHP' and v_currency is distinct from v_po then
+    raise exception 'ipas_set_freight: freight can only be in pesos or in the PO''s currency (%)',
+      coalesce(nullif(v_po, ''), 'PHP') using errcode = '22023';
+  end if;
+  if v_ipas.freight_amount is not distinct from v_amount
+     and v_ipas.freight_currency is not distinct from v_currency
+     and v_ipas.freight_billed_by_supplier = coalesce(p_billed_by_supplier, false)
+     and v_ipas.freight_attachment_url is not distinct from v_url then
+    return v_ipas;
+  end if;
+
+  update public.ipas
+     set freight_amount = v_amount,
+         freight_currency = v_currency,
+         freight_billed_by_supplier = coalesce(p_billed_by_supplier, false),
+         freight_attachment_url = v_url
+   where id = v_ipas.id
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'header_changed', jsonb_build_object(
+    'changes', jsonb_build_object('freight', jsonb_build_object(
+      'from', v_ipas.freight_amount, 'to', v_amount))
+  ));
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_set_header(p_ipas_id uuid, p_fields jsonb)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -15442,6 +16056,47 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_set_markup(p_ipas_id uuid, p_multiplier numeric, p_discount_pct numeric)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ipas public.ipas;
+  v_row public.ipas;
+  v_mult numeric := case when p_multiplier is null then null else round(p_multiplier, 4) end;
+  v_disc numeric := round(coalesce(p_discount_pct, 30), 2);
+begin
+  if not public.ipas_can_set_markup() then
+    raise exception 'ipas_set_markup: only the Markup list can set the multiplier and the discount' using errcode = '42501';
+  end if;
+  select * into v_ipas from public.ipas where id = p_ipas_id for update;
+  if v_ipas.id is null then
+    raise exception 'ipas_set_markup: IPAS % not found', p_ipas_id using errcode = 'P0002';
+  end if;
+  if v_mult is not null and v_mult <= 0 then
+    raise exception 'ipas_set_markup: the multiplier must be more than zero' using errcode = '22023';
+  end if;
+  if v_disc < 0 or v_disc >= 100 then
+    raise exception 'ipas_set_markup: the discount must be from 0 up to 100' using errcode = '22023';
+  end if;
+  if v_ipas.retail_multiplier is not distinct from v_mult and v_ipas.wholesale_discount_pct = v_disc then
+    return v_ipas;
+  end if;
+
+  update public.ipas set retail_multiplier = v_mult, wholesale_discount_pct = v_disc
+   where id = v_ipas.id returning * into v_row;
+
+  perform public._ipas_write_event(v_ipas.id, public.get_employee_id(), 'header_changed', jsonb_build_object(
+    'changes', jsonb_build_object(
+      'retail_multiplier', jsonb_build_object('from', v_ipas.retail_multiplier, 'to', v_mult),
+      'wholesale_discount_pct', jsonb_build_object('from', v_ipas.wholesale_discount_pct, 'to', v_disc))
+  ));
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_set_next_number(p_number bigint)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -15554,6 +16209,56 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_set_payment_money(p_payment_id uuid, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric)
+ RETURNS ipas_payments
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_money_writer('ipas_set_payment_money');
+  v_ipas_id uuid;
+  v_before public.ipas_payments;
+  v_row public.ipas_payments;
+  v_rate numeric := round(p_forex_rate, 6);
+  v_stamp numeric := round(coalesce(p_doc_stamp_php, 0), 2);
+  v_misc numeric := round(coalesce(p_misc_fee_php, 0), 2);
+begin
+  select ipas_id into v_ipas_id from public.ipas_payments where id = p_payment_id;
+  if v_ipas_id is null then
+    raise exception 'ipas_set_payment_money: payment % not found', p_payment_id using errcode = '22023';
+  end if;
+  perform public._ipas_lock_open('ipas_set_payment_money', v_ipas_id);
+  select * into v_before from public.ipas_payments where id = p_payment_id for update;
+  if v_rate is not null and v_rate <= 0 then
+    raise exception 'ipas_set_payment_money: the forex rate must be more than zero' using errcode = '22023';
+  end if;
+  if v_stamp < 0 or v_misc < 0 then
+    raise exception 'ipas_set_payment_money: a fee can''t be negative' using errcode = '22023';
+  end if;
+  if v_before.forex_rate is not distinct from v_rate
+     and v_before.doc_stamp_php = v_stamp and v_before.misc_fee_php = v_misc then
+    return v_before;
+  end if;
+
+  update public.ipas_payments
+     set forex_rate = v_rate, doc_stamp_php = v_stamp, misc_fee_php = v_misc
+   where id = v_before.id
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_ipas_id, v_actor, 'payment_changed', jsonb_build_object(
+    'payment_id', v_row.id,
+    'kind', v_row.kind,
+    'changes', jsonb_build_object(
+      'forex_rate', jsonb_build_object('from', v_before.forex_rate, 'to', v_rate),
+      'doc_stamp_php', jsonb_build_object('from', v_before.doc_stamp_php, 'to', v_stamp),
+      'misc_fee_php', jsonb_build_object('from', v_before.misc_fee_php, 'to', v_misc)
+    )
+  ));
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_set_purpose_and_sors(p_ipas_id uuid, p_purpose text, p_sor_ids uuid[])
  RETURNS ipas
  LANGUAGE plpgsql
@@ -15653,7 +16358,7 @@ begin
     raise exception 'ipas_set_signer_list: only a Super Admin changes who is on a sign-off list' using errcode = '42501';
   end if;
   if p_list_key is null or p_list_key not in (
-    's1_approved', 's3_approved', 's6_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved',
+    's1_approved', 's3_approved', 's6_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved', 'logistics_signed',
     'transmittal_warehouse', 'transmittal_technical', 'transmittal_logistics', 'transmittal_check_by'
   ) then
     raise exception 'ipas_set_signer_list: % isn''t a sign-off list', coalesce(p_list_key, 'null') using errcode = '22023';
@@ -15896,7 +16601,7 @@ begin
     -- Approved waits for section 3 too, and so does a Noted or Checked not yet given
     -- (#590); the ones already given stay.
     if not public._ipas_filing_open(v_ipas.id) then
-      raise exception 'ipas_sign: section % opens once sections %, % and % are approved', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6) using errcode = '22023';
+      raise exception 'ipas_sign: section % opens once sections %, %, % and % are signed', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6), public._ipas_section_no(8) using errcode = '22023';
     end if;
 
     -- Received first; Noted and Checked after it, in any order.
@@ -15957,7 +16662,7 @@ begin
     -- the person who just prepared it).
     v_stage := 'section_prepared';
     v_notify := public._ipas_list_members(array[public._ipas_signoff_list_key(p_section, 'approved')], v_actor);
-  elsif p_section in (1, 3, 6) then
+  elsif p_section in (1, 3, 6, 8) then
     -- This section is approved. When it was the last of sections 1, 2 and 3 and
     -- section 7 hasn't started, section 7 is ready for Received (#590).
     if public._ipas_filing_open(v_ipas.id)
@@ -20826,6 +21531,7 @@ begin
   where id = p_run_id
   returning * into v_row;
 
+
   return v_row;
 end;
 $function$
@@ -21386,8 +22092,8 @@ begin
   end if;
 
   v_action := public._sor_action_run_saved_action(p_run_id);
-  if v_action->>'kind' is distinct from 'open_costing_matrix' then
-    raise exception 'sor_open_costing_matrix: run % is not an Open Costing Matrix action', p_run_id
+  if v_action->>'kind' is null or v_action->>'kind' not in ('open_costing_matrix', 'evaluate_specification') then
+    raise exception 'sor_open_costing_matrix: run % is not an Open Costing Matrix or Evaluation of Specification action', p_run_id
       using errcode = '22023';
   end if;
 
@@ -22782,10 +23488,10 @@ begin
           'kind', 'open_purchase_request',
           'request_id', public.sor_open_purchase_request(v_run.id, coalesce(v_action->'purchase_request', '{}'::jsonb))
         );
-      elsif v_action->>'kind' = 'open_costing_matrix' then
+      elsif v_action->>'kind' in ('open_costing_matrix', 'evaluate_specification') then
         v_created := v_created || jsonb_build_object(
           'action_id', v_action->>'action_id',
-          'kind', 'open_costing_matrix',
+          'kind', v_action->>'kind',
           'matrix_id', public.sor_open_costing_matrix(v_run.id, '{}'::jsonb)
         );
       elsif v_action->>'kind' = 'request_packing_list' then
@@ -25479,21 +26185,26 @@ CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.c
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_component AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'An Acquire changed', 'acquire_unit');
 CREATE TRIGGER costing_print_clear_factor AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'A markup factor changed', 'markup_factor');
 CREATE TRIGGER costing_print_clear_final_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('final_approved', 'A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER trg_canvass_null_fill_mark BEFORE UPDATE OF acquire_unit ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION canvass_null_fill_mark();
+CREATE TRIGGER trg_costing_acquire_source BEFORE INSERT OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_set_acquire_source();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_bundle_keeps_inclusions();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_clear_evaluation_components AFTER INSERT OR DELETE OR UPDATE OF offer_specification, compliance, compliance_note ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
+CREATE TRIGGER costing_compliance_team_guard BEFORE UPDATE OF compliance, compliance_note, recommended_alternative ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_compliance_team_guard();
 CREATE TRIGGER costing_component_delete_guard BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_component_delete_guard();
 CREATE TRIGGER costing_components_cleanup BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_components_cleanup();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER trg_canvass_null_fill_mark BEFORE UPDATE OF offer_specification ON public.costing_components FOR EACH ROW EXECUTE FUNCTION canvass_null_fill_mark();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_cost_row AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'An Acquire changed', 'acquire_unit');
 CREATE TRIGGER costing_print_clear_factor AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'A markup factor changed', 'markup_factor');
 CREATE TRIGGER costing_print_clear_final_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('final_approved', 'A Final Acquire changed', 'final_acquire_unit');
@@ -25501,14 +26212,18 @@ CREATE TRIGGER costing_events_no_change BEFORE DELETE OR UPDATE ON public.costin
 CREATE TRIGGER costing_events_no_truncate BEFORE TRUNCATE ON public.costing_events FOR EACH STATEMENT EXECUTE FUNCTION costing_events_append_only();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_inclusion_needs_bundle BEFORE INSERT OR UPDATE OF component_id ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_inclusion_needs_bundle();
+CREATE TRIGGER costing_landed_defaults_stamp BEFORE INSERT OR UPDATE ON public.costing_landed_defaults FOR EACH ROW EXECUTE FUNCTION costing_landed_defaults_stamp();
 CREATE TRIGGER costing_markup_presets_touch BEFORE UPDATE ON public.costing_markup_presets FOR EACH ROW EXECUTE FUNCTION costing_markup_presets_touch();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_matrices_touch BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
+CREATE TRIGGER trg_zz_costing_matrices_default_addon BEFORE INSERT ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_matrices_default_addon();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_matrix_money_touch BEFORE UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
 CREATE TRIGGER costing_print_clear_default_factor AFTER UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'A markup factor changed', 'default_factor');
 CREATE TRIGGER costing_settings_stamp BEFORE UPDATE ON public.costing_settings FOR EACH ROW EXECUTE FUNCTION costing_settings_stamp();
@@ -25518,11 +26233,13 @@ CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing
 CREATE TRIGGER costing_bid_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'final_offer_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_final_offer_log AFTER INSERT OR UPDATE OF final_offer_unit ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_log_final_offer_change();
+CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('prepared,final_approved', 'The Final Offer changed', 'final_offer_unit');
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_clear_evaluation_lines AFTER INSERT OR DELETE OR UPDATE OF tender_specification ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('prepared,final_approved', 'The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_tender_line_delete_guard BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_delete_guard();
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
@@ -25536,6 +26253,7 @@ CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON 
 CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_freeze_guard();
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
 CREATE TRIGGER ipas_lc_clear AFTER UPDATE OF landed_cost_split, computation_status, odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_lc_header_changed();
+CREATE TRIGGER ipas_seed_blank_charges AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION _ipas_seed_blank_charges();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_suggest_documents AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_suggest_documents_on_insert();
 CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
@@ -25557,8 +26275,11 @@ CREATE TRIGGER ipas_payments_paid_before_approval BEFORE INSERT OR UPDATE ON pub
 CREATE TRIGGER ipas_payments_updated_at BEFORE UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_signer_list_log_no_change BEFORE DELETE OR UPDATE ON public.ipas_signer_list_log FOR EACH ROW EXECUTE FUNCTION ipas_signer_list_log_append_only();
 CREATE TRIGGER ipas_signer_list_log_no_truncate BEFORE TRUNCATE ON public.ipas_signer_list_log FOR EACH STATEMENT EXECUTE FUNCTION ipas_signer_list_log_append_only();
+CREATE TRIGGER ipas_signoffs_charges_guard BEFORE INSERT ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION _ipas_signoff_charges_guard();
+CREATE TRIGGER ipas_signoffs_documents_guard BEFORE INSERT ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION _ipas_signoff_documents_guard();
 CREATE TRIGGER ipas_signoffs_guard BEFORE UPDATE ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_guard();
 CREATE TRIGGER ipas_signoffs_lc_fingerprint BEFORE INSERT ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION ipas_signoffs_lc_fingerprint();
+CREATE TRIGGER ipas_signoffs_logistics_guard BEFORE INSERT ON public.ipas_signoffs FOR EACH ROW EXECUTE FUNCTION _ipas_signoff_logistics_guard();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE ON public.ipas_sors DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_sors FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER lwop_leaves_guard_head_status BEFORE UPDATE ON public.lwop_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();

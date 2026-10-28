@@ -21,7 +21,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
 import { makeSor } from "./support/rows.js"
-import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, readyToSign } from "./support/ipas.js"
 
 const svc = () => serviceClient()
 
@@ -47,7 +47,11 @@ const copyFor = (po, supplierId) => ({
     bills: { count: 0, draft: 0 },
 })
 
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) => {
+    // A sign-off now asks for documents, a Logistics placement and so on (#711, #713); give it what it asks for.
+    if (name === "ipas_sign") await readyToSign(args.p_ipas_id, args.p_section, args.p_role)
+    return (await clientFor(who)).rpc(name, args)
+}
 
 async function raise({ purpose = "project", sorIds = [], source = "local" } = {}) {
     const po = nextPo()

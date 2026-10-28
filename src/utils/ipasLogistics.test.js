@@ -14,4 +14,8 @@ describe("logisticsMissing (#713)", () => {
   it("still asks for the received date once placed", () => {
     expect(logisticsMissing({ item_location_id: "l1", slips: [{ id: "t1" }] })).toEqual(["the received date"]);
   });
+
+  it("doesn't ask a local IPAS for a received date, which it cannot hold", () => {
+    expect(logisticsMissing({ source: "local", item_location_id: "l1", slips: [{ id: "t1" }] })).toEqual([]);
+  });
 });

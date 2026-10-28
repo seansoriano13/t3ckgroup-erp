@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
-import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs, readyToSign } from "./support/ipas.js"
 import { tryUpdate, tryDelete } from "./support/access.js"
 
 const svc = () => serviceClient()
@@ -55,8 +55,11 @@ const copyFor = (po, over = {}) => ({
     bills: over.bills ?? { count: 0, draft: 0 },
 })
 
-const rpc = async (who, name, args) =>
-    name === "ipas_record_odoo_copy" ? recordOdooCopyAs(who, args) : (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) => {
+    // A sign-off now asks for documents, a Logistics placement and so on (#711, #713); give it what it asks for.
+    if (name === "ipas_sign") await readyToSign(args.p_ipas_id, args.p_section, args.p_role)
+    return name === "ipas_record_odoo_copy" ? recordOdooCopyAs(who, args) : (await clientFor(who)).rpc(name, args)
+}
 
 /** Raises an IPAS as the purchaser, failing the test loudly if it can't. */
 async function raise(copyOver = {}) {
@@ -472,11 +475,14 @@ describe("a filed IPAS", () => {
 })
 
 describe("when the lines or total change", () => {
-    const insertSignoff = (ipasId, section, role, signedBy) =>
-        sql().query(
+    const insertSignoff = async (ipasId, section, role, signedBy) => {
+        // The sign-off guards (#711, #713) apply to a direct insert too.
+        await readyToSign(ipasId, section, role)
+        return sql().query(
             `insert into public.ipas_signoffs (ipas_id, section, role, signed_by) values ($1, $2, $3, $4)`,
             [ipasId, section, role, signedBy],
         )
+    }
 
     const liveSignoffs = async (ipasId) =>
         (

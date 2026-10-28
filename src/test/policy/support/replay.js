@@ -24,3 +24,20 @@ export function functionStatements(file, prefix) {
 export async function replayCostingFunctions(sql, file) {
     for (const statement of functionStatements(file, "costing_")) await sql.query(statement)
 }
+
+/**
+ * Takes the `costing_` functions exactly as the database has them now and returns a function that
+ * puts them back. A test that replays an old migration to prove it re-runs overwrites whatever
+ * later migrations did to the same functions; restoring from a snapshot needs no list of the
+ * migrations that came after, so a new migration never breaks the files that run after it.
+ */
+export async function snapshotCostingFunctions(sql) {
+    const { rows } = await sql.query(
+        `select pg_get_functiondef(p.oid) as def
+           from pg_proc p
+          where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' and p.proname like 'costing\_%'`,
+    )
+    return async () => {
+        for (const { def } of rows) await sql.query(def)
+    }
+}

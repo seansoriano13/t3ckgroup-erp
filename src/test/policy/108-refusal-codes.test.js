@@ -19,10 +19,14 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
-import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, readyToSign } from "./support/ipas.js"
 
 const svc = () => serviceClient()
-const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) => {
+    // A sign-off now asks for documents, a Logistics placement and so on (#711, #713); give it what it asks for.
+    if (name === "ipas_sign") await readyToSign(args.p_ipas_id, args.p_section, args.p_role)
+    return (await clientFor(who)).rpc(name, args)
+}
 const THE_THREE = ["42501", "22023", "23505"]
 // ipas_assert_unchanged (#581) refuses a stale save with 40001 (serialization
 // failure) on purpose: the screen keys its "someone else saved" notice on it.

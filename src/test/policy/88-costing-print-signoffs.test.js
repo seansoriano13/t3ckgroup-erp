@@ -18,7 +18,7 @@ import { readFileSync } from "node:fs"
 import { serviceClient, sql } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { purgeCostingForSors } from "./support/costing.js"
-import { replayCostingFunctions } from "./support/replay.js"
+import { snapshotCostingFunctions } from "./support/replay.js"
 
 const svc = () => serviceClient()
 const RLS_VIOLATION = "42501"
@@ -60,14 +60,11 @@ async function signAll() {
 }
 
 beforeAll(async () => {
-    // Test 82 replays #271's migration to prove it is re-runnable, which puts back that migration's
-    // costing_sign. Replaying this one first restores ours (and proves it re-runs without harm).
+    // Replaying this migration proves it re-runs without harm, but puts back its older costing_sign (and any
+    // other costing function it defines). The snapshot puts the live ones back straight after.
+    const restoreFunctions = await snapshotCostingFunctions(sql())
     await sql().query(readFileSync("supabase/migrations/20261018200000_costing_print_signoffs.sql", "utf8"))
-    // ...and #556 carries costing_sign forward with its refusal codes, so put that on top. Only the
-    // costing functions: replaying the whole file would put back the IPAS functions as of #556 too.
-    await replayCostingFunctions(sql(), "supabase/migrations/20261023210000_refusal_codes.sql")
-    // ...and 20261102180000 opens costing_sign's Final Acquire sign-off per SOR, so put that on top too.
-    await replayCostingFunctions(sql(), "supabase/migrations/20261102180000_costing_open_review_fixes.sql")
+    await restoreFunctions()
     await ensureCastLoaded()
     await asSvc(svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider), "purchasing flag")
     previousSignature = (await asSvc(svc().from("employees").select("signature_path").eq("id", ids.dealOwner).single(), "signature")).signature_path

@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
-import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
+import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs, readyToSign } from "./support/ipas.js"
 import { makeSor } from "./support/rows.js"
 
 const svc = () => serviceClient()
@@ -48,8 +48,11 @@ const copyFor = (po, supplierId = 553, lines = [line(1)]) => ({
     bills: { count: 0, draft: 0 },
 })
 
-const rpc = async (who, name, args) =>
-    name === "ipas_record_odoo_copy" ? recordOdooCopyAs(who, args) : (await clientFor(who)).rpc(name, args)
+const rpc = async (who, name, args) => {
+    // A sign-off now asks for documents, a Logistics placement and so on (#711, #713); give it what it asks for.
+    if (name === "ipas_sign") await readyToSign(args.p_ipas_id, args.p_section, args.p_role)
+    return name === "ipas_record_odoo_copy" ? recordOdooCopyAs(who, args) : (await clientFor(who)).rpc(name, args)
+}
 
 let sorId
 let methodId
@@ -110,13 +113,19 @@ async function eventKinds(ipasId) {
 }
 
 /**
- * Sections 1, 3 and 6 prepared by the purchaser and approved by `ipasSigner`. Section 6
+ * Sections 1, 3 and 6 prepared by the purchaser and approved by `ipasSigner`, and Logistics (8) approved. Section 6
  * (screen 3) can only be submitted at LC Odoo Done, so it is written straight to the
  * table here; the tests of its own gate go through the real `ipas_sign`.
  */
-async function approvedThrough(ipas, sections = [1, 3, 6]) {
+async function approvedThrough(ipas, sections = [1, 3, 6, 8]) {
     for (const section of sections) {
+        if (section === 8) {
+            // Logistics (#713) is one Approved, with no Prepared before it.
+            await signOk("ipasSigner", ipas.id, 8, "approved")
+            continue
+        }
         if (section === 6) {
+            await readyToSign(ipas.id, 6, "prepared")
             const { error } = await svc().from("ipas_signoffs").insert([
                 { ipas_id: ipas.id, section: 6, role: "prepared", signed_by: ids.outsider },
                 { ipas_id: ipas.id, section: 6, role: "approved", signed_by: ids.ipasSigner },
@@ -180,6 +189,7 @@ beforeEach(async () => {
     await onList("s7_noted", "ordinary")
     await onList("s7_checked", "support")
     await onList("s7_approved", "ipasSigner")
+    await onList("logistics_signed", "ipasSigner")
 })
 
 afterAll(async () => {
@@ -199,17 +209,17 @@ describe("section 7: the order", () => {
         }
         const none = await sign("finance", ipas.id, 7, "received")
         expect(none.error?.code).toBe("22023")
-        expect(none.error?.message).toMatch(/sections 1, 2 and 3/)
+        expect(none.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and 6 are signed/)
 
         await approvedThrough(ipas, [1])
         const onlyOne = await sign("finance", ipas.id, 7, "received")
         expect(onlyOne.error?.code).toBe("22023")
 
-        // Sections 1 and 2 approved is not enough any more: section 3 (stored 6) has to be too (#590).
+        // Sections 1 and 2 approved is not enough: section 3 (stored 6) has to be too (#590).
         await approvedThrough(ipas, [3])
         const withoutThree = await sign("finance", ipas.id, 7, "received")
         expect(withoutThree.error?.code).toBe("22023")
-        expect(withoutThree.error?.message).toMatch(/section 4 opens once sections 1, 2 and 3 are approved/)
+        expect(withoutThree.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and 6 are signed/)
 
         // Section 3 is submitted at LC Odoo Done; submitted alone does not open section 4 either.
         expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
@@ -217,9 +227,13 @@ describe("section 7: the order", () => {
         expect((await sign("finance", ipas.id, 7, "received")).error?.code).toBe("22023")
         await signOk("ipasSigner", ipas.id, 6, "approved")
 
+        // Logistics (section 6 on screen, stored 8) is the last gate (#713).
+        expect((await sign("finance", ipas.id, 7, "received")).error?.code).toBe("22023")
+        await approvedThrough(ipas, [8])
+
         expect((await sign("finance", ipas.id, 7, "received")).error).toBeNull()
         expect(await liveKeys(ipas.id)).toEqual([
-            "1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared", "7/received",
+            "1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared", "7/received", "8/approved",
         ])
     })
 
@@ -242,7 +256,7 @@ describe("section 7: the order", () => {
         expect((await liveKeys(ipas.id)).filter((k) => k.startsWith("7/"))).toEqual(["7/checked", "7/noted", "7/received"])
         const held = await sign("ipasSigner", ipas.id, 7, "approved")
         expect(held.error?.code).toBe("22023")
-        expect(held.error?.message).toMatch(/sections 1, 2 and 3/)
+        expect(held.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and 6 are signed/)
         expect((await rowOf(ipas.id)).state).toBe("open")
 
         // Section 3 approved again: the same sign-offs file it.
@@ -253,7 +267,7 @@ describe("section 7: the order", () => {
     it("tells the Received list when section 3 is the last approval in (#590)", async () => {
         const ipas = await raise()
         expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
-        await approvedThrough(ipas, [1, 3])
+        await approvedThrough(ipas, [1, 3, 8])
         await signOk("outsider", ipas.id, 6, "prepared")
         const last = await signOk("ipasSigner", ipas.id, 6, "approved")
         expect(last.stage).toBe("received_ready")
@@ -284,7 +298,7 @@ describe("section 7: the order", () => {
         await signOk("support", ipas.id, 7, "checked")
         await signOk("ordinary", ipas.id, 7, "noted")
         expect(await liveKeys(ipas.id)).toEqual(
-            ["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared", "7/checked", "7/noted", "7/received"],
+            ["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared", "7/checked", "7/noted", "7/received", "8/approved"],
         )
 
         const twice = await sign("finance", ipas.id, 7, "received")
@@ -317,7 +331,7 @@ describe("section 7: the order", () => {
 
         const noted = await sign("ordinary", ipas.id, 7, "noted")
         expect(noted.error?.code).toBe("22023")
-        expect(noted.error?.message).toMatch(/sections 1, 2 and 3/)
+        expect(noted.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and 6 are signed/)
     })
 
     it("belongs to each step's list: a purchaser, a Super Admin off the list and a stranger are refused", async () => {
@@ -389,8 +403,10 @@ describe("who each step notifies", () => {
         const c = await signOk("ipasSigner", ipas.id, 3, "approved")
         expect(c).toMatchObject({ stage: null, notify_ids: [] })
         await signOk("outsider", ipas.id, 6, "prepared")
-        // The last of sections 1, 2 and 3 is approved: the Received list.
-        const last = await signOk("ipasSigner", ipas.id, 6, "approved")
+        const six = await signOk("ipasSigner", ipas.id, 6, "approved")
+        expect(six).toMatchObject({ stage: null, notify_ids: [] })
+        // The last of sections 1, 2, 3 and Logistics is approved: the Received list (#713).
+        const last = await signOk("ipasSigner", ipas.id, 8, "approved")
         expect(last).toMatchObject({ stage: "received_ready", notify_ids: [ids.finance] })
 
         // Received: the Noted and Checked lists.
@@ -596,7 +612,7 @@ describe("reopening", () => {
         expect(row.state).toBe("open")
         expect(row.filed_at).toBeNull()
         expect(row.odoo_changed_since_filing).toBe(false)
-        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared"])
+        expect(await liveKeys(ipas.id)).toEqual(["1/approved", "1/prepared", "3/approved", "3/prepared", "6/approved", "6/prepared", "8/approved"])
 
         const cleared = await history(ipas.id)
         expect(cleared).toHaveLength(4)
