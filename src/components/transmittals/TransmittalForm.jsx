@@ -10,6 +10,7 @@ import { ipasService } from "@/services/ipasService";
 import { companyService } from "@/services/companyService";
 import { TRANSMITTAL_LINE_KIND, TRANSMITTAL_OPTION_LIST } from "@/constants/transmittals";
 import { matchCompany, slipGaps } from "@/utils/transmittals";
+import FillFromIpas from "./form/FillFromIpas";
 import LineLiner from "./form/LineLiner";
 import PoLineBrowser from "./form/PoLineBrowser";
 import ReadinessStrip from "./form/ReadinessStrip";
@@ -207,6 +208,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
     <div className="grid gap-8 pb-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <aside className="min-w-0">
         <SectionTitle title="Live PO lines" note="Click a line to put it on the slip. Click it again to take it off." />
+        <FillFromIpas onFill={addPicks} />
         <PoLineBrowser lines={lines} onToggle={togglePick} onAddAll={addPicks} onAddTyped={addTyped} />
       </aside>
 

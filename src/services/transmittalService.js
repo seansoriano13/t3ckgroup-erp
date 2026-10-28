@@ -73,6 +73,19 @@ async function withLineRefs(row) {
 /** "Waiting on Warehouse" → "waiting on Warehouse": a stage name mid-sentence keeps its proper nouns. */
 const lowerFirst = (text) => (text ? text.charAt(0).toLowerCase() + text.slice(1) : text);
 
+/** A pickable PO line row (from either pick RPC) as the screen holds it. */
+const shapePickable = (row) => ({
+  ipasId: row.ipas_id,
+  ipasNumber: row.ipas_number,
+  poNumber: row.po_number,
+  odooPoLineId: row.odoo_po_line_id,
+  productName: row.product_name,
+  quantity: row.quantity == null ? null : Number(row.quantity),
+  unit: row.unit,
+  entity: row.entity,
+  sors: row.sors ?? [],
+});
+
 /**
  * A Transmittal error the screen can word: `code` is one of TRANSMITTAL_ERROR.
  * Database refusals come through as the Supabase error, whose message the
@@ -242,17 +255,20 @@ export const transmittalService = {
       p_search: (search ?? "").trim() || null,
     });
     if (error) throw error;
-    return (data ?? []).map((row) => ({
-      ipasId: row.ipas_id,
-      ipasNumber: row.ipas_number,
-      poNumber: row.po_number,
-      odooPoLineId: row.odoo_po_line_id,
-      productName: row.product_name,
-      quantity: row.quantity == null ? null : Number(row.quantity),
-      unit: row.unit,
-      entity: row.entity,
-      sors: row.sors ?? [],
-    }));
+    return (data ?? []).map(shapePickable);
+  },
+
+  /**
+   * Every PO line of one live IPAS, by its number (#725), shaped like
+   * `pickablePoLines`, for a New Transmittal to fill as draft lines. Throws when
+   * the IPAS does not exist or is cancelled.
+   */
+  async poLinesOfIpas(ipasNumber) {
+    const { data, error } = await supabase.rpc("transmittal_ipas_po_lines", {
+      p_ipas_number: (ipasNumber ?? "").trim(),
+    });
+    if (error) throw error;
+    return (data ?? []).map(shapePickable);
   },
 
   /**
