@@ -150,6 +150,18 @@ export function poLineNotPicked(item) {
   return !(item.odoo_po_line_ids?.length > 0);
 }
 
+/**
+ * #726 — "n of m received": a Purchased item whose Odoo receipts cover part of it. Null when nothing
+ * has arrived, when it is fully covered (it moves to Received by itself), or before Purchased.
+ */
+export function partialReceiptText(item) {
+  if (item?.status !== ITEM_STATUS.PURCHASED) return null;
+  const got = Number(item.odoo_received_qty);
+  const of = Number(item.quantity);
+  if (!(got > 0) || !(of > 0) || got >= of) return null;
+  return `${got} of ${of} received`;
+}
+
 /** #687 — "Replaced by B — reason", the note on a line Purchasing replaced. */
 export function replacedNote(item, replacedBy) {
   const by = replacedBy?.name ? `Replaced by ${replacedBy.name}` : "Replaced";
