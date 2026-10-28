@@ -3,7 +3,7 @@ import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import PageLoading from '@/components/ui/PageLoading';
 import QueryError from '@/components/ui/QueryError';
-import { MEETING_STATUS_LABEL, meetingRequestService } from '@/services/meetingRequestService';
+import { MEETING_STATUS_LABEL, meetingPlace, meetingRequestService } from '@/services/meetingRequestService';
 import MeetingActions from './MeetingActions.jsx';
 import { formatManilaDateTime, manilaTime } from '@/lib/manilaDate.js';
 
@@ -32,7 +32,7 @@ export default function MyMeetingRequests() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {r.venue?.name} · {formatManilaDateTime(r.starts_at)} to {manilaTime(r.ends_at)} · Facilitator {r.facilitator?.name}
+            {meetingPlace(r)} · {formatManilaDateTime(r.starts_at)} to {manilaTime(r.ends_at)} · Facilitator {r.facilitator?.name}
           </p>
           {r.return_note && r.status === 'RETURNED' && <p className="mt-1 text-xs">Returned: {r.return_note}</p>}
           {r.cancel_reason && r.status === 'CANCELLED' && <p className="mt-1 text-xs">Cancelled: {r.cancel_reason}</p>}
