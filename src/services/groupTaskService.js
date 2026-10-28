@@ -4,6 +4,40 @@ import { groupTaskActivityService } from "./groupTaskActivityService";
 import { formatTaskPreview } from "../utils/taskFormatters";
 import { HIDDEN_GROUP_TASK_STATUS_FILTER } from "../constants/status";
 import { sorStageParticipantService } from "./sorStageParticipantService";
+import { employeeGroupService } from "./employeeGroupService";
+import { checklistForRole } from "./groupRoleService";
+import { normaliseTeam } from "../utils/resolvePeople";
+
+/**
+ * Group Task members from a Team or an Employee Group: its people today, copied
+ * once with no role. No link is kept, so later changes to the Team or group
+ * never touch the task. The creator edits the list freely afterwards.
+ *
+ * @param {{ kind: "team" | "group", value: string }} source team name, or Employee Group id
+ */
+export async function resolveMemberSource({ kind, value }) {
+  let people;
+  if (kind === "group") {
+    people = (await employeeGroupService.get(value)).members;
+  } else if (kind === "team") {
+    const wanted = normaliseTeam(value);
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, name, sub_department, is_deleted");
+    if (error) throw error;
+    people = (data || []).filter((e) => !e.is_deleted && normaliseTeam(e.sub_department) === wanted);
+  } else {
+    throw new Error("Pick a Team or an Employee Group.");
+  }
+  return people.map((p) => ({
+    employeeId: p.id,
+    name: p.name,
+    role: null,
+    customRole: null,
+    taskDescription: "",
+    checklist: null,
+  }));
+}
 
 const logGroupTaskActivity = async (groupTaskId, action, details = {}, actorId = null) => {
   try {
@@ -203,11 +237,14 @@ export const groupTaskService = {
     // collected them and the columns exist, which is why roles picked at
     // creation time never showed up again. addMemberToTask has always written
     // them; this brings create in line.
+    // A role's default checklist fills in for a member who has none of their own.
+    const { data: roleRows } = await supabase.from("committee_roles").select("role_name, default_checklist");
+    const roleByName = new Map((roleRows || []).map((r) => [r.role_name, r]));
     const memberPayloads = members.map((m) => ({
       committee_task_id: groupTask.id,
       employee_id: m.employeeId,
       task_description: m.taskDescription || "",
-      checklist: m.checklist || null,
+      checklist: (m.role ? checklistForRole(roleByName.get(m.role), m.checklist) : m.checklist) || null,
       role: m.role || null,
       custom_role: m.customRole || null,
       status: "PENDING",
