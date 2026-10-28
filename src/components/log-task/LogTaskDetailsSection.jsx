@@ -4,6 +4,7 @@ import { Receipt, ImagePlus, X, Maximize2, ClipboardPaste } from 'lucide-react'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import ChecklistTaskInput from '../ChecklistTaskInput'
 import DictateButton from './DictateButton'
+import { isPasteInsideTextField } from '@/utils/pasteTarget'
 import Spinner from '@/components/ui/Spinner'
 import { storageService } from '../../services/storageService'
 import toast from 'react-hot-toast'
@@ -80,6 +81,7 @@ export default function LogTaskDetailsSection({
     // Ctrl+V paste support
     useEffect(() => {
         const handlePaste = (e) => {
+            if (isPasteInsideTextField(e)) return
             const items = Array.from(e.clipboardData?.items || [])
             const imageItems = items.filter((item) =>
                 item.type.startsWith('image/'),
