@@ -97,7 +97,7 @@ describe("IPAS edit form model", () => {
           landedCostSplit: "quantity",
         }),
       );
-      expect(form.payments).toEqual([expect.objectContaining({ id: "pay-1", amount: "8325", methodId: "m-1", phpDebited: "" })]);
+      expect(form.payments).toEqual([expect.objectContaining({ id: "pay-1", amount: "8325", methodId: "m-1", forexRate: "" })]);
       expect(form.charges[0]).toMatchObject({ kindId: "k-1", amountPhp: "300" });
       expect(form.documents[0]).toMatchObject({ purchasingHas: true, attachmentUrl: "" });
       expect(form).toMatchObject({ bankName: "BDO", freight: "f-1", split: "quantity", computationStatus: "encoding" });
@@ -120,12 +120,12 @@ describe("IPAS edit form model", () => {
       expect(progress.find((p) => p.key === "finance")).toMatchObject({ total: 3, left: 2 });
     });
 
-    it("never asks for the pesos taken from the bank: it is optional on a foreign-currency PO (#604)", () => {
+    it("never asks for the forex rate: it is optional on a foreign-currency PO (#604)", () => {
       const payment = newPaymentDraft();
       const php = { ...formFromIpas(ipas()), payments: [payment] };
       const usd = { ...formFromIpas(ipas({ currency: "USD" })), payments: [payment] };
-      expect(missingFields(php).map((m) => m.id)).not.toContain(`pay-${payment.key}-phpDebited`);
-      expect(missingFields(usd).map((m) => m.id)).not.toContain(`pay-${payment.key}-phpDebited`);
+      expect(missingFields(php).map((m) => m.id)).not.toContain(`pay-${payment.key}-forexRate`);
+      expect(missingFields(usd).map((m) => m.id)).not.toContain(`pay-${payment.key}-forexRate`);
     });
 
     it("needs a new document's pick, and its name when typed by hand", () => {
@@ -171,9 +171,9 @@ describe("IPAS edit form model", () => {
       // Pesos taken from the bank may be left blank on a foreign PO (#604); a given figure must be above zero.
       const noPhp = { ...newPaymentDraft(), amount: "5", methodId: "m-1" };
       expect(planSave({ ...foreign, payments: [noPhp] }, foreign).error).toBeNull();
-      const zeroPhp = { ...noPhp, phpDebited: "0" };
+      const zeroPhp = { ...noPhp, forexRate: "0" };
       expect(planSave({ ...foreign, payments: [zeroPhp] }, foreign).error).toBe(
-        "Payment 1: Pesos taken from the bank must be a number more than zero, or left blank.",
+        "Payment 1: Forex rate paid must be a number more than zero, or left blank.",
       );
       expect(planSave({ ...base, charges: [newChargeDraft()] }, base).error).toBe("Charge 1: Pick the kind of charge.");
     });

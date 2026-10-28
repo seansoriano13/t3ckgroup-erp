@@ -8,6 +8,7 @@ import SectionHeader from "../ui/SectionHeader";
 import { SelectField } from "../ui/SelectField";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
+import IpasPaymentsTable from "./IpasPaymentsTable";
 import { useEditable } from "@/components/record/sectionChrome";
 import {
   IPAS_COMPUTATION_STATUS,
@@ -131,100 +132,16 @@ export function IpasPaymentsBlock({
         )}
       </SectionHeader>
 
-      <LinerList
-        label="Payments"
-        empty={`No payments recorded yet.${
-          !isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE
+      {payments.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No payments recorded yet.
+          {!isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE
             ? " A foreign-currency Odoo PO needs a payment before Landed Cost can be worked out."
-            : ""
-        }`}
-        total={
-          payments.length > 0
-            ? {
-                label: `Total debited, including charge fees${
-                  sum.missingPhp > 0
-                    ? ` · ${sum.missingPhp} payment${sum.missingPhp === 1 ? "" : "s"} without the pesos taken from the bank`
-                    : ""
-                }`,
-                value: pesos(sum.totalDebitedPhp),
-              }
-            : undefined
-        }
-        rows={payments.map((payment) => {
-          const kind = IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind;
-          return {
-            key: payment.id,
-            testId: "ipas-payment-row",
-            main: (
-              <span className="inline-flex flex-wrap items-center gap-2">
-                {kind}
-                {payment.paid_before_approval && <StatusBadge theme="amber" label="Paid before approval" />}
-              </span>
-            ),
-            sub: (
-              <Dotted
-                parts={[
-                  formatDay(payment.paid_on),
-                  payment.methodLabel ?? "—",
-                  payment.check_no ? `Check No. ${payment.check_no}` : null,
-                  !isPhp && (
-                    <>
-                      Pesos taken from the bank:{" "}
-                      {payment.php_debited === null ? (
-                        <span className="text-amber-11">Not in yet (estimate)</span>
-                      ) : (
-                        <span className="font-mono tabular-nums">{pesos(payment.php_debited)}</span>
-                      )}
-                    </>
-                  ),
-                  <>
-                    Charge fee:{" "}
-                    <span className="font-mono tabular-nums">{payment.charge_fee_php ? pesos(payment.charge_fee_php) : "—"}</span>
-                  </>,
-                ]}
-              />
-            ),
-            subWrap: true,
-            quantity: formatAmount(payment.amount, currency),
-            actions: (
-              <span className="inline-flex shrink-0 items-center gap-2 text-xs">
-                {payment.proof_url ? (
-                  <ExternalLink
-                    href={payment.proof_url}
-                    className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
-                  >
-                    <Paperclip size={12} aria-hidden="true" />
-                    View
-                  </ExternalLink>
-                ) : (
-                  <span className="text-muted-foreground">No proof</span>
-                )}
-                {canRecord && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Edit ${kind ?? "payment"} of ${formatDay(payment.paid_on)}`}
-                      onClick={() => onEditPayment(payment)}
-                    >
-                      <Pencil />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-red-11"
-                      aria-label={`Remove ${kind ?? "payment"} of ${formatDay(payment.paid_on)}`}
-                      onClick={() => onRemovePayment(payment)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </>
-                )}
-              </span>
-            ),
-          };
-        })}
-      />
+            : ""}
+        </p>
+      ) : (
+        <IpasPaymentsTable ipas={ipas} canRecord={canRecord} onEditPayment={onEditPayment} onRemovePayment={onRemovePayment} />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isLandedCostEstimate, landedCostEstimateNote, landedCostMarkLabel } from "./landedCost"
+import { blendedRate, isLandedCostEstimate, landedCostEstimateNote, landedCostMarkLabel, paymentRate, pesosFromRate } from "./landedCost"
 
 // What `ipas_landed_cost` returns, trimmed to what the marks read (#604).
 const provisional = { status: "provisional", estimate: false, estimates: [] }
@@ -37,5 +37,33 @@ describe("the mark Landed Cost carries", () => {
     expect(landedCostEstimateNote(estimate())).toMatch(/becomes final when they are\.$/)
     expect(landedCostEstimateNote(final)).toBeNull()
     expect(landedCostEstimateNote(provisional)).toBeNull()
+  })
+})
+
+describe("the rate of a payment, and the blend of several (#708)", () => {
+  // P01714: a down payment at 58.73 and a full payment at 60.70.
+  const p01714 = [
+    { amount: 11038.3, forex_rate: 58.73 },
+    { amount: 4730.7, forex_rate: 60.7 },
+  ]
+
+  it("blends P01714's two rates by how much each payment paid", () => {
+    const pesos = 11038.3 * 58.73 + 4730.7 * 60.7
+    expect(blendedRate(p01714)).toBeCloseTo(pesos / 15769, 8)
+    expect(blendedRate(p01714)).toBeCloseTo(59.32, 2)
+    // Not the plain average of the two rates.
+    expect(blendedRate(p01714)).not.toBeCloseTo((58.73 + 60.7) / 2, 2)
+  })
+
+  it("works an old payment's rate out from its pesos, and leaves out a payment with none", () => {
+    expect(paymentRate({ amount: 640, php_debited: 36160 })).toBe(56.5)
+    expect(paymentRate({ amount: 640, php_debited: null })).toBeNull()
+    expect(blendedRate([...p01714, { amount: 100, php_debited: null }])).toBeCloseTo(blendedRate(p01714), 10)
+    expect(blendedRate([])).toBeNull()
+  })
+
+  it("works pesos out as amount x rate, to the centavo", () => {
+    expect(pesosFromRate(11038.3, 58.73)).toBe(648279.36)
+    expect(pesosFromRate(100, null)).toBeNull()
   })
 })

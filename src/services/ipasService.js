@@ -51,6 +51,7 @@ import {
   shapeIpas,
 } from "../utils/ipas";
 import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
+import { pesosFromRate, sumPesos } from "../utils/landedCost";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
@@ -639,17 +640,17 @@ export const ipasService = {
    */
   async addPayment(id, payment, { isPhpPo = true } = {}) {
     const args = paymentArgs(payment, isPhpPo);
-    const { data, error } = await supabase.rpc("ipas_add_payment", { p_ipas_id: id, ...args });
+    const { data, error } = await supabase.rpc("ipas_add_payment", { p_ipas_id: id, ...args.rpc });
     if (error) throw error;
-    return data;
+    return writePaymentMoney(data, args.money);
   },
 
   /** Changes a payment on an open IPAS: the same fields as addPayment, all of them. */
   async updatePayment(paymentId, payment, { isPhpPo = true } = {}) {
     const args = paymentArgs(payment, isPhpPo);
-    const { data, error } = await supabase.rpc("ipas_update_payment", { p_payment_id: paymentId, ...args });
+    const { data, error } = await supabase.rpc("ipas_update_payment", { p_payment_id: paymentId, ...args.rpc });
     if (error) throw error;
-    return data;
+    return writePaymentMoney(data ?? { id: paymentId }, args.money);
   },
 
   /** Removes a payment from an open IPAS; the history keeps what was removed. */
@@ -1604,9 +1605,16 @@ function unavailable(po) {
   );
 }
 
+/** Stores the forex rate and the doc stamp and misc fee of a payment just written (#708). */
+async function writePaymentMoney(row, money) {
+  const { data, error } = await supabase.rpc("ipas_set_payment_money", { p_payment_id: row.id, ...money });
+  if (error) throw error;
+  return data ?? row;
+}
+
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, phpDebited, chargeFeePhp, methodId, checkNo, proofUrl } = payment || {};
+  const { kind, paidOn, amount, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, checkNo, proofUrl } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -1615,26 +1623,39 @@ function paymentArgs(payment, isPhpPo) {
     throw new IpasError(IPAS_ERROR.INVALID, "The amount must be a number more than zero.");
   }
 
-  const phpRead = parseAmountInput(phpDebited);
-  if (!phpRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "Pesos taken from the bank must be a number.");
-  // Blank is allowed (#604): Landed Cost is an estimate until the bank statement's pesos are in.
-  if (!isPhpPo && phpRead.value !== null && phpRead.value <= 0) {
-    throw new IpasError(IPAS_ERROR.INVALID, "Pesos taken from the bank must be more than zero, or left blank until the bank statement arrives.");
+  const rateRead = parseAmountInput(forexRate);
+  if (!rateRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The forex rate paid must be a number.");
+  // Blank is allowed (#604): Landed Cost is an estimate until the rate is in.
+  if (!isPhpPo && rateRead.value !== null && rateRead.value <= 0) {
+    throw new IpasError(IPAS_ERROR.INVALID, "The forex rate paid must be more than zero, or left blank until the bank statement arrives.");
   }
 
-  const feeRead = parseAmountInput(chargeFeePhp);
-  if (!feeRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The charge fee must be a number.");
+  const fees = [
+    ["The bank charge", chargeFeePhp],
+    ["The doc stamp", docStampPhp],
+    ["The misc fee", miscFeePhp],
+  ].map(([label, raw]) => {
+    const read = parseAmountInput(raw);
+    if (!read.ok) throw new IpasError(IPAS_ERROR.INVALID, `${label} must be a number.`);
+    return read.value ?? 0;
+  });
   if (!methodId) throw new IpasError(IPAS_ERROR.INVALID, "Pick the payment method.");
 
+  const rate = isPhpPo ? null : rateRead.value;
   return {
-    p_kind: kind,
-    p_paid_on: paidOn,
-    p_amount: amountRead.value,
-    p_php_debited: isPhpPo ? null : phpRead.value,
-    p_charge_fee_php: feeRead.value ?? 0,
-    p_method_id: methodId,
-    p_check_no: (checkNo || "").trim() || null,
-    p_proof_url: (proofUrl || "").trim() || null,
+    rpc: {
+      p_kind: kind,
+      p_paid_on: paidOn,
+      p_amount: amountRead.value,
+      // Pesos are worked out, not typed: amount x rate.
+      p_php_debited: rate === null ? null : pesosFromRate(amountRead.value, rate),
+      // charge_fee_php holds every fee: bank charge + doc stamp + misc (#708).
+      p_charge_fee_php: sumPesos(fees),
+      p_method_id: methodId,
+      p_check_no: (checkNo || "").trim() || null,
+      p_proof_url: (proofUrl || "").trim() || null,
+    },
+    money: { p_forex_rate: rate, p_doc_stamp_php: fees[1], p_misc_fee_php: fees[2] },
   };
 }
 

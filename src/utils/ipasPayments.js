@@ -6,7 +6,7 @@
  */
 
 import { IPAS_PAYMENT_KIND } from "../constants/ipas";
-import { finiteNumber, isPhpCurrency, paymentPhp } from "./landedCost";
+import { finiteNumber, fromCents, isPhpCurrency, paymentPhp, paymentRate, toCents } from "./landedCost";
 
 /**
  * Reads an amount someone typed ("1,250", "₱ 1 250.50", "", "12."). Never
@@ -62,6 +62,12 @@ export function shapePayment(row, options = new Map()) {
     amount: finiteNumber(row.amount),
     php_debited: finiteNumber(row.php_debited),
     charge_fee_php: finiteNumber(row.charge_fee_php) ?? 0,
+    forex_rate: finiteNumber(row.forex_rate),
+    doc_stamp_php: finiteNumber(row.doc_stamp_php) ?? 0,
+    misc_fee_php: finiteNumber(row.misc_fee_php) ?? 0,
+    // charge_fee_php holds every fee (#708); the bank charge is what is left after the other two.
+    bank_charge_php: Math.max(0, fromCents(toCents(finiteNumber(row.charge_fee_php) ?? 0) - toCents(finiteNumber(row.doc_stamp_php) ?? 0) - toCents(finiteNumber(row.misc_fee_php) ?? 0))),
+    rate: paymentRate(row),
     method,
     methodLabel: method?.label ?? null,
     hasProof: Boolean(row.proof_url),

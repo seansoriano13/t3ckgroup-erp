@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { ipasService } from "./ipasService"
+import { blendedRate } from "@/utils/landedCost"
 import { db } from "@/test/db/store"
 import { stubEdgeFunction } from "@/test/msw/server"
 import { makeEmployee } from "@/test/factories"
@@ -111,8 +112,8 @@ describe("ipasService: payments, charges and Landed Cost", () => {
     it("saves a foreign-currency payment with the pesos taken from the bank blank (#604)", async () => {
       const ipas = await raise({ currency: "USD" })
 
-      for (const phpDebited of ["", undefined]) {
-        await ipasService.addPayment(ipas.id, peso({ amount: "640", phpDebited }), { isPhpPo: false })
+      for (const forexRate of ["", undefined]) {
+        await ipasService.addPayment(ipas.id, peso({ amount: "640", forexRate }), { isPhpPo: false })
       }
       expect(db.rows("ipas_payments")).toHaveLength(2)
       expect(db.rows("ipas_payments").map((p) => p.php_debited)).toEqual([null, null])
@@ -122,29 +123,38 @@ describe("ipasService: payments, charges and Landed Cost", () => {
       const ipas = await raise({ currency: "USD" })
 
       await expect(
-        ipasService.addPayment(ipas.id, peso({ amount: "640", phpDebited: "0" }), { isPhpPo: false }),
-      ).rejects.toMatchObject({ code: IPAS_ERROR.INVALID, message: expect.stringMatching(/Pesos taken from the bank must be more than zero/) })
+        ipasService.addPayment(ipas.id, peso({ amount: "640", forexRate: "0" }), { isPhpPo: false }),
+      ).rejects.toMatchObject({ code: IPAS_ERROR.INVALID, message: expect.stringMatching(/forex rate paid must be more than zero/) })
       expect(db.rows("ipas_payments")).toEqual([])
       expect(kinds()).toEqual(["created"])
     })
 
-    it("stores the PHP debited and the charge fee on a foreign payment", async () => {
+    it("works the pesos out as amount x rate, and stores the rate and the three fees on a foreign payment (#708)", async () => {
       const ipas = await raise({ currency: "USD" })
 
       await ipasService.addPayment(
         ipas.id,
-        peso({ kind: "down_payment", amount: "640", phpDebited: "36,160", chargeFeePhp: "350" }),
+        peso({ kind: "down_payment", amount: "640", forexRate: "56.5", chargeFeePhp: "350", docStampPhp: "150", miscFeePhp: "25.5" }),
         { isPhpPo: false },
       )
 
-      expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 640, php_debited: 36160, charge_fee_php: 350 })
+      expect(db.rows("ipas_payments")[0]).toMatchObject({
+        amount: 640,
+        php_debited: 36160,
+        forex_rate: 56.5,
+        charge_fee_php: 525.5,
+        doc_stamp_php: 150,
+        misc_fee_php: 25.5,
+      })
     })
 
     it.each([
       ["a half-typed amount", { amount: "12abc" }],
       ["no amount", { amount: "" }],
       ["a zero amount", { amount: "0" }],
-      ["a half-typed charge fee", { chargeFeePhp: "1.2.3" }],
+      ["a half-typed bank charge", { chargeFeePhp: "1.2.3" }],
+      ["a half-typed doc stamp", { docStampPhp: "1.2.3" }],
+      ["a half-typed misc fee", { miscFeePhp: "1.2.3" }],
       ["a half-typed date", { paidOn: "2026-10-" }],
       ["no method", { methodId: "" }],
       ["a kind that isn't one", { kind: "refund" }],
@@ -165,13 +175,13 @@ describe("ipasService: payments, charges and Landed Cost", () => {
       const ipas = await raise({ currency: "USD" })
       const payment = await ipasService.addPayment(
         ipas.id,
-        peso({ kind: "down_payment", amount: "640", phpDebited: "36160" }),
+        peso({ kind: "down_payment", amount: "640", forexRate: "56.5" }),
         { isPhpPo: false },
       )
 
       await ipasService.updatePayment(
         payment.id,
-        peso({ kind: "full_payment", amount: "640", phpDebited: "36240", chargeFeePhp: "350", methodId: options.payment_method.Alipay.id }),
+        peso({ kind: "full_payment", amount: "640", forexRate: "56.625", chargeFeePhp: "350", methodId: options.payment_method.Alipay.id }),
         { isPhpPo: false },
       )
 
@@ -312,16 +322,30 @@ describe("ipasService: payments, charges and Landed Cost", () => {
       ])
     })
 
+    it("blends the rates of P01714's two payments (58.73 and 60.70) into Landed Cost (#708)", async () => {
+      const ipas = await raise({ currency: "USD", lines: [line(1, 10, 20)] })
+      await ipasService.addPayment(ipas.id, peso({ kind: "down_payment", amount: "11038.30", forexRate: "58.73" }), { isPhpPo: false })
+      await ipasService.addPayment(ipas.id, peso({ kind: "full_payment", amount: "4730.70", forexRate: "60.70" }), { isPhpPo: false })
+
+      const { landedCost } = await read(ipas.id)
+
+      // All the pesos over all the dollars: the bigger payment weighs more than a plain average.
+      expect(landedCost.rate).toMatchObject({ foreignPaid: 15769, payments: 2 })
+      expect(landedCost.rate.rate).toBeCloseTo(blendedRate(db.rows("ipas_payments")), 4)
+      expect(landedCost.rate.rate).toBeCloseTo(59.3, 1)
+      expect(landedCost.rate.rate).not.toBeCloseTo((58.73 + 60.7) / 2, 2)
+    })
+
     it("converts a USD IPAS at the combined PHP / combined USD of its payments", async () => {
       const ipas = await raise({ currency: "USD", lines: [line(1, 10, 20), line(2, 5, 40)] })
       await ipasService.addPayment(
         ipas.id,
-        peso({ kind: "down_payment", amount: "150", phpDebited: "8400", chargeFeePhp: "300" }),
+        peso({ kind: "down_payment", amount: "150", forexRate: "56", chargeFeePhp: "300" }),
         { isPhpPo: false },
       )
       await ipasService.addPayment(
         ipas.id,
-        peso({ kind: "full_payment", amount: "250", phpDebited: "14350", chargeFeePhp: "200" }),
+        peso({ kind: "full_payment", amount: "250", forexRate: "57.4", chargeFeePhp: "200" }),
         { isPhpPo: false },
       )
       await ipasService.addCharge(ipas.id, { kindId: options.charge_kind["Brokerage Fee"].id, chargedOn: "2026-10-12", amountPhp: "1000" })
@@ -356,7 +380,7 @@ describe("ipasService: payments, charges and Landed Cost", () => {
       const withBlank = async () => {
         // 10 x USD 20 = USD 200 of goods; one payment of USD 200, pesos blank, paid 2026-10-01.
         const ipas = await raise({ currency: "USD", lines: [line(1, 10, 20)] })
-        const payment = await ipasService.addPayment(ipas.id, peso({ kind: "full_payment", amount: "200", phpDebited: "" }), { isPhpPo: false })
+        const payment = await ipasService.addPayment(ipas.id, peso({ kind: "full_payment", amount: "200", forexRate: "" }), { isPhpPo: false })
         return { ipas, payment }
       }
 
@@ -388,7 +412,7 @@ describe("ipasService: payments, charges and Landed Cost", () => {
         const { ipas, payment } = await withBlank()
         expect((await read(ipas.id)).landedCost.estimate).toBe(true)
 
-        await ipasService.updatePayment(payment.id, peso({ kind: "full_payment", amount: "200", phpDebited: "11800" }), { isPhpPo: false })
+        await ipasService.updatePayment(payment.id, peso({ kind: "full_payment", amount: "200", forexRate: "59" }), { isPhpPo: false })
         await ipasService.setComputationStatus(ipas.id, "lc_odoo_done")
 
         const { landedCost } = await read(ipas.id)

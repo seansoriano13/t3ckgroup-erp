@@ -1090,6 +1090,20 @@ export function stubIpasRpcs({
     return updated
   })
 
+  stubRpc("ipas_set_payment_money", (args) => {
+    requireMoney("ipas_set_payment_money")
+    const before = findRow("ipas_payments", args.p_payment_id)
+    if (!before) refuse("P0002", `ipas_set_payment_money: payment ${args.p_payment_id} not found`)
+    requireOpenIpas("ipas_set_payment_money", before.ipas_id)
+    const rate = args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
+    if (rate !== null && !(rate > 0)) refuse("22023", "ipas_set_payment_money: the forex rate must be more than zero")
+    return updateRow("ipas_payments", before, {
+      forex_rate: rate,
+      doc_stamp_php: round2(Number(args.p_doc_stamp_php ?? 0)),
+      misc_fee_php: round2(Number(args.p_misc_fee_php ?? 0)),
+    })
+  })
+
   stubRpc("ipas_remove_payment", (args) => {
     requireMoney("ipas_remove_payment")
     const row = findRow("ipas_payments", args.p_payment_id)
