@@ -40,7 +40,7 @@ export function useRecordParam(param = DEFAULT_PARAM) {
     [setParams, urlId, param],
   );
 
-  const open = useCallback((id) => setRecord(id), [setRecord]);
+  const open = useCallback((id, opts) => setRecord(id, opts), [setRecord]);
   const step = useCallback((id) => setRecord(id, { replace: true }), [setRecord]);
   const close = useCallback(() => setRecord(null, { replace: true }), [setRecord]);
 
