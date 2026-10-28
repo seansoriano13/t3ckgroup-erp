@@ -2,6 +2,7 @@ import MarkupPresetsSection from "./MarkupPresetsSection";
 import RatesSection from "./RatesSection";
 import SignerListsSection from "./SignerListsSection";
 import EvaluationSection from "./EvaluationSection";
+import CostGuideSection from "./CostGuideSection";
 import { COSTING_SIGNER_LIST } from "../../../constants/costing";
 
 /**
@@ -14,6 +15,7 @@ import { COSTING_SIGNER_LIST } from "../../../constants/costing";
  *   Rates               Finance access and Super Admins (#270); Finance access alone sees only this
  *   Final Acquire list  Super Admins (#270)
  *   Evaluation          Super Admins (#271): the task template and the evaluation list
+ *   Cost guide          Super Admins (#723): each cost category's low and high % of the Final Offer
  *
  * The Settings page offers the tab to anyone who sees at least one section; the database refuses the
  * write of everyone it is not meant for. `managesMarkup` is the Final Acquire list's membership, asked of
@@ -68,6 +70,11 @@ const SECTIONS = [
     show: ({ isSuperAdmin }) => isSuperAdmin,
     render: () => <EvaluationSection />,
   },
+  {
+    key: "cost-guide",
+    show: ({ isSuperAdmin }) => isSuperAdmin,
+    render: () => <CostGuideSection />,
+  },
 ];
 
 export default function CostingMatrixSettings({ isSuperAdmin = false, hasFinanceAccess = false, hasPurchasingAccess = false, managesMarkup = false }) {
@@ -75,7 +82,7 @@ export default function CostingMatrixSettings({ isSuperAdmin = false, hasFinance
   return (
     <div className="space-y-8" data-testid="costing-matrix-settings">
       <div>
-        <h2 className="text-sm font-semibold text-foreground">Costing Matrix</h2>
+        <h2 className="text-sm font-semibold text-foreground">S0 Evaluation</h2>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">The markup presets, the rates behind the summary, the people who set Final Acquire, and how the evaluation of specification is run.</p>
       </div>
       {SECTIONS.filter((section) => section.show(access)).map(({ key, render }) => (

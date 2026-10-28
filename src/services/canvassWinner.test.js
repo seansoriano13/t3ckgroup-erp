@@ -157,6 +157,7 @@ describe("a winning Offer fills the Component", () => {
     const itemCanvass = await seedCanvass({ requestedItemId: item.id }, purchaser.id)
     const offer = await canvassService.addOffer(itemCanvass.id, { supplierName: "Paper Co", description: "A4 ream", unitPrice: 250 }, purchaser.id)
 
+    for (const slot of [2, 3]) db.seed("sor_canvass_no_other_supplier", { canvass_id: itemCanvass.id, slot, reason: "No other dealer" })
     const result = await canvassService.markWinner(itemCanvass.id, offer.id)
     expect(result.filled).toEqual({ acquire: false, offer_specification: false, documents: false })
     expect(db.rows("costing_component_costs")).toHaveLength(0)

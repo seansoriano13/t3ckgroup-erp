@@ -89,7 +89,7 @@ export const CONDITION_KIND_META = {
   [CONDITION_KINDS.COSTING_SETTLED]: {
     label: "Costing settled",
     icon: Calculator,
-    hint: "The Costing Matrix is finished (a Final Offer on every Tender Line, a complete summary, an approved evaluation, within ABC) and the Bid Decision is Go. Unmet when there is no matrix.",
+    hint: "The S0 Evaluation is finished (a Final Offer on every Tender Line, a complete summary, an approved evaluation, within ABC) and the Bid Decision is Go. Unmet when there is no matrix.",
   },
   [CONDITION_KINDS.COSTING_PRICED]: {
     label: "Costing priced",
@@ -99,7 +99,7 @@ export const CONDITION_KIND_META = {
   [CONDITION_KINDS.COSTING_EVALUATION_APPROVED]: {
     label: "Evaluation of Specification approved",
     icon: ClipboardCheck,
-    hint: "The Costing Matrix's Evaluation of Specification is approved. Unmet when there is no matrix.",
+    hint: "The S0 Evaluation's Evaluation of Specification is approved. Unmet when there is no matrix.",
   },
   [CONDITION_KINDS.GOODS_CHECKED]: {
     label: "Goods checked",
@@ -132,16 +132,16 @@ export const ACTION_KIND_META = {
     titled: false,
   },
   open_costing_matrix: {
-    label: "Open Costing Matrix",
+    label: "Open S0 Evaluation",
     icon: Calculator,
-    hint: "Opens the SOR's Costing Matrix. One per SOR.",
+    hint: "Opens the SOR's S0 Evaluation. One per SOR.",
     // Saves no title of its own, so it is named by its label.
     titled: false,
   },
   evaluate_specification: {
     label: "Evaluation of Specification",
     icon: ClipboardCheck,
-    hint: "Opens the Costing Matrix for the Technical teams to judge, and holds the deal here until the evaluation is approved.",
+    hint: "Opens the S0 Evaluation for the Technical teams to judge, and holds the deal here until the evaluation is approved.",
     // Saves no title of its own, so it is named by its label.
     titled: false,
   },

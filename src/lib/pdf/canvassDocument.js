@@ -25,7 +25,12 @@ const EXTRA_CSS = `
   .cnv-compare .sub { margin-top: 2px; }
   .cnv-compare td.num .sub { font-size: 6.6pt; color: var(--ink-faint); white-space: normal; }
   .cnv-group { font-family: var(--mono); font-size: 7pt; color: var(--ink-faint); margin: 2px 0 4px; }
+  .sigs.n1 { grid-template-columns: minmax(0, 1fr); max-width: 33%; }
   .sigs.n3 { grid-template-columns: repeat(3, 1fr); }
+  .cnv-slots { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.6pt; }
+  .cnv-slots th, .cnv-slots td { border: 1px solid var(--ink); padding: 4px 6px; text-align: left; vertical-align: top; }
+  .cnv-slots th { font-size: 7.4pt; text-transform: uppercase; letter-spacing: .06em; }
+  .cnv-slots .cnv-by { font-size: 7.4pt; opacity: .7; }
   .cnv-warning { font-size: 8.2pt; font-weight: 600; color: var(--flag); border-top: 1px solid var(--ink); padding-top: 5px; }
 `;
 
@@ -101,9 +106,19 @@ function offersHtml(offers, groups) {
     ${groups.map((group) => compareTable(group, groups.length > 1 ? perTable : group.offers.length)).join('')}</div></section>`;
 }
 
-/** The three signature plates through `sigBlock`, in the band every Purchasing form closes with. */
+/** The three supplier slots, with the reason for each "No other supplier" (#721). */
+function slotsHtml(slots) {
+  if (slots.length === 0) return '';
+  const cell = (s) =>
+    `<td data-testid="print-slot-${s.slot}"><b>${esc(s.label)}</b>${s.reason ? `<div>${esc(s.reason)}</div>` : ''}${s.by ? `<div class="cnv-by">${esc(s.by)}</div>` : ''}</td>`;
+  return `<section class="sec"><h3><span>Supplier slots</span><b>3</b></h3><div class="body"><table class="cnv-slots"><tr>${slots
+    .map((s) => `<th>Supplier ${s.slot}</th>`)
+    .join('')}</tr><tr>${slots.map(cell).join('')}</tr></table></div></section>`;
+}
+
+/** The signature plates (Canvassed by, and Approved by on an old signed Canvass) through `sigBlock`, in the band every Purchasing form closes with. */
 function bandHtml(blocks) {
-  return `<div class="band"><div class="sigs n3">${blocks
+  return `<div class="band"><div class="sigs n${blocks.length}">${blocks
     .map((b) =>
       sigBlock({
         role: esc(b.role),
@@ -120,11 +135,11 @@ function bandHtml(blocks) {
 /** The whole sheet as markup, in the same furniture as the IPAS, Transmittal and Packing List. */
 export function buildCanvassSheetHtml(vm) {
   const h = vm.header;
-  const approved = vm.signatures[2]?.state === 'signed';
+  const approved = vm.signatures.some((b) => b.role === 'Approved by' && b.state === 'signed');
   return `<div class="sheet">
     <div class="rail"><span class="mark">${MARK}</span>
       <span class="org"><b>T3CKGROUP</b>Purchasing department</span>
-      <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">Canvass · ${approved ? 'Approved' : 'Not approved'}</div></span></div>
+      <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">Canvass${approved ? ' · Approved' : ''}</div></span></div>
     ${headHtml(vm.decision)}
     <div class="hdr">
       ${field(h.subjectKind === 'Component' ? 'SOR · Component' : h.subjectKind, h.subject)}
@@ -132,6 +147,7 @@ export function buildCanvassSheetHtml(vm) {
       ${field('Offers', String(h.offerCount), { mono: true })}
     </div>
     ${reasonHtml(vm.decision.reason)}
+    ${slotsHtml(vm.slots ?? [])}
     ${offersHtml(vm.offers, vm.offerGroups ?? [{ offers: vm.offers, label: null }])}
     ${vm.warning ? `<div class="cnv-warning" data-testid="more-offers-warning">${esc(vm.warning)}</div>` : ''}
     ${bandHtml(vm.signatures)}

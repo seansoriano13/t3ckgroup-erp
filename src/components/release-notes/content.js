@@ -433,7 +433,7 @@ export const SECTIONS = [
         id: "purchasing-queue-retiring",
         kind: "next",
         title: "The Procurement Queue will be removed",
-        body: "It stays for now. The IPAS is live. Once the Purchasing modules below are in use too, it goes away and they take its place: Purchase Requests, Costing Matrix, Canvass, Transmittal and TSR, and Order Monitoring.",
+        body: "It stays for now. The IPAS is live. Once the Purchasing modules below are in use too, it goes away and they take its place: Purchase Requests, S0 Evaluation, Canvass, Transmittal and TSR, and Order Monitoring.",
         who: ["Purchasing", "Sales"],
       },
       {
@@ -447,10 +447,10 @@ export const SECTIONS = [
         id: "printed-forms",
         kind: "next",
         title: "Costing, and the forms that go with it",
-        body: "The IPAS is live, and it prints like the paper form. Next, bids get a Costing Matrix, suppliers are compared on a Canvass, and goods are handed over on a Transmittal and TSR. Each one will print like its paper form too.",
+        body: "The IPAS is live, and it prints like the paper form. Next, bids get an S0 Evaluation, suppliers are compared on a Canvass, and goods are handed over on a Transmittal and TSR. Each one will print like its paper form too.",
         who: ["Purchasing", "Finance", "Sales"],
         prototypes: [
-          { id: "printed-costing-matrix", title: "Costing Matrix", file: "/prototypes/printed-costing-matrix.html" },
+          { id: "printed-costing-matrix", title: "S0 Evaluation", file: "/prototypes/printed-costing-matrix.html" },
           { id: "printed-canvass", title: "Canvass", file: "/prototypes/printed-canvass.html" },
           { id: "printed-transmittal-tsr", title: "Transmittal and TSR", file: "/prototypes/printed-transmittal-tsr.html" },
         ],

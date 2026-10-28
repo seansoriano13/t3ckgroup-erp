@@ -610,6 +610,7 @@ export const ODOO_PO_STATE_LABELS = {
 /** The event kinds the history shows (ipas_events.kind). */
 export const IPAS_EVENT_LABELS = {
   created: "Raised",
+  sor_added: "SOR added",
   cancelled: "Cancelled",
   purpose_sors_changed: "Purpose and SORs changed",
   override_set: "Override set",

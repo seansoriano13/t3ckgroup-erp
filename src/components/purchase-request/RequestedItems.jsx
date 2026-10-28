@@ -284,7 +284,7 @@ export default function RequestedItems({ request, renderActions }) {
             </span>
           )}
         </h3>
-        <AddRequestedItems request={request} items={items} />
+        <AddRequestedItems request={request} />
       </div>
       {itemsQuery.isLoading ? (
         <div className="flex justify-center py-8">

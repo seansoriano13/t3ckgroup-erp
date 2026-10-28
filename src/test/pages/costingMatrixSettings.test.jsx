@@ -36,13 +36,13 @@ const seedPresets = () => {
   db.seed("costing_markup_presets", { label: "Old", factor: 3, sort: 3, active: false });
 };
 
-describe("Costing Matrix settings", () => {
+describe("S0 Evaluation settings", () => {
   beforeEach(() => {
     mockUser.current = null;
     vi.restoreAllMocks();
   });
 
-  it("gives a Super Admin the Costing Matrix tab, with the presets in order and their factor as x and +%", async () => {
+  it("gives a Super Admin the S0 Evaluation tab, with the presets in order and their factor as x and +%", async () => {
     seedPresets();
     stubRpc("costing_can_manage_markup", true);
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
@@ -114,7 +114,7 @@ describe("Costing Matrix settings", () => {
     expect(screen.queryByTestId("markup-preset-row")).not.toBeInTheDocument();
   });
 
-  it("opens Settings for the Final Acquire list without Purchasing access, with the Costing Matrix alone", async () => {
+  it("opens Settings for the Final Acquire list without Purchasing access, with the S0 Evaluation alone", async () => {
     seedPresets();
     stubRpc("costing_can_manage_markup", true);
     mockUser.current = makeEmployee({ name: "Final Acquire", has_purchasing_flow: false });
@@ -122,7 +122,7 @@ describe("Costing Matrix settings", () => {
 
     const section = await screen.findByTestId("markup-presets");
     expect(await within(section).findAllByTestId("markup-preset-row")).toHaveLength(3);
-    expect(tabNames()).toEqual(["General", "Costing Matrix"]);
+    expect(tabNames()).toEqual(["General", "S0 Evaluation"]);
     // The Purchasing tab and its IPAS lists are not theirs, and neither are the rates or the Final Acquire list.
     expect(screen.queryByRole("tab", { name: "Purchasing", hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByTestId("costing-rates")).not.toBeInTheDocument();

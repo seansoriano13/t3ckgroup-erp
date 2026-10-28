@@ -117,7 +117,7 @@ export const NAV_MODULES = {
       // refuses the read.
       {
         key: "sales.costingMatrix",
-        label: "Costing Matrix",
+        label: "S0 Evaluation",
         link: "/costing-matrix",
         icon: Calculator,
         isPermitted: (ctx) => ctx.isBidDecider,
@@ -326,16 +326,6 @@ export const NAV_MODULES = {
         link: "/approvals/bid-decisions",
         icon: Gavel,
         isPermitted: (ctx) => ctx.isBidDecider,
-        exactMatch: true,
-      },
-      {
-        // Canvass sign-offs (#279): Canvasses with a winner and a reason, waiting for the
-        // purchasing approver list (the one that approves Transmittals).
-        key: "approvals.canvassSignoffs",
-        label: "Canvass Sign-offs",
-        link: "/approvals/canvass-signoffs",
-        icon: Scale,
-        isPermitted: (ctx) => ctx.isTransmittalCheckBy,
         exactMatch: true,
       },
     ],

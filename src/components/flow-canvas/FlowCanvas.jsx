@@ -1814,6 +1814,12 @@ function FlowCanvasInner() {
           onToggleAutoMove={() =>
             run(() => salesFlowService.setStageAutoMove(selectedStage.id, !selectedStage.auto_move, user?.id))
           }
+          onToggleBuyingOpens={() =>
+            run(
+              () => salesFlowService.setStageBuyingOpens(selectedStage.id, !selectedStage.buying_opens_here, user?.id),
+              selectedStage.buying_opens_here ? "Buying no longer opens here." : "Buying opens here.",
+            )
+          }
           onSetTerminalOutcome={(outcome) =>
             run(() => salesFlowService.setStageTerminalOutcome(selectedStage.id, outcome, user?.id))
           }

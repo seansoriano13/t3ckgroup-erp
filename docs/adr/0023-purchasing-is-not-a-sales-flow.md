@@ -99,3 +99,19 @@ of its own, and it would block every open purchasing ticket while it ran.
 - `docs/crm-pipeline-redesign.md` already recorded "Purchase Request,
   deliberately outside the SOR". This decision is consistent with that, and
   supersedes nothing.
+
+## Amendment (2026-11-13, spec #718, ticket #730): an IPAS is raised by attaching the P0, and its SOR list can grow
+
+"The SOR list is fixed after raising" (#551) is relaxed for additions only.
+
+- **Attaching a P0 to a project line raises its IPAS.** After `odoo-po-verify` attaches a verified P0, the server reads
+  the PO from Odoo itself (the same read as `odoo-po-ipas`) and calls `purchase_request_item_auto_ipas` (service role
+  only). With no live IPAS for the P0 it raises one: Source from the PO's currency (PHP is Local, anything else Import),
+  Purpose Project, Priority Medium (editable later), SORs = the line's SOR. A forged copy still cannot be stored.
+- **A live IPAS that is not filed gets this SOR added.** One P0 serving two deals stays one IPAS. The history records
+  it as "SOR added". Nobody can remove an SOR or edit the list by hand; `ipas_set_purpose_and_sors` is unchanged.
+- **A filed IPAS gets nothing.** The answer says so and the filed record stays frozen. The same holds for a live
+  IPAS that is not a Project IPAS.
+- **Odoo not answering never undoes the attach.** The P0 stays attached, the line is flagged `ipas_pending` and shows
+  "IPAS to create" with a Retry button.
+- **Manual raising stays** for Inventory, Supplies and Events, and for a line with no SOR (a Direct request).

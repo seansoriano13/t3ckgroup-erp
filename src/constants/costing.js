@@ -72,6 +72,8 @@ export const tierReadsCost = (tier, column) => (COMPONENT_COST_TIERS[column] ?? 
 export const COST_ROW_TIERS = {
   ...COMPONENT_COST_TIERS,
   markup_price_unit: [COSTING_TIER.CLOSED_BOOK],
+  // #723: the cost guide category is a label, not money; every tier that reads the row reads it.
+  category_key: [COSTING_TIER.PARTICIPANT, COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
 };
 
 /** Does this tier receive the named unit-cost column of a cost-only row? */
@@ -151,6 +153,7 @@ export const INCLUSION_BANDS = {
 
 export const COST_ROW_BANDS = {
   description: [SALES, PURCHASING],
+  category_key: [SALES, PURCHASING],
   quantity: [SALES, PURCHASING],
   ...COMPONENT_COST_BANDS,
 };

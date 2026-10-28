@@ -207,17 +207,6 @@ export const purchaseRequestService = {
   },
 
   /**
-   * Whether the signed-in employee has Purchasing access (#273): the only people who may add
-   * Requested Items from the Costing Matrix. A convenience for showing the button; the
-   * database refuses anyone else.
-   */
-  async hasPurchasingAccess() {
-    const { data, error } = await supabase.rpc("has_purchasing_access");
-    if (error) throw error;
-    return data === true;
-  },
-
-  /**
    * #501 — the request's SOR stock snapshot (#202), `{ fetched_at, data }`,
    * or null. Read through the request, not `sor_stock_snapshots`, whose policy
    * hides it from a Buyer without SOR access; the picker and the saved items
@@ -394,11 +383,15 @@ export const purchaseRequestService = {
    * the P0's facts. A number Odoo doesn't have is refused (this throws, naming it); so is an
    * Odoo that doesn't answer, because a P0 is never attached unseen. Throws on a number that
    * isn't an Odoo P0 ("P" then digits). Returns the updated item.
+   *
+   * #724: on a project line, a flow with a "Buying opens here" Stage refuses the attach until the
+   * SOR has entered it. That refusal throws an error whose `code` is "buying_not_open"; sending
+   * `orderEarly` with a typed `orderEarlyReason` attaches anyway and records the reason.
    */
-  async attachP0(itemId, poNumber) {
+  async attachP0(itemId, poNumber, { orderEarly = false, orderEarlyReason = "" } = {}) {
     const po = normalizePoNumber(poNumber);
     if (!po || !isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
-    return purchaseRequestService.applyPoAction("attach", itemId, po);
+    return purchaseRequestService.applyPoAction("attach", itemId, po, orderEarly ? { orderEarly: true, orderEarlyReason } : {});
   },
 
   /**
@@ -448,9 +441,9 @@ export const purchaseRequestService = {
    * Saves a PO on an item through the server (`odoo-po-verify`, save mode).
    * `action` is "attach" (#684) or "correct" (#549).
    */
-  async applyPoAction(action, itemId, poNumber) {
+  async applyPoAction(action, itemId, poNumber, extra = {}) {
     const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
-      body: { action, itemId, poNumber },
+      body: { action, itemId, poNumber, ...extra },
     });
     if (error) {
       let message = "Couldn't save the PO number. Try again.";
@@ -462,8 +455,25 @@ export const purchaseRequestService = {
       }
       throw new Error(message);
     }
-    if (!data?.success) throw new Error(data?.message || "Couldn't save the PO number. Try again.");
-    return data.item;
+    if (!data?.success) {
+      throw Object.assign(new Error(data?.message || "Couldn't save the PO number. Try again."), { code: data?.code });
+    }
+    // #730: attaching also raises the IPAS (or adds the SOR to the live one); `ipas` says what happened.
+    return data.ipas ? { ...data.item, ipas: data.ipas } : data.item;
+  },
+
+  /**
+   * #730: tries again to raise the IPAS of a project line whose P0 is attached but whose Odoo did not
+   * answer ("IPAS to create"). The server reads the PO itself. Returns `{ result, message, ipas_number }`;
+   * throws when Odoo still does not answer, and the line stays "IPAS to create".
+   */
+  async retryIpas(itemId, poNumber) {
+    const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
+      body: { action: "ipas", itemId, poNumber },
+    });
+    if (error) throw new Error("Couldn't raise the IPAS. Try again.");
+    if (!data?.success) throw new Error(data?.message || "Couldn't raise the IPAS. Try again.");
+    return data.ipas;
   },
 
   /**

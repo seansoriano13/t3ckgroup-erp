@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
+import { coverSlots } from "./support/canvassSlots.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { purgeCostingForSors } from "./support/costing.js"
 
@@ -107,6 +108,7 @@ describe("a Canvass is never overwritten", () => {
         const canvass = await canvassOn(id)
         const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: "Redleaf Inc." }).select("id").single(), "Offer")
         await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: 500 }), "price")
+        await coverSlots(canvass.id)
         const won = await (await clientFor("outsider")).rpc("canvass_apply_winner", { p_canvass_id: canvass.id, p_offer_id: offer.id })
         expect(won.error).toBeNull()
         await asSvc(svc().from("sor_canvasses").update({ reason: "Best price" }).eq("id", canvass.id), "reason")
@@ -126,6 +128,7 @@ describe("the winner fills the linked Component", () => {
         const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: "Ferno" }).select("id").single(), "Offer")
         await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: 78000 }), "price")
 
+        await coverSlots(canvass.id)
         const { data, error } = await (await clientFor("outsider")).rpc("canvass_apply_winner", { p_canvass_id: canvass.id, p_offer_id: offer.id })
         expect(error).toBeNull()
         expect(data.filled.acquire).toBe(true)
@@ -138,6 +141,7 @@ describe("the winner fills the linked Component", () => {
         const canvass = await canvassOn(id)
         const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: "Ferno" }).select("id").single(), "Offer")
         await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: 10 }), "price")
+        await coverSlots(canvass.id)
         const { data, error } = await (await clientFor("outsider")).rpc("canvass_apply_winner", { p_canvass_id: canvass.id, p_offer_id: offer.id })
         expect(error).toBeNull()
         expect(data.filled.acquire).toBe(false)

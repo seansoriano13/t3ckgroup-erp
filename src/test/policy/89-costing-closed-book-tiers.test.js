@@ -166,7 +166,7 @@ beforeAll(async () => {
         const error = await setMoney(who === "dealOwner" && row === otherLineId ? "closingSales" : who, table, row, patch)
         if (error) throw new Error(`typing ${JSON.stringify(patch)} as ${who}: ${error.message}`)
     }
-    const costRow = await rpc("outsider", "costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery Charge", p_quantity: 1 })
+    const costRow = await rpc("outsider", "costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery Charge", p_quantity: 1, p_category_key: "logistics" })
     if (costRow.error) throw new Error(`costing_add_cost_row: ${costRow.error.message}`)
     costRowId = costRow.data
     for (const [who, patch] of [
@@ -303,7 +303,7 @@ describe("Stage Participant with an open window (no money at all)", () => {
             expect(table in t, table).toBe(false)
         }
         // Cost-only rows keep their description and quantity; every figure is gone.
-        expect(Object.keys(t.costing_cost_rows[0]).sort()).toEqual(["created_at", "description", "id", "matrix_id", "position", "quantity"].sort())
+        expect(Object.keys(t.costing_cost_rows[0]).sort()).toEqual(["category_key", "created_at", "description", "id", "matrix_id", "position", "quantity"].sort())
         expect(t.costing_tender_lines).toHaveLength(2)
         expect(t.costing_components.find((r) => r.id === componentId).compliance).toBe("complies")
         expectOnlyRegistered(read, "participant", "stageParticipant")

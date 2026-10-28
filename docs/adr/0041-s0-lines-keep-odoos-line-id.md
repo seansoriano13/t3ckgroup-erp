@@ -53,3 +53,7 @@ so two overlapping opens still never double the list.
   Lines with no Odoo product id (older SORs) cannot be matched to an Odoo line
   on their first read after this change; they are replaced once, and are stable
   from then on.
+
+## Addendum (#727, spec #718)
+
+A Tender Line now keeps the Odoo line id too (`costing_tender_lines.odoo_line_id`). "Refresh from the SOR" matches each S0 line to the line holding its Odoo line id, else an unlinked typed line with the same Odoo product, else adds a row. A similar name is only a suggestion that Sales confirms (`costing_s0_link_suggestions`, `costing_link_to_s0_line`); nothing links by name. Linking moves no money, so a Go lock lets it through; adding a new row does not pass the lock.

@@ -136,7 +136,7 @@ export function rowLabel(row) {
     case "canvass":
       return row.target_label ? `Canvass ${row.target_label}` : "Canvass";
     case "costing_matrix":
-      return "Costing Matrix";
+      return "S0 Evaluation";
     case "ipas":
       return row.target_label ? `IPAS ${row.target_label}` : "IPAS";
     case "transmittal":

@@ -228,7 +228,10 @@ function moneySheet(matrix, people) {
     deviations: deviationsOf(matrix),
     notEvaluated: matrix.compliance?.notEvaluated ?? 0,
     ...landedOf(matrix.totals?.landedCost, peso),
-    signoffs: SIGN_BLOCKS.map((block) => signoffBox(block, matrix.signoffs?.[block.key]?.signoff ?? null, matrix, people)),
+    // Prepared, Costed and Final approval are no longer asked for (#722): they print only where signed.
+    signoffs: SIGN_BLOCKS.filter((block) => block.key === 'evaluation_approved' || matrix.signoffs?.[block.key]?.signoff).map((block) =>
+      signoffBox(block, matrix.signoffs?.[block.key]?.signoff ?? null, matrix, people),
+    ),
   };
 }
 
@@ -298,7 +301,7 @@ function appendixSheet(matrix) {
  */
 export function buildCostingMatrixViewModel(record, { printedAt = null, printedBy = null } = {}) {
   const { matrix, opportunity = {}, people = {} } = record ?? {};
-  if (!matrix) throw new Error("There is no Costing Matrix to print, or you can't read it.");
+  if (!matrix) throw new Error("There is no S0 Evaluation to print, or you can't read it.");
 
   const showMoney = matrix.tier === COSTING_TIER.CLOSED_BOOK && Boolean(matrix.summary);
   const sheets = [];

@@ -1,28 +1,32 @@
 import { CheckCircle2, PenLine } from "lucide-react";
 
-import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
-import { costingMatrixService } from "../../services/costingMatrixService";
-import { COSTING_TIER } from "../../constants/costing";
+import { tierReadsSummary } from "../../constants/costing";
 import { formatDate } from "../../utils/formatDate";
 
 /**
- * The three sign-offs the printed matrix carries besides the evaluation (#274): Prepared by (the
- * Sales incharge), Costed by (the Purchasing incharge) and Final Acquire and offer approved (the
- * Final Acquire list). Each shows who signed and when, or goes stale in words when a figure it
- * vouched for changed ("The Final Offer changed"). A button appears only for the person the
- * database would let sign; the database still decides.
+ * What the matrix carries besides the Evaluation approval and the Bid Decision (#722, spec #718).
+ * Prepared and Costed are no longer requested, and Final approved went with Final Acquire, so there
+ * is no sign button here. "Costed" shows by itself when every row has a Final Acquire. A signature
+ * already on an old deal stays visible as history: who signed and when.
  */
-const SIGNOFFS = [
-  { role: "prepared", label: "Prepared by", button: "Sign as prepared", who: (matrix, ctx) => Boolean(ctx.actorId) && matrix.matrix?.sales_incharge_id === ctx.actorId },
-  { role: "costed", label: "Costed by", button: "Sign as costed", who: (matrix, ctx) => Boolean(ctx.actorId) && matrix.matrix?.purchasing_incharge_id === ctx.actorId },
-  // The list, or anyone who reads this matrix at the Closed Book (Purchasing and the SOR's Deal Team).
-  { role: "final_approved", label: "Final approval", button: "Approve Final Acquire & offer", who: (matrix, ctx) => ctx.isFinalAcquire || matrix.tier === COSTING_TIER.CLOSED_BOOK },
+const HISTORY = [
+  { role: "prepared", label: "Prepared by" },
+  { role: "costed", label: "Costed by" },
+  { role: "final_approved", label: "Final approval" },
 ];
 
-export default function SignoffBar({ matrix, actorId, isFinalAcquire = false, nameOf, writes }) {
-  const { busy, run } = writes;
-  const ctx = { actorId, isFinalAcquire };
+/** Every Component and cost-only row has a Final Acquire, and there is at least one. Closed Book only: other tiers never receive the figure. */
+function isCostedByRows(matrix) {
+  if (!tierReadsSummary(matrix.tier)) return false;
+  const rows = [...(matrix.tenderLines ?? []).flatMap((line) => line?.components ?? []), ...(matrix.costRows ?? [])];
+  return rows.length > 0 && rows.every((row) => row?.final_acquire_unit !== null && row?.final_acquire_unit !== undefined);
+}
+
+export default function SignoffBar({ matrix, nameOf }) {
+  const past = HISTORY.filter(({ role }) => matrix.signoffs?.[role]?.approved);
+  const costed = isCostedByRows(matrix);
+  if (!costed && past.length === 0) return null;
 
   return (
     <div className="space-y-3 rounded-2xl border border-border bg-card p-4" data-testid="signoff-bar">
@@ -30,36 +34,25 @@ export default function SignoffBar({ matrix, actorId, isFinalAcquire = false, na
         <PenLine size={14} aria-hidden="true" />
         Sign-offs
       </span>
-      {SIGNOFFS.map(({ role, label, button, who }) => {
-        const state = matrix.signoffs?.[role] ?? { approved: false, signoff: null, cleared: null };
-        const reason = state.cleared?.cleared_reason;
+      {costed && (
+        <div className="flex flex-wrap items-center gap-2" data-testid="costed-derived">
+          <StatusBadge theme="green" title="Every row has a cost">
+            <CheckCircle2 size={12} className="mr-1" aria-hidden="true" />
+            Costed
+          </StatusBadge>
+        </div>
+      )}
+      {past.map(({ role, label }) => {
+        const { signoff } = matrix.signoffs[role];
         return (
           <div key={role} className="flex flex-wrap items-center gap-2" data-testid={`signoff-${role}`}>
-            {state.approved ? (
-              <>
-                <StatusBadge theme="green" title={`${label} signed`}>
-                  <CheckCircle2 size={12} className="mr-1" aria-hidden="true" />
-                  {label}
-                </StatusBadge>
-                <span className="text-xs text-muted-foreground">
-                  {nameOf?.(state.signoff.signed_by) ?? "someone"}, {formatDate(state.signoff.signed_at)}
-                </span>
-              </>
-            ) : (
-              <>
-                <StatusBadge label={label} theme="mauve" title={`${label} not signed`} />
-                {reason && (
-                  <span className="text-xs text-muted-foreground" data-testid={`signoff-${role}-cleared`}>
-                    Cleared: {reason.charAt(0).toLowerCase() + reason.slice(1)}.
-                  </span>
-                )}
-                {who(matrix, ctx) && (
-                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => run(() => costingMatrixService.sign(matrix.matrixId, role))}>
-                    {button}
-                  </Button>
-                )}
-              </>
-            )}
+            <StatusBadge theme="green" title={`${label} signed`}>
+              <CheckCircle2 size={12} className="mr-1" aria-hidden="true" />
+              {label}
+            </StatusBadge>
+            <span className="text-xs text-muted-foreground">
+              {nameOf?.(signoff.signed_by) ?? "someone"}, {formatDate(signoff.signed_at)}
+            </span>
           </div>
         );
       })}

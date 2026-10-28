@@ -11,7 +11,7 @@ describe("purchaseRequestSummary", () => {
   it("reads as one line", () => {
     expect(purchaseRequestSummary({})).toBe("No default Buyer");
     expect(purchaseRequestSummary({ buyer: { type: BUYER_COSTING_INCHARGE } })).toBe(
-      "Buyer: the Costing Matrix's Purchasing Incharge",
+      "Buyer: the S0 Evaluation's Purchasing Incharge",
     );
   });
 

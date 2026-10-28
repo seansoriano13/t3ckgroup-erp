@@ -5,7 +5,7 @@ import { costingMatrixService } from "./costingMatrixService"
 import { purchaseRequestService } from "./purchaseRequestService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
-import { seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
+import { explainEmptySlots, seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { COSTING_TIER } from "@/constants/costing"
@@ -94,10 +94,11 @@ describe("Canvass on a Requested Item", () => {
     expect(await canvassService.getForRequestedItem(null)).toBeNull()
   })
 
-  it("writes nothing to the Costing Matrix when a winner is marked on an item's Canvass", async () => {
+  it("writes nothing to the S0 Evaluation when a winner is marked on an item's Canvass", async () => {
     const canvass = await seedCanvass({ requestedItemId: plainItem.id }, purchaser.id)
     const offer = await canvassService.addOffer(canvass.id, { supplierName: "Paper Co", description: "A4 ream", unitPrice: 250 }, purchaser.id)
 
+    explainEmptySlots(canvass.id)
     const result = await canvassService.markWinner(canvass.id, offer.id)
     expect(result.filled).toEqual({ acquire: false, offer_specification: false, documents: false })
     expect(db.rows("costing_component_costs").every((c) => c.acquire_unit == null)).toBe(true)

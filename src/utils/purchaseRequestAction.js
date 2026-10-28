@@ -36,7 +36,7 @@ export function extraRequesters(requesters) {
 export function purchaseRequestSummary(config = {}, nameOf = (id) => id) {
   if (config.buyer?.type === BUYER_EMPLOYEE) return `Buyer: ${nameOf(config.buyer.id)}`;
   if (config.buyer?.type === BUYER_COSTING_INCHARGE) {
-    return "Buyer: the Costing Matrix's Purchasing Incharge";
+    return "Buyer: the S0 Evaluation's Purchasing Incharge";
   }
   return "No default Buyer";
 }

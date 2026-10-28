@@ -4,7 +4,6 @@ import { STATUS_THEME } from "../constants/status";
 
 /** The Canvasses page filters (ADR 0034, #566); "all" on a select means no filter. */
 export const ANY = "all";
-export const SIGNED_FILTER = { SIGNED: "signed", UNSIGNED: "unsigned" };
 export const WINNER_FILTER = { YES: "yes", NO: "no" };
 export const LINKED_FILTER = { LINKED: "linked", FREE: "free" };
 export const REQUEST_FILTER = { NOT_YET: "not_yet", CREATED: "created" };
@@ -43,23 +42,28 @@ export function canvassSubjectLabel(row) {
   return row.productName || row.subjectName || "";
 }
 
-/** The State pills: Open is a Canvass nobody has signed off yet. */
-export const CANVASS_STATE = { OPEN: "open", SIGNED: "signed", ALL: "all" };
+/**
+ * The State pills (#728, ADR 0047): Open is a Canvass with no winner yet; Winner picked has one. Signed off
+ * is history, kept on old records only.
+ */
+export const CANVASS_STATE = { OPEN: "open", WON: "won", SIGNED: "signed", ALL: "all" };
 
-/** A Canvass's own state for the State badge: Signed off, Requested (a Purchase Request was made), or Open. */
-export const CANVASS_ROW_STATE = { OPEN: "open", REQUESTED: "requested", SIGNED: "signed" };
+/** A Canvass's own state for the State badge: Signed off (old history), Requested (a Purchase Request was made), Winner picked, or Open. */
+export const CANVASS_ROW_STATE = { OPEN: "open", WON: "won", REQUESTED: "requested", SIGNED: "signed" };
 
 /** State -> StatusBadge tone, the one place this list maps them. */
 export const CANVASS_STATE_TONES = {
   [CANVASS_ROW_STATE.OPEN]: "amber",
   [CANVASS_ROW_STATE.REQUESTED]: "blue",
-  [CANVASS_ROW_STATE.SIGNED]: "green",
+  [CANVASS_ROW_STATE.WON]: "green",
+  [CANVASS_ROW_STATE.SIGNED]: "mauve",
 };
 
-/** `{ state, label }` for a StateCell. */
+/** `{ state, label }` for a StateCell. Open means no winner yet. */
 export function canvassStateOf(row) {
   if (row.signedOffAt) return { state: CANVASS_ROW_STATE.SIGNED, label: "Signed off" };
   if (row.requestId) return { state: CANVASS_ROW_STATE.REQUESTED, label: "Requested" };
+  if (row.winner) return { state: CANVASS_ROW_STATE.WON, label: "Winner picked" };
   return { state: CANVASS_ROW_STATE.OPEN, label: "Open" };
 }
 
@@ -85,12 +89,20 @@ export function canvassExportRows(rows) {
   ]);
 }
 
-/** Rows that pass the filter bar: search, Canvasser, signed, has a winner, linked or not, request made or not. */
-export function filterCanvasses(rows, { search = "", canvasserId = ANY, signed = ANY, winner = ANY, linked = ANY, request = ANY } = {}) {
+/** Whether a row is in a State pill: Open (no winner yet), Winner picked, or Signed off (old history). */
+function matchesState(row, state) {
+  const signed = Boolean(row.signedOffAt);
+  if (state === CANVASS_STATE.SIGNED) return signed;
+  if (state === CANVASS_STATE.WON) return !signed && Boolean(row.winner);
+  return !signed && !row.winner;
+}
+
+/** Rows that pass the filter bar: search, Canvasser, state pill, has a winner, linked or not, request made or not. */
+export function filterCanvasses(rows, { search = "", canvasserId = ANY, state = ANY, winner = ANY, linked = ANY, request = ANY } = {}) {
   const needle = search.trim().toLowerCase();
   return rows.filter((row) => {
     if (canvasserId !== ANY && row.canvasserId !== canvasserId) return false;
-    if (signed !== ANY && Boolean(row.signedOffAt) !== (signed === SIGNED_FILTER.SIGNED)) return false;
+    if (state !== ANY && !matchesState(row, state)) return false;
     if (winner !== ANY && Boolean(row.winner) !== (winner === WINNER_FILTER.YES)) return false;
     if (linked !== ANY && (row.kind !== CANVASS_KIND.NONE) !== (linked === LINKED_FILTER.LINKED)) return false;
     if (request !== ANY) {

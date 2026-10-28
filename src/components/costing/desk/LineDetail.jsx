@@ -41,6 +41,9 @@ export default function LineDetail({ line, index, count, matrix, ctx }) {
   const addedPartId = useRef(null);
 
   const canWrite = matrix.bands.includes(COSTING_BAND.SALES);
+  // A line typed before the S0 exists: Sales or Purchasing names its Odoo product (#720).
+  const isTyped = line.source === "typed" && !line.sor_item_id;
+  const canSetProduct = isTyped && inAnyBand(matrix.bands, ROW_EDIT_BANDS);
   const canEditParts = inAnyBand(matrix.bands, ROW_EDIT_BANDS);
   const showAbc = tierReads(matrix.tier, "abc_unit");
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
@@ -92,7 +95,10 @@ export default function LineDetail({ line, index, count, matrix, ctx }) {
             <StockBadge quantity={line.quantity} odooProductId={line.odoo_product_id} snapshotData={stockData} />
           </>
         ) : (
-          <span>Typed here, not on the SOR</span>
+          <>
+            <span>Typed here, not on the SOR</span>
+            {isTyped && <StatusBadge label="Not on the S0" theme="amber" />}
+          </>
         )}
         {rollup && (
           <span className="font-medium text-foreground" data-testid="line-compliance">
@@ -125,6 +131,11 @@ export default function LineDetail({ line, index, count, matrix, ctx }) {
           <Field label="Qty">
             <Cell label={`Quantity ${line.number}`} noun="Quantity" value={line.quantity} numeric required readOnly={!canWrite} onSave={(value) => saveLine({ quantity: value })} />
           </Field>
+          {isTyped && (
+            <Field label="Odoo product">
+              <Cell label={`Odoo product id ${line.number}`} noun="Odoo product id" value={line.odoo_product_id} numeric step="1" placeholder="Once it is in Odoo" readOnly={!canSetProduct} onSave={(value) => saveLine({ odooProductId: value })} />
+            </Field>
+          )}
           {showAbc && (
             <>
               <Field label="ABC / unit">
@@ -233,7 +244,7 @@ export default function LineDetail({ line, index, count, matrix, ctx }) {
         open={removingLine}
         onOpenChange={setRemovingLine}
         title={`Remove Tender Line ${line.number}?`}
-        description="Its ABC, Final Offer, product, parts and their costs go with it. The change stays in the history."
+        description="Its ABC, Final Offer, product, parts and their costs go with it. The change stays in the history. A line with a Canvass or a P0 can't be removed."
         confirmLabel="Remove"
         tone="destructive"
         onConfirm={() => {

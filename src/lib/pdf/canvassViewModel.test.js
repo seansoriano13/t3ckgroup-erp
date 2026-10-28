@@ -147,20 +147,27 @@ describe('under three Offers', () => {
 });
 
 describe('signatures', () => {
-  it('prints Signature required for a block nobody has signed', () => {
-    const vm = build();
-    const approved = vm.signatures.find((s) => s.role === 'Approved by');
-    expect(approved.state).toBe('awaiting');
-    const checked = vm.signatures.find((s) => s.role === 'Checked by');
-    expect(checked.state).toBe('awaiting');
-    const html = buildCanvassDocument(vm);
-    expect(html.match(/Signature required/g)).toHaveLength(2);
-  });
+  it('prints only Canvassed by on a Canvass nobody signed off, and no Check-by block', () => {
+    const vm = build(canvass(), { creator })
+    expect(vm.signatures.map((s) => s.role)).toEqual(['Canvassed by'])
+    const html = buildCanvassDocument(vm)
+    expect(html).not.toContain('Checked by')
+    expect(html).not.toContain('Approved by')
+    expect(html).not.toContain('Not approved')
+    expect(html).toContain('class="sigs n1"')
+  })
+
+  it('prints Signature required when nobody canvassed it', () => {
+    const vm = build(canvass(), {})
+    expect(vm.signatures[0]).toMatchObject({ role: 'Canvassed by', state: 'awaiting' })
+    expect(buildCanvassDocument(vm).match(/Signature required/g)).toHaveLength(1)
+  })
 
   it('uses the stored signature when there is one, and the name only when there is not', () => {
     const c = canvass({ signed_off_at: '2026-09-14T03:00:00Z', signed_off_by: 'e2', signer: { name: 'A. Dela Cruz' } });
     const vm = build(c, { creator, approver: { name: 'A. Dela Cruz', signaturePath: null } });
-    const [canvassed, , approved] = vm.signatures;
+    const [canvassed, approved] = vm.signatures;
+    expect(vm.signatures.map((x) => x.role)).toEqual(['Canvassed by', 'Approved by']);
     expect(canvassed).toMatchObject({ state: 'signed', who: 'J. Bautista', signaturePath: 'e1/sig.png' });
     expect(approved).toMatchObject({ state: 'signed', who: 'A. Dela Cruz', signaturePath: null });
     expect(approved.stamp).toBe('e-signed Sep 14, 2026 · name only, no signature on file');
@@ -171,13 +178,21 @@ describe('signatures', () => {
     expect(html).toContain('<div class="printed-name">A. Dela Cruz</div>');
   });
 
+  it('still prints an old sign-off as Approved by', () => {
+    const c = canvass({ signed_off_at: '2026-09-14T03:00:00Z', signer: { name: 'A. Dela Cruz' } })
+    const html = buildCanvassDocument(build(c, { creator }))
+    expect(html).toContain('Approved by')
+    expect(html).toContain('Canvass · Approved')
+    expect(html).not.toContain('Checked by')
+  })
+
   it('falls back to the signer on the Canvass row when no people are handed over', () => {
     const c = canvass({ signed_off_at: '2026-09-14T03:00:00Z', signer: { name: 'A. Dela Cruz' } });
-    expect(build(c, {}).signatures[2]).toMatchObject({ state: 'signed', who: 'A. Dela Cruz' });
+    expect(build(c, {}).signatures[1]).toMatchObject({ state: 'signed', who: 'A. Dela Cruz' });
   });
 
   it('builds a plain awaiting block when there is no name', () => {
-    expect(signatureBlock('Checked by', 'Purchasing', {})).toMatchObject({ state: 'awaiting', who: '' });
+    expect(signatureBlock('Canvassed by', 'Purchasing', {})).toMatchObject({ state: 'awaiting', who: '' });
   });
 });
 
@@ -264,5 +279,35 @@ describe('a Canvass with no subject yet (ADR 0034)', () => {
     const vm = buildCanvassViewModel({ canvass: canvass(), subject: { product: { name: 'Laser printer toner' } }, people: { creator } });
     expect(vm.header).toMatchObject({ subjectKind: 'Product', subject: 'Laser printer toner' });
     expect(buildCanvassDocument(vm)).toContain('Laser printer toner');
+  });
+});
+
+describe('the supplier slots on paper (#721)', () => {
+  const mark = (slot, reason) => ({ slot, reason, created_at: '2026-11-13T02:00:00Z', actor: { name: 'Ben Cruz' } });
+  const withOne = () => ({ ...canvass(), offers: offers().slice(0, 1) });
+
+  it('prints the three slots: the supplier, then No other supplier with its reason and who, then Not filled', () => {
+    const vm = buildCanvassViewModel({
+      canvass: { ...withOne(), noOtherSupplier: [mark(2, 'Sole distributor')] },
+      subject: { product: { name: 'Toner' } },
+      people: { creator },
+    });
+    expect(vm.slots.map((s) => s.kind)).toEqual(['offer', 'none', 'empty']);
+    expect(vm.slots[0].label).toBe('Redleaf Medical Supplies');
+    expect(vm.slots[1]).toMatchObject({ label: 'No other supplier', reason: 'Sole distributor' });
+    expect(vm.slots[1].by).toContain('Ben Cruz');
+    const html = buildCanvassDocument(vm);
+    expect(html).toContain('Sole distributor');
+    expect(html).toContain('Not filled');
+  });
+
+  it('prints one reason under both slots when it serves both', () => {
+    const vm = buildCanvassViewModel({
+      canvass: { ...withOne(), noOtherSupplier: [mark(2, 'Only dealer'), mark(3, 'Only dealer')] },
+      subject: { product: { name: 'Toner' } },
+      people: { creator },
+    });
+    expect(vm.slots.filter((s) => s.reason === 'Only dealer')).toHaveLength(2);
+    expect(vm.warning).toBeNull();
   });
 });

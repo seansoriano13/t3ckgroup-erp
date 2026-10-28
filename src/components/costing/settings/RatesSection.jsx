@@ -105,7 +105,7 @@ export default function RatesSection({ canEdit = false }) {
     <section className="rounded-xl border border-border bg-card p-4" data-testid="costing-rates">
       <h3 className="text-sm font-semibold text-foreground">Rates</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        The figures the Costing Matrix summary is worked from, as the PMS sheet has them.{" "}
+        The figures the S0 Evaluation summary is worked from, as the PMS sheet has them.{" "}
         {canEdit ? "A change applies the next time a matrix is opened." : "Finance access and Super Admins change them."}
       </p>
       <form className="mt-3 flex flex-wrap items-start gap-4" onSubmit={submit}>

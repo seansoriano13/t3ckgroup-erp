@@ -84,7 +84,7 @@ function BidDecisionsQueue() {
         searchTerm={search}
         empty={{
           title: "No bid is waiting for a decision",
-          description: "A Costing Matrix shows up here once every Tender Line has a Final Offer, until the Final Acquire list or a Super Admin decides Go, No-go or Revise.",
+          description: "An S0 Evaluation shows up here once every Tender Line has a Final Offer, until the Final Acquire list or a Super Admin decides Go, No-go or Revise.",
         }}
       />
     </ApprovalCenterLayout>

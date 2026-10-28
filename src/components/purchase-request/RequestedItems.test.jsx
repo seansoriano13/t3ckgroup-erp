@@ -131,7 +131,7 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     const row = await openRow((await screen.findAllByTestId("requested-item"))[0])
-    for (const name of ["Add from the SOR", "Pick from SOR", "Update to SOR", "Update to the SOR", "Keep as asked", "Add from the Costing Matrix"]) {
+    for (const name of ["Add from the SOR", "Pick from SOR", "Update to SOR", "Update to the SOR", "Keep as asked", "Add from the S0 Evaluation"]) {
       expect(screen.queryByRole("button", { name })).not.toBeInTheDocument()
     }
     expect(screen.queryByTestId("unrequested-sor-lines")).not.toBeInTheDocument()

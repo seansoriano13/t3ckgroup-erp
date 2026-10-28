@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUpCircle, Check, Flag, Octagon, Pencil, Tag, Trash2, X } from "lucide-react";
+import { ArrowUpCircle, Check, Flag, Octagon, ShoppingCart, Pencil, Tag, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,7 @@ export default function StageSettingsPanel({
   onToggleTerminal,
   onToggleAutoMove,
   onSetTerminalOutcome,
+  onToggleBuyingOpens,
   onSetEntry,
   onSetWon,
   onSetAward,
@@ -243,6 +244,24 @@ export default function StageSettingsPanel({
                   {stage.is_terminal ? <Check size={14} /> : <Octagon size={14} />}
                   {stage.is_terminal ? "Deals end here" : "Make it terminal"}
                 </Button>
+
+                {onToggleBuyingOpens && (
+                  <Button
+                    variant="ghost"
+                    onClick={onToggleBuyingOpens}
+                    disabled={disabled}
+                    aria-pressed={Boolean(stage.buying_opens_here)}
+                    className={cn(
+                      ROLE_BUTTON,
+                      stage.buying_opens_here
+                        ? "bg-blue-a3 text-blue-11 outline-blue-a6 hover:bg-blue-a3 hover:text-blue-11"
+                        : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                    )}
+                  >
+                    {stage.buying_opens_here ? <Check size={14} /> : <ShoppingCart size={14} />}
+                    {stage.buying_opens_here ? "Buying opens here" : "Buying opens here?"}
+                  </Button>
+                )}
 
                 <Button
                   variant="ghost"

@@ -126,6 +126,32 @@ describe("Attach P0", () => {
     await waitFor(() => expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "received", po_number: "P01111" }))
   })
 
+  it("asks for a reason to Order early when buying has not opened, and sends it", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
+    seedItem({ status: "to_purchase" })
+    const bodies = []
+    stubEdgeFunction("odoo-po-verify", (body) => {
+      bodies.push(body)
+      return body.orderEarly
+        ? { success: true, verdict: "verified", item: { ...db.rows("purchase_request_items")[0], status: "purchased", po_number: "P01234", ordered_early_reason: body.orderEarlyReason } }
+        : { success: false, refused: true, code: "buying_not_open", message: "buying opens at Award and this SOR has not reached it; choose Order early and give a reason to attach now" }
+    })
+    mount()
+    const user = setupUser()
+    const dialog = await typeAndAttach(user, "p01234")
+
+    const early = await within(dialog).findByTestId("order-early")
+    expect(early).toHaveTextContent(/buying opens at Award/)
+    const submit = within(dialog).getByRole("button", { name: "Order early and attach P01234" })
+    expect(submit).toBeDisabled()
+    await user.type(within(early).getByLabelText("Order early: why now?"), "Price ends Friday")
+    await user.click(submit)
+
+    await waitFor(() => expect(bodies).toHaveLength(2))
+    expect(bodies[0]).not.toHaveProperty("orderEarly")
+    expect(bodies[1]).toMatchObject({ orderEarly: true, orderEarlyReason: "Price ends Friday" })
+  })
+
   it("attaches a typed number once Odoo has confirmed it", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
     seedItem({ status: "to_purchase" })

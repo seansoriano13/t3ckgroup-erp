@@ -83,7 +83,7 @@ export default function MarkupPresetsSection() {
       <div>
         <h2 className="text-sm font-semibold text-foreground">Markup presets</h2>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Named factors a Costing Matrix&apos;s default markup is picked from, such as &quot;Government ×1.35&quot;. A factor
+          Named factors an S0 Evaluation&apos;s default markup is picked from, such as &quot;Government ×1.35&quot;. A factor
           multiplies a Component&apos;s Acquire cost: ×1.35 is the same as +35%.
         </p>
       </div>

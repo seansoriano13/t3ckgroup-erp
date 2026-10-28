@@ -27,7 +27,7 @@ const salesChoice = (incharge) => (incharge.type === SELECTOR_TYPES.EMPLOYEE ? P
  *
  * Incharge is a name on the matrix: it grants no access and sends no notification.
  */
-export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialData, onSubmit, isSubmitting, title = "Open Costing Matrix" }) {
+export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialData, onSubmit, isSubmitting, title = "Open S0 Evaluation" }) {
   const [salesIncharge, setSalesIncharge] = useState(salesInchargeOf(initialData ?? {}));
   const [purchasingIncharge, setPurchasingIncharge] = useState(initialData?.purchasingIncharge ?? null);
   const [assigners, setAssigners] = useState(initialData?.assigners ?? []);

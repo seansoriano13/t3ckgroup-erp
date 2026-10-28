@@ -1,56 +1,38 @@
--- #744 follow-up (spec #735, ADR 0047): a Return into the Notice of Award Stage
--- fills a blank Date of Award too, and flow restore carries the award stage.
+-- 20261113060000_724_buying_opens_here.sql
+-- #724 (spec #718): "Buying opens here" and Order early.
+--
+-- 1. flow_stages.buying_opens_here: Operations flags at most one Stage per flow on Flow Canvas.
+--    Flow Snapshots carry whole Stage rows, so the flag is frozen with each published version
+--    (an older snapshot has no key, which reads as not flagged). restore_flow_snapshot carries it.
+-- 2. purchase_request_items.ordered_early_reason: why a P0 was attached before the SOR reached
+--    that Stage. Non-null means "Ordered early".
+-- 3. purchase_request_item_attach_po gains p_order_early / p_order_early_reason. On a project
+--    request (opportunity_id set), the SOR's pinned Flow Snapshot is read for its flagged Stage;
+--    if the SOR has no Stage visit there yet the attach is refused (22023) unless p_order_early
+--    is true with a non-blank reason. The reason is stored on the line, written to the request
+--    history and sent to the Deal Owner. No flagged Stage, or a Direct request (no SOR), is not gated.
+--
+-- Additive; idempotent. The attach function changes signature, so the 4-argument one is dropped
+-- (a call passing four named arguments still resolves to the new one through its defaults).
 
--- Return RPCs take the Date of Award to fill (null leaves it alone; a date
--- already set is never overwritten).
-drop function if exists public.sor_move_and_resume(uuid, uuid, date);
-create or replace function public.sor_move_and_resume(
-  p_opportunity_id uuid, p_flow_stage_id uuid, p_contract_date date default null, p_date_of_award date default null)
-returns public.sor_stage_visits
-language plpgsql
-security invoker
-set search_path = public
-as $$
-begin
-  update public.sales_opportunities
-    set flow_stage_id = p_flow_stage_id,
-        contract_date = coalesce(p_contract_date, contract_date),
-        date_of_award = coalesce(date_of_award, p_date_of_award)
-    where id = p_opportunity_id;
-  if not found then
-    raise exception 'Resume: that SOR could not be moved.' using errcode = '42501';
-  end if;
-  return public.sor_resume_stage_work(p_opportunity_id);
-end;
-$$;
-revoke all on function public.sor_move_and_resume(uuid, uuid, date, date) from public, anon;
-grant execute on function public.sor_move_and_resume(uuid, uuid, date, date) to authenticated;
+alter table public.flow_stages add column if not exists buying_opens_here boolean not null default false;
 
-drop function if exists public.sor_move_and_start_fresh(uuid, uuid, date);
-create or replace function public.sor_move_and_start_fresh(
-  p_opportunity_id uuid, p_flow_stage_id uuid, p_contract_date date default null, p_date_of_award date default null)
-returns public.sor_stage_visits
-language plpgsql
-security invoker
-set search_path = public
-as $$
-begin
-  update public.sales_opportunities
-    set flow_stage_id = p_flow_stage_id,
-        contract_date = coalesce(p_contract_date, contract_date),
-        date_of_award = coalesce(date_of_award, p_date_of_award)
-    where id = p_opportunity_id;
-  if not found then
-    raise exception 'Start fresh: that SOR could not be moved.' using errcode = '42501';
-  end if;
-  return public.sor_start_fresh_stage_work(p_opportunity_id);
-end;
-$$;
-revoke all on function public.sor_move_and_start_fresh(uuid, uuid, date, date) from public, anon;
-grant execute on function public.sor_move_and_start_fresh(uuid, uuid, date, date) to authenticated;
+comment on column public.flow_stages.buying_opens_here is
+  '#724: Buying opens here. A P0 is attached to a project line only once the SOR has entered this Stage, or with Order early and a reason. At most one per flow.';
 
--- Restore carries the Notice of Award Stage (redefines 20261005132000; body
--- unchanged but for award_stage_id, handled like the Won Stage).
+create unique index if not exists flow_stages_one_buying_opens_here_key
+  on public.flow_stages (flow_id) where buying_opens_here;
+
+alter table public.purchase_request_items add column if not exists ordered_early_reason text;
+alter table public.purchase_request_items drop constraint if exists purchase_request_items_ordered_early_reason_chk;
+alter table public.purchase_request_items add constraint purchase_request_items_ordered_early_reason_chk
+  check (ordered_early_reason is null or btrim(ordered_early_reason) <> '');
+
+comment on column public.purchase_request_items.ordered_early_reason is
+  '#724: set when a P0 was attached before the SOR reached the flow''s "Buying opens here" Stage; the typed reason. Null means not ordered early.';
+
+-- Restore carries the flag (redefines 20261005132000; body unchanged but for buying_opens_here) ----
+
 create or replace function public.restore_flow_snapshot(
   p_flow_id uuid,
   p_snapshot_id uuid
@@ -72,7 +54,6 @@ declare
   v_target_form_field_ids uuid[];
   v_target_follow_up_stage_ids uuid[];
   v_won_stage_id uuid;
-  v_award_stage_id uuid;
   v_blockers text[] := array[]::text[];
   v_rec record;
   v_elem jsonb;
@@ -96,7 +77,6 @@ begin
 
   v_data := v_snapshot.snapshot_data;
   v_won_stage_id := nullif(v_data->>'wonStageId', '')::uuid;
-  v_award_stage_id := nullif(v_data->>'awardStageId', '')::uuid;
 
   select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
     into v_target_stage_ids
@@ -138,11 +118,12 @@ begin
 
   -- From here the draft is reshaped to match the target, keeping ids. Clear
   -- the Won Stage first so a dropped Stage that held it can be deleted.
-  update sales_flows set won_stage_id = null, award_stage_id = null, updated_at = now() where id = p_flow_id;
+  update sales_flows set won_stage_id = null, updated_at = now() where id = p_flow_id;
 
   -- Two Stages can swap names. The one-name-per-flow index is checked row by
   -- row, so park every surviving Stage on a unique placeholder first.
-  update flow_stages set name = '__restore__' || id::text where flow_id = p_flow_id;
+  -- The one-flag-per-flow index is checked row by row too, so clear the flag here and set it from the target.
+  update flow_stages set name = '__restore__' || id::text, buying_opens_here = false where flow_id = p_flow_id;
 
   -- Drop the Stages the target does not have. Their edges, conditions and
   -- actions go by cascade; the check above proved no SOR is referenced.
@@ -154,7 +135,7 @@ begin
   for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stages', '[]'::jsonb)) as e
   loop
     insert into flow_stages (
-      id, flow_id, name, sort_order, is_terminal, terminal_outcome, pos_x, pos_y, color, bracket_label, created_at, updated_at
+      id, flow_id, name, sort_order, is_terminal, terminal_outcome, buying_opens_here, pos_x, pos_y, color, bracket_label, created_at, updated_at
     )
     values (
       (v_elem->>'id')::uuid,
@@ -163,6 +144,7 @@ begin
       coalesce((v_elem->>'sort_order')::int, 0),
       coalesce((v_elem->>'is_terminal')::boolean, false),
       case when coalesce((v_elem->>'is_terminal')::boolean, false) then nullif(v_elem->>'terminal_outcome', '') end,
+      coalesce((v_elem->>'buying_opens_here')::boolean, false),
       coalesce((v_elem->>'pos_x')::int, 0),
       coalesce((v_elem->>'pos_y')::int, 0),
       nullif(v_elem->>'color', ''),
@@ -175,6 +157,7 @@ begin
       sort_order = excluded.sort_order,
       is_terminal = excluded.is_terminal,
       terminal_outcome = excluded.terminal_outcome,
+      buying_opens_here = excluded.buying_opens_here,
       pos_x = excluded.pos_x,
       pos_y = excluded.pos_y,
       color = excluded.color,
@@ -432,7 +415,6 @@ begin
 
   update sales_flows
      set won_stage_id = v_won_stage_id,
-         award_stage_id = v_award_stage_id,
          updated_at = now()
    where id = p_flow_id
   returning * into v_flow;
@@ -442,3 +424,177 @@ end;
 $$;
 
 grant execute on function public.restore_flow_snapshot(uuid, uuid) to authenticated;
+
+
+-- The name of the "Buying opens here" Stage the SOR has not entered yet, or null when buying is open:
+-- a Direct request, an SOR with no pinned version, a version with no flagged Stage, or a Stage the SOR has visited.
+create or replace function public._purchase_request_buying_closed_stage(p_request_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select x.st->>'name'
+    from public.purchase_requests r
+    join public.sales_opportunities o on o.id = r.opportunity_id
+    join public.flow_snapshots fs on fs.id = o.flow_snapshot_id
+    cross join lateral jsonb_array_elements(
+      case when jsonb_typeof(fs.snapshot_data->'stages') = 'array' then fs.snapshot_data->'stages' else '[]'::jsonb end
+    ) as x(st)
+   where r.id = p_request_id
+     and coalesce((x.st->>'buying_opens_here')::boolean, false)
+     and not exists (
+       select 1 from public.sor_stage_visits v
+        where v.opportunity_id = o.id and v.flow_stage_id = (x.st->>'id')::uuid
+     )
+   limit 1;
+$$;
+
+revoke all on function public._purchase_request_buying_closed_stage(uuid) from public, anon, authenticated;
+
+-- Attach P0 (redefines 20261104190000) ----------------------------------------------------------
+drop function if exists public.purchase_request_item_attach_po(text, uuid, text, jsonb);
+
+create or replace function public.purchase_request_item_attach_po(
+  p_actor_email text,
+  p_item_id uuid,
+  p_po_number text,
+  p_facts jsonb,
+  p_order_early boolean default false,
+  p_order_early_reason text default null
+) returns public.purchase_request_items
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_po text := nullif(upper(btrim(p_po_number)), '');
+  v_actor uuid;
+  v_item public.purchase_request_items;
+  v_state text := p_facts->>'state';
+  v_ordered numeric;
+  v_received numeric;
+  v_bought text := nullif(btrim(p_facts->>'bought_as'), '');
+  v_to text;
+  v_text text;
+  v_closed_stage text;
+  v_early text;
+  v_deal_owner uuid;
+begin
+  if v_po is null or v_po !~ '^P[0-9]+$' then
+    raise exception 'purchase_request_item_attach_po: % isn''t an Odoo P0 number ("P" then digits, e.g. P01234)', coalesce(p_po_number, '') using errcode = '22023';
+  end if;
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'purchase_request_item_attach_po: not signed in' using errcode = '42501';
+  end if;
+  if p_facts is null or jsonb_typeof(p_facts) <> 'object' or v_state is null or v_state not in ('rfq', 'confirmed') then
+    raise exception 'purchase_request_item_attach_po: the P0 facts must say rfq or confirmed' using errcode = '22023';
+  end if;
+  v_ordered := coalesce((p_facts->>'ordered')::numeric, 0);
+  v_received := coalesce((p_facts->>'received')::numeric, 0);
+
+  -- Act as the caller the edge function authenticated: identity is the JWT email claim.
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
+
+  v_actor := public.get_employee_id();
+  if v_actor is null then
+    raise exception 'purchase_request_item_attach_po: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if v_item.id is null then
+    raise exception 'purchase_request_item_attach_po: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+  if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
+    raise exception 'purchase_request_item_attach_po: only Purchasing attaches a P0' using errcode = '42501';
+  end if;
+  if v_item.status in ('cancelled', 'received') then
+    raise exception 'purchase_request_item_attach_po: nothing to attach to this line; % is %',
+      v_item.name, public._purchase_request_item_status_label(v_item.status)
+      using errcode = '22023';
+  end if;
+
+  -- #724: Buying opens here. Refused before the SOR has entered the flagged Stage unless ordered early with a reason.
+  v_closed_stage := public._purchase_request_buying_closed_stage(v_item.request_id);
+  if v_closed_stage is not null then
+    if not coalesce(p_order_early, false) then
+      raise exception 'purchase_request_item_attach_po: buying opens at % and this SOR has not reached it; choose Order early and give a reason to attach now', v_closed_stage
+        using errcode = '22023';
+    end if;
+    v_early := nullif(btrim(coalesce(p_order_early_reason, '')), '');
+    if v_early is null then
+      raise exception 'purchase_request_item_attach_po: Order early needs a reason' using errcode = '22023';
+    end if;
+  end if;
+
+  v_to := case
+    when v_state = 'rfq' then 'to_purchase'
+    when v_ordered > 0 and v_received >= v_ordered then 'received'
+    else 'purchased'
+  end;
+
+  update public.purchase_request_items
+     set status = v_to,
+         status_changed_by = case when status is distinct from v_to then v_actor else status_changed_by end,
+         status_changed_at = case when status is distinct from v_to then now() else status_changed_at end,
+         po_number = v_po,
+         po_verification = 'VERIFIED',
+         po_state = v_state,
+         po_ordered = v_ordered,
+         po_received = v_received,
+         bought_as = v_bought,
+         -- A reason sent with an attach that was not early is ignored; an earlier one stays.
+         ordered_early_reason = coalesce(v_early, ordered_early_reason),
+         -- Lines picked on another P0 do not carry over.
+         odoo_po_line_ids = case when po_number is distinct from v_po then '{}' else odoo_po_line_ids end
+   where id = v_item.id
+  returning * into v_item;
+
+  v_text := case v_to
+    when 'to_purchase' then format('%s: RFQ %s attached; still To purchase.', v_item.name, v_po)
+    else format('%s: P0 %s attached; %s.', v_item.name, v_po, public._purchase_request_item_status_label(v_to))
+  end;
+  if v_early is not null then
+    v_text := v_text || format(' Ordered early: %s', v_early);
+  end if;
+  perform public._purchase_request_post_event(
+    v_item.request_id,
+    v_actor,
+    v_text,
+    jsonb_build_object(
+      'event', 'item_po_attached',
+      'item_id', v_item.id,
+      'to', v_to,
+      'po_number', v_po,
+      'po_state', v_state,
+      'bought_as', v_bought,
+      'ordered_early', v_early is not null,
+      'ordered_early_reason', v_early
+    )
+  );
+
+  -- Tell the Deal Owner that money is out before the Stage that opens buying.
+  if v_early is not null then
+    select o.deal_owner_id into v_deal_owner
+      from public.purchase_requests r
+      join public.sales_opportunities o on o.id = r.opportunity_id
+     where r.id = v_item.request_id;
+    perform public._purchase_request_notify(
+      v_item.request_id, array[v_deal_owner], v_actor, 'PURCHASE_REQUEST_ORDERED_EARLY',
+      'Ordered early on your deal',
+      format('%s: %s was ordered before %s. Reason: %s', public._purchase_request_label(v_item.request_id), v_item.name, v_closed_stage, v_early),
+      false
+    );
+  end if;
+
+  return v_item;
+end;
+$$;
+
+comment on function public.purchase_request_item_attach_po(text, uuid, text, jsonb, boolean, text) is
+  '#684/#724: server-only (service role). Attaches an Odoo P0 to a Requested Item as the given signed-in Purchasing member, from the facts the odoo-po-verify edge function read in Odoo: state rfq (line stays To purchase) or confirmed (Purchased, or Received once everything arrived). Refused on Cancelled and Received lines. On a project line, refused before the SOR has entered the flow''s "Buying opens here" Stage unless p_order_early is true with a non-blank reason (stored on the line, written to history, sent to the Deal Owner).';
+
+revoke all on function public.purchase_request_item_attach_po(text, uuid, text, jsonb, boolean, text) from public, anon, authenticated;
+grant execute on function public.purchase_request_item_attach_po(text, uuid, text, jsonb, boolean, text) to service_role;

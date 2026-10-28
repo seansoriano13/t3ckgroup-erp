@@ -22,22 +22,18 @@ const asSvc = async (query, what) => {
     return data
 }
 
-/** A Canvass with two Offers, started by Purchasing. */
+/** An old free-standing Canvass with two Offers (service role: nobody signed in can start one, #729). */
 const makeCanvass = async (label) => {
-    const { data, error } = await (await clientFor("outsider")).rpc("canvass_start", {
-        p_component_id: null,
-        p_requested_item_id: null,
-        p_product_name: `${MARKER} ${label}`,
-        p_offer: { supplier_name: "Redleaf Inc.", currency: "PHP" },
-        p_price: { unit_price: 1200 },
-    })
-    if (error) throw new Error(`canvass_start: ${error.message}`)
-    created.push(data.canvass_id)
-    await asSvc(
-        svc().from("sor_canvass_offers").insert({ canvass_id: data.canvass_id, supplier_name: "Ream Co", currency: "PHP", created_by: ids.outsider }).select("id").single(),
-        "second Offer",
+    const canvass = await asSvc(
+        svc().from("sor_canvasses").insert({ product_name: `${MARKER} ${label}`, created_by: ids.outsider }).select("id").single(),
+        "Canvass",
     )
-    return data.canvass_id
+    created.push(canvass.id)
+    for (const supplier of ["Redleaf Inc.", "Ream Co"]) {
+        const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: supplier, currency: "PHP", created_by: ids.outsider }).select("id").single(), "Offer")
+        await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: 1200 }).select("offer_id"), "Price")
+    }
+    return canvass.id
 }
 
 const isLocked = async (id) => asSvc(svc().rpc("canvass_is_locked", { p_canvass_id: id }), "canvass_is_locked")
@@ -73,30 +69,6 @@ describe("a Canvass a Purchase Request was made from", () => {
         expect(reason.error?.code).toBe(LOCKED)
         const name = await svc().from("sor_canvasses").update({ product_name: "something else" }).eq("id", id)
         expect(name.error?.code).toBe(LOCKED)
-    })
-
-    it("is stamped by canvass_create_purchase_request itself, and the winner can no longer change", async () => {
-        const id = await makeCanvass("gloves")
-        const purchasing = await clientFor("outsider")
-        const [first] = await asSvc(svc().from("sor_canvass_offers").select("id").eq("canvass_id", id).order("created_at"), "Offers")
-        const win = await purchasing.rpc("canvass_apply_winner", { p_canvass_id: id, p_offer_id: first.id })
-        expect(win.error).toBeNull()
-        expect(await isLocked(id)).toBe(false)
-
-        const { data, error } = await purchasing.rpc("canvass_create_purchase_request", {
-            p_title: `${MARKER} gloves`,
-            p_items: [{ canvass_id: id }],
-        })
-        expect(error).toBeNull()
-        try {
-            expect(await isLocked(id)).toBe(true)
-
-            const other = await asSvc(svc().from("sor_canvass_offers").select("id").eq("canvass_id", id).neq("id", first.id), "other Offer")
-            const change = await purchasing.rpc("canvass_apply_winner", { p_canvass_id: id, p_offer_id: other[0].id })
-            expect(change.error?.code).toBe(LOCKED)
-        } finally {
-            await svc().from("purchase_requests").delete().eq("id", data.request_id)
-        }
     })
 
     it("only a Super Admin can unlock it, and only with a reason, which goes into the history", async () => {

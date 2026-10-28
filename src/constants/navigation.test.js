@@ -64,11 +64,11 @@ describe("navigation registry", () => {
       expect(groups[3].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
     });
 
-    it("offers the Costing Matrix page to the Closed Book only (#606)", () => {
+    it("offers the S0 Evaluation page to the Closed Book only (#606)", () => {
       const costingMatrix = (user) =>
         getFilteredNavigationGroups(user)
           .flatMap((g) => g.links)
-          .some((l) => l.label === "Costing Matrix");
+          .some((l) => l.label === "S0 Evaluation");
 
       expect(costingMatrix({ id: "sa", isSuperAdmin: true })).toBe(true);
       expect(costingMatrix({ id: "fa", is_final_acquire: true })).toBe(true);

@@ -12,14 +12,12 @@ import {
   Printer,
   Lock,
   LockOpen,
-  ShoppingCart,
   Trash2,
   X,
 } from "lucide-react";
 
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { ExternalLink } from "@/components/ui/external-link";
-import { APPROVE_CLASS } from "@/components/ui/approveClass";
 import DetailGrid from "@/components/record/DetailGrid";
 import PropertyPills from "@/components/record/PropertyPills";
 import RecordHeader from "@/components/record/RecordHeader";
@@ -32,12 +30,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import ModalShell from "./ui/ModalShell";
 import CanvassOffersGrid from "./CanvassOffersGrid";
-import CanvassSignoffDialog from "./CanvassSignoffDialog";
+import CanvassSlots from "./CanvassSlots";
 import CanvassUnlockDialog from "./CanvassUnlockDialog";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import { procurementQueueKey } from "./purchase-request/queryKeys";
 import CanvassSupplierField, { canvassFieldClass as fieldClass } from "./CanvassSupplierField";
-import CreatePurchaseRequestModal from "./CreatePurchaseRequestModal";
 import CanvassRequestBadge from "./CanvassRequestBadge";
 import { Button } from "./ui/button";
 import { AttachmentField, AttachmentList } from "./ui/Attachments";
@@ -45,7 +42,6 @@ import { SelectField } from "./ui/SelectField";
 import { costingKeys } from "./costing/costingKeys";
 import { pesos } from "./costing/gridFormat";
 import { useFileAttachments } from "../hooks/useFileAttachments";
-import { useCanvassApprover } from "../hooks/useCanvassApprover";
 import { canvassService } from "../services/canvassService";
 import { openCanvassPrintWindow, printCanvass } from "../lib/pdf/canvassPrinter";
 import { canPrintCanvass } from "../lib/pdf/canvassViewModel";
@@ -53,7 +49,7 @@ import { useAuth } from "../context/AuthContext";
 import { CANVASS_CURRENCIES, CANVASS_KIND, MIN_CANVASS_OFFERS, CANVASS_LIST_KEY, CANVASS_LOCKED_MESSAGE, DEFAULT_CURRENCY } from "../constants/canvass";
 import { getPermissionContext } from "../utils/permissions";
 import { CANVASS_STATE_TONES, canvassRequestState, canvassStateOf } from "../utils/canvassList";
-import { offerCurrency } from "../utils/canvassMath";
+import { canPickWinner, offerCurrency } from "../utils/canvassMath";
 import { projectOffer } from "../utils/offerProjection";
 import { useCostingMatrix, useCostingTier } from "./costing/useCostingMatrix";
 import { COSTING_TIER } from "../constants/costing";
@@ -74,8 +70,8 @@ import { getCurrentLocalDate } from "../utils/formatDate.js";
  * keys at all, so every price, the comparison rate and the PHP figure simply do not draw. The
  * panel never asks who the reader is; it draws what arrived.
  *
- * The winner (#278) and the sign-off (#279) sit below the Offers: the purchasing approver list signs
- * from here (never the person who opened the Canvass), and any later change unsigns it.
+ * The winner (#278) sits below the Offers. A Canvass is not signed off (#728, ADR 0047); an old
+ * sign-off shows as read-only history.
  */
 
 const hasKey = (offer, key) => Object.prototype.hasOwnProperty.call(offer, key);
@@ -363,7 +359,7 @@ function OfferProjection({ projection }) {
   );
 }
 
-function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUpdate, onRemove, onMove, onWin, onClearWin, isPending }) {
+function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, canPick = true, onUpdate, onRemove, onMove, onWin, onClearWin, isPending }) {
   const [isEditing, setIsEditing] = useState(false);
   const title = offer.supplier_name || offer.brand || "this offer";
 
@@ -416,10 +412,16 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
             type="button"
             variant="ghost"
             size="xs"
-            disabled={isPending || needsRate}
+            disabled={isPending || needsRate || !canPick}
             onClick={() => onWin(offer.id)}
             aria-label={`Mark ${title} the winner`}
-            title={needsRate ? "Add the comparison rate before this offer can win" : "Mark this offer the winner"}
+            title={
+              needsRate
+                ? "Add the comparison rate before this offer can win"
+                : !canPick
+                  ? "Fill or explain all three supplier slots first"
+                  : "Mark this offer the winner"
+            }
             className="h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-amber-a3 hover:text-amber-11"
           >
             <Award size={12} className="mr-1" aria-hidden="true" />
@@ -541,8 +543,6 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const [startedId, setStartedId] = useState(null);
   const [productDraft, setProductDraft] = useState(null);
   const [reasonDraft, setReasonDraft] = useState(null);
-  const [isSigning, setIsSigning] = useState(false);
-  const [requesting, setRequesting] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [viewingRequest, setViewingRequest] = useState(null);
   // The two questions the record asks first, each a plain confirm dialog: the Offer to remove, and clearing the winner.
@@ -550,7 +550,6 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const [clearing, setClearing] = useState(false);
   const [printing, setPrinting] = useState(false);
   const { user } = useAuth();
-  const isApprover = useCanvassApprover(userId);
   const attachments = useFileAttachments({ max: 3 });
 
   const current = startedId ? { canvassId: startedId } : subject || {};
@@ -604,7 +603,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     });
 
   const invalidate = () => {
-    // Prefix match: the sign-off history is keyed under the Canvass's own key.
+    // Prefix match: the history is keyed under the Canvass's own key.
     queryClient.invalidateQueries({ queryKey });
     queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
     // A request's items show their Canvass, so what changed here has to reach the request too.
@@ -673,7 +672,19 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     onError,
   });
 
-  // Un-picking leaves no winner and unsigns; the matrix keeps what the old winner filled.
+  // "No other supplier" on an empty slot 2 or 3 (#721); a winner needs the three slots covered.
+  const markNoOtherMutation = useMutation({
+    mutationFn: ({ slots, reason }) => canvassService.markNoOtherSupplier(canvass.id, slots, reason),
+    onSuccess: invalidate,
+    onError,
+  });
+  const clearNoOtherMutation = useMutation({
+    mutationFn: (slot) => canvassService.clearNoOtherSupplier(canvass.id, slot),
+    onSuccess: invalidate,
+    onError,
+  });
+
+  // Un-picking leaves no winner; the matrix keeps what the old winner filled.
   const clearWinnerMutation = useMutation({
     mutationFn: () => canvassService.clearWinner(canvass.id),
     onSuccess: () => {
@@ -681,7 +692,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
       if (opportunityId) queryClient.invalidateQueries({ queryKey: costingKeys.all(opportunityId) });
       toast.success(
         hasComponent
-          ? "Winner cleared. The Costing Matrix keeps what it filled until a new winner is picked."
+          ? "Winner cleared. The S0 Evaluation keeps what it filled until a new winner is picked."
           : "Winner cleared.",
       );
     },
@@ -762,9 +773,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const isSigned = Boolean(canvass?.signed_off_at);
   const isCreator = Boolean(canvass && userId && canvass.created_by === userId);
   const hasReason = Boolean(String(canvass?.reason ?? "").trim());
-  const readyToSign = Boolean(winner) && hasReason;
   const lastSigned = isSigned ? [...history].reverse().find((h) => h.kind === "signed") : null;
-  const lastCleared = !isSigned ? [...history].reverse().find((h) => h.kind === "cleared") : null;
   const lastUnlocked = [...history].reverse().find((h) => h.kind === "unlocked");
 
   // Once a Purchase Request is made from it, the Canvass is what was bought on: offers, winner,
@@ -786,25 +795,19 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const offerCount = `${offers.length} offer${offers.length === 1 ? "" : "s"}`;
 
   // The same state and tone the Canvasses list shows, so a Canvass reads the same in both places.
-  const rowState = canvassStateOf({ signedOffAt: canvass?.signed_off_at, requestId: prId });
+  const rowState = canvassStateOf({ signedOffAt: canvass?.signed_off_at, requestId: prId, winner });
   const badge = { label: rowState.label, theme: CANVASS_STATE_TONES[rowState.state] };
 
-  const canSignNow = Boolean(canvass) && !isSigned && isApprover && !isCreator && readyToSign;
-  const canRequestNow = Boolean(canvass) && canEdit && isBare && !prId && !isLocked;
 
   const status = !canvass
     ? ""
-    : isSigned
-      ? "Signed off. Nothing left to do."
-      : canSignNow
-        ? "Waiting for you: Sign-off"
-        : offers.length === 0
-          ? "Next: add the first offer"
-          : !winner
-            ? "Next: pick a winner"
-            : !hasReason
-              ? "Next: say why this supplier"
-              : "Waiting for an approver to sign off";
+    : offers.length === 0
+      ? "Next: add the first offer"
+      : !winner
+        ? "Next: pick a winner"
+        : !hasReason
+          ? "Next: say why this supplier"
+          : "Ready. Nothing left to do.";
 
   const steps = canvass
     ? [
@@ -827,7 +830,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
           summary: winnerLabel || "No winner picked",
           state: winner ? STATE.DONE : offers.length ? STATE.CURRENT : STATE.WAITING,
           needsMe: false,
-          body: <p className="text-xs text-muted-foreground">Pick the winner on its offer card. Changing it unsigns the Canvass.</p>,
+          body: <p className="text-xs text-muted-foreground">Pick the winner on its offer card.</p>,
         },
         ...(requestState
           ? [
@@ -836,7 +839,6 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                 title: "Purchase Request",
                 summary: requestState.label,
                 state: prId ? STATE.DONE : winner ? STATE.CURRENT : STATE.WAITING,
-                needsMe: canRequestNow && Boolean(winner),
                 body: (
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-testid="canvass-request-strip">
                     <span>Purchase Request</span>
@@ -855,67 +857,37 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     <CanvassRequestBadge source={requestSource} />
                   </div>
                 ),
-                moves: canRequestNow ? (
-                  <div className="space-y-1.5">
-                    <Button
-                      type="button"
-                      disabled={!winner}
-                      title={winner ? undefined : "Pick a winner first"}
-                      onClick={() => setRequesting(true)}
-                      className={APPROVE_CLASS}
-                    >
-                      <ShoppingCart className="size-4" aria-hidden="true" />
-                      Create Purchase Request
-                    </Button>
-                    {!winner && <p className="text-xs text-muted-foreground">Pick a winner to create a Purchase Request.</p>}
-                  </div>
-                ) : null,
               },
             ]
           : []),
-        {
-          key: "signoff",
-          title: "Sign-off",
-          summary: isSigned ? `Signed off by ${canvass.signer?.name || "—"}` : "Not signed off yet",
-          state: isSigned ? STATE.DONE : readyToSign ? STATE.CURRENT : STATE.WAITING,
-          needsMe: canSignNow,
-          body: (
-            <div className="space-y-1.5" data-testid="canvass-signoff">
-              {isSigned ? (
-                <p className="text-xs font-semibold text-foreground" data-testid="signoff-state">
-                  Signed off by {canvass.signer?.name || "—"}
-                  {lastSigned && ` on ${lastSigned.offer_count} offer${lastSigned.offer_count === 1 ? "" : "s"}`}.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground" data-testid="signoff-state">
-                  Not signed off yet.
-                  {lastCleared?.reason && (
-                    <span className="ml-1">It was unsigned because: {lastCleared.reason.charAt(0).toLowerCase() + lastCleared.reason.slice(1)}.</span>
-                  )}
-                </p>
-              )}
-              {!isSigned && isApprover && isCreator && (
-                <p className="text-xs text-muted-foreground">You opened this Canvass, so someone else on the approver list signs it.</p>
-              )}
-              {!isSigned && isApprover && !isCreator && !readyToSign && (
-                <p className="text-xs text-muted-foreground">It needs a winner and a reason before it can be signed.</p>
-              )}
-              {lastUnlocked && (
-                <p className="text-xs text-muted-foreground" data-testid="unlock-history">
-                  Unlocked by {lastUnlocked.actor?.name || "a Super Admin"}: {lastUnlocked.reason}
-                </p>
-              )}
-              {canChange && isSigned && (
-                <p className="text-xs text-muted-foreground">Changing an offer, a price, the winner or the reason unsigns it.</p>
-              )}
-            </div>
-          ),
-          moves: canSignNow ? (
-            <Button type="button" onClick={() => setIsSigning(true)} className={APPROVE_CLASS}>
-              Sign off
-            </Button>
-          ) : null,
-        },
+        // Old sign-offs and unlocks stay as read-only history (#728); nothing new is signed.
+        ...(isSigned || lastUnlocked
+          ? [
+              {
+                key: "history",
+                title: "History",
+                summary: isSigned ? `Signed off by ${canvass.signer?.name || "—"}` : "Unlocked",
+                state: STATE.DONE,
+                needsMe: false,
+                body: (
+                  <div className="space-y-1.5" data-testid="canvass-history">
+                    {isSigned && (
+                      <p className="text-xs font-semibold text-foreground" data-testid="signoff-state">
+                        Signed off by {canvass.signer?.name || "—"}
+                        {lastSigned && ` on ${lastSigned.offer_count} offer${lastSigned.offer_count === 1 ? "" : "s"}`}.
+                        <span className="ml-1 font-normal text-muted-foreground">Kept as history. Canvasses are no longer signed off.</span>
+                      </p>
+                    )}
+                    {lastUnlocked && (
+                      <p className="text-xs text-muted-foreground" data-testid="unlock-history">
+                        Unlocked by {lastUnlocked.actor?.name || "a Super Admin"}: {lastUnlocked.reason}
+                      </p>
+                    )}
+                  </div>
+                ),
+              },
+            ]
+          : []),
       ]
     : [];
 
@@ -1027,6 +999,18 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
               )}
 
               <section className="space-y-3">
+                <SectionHeading title="Supplier slots" />
+                <CanvassSlots
+                  offers={offers}
+                  marks={canvass.noOtherSupplier || []}
+                  canEdit={canChange}
+                  isPending={markNoOtherMutation.isPending || clearNoOtherMutation.isPending}
+                  onMark={(input) => markNoOtherMutation.mutate(input)}
+                  onClear={(slot) => clearNoOtherMutation.mutate(slot)}
+                />
+              </section>
+
+              <section className="space-y-3">
                 <SectionHeading title={`Offers · ${offers.length}`} />
                 {canvass.moreOffersWarning && (
                   <p className="text-xs text-amber-12" data-testid="more-offers-warning">
@@ -1035,7 +1019,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                 )}
                 {!winner && offers.length > 0 && hasComponent && (
                   <p className="text-xs text-muted-foreground" data-testid="no-winner-note">
-                    No winner picked. Anything an earlier winner filled on the Costing Matrix stays until a new winner replaces it.
+                    No winner picked. Anything an earlier winner filled on the S0 Evaluation stays until a new winner replaces it.
                   </p>
                 )}
                 <CanvassOffersGrid filled={offers.length + (canChange ? 1 : 0)} data-testid="offers-grid">
@@ -1048,6 +1032,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                       count={offers.length}
                       canEdit={canChange}
                       canReadMoney={canReadMoney}
+                      canPick={canPickWinner(offers, canvass.noOtherSupplier || [])}
                       isPending={busy}
                       onUpdate={(id, patch) => updateMutation.mutate({ offerId: id, patch })}
                       onRemove={setRemoving}
@@ -1178,7 +1163,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         open={clearing}
         onOpenChange={setClearing}
         title="Clear the winner?"
-        description={`${isSigned ? "This unsigns the Canvass. " : ""}It leaves no winner until you pick one again.`}
+        description="It leaves no winner until you pick one again."
         confirmLabel="Clear winner"
         onConfirm={() => {
           clearWinnerMutation.mutate();
@@ -1187,39 +1172,11 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
       />
     </ModalShell>
 
-      {requesting && canvass && (
-        <CreatePurchaseRequestModal
-          open={requesting}
-          onOpenChange={setRequesting}
-          canvasses={[{ id: canvass.id, number: canvass.number, winner, signedOffAt: canvass.signed_off_at }]}
-          onCreated={() => {
-            setRequesting(false);
-            invalidate();
-          }}
-        />
-      )}
-
       {unlocking && canvass && (
         <CanvassUnlockDialog open={unlocking} onOpenChange={setUnlocking} canvass={canvass} onUnlocked={invalidate} />
       )}
 
       {viewingRequest && <PurchaseRequestModal requestId={viewingRequest} onClose={() => setViewingRequest(null)} />}
-
-      {isSigning && canvass && (
-        <CanvassSignoffDialog
-          open={isSigning}
-          onOpenChange={setIsSigning}
-          summary={{
-            id: canvass.id,
-            number: canvass.number,
-            subjectLabel: title,
-            reason: canvass.reason,
-            offerCount: offers.length,
-            winnerLabel: winner ? [winner.supplier_name, winner.brand].filter(Boolean).join(" · ") : null,
-          }}
-          onSigned={invalidate}
-        />
-      )}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, CalendarDays, ClipboardCheck, Gavel, PackageCheck, ReceiptText, Scale, ShieldCheck } from "lucide-react";
+import { CalendarClock, CalendarDays, ClipboardCheck, Gavel, PackageCheck, ReceiptText, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { taskService } from "../../../services/taskService.js";
@@ -72,14 +72,6 @@ export const APPROVAL_QUEUES = [
     icon: Gavel,
     can: (r) => r.isBidDecider,
   },
-  {
-    // Canvass sign-offs (#279): the purchasing approver list, the one that approves Transmittals.
-    key: "canvass",
-    path: "/approvals/canvass-signoffs",
-    label: "Canvass Sign-offs",
-    icon: Scale,
-    can: (r) => r.isCanvassApprover,
-  },
 ];
 
 export function useApprovalRoles() {
@@ -102,8 +94,6 @@ export function useApprovalRoles() {
     // On the Transmittal Check by list (#254); only a list member sees the queue.
     isTransmittalCheckBy: (listsQuery.data ?? []).includes(TRANSMITTAL_STAFF_LIST.CHECK_BY),
     isTransmittalListsLoading: !!user?.id && listsQuery.isLoading,
-    // The same list signs Canvasses (#279): the purchasing approver. A Super Admin only when on it.
-    isCanvassApprover: (listsQuery.data ?? []).includes(TRANSMITTAL_STAFF_LIST.CHECK_BY),
     // A Super Admin, on the Final Acquire list (#320), or open on a Costing Matrix: decides Bid Decisions.
     isBidDecider:
       user?.is_super_admin === true || user?.isSuperAdmin === true || user?.is_final_acquire === true || user?.isFinalAcquire === true ||

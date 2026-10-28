@@ -5,8 +5,6 @@ export const purchaseRequestKeys = {
   canManage: (requestId) => ["purchase-request", requestId, "can-manage"],
   items: (requestId) => ["purchase-request", requestId, "items"],
   canAddItems: (requestId) => ["purchase-request", requestId, "can-add-items"],
-  /** Whether the signed-in employee has Purchasing access: the "Add a Canvass" button. */
-  hasPurchasing: ["purchase-request", "has-purchasing"],
   /** The SOR's stock snapshot (#202), as the picker and the saved items read it (#501). */
   stock: (requestId) => ["purchase-request", requestId, "stock"],
   itemActor: (requestId) => ["purchase-request", requestId, "item-actor"],

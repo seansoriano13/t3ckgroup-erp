@@ -258,7 +258,7 @@
   <div class="desk-head">
     <h1>Printed Canvass</h1>
     <span class="tag">prototype · #236</span>
-    <p>Three ways to put one canvass on paper for the purchasing approver to sign. Three offers against one Costing Matrix component, one of them foreign. Flip with the bar, the arrow keys, or <code>?variant=</code>.</p>
+    <p>Three ways to put one canvass on paper for the purchasing approver to sign. Three offers against one S0 Evaluation component, one of them foreign. Flip with the bar, the arrow keys, or <code>?variant=</code>.</p>
   </div>
   <div id="stage"></div>
 </div>
@@ -281,7 +281,7 @@ const D = {
       desc: 'Aluminium folding stretcher, 1,900 × 550 mm, 159 kg load, restraint straps, carry bag.',
       price: 78000, cur: 'PHP', php: 78000, lead: '14 days', valid: '30 Sep 2026',
       quality: 'Used on S07799; no failures in 12 months.', brochure: 'RL-FS190.pdf', link: 'redleaf.com.ph/rl-fs190',
-      remarks: '1,900 mm against a 2,000 mm requirement. Deviation recorded on the Costing Matrix.', win: true },
+      remarks: '1,900 mm against a 2,000 mm requirement. Deviation recorded on the S0 Evaluation.', win: true },
     { supplier: 'MedSupply PH', brand: 'Ferno', model: 'F-2000A',
       desc: 'Aluminium folding stretcher, 2,010 × 560 mm, 170 kg load, restraint straps.',
       price: 82500, cur: 'PHP', php: 82500, lead: '7 days', valid: '25 Sep 2026',
@@ -388,7 +388,7 @@ function variantC() {
       <div>
         <h2>${winner.supplier}</h2>
         <div class="sub">${winner.brand} ${winner.model} · ${winner.lead} · quote valid to ${winner.valid}</div>
-        <p class="why" style="margin:5px 0 0">Chosen on delivery and history rather than price: the cheaper Hong Kong offer needs 45 days against a delivery due in 21 and sells the straps separately, and the compliant Ferno is ₱4,500 dearer from a supplier we have never bought from. <b>The 1,900 mm length is a recorded deviation</b> on the Costing Matrix, not an oversight.</p>
+        <p class="why" style="margin:5px 0 0">Chosen on delivery and history rather than price: the cheaper Hong Kong offer needs 45 days against a delivery due in 21 and sells the straps separately, and the compliant Ferno is ₱4,500 dearer from a supplier we have never bought from. <b>The 1,900 mm length is a recorded deviation</b> on the S0 Evaluation, not an oversight.</p>
       </div>
       <div class="price"><div class="k">Unit price</div><div class="v">${peso(winner.php)}</div><div class="sub">against ₱82,500 and ₱72,400</div></div>
     </div>

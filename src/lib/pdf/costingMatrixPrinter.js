@@ -20,7 +20,7 @@ import { blobToDataUrl, openPrintWindow, printIntoWindow } from './htmlPrinter';
 
 /** Opens the window the matrix will print into. Call it synchronously in the click. Null when a popup blocker refused. */
 export function openCostingMatrixPrintWindow() {
-  return openPrintWindow('Costing Matrix');
+  return openPrintWindow('S0 Evaluation');
 }
 
 /**
@@ -38,7 +38,7 @@ export async function hydrateCostingMatrixSignatures(vm) {
         const blob = await signatureService.downloadSignature(path);
         if (blob) images.set(path, await blobToDataUrl(blob));
       } catch (error) {
-        console.warn('Failed to load signature for the printed Costing Matrix', error);
+        console.warn('Failed to load signature for the printed S0 Evaluation', error);
       }
     }),
   );
@@ -71,7 +71,7 @@ function peopleOf(matrix, employees) {
  */
 export async function prepareCostingMatrixForPrint(opportunityId, { opportunity = {}, printedBy = null, now = new Date() } = {}) {
   const matrix = await costingMatrixService.get(opportunityId);
-  if (!matrix) throw new Error("This SOR has no Costing Matrix yet, or you don't have access to it.");
+  if (!matrix) throw new Error("This SOR has no S0 Evaluation yet, or you don't have access to it.");
   const employees = await employeeService.getAllEmployees();
   const vm = buildCostingMatrixViewModel(
     { matrix, opportunity, people: peopleOf(matrix, employees) },

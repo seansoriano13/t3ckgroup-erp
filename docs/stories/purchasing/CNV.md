@@ -1,8 +1,8 @@
 # CNV · Canvass and Offers
 
-Guide §8. The Check by list (ops-head, admin-head) signs Canvasses.
+Guide §8. Canvasses are not signed off (#728); old sign-offs show as history.
 
-A Canvass opens in the record window over `/purchasing/canvasses`. The Offers stay side-by-side cards. Sign-off is a step in the Your move card (Offers in, Winner picked, Purchase Request, Sign-off). Print and Unlock are in More. Questions such as Unlock ask in a confirm dialog, not a toast.
+A Canvass opens in the record window over `/purchasing/canvasses`. The Offers stay side-by-side cards. Sign-off is a step in the Your move card (Offers in, Winner picked, Purchase Request, and History on an old signed Canvass). Print and Unlock are in More. Questions such as Unlock ask in a confirm dialog, not a toast.
 
 ### CNV-01 · Open a Canvass on a Component
 - **Guide**: §8
@@ -117,26 +117,24 @@ A Canvass opens in the record window over `/purchasing/canvasses`. The Offers st
   1. Open the Canvass.
 - **You should see**: no prices.
 
-### CNV-14 · Canvass sign-off
+### CNV-14 · A Canvass is not signed off
 - **Guide**: §8
-- **Log in as**: ops-head, then super-admin, then admin-head
-- **Needs**: CNV-08 (winner and reason). Make ops-head the Canvasser first (as purchaser), and have ops-head open one other Canvass.
+- **Log in as**: ops-head (on the Check by list), then purchaser
+- **Needs**: CNV-08 (winner and reason)
 - **Steps**:
-  1. As ops-head, open `/approvals/canvass-signoffs`. Sign the Canvass ops-head **opened**.
-  2. As super-admin, try to sign CNV-01.
-  3. As admin-head, sign CNV-01.
-  4. Try to sign a Canvass with a winner but a blank reason.
-- **You should see**: step 1 is refused (you cannot sign a Canvass you opened). Step 2 is refused (not on the list). Step 3 works. Step 4 is refused and that Canvass is not in the queue.
+  1. As ops-head, open the Approval Center.
+  2. As purchaser, open a Canvass that has a winner and a reason.
+  3. Print it.
+- **You should see**: step 1 has no Canvass sign-off queue. Step 2 has no Sign off button and the Your move card says "Ready. Nothing left to do." Step 3 prints only "Canvassed by".
 
-### CNV-15 · Editing a signed Canvass clears the sign-off
+### CNV-15 · An old signed Canvass keeps its sign-off
 - **Guide**: §8
 - **Log in as**: purchaser
-- **Needs**: CNV-14 step 3
+- **Needs**: a Canvass signed off before #728
 - **Steps**:
-  1. Change an Offer's price. Check the sign-off.
-  2. Sign again (admin-head). Change the reason. Check.
-  3. Sign again. Change the winner. Check.
-- **You should see**: each change clears the sign-off. Nothing ever locks.
+  1. Open it. Open the History step.
+  2. Change an Offer's price and the reason. Print it.
+- **You should see**: History says who signed. The edits do not clear the sign-off. The print still shows "Approved by" beside "Canvassed by", and no "Checked by".
 
 ### CNV-16 · Canvasser can change; the creator is kept
 - **Guide**: §8

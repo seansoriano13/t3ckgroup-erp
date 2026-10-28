@@ -94,7 +94,7 @@ describe("costing_fill_from_sor", () => {
         expect(await lines()).toEqual([])
     })
 
-    it("refuses an SOR that has no Costing Matrix", async () => {
+    it("refuses an SOR that has no S0 Evaluation", async () => {
         const { error } = await fill("dealOwner", emptySorId)
         expect(error?.code).toBe("22023")
     })
@@ -102,7 +102,7 @@ describe("costing_fill_from_sor", () => {
     it("makes a Tender Line and one Component, the product, for each SOR product, in the SOR's order", async () => {
         const { data, error } = await fill("dealOwner")
         expect(error).toBeNull()
-        expect(data).toBe(2)
+        expect(data.added).toBe(2)
 
         const [hose, tripod] = await lines()
         expect(hose).toMatchObject({ position: 1, source: "sor_line", sor_item_id: hoseId, odoo_product_id: 8123, tender_specification: "Fire hose, 65 mm", unit: "pc", created_by: ids.dealOwner })
@@ -121,11 +121,11 @@ describe("costing_fill_from_sor", () => {
     })
 
     it("runs again without doubling, and adds only a product added since, for Purchasing too", async () => {
-        expect((await fill("dealOwner")).data).toBe(0)
+        expect((await fill("dealOwner")).data.added).toBe(0)
         await asSvc(svc().from("sales_opportunity_items").insert({ opportunity_id: sorId, product_name: "Harness", unit: "pc", quantity: 8, unit_price: 4700, sort_order: 3 }), "harness")
         const { data, error } = await fill("outsider")
         expect(error).toBeNull()
-        expect(data).toBe(1)
+        expect(data.added).toBe(1)
         expect((await lines()).map((l) => l.tender_specification)).toEqual(["Fire hose, 65 mm", "Rescue tripod", "Harness"])
     })
 
@@ -144,7 +144,7 @@ describe("costing_fill_from_sor", () => {
 
         const { data, error: fillError } = await fill("dealOwner")
         expect(fillError).toBeNull()
-        expect(data).toBe(0)
+        expect(data.added).toBe(0)
         expect((await lines()).map((l) => l.sor_item_id)).toEqual(before.map((l) => l.sor_item_id))
     })
 })

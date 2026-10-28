@@ -8,7 +8,7 @@ import { PO_VERIFICATION_LABELS } from "../../constants/procurement";
 import { STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDate } from "../../utils/formatDate";
 import { stockWarning } from "../../constants/purchaseRequest";
-import { componentLabel, isFromS0, itemSectionLabel, poLineNotPicked, replacedNote, s0StillListsNote } from "../../utils/requestedItem";
+import { componentLabel, isFromS0, itemSectionLabel, partialReceiptText, poLineNotPicked, replacedNote, s0StillListsNote } from "../../utils/requestedItem";
 import { askedByText, purposeLabel, splitProductName } from "../../utils/productLine";
 
 /** "PHP 250.50" — the price a Canvass winner gave the item (#582). */
@@ -65,6 +65,10 @@ export default function RequestedItemDetails({ item, stock, costText, replaces, 
         </span>
       ),
     },
+    // #730: the IPAS raised when the P0 was attached, or "IPAS to create" while Odoo has not answered.
+    item.po_number && item.ipas_pending && { label: "IPAS", value: <Warn>IPAS to create</Warn> },
+    item.po_number && !item.ipas_pending && item.ipas_number && { label: "IPAS", value: <span data-testid="requested-item-ipas" className="font-mono">{item.ipas_number}</span> },
+    partialReceiptText(item) && { label: "Received", value: <span data-testid="requested-item-partial">{partialReceiptText(item)}</span> },
     poLineNotPicked(item) && { label: "PO line", value: <Warn>PO line not picked</Warn> },
     item.price && {
       label: "Price each",
@@ -79,6 +83,11 @@ export default function RequestedItemDetails({ item, stock, costText, replaces, 
     // #684: what Sales asked for, and what the attached P0 bought, when they differ.
     item.po_number && item.bought_as && isFromS0(item) && { label: "Asked as", value: item.name },
     item.po_number && item.bought_as && isFromS0(item) && { label: "Bought as", value: <span data-testid="requested-item-bought-as">{item.bought_as}</span> },
+    // #724: the P0 was attached before the SOR reached the stage that opens buying.
+    item.ordered_early_reason && {
+      label: "Ordered early",
+      value: <span data-testid="requested-item-ordered-early">{item.ordered_early_reason}</span>,
+    },
     mergedFrom && { label: "Merged with", value: `Your request "${mergedFrom.name}"` },
     { label: "Source", value: itemSectionLabel(item) },
     isFromS0(item) && { label: "Requested by", value: <>{item.requester?.name || "Unknown"}{item.created_at && <span className="text-muted-foreground"> · {formatDate(item.created_at)}</span>}</> },
