@@ -11,10 +11,12 @@
  * so assertions read the `disabled`/visibility seam this ticket touches
  * rather than re-testing those components' own internals.
  */
-import { screen, within } from "@testing-library/react"
+import { screen, within, waitFor, fireEvent } from "@testing-library/react"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { renderWithProviders } from "@/test/support"
 import GroupTaskDetailModal from "./GroupTaskDetailModal"
+import toast from "react-hot-toast"
+import { groupTaskService } from "@/services/groupTaskService"
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: { id: "creator-1", name: "Creator" } }),
@@ -76,7 +78,13 @@ vi.mock("./GroupTaskMemberPanel", () => ({
 }))
 
 vi.mock("@/components/ChecklistTaskRenderer", () => ({
-  default: ({ disabled }) => <div>ChecklistTaskRenderer disabled:{String(disabled)}</div>,
+  default: ({ disabled, description, onInlineCheck }) => (
+    <div>
+      ChecklistTaskRenderer disabled:{String(disabled)}
+      <span data-testid="shown">{JSON.stringify(description)}</span>
+      <button onClick={() => onInlineCheck('"ticked"')}>tick</button>
+    </div>
+  ),
 }))
 
 const creator = { id: "creator-1", name: "Creator" }
@@ -444,5 +452,19 @@ describe("GroupTaskDetailModal who evaluates", () => {
 
     expect(within(evaluatorRow()).queryByRole("button")).not.toBeInTheDocument()
     expect(screen.getByText("Evaluated by").nextSibling).toHaveTextContent("Creator")
+  })
+})
+
+describe("GroupTaskDetailModal checklist tick", () => {
+  it("shows the tick at once and puts it back with an error when the save fails", async () => {
+    groupTaskService.updateMemberChecklist.mockImplementationOnce(
+      () => new Promise((_, reject) => setTimeout(() => reject(new Error("Save failed")), 150)),
+    )
+    renderModal()
+    const before = screen.getByTestId("shown").textContent
+    fireEvent.click(screen.getByText("tick"))
+    expect(screen.getByTestId("shown").textContent).toBe('"\\"ticked\\""')
+    await waitFor(() => expect(screen.getByTestId("shown").textContent).toBe(before))
+    expect(toast.error).toHaveBeenCalledWith("Save failed")
   })
 })
