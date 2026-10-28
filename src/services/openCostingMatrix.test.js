@@ -20,7 +20,7 @@ import { stubActionRunRpcs } from "@/test/stubs/actionRunRpc"
  * Optional Action path calls `sor_open_costing_matrix` after a Decider's Create. That the real
  * plpgsql does the same, and who may call it, is the policy tier's (84-open-costing-matrix-action).
  */
-describe("Open Costing Matrix", () => {
+describe("Open S0 Evaluation", () => {
   let owner, buyer, member, assigner, lead, qualified, snapshot, saleType, preset
 
   beforeEach(() => {

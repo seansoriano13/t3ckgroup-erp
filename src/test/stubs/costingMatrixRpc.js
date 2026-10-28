@@ -23,6 +23,21 @@ import { tierReadsLandedCost } from "@/constants/costing"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
+/** #723: the migration seeds the cost guide categories; the fake database only has the schema, so the first new cost row seeds them. */
+const GUIDE_CATEGORIES = [
+  ["products", "Products", 70, 80],
+  ["labor", "Labor", 8, 15],
+  ["logistics", "Logistics & Transportation", 3, 7],
+  ["equipment", "Equipment & Tools", 1, 3],
+  ["permits", "Permits/Insurance/Compliance", 1, 2],
+  ["overhead", "Overhead", 2, 5],
+  ["profit", "Profit Margin", 5, 10],
+]
+const ensureGuideCategories = () => {
+  if (rowsOf("costing_cost_categories").length > 0) return
+  GUIDE_CATEGORIES.forEach(([key, label, low_pct, high_pct], index) => insertRow("costing_cost_categories", { key, label, low_pct, high_pct, sort: index + 1 }))
+}
+
 /**
  * Issue #267 — the Costing Matrix functions (supabase/migrations/
  * 20261018100000_costing_matrix_tender_lines.sql) live in Postgres, which the
@@ -55,7 +70,7 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  * src/test/db/triggers.js, and `costing_history` returns what those triggers wrote. Who may write
  * a verdict (the Technical band) is the policy tier's (82-costing-evaluation.test.js).
  */
-export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"], manageMarkup = tier === COSTING_TIER.CLOSED_BOOK, actorId = null, onEvaluationList = true, onFinalAcquireList = tier === COSTING_TIER.CLOSED_BOOK } = {}) {
+export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"], manageMarkup = tier === COSTING_TIER.CLOSED_BOOK, actorId = null, onEvaluationList = true } = {}) {
   const refuse = (table, column, needed) => {
     throw pgrstError("42501", `costing_band:${table}.${column}:${needed.join(",")}`, { status: 403 })
   }
@@ -304,7 +319,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       throw pgrstError("42501", "costing_fill: only Sales or Purchasing can fill the matrix from the SOR", { status: 403 })
     }
     const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
-    if (!matrix) throw pgrstError("22023", "costing_fill: this SOR has no Costing Matrix yet", { status: 400 })
+    if (!matrix) throw pgrstError("22023", "costing_fill: this SOR has no S0 Evaluation yet", { status: 400 })
     const lines = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id)
     let position = Math.max(0, ...lines.map((l) => l.position))
     const items = rowsOf("sales_opportunity_items")
@@ -327,14 +342,18 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       })
       insertRow("costing_components", { tender_line_id: line.id, position: 1, name: item.product_name, quantity, unit, odoo_product_id: item.odoo_product_id ?? null })
     }
-    return items.length
+    return { added: items.length, left_out: [] }
   })
   stubEdgeFunction("odoo-costing-costs", { success: true, filled: 0, unpriced: 0 })
 
   stubRpc("costing_add_cost_row", (args) => {
     requireBand("costing_cost_rows", "*", ["sales", "purchasing"])
+    // #723: a new cost-only row names its cost guide category.
+    if (!String(args.p_category_key ?? "").trim()) throw pgrstError("22023", "costing_cost_row: a cost needs a category", { status: 400 })
+    ensureGuideCategories()
     const last = Math.max(0, ...rowsOf("costing_cost_rows").filter((r) => r.matrix_id === args.p_matrix_id).map((r) => r.position))
     return insertRow("costing_cost_rows", {
+      category_key: args.p_category_key,
       matrix_id: args.p_matrix_id,
       position: last + 1,
       description: args.p_description ?? "",
@@ -459,27 +478,17 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
 
   stubRpc("costing_sign", (args) => {
     const role = args.p_role
-    if (!["prepared", "costed", "evaluation_approved", "final_approved"].includes(role)) {
+    // #722: Evaluation approval is the only sign-off left; Prepared, Costed and Final approved are history.
+    if (role !== "evaluation_approved") {
       throw pgrstError("22023", `costing_sign: ${role} is not a sign-off`, { status: 400 })
     }
     const matrix = rowsOf("costing_matrices").find((m) => m.id === args.p_matrix_id)
     if (!matrix) throw pgrstError("P0002", "costing_sign: not found", { status: 404 })
     if (!tier) throw pgrstError("42501", "costing_sign: not allowed", { status: 403 })
-    // #274: Prepared by is the Sales incharge's, Costed by the Purchasing incharge's, Final Acquire and offer the list's,
-    // and since 20261102180000 anyone's who reads this matrix at the Closed Book.
-    const refusal = {
-      prepared: matrix.sales_incharge_id !== actorId && "only the Sales incharge can sign Prepared by",
-      costed: matrix.purchasing_incharge_id !== actorId && "only the Purchasing incharge can sign Costed by",
-      evaluation_approved: !onEvaluationList && "only someone on the evaluation list can approve the evaluation",
-      final_approved: !onFinalAcquireList && tier !== "closed_book" && "only Sales, Purchasing or the Final Acquire list can approve the Final Acquire and offer",
-    }[role]
+    const refusal = !onEvaluationList && "only someone on the evaluation list can approve the evaluation"
     if (refusal) throw pgrstError("42501", `costing_sign: ${refusal}`, { status: 403 })
     if (rowsOf("costing_signoffs").some((s) => s.matrix_id === matrix.id && s.role === role && !s.cleared_at)) {
-      throw pgrstError("55000", role === "evaluation_approved" ? "costing_sign: the evaluation is already approved" : "costing_sign: that sign-off is already signed", { status: 409 })
-    }
-    if (role !== "evaluation_approved") {
-      const signoff = insertRow("costing_signoffs", { matrix_id: matrix.id, role, signed_by: actorId, signature_declined: Boolean(args.p_decline_signature), signature_version: null })
-      return { signoff }
+      throw pgrstError("55000", "costing_sign: the evaluation is already approved", { status: 409 })
     }
     const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
     const missing = rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id) && !c.compliance).length

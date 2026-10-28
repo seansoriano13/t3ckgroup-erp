@@ -466,6 +466,27 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange: gra
 }
 
 /**
+ * From an IPAS back to the SOR it serves (#718, story 58): the SOR's PMS tab, where its IPAS are listed, and
+ * its S0 Evaluation. Plain link Buttons, like the other record links on this page.
+ */
+function SorTrailLinks({ sorId }) {
+  if (!sorId) return null;
+  const openPms = () =>
+    window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: sorId, type: "OPPORTUNITY", view: "pms" } }));
+  const openS0 = () => window.open(`/costing-matrix/${sorId}`, "_blank", "noopener");
+  return (
+    <span className="ml-2 inline-flex gap-2">
+      <Button type="button" variant="link" onClick={openPms} className="h-auto p-0 text-xs font-medium underline">
+        PMS tab
+      </Button>
+      <Button type="button" variant="link" onClick={openS0} className="h-auto p-0 text-xs font-medium underline">
+        S0 Evaluation
+      </Button>
+    </span>
+  );
+}
+
+/**
  * Section 2: the SORs it serves, the two plain ticks (Googlesheet, Gantt Chart,
  * #241), and Odoo's Source Document and analytic accounts.
  */
@@ -493,6 +514,7 @@ export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverr
                         · {sor.projectTitle}
                         {sor.stageName ? ` · ${sor.stageName}` : ""}
                       </span>
+                      <SorTrailLinks sorId={sor.id} />
                     </li>
                   ))}
                 </ul>

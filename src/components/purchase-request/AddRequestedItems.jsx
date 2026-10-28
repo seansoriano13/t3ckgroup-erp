@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ImagePlus, PackagePlus, Scale } from "lucide-react";
+import { ImagePlus, PackagePlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import ModalShell from "@/components/ui/ModalShell";
@@ -12,7 +12,6 @@ import { SelectField } from "@/components/ui/SelectField";
 import { Textarea } from "@/components/ui/textarea";
 import Spinner from "@/components/ui/Spinner";
 import { AttachmentPreviews } from "@/components/ui/Attachments";
-import AddCanvassedItemsDialog from "./AddCanvassedItemsDialog";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
 import { REQUEST_PURPOSES, REQUEST_UNITS } from "../../constants/procurement";
@@ -167,14 +166,13 @@ export function NewProductDialog({ open, onOpenChange, requestId }) {
 
 /**
  * Issue #305 / #678 — adding to a Purchase Request. The S0's products are on the request by
- * themselves, so what is added here is an Other request: a new product in Sales' own words, or a
- * Canvass (Purchasing). Shown only to whoever may add (the request's sales side or its Buyer; the
+ * themselves, so what is added here is an Other request: a new product in Sales' own words (a Canvass
+ * is never added; it starts on the line, ADR 0047). Shown only to whoever may add (the request's sales side or its Buyer; the
  * database checks again on save).
  *
- * Self-contained, for the request view to mount (#308): `request` needs `id`; `items` are the
- * request's items, so the Canvass dialog can say which are taken.
+ * Self-contained, for the request view to mount (#308): `request` needs `id`.
  */
-export default function AddRequestedItems({ request, items = [] }) {
+export default function AddRequestedItems({ request }) {
   const [dialog, setDialog] = useState(null);
   const requestId = request?.id;
 
@@ -183,35 +181,17 @@ export default function AddRequestedItems({ request, items = [] }) {
     queryFn: () => purchaseRequestService.canAddItems(requestId),
     enabled: !!requestId,
   });
-  const { data: purchasing } = useQuery({
-    queryKey: purchaseRequestKeys.hasPurchasing,
-    queryFn: () => purchaseRequestService.hasPurchasingAccess(),
-    enabled: !!requestId,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
-  const fromCanvass = canAdd && purchasing === true;
   if (!canAdd) return null;
 
   const openAs = (name) => (open) => setDialog(open ? name : null);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {fromCanvass && (
-        <Button type="button" variant="outline" size="sm" onClick={() => setDialog("canvass")}>
-          <Scale size={14} />
-          Add a Canvass
-        </Button>
-      )}
       <Button type="button" variant="outline" size="sm" onClick={() => setDialog("new")}>
         <PackagePlus size={14} />
         Ask for a product
       </Button>
 
-      {fromCanvass && (
-        <AddCanvassedItemsDialog open={dialog === "canvass"} onOpenChange={openAs("canvass")} requestId={requestId} items={items} />
-      )}
       <NewProductDialog open={dialog === "new"} onOpenChange={openAs("new")} requestId={requestId} />
     </div>
   );

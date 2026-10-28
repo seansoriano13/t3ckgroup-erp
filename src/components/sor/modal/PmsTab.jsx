@@ -19,7 +19,7 @@ export default function PmsTab({ opportunityId, opportunity }) {
   const { data: costingTier } = useCostingTier(opportunityId);
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8 p-6">
-      {/* #267: the grid once the SOR's Costing Matrix has been opened (#462); until then one plain line. */}
+      {/* #267: the grid once the SOR's S0 Evaluation has been opened (#462); until then one plain line. */}
       {costingTier && <CostingMatrixSection opportunityId={opportunityId} opportunity={opportunity} />}
 
       {/* #310: renders nothing for an SOR with no Purchase Request. Moved here from the Summary and This stage (#268). */}

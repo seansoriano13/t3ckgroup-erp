@@ -204,7 +204,7 @@ describe("FlowCanvas", () => {
     })
   })
 
-  it("warns at publish about a costing condition no Open Costing Matrix precedes, and still publishes (#463)", async () => {
+  it("warns at publish about a costing condition no Open S0 Evaluation precedes, and still publishes (#463)", async () => {
     const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
@@ -217,7 +217,7 @@ describe("FlowCanvas", () => {
     await user.click(await screen.findByRole("button", { name: saleType.name }))
     await user.click(await screen.findByRole("button", { name: /Publish v1.1/ }))
 
-    expect(await screen.findByText(/Awarded checks the Costing Matrix, but a path to it skips every Open Costing Matrix action/)).toBeInTheDocument()
+    expect(await screen.findByText(/Awarded checks the S0 Evaluation, but a path to it skips every Open S0 Evaluation action/)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Publish" })).not.toBeDisabled()
 
     await user.click(screen.getByRole("button", { name: "Publish" }))
@@ -227,7 +227,7 @@ describe("FlowCanvas", () => {
     })
   })
 
-  it("does not warn when a Stage on the way opens the Costing Matrix (#463)", async () => {
+  it("does not warn when a Stage on the way opens the S0 Evaluation (#463)", async () => {
     const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
@@ -242,7 +242,7 @@ describe("FlowCanvas", () => {
     await user.click(await screen.findByRole("button", { name: /Publish v1.1/ }))
     await screen.findByText("Changes since the latest version")
 
-    expect(screen.queryByText(/skips every Open Costing Matrix action/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/skips every Open S0 Evaluation action/)).not.toBeInTheDocument()
   })
 
   it("offers to move deals up after a minor publish, naming how many", async () => {

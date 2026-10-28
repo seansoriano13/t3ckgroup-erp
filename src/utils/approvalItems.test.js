@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { TASK_STATUS } from "../constants/status.js"
-import { canvassSignoffToItem, leaveToItem, leaveWhen, shortAge, shortDate, shortRef, taskChain, taskHeadline, taskToItem } from "./approvalItems.js"
+import { leaveToItem, leaveWhen, shortAge, shortDate, shortRef, taskChain, taskHeadline, taskToItem } from "./approvalItems.js"
 
 const NOW = new Date("2026-08-20T15:00:00+08:00").getTime()
 const ago = (h) => new Date(NOW - h * 3600000).toISOString()
@@ -99,37 +99,5 @@ describe("formatting", () => {
     it("shortDate drops the year only when it is this year", () => {
         expect(shortDate(ago(24), NOW)).toBe("Aug 19")
         expect(shortDate("2025-03-01T08:00:00+08:00", NOW)).toMatch(/2025/)
-    })
-})
-
-describe("canvassSignoffToItem", () => {
-    const pending = {
-        canvassId: "11111111-aaaa-4aaa-8aaa-000000000001",
-        number: "CNV_0142",
-        subjectName: "Ambulance Folding Stretcher",
-        creatorId: "e1",
-        creatorName: "Marco Dizon",
-        projectTitle: "Rescue vehicle",
-        offerCount: 2,
-        winnerSupplier: "Redleaf Inc.",
-        winnerBrand: "Redleaf",
-        waitingSince: ago(2),
-    }
-
-    it("names the Canvass, its winner and its offers, and credits who canvassed it", () => {
-        const item = canvassSignoffToItem(pending, NOW)
-        expect(item).toMatchObject({
-            queue: "canvass",
-            ref: "CNV_0142",
-            title: "Ambulance Folding Stretcher",
-            typeLabel: "Winner Redleaf Inc. · Redleaf · 2 offers",
-            person: { id: "e1", name: "Marco Dizon", dept: "Rescue vehicle" },
-            done: false,
-        })
-    })
-
-    it("marks a Canvass under three offers as worth a look", () => {
-        expect(canvassSignoffToItem(pending, NOW).isHighPriority).toBe(true)
-        expect(canvassSignoffToItem({ ...pending, offerCount: 3 }, NOW).isHighPriority).toBe(false)
     })
 })

@@ -1,6 +1,22 @@
 [
     {
         "date": "2026-10-28",
+        "title": "The S0 Evaluation leads the road to buying",
+        "version": "1.9.71",
+        "changes": [
+            "The Costing Matrix is now called the S0 Evaluation on every screen, tab, print and notice.",
+            "Purchasing can type lines that are not on the S0 and put them on the S0 Evaluation before the S0 is made. When an S0 arrives, its lines join the sheet and lines that match nothing are added as new rows.",
+            "A Canvass now has three supplier slots. Each slot holds an Offer, or you mark that there is no other supplier. A Canvass has no sign-off any more: picking a winner is enough.",
+            "Each cost on the S0 Evaluation now shows a cost guide, a percentage that tells you how far a price is from what is expected.",
+            "Buying opens at the stage set for it. Before that, a P0 can be attached early with Order early and a reason.",
+            "When a P0 is attached, its IPAS is created for you. If Odoo does not answer, the P0 is marked \"IPAS to create\" so it can be done later.",
+            "A Transmittal can be filled from the IPAS and its P0 lines.",
+            "A Requested Item is marked Received when Odoo shows the goods were received.",
+            "The Canvasses page shows a Canvass as Open until it has a winner. Old Canvasses that were signed off keep that as history."
+        ]
+    },
+    {
+        "date": "2026-10-28",
         "title": "Costing Matrix in the costing-sheet shape, and IPAS money that follows it",
         "version": "1.9.70",
         "changes": [

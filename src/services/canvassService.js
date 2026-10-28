@@ -1,7 +1,6 @@
 import { supabase } from "../lib/supabase";
-import { CANVASS_NOTIFICATION, DEFAULT_CURRENCY, OFFER_MONEY_KEYS } from "../constants/canvass";
-import { notificationService } from "./notificationService";
-import { isExpired, moreOffersWarning, needsMoreOffers, phpFigure } from "../utils/canvassMath";
+import { DEFAULT_CURRENCY, OFFER_MONEY_KEYS } from "../constants/canvass";
+import { isExpired, moreOffersWarning, needsMoreOffers, phpFigure, slotsCovered } from "../utils/canvassMath";
 
 /**
  * Canvass persistence (#275, built in #276): one Canvass per subject, its Offers, and the
@@ -20,7 +19,7 @@ import { isExpired, moreOffersWarning, needsMoreOffers, phpFigure } from "../uti
  * on money (the PHP figure) are left off with them.
  *
  * Every figure comes from utils/canvassMath, so the panel, the sign-off and the print agree.
- * Later tickets add to this file: supplier search (#277), the winner (#278), sign-off (#279),
+ * Later tickets add to this file: supplier search (#277), the winner (#278),
  * the Requested Item subject (#280, `getForRequestedItem`).
  */
 
@@ -202,14 +201,56 @@ export const canvassService = {
     const { data: locked, error: lockError } = await supabase.rpc("canvass_is_locked", { p_canvass_id: data.id });
     if (lockError) throw lockError;
 
+    // The explained empty slots (#721): reason, who, when. Names only, no money.
+    const noOtherSupplier = await this.noOtherSupplier(data.id);
+
     return {
       ...data,
       offers: shaped,
+      noOtherSupplier,
+      slotsCovered: slotsCovered(shaped, noOtherSupplier),
       locked: Boolean(locked),
       canReadMoney: Boolean(canReadMoney),
       needsMoreOffers: needsMoreOffers(shaped),
-      moreOffersWarning: moreOffersWarning(shaped),
+      moreOffersWarning: moreOffersWarning(shaped, noOtherSupplier),
     };
+  },
+
+  /** The Canvass's "No other supplier" marks, by slot: `{ slot, reason, created_at, actor }`. */
+  async noOtherSupplier(canvassId) {
+    if (!canvassId) return [];
+    const { data, error } = await supabase
+      .from("sor_canvass_no_other_supplier")
+      .select("id, canvass_id, slot, reason, actor_id, created_at, actor:employees!sor_canvass_no_other_supplier_actor_id_fkey(id, name)")
+      .eq("canvass_id", canvassId)
+      .order("slot", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Marks empty slot 2 and/or 3 "No other supplier" (`canvass_set_no_other_supplier`), one reason for
+   * all the slots named. Refused without a reason, for a slot that already has an Offer, and on a
+   * locked Canvass. A winner needs Offers plus these marks to number three.
+   */
+  async markNoOtherSupplier(canvassId, slots, reason) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    if (!String(reason ?? "").trim()) throw new Error("Say why there is no other supplier.");
+    const { data, error } = await supabase.rpc("canvass_set_no_other_supplier", {
+      p_canvass_id: canvassId,
+      p_slots: slots,
+      p_reason: reason.trim(),
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Takes the "No other supplier" mark off one slot (`canvass_clear_no_other_supplier`). */
+  async clearNoOtherSupplier(canvassId, slot) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    const { data, error } = await supabase.rpc("canvass_clear_no_other_supplier", { p_canvass_id: canvassId, p_slot: slot });
+    if (error) throw error;
+    return data;
   },
 
   /**
@@ -345,56 +386,6 @@ export const canvassService = {
   },
 
   /**
-   * Creates one Direct Purchase Request from Canvasses with no subject yet
-   * (`canvass_create_purchase_request`): one Requested Item per Canvass, named from the Canvass and
-   * described from its winner, and each Canvass then points at its item. Every Canvass needs a
-   * winner; one not signed off is allowed (the screen warns first). `items` is
-   * `[{ canvassId, quantity, unit }]`. Returns `{ requestId, items: [{ canvassId, itemId }], unsignedCanvassIds }`.
-   */
-  async createPurchaseRequest({ title, items = [] } = {}) {
-    const name = text(title);
-    if (!name) throw new Error("Give the Purchase Request a title.");
-    if (items.length === 0) throw new Error("Pick at least one Canvass.");
-    const payload = items.map(({ canvassId, quantity, unit }) => {
-      const qty = toNumber(quantity, "The quantity");
-      if (qty !== null && qty <= 0) throw new Error("The quantity has to be more than zero.");
-      return { canvass_id: canvassId, quantity: qty, unit: text(unit) };
-    });
-    const { data, error } = await supabase.rpc("canvass_create_purchase_request", { p_title: name, p_items: payload });
-    if (error) throw error;
-    return {
-      requestId: data.request_id,
-      items: (data.items ?? []).map((i) => ({ canvassId: i.canvass_id, itemId: i.item_id })),
-      unsignedCanvassIds: data.unsigned_canvass_ids ?? [],
-    };
-  },
-
-  /**
-   * Adds Canvasses that already exist to a Purchase Request that already exists
-   * (`canvass_add_to_purchase_request`). Each `{ canvassId, quantity?, unit? }` becomes a new
-   * Requested Item; each `{ canvassId, itemId }` is attached to that item of the request (one with no
-   * Canvass yet). The winner's price goes on the item and the Canvass locks. Returns
-   * `{ requestId, items: [{ canvassId, itemId }], unsignedCanvassIds }`.
-   */
-  async addToPurchaseRequest(requestId, items = []) {
-    if (!requestId) throw new Error("A Purchase Request id is required.");
-    if (items.length === 0) throw new Error("Pick at least one Canvass.");
-    const payload = items.map(({ canvassId, itemId, quantity, unit }) => {
-      if (itemId) return { canvass_id: canvassId, item_id: itemId };
-      const qty = toNumber(quantity, "The quantity");
-      if (qty !== null && qty <= 0) throw new Error("The quantity has to be more than zero.");
-      return { canvass_id: canvassId, quantity: qty, unit: text(unit) };
-    });
-    const { data, error } = await supabase.rpc("canvass_add_to_purchase_request", { p_request_id: requestId, p_items: payload });
-    if (error) throw error;
-    return {
-      requestId: data.request_id,
-      items: (data.items ?? []).map((i) => ({ canvassId: i.canvass_id, itemId: i.item_id })),
-      unsignedCanvassIds: data.unsigned_canvass_ids ?? [],
-    };
-  },
-
-  /**
    * Adds one Offer to a started Canvass, appended after the current ones. Its prices row is always
    * written (blank if the caller gave none), so a reader who may see money always has a row to read.
    */
@@ -494,12 +485,12 @@ export const canvassService = {
       .select()
       .single();
     if (error) throw error;
-    await this.notifyApprovers(canvassId);
     return data;
   },
 
   /**
-   * Marks an Offer the winner (`canvass_apply_winner`): the old winner is cleared, and on a
+   * Marks an Offer the winner (`canvass_apply_winner`), refused unless Offers plus "No other
+   * supplier" slots number three (#721): the old winner is cleared, and on a
    * Component the Offer fills Acquire (price x comparison rate when foreign), Offer Specification
    * and the Component's documents, each marked "from Canvass" until someone edits it. A field a
    * person has typed over is left alone. Refused for a foreign Offer with no comparison rate.
@@ -509,12 +500,11 @@ export const canvassService = {
     if (!canvassId || !offerId) throw new Error("A Canvass id and an offer id are required.");
     const { data, error } = await supabase.rpc("canvass_apply_winner", { p_canvass_id: canvassId, p_offer_id: offerId });
     if (error) throw error;
-    await this.notifyApprovers(canvassId);
     return data;
   },
 
   /**
-   * Un-picks the winner, leaving none (`canvass_clear_winner`), which unsigns the Canvass. What the
+   * Un-picks the winner, leaving none (`canvass_clear_winner`). What the
    * winner filled on a Component (Acquire, Offer Specification, documents) stays, still marked as
    * from the Canvass, until a new winner replaces it; the matrix row says there is no winner now.
    */
@@ -537,49 +527,7 @@ export const canvassService = {
     return data;
   },
 
-  /**
-   * Tells the purchasing approver list that a Canvass is ready to sign: it has a winner and a
-   * reason and is unsigned. The database says whether that is so and who is on the list (the list
-   * is not readable to a purchaser). Never throws: a notice that fails must not undo the edit that
-   * made the Canvass ready. Returns how many people were told.
-   */
-  async notifyApprovers(canvassId) {
-    try {
-      const { data, error } = await supabase.rpc("canvass_signoff_audience", { p_canvass_id: canvassId });
-      if (error || !data?.ready) return 0;
-      const ids = data.notify_ids ?? [];
-      await Promise.all(
-        ids.map((recipient_id) =>
-          notificationService.createNotification({
-            recipient_id,
-            type: CANVASS_NOTIFICATION.READY_TO_SIGN,
-            title: `${data.number} is ready to sign`,
-            message: `Canvass ${data.number} has a winner and a reason. It needs the purchasing approver's sign-off.`,
-            reference_id: canvassId,
-          }),
-        ),
-      );
-      return ids.length;
-    } catch (err) {
-      console.error("Could not notify the Canvass approvers:", err);
-      return 0;
-    }
-  },
-
-  /**
-   * Signs the Canvass off (`canvass_sign`): only the purchasing approver list, never the person who
-   * opened it, and only with a winner and a reason. Fewer than three Offers never blocks; the
-   * count is recorded and the screen warns beforehand. Returns `{ canvass_id, number,
-   * signed_off_at, offer_count }`.
-   */
-  async sign(canvassId) {
-    if (!canvassId) throw new Error("A Canvass id is required.");
-    const { data, error } = await supabase.rpc("canvass_sign", { p_canvass_id: canvassId });
-    if (error) throw error;
-    return data;
-  },
-
-  /** The sign-off history, oldest first: `{ id, kind, reason, offer_count, created_at, actor }`. */
+  /** The history, oldest first (old sign-offs, un-picks and unlocks; read-only since #728): `{ id, kind, reason, offer_count, created_at, actor }`. */
   async signoffHistory(canvassId) {
     if (!canvassId) throw new Error("A Canvass id is required.");
     const { data, error } = await supabase
@@ -589,33 +537,6 @@ export const canvassService = {
       .order("created_at", { ascending: true });
     if (error) throw error;
     return data || [];
-  },
-
-  /**
-   * The Approval Center queue: Canvasses with a winner and a reason that nobody has signed, for a
-   * member of the approver list (anyone else gets none, and never one they opened themselves).
-   * Names only, no money.
-   */
-  async pendingSignoffs() {
-    const { data, error } = await supabase.rpc("canvass_pending_signoffs");
-    if (error) throw error;
-    return (data ?? []).map((row) => ({
-      canvassId: row.canvass_id,
-      number: row.number,
-      componentId: row.component_id ?? null,
-      requestedItemId: row.requested_item_id ?? null,
-      subjectName: row.subject_name ?? null,
-      reason: row.reason,
-      creatorId: row.creator_id ?? null,
-      creatorName: row.creator_name ?? null,
-      opportunityId: row.opportunity_id ?? null,
-      projectTitle: row.project_title ?? null,
-      clientName: row.client_name ?? null,
-      offerCount: Number(row.offer_count) || 0,
-      winnerBrand: row.winner_brand ?? null,
-      winnerSupplier: row.winner_supplier ?? null,
-      waitingSince: row.waiting_since,
-    }));
   },
 
   /**

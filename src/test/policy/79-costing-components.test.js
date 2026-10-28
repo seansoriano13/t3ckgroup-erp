@@ -112,6 +112,7 @@ const addCostRow = async (who, matrix = matrixId, description = "Delivery Charge
         p_matrix_id: matrix,
         p_description: description,
         p_quantity: quantity,
+        p_category_key: "logistics",
     })
     return { id: data, error }
 }
@@ -562,7 +563,7 @@ describe("who reads what", () => {
     expect(component).toMatchObject({ name: "Rescue vehicle", is_bundle: true, offer_specification: "4x4 pick-up, 13 lines", odoo_product_id: 8123 })
     expect(tableOf(read, "costing_inclusions").length).toBeGreaterThan(0)
     const [row] = tableOf(read, "costing_cost_rows")
-    expect(Object.keys(row).sort()).toEqual(["created_at", "description", "id", "matrix_id", "position", "quantity"])
+    expect(Object.keys(row).sort()).toEqual(["category_key", "created_at", "description", "id", "matrix_id", "position", "quantity"])
     expect(JSON.stringify(read)).not.toMatch(/acquire_unit|odoo_unit|final_acquire_unit|markup_factor|legacy_sor_inclusion/)
   })
 

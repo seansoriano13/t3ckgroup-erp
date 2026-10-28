@@ -9,6 +9,7 @@
  *               or the Requested Item
  *   Decision    the chosen supplier, brand, lead time, validity, the unit price large in the quoted
  *               currency (the PHP figure and rate beneath where foreign), and the reason as written
+ *   Slots       the three supplier slots: each an Offer's supplier or "No other supplier" with its reason
  *   Offers      side by side: one column per supplier, one row per detail (what was offered,
  *               quoted, PHP figure, lead time, quality, validity, brochure, remarks), the chosen
  *               column marked; more than four suppliers continue in a second table below
@@ -25,7 +26,7 @@
  * Strings are raw text. The composer escapes them.
  */
 
-import { moreOffersWarning, offerCurrency, phpFigure } from '../../utils/canvassMath';
+import { moreOffersWarning, offerCurrency, phpFigure, supplierSlots } from '../../utils/canvassMath';
 import { DEFAULT_CURRENCY } from '../../constants/canvass';
 import { printAmount, printDate } from './ipasViewModel';
 
@@ -109,6 +110,23 @@ function decisionBlock(canvass, winner) {
   };
 }
 
+/**
+ * The three supplier slots as the paper prints them (#721): the supplier of an Offer, or "No other
+ * supplier" with its reason, who said so and when, or "Not filled".
+ */
+export function slotRows(offers = [], marks = []) {
+  const { slots } = supplierSlots(offers, marks);
+  return slots.map((s) => {
+    if (s.kind === 'offer') return { slot: s.slot, kind: 'offer', label: text(s.offer.supplier_name) ?? text(s.offer.brand) ?? BLANK, reason: null, by: null };
+    if (s.kind === 'none') {
+      const when = printDate(s.mark.created_at);
+      const by = [text(s.mark.actor?.name), when].filter(Boolean).join(' · ');
+      return { slot: s.slot, kind: 'none', label: 'No other supplier', reason: text(s.mark.reason) ?? BLANK, by: by || null };
+    }
+    return { slot: s.slot, kind: 'empty', label: 'Not filled', reason: null, by: null };
+  });
+}
+
 /** How many suppliers sit side by side in one comparison table on portrait A4. */
 export const OFFERS_PER_TABLE = 4;
 
@@ -156,7 +174,7 @@ export function signatureBlock(role, title, { who = null, at = null, signaturePa
  *   canvass   `canvassService.get`'s result (Offers carry their price keys only for a money reader)
  *   subject   `{ sor, component: { number, name } }`, `{ sor, requestedItem: { name } }`, or
  *             `{ product: { name } }` for a Canvass with no subject yet
- *   people    `{ creator, approver, checker }`, each `{ name, signaturePath?, at? }` or absent;
+ *   people    `{ creator, approver }`, each `{ name, signaturePath?, at? }` or absent;
  *             `creator` prints as "Canvassed by" (the printer hands the Canvasser over)
  *
  * The Offers come twice: `offers`, one row per Offer, and `offerGroups`, the same rows cut into the
@@ -178,9 +196,12 @@ export function buildCanvassViewModel({ canvass, subject = {}, people = {} }, { 
       offerCount: offers.length,
     },
     decision: decisionBlock(canvass, winner),
+    slots: slotRows(offers, canvass.noOtherSupplier ?? []),
     offers: rows,
     offerGroups: offerGroups(rows),
-    warning: moreOffersWarning(offers),
+    warning: moreOffersWarning(offers, canvass.noOtherSupplier ?? []),
+    // Only "Canvassed by" is signed (#728, ADR 0047). An old Canvass that was signed off still
+    // prints its "Approved by" from the read-only sign-off columns; there is no Check-by block.
     signatures: [
       signatureBlock('Canvassed by', 'Purchasing', {
         who: people.creator?.name,
@@ -188,17 +209,16 @@ export function buildCanvassViewModel({ canvass, subject = {}, people = {} }, { 
         signaturePath: people.creator?.signaturePath,
         verb: 'canvassed',
       }),
-      signatureBlock('Checked by', 'Purchasing', {
-        who: people.checker?.name,
-        at: people.checker?.at,
-        signaturePath: people.checker?.signaturePath,
-      }),
-      signatureBlock('Approved by', 'Purchasing approver', {
-        who: approved ? (people.approver?.name ?? canvass.signer?.name) : null,
-        at: canvass.signed_off_at,
-        signaturePath: people.approver?.signaturePath,
-        verb: 'e-signed',
-      }),
+      ...(approved
+        ? [
+            signatureBlock('Approved by', 'Purchasing approver', {
+              who: people.approver?.name ?? canvass.signer?.name,
+              at: canvass.signed_off_at,
+              signaturePath: people.approver?.signaturePath,
+              verb: 'e-signed',
+            }),
+          ]
+        : []),
     ],
     printedOn: printDate(printedAt),
     printedBy: text(printedBy),

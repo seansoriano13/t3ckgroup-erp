@@ -6,6 +6,7 @@ import {
   formatAmount,
   isFromS0,
   itemSectionLabel,
+  partialReceiptText,
   poLineNotPicked,
   requestedItemStock,
   sorLineChange,
@@ -180,5 +181,21 @@ describe("Requested Items for Components (#273)", () => {
     expect(componentLabel({ component: { number: "1.2", name: "Nozzle" } })).toBe("1.2 · Nozzle")
     expect(componentLabel({ component: undefined })).toBeNull()
     expect(componentLabel(null)).toBeNull()
+  })
+})
+
+describe("partialReceiptText (#726)", () => {
+  const bought = (overrides = {}) => ({ status: "purchased", quantity: 10, odoo_received_qty: 4, ...overrides })
+
+  it("says n of m for a part-received Ordered item", () => {
+    expect(partialReceiptText(bought())).toBe("4 of 10 received")
+    expect(partialReceiptText(bought({ quantity: "10.00", odoo_received_qty: "2.50" }))).toBe("2.5 of 10 received")
+  })
+
+  it("says nothing with nothing received, when covered, or outside Ordered", () => {
+    expect(partialReceiptText(bought({ odoo_received_qty: 0 }))).toBeNull()
+    expect(partialReceiptText(bought({ odoo_received_qty: null }))).toBeNull()
+    expect(partialReceiptText(bought({ odoo_received_qty: 10 }))).toBeNull()
+    expect(partialReceiptText(bought({ status: "received" }))).toBeNull()
   })
 })

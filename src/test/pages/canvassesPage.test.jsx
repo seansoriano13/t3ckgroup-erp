@@ -55,18 +55,21 @@ describe("the Canvasses page", () => {
     db.seed("sor_canvass_offers", { canvass_id: toner.id, supplier_name: "Ink Depot", brand: "HP", is_winner: true });
   });
 
-  // The list opens on Open; the signed-off Canvass sits under All.
+  // The list opens on Open (no winner yet); the one with a winner and the old signed-off one sit under All.
   const showAll = async (user) => {
     await screen.findAllByTestId("canvass-row");
     await user.click(screen.getByRole("tab", { name: /^All/ }));
   };
 
-  it("opens on the Open pill, with counts on Open / Signed off / All", async () => {
+  it("opens on the Open pill (no winner yet), with counts on Open / Winner picked / Signed off / All", async () => {
     renderPage();
     const rows = await screen.findAllByTestId("canvass-row");
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
+    expect(screen.getByText("CNV_0001")).toBeInTheDocument();
+    expect(screen.queryByText("CNV_0002")).not.toBeInTheDocument();
     expect(screen.queryByText("CNV_0003")).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /^Open\s*2$/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /^Open\s*1$/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /^Winner picked\s*1$/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /^Signed off\s*1$/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /^All\s*3$/ })).toBeInTheDocument();
   });
@@ -89,7 +92,7 @@ describe("the Canvasses page", () => {
     expect(toner).toHaveTextContent("Laser toner");
     expect(toner).toHaveTextContent("Ana Reyes");
     expect(toner).toHaveTextContent("Ink Depot · HP");
-    expect(toner).toHaveTextContent(/Open$/);
+    expect(toner).toHaveTextContent(/Winner picked$/);
 
     const gloves = rows.find((row) => within(row).queryByText("CNV_0003"));
     expect(gloves).toHaveTextContent("Signed off");
@@ -101,7 +104,7 @@ describe("the Canvasses page", () => {
   it("narrows by search, signed state, winner and linked", async () => {
     const user = setupUser();
     renderPage();
-    await screen.findAllByTestId("canvass-row");
+    await showAll(user);
 
     await user.type(screen.getByPlaceholderText("Search Canvasses"), "toner");
     expect(screen.getAllByTestId("canvass-row")).toHaveLength(1);
@@ -110,6 +113,14 @@ describe("the Canvasses page", () => {
     await user.click(screen.getByRole("tab", { name: /^Signed off/ }));
     expect(screen.getAllByTestId("canvass-row")).toHaveLength(1);
     expect(screen.getByText("CNV_0003")).toBeInTheDocument();
+
+    // A Canvass with a winner is not Open any more, and one with none is.
+    await user.click(screen.getByRole("tab", { name: /^Winner picked/ }));
+    expect(screen.getAllByTestId("canvass-row")).toHaveLength(1);
+    expect(screen.getByText("CNV_0002")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /^Open/ }));
+    expect(screen.getAllByTestId("canvass-row")).toHaveLength(1);
+    expect(screen.getByText("CNV_0001")).toBeInTheDocument();
   });
 
   // A Canvass already turned into a Purchase Request: its item was cancelled afterwards.
@@ -186,6 +197,7 @@ describe("the Canvasses page", () => {
   it("opens the Canvass panel from a row", async () => {
     const user = setupUser();
     renderPage();
+    await showAll(user);
     await user.click(await screen.findByText("CNV_0002"));
     expect(await screen.findByRole("heading", { name: /^CNV_0002\s*·/ })).toBeInTheDocument();
     expect(await screen.findAllByTestId("offer")).toHaveLength(1);
@@ -205,6 +217,7 @@ describe("the Canvasses page", () => {
     const user = setupUser();
     renderPage();
 
+    await showAll(user);
     await user.click(await screen.findByText("Printer paper"));
     expect(await screen.findByTestId("canvass-locked-note")).toBeInTheDocument();
     expect(await screen.findAllByTestId("offer")).toHaveLength(2);
@@ -230,6 +243,7 @@ describe("the Canvasses page", () => {
     const user = setupUser();
     renderPage();
 
+    await showAll(user);
     await user.click(await screen.findByText("Printer paper"));
     await user.click(await screen.findByRole("button", { name: "More" }));
     await user.click(await screen.findByRole("button", { name: /^Unlock$/ }));
@@ -247,6 +261,7 @@ describe("the Canvasses page", () => {
   it("refreshes the Purchase Requests when a winner is picked, so a request opened next is not stale", async () => {
     const canvass = db.seed("sor_canvasses", { product_name: "Ink", canvasser_id: marco.id, created_by: marco.id });
     db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Ink Hub", is_winner: false });
+    for (const slot of [2, 3]) db.seed("sor_canvass_no_other_supplier", { canvass_id: canvass.id, slot, reason: "Sole supplier" });
     const user = setupUser();
     const { client } = renderPage();
     client.setQueryData(["purchase-request", "some-request", "items"], []);
@@ -260,103 +275,19 @@ describe("the Canvasses page", () => {
   it("opens the Canvass from anywhere on its row, not just the number", async () => {
     const user = setupUser();
     renderPage();
+    await showAll(user);
     const rows = await screen.findAllByTestId("canvass-row");
     const toner = rows.find((row) => within(row).queryByText("CNV_0002"));
     await user.click(within(toner).getByText("Ana Reyes"));
     expect(await screen.findByRole("heading", { name: /^CNV_0002\s*·/ })).toBeInTheDocument();
   });
 
-  it("picking a row's checkbox does not open it", async () => {
-    const user = setupUser();
+  it("offers no way to start a Canvass against nothing, or to make a Purchase Request from Canvasses (ADR 0047)", async () => {
     renderPage();
     await screen.findAllByTestId("canvass-row");
-    await user.click(screen.getByLabelText("Pick Canvass CNV_0002"));
-    expect(screen.queryByRole("heading", { name: /^CNV_0002\s*·/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /create purchase request \(1\)/i })).toBeInTheDocument();
-  });
-
-  const fillOffer = async (user, canvass, offer, { supplier, price }) => {
-    const label = `Canvass ${canvass} offer ${offer}`;
-    await user.type(screen.getByLabelText(`${label} supplier`), supplier);
-    await user.type(screen.getByLabelText(`${label} unit price`), price);
-  };
-
-  it("starts several Canvasses at once, three offers side by side in each, with the winner picked in the row", async () => {
-    const user = setupUser();
-    renderPage();
-    await screen.findAllByTestId("canvass-row");
-
-    await user.click(screen.getByRole("button", { name: /new canvass/i }));
-    expect(await screen.findAllByTestId("new-canvass-offer")).toHaveLength(3);
-
-    await user.type(screen.getByLabelText("Canvass 1 product"), "Whiteboard markers");
-    await fillOffer(user, 1, 1, { supplier: "National Book Store", price: "45" });
-    await fillOffer(user, 1, 2, { supplier: "Pen Depot", price: "39" });
-    await fillOffer(user, 1, 3, { supplier: "Office Hub", price: "42" });
-    await user.click(screen.getByRole("button", { name: "Pick canvass 1 offer 2 as the winner" }));
-
-    await user.click(screen.getByRole("button", { name: /add another canvass/i }));
-    expect(await screen.findAllByTestId("new-canvass-offer")).toHaveLength(6);
-    await user.type(screen.getByLabelText("Canvass 2 product"), "Stapler");
-    await fillOffer(user, 2, 1, { supplier: "Staple Co", price: "120" });
-
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() => expect(db.rows("sor_canvasses").filter((c) => ["Whiteboard markers", "Stapler"].includes(c.product_name))).toHaveLength(2));
-    const markers = db.rows("sor_canvasses").find((c) => c.product_name === "Whiteboard markers");
-    expect(markers.number).toMatch(/^CNV_\d{4}$/);
-    expect(markers.created_by).toBe(marco.id);
-    expect(markers.component_id ?? null).toBeNull();
-    expect(markers.requested_item_id ?? null).toBeNull();
-    const offers = db.rows("sor_canvass_offers").filter((o) => o.canvass_id === markers.id);
-    expect(offers.map((o) => o.supplier_name).sort()).toEqual(["National Book Store", "Office Hub", "Pen Depot"]);
-    await waitFor(() => expect(db.rows("sor_canvass_offers").find((o) => o.canvass_id === markers.id && o.is_winner)?.supplier_name).toBe("Pen Depot"));
-    // Closed, each stays on the page as a row to reopen later.
-    expect(await screen.findByText(markers.number)).toBeInTheDocument();
-  }, 20_000);
-
-  it("saves the Canvasses and creates one Purchase Request for them in one step", async () => {
-    const user = setupUser();
-    renderPage();
-    await screen.findAllByTestId("canvass-row");
-    await user.click(screen.getByRole("button", { name: /new canvass/i }));
-
-    await user.type(await screen.findByLabelText("Canvass 1 product"), "Whiteboard markers");
-    await fillOffer(user, 1, 1, { supplier: "National Book Store", price: "45" });
-    await user.click(screen.getByRole("button", { name: "Pick canvass 1 offer 1 as the winner" }));
-
-    // Needs a title before the one-step button is on.
-    expect(screen.getByRole("button", { name: /save and create purchase request/i })).toBeDisabled();
-    await user.type(screen.getByLabelText("Purchase Request title"), "Office buy");
-    await user.click(screen.getByRole("button", { name: /save and create purchase request/i }));
-
-    await waitFor(() => expect(db.rows("purchase_requests").some((r) => r.title === "Office buy")).toBe(true));
-    const markers = db.rows("sor_canvasses").find((c) => c.product_name === "Whiteboard markers");
-    expect(markers.requested_item_id).toBeTruthy();
-  });
-
-  it("asks what is being bought before a row can be saved", async () => {
-    const user = setupUser();
-    renderPage();
-    await screen.findAllByTestId("canvass-row");
-    await user.click(screen.getByRole("button", { name: /new canvass/i }));
-
-    await fillOffer(user, 1, 1, { supplier: "National Book Store", price: "45" });
-    expect(await screen.findByRole("alert")).toHaveTextContent("Say what is being bought.");
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-  });
-
-  it("creates the Purchase Request from inside a Canvass that has a winner", async () => {
-    const user = setupUser();
-    renderPage();
-    await user.click(await screen.findByText("CNV_0002"));
-    await user.click(await screen.findByRole("button", { name: /^create purchase request$/i }));
-    await user.type(await screen.findByLabelText("Purchase Request title"), "Toner buy");
-    await user.click(screen.getByRole("button", { name: /create request/i }));
-
-    await waitFor(() => expect(db.rows("purchase_requests").some((r) => r.title === "Toner buy")).toBe(true));
-    const toner = db.rows("sor_canvasses").find((c) => c.number === "CNV_0002");
-    expect(toner.requested_item_id).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /new canvass/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create purchase request/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Pick Canvass CNV_0002")).not.toBeInTheDocument();
   });
 
   it("offers no Purchase Request button inside a Canvass on a Component", async () => {
@@ -365,24 +296,6 @@ describe("the Canvasses page", () => {
     await user.click(await screen.findByText("CNV_0001"));
     await screen.findByRole("heading", { name: /^CNV_0001\s*·/ });
     expect(screen.queryByRole("button", { name: /^create purchase request$/i })).not.toBeInTheDocument();
-  });
-
-  it("creates one Purchase Request from picked Canvasses and warns when one is not signed", async () => {
-    const user = setupUser();
-    renderPage();
-    await screen.findAllByTestId("canvass-row");
-
-    expect(screen.queryByLabelText("Pick Canvass CNV_0001")).not.toBeInTheDocument();
-    await user.click(screen.getByLabelText("Pick Canvass CNV_0002"));
-    await user.click(screen.getByRole("button", { name: /create purchase request \(1\)/i }));
-    expect(await screen.findByRole("status")).toHaveTextContent("CNV_0002");
-    await user.type(screen.getByLabelText("Purchase Request title"), "Office buy");
-    await user.click(screen.getByRole("button", { name: /create request/i }));
-
-    await waitFor(() => expect(db.rows("purchase_requests").some((r) => r.title === "Office buy")).toBe(true));
-    const toner = db.rows("sor_canvasses").find((c) => c.number === "CNV_0002");
-    expect(toner.requested_item_id).toBeTruthy();
-    expect(db.rows("purchase_request_items")).toHaveLength(1);
   });
 });
 
@@ -417,6 +330,8 @@ describe("the Canvasses page for a reader without Purchasing access", () => {
     const free = db.seed("sor_canvasses", { number: "CNV_0009", product_name: "Gloves", canvasser_id: mockUser.current.id, created_by: mockUser.current.id });
     db.seed("sor_canvass_offers", { canvass_id: free.id, supplier_name: "Glove Co", brand: "Ansell", is_winner: true });
     renderAt("/purchasing/canvasses");
+    await screen.findByRole("heading", { name: "Canvasses" });
+    await setupUser().click(await screen.findByRole("tab", { name: /^All/ }));
     expect(await screen.findAllByTestId("canvass-row")).not.toHaveLength(0);
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });

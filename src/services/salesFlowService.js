@@ -697,6 +697,32 @@ export const salesFlowService = {
   },
 
   /**
+   * Flags a Stage as "Buying opens here" (#724), or clears the flag. A flow has at most one:
+   * flagging a Stage moves the flag off any other. Purchasing may attach a P0 to a project
+   * line only once the SOR has entered this Stage, or with Order early and a reason.
+   */
+  async setStageBuyingOpens(stageId, on, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraftStage(stageId);
+
+    // One database function clears the flag on the flow's other Stage and sets this one, in one transaction.
+    const { data, error } = await supabase.rpc("flow_stage_set_buying_opens", { p_stage_id: stageId, p_on: Boolean(on) });
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "FLOW_STAGE",
+      stageId,
+      data.buying_opens_here
+        ? `Buying opens at Stage "${data.name}".`
+        : `Buying no longer opens at Stage "${data.name}".`,
+      { event: "FLOW_STAGE_BUYING_OPENS_SET", buyingOpensHere: data.buying_opens_here, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
    * How deals end on a Terminal Stage: TERMINAL_OUTCOME.WON (e.g. Closed Won,
    * after the Won Stage) or TERMINAL_OUTCOME.LOST. Decides Realized vs lost.
    */

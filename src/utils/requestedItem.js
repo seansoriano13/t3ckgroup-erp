@@ -21,7 +21,7 @@ export const ITEM_SOURCE = {
 export const ITEM_SOURCE_LABEL = {
   [ITEM_SOURCE.SOR_LINE]: "From the SOR",
   [ITEM_SOURCE.NEW]: "New product",
-  [ITEM_SOURCE.COMPONENT]: "From the Costing Matrix",
+  [ITEM_SOURCE.COMPONENT]: "From the S0 Evaluation",
 };
 
 /**
@@ -148,6 +148,18 @@ export function poLineNotPicked(item) {
   if (!item?.po_number) return false;
   if (item.status !== ITEM_STATUS.PURCHASED && item.status !== ITEM_STATUS.RECEIVED) return false;
   return !(item.odoo_po_line_ids?.length > 0);
+}
+
+/**
+ * #726 — "n of m received": a Purchased item whose Odoo receipts cover part of it. Null when nothing
+ * has arrived, when it is fully covered (it moves to Received by itself), or before Purchased.
+ */
+export function partialReceiptText(item) {
+  if (item?.status !== ITEM_STATUS.PURCHASED) return null;
+  const got = Number(item.odoo_received_qty);
+  const of = Number(item.quantity);
+  if (!(got > 0) || !(of > 0) || got >= of) return null;
+  return `${got} of ${of} received`;
 }
 
 /** #687 — "Replaced by B — reason", the note on a line Purchasing replaced. */

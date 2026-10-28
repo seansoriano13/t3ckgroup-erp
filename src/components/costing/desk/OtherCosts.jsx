@@ -1,8 +1,11 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "../../ui/button";
 import ConfirmDialog from "../../ui/ConfirmDialog";
+import { SelectField } from "../../ui/SelectField";
+import { costingKeys } from "../costingKeys";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import { COST_ROW_BANDS, ROW_EDIT_BANDS, inAnyBand, tierReadsCostRow } from "../../../constants/costing";
 import { cn } from "../../../lib/utils";
@@ -22,6 +25,14 @@ const CAPTION = "text-label font-bold uppercase tracking-wider text-muted-foregr
 export default function OtherCosts({ matrix, writes }) {
   const { busy, run, refresh } = writes;
   const [removing, setRemoving] = useState(null);
+  // A new cost needs a cost guide category (#723); an old one without shows "Uncategorised".
+  const [newCategory, setNewCategory] = useState("");
+  const { data: categories = [] } = useQuery({
+    queryKey: costingKeys.costCategories(),
+    queryFn: () => costingMatrixService.listCostCategories(),
+    staleTime: 60_000,
+  });
+  const categoryOptions = categories.map((c) => ({ value: c.key, label: c.label }));
 
   const { bands, tier, costRows, costRowsTotals } = matrix;
   const canEditRows = inAnyBand(bands, ROW_EDIT_BANDS);
@@ -38,6 +49,7 @@ export default function OtherCosts({ matrix, writes }) {
 
   const columns = [
     { key: "description", label: "Description", width: "minmax(0,1fr)", wide: true },
+    { key: "category", label: "Category", width: "12rem" },
     { key: "quantity", label: "Qty", width: "5rem" },
     showAcquire && { key: "acquire", label: "Acquire / unit", width: "9rem" },
     showFinal && { key: "final", label: "Final Acquire / unit", width: "9rem" },
@@ -59,10 +71,27 @@ export default function OtherCosts({ matrix, writes }) {
           </p>
         </div>
         {canEditRows && (
-          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => run(() => costingMatrixService.addCostRow(matrix.matrixId, { description: "" }))}>
-            <Plus aria-hidden="true" />
-            Add another cost
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <SelectField
+              size="sm"
+              className="w-56"
+              options={categoryOptions}
+              value={newCategory}
+              onChange={setNewCategory}
+              placeholder="Category (required)"
+              aria-label="Category of the new cost"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy || !newCategory}
+              onClick={() => run(() => costingMatrixService.addCostRow(matrix.matrixId, { description: "", categoryKey: newCategory }))}
+            >
+              <Plus aria-hidden="true" />
+              Add another cost
+            </Button>
+          </div>
         )}
       </div>
 
@@ -86,6 +115,18 @@ export default function OtherCosts({ matrix, writes }) {
                   placeholder="Delivery, installation, permits…"
                   readOnly={!can("description")}
                   onSave={(value) => save(row, { description: value })}
+                />
+              </div>
+              <div>
+                {caption("category")}
+                <SelectField
+                  size="sm"
+                  options={categoryOptions}
+                  value={row.category_key ?? ""}
+                  onChange={(value) => save(row, { categoryKey: value })}
+                  placeholder="Uncategorised"
+                  disabled={!can("category_key") || busy}
+                  aria-label={`Other cost ${row.number} category`}
                 />
               </div>
               <div>

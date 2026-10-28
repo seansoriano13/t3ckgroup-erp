@@ -4,7 +4,7 @@ import { canvassService } from "./canvassService"
 import { costingMatrixService } from "./costingMatrixService"
 import { db, updateRow } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
-import { seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
+import { explainEmptySlots, seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc"
 import { COSTING_TIER } from "@/constants/costing"
 
@@ -37,6 +37,7 @@ describe("a PO with another supplier than the Canvass winner", () => {
     componentId = await costingMatrixService.addComponent(lineId, { name: "Ambulance Folding Stretcher", brand: "Generic" })
     const canvass = await seedCanvass({ componentId }, purchaser.id)
     redleaf = await canvassService.addOffer(canvass.id, { supplierName: "Redleaf Inc.", brand: "Redleaf", unitPrice: 78000, odooSupplierId: 553 }, purchaser.id)
+    explainEmptySlots(canvass.id)
     await canvassService.markWinner(canvass.id, redleaf.id)
   })
 

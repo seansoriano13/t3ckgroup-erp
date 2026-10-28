@@ -42,6 +42,30 @@ describe("purchaseRequestService — PO on Ordered", () => {
     expect(asked).toEqual({ action: "attach", itemId, poNumber: "P01234" })
   })
 
+  it("passes on what happened to the IPAS (#730)", async () => {
+    stubEdgeFunction("odoo-po-verify", () => ({
+      success: true,
+      verdict: "verified",
+      item: { id: itemId, po_number: "P01234" },
+      ipas: { result: "filed", message: "TGIPAS_050 is already filed, so nothing was added to it." },
+    }))
+    const updated = await purchaseRequestService.attachP0(itemId, "p01234")
+    expect(updated.ipas).toMatchObject({ result: "filed" })
+  })
+
+  it("retries the IPAS of an attached P0, and throws while Odoo is silent (#730)", async () => {
+    let asked
+    stubEdgeFunction("odoo-po-verify", (body) => {
+      asked = body
+      return { success: false, ipas: { result: "unavailable" }, message: "Odoo did not answer." }
+    })
+    await expect(purchaseRequestService.retryIpas(itemId, "P01234")).rejects.toThrow("Odoo did not answer.")
+    expect(asked).toEqual({ action: "ipas", itemId, poNumber: "P01234" })
+
+    stubEdgeFunction("odoo-po-verify", () => ({ success: true, ipas: { result: "created", message: "TGIPAS_051 was raised." } }))
+    expect(await purchaseRequestService.retryIpas(itemId, "P01234")).toMatchObject({ result: "created" })
+  })
+
   it("makes the line Purchased from a confirmed P0 and keeps what was bought", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found", p0s: { P01234: { bought_as: "Harness XL" } } })
     const updated = await purchaseRequestService.attachP0(itemId, "p01234")

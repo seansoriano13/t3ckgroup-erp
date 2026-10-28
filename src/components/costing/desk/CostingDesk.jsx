@@ -18,6 +18,7 @@ import { costingKeys } from "../costingKeys";
 import { pesos } from "../gridFormat";
 import BidDecisionPanel from "../BidDecisionPanel";
 import OtherCosts from "./OtherCosts";
+import CostGuide from "./CostGuide";
 import CostingSummary from "../CostingSummary";
 import EvaluationBar from "../EvaluationBar";
 import InchargeSelects from "../InchargeSelects";
@@ -26,6 +27,7 @@ import { LandedCostRollup } from "../LandedCost";
 import LineDetail from "./LineDetail";
 import CostingSheet from "./CostingSheet";
 import MarkupPlayground from "./MarkupPlayground";
+import S0LinkSuggestions from "./S0LinkSuggestions";
 
 const firstLine = (text) => (text ?? "").split("\n")[0].trim();
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -51,10 +53,15 @@ function useFill(matrix, opportunityId, writes) {
 
   const fill = () =>
     writes.run(async () => {
-      const added = await costingMatrixService.fillFromSor(opportunityId);
+      const { added, leftOut } = await costingMatrixService.fillFromSor(opportunityId);
       const odoo = await costingMatrixService.fillOdooCosts(opportunityId);
-      if (!odoo?.success) setOdooNote({ tone: "warning", text: `${added ? `${plural(added, "line")} added. ` : ""}Odoo's costs could not be read (${odoo?.message ?? "no answer"}); type them in, or try again.` });
-      else if (added || odoo.filled) setOdooNote({ tone: "info", text: `${added ? `${plural(added, "line")} added from the SOR. ` : ""}${odoo.filled ? `${plural(odoo.filled, "cost")} filled from Odoo.` : ""}${odoo.unpriced ? ` ${plural(odoo.unpriced, "product")} have no cost in Odoo.` : ""}` });
+      // A Go locks the sheet, so S0 lines that match no row are not added; say which ones.
+      const shown = leftOut.slice(0, 3).map((l) => l.name || "an unnamed line").join(", ");
+      const left = leftOut.length
+        ? ` ${plural(leftOut.length, "S0 line")} left out while the sheet is locked by a Go: ${shown}${leftOut.length > 3 ? `, and ${leftOut.length - 3} more` : ""}.`
+        : "";
+      if (!odoo?.success) setOdooNote({ tone: "warning", text: `${added ? `${plural(added, "line")} added. ` : ""}Odoo's costs could not be read (${odoo?.message ?? "no answer"}); type them in, or try again.${left}` });
+      else if (added || odoo.filled || left) setOdooNote({ tone: left ? "warning" : "info", text: `${added ? `${plural(added, "line")} added from the SOR. ` : ""}${odoo.filled ? `${plural(odoo.filled, "cost")} filled from Odoo.` : ""}${odoo.unpriced ? ` ${plural(odoo.unpriced, "product")} have no cost in Odoo.` : ""}${left}`.trim() });
       else setOdooNote({ tone: "info", text: "Everything on the SOR is already here." });
     });
 
@@ -98,6 +105,13 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     staleTime: 0,
     retry: false,
   });
+  // Typed lines that look like an S0 line (#727): offered, never linked by name.
+  const { data: s0Suggestions } = useQuery({
+    queryKey: costingKeys.s0Suggestions(opportunityId),
+    queryFn: () => costingMatrixService.s0LinkSuggestions(opportunityId),
+    enabled: canFill && lines.some((l) => l.source === "typed" && !l.sor_item_id),
+    retry: false,
+  });
   const componentIds = lines.flatMap((l) => l.components.map((c) => c.id));
   const { data: canvassRows } = useQuery({
     queryKey: [...costingKeys.canvasses(opportunityId), componentIds],
@@ -106,12 +120,12 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     retry: false,
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading the Costing Matrix…</p>;
-  if (isError) return <p className="text-sm text-destructive">{error?.message || "The Costing Matrix could not be read."}</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">Loading the S0 Evaluation…</p>;
+  if (isError) return <p className="text-sm text-destructive">{error?.message || "The S0 Evaluation could not be read."}</p>;
   if (!matrix) {
     return (
       <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground" data-testid="no-costing-matrix">
-        No Costing Matrix yet, or it is not yours to see. It opens when the flow&apos;s &quot;Open Costing Matrix&quot; step runs.
+        No S0 Evaluation yet, or it is not yours to see. It opens when the flow&apos;s &quot;Open S0 Evaluation&quot; step runs.
       </p>
     );
   }
@@ -167,7 +181,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     <div className="space-y-6 pb-2" data-testid="costing-desk">
       <RecordHeader
         reference={opportunity?.sor_code ?? "SOR"}
-        name={opportunity?.project_title ?? "Costing Matrix"}
+        name={opportunity?.project_title ?? "S0 Evaluation"}
         line={[opportunity?.sales_reference && `SO ${opportunity.sales_reference}`, opportunity?.client_name].filter(Boolean).join(" · ") || null}
       />
       {stats.length > 0 && <NumbersStrip stats={stats} />}
@@ -190,6 +204,13 @@ export default function CostingDesk({ opportunityId, opportunity }) {
               </Button>
             )}
           </div>
+
+          <S0LinkSuggestions
+            suggestions={s0Suggestions}
+            canConfirm={matrix.bands.includes(COSTING_BAND.SALES)}
+            busy={writes.busy}
+            onConfirm={(s) => writes.run(() => costingMatrixService.linkToS0Line(s.tenderLineId, s.sorItemId))}
+          />
 
           {writes.notice && (
             <p role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -247,12 +268,13 @@ export default function CostingDesk({ opportunityId, opportunity }) {
 
           <OtherCosts matrix={matrix} writes={writes} />
           <CostingSummary matrix={matrix} writes={writes} />
+          <CostGuide opportunityId={opportunityId} />
         </div>
 
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-2 xl:self-start">
           {tierReadsBidDecision(matrix.tier) && <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} />}
           {showClosedBook && <MarkupPlayground key={matrix.defaultFactor ?? "none"} matrix={matrix} writes={writes} />}
-          <SignoffBar matrix={matrix} actorId={actorId} isFinalAcquire={Boolean(user?.isFinalAcquire)} nameOf={incharge.nameOf} writes={writes} />
+          <SignoffBar matrix={matrix} nameOf={incharge.nameOf} />
         </aside>
       </div>
     </div>

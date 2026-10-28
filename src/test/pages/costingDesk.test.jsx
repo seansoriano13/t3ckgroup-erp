@@ -379,10 +379,15 @@ describe("the Costing Desk", () => {
 
     it("adds another cost beneath the Tender Lines, kept out of the Components total", async () => {
       seedComponents();
+      db.seed("costing_cost_categories", { key: "delivery", label: "Delivery", low_pct: 1, high_pct: 5, sort: 1 });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
       const user = openDesk(deal);
 
       await openLines();
+      // #723: a new cost names its cost guide category first; the button waits for one.
+      expect(await screen.findByRole("button", { name: /Add another cost/ })).toBeDisabled();
+      await user.click(screen.getByRole("combobox", { name: "Category of the new cost" }));
+      await user.click(await screen.findByRole("option", { name: "Delivery" }));
       await user.click(await screen.findByRole("button", { name: /Add another cost/ }));
 
       const row = await screen.findByTestId("cost-row");

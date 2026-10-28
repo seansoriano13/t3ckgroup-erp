@@ -15,6 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
+import { coverSlots } from "./support/canvassSlots.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { purgeCostingForSors } from "./support/costing.js"
 import { COMPONENT_BANDS, COMPONENT_CANVASS_COST_BANDS, COMPONENT_CANVASS_COST_TIERS } from "../../constants/costing.js"
@@ -58,8 +59,10 @@ async function makeOffer(canvassId, extra = {}, price = { unit_price: 78000 }) {
     return offer
 }
 
-const winner = async (who, canvassId, offerId) =>
-    (await clientFor(who)).rpc("canvass_apply_winner", { p_canvass_id: canvassId, p_offer_id: offerId })
+const winner = async (who, canvassId, offerId) => {
+    await coverSlots(canvassId)
+    return (await clientFor(who)).rpc("canvass_apply_winner", { p_canvass_id: canvassId, p_offer_id: offerId })
+}
 
 const component = async (id) => asSvc(svc().from("costing_components").select("*").eq("id", id).single(), "Component row")
 const costs = async (id) => (await svc().from("costing_component_costs").select("*").eq("component_id", id).maybeSingle()).data

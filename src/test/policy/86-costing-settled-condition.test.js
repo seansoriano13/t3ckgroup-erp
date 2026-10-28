@@ -139,7 +139,7 @@ describe("the evidence: who may ask, and what it says", () => {
         componentId = (
             await asSvc(svc().from("costing_components").insert({ tender_line_id: lineId, position: 1, name: "Tripod head", quantity: 1 }).select("id").single(), "component")
         ).id
-        const row = await (await clientFor("outsider")).rpc("costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery", p_quantity: 1 })
+        const row = await (await clientFor("outsider")).rpc("costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery", p_quantity: 1, p_category_key: "logistics" })
         if (row.error) throw new Error(`costing_add_cost_row: ${row.error.message}`)
         costRowId = row.data
         expect((await inputs("dealOwner")).data).toMatchObject({ costed_rows: 2, missing_cost: 2 })

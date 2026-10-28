@@ -127,52 +127,6 @@ function nullFillMark(markColumn, fieldColumn) {
   }
 }
 
-/**
- * canvass_clear_signoff() and its triggers (20261019130000_canvass_signoff.sql, #279): any insert,
- * update or delete on a Canvass's Offers or their prices (bar a plain re-ordering), a winner
- * change, or a change to the reason, while the Canvass is signed, unsigns it and appends a
- * "cleared" event with the reason. The fake has no caller, so the actor is null. `old` is null for
- * an insert and the row itself for a delete.
- */
-function clearCanvassSignoff(canvassId, reason, context) {
-  const canvass = context.rowsOf("sor_canvasses").find((c) => c.id === canvassId)
-  if (!canvass || !canvass.signed_off_at) return
-  canvass.signed_off_by = null
-  canvass.signed_off_at = null
-  context.rowsOf("sor_canvass_signoff_events").push({
-    id: globalThis.crypto.randomUUID(),
-    canvass_id: canvassId,
-    kind: "cleared",
-    actor_id: null,
-    reason,
-    offer_count: context.rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === canvassId).length,
-    created_at: new Date().toISOString(),
-  })
-}
-
-function clearOnOfferChange(row, old, context) {
-  let reason
-  if (old === null) reason = "An Offer was added"
-  else if (old === row) reason = "An Offer was removed"
-  else {
-    const { sort_order: _a, updated_at: _b, ...now } = row
-    const { sort_order: _c, updated_at: _d, ...before } = old
-    if (JSON.stringify(now) === JSON.stringify(before)) return
-    reason = row.is_winner !== old.is_winner ? "The winner changed" : "An Offer was changed"
-  }
-  clearCanvassSignoff(row.canvass_id, reason, context)
-}
-
-function clearOnPriceChange(row, old, context) {
-  if (old && old !== row && row.unit_price === old.unit_price && row.comparison_rate === old.comparison_rate) return
-  const offer = context.rowsOf("sor_canvass_offers").find((o) => o.id === row.offer_id)
-  if (offer) clearCanvassSignoff(offer.canvass_id, "A price changed", context)
-}
-
-function clearOnReasonChange(row, old, context) {
-  if (old && old !== row && row.reason !== old.reason) clearCanvassSignoff(row.id, "The reason changed", context)
-}
-
 /** sor_canvass_signoff_events_append_only(): the history is never edited or removed. */
 function refuseHistoryEdit() {
   throw pgrstError("42501", "The sign-off history is append-only.", { status: 403 })
@@ -500,7 +454,7 @@ export const TRIGGERS = {
   sor_canvasses: {
     beforeInsert: [assignCanvassNumber, defaultCanvasser, checkCanvassSubject, refuseComponentItem],
     beforeUpdate: [checkCanvassSubject, keepCanvassNumber, (row, old, context) => refuseComponentItem(row, context)],
-    afterWrite: [clearOnReasonChange, markItemsCanvassing],
+    afterWrite: [markItemsCanvassing],
   },
 
   sor_canvass_signoff_events: {
@@ -510,12 +464,10 @@ export const TRIGGERS = {
   sor_canvass_offer_prices: {
     beforeInsert: [(row, context) => refusePhpRate(row, context)],
     beforeUpdate: [(row, old, context) => refusePhpRate(row, context)],
-    afterWrite: [clearOnPriceChange],
   },
 
   sor_canvass_offers: {
     beforeUpdate: [refuseRateOnPhpOffer],
-    afterWrite: [clearOnOfferChange],
   },
 
   // costing_inclusions: costing_inclusion_needs_bundle() (20261018110000_costing_matrix_components.sql,

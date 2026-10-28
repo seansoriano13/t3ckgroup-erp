@@ -43,7 +43,7 @@ describe("StageActionDetail", () => {
     expect(screen.getByText("Bob")).toBeInTheDocument();
   });
 
-  it("renders an Open Costing Matrix's Incharges, assigners and extra members", () => {
+  it("renders an Open S0 Evaluation's Incharges, assigners and extra members", () => {
     const employees = [
       { id: "emp-1", name: "Raquel" },
       { id: "emp-2", name: "Mia" },
@@ -79,7 +79,7 @@ describe("StageActionDetail", () => {
     expect(screen.getByText(/and tells Pia\./)).toBeInTheDocument();
   });
 
-  it("says an Open Costing Matrix defaults to the Deal Owner and tells nobody", () => {
+  it("says an Open S0 Evaluation defaults to the Deal Owner and tells nobody", () => {
     render(<StageActionDetail action={{ kind: "open_costing_matrix", config: {} }} employees={[]} />);
 
     expect(screen.getByText("Sales: Deal Owner · Purchasing: not named")).toBeInTheDocument();

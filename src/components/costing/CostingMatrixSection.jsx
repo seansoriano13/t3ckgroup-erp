@@ -25,7 +25,7 @@ export default function CostingMatrixSection({ opportunityId, opportunity }) {
     if (!isSuccess) return null;
     return (
       <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground" data-testid="no-costing-matrix">
-        No Costing Matrix yet. It opens when the flow&apos;s &quot;Open Costing Matrix&quot; step runs.
+        No S0 Evaluation yet. It opens when the flow&apos;s &quot;Open S0 Evaluation&quot; step runs.
       </p>
     );
   }
@@ -43,12 +43,12 @@ export default function CostingMatrixSection({ opportunityId, opportunity }) {
     });
 
   return (
-    <section className="space-y-3" aria-label="Costing Matrix" data-testid="costing-matrix-card">
+    <section className="space-y-3" aria-label="S0 Evaluation" data-testid="costing-matrix-card">
       <SectionHeader
         title={
           <>
             <Calculator size={16} aria-hidden="true" />
-            Costing Matrix
+            S0 Evaluation
           </>
         }
         description="What the client asked for, what we supply and pay, and the bid decision."
@@ -57,7 +57,7 @@ export default function CostingMatrixSection({ opportunityId, opportunity }) {
         <PrintButton opportunityId={opportunityId} opportunity={opportunity} />
         <Button type="button" size="sm" variant="outline" onClick={open}>
           <Maximize2 size={14} aria-hidden="true" />
-          Open Costing Matrix
+          Open S0 Evaluation
         </Button>
       </SectionHeader>
       <div className="rounded-xl border border-border/70 bg-card p-4">

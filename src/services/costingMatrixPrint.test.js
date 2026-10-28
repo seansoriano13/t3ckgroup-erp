@@ -76,7 +76,7 @@ const build = (tier, { tables, signoffs = [], people = PEOPLE } = {}) => {
   return buildCostingMatrixViewModel({ matrix, opportunity: OPPORTUNITY, people }, { printedAt: "2026-10-16T04:00:00Z", printedBy: "Sean Soriano" });
 };
 
-describe("the printed Costing Matrix, view model", () => {
+describe("the printed S0 Evaluation, view model", () => {
   it("gives the Closed Book both sheets: the money sheet first, then the appendix", () => {
     const vm = build(COSTING_TIER.CLOSED_BOOK);
     expect(vm.formType).toBe("costing_matrix");
@@ -126,17 +126,11 @@ describe("the printed Costing Matrix, view model", () => {
     expect(buildCostingMatrixDocument(build(COSTING_TIER.CLOSED_BOOK, { tables }))).toContain("Incomplete — 1 row has no cost");
   });
 
-  it("prints 'Signature required' for every unsigned block, naming the incharges where known", () => {
+  it("prints only the Evaluation box as 'Signature required' on a new deal (#722)", () => {
     const vm = build(COSTING_TIER.CLOSED_BOOK);
-    expect(vm.money.signoffs.map((s) => [s.role, s.state])).toEqual([
-      ["Prepared by", "awaiting"],
-      ["Costed by", "awaiting"],
-      ["Evaluation approved", "awaiting"],
-      ["Management & offer approved", "awaiting"],
-    ]);
-    expect(vm.money.signoffs[0].who).toBe("Rosa Mendoza");
+    expect(vm.money.signoffs.map((s) => [s.role, s.state])).toEqual([["Evaluation approved", "awaiting"]]);
     const html = buildCostingMatrixDocument(vm);
-    expect(html.match(/Signature required/g)).toHaveLength(4);
+    expect(html.match(/Signature required/g)).toHaveLength(1);
   });
 
   it("prints the signer's name only when they have no stored signature, and when they declined it", () => {
@@ -147,18 +141,19 @@ describe("the printed Costing Matrix, view model", () => {
         signoff("evaluation_approved", "u-eval", { signature_declined: true, signature_version: "sig/ana.png" }),
       ],
     });
-    const [prepared, costed, evaluation, final] = vm.money.signoffs;
+    // Old signatures still print; the unsigned Final approval box is gone (#722).
+    const [prepared, costed, evaluation] = vm.money.signoffs;
+    expect(vm.money.signoffs).toHaveLength(3);
     expect(prepared).toMatchObject({ state: "signed", who: "Rosa Mendoza", signaturePath: "sig/rosa.png" });
     expect(prepared.stamp).toMatch(/^e-signed /);
     expect(costed).toMatchObject({ state: "signed", who: "Jun Bautista", signaturePath: null });
     expect(costed.stamp).toMatch(/name only, no signature on file$/);
     expect(evaluation).toMatchObject({ state: "signed", signaturePath: null, signatureDeclined: true });
     expect(evaluation.stamp).toMatch(/signature not applied$/);
-    expect(final.state).toBe("awaiting");
 
     const html = buildCostingMatrixDocument(vm);
     expect(html).toContain('class="printed-name">Jun Bautista');
-    expect(html.match(/Signature required/g)).toHaveLength(1);
+    expect(html.match(/Signature required/g)).toBeNull();
   });
 
   it("fetches each stored signature once and falls back to the name when one is missing", async () => {
@@ -244,7 +239,7 @@ describe("the printed Costing Matrix, view model", () => {
   });
 });
 
-describe("the printed Costing Matrix, document", () => {
+describe("the printed S0 Evaluation, document", () => {
   it("is landscape A4 in the IPAS paper set, with the owner-band header and the margin column", () => {
     const html = buildCostingMatrixDocument(build(COSTING_TIER.CLOSED_BOOK));
     expect(html).toContain("@page { size: A4 landscape; margin: 0; }");

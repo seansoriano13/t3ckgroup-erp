@@ -84,7 +84,7 @@ beforeAll(async () => {
     await setMoney("ipasSigner", "costing_component_costs", hose, { final_acquire_unit: 1000 })
     await setMoney("ipasSigner", "costing_component_costs", gauge, { final_acquire_unit: 100.33 })
     await setMoney("ipasSigner", "costing_component_costs", tape, { final_acquire_unit: 50 })
-    const costRow = await (await clientFor("outsider")).rpc("costing_add_cost_row", { p_matrix_id: matrixA, p_description: "Delivery Charge", p_quantity: 1 })
+    const costRow = await (await clientFor("outsider")).rpc("costing_add_cost_row", { p_matrix_id: matrixA, p_description: "Delivery Charge", p_quantity: 1, p_category_key: "logistics" })
     if (costRow.error) throw new Error(`costing_add_cost_row: ${costRow.error.message}`)
     await setMoney("ipasSigner", "costing_cost_rows", costRow.data, { final_acquire_unit: 200.5 })
 

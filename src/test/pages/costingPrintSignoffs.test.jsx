@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
@@ -27,7 +27,7 @@ vi.mock("@/lib/pdf/costingMatrixPrinter", () => ({
   printCostingMatrix: printer.print,
 }));
 
-describe("the Costing Matrix print and sign-offs", () => {
+describe("the S0 Evaluation print and sign-offs", () => {
   let sales;
   let buyer;
   let boss;
@@ -75,38 +75,38 @@ describe("the Costing Matrix print and sign-offs", () => {
     expect(printer.print).not.toHaveBeenCalled();
   });
 
-  it("shows each sign button only to the people who may sign it", async () => {
-    let user = mount(sales);
+  it("offers no Prepared, Costed or Final approval button to anyone", async () => {
+    for (const me of [sales, buyer, boss]) {
+      mount(me);
+      await openLines();
+      expect(screen.queryByRole("button", { name: /Sign as (prepared|costed)/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Approve Final Acquire/ })).not.toBeInTheDocument();
+      cleanup();
+    }
+  });
+
+  it("shows Costed by itself when every row has a Final Acquire", async () => {
+    const component = db.rows("costing_components")[0];
+    db.seed("costing_component_costs", { component_id: component.id, acquire_unit: 100, final_acquire_unit: 100 });
+    mount(sales);
     await openLines();
-    expect(await screen.findByRole("button", { name: "Sign as prepared" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sign as costed" })).not.toBeInTheDocument();
-    // The Deal Team reads this matrix at the Closed Book, so it may approve the Final Acquire and offer.
-    expect(screen.getByRole("button", { name: /Approve Final Acquire/ })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Sign as prepared" }));
-    await waitFor(() => expect(db.rows("costing_signoffs")).toEqual([expect.objectContaining({ role: "prepared", signed_by: sales.id })]));
+    expect(await screen.findByTestId("costed-derived")).toHaveTextContent("Costed");
+  });
+
+  it("does not show Costed while a row has no Final Acquire", async () => {
+    mount(sales);
+    await openLines();
+    await screen.findByTestId("evaluation-bar");
+    expect(screen.queryByTestId("costed-derived")).not.toBeInTheDocument();
+  });
+
+  it("keeps an old Prepared, Costed or Final signature visible as history, with no button", async () => {
+    for (const role of ["prepared", "costed", "final_approved"]) db.seed("costing_signoffs", { matrix_id: matrix.id, role, signed_by: boss.id, signed_at: "2026-10-16T01:00:00Z" });
+    mount(sales);
+    await openLines();
     expect(await screen.findByTestId("signoff-prepared")).toHaveTextContent("Prepared by");
-    expect(screen.queryByRole("button", { name: "Sign as prepared" })).not.toBeInTheDocument();
-  });
-
-  it("keeps Final approval from a viewer below the Closed Book who is not on the list", async () => {
-    mount(sales, { tier: "price" });
-    await openLines();
-    expect(await screen.findByRole("button", { name: "Sign as prepared" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Approve Final Acquire/ })).not.toBeInTheDocument();
-  });
-
-  it("offers Costed by to the Purchasing incharge and Final Acquire and offer to the list", async () => {
-    mount(buyer);
-    await openLines();
-    expect(await screen.findByRole("button", { name: "Sign as costed" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sign as prepared" })).not.toBeInTheDocument();
-  });
-
-  it("offers Final Acquire and offer to a member of the list, and says why a cleared one went", async () => {
-    db.seed("costing_signoffs", { matrix_id: matrix.id, role: "final_approved", signed_by: boss.id, cleared_at: "2026-10-16T01:00:00Z", cleared_reason: "The Final Offer changed" });
-    mount(boss, { onFinalAcquireList: true });
-    await openLines();
-    expect(await screen.findByRole("button", { name: "Approve Final Acquire & offer" })).toBeInTheDocument();
-    expect(screen.getByTestId("signoff-final_approved-cleared")).toHaveTextContent("Cleared: the Final Offer changed.");
+    expect(screen.getByTestId("signoff-costed")).toHaveTextContent("Costed by");
+    expect(screen.getByTestId("signoff-final_approved")).toHaveTextContent("Final approval");
+    expect(screen.queryByRole("button", { name: /Sign as|Approve Final/ })).not.toBeInTheDocument();
   });
 });

@@ -45,8 +45,8 @@ describe("flowStageKinds", () => {
       expect(actionTitle({ kind: "evaluate_specification", config: {} })).toBe("Evaluation of Specification")
     })
 
-    it("names an Open Costing Matrix, which carries no title", () => {
-      expect(actionTitle({ kind: "open_costing_matrix", config: {} })).toBe("Open Costing Matrix")
+    it("names an Open S0 Evaluation, which carries no title", () => {
+      expect(actionTitle({ kind: "open_costing_matrix", config: {} })).toBe("Open S0 Evaluation")
     })
 
     it("names an Open Purchase Request, which carries no title", () => {
@@ -111,16 +111,16 @@ describe("flowStageKinds", () => {
       ).toBe("Request Packing List · tells Pia Reyes")
     })
 
-    it("names the Purchasing Incharge an Open Costing Matrix will set, or says there is none", () => {
+    it("names the Purchasing Incharge an Open S0 Evaluation will set, or says there is none", () => {
       const employees = [{ id: "p-1", name: "Raquel Dela Cruz" }]
       expect(
         actionSummary(
           { kind: "open_costing_matrix", config: { purchasingIncharge: { type: "employee", id: "p-1" } } },
           { employees },
         ),
-      ).toBe("Open Costing Matrix · Purchasing: Raquel Dela Cruz")
+      ).toBe("Open S0 Evaluation · Purchasing: Raquel Dela Cruz")
       expect(actionSummary({ kind: "open_costing_matrix", config: {} })).toBe(
-        "Open Costing Matrix · no Purchasing Incharge named",
+        "Open S0 Evaluation · no Purchasing Incharge named",
       )
     })
 

@@ -1723,6 +1723,12 @@ function FlowCanvasInner() {
             onEdgesDelete([{ id: move.id, source: selectedStage.id, target: move.to }])
           }
           onToggleTerminal={() => handleToggleTerminal(selectedStage)}
+          onToggleBuyingOpens={() =>
+            run(
+              () => salesFlowService.setStageBuyingOpens(selectedStage.id, !selectedStage.buying_opens_here, user?.id),
+              selectedStage.buying_opens_here ? "Buying no longer opens here." : "Buying opens here.",
+            )
+          }
           onSetTerminalOutcome={(outcome) =>
             run(() => salesFlowService.setStageTerminalOutcome(selectedStage.id, outcome, user?.id))
           }

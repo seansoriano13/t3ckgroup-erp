@@ -68,6 +68,11 @@ export function AskedSub({ item, side }) {
           Bought as: {item.bought_as}
         </span>
       )}
+      {item.ordered_early_reason && (
+        <span className="block" data-testid="requested-item-ordered-early">
+          Ordered early: {item.ordered_early_reason}
+        </span>
+      )}
       <span className="block">{askedByText(item, side)}</span>
     </>
   );

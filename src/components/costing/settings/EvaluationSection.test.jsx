@@ -53,7 +53,7 @@ describe("the Evaluation of Specification settings", () => {
     expect(within(list).queryByText("Nobody yet.")).not.toBeInTheDocument();
   });
 
-  it("sits in the Costing Matrix settings", async () => {
+  it("sits in the S0 Evaluation settings", async () => {
     renderWithProviders(<CostingMatrixSettings isSuperAdmin />);
     expect(await screen.findByTestId("costing-matrix-settings")).toBeInTheDocument();
     expect(await screen.findByTestId("costing-evaluation-settings")).toBeInTheDocument();

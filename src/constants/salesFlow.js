@@ -206,7 +206,7 @@ export function flowPublishWarnings({ stages = [], edges = [], conditionsByStage
     const kinds = (conditionsByStage[s.id] ?? []).map((c) => c.kind).filter((k) => costingKinds.includes(k))
     if (kinds.length === 0) continue
     warnings.push(
-      `${s.name} checks the Costing Matrix, but a path to it skips every Open Costing Matrix action, so a deal can reach it with no matrix.`,
+      `${s.name} checks the S0 Evaluation, but a path to it skips every Open S0 Evaluation action, so a deal can reach it with no matrix.`,
     )
   }
   return warnings

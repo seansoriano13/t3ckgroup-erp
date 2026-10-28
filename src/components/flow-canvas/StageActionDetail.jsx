@@ -113,7 +113,7 @@ export default function StageActionDetail({
         <Field label="Packing List">{packingListSummary(config, nameOf)}</Field>
       ) : action.kind === "open_costing_matrix" || action.kind === "evaluate_specification" ? (
         <>
-          <Field label="Costing Matrix">{costingMatrixSummary(config, nameOf)}</Field>
+          <Field label="S0 Evaluation">{costingMatrixSummary(config, nameOf)}</Field>
           {config.purchasingIncharge?.id ? null : (
             <Field label="Who assigns the Purchasing Incharge">
               {(config.assigners ?? []).length === 0
