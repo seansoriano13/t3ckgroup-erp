@@ -75,7 +75,7 @@ export default function CostingMatrixSettings({ isSuperAdmin = false, hasFinance
   return (
     <div className="space-y-8" data-testid="costing-matrix-settings">
       <div>
-        <h2 className="text-sm font-semibold text-foreground">Costing Matrix</h2>
+        <h2 className="text-sm font-semibold text-foreground">S0 Evaluation</h2>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">The markup presets, the rates behind the summary, the people who set Final Acquire, and how the evaluation of specification is run.</p>
       </div>
       {SECTIONS.filter((section) => section.show(access)).map(({ key, render }) => (

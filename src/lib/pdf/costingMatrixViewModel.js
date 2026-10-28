@@ -298,7 +298,7 @@ function appendixSheet(matrix) {
  */
 export function buildCostingMatrixViewModel(record, { printedAt = null, printedBy = null } = {}) {
   const { matrix, opportunity = {}, people = {} } = record ?? {};
-  if (!matrix) throw new Error("There is no Costing Matrix to print, or you can't read it.");
+  if (!matrix) throw new Error("There is no S0 Evaluation to print, or you can't read it.");
 
   const showMoney = matrix.tier === COSTING_TIER.CLOSED_BOOK && Boolean(matrix.summary);
   const sheets = [];

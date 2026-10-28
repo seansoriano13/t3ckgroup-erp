@@ -105,7 +105,7 @@ describe("StageActionManager", () => {
     });
   });
 
-  describe("Open Costing Matrix", () => {
+  describe("Open S0 Evaluation", () => {
     it("is offered in the Add Action menu and saves its config with the default window", async () => {
       const user = setupUser();
       const stage = makeFlowStage();
@@ -118,7 +118,7 @@ describe("StageActionManager", () => {
 
       await screen.findByText(/Nothing runs here/i);
       await user.click(screen.getByRole("button", { name: /Add Action/i }));
-      await user.click(await screen.findByRole("button", { name: /Open Costing Matrix/i }));
+      await user.click(await screen.findByRole("button", { name: /Open S0 Evaluation/i }));
       await user.click(await screen.findByRole("button", { name: "Save" }));
 
       const saved = await vi.waitFor(() => {
@@ -146,8 +146,8 @@ describe("StageActionManager", () => {
         </FlowDataProvider>,
       );
 
-      expect(await screen.findByText("Open Costing Matrix")).toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: /Edit Open Costing Matrix/i }));
+      expect(await screen.findByText("Open S0 Evaluation")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /Edit Open S0 Evaluation/i }));
       expect(await screen.findByRole("combobox", { name: "Sales Incharge" })).toBeInTheDocument();
     });
   });

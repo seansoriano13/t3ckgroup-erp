@@ -49,7 +49,7 @@ function CostingMatrixWindow() {
       open
       onOpenChange={(next) => !next && close()}
       size="record"
-      crumbs={["Costing Matrix", opportunity?.sor_code ?? "SOR"]}
+      crumbs={["S0 Evaluation", opportunity?.sor_code ?? "SOR"]}
       headerActions={<PrintButton opportunityId={id} opportunity={opportunity} />}
     >
       <CostingDesk opportunityId={id} opportunity={opportunity} />

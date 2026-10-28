@@ -73,9 +73,9 @@ describe("Costing settled", () => {
   const checklist = async () => (await opportunityService.getStageChecklist(deal.id)).map((row) => [row.condition.kind, row.status, row.detail?.failing])
   const move = () => opportunityService.updateStatus(deal.id, qualified.id, owner.id)
 
-  it("is unmet, and blocks the move, with no Costing Matrix", async () => {
+  it("is unmet, and blocks the move, with no S0 Evaluation", async () => {
     expect(await checklist()).toEqual([["costing_settled", "unsatisfied", ["no_matrix"]]])
-    await expect(move()).rejects.toThrow(/Costing settled — No Costing Matrix/)
+    await expect(move()).rejects.toThrow(/Costing settled — No S0 Evaluation/)
   })
 
   it("blocks a move until the last check passes", async () => {

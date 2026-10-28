@@ -744,7 +744,7 @@ describe("flowPublishWarnings (#463)", () => {
     expect(flowPublishWarnings({ stages, edges: chain })).toEqual([])
   })
 
-  it("warns for a costing condition reachable without an Open Costing Matrix", () => {
+  it("warns for a costing condition reachable without an Open S0 Evaluation", () => {
     const warnings = flowPublishWarnings({ stages, edges: chain, conditionsByStage: { c: condition("costing_priced") } })
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toMatch(/^Bidding /)

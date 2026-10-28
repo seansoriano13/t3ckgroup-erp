@@ -71,7 +71,7 @@ function renderPage() {
 
 const rowFor = async (sor) => (await screen.findByText(sor)).closest("tr");
 
-describe("the Costing Matrix page", () => {
+describe("the S0 Evaluation page", () => {
   beforeEach(() => {
     authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
     db.seed("costing_settings", { id: 1 });
@@ -158,7 +158,7 @@ describe("the Costing Matrix page", () => {
     expect(screen.getByTestId("costing-matrix-row")).toHaveTextContent("SOR-102");
   });
 
-  it("opens that SOR's Costing Matrix in its record window when a row is clicked", async () => {
+  it("opens that SOR's S0 Evaluation in its record window when a row is clicked", async () => {
     const user = setupUser();
     renderPage();
 
@@ -179,7 +179,7 @@ describe("the Costing Matrix page", () => {
   it("shows an empty register its own message", async () => {
     stubRpc("costing_matrix_page", []);
     renderPage();
-    expect(await screen.findByText("No Costing Matrix yet")).toBeInTheDocument();
+    expect(await screen.findByText("No S0 Evaluation yet")).toBeInTheDocument();
   });
 
   it("lets a Super Admin in", async () => {
@@ -208,7 +208,7 @@ describe("the Costing Matrix page", () => {
   });
 });
 
-describe("the Costing Matrix page filters", () => {
+describe("the S0 Evaluation page filters", () => {
   beforeEach(() => {
     authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
     db.seed("costing_settings", { id: 1 });

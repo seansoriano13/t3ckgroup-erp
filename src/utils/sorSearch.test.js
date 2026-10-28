@@ -27,7 +27,7 @@ describe("the shared SOR search", () => {
     expect(matchesSorCode("sor-19", "SOR-198")).toBe(true);
   });
 
-  it("makes the IPAS list and the Costing Matrix page behave the same", () => {
+  it("makes the IPAS list and the S0 Evaluation page behave the same", () => {
     const ipasRows = [{ state: "open", number: "TGIPAS_50", po_number: "P1", supplier: "Acme", sors: [sor] }];
     const matrixRows = [
       {

@@ -117,7 +117,7 @@ export const NAV_MODULES = {
       // refuses the read.
       {
         key: "sales.costingMatrix",
-        label: "Costing Matrix",
+        label: "S0 Evaluation",
         link: "/costing-matrix",
         icon: Calculator,
         isPermitted: (ctx) => ctx.isBidDecider,

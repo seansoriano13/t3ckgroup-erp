@@ -72,7 +72,7 @@ export default function PurchaseRequestActionModal({ isOpen, onClose, initialDat
               options={[
                 { value: NO_BUYER, label: "None — wait in the queue for a Take" },
                 { value: BUYER_EMPLOYEE, label: "A person" },
-                { value: BUYER_COSTING_INCHARGE, label: "The Costing Matrix's Purchasing Incharge" },
+                { value: BUYER_COSTING_INCHARGE, label: "The S0 Evaluation's Purchasing Incharge" },
               ]}
               className="w-full"
             />

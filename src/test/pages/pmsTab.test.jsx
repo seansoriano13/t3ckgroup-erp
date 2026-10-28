@@ -69,7 +69,7 @@ describe("the PMS tab", () => {
     makeOpportunityItem(deal.id, { product_name: "Fire Hose", odoo_product_id: 55, quantity: 4, unit: "pc", unit_price: 1200, sort_order: 0 });
   });
 
-  it("shows the Costing Matrix card with its numbers, and the IPAS and Transmittal sections that moved into it", async () => {
+  it("shows the S0 Evaluation card with its numbers, and the IPAS and Transmittal sections that moved into it", async () => {
     const matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
     const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Fire hose, 65 mm", unit: "pc", quantity: 4 });
     db.seed("costing_tender_line_prices", { tender_line_id: line.id, abc_unit: 1500, final_offer_unit: 1600 });
@@ -78,7 +78,7 @@ describe("the PMS tab", () => {
 
     await openPms();
 
-    expect(await screen.findByRole("heading", { name: /Costing Matrix/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /S0 Evaluation/ })).toBeInTheDocument();
     const card = await screen.findByTestId("costing-matrix-card");
     // 4 x 1,500 = 6,000 and 4 x 1,600 = 6,400: 106.7% of the ABC.
     expect(card).toHaveTextContent("₱6,000.00");
@@ -98,17 +98,17 @@ describe("the PMS tab", () => {
     const user = openModal(deal);
 
     await openPms();
-    await user.click(await screen.findByRole("button", { name: "Open Costing Matrix" }));
+    await user.click(await screen.findByRole("button", { name: "Open S0 Evaluation" }));
 
     expect(await screen.findByTestId("desk-route")).toHaveTextContent(`/costing-matrix/${deal.id} from /sors`);
   });
 
-  it("opens straight on the PMS tab when asked to, as the Costing Matrix page does (#606)", async () => {
+  it("opens straight on the PMS tab when asked to, as the S0 Evaluation page does (#606)", async () => {
     db.seed("costing_matrices", { opportunity_id: deal.id });
     stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
     openModal(deal, { initialView: "pms" });
 
-    expect(await screen.findByRole("heading", { name: /Costing Matrix/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /S0 Evaluation/ })).toBeInTheDocument();
     expect(await screen.findByText("TGIPAS_052")).toBeInTheDocument();
   });
 
@@ -146,8 +146,8 @@ describe("the PMS tab", () => {
 
     expect(await screen.findByText("TGIPAS_052")).toBeInTheDocument();
     expect(await screen.findByText("TG03-901")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /Costing Matrix/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Open Costing Matrix" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /S0 Evaluation/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open S0 Evaluation" })).not.toBeInTheDocument();
   });
 
   it("shows a viewer with no costing tier (Finance) the PMS tab with the IPAS section and no matrix", async () => {
@@ -160,7 +160,7 @@ describe("the PMS tab", () => {
     expect(await screen.findByText("TGIPAS_052")).toBeInTheDocument();
     expect(await screen.findByText("TG03-901")).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 100));
-    expect(screen.queryByRole("heading", { name: /Costing Matrix/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /S0 Evaluation/ })).not.toBeInTheDocument();
     expect(screen.queryByTestId("no-costing-matrix")).not.toBeInTheDocument();
   });
 
@@ -170,8 +170,8 @@ describe("the PMS tab", () => {
 
     await openPms();
 
-    expect(await screen.findByTestId("no-costing-matrix")).toHaveTextContent('No Costing Matrix yet. It opens when the flow\'s "Open Costing Matrix" step runs.');
-    expect(screen.queryByRole("button", { name: "Open Costing Matrix" })).not.toBeInTheDocument();
+    expect(await screen.findByTestId("no-costing-matrix")).toHaveTextContent('No S0 Evaluation yet. It opens when the flow\'s "Open S0 Evaluation" step runs.');
+    expect(screen.queryByRole("button", { name: "Open S0 Evaluation" })).not.toBeInTheDocument();
   });
 
   it("shows the Purchase Request card on the PMS tab, under the matrix", async () => {
@@ -193,6 +193,6 @@ describe("the PMS tab", () => {
     await openPms();
 
     expect(await screen.findByText("Buyer: Bea Buyer")).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: /Costing Matrix/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /S0 Evaluation/ })).toBeInTheDocument();
   });
 });

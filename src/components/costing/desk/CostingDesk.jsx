@@ -106,12 +106,12 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     retry: false,
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading the Costing Matrix…</p>;
-  if (isError) return <p className="text-sm text-destructive">{error?.message || "The Costing Matrix could not be read."}</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">Loading the S0 Evaluation…</p>;
+  if (isError) return <p className="text-sm text-destructive">{error?.message || "The S0 Evaluation could not be read."}</p>;
   if (!matrix) {
     return (
       <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground" data-testid="no-costing-matrix">
-        No Costing Matrix yet, or it is not yours to see. It opens when the flow&apos;s &quot;Open Costing Matrix&quot; step runs.
+        No S0 Evaluation yet, or it is not yours to see. It opens when the flow&apos;s &quot;Open S0 Evaluation&quot; step runs.
       </p>
     );
   }
@@ -167,7 +167,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     <div className="space-y-6 pb-2" data-testid="costing-desk">
       <RecordHeader
         reference={opportunity?.sor_code ?? "SOR"}
-        name={opportunity?.project_title ?? "Costing Matrix"}
+        name={opportunity?.project_title ?? "S0 Evaluation"}
         line={[opportunity?.sales_reference && `SO ${opportunity.sales_reference}`, opportunity?.client_name].filter(Boolean).join(" · ") || null}
       />
       {stats.length > 0 && <NumbersStrip stats={stats} />}

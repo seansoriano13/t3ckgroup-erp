@@ -255,21 +255,21 @@ export function CostingMatrixList() {
 
   return (
     <PageShell
-      title="Costing Matrix"
+      title="S0 Evaluation"
       description="Every SOR's costing you can see, with Planned and Actual Revenue. Open one to work its matrix."
       toolbar={toolbar}
     >
-      {isLoading && <PageLoading label="Costing Matrix" />}
+      {isLoading && <PageLoading label="S0 Evaluation" />}
 
-      {isError && <QueryError title="The Costing Matrix page could not be loaded." onRetry={refetch} />}
+      {isError && <QueryError title="The S0 Evaluation page could not be loaded." onRetry={refetch} />}
 
       {!isLoading && !isError && visible.length === 0 && (
         <EmptyState
           icon={Calculator}
-          title={rows.length === 0 ? "No Costing Matrix yet" : "No matching SOR"}
+          title={rows.length === 0 ? "No S0 Evaluation yet" : "No matching SOR"}
           description={
             rows.length === 0
-              ? "An SOR appears here once it has a Costing Matrix."
+              ? "An SOR appears here once it has an S0 Evaluation."
               : "Nothing matches. Try another search or clear the filters."
           }
         />

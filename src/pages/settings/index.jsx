@@ -378,7 +378,7 @@ const TAB_DEFS = [
   { value: "venues", label: "Venues", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: VenueManager },
   { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin, Panel: SalesPanel },
   { value: "purchasing", label: "Purchasing", isPermitted: (c) => c.isSuperAdmin || c.hasPurchasingFlow, Panel: PurchasingPanel },
-  { value: "costing", label: "Costing Matrix", isPermitted: (c) => c.isSuperAdmin || c.hasFinanceFlow || c.hasPurchasingFlow || c.managesCostingMarkup, Panel: CostingMatrixPanel },
+  { value: "costing", label: "S0 Evaluation", isPermitted: (c) => c.isSuperAdmin || c.hasFinanceFlow || c.hasPurchasingFlow || c.managesCostingMarkup, Panel: CostingMatrixPanel },
   { value: "groups", label: "Employee Groups", isPermitted: (c) => c.isSuperAdmin, Panel: EmployeeGroupsPanel },
   { value: "announcements", label: "System Announcements", isPermitted: (c) => c.isSuperAdmin, Panel: AnnouncementsPanel },
 ];

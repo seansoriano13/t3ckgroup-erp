@@ -12,7 +12,7 @@ import { opportunityService } from "@/services/opportunityService";
  */
 function describeTarget(target) {
   if (target.kind === "purchase_request") return "A Purchase Request for this SOR";
-  if (target.kind === "costing_matrix") return "A Costing Matrix for this SOR";
+  if (target.kind === "costing_matrix") return "An S0 Evaluation for this SOR";
   if (target.kind === "packing_list") return "A Packing List request to the Warehouse for this SOR";
   if (target.kind === "group") {
     if (target.members.length === 0) return "A group task with no assignees yet";

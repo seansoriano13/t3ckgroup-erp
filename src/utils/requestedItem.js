@@ -21,7 +21,7 @@ export const ITEM_SOURCE = {
 export const ITEM_SOURCE_LABEL = {
   [ITEM_SOURCE.SOR_LINE]: "From the SOR",
   [ITEM_SOURCE.NEW]: "New product",
-  [ITEM_SOURCE.COMPONENT]: "From the Costing Matrix",
+  [ITEM_SOURCE.COMPONENT]: "From the S0 Evaluation",
 };
 
 /**

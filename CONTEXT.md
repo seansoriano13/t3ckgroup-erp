@@ -640,7 +640,7 @@ the item is Purchased, which is checked again. Carries its own status: Not check
 _Avoid_: Line Item, Procurement Request
 
 **Other request**:
-A Requested Item with no SOR line: a product Sales asks for in its own words (brand, spec, photos) that is not on the S0, or material for the job. It sits in the Other requests section of the project request, starts at Not checked, and reaches the Costing Matrix only once it joins the S0 (a later ticket); materials never do. Not the same as a Direct request, which is a whole Purchase Request with no SOR.
+A Requested Item with no SOR line: a product Sales asks for in its own words (brand, spec, photos) that is not on the S0, or material for the job. It sits in the Other requests section of the project request, starts at Not checked, and reaches the S0 Evaluation only once it joins the S0 (a later ticket); materials never do. Not the same as a Direct request, which is a whole Purchase Request with no SOR.
 _Avoid_: Free-text item, Extra item
 
 **Is this yours?**:
@@ -672,7 +672,7 @@ the Purchase Requests list stays its own page.
 _Avoid_: Purchasing Stages, Sourcing (the Inclusion field of that name), Pipeline
 
 **Inclusion**:
-One item that comes with a bundle Component in the Costing Matrix — the cabinet or beacon lights that come with a vehicle, the registration that comes with it. Carries no price of its own; it is listed so it can be checked as actually included. Exists because Odoo bundles a complex product into a single order line whose inclusions are free text in the description, making the item-by-item check impossible there. Anything bought or taken from stock on its own is a Component, not an Inclusion, however a sheet lists it.
+One item that comes with a bundle Component in the S0 Evaluation — the cabinet or beacon lights that come with a vehicle, the registration that comes with it. Carries no price of its own; it is listed so it can be checked as actually included. Exists because Odoo bundles a complex product into a single order line whose inclusions are free text in the description, making the item-by-item check impossible there. Anything bought or taken from stock on its own is a Component, not an Inclusion, however a sheet lists it.
 _Avoid_: Line item, Product, BOM entry, Accessory
 
 **Completeness**:
@@ -688,7 +688,7 @@ Odoo's count of a product that is on hand and not reserved, per warehouse, as of
 _Avoid_: Inventory (unqualified), Live Stock
 
 **Canvass**:
-The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase has no Costing Matrix row yet — never both. On a project, the subject is the product line (the Requested Item): Purchasing starts the Canvass from the line, which moves it to Still canvassing, and the winner's price fills the Acquire of the Component linked to the line's SOR line (ADR 0042). Buying outside a project is canvassed first, on the Canvasses page, against nothing yet; a Purchase Request is then created from that Canvass, and the Canvass points at the Requested Item it became. Gets its number when its first Offer is saved, not when it is opened. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished. Nothing forces an item through one — but an item ordered without a Canvass says so on its Costing Matrix row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
+The three-or-more supplier comparison, recorded as structured Offers against exactly one S0 Evaluation Component — or one Requested Item, where the purchase has no S0 Evaluation row yet — never both. On a project, the subject is the product line (the Requested Item): Purchasing starts the Canvass from the line, which moves it to Still canvassing, and the winner's price fills the Acquire of the Component linked to the line's SOR line (ADR 0042). Buying outside a project is canvassed first, on the Canvasses page, against nothing yet; a Purchase Request is then created from that Canvass, and the Canvass points at the Requested Item it became. Gets its number when its first Offer is saved, not when it is opened. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished. Nothing forces an item through one — but an item ordered without a Canvass says so on its S0 Evaluation row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
 _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 
 **Locked Canvass**:
@@ -726,7 +726,7 @@ the matrix itself is: the purchaser sees the projected Acquire in PHP and the
 Markup Price that follows — enough to compare three suppliers — and the Closed
 Book adds the projected margin and what the matrix summary would become.
 Arithmetic over the live matrix, computed on the fly and never stored: there is
-one Costing Matrix, and a Projection is a look at it, not a copy of it. Exists
+one S0 Evaluation, and a Projection is a look at it, not a copy of it. Exists
 only where the Canvass has a Component; a Canvass on a bare Requested Item has
 no row to project.
 _Avoid_: Draft Matrix, Scenario, What-if, Alternative Costing
@@ -1021,15 +1021,15 @@ _Avoid_: Cost, Unit Cost, Acquire Cost, Local Cost
 
 **PMS (Purchasing Monitoring System)**:
 One SOR's whole purchasing file — Sales asking Purchasing about products, the
-Costing Matrix, the Purchase Request, each purchase's IPAS, the Transmittals
+S0 Evaluation, the Purchase Request, each purchase's IPAS, the Transmittals
 whose Warehouse and Technical checks follow the goods, and the Packing Lists they
 leave in. What
 people mean by "PMS" whether they are asking about a product, costing a bid, or
 buying after award. Purchasing is the Module that works every SOR's PMS.
 _Avoid_: Purchasing (when meaning one SOR's file), Sales Offer Matrix
 
-**Costing Matrix**:
-The part of PMS in which Sales, Purchasing and Management cost one SOR's offer
+**S0 Evaluation**:
+Formerly called the Costing Matrix; only the on-screen name changed (tables, functions, permissions and files keep "costing_matrix"). The part of PMS in which Sales, Purchasing and Management cost one SOR's offer
 item by item — what the client asked for and its ABC, how each item is sourced
 and what it costs, the markup, and the Final Offer — closing on a summary of
 tax, retention, collected amount and revenue. The company's "PMS sheet". Every
@@ -1038,12 +1038,12 @@ Management, or Technical for the compliance verdict — and only that side write
 it. Each side reads only its own money: Purchasing the costs, the Deal Team the
 prices, and only the Closed Book the summary and the spread between the two;
 anyone else called into the SOR sees the matrix without money. Besides its place
-on each SOR, the Closed Book has a Costing Matrix page listing every SOR's
+on each SOR, the Closed Book has an S0 Evaluation page listing every SOR's
 matrix with its Planned and Actual Revenue.
-_Avoid_: PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
+_Avoid_: Costing Matrix (the old name), PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
 
 **Planned Revenue / Actual Revenue**:
-The Costing Matrix summary's Revenue worked two ways, side by side. Planned
+The S0 Evaluation summary's Revenue worked two ways, side by side. Planned
 Revenue takes each item's cost as its Final Acquire, what Purchasing expected to
 pay; Actual Revenue takes its Landed Cost, what was really paid. Actual is an
 estimate while any of the SOR's IPAS has not reached LC Odoo Done, and an item
@@ -1052,7 +1052,7 @@ gap between the two is what buying cost or saved against the plan.
 _Avoid_: Margin, Profit, Projected Revenue (the Offer's projected margin is a Canvass figure)
 
 **Tender Line**:
-One thing the client asked for in the Costing Matrix — its specification,
+One thing the client asked for in the S0 Evaluation — its specification,
 quantity, ABC and Final Offer. The offer price is quoted per tender line. Typed,
 or picked from an SOR line whose name, quantity and unit it then keeps. It points
 at that SOR line by the line's fixed id (a real reference), which an SOR save
@@ -1075,7 +1075,7 @@ component's estimates without replacing any of them.
 _Avoid_: Offer component, Part, Sub-item, Child row
 
 **Final Acquire**:
-The cost Management sets on a Component — the figure the Costing Matrix summary
+The cost Management sets on a Component — the figure the S0 Evaluation summary
 reads as Operational Expenses and takes Revenue from. Written only by the people
 on the list Super Admins keep for it, never by a whole role. Neither Acquire,
 which is Purchasing's proposed cost and the one markup is taken from, nor Landed
@@ -1084,7 +1084,7 @@ _Avoid_: Final Cost, Approved Cost, Management Price
 
 **Closed Book**:
 The figures that reveal the spread between what T3CK pays and what it charges —
-Final Acquire, the markup factor, the Costing Matrix summary, achieved markup,
+Final Acquire, the markup factor, the S0 Evaluation summary, achieved markup,
 the projected margin on an Offer, and the numbers a Bid Decision was taken
 against — read only by Super Admins and the Final Acquire list. The rest of the
 matrix stays open to the people who fill it, because the two sides never meet:
@@ -1098,13 +1098,13 @@ quoted prices. Landed Cost and a supplier's Offer prices are cost, not price:
 they reach the Closed Book and Purchasing, never the price side, and the database
 refuses the price side, not just the screen. The ABC is in the public tender
 papers, so Purchasing and the price side read it. The Final Acquire list and the
-Evaluation list can each open any SOR that has a Costing Matrix, at any stage;
+Evaluation list can each open any SOR that has an S0 Evaluation, at any stage;
 the Evaluation list reads it with no money at all. Distinct from the write bands, which say who may *change* a
 column and grant no reading.
 _Avoid_: Margin Tier, Confidential, Management View, Band (which is the write rule)
 
 **Incharge**:
-The salesperson and the purchaser who answer for a Costing Matrix row — set once
+The salesperson and the purchaser who answer for an S0 Evaluation row — set once
 for the matrix, and overridable row by row. Names only: being Incharge grants no
 access and sends no notifications. The Purchasing Incharge is the purchasing
 assistant the Purchasing Manager assigns to a bid — the person a sheet or a
@@ -1114,7 +1114,7 @@ _Avoid_: Assignee, Owner, Buyer (a Purchase Request's role)
 
 **Markup**:
 A factor on a Component's Acquire cost that suggests its Markup Price. The
-Costing Matrix has one default factor, typed or picked from presets the business
+S0 Evaluation has one default factor, typed or picked from presets the business
 edits, which any component or cost-only row can override; cost-only rows start
 at ×1.00. Set by the Final Acquire list and part of the Closed Book, because the
 factor and the Markup Price together give away the Acquire behind them. Only ever
@@ -1125,7 +1125,7 @@ _Avoid_: Margin, Auto Pricing, Mark-up percentage (as the stored form)
 **Evaluation of Specification**:
 The item-by-item comparison of what the client's specification requires with
 what is offered, deciding whether each offered item complies. Not a document of
-its own: it is the Costing Matrix row read across, the Tender Line's ask against
+its own: it is the S0 Evaluation row read across, the Tender Line's ask against
 its Components' offer, approved once for the whole matrix. Not the retired
 Project Evaluation, which judged whether a deal was worth pursuing at all.
 _Avoid_: Project Evaluation, Spec Check, Compliance Matrix
@@ -1135,12 +1135,12 @@ Whether a Component answers the Tender Line it sits under — Complies, Deviates
 or unjudged. A deviation is always written down, and may name the compliant
 alternative recommended instead; it records the gap and blocks nothing. Judged
 by Technical, meaning the people an SOR's evaluation group task calls in, who
-see the Costing Matrix without its money. Distinct from Completeness, which asks
+see the S0 Evaluation without its money. Distinct from Completeness, which asks
 the same question of one Inclusion inside a bundle.
 _Avoid_: Compliant (as a status name), Conformity, Spec match
 
 **ITR**:
-The income tax the Costing Matrix deducts from an offer — 8% of the Final Offer above
+The income tax the S0 Evaluation deducts from an offer — 8% of the Final Offer above
 ₱250,000, as the company's sheets compute it. A different figure from the
 Commission Rate called Withholding, even though that rate is labelled
 "Withholding (ITR)" on screen.
@@ -1148,8 +1148,8 @@ _Avoid_: Withholding, Income Tax (unqualified)
 
 **Bid Decision**:
 Whether the company bids the offer it has just priced — Go, No-go or Revise —
-recorded on the Costing Matrix against the Final Offer total and the ABC it was
-taken at, with the reason in the decider's own words. What the Costing Matrix
+recorded on the S0 Evaluation against the Final Offer total and the ABC it was
+taken at, with the reason in the decider's own words. What the S0 Evaluation
 exists to produce: the judgement of whether this price can win this project.
 Cleared by any later change to a Final Offer or a Final Acquire, so a Go always
 refers to numbers that still stand. The decider may be the one who set the Final
@@ -1164,7 +1164,7 @@ _Avoid_: Approval, Go/No-go (as the record's name), Project Evaluation, Sign-off
 
 **Primitive**:
 Anything in the shared UI folder (`src/components/ui/`): one shared building block per job — Button, Dialog, Input, Select, Dropdown and so on. Raw HTML for a covered element (button, input, textarea, select, label, table, img, a, hand-rolled modal) is banned outside that folder, enforced by lint; feature code uses the Primitive. If none fits, ask the maintainer rather than hand-rolling. Catalogued in DESIGN.md.
-_Avoid_: Component (already means a Costing Matrix row), Widget, Shared component
+_Avoid_: Component (already means an S0 Evaluation row), Widget, Shared component
 
 **Release Notes**:
 The page every employee can open to see what changed in the ERP over a window of time, grouped by screen. Each change is shown with the real screen fed Sample Data, never live records.

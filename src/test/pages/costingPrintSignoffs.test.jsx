@@ -27,7 +27,7 @@ vi.mock("@/lib/pdf/costingMatrixPrinter", () => ({
   printCostingMatrix: printer.print,
 }));
 
-describe("the Costing Matrix print and sign-offs", () => {
+describe("the S0 Evaluation print and sign-offs", () => {
   let sales;
   let buyer;
   let boss;

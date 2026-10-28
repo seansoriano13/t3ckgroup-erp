@@ -67,7 +67,7 @@ export default function EvaluationSection() {
       <div>
         <h3 className="text-sm font-semibold text-foreground">Evaluation of Specification</h3>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-          Who evaluates a Costing Matrix, and who approves the evaluation. A Compliance verdict is written by Purchasing access and by
+          Who evaluates an S0 Evaluation, and who approves the evaluation. A Compliance verdict is written by Purchasing access and by
           the members of an SOR&apos;s evaluation task. The approval is signed by one person on the list below.
         </p>
       </div>
