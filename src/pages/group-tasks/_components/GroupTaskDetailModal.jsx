@@ -73,6 +73,7 @@ import { supabase } from "@/lib/supabase";
 import { notificationService } from "@/services/notificationService";
 import { useFileAttachments } from "@/hooks/useFileAttachments";
 import SorLink from "@/components/sor/SorLink";
+import SorChatPane from "./SorChatPane";
 import { AttachmentPreviews, AttachmentList } from "@/components/ui/Attachments";
 import {
   ALLOWED_MIME_TYPES,
@@ -1681,6 +1682,11 @@ export default function GroupTaskDetailModal({
               </div>
             </form>
           </div>
+        )}
+
+        {/* SOR CHAT PANEL (#753): only for SOR-sourced tasks the viewer may read */}
+        {isSplitScreen && task.opportunity_id && (
+          <SorChatPane opportunityId={task.opportunity_id} isOpen={isOpen} employees={employees} />
         )}
 
         </div>
