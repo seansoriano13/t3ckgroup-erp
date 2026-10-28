@@ -24,10 +24,10 @@ Where the errors live: the Bugsink site in `BUGSINK_URL` (see `.env.local`). The
 
 ```bash
 git fetch origin staging --quiet
-node .claude/skills/triage-errors/bugsink.mjs issues
+node .claude/skills/triage-errors/bugsink.mjs issues            # production (default)
 ```
 
-This lists open errors the user has not decided on yet. An error already decided comes back only if new events arrived after the decision, and it is marked "came back". Use `--all` to see everything.
+This lists open production errors the user has not decided on yet. An error already decided comes back only if new events arrived after the decision, and it is marked "came back". Use `--all` to see everything.
 
 If the count is 0, say "No new errors." and stop. Do not invent work.
 
@@ -68,7 +68,7 @@ Small becomes a **ticket**. Big becomes a **spec first**: recommend a short gril
 
 ### 5. Ask the user, one item at a time
 
-Show items in this order: real bugs by most people hit, then Big items, then "not worth a ticket". For each item write this block, then ask:
+Show items in this order: bugs by most people hit, then Big items, then "not worth a ticket". For each item write this block, then ask:
 
 ```
 ### <short plain title>   (Bugsink: <ID>)
@@ -143,5 +143,7 @@ Finish with a short summary in everyday words: tickets made (with numbers), spec
 ## Notes
 
 - The ledger is local to this machine. Tickets also carry `bugsink-issue: <ID>` so they can be found with `gh issue list --search "bugsink-issue: <ID>"` if the ledger is lost. Check that before making a duplicate.
-- Production is not wired up yet. Today every error is from staging, and each report says so. Say it in the block.
+- **Production is the focus.** Staging and production report to the same Bugsink project, but `issues` shows production only by default, because staging is one person testing. Use `issues --staging` only when the user asks (for example to check a new build before it ships), and `issues --any-env` to see both. Say the environment in every block.
+- Each event carries an `environment`; the `issue` command prints it.
+- If no production events exist yet, either nothing broke or production has not been deployed with error tracking. Check before saying "all clear": `vercel env ls` must show the Bugsink settings under Production, and a production deploy must have happened since.
 - If the helper says the token is missing, tell the user to create a read-only token in Bugsink (Tokens page, project `t3ckgroup-erp`, issues/events/projects read) and save it as `BUGSINK_READ_TOKEN` in `.env.local`. Do not ask them to paste it in chat.

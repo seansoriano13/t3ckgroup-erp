@@ -3,7 +3,9 @@
 // BUGSINK_READ_TOKEN from .env.local (or the environment) and never prints it.
 // The only thing it writes is the local decisions ledger in ./.state/.
 //
-//   node bugsink.mjs issues [--all]              undecided open issues (--all: include decided)
+//   node bugsink.mjs issues [--all] [--staging|--any-env]
+//                                                undecided open production issues (--all: include
+//                                                decided; --staging: staging only; --any-env: both)
 //   node bugsink.mjs issue <friendly-id|uuid>    one issue: tags, latest event, stack trace
 //   node bugsink.mjs decide <id> <ticket|spec|ignore|later> [note...]
 //   node bugsink.mjs ledger                      everything decided so far
@@ -73,8 +75,12 @@ const [cmd, ...rest] = process.argv.slice(2)
 
 if (cmd === "issues") {
     const showAll = rest.includes("--all")
+    // Production is what real people use, so it is the default. --staging looks at
+    // the single-user staging site instead; --any-env mixes both.
+    const envFlag = rest.includes("--any-env") ? null : rest.includes("--staging") ? "staging" : "production"
     const ledger = readLedger()
-    const issues = await allPages("/issues/?project=1&state=unresolved&sort=last_seen&order=desc")
+    const filter = envFlag ? `&q=${encodeURIComponent(`environment:${envFlag}`)}` : ""
+    const issues = await allPages(`/issues/?project=1&state=unresolved&sort=last_seen&order=desc${filter}`)
     const rows = []
     for (const i of issues) {
         const d = ledger[i.friendly_id]
@@ -91,7 +97,7 @@ if (cmd === "issues") {
             decided: d ? `${d.decision}${grew ? ` (came back: ${i.digested_event_count - d.eventCountAtDecision} new events)` : ""}` : null,
         })
     }
-    console.log(JSON.stringify({ count: rows.length, issues: rows }, null, 2))
+    console.log(JSON.stringify({ environment: envFlag ?? "any", count: rows.length, issues: rows }, null, 2))
 } else if (cmd === "issue") {
     const id = rest[0]
     if (!id) throw new Error("usage: issue <friendly-id|uuid>")
