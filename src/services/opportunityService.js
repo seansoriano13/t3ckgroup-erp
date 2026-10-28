@@ -248,6 +248,7 @@ async function narrateNewlySatisfied(opportunityId, stageId, flowSnapshotId, bef
   }
   if (!conditions || conditions.length === 0) return;
 
+  let newlySatisfied = false;
   for (const condition of conditions) {
     const wasSatisfied =
       evaluateCondition(condition, before).status === CONDITION_STATUS.SATISFIED;
@@ -256,8 +257,11 @@ async function narrateNewlySatisfied(opportunityId, stageId, flowSnapshotId, bef
 
     if (!wasSatisfied && isSatisfied) {
       await noteConditionSatisfied(opportunityId, condition, actorId);
+      newlySatisfied = true;
     }
   }
+  // #757: that may have been the last condition on an Auto-move Stage.
+  if (newlySatisfied) await autoMoveIfReady(opportunityId, actorId);
 }
 
 /**

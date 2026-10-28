@@ -146,6 +146,24 @@ describe("salesFlowService", () => {
       expect(stages.map((s) => s.name)).toEqual(["Qualified", "Lead"])
     })
 
+    it("sets Auto-move only on a Stage with exactly one next Stage (#757)", async () => {
+      const flow = makeSalesFlow()
+      const a = await salesFlowService.addStage(flow.id, "A", admin.id)
+      const b = await salesFlowService.addStage(flow.id, "B", admin.id)
+      const c = await salesFlowService.addStage(flow.id, "C", admin.id)
+
+      await expect(salesFlowService.setStageAutoMove(a.id, true, admin.id)).rejects.toThrow(/exactly one next Stage/)
+
+      await salesFlowService.addEdge(flow.id, a.id, b.id, admin.id)
+      const on = await salesFlowService.setStageAutoMove(a.id, true, admin.id)
+      expect(on.auto_move).toBe(true)
+
+      await salesFlowService.addEdge(flow.id, a.id, c.id, admin.id)
+      await expect(salesFlowService.setStageAutoMove(b.id, true, admin.id)).rejects.toThrow(/exactly one next Stage/)
+      const off = await salesFlowService.setStageAutoMove(a.id, false, admin.id)
+      expect(off.auto_move).toBe(false)
+    })
+
     it("marks a Stage terminal, so the flow records where deals stop", async () => {
       const flow = makeSalesFlow()
       const lost = await salesFlowService.addStage(flow.id, "Lost", admin.id)

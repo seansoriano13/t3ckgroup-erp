@@ -66,6 +66,7 @@ export default function StageSettingsPanel({
   onBracketChange,
   onDelete,
   onToggleTerminal,
+  onToggleAutoMove,
   onSetTerminalOutcome,
   onSetEntry,
   onSetWon,
@@ -225,6 +226,22 @@ export default function StageSettingsPanel({
                 >
                   {stage.is_terminal ? <Check size={14} /> : <Octagon size={14} />}
                   {stage.is_terminal ? "Deals end here" : "Make it terminal"}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  onClick={onToggleAutoMove}
+                  disabled={disabled || !onToggleAutoMove || (!stage.auto_move && outgoingMoves.length !== 1)}
+                  title={outgoingMoves.length !== 1 ? "Needs exactly one next Stage" : undefined}
+                  className={cn(
+                    ROLE_BUTTON,
+                    stage.auto_move
+                      ? "bg-blue-a3 text-blue-11 outline-blue-a6 hover:bg-blue-a3 hover:text-blue-11"
+                      : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                  )}
+                >
+                  {stage.auto_move ? <Check size={14} /> : <Flag size={14} />}
+                  {stage.auto_move ? "Moves on by itself" : "Auto-move"}
                 </Button>
 
                 <Button
