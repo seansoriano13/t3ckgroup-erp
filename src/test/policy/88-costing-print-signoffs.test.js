@@ -85,7 +85,7 @@ beforeAll(async () => {
         await asSvc(svc().from("costing_tender_lines").insert({ matrix_id: matrixId, position: 1, tender_specification: "Rescue tripod", quantity: 1, created_by: ids.dealOwner }).select("id").single(), "Tender Line")
     ).id
     componentId = (await asSvc(svc().from("costing_components").insert({ tender_line_id: lineId, position: 1, name: "Tripod head", quantity: 1 }).select("id").single(), "Component")).id
-    const row = await (await clientFor("outsider")).rpc("costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery Charge", p_quantity: 1 })
+    const row = await (await clientFor("outsider")).rpc("costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery Charge", p_quantity: 1, p_category_key: "logistics" })
     if (row.error) throw new Error(`costing_add_cost_row: ${row.error.message}`)
     costRowId = row.data
 })

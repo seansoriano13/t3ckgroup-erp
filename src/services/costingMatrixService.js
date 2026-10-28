@@ -93,7 +93,7 @@ export class CostingRuleError extends Error {
   }
 }
 
-const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid|team|line): (.+)$/;
+const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid|team|line|cost_row): (.+)$/;
 // The CHECK on costing_components that wants a note whenever the verdict is Deviates (#271).
 const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
 
@@ -115,6 +115,32 @@ export function toRuleError(error) {
 /** Throws the typed band or rule error when `error` is one, else the raw Supabase error. */
 function fail(error) {
   throw toBandError(error) ?? toRuleError(error) ?? error;
+}
+
+const numberOrNullValue = (value) => (value === null || value === undefined ? null : Number(value));
+
+function shapeCostCategory(row) {
+  return { key: row.key, label: row.label, lowPct: Number(row.low_pct), highPct: Number(row.high_pct) };
+}
+
+/** The database's cost guide as the screen reads it; null stays null (the caller's tier is not sent it). */
+export function shapeCostGuide(data) {
+  if (!data) return null;
+  return {
+    finalOfferTotal: numberOrNullValue(data.final_offer_total),
+    missingOffer: Number(data.missing_offer ?? 0),
+    missingCost: Number(data.missing_cost ?? 0),
+    categories: (data.categories ?? []).map((c) => ({
+      key: c.key,
+      label: c.label,
+      lowPct: Number(c.low_pct),
+      highPct: Number(c.high_pct),
+      total: numberOrNullValue(c.total),
+      sharePct: numberOrNullValue(c.share_pct),
+      status: c.status ?? null,
+    })),
+    uncategorised: { total: numberOrNullValue(data.uncategorised?.total), sharePct: numberOrNullValue(data.uncategorised?.share_pct) },
+  };
 }
 
 const blankToNull = (value) => (value === "" || value === undefined ? null : value);
@@ -883,14 +909,16 @@ export const costingMatrixService = {
   },
 
   /**
-   * Adds a cost-only row below the Tender Lines: `{ description, quantity }` and, optionally, its
-   * costs (`acquireUnit`, `odooUnit`, ...). It starts at a x1.00 markup factor. Returns the new id.
+   * Adds a cost-only row below the Tender Lines: `{ categoryKey, description, quantity }` and, optionally, its
+   * costs (`acquireUnit`, `odooUnit`, ...). The cost guide category is required (#723); the database refuses a
+   * new row without one. It starts at a x1.00 markup factor. Returns the new id.
    */
   async addCostRow(matrixId, fields = {}) {
     const { data, error } = await supabase.rpc("costing_add_cost_row", {
       p_matrix_id: matrixId,
       p_description: fields.description ?? "",
       p_quantity: fields.quantity ?? 1,
+      p_category_key: fields.categoryKey ?? null,
     });
     if (error) fail(error);
     await writeMoney("costing_cost_rows", data, costColumns(fields));
@@ -902,7 +930,43 @@ export const costingMatrixService = {
     const patch = { ...costColumns(fields) };
     if ("description" in fields) patch.description = fields.description ?? "";
     if ("quantity" in fields) patch.quantity = fields.quantity;
+    if ("categoryKey" in fields) patch.category_key = fields.categoryKey;
     await writeMoney("costing_cost_rows", rowId, patch);
+  },
+
+  /**
+   * The cost guide's categories in order (#723): `{ key, label, lowPct, highPct }`. Any signed-in employee reads
+   * them; only a Super Admin changes a range.
+   */
+  async listCostCategories() {
+    const { data, error } = await supabase.from("costing_cost_categories").select("*").order("sort", { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map(shapeCostCategory);
+  },
+
+  /** Changes a category's range: `{ key, lowPct, highPct }`. Super Admin only; the database refuses anyone else. Returns the saved category. */
+  async saveCostCategory({ key, lowPct, highPct }) {
+    const low = Number(lowPct);
+    const high = Number(highPct);
+    if (lowPct === "" || lowPct === null || highPct === "" || highPct === null || !Number.isFinite(low) || !Number.isFinite(high)) {
+      throw new CostingRuleError("Type a low and a high percentage.", "22023");
+    }
+    if (low < 0 || high > 100 || low > high) throw new CostingRuleError("The low % must be 0 or more, and no higher than the high %, which is at most 100.", "22023");
+    const { data, error } = await supabase.from("costing_cost_categories").update({ low_pct: low, high_pct: high }).eq("key", key).select("*");
+    if (error) throw error;
+    if (!data?.length) throw new CostingRuleError("Only a Super Admin can change the cost guide.", "42501");
+    return shapeCostCategory(data[0]);
+  },
+
+  /**
+   * The cost guide for an SOR's matrix (#723): each category's share of the Final Offer next to its range, or null when
+   * the caller's tier does not read both the Final Offer and Final Acquire (the database decides). Shares are percent
+   * numbers; `status` is 'below', 'within' or 'above' (null while the Final Offer is blank). A warning only.
+   */
+  async costGuide(opportunityId) {
+    const { data, error } = await supabase.rpc("costing_cost_guide", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return shapeCostGuide(data);
   },
 
   /** Removes a cost-only row. Sales or Purchasing. */

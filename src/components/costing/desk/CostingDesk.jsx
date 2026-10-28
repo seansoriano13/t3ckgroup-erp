@@ -18,6 +18,7 @@ import { costingKeys } from "../costingKeys";
 import { pesos } from "../gridFormat";
 import BidDecisionPanel from "../BidDecisionPanel";
 import OtherCosts from "./OtherCosts";
+import CostGuide from "./CostGuide";
 import CostingSummary from "../CostingSummary";
 import EvaluationBar from "../EvaluationBar";
 import InchargeSelects from "../InchargeSelects";
@@ -247,6 +248,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
 
           <OtherCosts matrix={matrix} writes={writes} />
           <CostingSummary matrix={matrix} writes={writes} />
+          <CostGuide opportunityId={opportunityId} />
         </div>
 
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-2 xl:self-start">

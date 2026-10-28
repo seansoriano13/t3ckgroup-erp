@@ -23,6 +23,21 @@ import { tierReadsLandedCost } from "@/constants/costing"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
+/** #723: the migration seeds the cost guide categories; the fake database only has the schema, so the first new cost row seeds them. */
+const GUIDE_CATEGORIES = [
+  ["products", "Products", 70, 80],
+  ["labor", "Labor", 8, 15],
+  ["logistics", "Logistics & Transportation", 3, 7],
+  ["equipment", "Equipment & Tools", 1, 3],
+  ["permits", "Permits/Insurance/Compliance", 1, 2],
+  ["overhead", "Overhead", 2, 5],
+  ["profit", "Profit Margin", 5, 10],
+]
+const ensureGuideCategories = () => {
+  if (rowsOf("costing_cost_categories").length > 0) return
+  GUIDE_CATEGORIES.forEach(([key, label, low_pct, high_pct], index) => insertRow("costing_cost_categories", { key, label, low_pct, high_pct, sort: index + 1 }))
+}
+
 /**
  * Issue #267 — the Costing Matrix functions (supabase/migrations/
  * 20261018100000_costing_matrix_tender_lines.sql) live in Postgres, which the
@@ -333,8 +348,12 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
 
   stubRpc("costing_add_cost_row", (args) => {
     requireBand("costing_cost_rows", "*", ["sales", "purchasing"])
+    // #723: a new cost-only row names its cost guide category.
+    if (!String(args.p_category_key ?? "").trim()) throw pgrstError("22023", "costing_cost_row: a cost needs a category", { status: 400 })
+    ensureGuideCategories()
     const last = Math.max(0, ...rowsOf("costing_cost_rows").filter((r) => r.matrix_id === args.p_matrix_id).map((r) => r.position))
     return insertRow("costing_cost_rows", {
+      category_key: args.p_category_key,
       matrix_id: args.p_matrix_id,
       position: last + 1,
       description: args.p_description ?? "",

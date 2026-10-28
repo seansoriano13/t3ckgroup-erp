@@ -114,7 +114,7 @@ describe("the evidence Costing priced reads", () => {
     })
 
     it("counts a cost-only row with no Acquire as missing, but not as a Component", async () => {
-        const row = await (await clientFor("outsider")).rpc("costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery", p_quantity: 1 })
+        const row = await (await clientFor("outsider")).rpc("costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery", p_quantity: 1, p_category_key: "logistics" })
         if (row.error) throw new Error(`costing_add_cost_row: ${row.error.message}`)
         costRowId = row.data
         expect(await priced()).toMatchObject({ component_count: 2, missing_acquire: 1 })

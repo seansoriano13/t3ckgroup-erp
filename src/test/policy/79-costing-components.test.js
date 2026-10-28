@@ -112,6 +112,7 @@ const addCostRow = async (who, matrix = matrixId, description = "Delivery Charge
         p_matrix_id: matrix,
         p_description: description,
         p_quantity: quantity,
+        p_category_key: "logistics",
     })
     return { id: data, error }
 }

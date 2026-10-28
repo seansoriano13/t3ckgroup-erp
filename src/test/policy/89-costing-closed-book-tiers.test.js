@@ -166,7 +166,7 @@ beforeAll(async () => {
         const error = await setMoney(who === "dealOwner" && row === otherLineId ? "closingSales" : who, table, row, patch)
         if (error) throw new Error(`typing ${JSON.stringify(patch)} as ${who}: ${error.message}`)
     }
-    const costRow = await rpc("outsider", "costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery Charge", p_quantity: 1 })
+    const costRow = await rpc("outsider", "costing_add_cost_row", { p_matrix_id: matrixId, p_description: "Delivery Charge", p_quantity: 1, p_category_key: "logistics" })
     if (costRow.error) throw new Error(`costing_add_cost_row: ${costRow.error.message}`)
     costRowId = costRow.data
     for (const [who, patch] of [

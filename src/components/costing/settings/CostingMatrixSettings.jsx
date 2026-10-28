@@ -2,6 +2,7 @@ import MarkupPresetsSection from "./MarkupPresetsSection";
 import RatesSection from "./RatesSection";
 import SignerListsSection from "./SignerListsSection";
 import EvaluationSection from "./EvaluationSection";
+import CostGuideSection from "./CostGuideSection";
 import { COSTING_SIGNER_LIST } from "../../../constants/costing";
 
 /**
@@ -14,6 +15,7 @@ import { COSTING_SIGNER_LIST } from "../../../constants/costing";
  *   Rates               Finance access and Super Admins (#270); Finance access alone sees only this
  *   Final Acquire list  Super Admins (#270)
  *   Evaluation          Super Admins (#271): the task template and the evaluation list
+ *   Cost guide          Super Admins (#723): each cost category's low and high % of the Final Offer
  *
  * The Settings page offers the tab to anyone who sees at least one section; the database refuses the
  * write of everyone it is not meant for. `managesMarkup` is the Final Acquire list's membership, asked of
@@ -67,6 +69,11 @@ const SECTIONS = [
     key: "evaluation",
     show: ({ isSuperAdmin }) => isSuperAdmin,
     render: () => <EvaluationSection />,
+  },
+  {
+    key: "cost-guide",
+    show: ({ isSuperAdmin }) => isSuperAdmin,
+    render: () => <CostGuideSection />,
   },
 ];
 

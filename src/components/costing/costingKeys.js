@@ -14,5 +14,8 @@ export const costingKeys = {
   signerLists: ["costing", "signer-lists"],
   // The markup presets (#269) belong to no SOR: they are the business's named factors.
   presets: () => ["costing", "markupPresets"],
+  // The cost guide (#723): the categories' ranges belong to no SOR; the guide is per SOR.
+  costCategories: () => ["costing", "costCategories"],
+  costGuide: (opportunityId) => ["costing", opportunityId, "costGuide"],
   canManageMarkup: () => ["costing", "markupPresets", "can-manage"],
 };
