@@ -350,7 +350,7 @@ describe("costingMatrixService", () => {
 
     it("adds, edits and removes a cost-only row, kept out of every Tender Line's totals", async () => {
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", isBundle: true, acquireUnit: 2160500, odooUnit: 2200000 });
-      const id = await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge", quantity: 1, acquireUnit: 100000, odooUnit: 110000 });
+      const id = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge", quantity: 1, acquireUnit: 100000, odooUnit: 110000 });
 
       let read = await costingMatrixService.get(opportunity.id);
       expect(read.costRows).toHaveLength(1);
@@ -373,7 +373,7 @@ describe("costingMatrixService", () => {
       // The multiplier is written by the Markup list (#703).
       stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management", "markup"] });
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", isBundle: true, acquireUnit: 2160500, odooUnit: 2200000, finalAcquireUnit: 2100000, markupFactor: 1.35 });
-      await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge", acquireUnit: 100000, odooUnit: 110000, finalAcquireUnit: 90000 });
+      await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge", acquireUnit: 100000, odooUnit: 110000, finalAcquireUnit: 90000 });
 
       const keysAt = async (tier) => {
         stubCostingMatrixRpcs({ tier, bands: [] });
@@ -422,14 +422,14 @@ describe("costingMatrixService", () => {
       expect(odoo.message).toBe("Odoo unit cost is written by Sales (the Deal Team).");
       stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing", "markup"] });
       await costingMatrixService.updateComponent(id, { markupFactor: 2 });
-      const rowId = await costingMatrixService.addCostRow(matrix.id, { description: "Permits" });
+      const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Permits" });
       await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 1 });
     });
 
     it("refuses a participant adding or removing a cost-only row, naming the band", async () => {
-      const id = await costingMatrixService.addCostRow(matrix.id, { description: "Permits" });
+      const id = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Permits" });
       stubCostingMatrixRpcs({ tier: COSTING_TIER.PARTICIPANT, bands: [] });
-      const add = await costingMatrixService.addCostRow(matrix.id, { description: "Nope" }).catch((e) => e);
+      const add = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Nope" }).catch((e) => e);
       expect(add).toBeInstanceOf(CostingBandError);
       expect(add.message).toBe("Adding or removing a cost-only row is written by Sales (the Deal Team) or Purchasing.");
       expect((await costingMatrixService.removeCostRow(id).catch((e) => e)).column).toBe("*");
@@ -499,7 +499,7 @@ describe("costingMatrixService", () => {
     it("counts a cost-only row's Final Acquire in Operational Expenses, and Marketing and OPEX as typed", async () => {
       db.seed("costing_settings", { id: 1 });
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2000000 });
-      const rowId = await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge", quantity: 1 });
+      const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge", quantity: 1 });
       expect((await read()).summary.incomplete.missingCost).toBe(1);
 
       await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 100000 });
@@ -547,7 +547,7 @@ describe("costingMatrixService", () => {
 
     it("writes Final Acquire through updateComponent and updateCostRow, and refuses a Technical caller", async () => {
       const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle" });
-      const rowId = await costingMatrixService.addCostRow(matrix.id, { description: "Permits" });
+      const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Permits" });
       await costingMatrixService.updateComponent(component, { finalAcquireUnit: 100 });
       await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 7 });
       const shaped = await read();
@@ -683,7 +683,7 @@ describe("costingMatrixService", () => {
     it("sums each line's Markup Price and shows the achieved markup against the target, with cost-only rows only in the overall figure", async () => {
       await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 })
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", isBundle: true, acquireUnit: 2160500, markupFactor: 1.47 })
-      const delivery = await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge", acquireUnit: 100000 })
+      const delivery = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge", acquireUnit: 100000 })
 
       let matrixRead = await read()
       expect(matrixRead.tenderLines[0].markup).toEqual({ priceTotal: 3175935, targetFactor: 1.47, achievedFactor: 1.5274 })
@@ -713,7 +713,7 @@ describe("costingMatrixService", () => {
     it("gives Sales the peso Markup Price and neither the factor, the Acquire nor an achieved markup", async () => {
       await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 })
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", acquireUnit: 2160500, markupFactor: 1.47, odooUnit: 2200000 })
-      await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge", acquireUnit: 100000 })
+      await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge", acquireUnit: 100000 })
 
       stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["sales"], manageMarkup: false })
       const matrixRead = await read()
@@ -739,7 +739,7 @@ describe("costingMatrixService", () => {
 
     it("refuses the default factor and a row override outside the Markup list, naming who writes it", async () => {
       const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle", acquireUnit: 100 })
-      const delivery = await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge" })
+      const delivery = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge" })
       stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["technical"], manageMarkup: false })
 
       const factor = await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 }).catch((e) => e)
