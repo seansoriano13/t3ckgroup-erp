@@ -397,6 +397,13 @@ export const NAV_MODULES = {
         icon: Workflow,
         isPermitted: () => true,
       },
+      {
+        key: "admin.flowAccess",
+        label: "Flow Access",
+        link: "/super-admin/flow-access",
+        icon: ShieldCheck,
+        isPermitted: (ctx) => ctx.isSuperAdmin,
+      },
       // Bug Reports sent from the floating button on every page. Gated by the
       // Bug Reports access right (`has_bug_report_access`, on by default for
       // the IT Team), the same right behind the table's RLS policy.
