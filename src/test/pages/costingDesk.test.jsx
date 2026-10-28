@@ -647,9 +647,25 @@ describe("the Costing Desk", () => {
       expect(within(panel).getByTestId("bid-decision-reason")).toHaveTextContent("Fits the budget");
       expect(within(panel).getByTestId("bid-decision-live")).toHaveTextContent("Boss Person");
       expect(within(panel).getByTestId("bid-decision-figures")).toHaveTextContent("Final Offer of ₱2,980,000.00 and an ABC of ₱3,200,000.00");
+      // A Go locks the sheet (#704): the verdict buttons give way to Unlock.
+      expect(within(panel).getByTestId("bid-decision-locked")).toHaveTextContent("The sheet is locked");
+      expect(within(panel).getByRole("button", { name: "Unlock" })).toBeDisabled();
+      expect(within(panel).queryByRole("button", { name: "Revise" })).not.toBeInTheDocument();
+    });
+
+    it("shows Revise and No-go as well as Go while no Go stands", async () => {
+      seedPriced();
+      seedDecision({ verdict: "no_go", reason: "Too far over" });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      openDesk(deal);
+
+      await openLines();
+
+      const panel = await screen.findByTestId("bid-decision");
       expect(within(panel).getByRole("button", { name: "Go" })).toBeInTheDocument();
       expect(within(panel).getByRole("button", { name: "Revise" })).toBeInTheDocument();
       expect(within(panel).getByRole("button", { name: "No-go" })).toBeInTheDocument();
+      expect(within(panel).queryByTestId("bid-decision-locked")).not.toBeInTheDocument();
     });
 
     it("takes a decision: the reason is needed, then the buttons record it at the summary", async () => {
