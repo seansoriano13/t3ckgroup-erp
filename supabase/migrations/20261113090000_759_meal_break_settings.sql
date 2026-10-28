@@ -12,7 +12,7 @@ insert into meal_break_settings (key, start_time, end_time, enabled) values
 on conflict (key) do nothing;
 
 alter table overtime_requests add column if not exists meal_break_kept_reason text;
-alter table offset_requests add column if not exists meal_break_kept_reason text;
+alter table offset_leaves add column if not exists meal_break_kept_reason text;
 alter table sil_leaves add column if not exists meal_break_kept_reason text;
 alter table lwop_leaves add column if not exists meal_break_kept_reason text;
 alter table undertime_requests add column if not exists meal_break_kept_reason text;

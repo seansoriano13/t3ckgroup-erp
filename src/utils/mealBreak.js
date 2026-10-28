@@ -12,7 +12,7 @@ export const DEFAULT_MEAL_WINDOWS = [
 ];
 
 /** Meal windows switched on that the filed window fully covers. */
-export function coveredMealWindows(startTime, endTime, meals = DEFAULT_MEAL_WINDOWS) {
+export function coveredMealWindows(startTime, endTime, meals = getMealWindows()) {
   const s = parseTime(startTime);
   let e = parseTime(endTime);
   if (s === null || e === null) return [];
@@ -27,7 +27,7 @@ export function coveredMealWindows(startTime, endTime, meals = DEFAULT_MEAL_WIND
 }
 
 /** Hours to take off a window; 0 for each meal not covered or switched off. */
-export function mealBreakHours(startTime, endTime, meals = DEFAULT_MEAL_WINDOWS) {
+export function mealBreakHours(startTime, endTime, meals = getMealWindows()) {
   return coveredMealWindows(startTime, endTime, meals).reduce(
     (sum, m) => sum + (parseTime(m.end) - parseTime(m.start)) / 60,
     0
@@ -38,7 +38,17 @@ export function mealBreakHours(startTime, endTime, meals = DEFAULT_MEAL_WINDOWS)
  * Gross hours minus covered meal hours. `keepIn` (HR kept the hour in, with a
  * saved reason) skips the deduction.
  */
-export function netHoursAfterMealBreak(grossHours, startTime, endTime, { meals = DEFAULT_MEAL_WINDOWS, keepIn = false } = {}) {
+export function netHoursAfterMealBreak(grossHours, startTime, endTime, { meals = getMealWindows(), keepIn = false } = {}) {
   if (keepIn) return grossHours;
   return Math.max(0, Number((grossHours - mealBreakHours(startTime, endTime, meals)).toFixed(2)));
+}
+
+// HR's current settings, pushed in by mealBreakService.refresh(). Until then
+// (or if the table can't be read) the defaults apply.
+let activeMeals = DEFAULT_MEAL_WINDOWS;
+export function setMealWindows(meals) {
+  activeMeals = meals?.length ? meals : DEFAULT_MEAL_WINDOWS;
+}
+export function getMealWindows() {
+  return activeMeals;
 }

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
 import { lwopService } from '../../../services/lwopService';
+import { mealBreakService } from '../../../services/mealBreakService';
 import { employeeService } from '../../../services/employeeService';
 import { companyService, matchesCompanyFilter } from '../../../services/companyService';
 import { useAuth } from '../../../context/AuthContext';
@@ -221,6 +222,19 @@ export default function HrLeavesManagerPage() {
       }
     });
   }, [user?.id, queryClient]);
+
+  // HR's meal windows decide which requests offer "keep the hour in".
+  useEffect(() => { mealBreakService.refresh(); }, []);
+
+  const keepMealIn = async (request, reason) => {
+    try {
+      await mealBreakService.keepHourIn({ type: request.type, request, reason, hrId: user?.id });
+      toast.success('Meal hour kept in.');
+      queryClient.invalidateQueries({ queryKey: ['hrLeaves'] });
+    } catch (err) {
+      toast.error(err.message || 'Could not keep the meal hour in.');
+    }
+  };
 
   const handleUndo = useCallback((request) => {
     const isOT = request.type === 'OVERTIME';
@@ -572,7 +586,7 @@ export default function HrLeavesManagerPage() {
         total={sheet.stepList.length}
         onStep={sheet.stepBy}
         onClose={sheet.closeRequest}
-        actions={{ decide: handleAction, undo: handleUndo, preview: setPreviewToken }}
+        actions={{ decide: handleAction, undo: handleUndo, preview: setPreviewToken, keepMealIn }}
         availableHoursFor={availableHoursFor}
       />
       <ProfileSheet
