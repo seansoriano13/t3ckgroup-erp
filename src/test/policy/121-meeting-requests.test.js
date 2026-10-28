@@ -173,7 +173,7 @@ describe("direct writes are refused", () => {
         expect((await tryUpdate(client, "meeting_requests", id, { status: "APPROVED" })).affected).toBe(0)
         expect((await tryDelete(client, "meeting_requests", id)).affected).toBe(0)
         const { data } = await svc().from("meeting_requests").select("status").eq("id", id).single()
-        expect(data.status).toBe("PENDING_HEAD")
+        expect(data.status).toBe("PENDING_HR")
     })
 
     it("refuses direct writes to Participants, events and Venues", async () => {
@@ -187,11 +187,11 @@ describe("direct writes are refused", () => {
 })
 
 describe("file_meeting_request()", () => {
-    it("routes an ordinary applicant's request to the chosen head", async () => {
+    it("sends an ordinary applicant's request straight to HR", async () => {
         const { id, error } = await file("ordinary", adminOffice, "14:00", "15:00")
         expect(error).toBeNull()
         const { data } = await svc().from("meeting_requests").select("*").eq("id", id).single()
-        expect(data).toMatchObject({ status: "PENDING_HEAD", applicant_id: ids.ordinary, head_id: ids.head, facilitator_id: ids.head })
+        expect(data).toMatchObject({ status: "PENDING_HR", applicant_id: ids.ordinary, head_id: null, facilitator_id: ids.head })
         expect(data.guests).toEqual(["Mr. Visitor"])
     })
 
@@ -208,17 +208,12 @@ describe("file_meeting_request()", () => {
         expect(people.map((p) => p.employee_id)).toEqual([ids.outsider])
         const { data: events } = await svc().from("meeting_request_events").select("*").eq("request_id", id)
         expect(events).toHaveLength(1)
-        expect(events[0]).toMatchObject({ action: "FILED", from_status: null, to_status: "PENDING_HEAD", actor_id: ids.ordinary })
+        expect(events[0]).toMatchObject({ action: "FILED", from_status: null, to_status: "PENDING_HR", actor_id: ids.ordinary })
     })
 
     it("refuses a Facilitator who is not a department head", async () => {
         const { error } = await file("ordinary", adminOffice, "18:00", "19:00", { args: { p_facilitator_id: ids.outsider } })
         expect(error?.message).toMatch(/department head/i)
-    })
-
-    it("refuses an ordinary applicant who names no approving head", async () => {
-        const { error } = await file("ordinary", adminOffice, "19:00", "20:00", { args: { p_head_id: null } })
-        expect(error?.message).toMatch(/head/i)
     })
 
     it("refuses a blank purpose", async () => {
@@ -244,7 +239,7 @@ describe("calendar_entries() MEETING branch", () => {
         expect(error).toBeNull()
         const row = data.find((r) => r.kind === "MEETING" && r.id === id)
         expect(row).toMatchObject({ status: "PENDING", venue: "Admin Office", manila_date: "2031-04-16" })
-        expect(row.details).toMatchObject({ stage: "PENDING_HEAD", purpose: `${MARKER} filed`, venue: "Admin Office", guests: ["Mr. Visitor"] })
+        expect(row.details).toMatchObject({ stage: "PENDING_HR", purpose: `${MARKER} filed`, venue: "Admin Office", guests: ["Mr. Visitor"] })
         expect(row.details.facilitator.id).toBe(ids.head)
         expect(row.details.participants.map((p) => p.id)).toEqual([ids.outsider])
     })

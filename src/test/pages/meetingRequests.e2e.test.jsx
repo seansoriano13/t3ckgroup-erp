@@ -32,7 +32,6 @@ let head
 let hr
 
 const STEP = {
-    PENDING_HEAD: { action: "HEAD_APPROVED", to: "PENDING_HR" },
     PENDING_HR: { action: "HR_APPROVED", to: "APPROVED" },
 }
 
@@ -53,8 +52,8 @@ beforeEach(() => {
             facilitator_id: body.p_facilitator_id,
             purpose: body.p_purpose,
             guests: body.p_guests,
-            status: "PENDING_HEAD",
-            head_id: body.p_head_id ?? head.id,
+            status: "PENDING_HR",
+            head_id: null,
         })
         insertRow("meeting_request_events", { request_id: row.id, actor_id: applicant.id, action: "FILED", to_status: row.status })
         return row.id
@@ -104,7 +103,7 @@ async function approveInQueue(user, as, applicantName) {
 }
 
 describe("Meeting Request journey", () => {
-    it("is filed, approved by the head, approved by HR, and shows as approved on the Calendar", { timeout: 60000 }, async () => {
+    it("is filed, sent straight to HR, approved by HR, and shows as approved on the Calendar", { timeout: 60000 }, async () => {
         const user = setupUser()
 
         // 1. The employee files from the Calendar's quick action.
@@ -125,22 +124,17 @@ describe("Meeting Request journey", () => {
         const send = within(dialog).getByRole("button", { name: "Send request" })
         await waitFor(() => expect(send).toBeEnabled())
         await user.click(send)
-        await waitFor(() => expect(statusOf()).toBe("PENDING_HEAD"))
+        await waitFor(() => expect(statusOf()).toBe("PENDING_HR"))
         filing.unmount()
 
-        // 2. The department head approves in the Approval Center.
-        const headView = await approveInQueue(user, head, "Ana Reyes")
-        await waitFor(() => expect(statusOf()).toBe("PENDING_HR"))
-        headView.unmount()
-
-        // 3. HR approves the request that reached its step.
+        // 2. HR approves the request that reached its step.
         const hrView = await approveInQueue(user, hr, "Ana Reyes")
         await waitFor(() => expect(statusOf()).toBe("APPROVED"))
         hrView.unmount()
 
-        expect(db.rows("meeting_request_events").map((e) => e.action)).toEqual(["FILED", "HEAD_APPROVED", "HR_APPROVED"])
+        expect(db.rows("meeting_request_events").map((e) => e.action)).toEqual(["FILED", "HR_APPROVED"])
 
-        // 4. The meeting is on the Calendar, no longer faded as pending.
+        // 3. The meeting is on the Calendar, no longer faded as pending.
         mockUser.current = applicant
         renderWithProviders(
             <MemoryRouter initialEntries={[`/calendar?date=${tomorrow}`]}>

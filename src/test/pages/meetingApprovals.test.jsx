@@ -15,7 +15,7 @@ import { renderWithProviders, setupUser } from "@/test/support"
 vi.mock("@/components/ProtectedRoute", () => ({ default: ({ children }) => children }))
 vi.mock("@/services/meetingRequestService", async (orig) => {
   const actual = await orig()
-  return { ...actual, meetingRequestService: { ...actual.meetingRequestService, decide: vi.fn(async () => ({})), overrideHead: vi.fn(async () => ({})) } }
+  return { ...actual, meetingRequestService: { ...actual.meetingRequestService, decide: vi.fn(async () => ({})) } }
 })
 
 const request = (id, status, name) => ({
@@ -61,9 +61,9 @@ const renderOpen = (id) =>
 describe("Meeting Requests queue", () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it("a head sees the requests routed to them, and the count matches the rows", async () => {
-    roles = { user: { id: "head-1" }, isHead: true, isHr: false, isSuperAdmin: false }
-    pending = [request("m1", "PENDING_HEAD", "Ana Cruz"), request("m2", "PENDING_HEAD", "Ben Diaz")]
+  it("HR sees the pending-HR requests, and the count matches the rows", async () => {
+    roles = { user: { id: "hr-1" }, isHead: false, isHr: true, isSuperAdmin: false }
+    pending = [request("m1", "PENDING_HR", "Ana Cruz"), request("m2", "PENDING_HR", "Ben Diaz")]
     renderOpen()
 
     expect(await screen.findByText("Ana Cruz")).toBeTruthy()
@@ -72,37 +72,30 @@ describe("Meeting Requests queue", () => {
     expect(screen.getByText("2")).toBeTruthy()
   })
 
-  it("HR sees the pending-HR request and the override on a pending-head one", async () => {
+  it("HR sees the meeting details in the review", async () => {
     roles = { user: { id: "hr-1" }, isHead: false, isHr: true, isSuperAdmin: false }
-    pending = [request("m1", "PENDING_HEAD", "Ana Cruz"), request("m2", "PENDING_HR", "Ben Diaz")]
+    pending = [request("m1", "PENDING_HR", "Ana Cruz"), request("m2", "PENDING_HR", "Ben Diaz")]
     renderOpen("m1")
 
-    expect(await screen.findByRole("button", { name: /Skip the head step/ })).toBeTruthy()
+    expect(await screen.findByText("Conference Room")).toBeTruthy()
     expect(screen.getByText("Conference Room")).toBeTruthy()
     expect(screen.getByText("Fay Facilitator")).toBeTruthy()
     expect(screen.getByText("Pat Cruz")).toBeTruthy()
     expect(screen.getByText("Mr. Visitor")).toBeTruthy()
   })
 
-  it("offers no override at the HR step, and none to a head", async () => {
+  it("offers no head-step override", async () => {
     roles = { user: { id: "hr-1" }, isHead: false, isHr: true, isSuperAdmin: false }
     pending = [request("m2", "PENDING_HR", "Ben Diaz")]
-    const { unmount } = renderOpen("m2")
-    expect(await screen.findByRole("button", { name: /^Approve$/ })).toBeTruthy()
-    expect(screen.queryByRole("button", { name: /Skip the head step/ })).toBeNull()
-    unmount()
-
-    roles = { user: { id: "head-1" }, isHead: true, isHr: false, isSuperAdmin: false }
-    pending = [request("m1", "PENDING_HEAD", "Ana Cruz")]
-    renderOpen("m1")
+    renderOpen("m2")
     expect(await screen.findByRole("button", { name: /^Approve$/ })).toBeTruthy()
     expect(screen.queryByRole("button", { name: /Skip the head step/ })).toBeNull()
   })
 
   it("keeps decline and return disabled until a note is written, and approves without one", async () => {
     const user = setupUser()
-    roles = { user: { id: "head-1" }, isHead: true, isHr: false, isSuperAdmin: false }
-    pending = [request("m1", "PENDING_HEAD", "Ana Cruz")]
+    roles = { user: { id: "hr-1" }, isHead: false, isHr: true, isSuperAdmin: false }
+    pending = [request("m1", "PENDING_HR", "Ana Cruz")]
     renderOpen("m1")
 
     expect((await screen.findByRole("button", { name: /^Decline$/ })).disabled).toBe(true)

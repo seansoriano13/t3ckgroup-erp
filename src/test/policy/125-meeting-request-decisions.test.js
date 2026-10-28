@@ -1,9 +1,8 @@
 /**
- * Meeting Request decisions (#624, spec #609, ADR 0013): the head step, the HR step and the HR override.
+ * Meeting Request decisions (#748, spec #735, ADR 0013): HR is the only approver.
  *
- *   routed head  -> decides PENDING_HEAD; refused at PENDING_HR
- *   unrouted head, ordinary, outsider -> refused at both steps
- *   HR / Super Admin -> decide either step; HR may skip a pending head with a reason
+ *   HR / Super Admin -> approve, decline or return a PENDING_HR request
+ *   a head, even the Facilitator, an ordinary employee and an outsider -> refused
  *   the applicant -> never decides their own request (not even as HR)
  *   decline and return need a note; every transition writes one event row
  */
@@ -18,7 +17,7 @@ let venue
 let slot = 0
 
 // One 15-minute slot per request, on a day no other file uses, so nothing ever clashes.
-const seed = async (status = "PENDING_HEAD", { applicant = "ordinary", head = ids.head } = {}) => {
+const seed = async (status = "PENDING_HR", { applicant = "ordinary", head = ids.head } = {}) => {
     slot += 1
     const start = new Date(Date.UTC(2032, 5, 1, 1, 0, 0) + slot * 15 * 60_000)
     const end = new Date(start.getTime() + 15 * 60_000)
@@ -32,7 +31,7 @@ const seed = async (status = "PENDING_HEAD", { applicant = "ordinary", head = id
             facilitator_id: ids.head,
             purpose: `${MARKER} decision`,
             status,
-            head_id: status === "PENDING_HEAD" ? head : null,
+            head_id: null,
         })
         .select("id")
         .single()
@@ -43,8 +42,6 @@ const seed = async (status = "PENDING_HEAD", { applicant = "ordinary", head = id
 
 const decide = async (who, id, decision, note) =>
     (await clientFor(who)).rpc("decide_meeting_request", { p_request_id: id, p_decision: decision, p_note: note ?? null })
-const override = async (who, id, reason) =>
-    (await clientFor(who)).rpc("override_meeting_request_head", { p_request_id: id, p_reason: reason ?? null })
 const row = async (id) => (await svc().from("meeting_requests").select("*").eq("id", id).single()).data
 const events = async (id) =>
     (await svc().from("meeting_request_events").select("*").eq("request_id", id).order("created_at")).data
@@ -57,71 +54,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
     if (created.length) await svc().from("meeting_requests").delete().in("id", created)
-})
-
-describe("the head step", () => {
-    it("lets the routed head approve, which moves it to HR", async () => {
-        const id = await seed()
-        const { data, error } = await decide("head", id, "APPROVE")
-        expect(error).toBeNull()
-        expect(data).toMatchObject({ from_status: "PENDING_HEAD", to_status: "PENDING_HR", applicant_id: ids.ordinary })
-        const r = await row(id)
-        expect(r.status).toBe("PENDING_HR")
-        expect(r.head_decided_at).toBeTruthy()
-        expect(r.hr_override).toBe(false)
-    })
-
-    it("lets the routed head decline with a note", async () => {
-        const id = await seed()
-        expect((await decide("head", id, "DECLINE", "Room is needed for a client")).error).toBeNull()
-        expect(await row(id)).toMatchObject({ status: "DECLINED", head_note: "Room is needed for a client" })
-    })
-
-    it("lets the routed head return with a note", async () => {
-        const id = await seed()
-        expect((await decide("head", id, "RETURN", "Please add the agenda")).error).toBeNull()
-        expect(await row(id)).toMatchObject({ status: "RETURNED", return_note: "Please add the agenda", returned_by: ids.head })
-    })
-
-    it("refuses a decline or a return without a note", async () => {
-        const id = await seed()
-        for (const decision of ["DECLINE", "RETURN"]) {
-            for (const note of [null, "", "   "]) {
-                expect((await decide("head", id, decision, note)).error?.message).toMatch(/note/i)
-            }
-        }
-        expect((await row(id)).status).toBe("PENDING_HEAD")
-    })
-
-    it("refuses a head the request was not routed to", async () => {
-        const id = await seed()
-        const { error } = await decide("subHead", id, "APPROVE")
-        expect(error?.message).toMatch(/routed/i)
-        expect((await row(id)).status).toBe("PENDING_HEAD")
-    })
-
-    it("refuses an ordinary employee and an outsider", async () => {
-        const id = await seed()
-        expect((await decide("outsider", id, "APPROVE")).error).toBeTruthy()
-        expect((await decide("ordinary", id, "APPROVE")).error).toBeTruthy()
-        expect((await row(id)).status).toBe("PENDING_HEAD")
-    })
-
-    it("refuses the applicant on their own request, even a head routed to themselves", async () => {
-        const id = await seed("PENDING_HEAD", { applicant: "subHead", head: ids.subHead })
-        const { error } = await decide("subHead", id, "APPROVE")
-        expect(error?.message).toMatch(/own/i)
-        expect((await row(id)).status).toBe("PENDING_HEAD")
-    })
-
-    it("lets HR and a Super Admin decide the head step", async () => {
-        const a = await seed()
-        const b = await seed()
-        expect((await decide("hr", a, "APPROVE")).error).toBeNull()
-        expect((await decide("superAdmin", b, "APPROVE")).error).toBeNull()
-        expect((await row(a)).status).toBe("PENDING_HR")
-        expect((await row(b)).status).toBe("PENDING_HR")
-    })
 })
 
 describe("the HR step", () => {
@@ -175,60 +107,29 @@ describe("the HR step", () => {
 
     it("refuses an unknown decision", async () => {
         const id = await seed()
-        expect((await decide("head", id, "MAYBE")).error?.message).toMatch(/unsupported/i)
+        expect((await decide("hr", id, "MAYBE")).error?.message).toMatch(/unsupported/i)
     })
 })
 
-describe("the HR override", () => {
-    it("lets HR skip a pending head step with a reason, and records who and why", async () => {
-        const id = await seed()
-        const { data, error } = await override("hr", id, "Head is on leave this week")
-        expect(error).toBeNull()
-        expect(data).toMatchObject({ from_status: "PENDING_HEAD", to_status: "PENDING_HR" })
-        expect(await row(id)).toMatchObject({ status: "PENDING_HR", hr_override: true, hr_decided_by: ids.hr, hr_note: "Head is on leave this week" })
-        const log = await events(id)
-        expect(log.at(-1)).toMatchObject({
-            action: "HR_OVERRIDE", actor_id: ids.hr, from_status: "PENDING_HEAD", to_status: "PENDING_HR", note: "Head is on leave this week",
-        })
-    })
-
-    it("lets a Super Admin override", async () => {
-        const id = await seed()
-        expect((await override("superAdmin", id, "Urgent")).error).toBeNull()
-        expect((await row(id)).hr_override).toBe(true)
-    })
-
-    it("refuses an override without a reason", async () => {
-        const id = await seed()
-        expect((await override("hr", id, null)).error?.message).toMatch(/reason/i)
-        expect((await override("hr", id, "  ")).error?.message).toMatch(/reason/i)
+describe("the retired head step", () => {
+    it("refuses a decision on a legacy PENDING_HEAD request, even from HR", async () => {
+        const id = await seed("PENDING_HEAD")
+        expect((await decide("hr", id, "APPROVE")).error?.message).toMatch(/not waiting/i)
         expect((await row(id)).status).toBe("PENDING_HEAD")
     })
 
-    it("refuses everyone who is not HR, including the routed head", async () => {
-        const id = await seed()
-        for (const who of ["head", "subHead", "ordinary", "outsider"]) {
-            expect((await override(who, id, "Because")).error?.message).toMatch(/only hr/i)
-        }
-        expect((await row(id)).hr_override).toBe(false)
-    })
-
-    it("refuses an override outside the head step and on HR's own request", async () => {
-        const waitingHr = await seed("PENDING_HR")
-        expect((await override("hr", waitingHr, "Because")).error?.message).toMatch(/waiting for its head/i)
-        const own = await seed("PENDING_HEAD", { applicant: "hr" })
-        expect((await override("hr", own, "Because")).error?.message).toMatch(/own/i)
+    it("has no override function any more", async () => {
+        const { error } = await (await clientFor("hr")).rpc("override_meeting_request_head", { p_request_id: ids.hr, p_reason: "x" })
+        expect(error).toBeTruthy()
     })
 })
 
 describe("the event log", () => {
     it("writes one event row per transition, with the actor and note", async () => {
         const id = await seed()
-        await decide("head", id, "APPROVE", "Fine by me")
         await decide("hr", id, "RETURN", "Move it to the afternoon")
         const log = await events(id)
         expect(log.map((e) => [e.action, e.from_status, e.to_status, e.actor_id, e.note])).toEqual([
-            ["HEAD_APPROVED", "PENDING_HEAD", "PENDING_HR", ids.head, "Fine by me"],
             ["HR_RETURNED", "PENDING_HR", "RETURNED", ids.hr, "Move it to the afternoon"],
         ])
     })
@@ -236,7 +137,7 @@ describe("the event log", () => {
     it("writes nothing when a decision is refused", async () => {
         const id = await seed()
         await decide("outsider", id, "APPROVE")
-        await decide("head", id, "DECLINE")
+        await decide("ordinary", id, "DECLINE")
         expect(await events(id)).toHaveLength(0)
     })
 

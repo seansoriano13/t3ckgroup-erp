@@ -73,19 +73,6 @@ describe("meetingRequestService decisions", () => {
     expect(to("MEETING_REQUEST")).toEqual([])
   })
 
-  it("the override moves it to HR, tells HR and the applicant, and is audited", async () => {
-    stubRpc("override_meeting_request_head", () => {
-      insertRow("meeting_request_events", { request_id: request.id, actor_id: hr.id, action: "HR_OVERRIDE" })
-      return { id: request.id, action: "HR_OVERRIDE", from_status: "PENDING_HEAD", to_status: "PENDING_HR", applicant_id: applicant.id, facilitator_id: facilitator.id, participant_ids: [] }
-    })
-    await meetingRequestService.overrideHead({ requestId: request.id, reason: "Head away", actor: hr })
-    await waitForNetworkIdle()
-
-    expect(to("MEETING_REQUEST")).toContain(hr.id)
-    expect(to("MEETING_REQUEST_DECISION")).toEqual([applicant.id])
-    expect(audit()[0].content).toContain("Head away")
-  })
-
   it("surfaces the database's refusal and sends nothing", async () => {
     stubRpc("decide_meeting_request", () => {
       throw pgrstError("42501", "You cannot decide your own Meeting Request.", { status: 403 })
@@ -96,13 +83,12 @@ describe("meetingRequestService decisions", () => {
     expect(audit()).toHaveLength(0)
   })
 
-  it("a head's queue holds only requests routed to them; HR sees every pending one", async () => {
-    const other = makeHead({ name: "Other Head" })
-    insertRow("meeting_requests", { ...request, id: undefined, head_id: other.id, starts_at: "2031-03-11T01:00:00.000Z", ends_at: "2031-03-11T02:00:00.000Z" })
+  it("only HR and Super Admins have a queue, and it holds the pending-HR requests", async () => {
     insertRow("meeting_requests", { ...request, id: undefined, status: "PENDING_HR", head_id: null, starts_at: "2031-03-12T01:00:00.000Z", ends_at: "2031-03-12T02:00:00.000Z" })
 
-    const mine = await meetingRequestService.listPendingForApprover({ employeeId: head.id })
-    expect(mine.map((r) => r.id)).toEqual([request.id])
-    expect(await meetingRequestService.countPendingForApprover({ employeeId: hr.id, isHr: true })).toBe(3)
+    expect(await meetingRequestService.listPendingForApprover({ employeeId: head.id })).toEqual([])
+    const queue = await meetingRequestService.listPendingForApprover({ employeeId: hr.id, isHr: true })
+    expect(queue.map((r) => r.status)).toEqual(["PENDING_HR"])
+    expect(await meetingRequestService.countPendingForApprover({ employeeId: hr.id, isHr: true })).toBe(1)
   })
 })

@@ -21,8 +21,8 @@ const QUEUE = APPROVAL_QUEUES.find((q) => q.key === "meetings");
 const DONE_TEXT = { APPROVE: "Approved.", DECLINE: "Declined.", RETURN: "Returned." };
 
 /**
- * Meeting Requests (#624) in the Approval Center. A head sees the pending-head requests routed to
- * them; HR and Super Admins see pending-HR requests plus pending-head ones (with the override).
+ * Meeting Requests (#624, #748) in the Approval Center. HR is the only approver: HR and Super
+ * Admins see the pending-HR requests; nobody else has a queue.
  */
 export default function MeetingApprovalsPage() {
   return (
@@ -35,8 +35,7 @@ export default function MeetingApprovalsPage() {
 function MeetingApprovalsQueue() {
   const queryClient = useQueryClient();
   const q = useApprovalQueues();
-  const { user, isHr, isSuperAdmin } = q.roles;
-  const canOverride = isHr || isSuperAdmin;
+  const { user } = q.roles;
 
   const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
   const [search, setSearch] = useState("");
@@ -73,15 +72,6 @@ function MeetingApprovalsQueue() {
     onError: (err) => toast.error(err.message || "Could not record the decision."),
   });
 
-  const override = useMutation({
-    mutationFn: ({ item, reason }) => meetingRequestService.overrideHead({ requestId: item.id, reason, actor: user }),
-    onSuccess: () => {
-      toast.success("Head step skipped. It now waits for HR.");
-      refresh();
-    },
-    onError: (err) => toast.error(err.message || "Could not skip the head step."),
-  });
-
   const stepAfter = (item) => {
     const at = items.findIndex((i) => i.id === item.id);
     const next = items[at + 1] || items[at - 1];
@@ -90,8 +80,7 @@ function MeetingApprovalsQueue() {
     else closeRecord();
   };
   const onDecide = (item, decision, note) => decide.mutate({ item, decision, note }, { onSuccess: () => stepAfter(item) });
-  const onOverride = (item, reason) => override.mutate({ item, reason }, { onSuccess: () => stepAfter(item) });
-  const busy = decide.isPending || override.isPending;
+  const busy = decide.isPending;
 
   if (q.isErrorMeetings) return <QueryError className="m-6" title="Meeting requests could not be loaded." onRetry={q.refetchMeetings} />;
   if (q.isLoadingMeetings) return <PageLoading label="meeting requests" />;
@@ -146,7 +135,7 @@ function MeetingApprovalsQueue() {
               </Tooltip>
             </>
           )}
-          empty={{ title: "Nothing waiting on you right now", description: "Meeting Requests routed to you, or waiting for HR, show up here." }}
+          empty={{ title: "Nothing waiting on you right now", description: "Meeting Requests waiting for HR show up here." }}
         />
       </ApprovalCenterLayout>
 
@@ -163,7 +152,7 @@ function MeetingApprovalsQueue() {
         onClose={closeRecord}
       >
         {(item) => (
-          <MeetingReview key={item.id} item={item} onDecide={onDecide} onOverride={onOverride} canOverride={canOverride} isSubmitting={busy} />
+          <MeetingReview key={item.id} item={item} onDecide={onDecide} isSubmitting={busy} />
         )}
       </ApprovalSheet>
     </>
