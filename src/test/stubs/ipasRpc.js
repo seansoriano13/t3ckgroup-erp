@@ -458,6 +458,7 @@ export function stubIpasRpcs({
       copy: row.odoo_copy,
       payments: rowsOf("ipas_payments").filter((p) => p.ipas_id === row.id),
       charges: rowsOf("ipas_charges").filter((p) => p.ipas_id === row.id),
+      freight: { amount: row.freight_amount, currency: row.freight_currency, billedBySupplier: row.freight_billed_by_supplier },
       split: row.landed_cost_split || "value",
       computationStatus: row.computation_status || "encoding",
       filed: row.state === "filed",
@@ -527,6 +528,7 @@ export function stubIpasRpcs({
       copy: row.odoo_copy,
       payments: rowsOf("ipas_payments").filter((p) => p.ipas_id === row.id),
       charges: rowsOf("ipas_charges").filter((p) => p.ipas_id === row.id),
+      freight: { amount: row.freight_amount, currency: row.freight_currency, billedBySupplier: row.freight_billed_by_supplier },
       split: row.landed_cost_split || "value",
       computationStatus: row.computation_status || "encoding",
       filed: row.state === "filed",
@@ -1196,6 +1198,35 @@ export function stubIpasRpcs({
     })
     event(ipas.id, "charge_changed", { charge_id: updated.id, kind: c.label, changes })
     return updated
+  })
+
+  // #709: fill a charge's date, amount and file; a blank amount is "unknown".
+  stubRpc("ipas_fill_charge", (args) => {
+    requireMoney("ipas_fill_charge")
+    const before = findRow("ipas_charges", args.p_charge_id)
+    if (!before) refuse("P0002", `ipas_fill_charge: charge ${args.p_charge_id} not found`)
+    requireOpenIpas("ipas_fill_charge", before.ipas_id)
+    const amount = args.p_amount_php === null || args.p_amount_php === undefined ? null : Math.round(args.p_amount_php * 100) / 100
+    if (amount !== null && amount <= 0) refuse("22023", "ipas_fill_charge: the amount must be more than zero")
+    return updateRow("ipas_charges", before, {
+      charged_on: args.p_charged_on ?? null,
+      amount_php: amount,
+      attachment_url: args.p_attachment_url || null,
+    })
+  })
+
+  // #709: freight amount, currency, the supplier-billed mark and its file.
+  stubRpc("ipas_set_freight", (args) => {
+    requireMoney("ipas_set_freight")
+    const ipas = requireOpenIpas("ipas_set_freight", args.p_ipas_id)
+    const amount = args.p_amount === null || args.p_amount === undefined ? null : Math.round(args.p_amount * 100) / 100
+    if (amount !== null && amount < 0) refuse("22023", "ipas_set_freight: the freight can't be negative")
+    return updateRow("ipas", ipas, {
+      freight_amount: amount,
+      freight_currency: amount === null ? (args.p_currency || null) : (args.p_currency || "PHP").toUpperCase(),
+      freight_billed_by_supplier: Boolean(args.p_billed_by_supplier),
+      freight_attachment_url: args.p_attachment_url || null,
+    })
   })
 
   stubRpc("ipas_remove_charge", (args) => {

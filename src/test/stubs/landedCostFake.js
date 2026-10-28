@@ -145,6 +145,7 @@ export function allocate(total, weights) {
  * @param {object} input.copy              the stored Odoo copy ({ po, lines })
  * @param {object[]} [input.payments]      ipas_payments rows
  * @param {object[]} [input.charges]       ipas_charges rows
+ * @param {object}   [input.freight]       { amount, currency, billedBySupplier } (#709)
  * @param {string}   [input.split]         value | quantity | equal
  * @param {string}   [input.computationStatus]
  * @param {boolean}  [input.filed]         a filed IPAS is always final
@@ -167,6 +168,7 @@ export function computeLandedCost({
   copy,
   payments = [],
   charges = [],
+  freight = null,
   split = IPAS_LANDED_COST_SPLIT.VALUE,
   computationStatus = IPAS_COMPUTATION_STATUS.ENCODING,
   filed = false,
@@ -222,7 +224,16 @@ export function computeLandedCost({
   }
   // A foreign shipping fee counts at its pesos, or its estimated pesos while those are blank.
   if (!isPhp) shippingC = shippingForeignC;
-  const poolC = chargesC + feesC + shippingC;
+  // Freight (#709): its own amount, unless the supplier billed it inside the payments. In the PO's
+  // currency it converts at the blended rate; a peso freight is taken as it is.
+  let freightC = 0;
+  const freightAmount = finiteNumber(freight?.amount);
+  if (freightAmount !== null && !freight?.billedBySupplier) {
+    const freightCurrency = String(freight?.currency || "PHP").toUpperCase();
+    if (isPhpCurrency(freightCurrency)) freightC = centavos(freightAmount);
+    else if (!isPhp && freightCurrency === String(currency).toUpperCase()) freightC = Math.round(freightAmount * rate * 100);
+  }
+  const poolC = chargesC + freightC + feesC + shippingC;
 
   // Each line's goods, in PHP.
   const items = poLines.map((line) => {
@@ -282,6 +293,7 @@ export function computeLandedCost({
     totals: {
       goodsPhp: pesos(goodsC),
       chargesPhp: pesos(chargesC),
+      freightPhp: pesos(freightC),
       chargeFeesPhp: pesos(feesC),
       shippingFeesPhp: pesos(shippingC),
       spreadPhp: pesos(poolC),

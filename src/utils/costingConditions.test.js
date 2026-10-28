@@ -221,3 +221,19 @@ describe("evaluateCondition — costing_priced kind (#463)", () => {
     expect(evaluateCondition(condition).status).toBe(CONDITION_STATUS.UNSATISFIED)
   })
 })
+
+describe("the Evaluation of Specification approved kind (#707)", () => {
+  it("is met only when a matrix exists and its evaluation sign-off is live", () => {
+    expect(isCostingKind("costing_evaluation_approved")).toBe(true)
+    expect(evaluateCostingCondition("costing_evaluation_approved", { has_matrix: true, evaluation_approved: true }).met).toBe(true)
+    const waiting = evaluateCostingCondition("costing_evaluation_approved", { has_matrix: true, evaluation_approved: false })
+    expect(waiting.met).toBe(false)
+    expect(waiting.messages).toEqual(["The Evaluation of Specification is not approved."])
+    expect(evaluateCostingCondition("costing_evaluation_approved", { has_matrix: false }).failing).toEqual(["no_matrix"])
+    expect(evaluateCostingCondition("costing_evaluation_approved", undefined).met).toBe(false)
+  })
+
+  it("is offered when adding a new condition", () => {
+    expect(NEW_CONDITION_KINDS).toContain("costing_evaluation_approved")
+  })
+})

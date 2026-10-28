@@ -92,7 +92,7 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
   const canEditRows = inAnyBand(bands, COMPONENT_BANDS.name);
   const showAcquire = tierReadsCost(tier, "acquire_unit");
   const showOdoo = tierReadsCost(tier, "odoo_unit");
-  const showFinal = tierReadsCost(tier, "final_acquire_unit");
+  const showFinal = false; // Final Acquire left the screen (#703); the data stays for a later clean-up.
   const showFactor = tierReadsCost(tier, "markup_factor");
   const showMarkupPrice = tierReadsCost(tier, "markup_price_unit");
   const showLanded = tierReadsLandedCost(tier);

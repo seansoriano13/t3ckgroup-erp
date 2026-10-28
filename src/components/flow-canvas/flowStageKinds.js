@@ -96,6 +96,11 @@ export const CONDITION_KIND_META = {
     icon: Tags,
     hint: "Purchasing has costed the matrix: at least one Component, an Acquire unit cost on every Component and cost-only row, and a Purchasing Incharge named. Unmet when there is no matrix.",
   },
+  [CONDITION_KINDS.COSTING_EVALUATION_APPROVED]: {
+    label: "Evaluation of Specification approved",
+    icon: ClipboardCheck,
+    hint: "The Costing Matrix's Evaluation of Specification is approved. Unmet when there is no matrix.",
+  },
   [CONDITION_KINDS.GOODS_CHECKED]: {
     label: "Goods checked",
     icon: ClipboardCheck,
@@ -130,6 +135,13 @@ export const ACTION_KIND_META = {
     label: "Open Costing Matrix",
     icon: Calculator,
     hint: "Opens the SOR's Costing Matrix. One per SOR.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
+  },
+  evaluate_specification: {
+    label: "Evaluation of Specification",
+    icon: ClipboardCheck,
+    hint: "Opens the Costing Matrix for the Technical teams to judge, and holds the deal here until the evaluation is approved.",
     // Saves no title of its own, so it is named by its label.
     titled: false,
   },
@@ -228,7 +240,7 @@ export function actionSummary(action, { employees = [] } = {}) {
   if (action?.kind === "create_group_task") {
     const count = config.members?.length ?? 0
     summary = count > 0 ? `${label} · ${count} assignee${count === 1 ? "" : "s"}` : label
-  } else if (action?.kind === "open_costing_matrix") {
+  } else if (action?.kind === "open_costing_matrix" || action?.kind === "evaluate_specification") {
     const buyer = config.purchasingIncharge?.id
       ? employees.find((e) => e.id === config.purchasingIncharge.id)?.name ?? "someone no longer listed"
       : null

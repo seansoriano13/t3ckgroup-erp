@@ -152,6 +152,8 @@ beforeAll(async () => {
     await asSvc(svc().from("committee_task_members").insert({ committee_task_id: otherTaskId, employee_id: ids.stageParticipant, task_description: "Something else" }), "other member")
 
     await asSvc(svc().from("costing_signer_lists").insert({ list_key: "evaluation", employee_id: ids.outsider }), "evaluation list")
+    // #706: only a member of the row's team marks it. Technical is on the RRD team, and the row is RRD's.
+    await asSvc(svc().from("costing_signer_lists").insert({ list_key: "team_rrd", employee_id: ids.technical }), "RRD team list")
 
     const opened = await svc().rpc("costing_open_matrix", { p_opportunity_id: sorId })
     if (opened.error) throw new Error(`costing_open_matrix: ${opened.error.message}`)
@@ -159,7 +161,7 @@ beforeAll(async () => {
 
     lineId = (
         await asSvc(
-            svc().from("costing_tender_lines").insert({ matrix_id: matrixId, position: 1, tender_specification: "Rescue tripod, 3 m, 22 kN", quantity: 2, created_by: ids.dealOwner }).select("id").single(),
+            svc().from("costing_tender_lines").insert({ matrix_id: matrixId, position: 1, tender_specification: "Rescue tripod, 3 m, 22 kN", quantity: 2, created_by: ids.dealOwner, evaluating_team: "RRD" }).select("id").single(),
             "Tender Line",
         )
     ).id
@@ -179,6 +181,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await svc().from("costing_signer_lists").delete().eq("employee_id", ids.outsider).eq("list_key", "evaluation")
+    await svc().from("costing_signer_lists").delete().eq("employee_id", ids.technical).eq("list_key", "team_rrd")
     await svc().from("employees").update({ has_purchasing_flow: false, call_sign: null }).in("id", [ids.outsider, ids.ipasSigner])
     await svc().from("costing_evaluation_settings").update({ evaluation_template_id: previousTemplateId }).eq("id", true)
     await purgeCostingForSors(sorIds)
