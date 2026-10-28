@@ -331,6 +331,37 @@ describe("computeLandedCost", () => {
   })
 })
 
+describe("computeLandedCost freight (#709)", () => {
+  const oneLine = copy("USD", [line(1, 10, 100)])
+  const paid = [pay("full_payment", 1000, { php_debited: 59320 })]
+
+  it("converts freight in the PO's currency at the blended rate", () => {
+    const result = computeLandedCost({ copy: oneLine, payments: paid, freight: { amount: 470, currency: "USD" } })
+    expect(result.totals.freightPhp).toBe(27880.4)
+    expect(result.totals.landedPhp).toBe(59320 + 27880.4)
+  })
+
+  it("does not add freight the supplier billed again", () => {
+    const result = computeLandedCost({
+      copy: oneLine,
+      payments: paid,
+      freight: { amount: 470, currency: "USD", billedBySupplier: true },
+    })
+    expect(result.totals.freightPhp).toBe(0)
+    expect(result.totals.landedPhp).toBe(59320)
+  })
+
+  it("takes a peso freight as it is", () => {
+    const result = computeLandedCost({ copy: oneLine, payments: paid, freight: { amount: 1500, currency: "PHP" } })
+    expect(result.totals.freightPhp).toBe(1500)
+  })
+
+  it("counts a blank charge as nothing", () => {
+    const result = computeLandedCost({ copy: oneLine, payments: paid, charges: [{ amount_php: null }, charge(200)] })
+    expect(result.totals.chargesPhp).toBe(200)
+  })
+})
+
 describe("allocate", () => {
   it("shares whole centavos in proportion and sums exactly to the total", () => {
     expect(allocate(100, [1, 1, 1])).toEqual([34, 33, 33])

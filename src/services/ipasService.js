@@ -676,6 +676,50 @@ export const ipasService = {
     return data;
   },
 
+  /**
+   * Fills (or blanks) a charge: `{ chargedOn, amountPhp, attachmentUrl }` (#709). A blank amount means
+   * unknown and blocks section 3; a charge with an amount needs its file before section 3.
+   */
+  async fillCharge(chargeId, charge) {
+    const { chargedOn, amountPhp, attachmentUrl } = charge || {};
+    const hasAmount = !(amountPhp === undefined || amountPhp === null || String(amountPhp).trim() === "");
+    const read = hasAmount ? parseAmountInput(amountPhp) : { ok: true, value: null };
+    if (!read.ok || (read.value !== null && read.value <= 0)) {
+      throw new IpasError(IPAS_ERROR.INVALID, "The amount must be a number more than zero, or left blank.");
+    }
+    if (chargedOn && !isIsoDate(chargedOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the charge.");
+    const { data, error } = await supabase.rpc("ipas_fill_charge", {
+      p_charge_id: chargeId,
+      p_charged_on: chargedOn || null,
+      p_amount_php: read.value,
+      p_attachment_url: attachmentUrl || null,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * The IPAS's freight (#709): `{ amount, currency, billedBySupplier, attachmentUrl }`. Freight the
+   * supplier billed is inside the payments already, so Landed Cost does not add it again.
+   */
+  async setFreight(id, freight) {
+    const { amount, currency, billedBySupplier, attachmentUrl } = freight || {};
+    const hasAmount = !(amount === undefined || amount === null || String(amount).trim() === "");
+    const read = hasAmount ? parseAmountInput(amount) : { ok: true, value: null };
+    if (!read.ok || (read.value !== null && read.value < 0)) {
+      throw new IpasError(IPAS_ERROR.INVALID, "The freight must be a number, or left blank.");
+    }
+    const { data, error } = await supabase.rpc("ipas_set_freight", {
+      p_ipas_id: id,
+      p_amount: read.value,
+      p_currency: currency || null,
+      p_billed_by_supplier: Boolean(billedBySupplier),
+      p_attachment_url: attachmentUrl || null,
+    });
+    if (error) throw error;
+    return data;
+  },
+
   async removeCharge(chargeId) {
     const { data, error } = await supabase.rpc("ipas_remove_charge", { p_charge_id: chargeId });
     if (error) throw error;

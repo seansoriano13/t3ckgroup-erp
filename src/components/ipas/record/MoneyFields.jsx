@@ -116,10 +116,81 @@ function AddButton({ onClick, children, icon: Icon = Plus }) {
 
 // ── Section 1: freight and payments ─────────────────────────────────────────
 
-/** The one freight service: a picked value, stored with the rest. */
+/** A file attached to a freight or charge row: shows the link, or an Attach button (#709). */
+function AttachFile({ label, url, disabled, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const attach = async ([file]) => {
+    setUploading(true);
+    try {
+      const link = await uploadDocumentFile(file);
+      if (link) onChange(link);
+    } finally {
+      setUploading(false);
+    }
+  };
+  return (
+    <div className="min-w-0">
+      <FieldBox label={label} />
+      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+        {url ? (
+          <>
+            <ExternalLink href={url} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground underline underline-offset-2">
+              <Paperclip size={13} aria-hidden="true" />
+              View file
+            </ExternalLink>
+            {!disabled && (
+              <Button type="button" variant="ghost" size="xs" className="gap-1 text-muted-foreground" onClick={() => onChange("")}>
+                <X size={12} />
+                Remove
+              </Button>
+            )}
+          </>
+        ) : disabled ? (
+          <span className="text-sm text-muted-foreground">—</span>
+        ) : (
+          <FileInput accept={ALLOWED_EXTENSIONS_STRING} disabled={uploading} onFiles={attach} size="sm" className="gap-1.5">
+            {uploading ? <Spinner size="sm" /> : <Paperclip size={13} aria-hidden="true" />}
+            {uploading ? "Uploading…" : "Attach file"}
+          </FileInput>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Freight (#709): the one freight service, its own amount and currency, the mark that the supplier
+ * billed it (so it is not counted twice) and its file.
+ */
 export function FreightField({ ipas, form, set, disabled }) {
   const options = optionsForPicker(ipas.options ?? [], IPAS_OPTION_LIST.FREIGHT_SERVICE, ipas.freight_service_id).map(asOption);
-  return <PickField id="f-freight" label="Freight service" emptyLabel="None" options={options} value={form.freight} disabled={disabled} onChange={(v) => set("freight", v)} />;
+  const amount = parseAmountInput(form.freightAmount);
+  return (
+    <>
+      <PickField id="f-freight" label="Freight service" emptyLabel="None" options={options} value={form.freight} disabled={disabled} onChange={(v) => set("freight", v)} />
+      <Field
+        id="f-freightAmount"
+        label="Freight amount"
+        kind="amount"
+        value={form.freightAmount}
+        disabled={disabled}
+        error={form.freightAmount !== "" && !amount.ok ? "Not a number" : undefined}
+        onChange={(v) => set("freightAmount", v)}
+      />
+      <Field id="f-freightCurrency" label="Freight currency" placeholder={ipas.currency || "PHP"} value={form.freightCurrency} disabled={disabled} onChange={(v) => set("freightCurrency", v.toUpperCase())} />
+      <FieldBox inline className="gap-1.5 self-end pb-2 text-sm text-foreground">
+        <Checkbox
+          tone="neutral"
+          checked={form.freightBilled}
+          disabled={disabled}
+          aria-label="Freight billed by the supplier"
+          onCheckedChange={(checked) => set("freightBilled", checked === true)}
+        />
+        Billed by the supplier
+      </FieldBox>
+      <AttachFile label="Freight file" url={form.freightUrl} disabled={disabled} onChange={(v) => set("freightUrl", v)} />
+    </>
+  );
 }
 
 /** The one-line explanation under "Forex rate paid" (#708). */
@@ -378,18 +449,22 @@ function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <PickField id={id("kindId")} label="Kind" required placeholder="Pick a kind" options={kinds} value={row.kindId} disabled={disabled} onChange={(v) => onPatch({ kindId: v })} />
-        <Field id={id("chargedOn")} label="Date" kind="date" required value={row.chargedOn} disabled={disabled} onChange={(v) => onPatch({ chargedOn: v })} />
+        <Field id={id("chargedOn")} label="Date" kind="date" required={!saved} value={row.chargedOn} disabled={disabled} onChange={(v) => onPatch({ chargedOn: v })} />
         <Field
           id={id("amountPhp")}
           label="Amount (PHP)"
           kind="amount"
           prefix="PHP"
-          required
+          required={!saved}
           value={row.amountPhp}
           disabled={disabled}
           error={row.amountPhp !== "" && !amount.ok ? "Not a number" : undefined}
           onChange={(v) => onPatch({ amountPhp: v })}
         />
+      </div>
+      <div className="mt-3">
+        <AttachFile label="File" url={row.attachmentUrl} disabled={disabled} onChange={(v) => onPatch({ attachmentUrl: v })} />
+        {saved && row.amountPhp === "" && <p className="mt-1 text-xs text-amber-11">Fill the amount or remove this charge. Section 3 waits for it.</p>}
       </div>
     </DraftRow>
   );

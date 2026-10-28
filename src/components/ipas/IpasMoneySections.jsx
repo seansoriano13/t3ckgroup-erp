@@ -8,6 +8,7 @@ import SectionHeader from "../ui/SectionHeader";
 import { SelectField } from "../ui/SelectField";
 import StatusBadge from "../StatusBadge";
 import { IpasSection } from "./IpasSections";
+import IpasChargesTable from "./IpasChargesTable";
 import IpasPaymentsTable from "./IpasPaymentsTable";
 import { useEditable } from "@/components/record/sectionChrome";
 import {
@@ -23,7 +24,7 @@ import {
   ipasSectionLabel,
 } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
-import { formatDay, optionsForPicker } from "../../utils/ipasPayments";
+import { optionsForPicker } from "../../utils/ipasPayments";
 import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from "../../utils/landedCost";
 
 const SPLIT_OPTIONS = IPAS_LANDED_COST_SPLITS.map((value) => ({
@@ -159,11 +160,11 @@ export function IpasChargesSection({
   children = null,
 }) {
   const canRecord = useEditable(recordGranted);
-  const { charges, paymentSummary: sum } = ipas;
+  const { charges } = ipas;
 
   return (
     <IpasSection title={ipasSectionLabel("finance")}>
-      <SectionHeader title={`Charges · ${charges.length}`} className="border-b-0 pb-2">
+      <SectionHeader title={`Freight and charges · ${charges.length}`} className="border-b-0 pb-2">
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddCharge}>
             <Plus size={14} />
@@ -173,39 +174,7 @@ export function IpasChargesSection({
       </SectionHeader>
 
       <div className="mt-3">
-        <LinerList
-          label="Charges"
-          empty="No charges recorded yet. A charge covering several Odoo POs is recorded as this IPAS's own share."
-          total={charges.length > 0 ? { label: "Total charges", value: pesos(sum.chargesPhp) } : undefined}
-          rows={charges.map((charge) => ({
-            key: charge.id,
-            testId: "ipas-charge-row",
-            main: charge.kindLabel ?? "—",
-            sub: formatDay(charge.charged_on),
-            quantity: pesos(charge.amount_php),
-            actions: canRecord ? (
-              <span className="inline-flex shrink-0 items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Edit ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
-                  onClick={() => onEditCharge(charge)}
-                >
-                  <Pencil />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-red-11"
-                  aria-label={`Remove ${charge.kindLabel ?? "charge"} of ${formatDay(charge.charged_on)}`}
-                  onClick={() => onRemoveCharge(charge)}
-                >
-                  <Trash2 />
-                </Button>
-              </span>
-            ) : undefined,
-          }))}
-        />
+        <IpasChargesTable ipas={ipas} canRecord={canRecord} onEditCharge={onEditCharge} onRemoveCharge={onRemoveCharge} />
       </div>
       {children}
     </IpasSection>
