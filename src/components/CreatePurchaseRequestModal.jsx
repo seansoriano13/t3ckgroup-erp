@@ -5,29 +5,25 @@ import toast from "react-hot-toast";
 import ModalShell from "./ui/ModalShell";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { warningToast } from "./ui/CustomToast";
 import { procurementQueueKey } from "./purchase-request/queryKeys";
 import { canvassService } from "../services/canvassService";
 import { CANVASS_LIST_KEY } from "../constants/canvass";
 
 /**
  * Creates one Purchase Request from Canvasses with no subject yet (ADR 0034): one Requested Item
- * for each, filled from its winner. `canvasses` is `[{ id, number, winner, signedOffAt }]`. Every
- * one needs a winner; one not signed off is allowed, with a warning. Used by the Canvasses page for
+ * for each, filled from its winner. `canvasses` is `[{ id, number, winner }]`. Every
+ * one needs a winner (a Canvass is not signed off, #728). Used by the Canvasses page for
  * the picked rows and by the Canvass panel for the one it is showing.
  */
 export default function CreatePurchaseRequestModal({ open, onOpenChange, canvasses, onCreated }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const noWinner = canvasses.filter((c) => !c.winner);
-  const unsigned = canvasses.filter((c) => !c.signedOffAt);
 
   const create = useMutation({
     mutationFn: () => canvassService.createPurchaseRequest({ title, items: canvasses.map((c) => ({ canvassId: c.id })) }),
     onSuccess: (made) => {
       toast.success("Purchase Request created.");
-      const numbers = canvasses.filter((c) => made.unsignedCanvassIds.includes(c.id)).map((c) => c.number);
-      if (numbers.length > 0) warningToast(`Not signed off yet: ${numbers.join(", ")}.`);
       setTitle("");
       queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
       queryClient.invalidateQueries({ queryKey: procurementQueueKey });
@@ -55,11 +51,6 @@ export default function CreatePurchaseRequestModal({ open, onOpenChange, canvass
       {noWinner.length > 0 && (
         <p role="alert" className="text-sm text-destructive">
           No winner yet: {noWinner.map((c) => c.number).join(", ")}. Pick a winner first.
-        </p>
-      )}
-      {unsigned.length > 0 && (
-        <p role="status" className="text-sm text-amber-600">
-          Not signed off yet: {unsigned.map((c) => c.number).join(", ")}. You can still create the request.
         </p>
       )}
     </ModalShell>

@@ -75,7 +75,7 @@ function Citations({ documents }) {
  * The Canvass of a Component (#276), opened from its row. Where a Canvass exists, a chip shows its
  * number and how many Offers it holds; every reader of the matrix may open it (what they see inside
  * is what their tier allows). Where none exists, only Purchasing gets the "Canvass" action that
- * starts one. The chip also says whether the purchasing approver has signed it off (#279); any change unsigns it.
+ * starts one. An old Canvass that was signed off says so (#279, read-only history since #728).
  */
 export default function ComponentCanvass({ component, canvass, canWrite, opportunityId, actorId }) {
   const [open, setOpen] = useState(false);
@@ -103,12 +103,9 @@ export default function ComponentCanvass({ component, canvass, canWrite, opportu
           {offers} offer{offers === 1 ? "" : "s"}
         </span>
       )}
-      {canvass && (
-        <span
-          data-testid="canvass-signed-state"
-          className={canvass.signed_off_at ? "font-semibold text-green-11" : "text-muted-foreground"}
-        >
-          {canvass.signed_off_at ? "Signed off" : "Not signed"}
+      {canvass?.signed_off_at && (
+        <span data-testid="canvass-signed-state" className="font-semibold text-green-11">
+          Signed off
         </span>
       )}
       {open && (

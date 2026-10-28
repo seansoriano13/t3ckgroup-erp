@@ -35,7 +35,7 @@ Three changes, one model.
 
 - Tickets #728 and #729 assume the slot rule is in place: with no sign-off, the slot rule is the only guard on how a winner is chosen, so it lives in the database, not in the screen.
 - Tests that picked a winner on one Offer now explain the other slots first (policy test helper `coverSlots`).
-- The Canvass sign-off notices, queue and routes are removed by #728, not by #721. Until then the sign-off still works beside the slots.
+- The Canvass sign-off notices, queue and routes were removed by #728, not by #721. `canvass_sign` now refuses everyone; a client cannot write the sign-off columns; editing an old signed Canvass no longer clears its sign-off and writes no history row. The print keeps "Approved by" on old signed Canvasses only.
 - Old Canvasses with a winner on fewer than three covered slots stay valid. The rule applies when a winner is picked or changed.
 
 ## Considered and rejected

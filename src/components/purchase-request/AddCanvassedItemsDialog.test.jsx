@@ -51,7 +51,7 @@ describe("AddCanvassedItemsDialog", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toHaveTextContent("CNV_0001 · Gloves")
     expect(rows[0]).toHaveTextContent("Staple Co · Rapid")
-    expect(rows[0]).toHaveTextContent("Not signed off")
+    expect(rows[0]).not.toHaveTextContent("signed off")
   })
 
   it("says so when no Canvass is ready", async () => {

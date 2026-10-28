@@ -61,7 +61,7 @@ Three rules that explain many surprises:
 | Finance access | `has_finance_flow` flag | Reads IPAS and the Dashboard. Records payments and charges. Sees bank details. Ticks "Finance has it". Edits costing rates and Marketing and OPEX. Starts on the section 3 approval list. |
 | Super Admin | flag | Almost everything. Sets sign-off lists. Reopens a filed IPAS. Sets the first Transmittal number. Overrides the Reference Rate of any currency. Closed Book view of costing. |
 | IPAS sign-off lists | Super Admin fills `ipas_signer_lists` | Section 1 Approved, section 2 Approved, section 3 Approved, section 4 Received, Noted, Checked, Approved (screen numbers; see the IPAS part table in section 9). Being on any list also lets you read every IPAS. |
-| Transmittal staff lists | same table | Warehouse, Technical, Logistics, Check by. They read Transmittals, not IPAS (no prices). Check by also signs Canvasses. |
+| Transmittal staff lists | same table | Warehouse, Technical, Logistics, Check by. They read Transmittals, not IPAS (no prices). Check by no longer signs Canvasses (#728). |
 | Final Acquire list | `costing_signer_lists` | Closed Book view (sees all costing money). Sets Final Acquire and markup. Takes the Bid Decision. **Opens any SOR that has a Costing Matrix**, at any stage, with no mention needed. The access stays after the stage moves. It makes nobody a Deal Team member. |
 | Evaluation list | `costing_signer_lists` | Approves the Evaluation of Specification. **Opens any SOR that has a Costing Matrix** and reads it at the participant tier (specs and compliance, no money). A caller who already has a higher tier keeps it. |
 | Deal Team | on the SOR | Price-tier view of the matrix (never Landed Cost or supplier Offer prices). Adds Requested Items. Cancels items. |
@@ -114,7 +114,6 @@ Two lists open SORs. The **Final Acquire list** and the **Evaluation list** can 
 | Costing Matrix settings | inside the matrix settings | Finance, Super Admin | Rates, markup presets, signer lists, the Evaluation template. |
 | Approval Center: IPAS | `/approvals/ipas` | Sign-off list members | Sign-offs waiting for them. |
 | Approval Center: Transmittals | `/approvals/transmittals` | Check by list | Slips waiting for Check by. |
-| Approval Center: Canvass sign-offs | `/approvals/canvass-signoffs` | Check by list | Canvasses with a winner and a reason, not yet signed. |
 | Approval Center: Bid Decisions | `/approvals/bid-decisions` | Final Acquire list, Super Admin | Matrices with a Final Offer on every line and no live decision. Each row opens its SOR. |
 | SOR modal, PMS tab | inside the SOR | Anyone who can see the SOR | The Costing Matrix (if you have a tier), the Purchase Request card, IPAS summaries, Transmittals and Packing Lists. |
 | SOR modal, Now / Items / Journey | inside the SOR | SOR readers | Show the Buyer, item statuses and where orders stand. |
@@ -132,7 +131,7 @@ This is the usual path for a government project. Many steps can overlap, and non
 1. **The SOR enters a stage that has "Open Costing Matrix".** The Costing Matrix is created. The Sales incharge defaults to the Deal Owner. A Purchasing incharge may be named. If none is, the people in "assigners" are told.
 2. **Sales or the Deal Team opens a Purchase Request** (stage action or optional action). They add Requested Items by picking SOR lines, or by describing a new product. A Buyer from Purchasing takes the request, or the action names one.
 3. **Sales adds the Tender Lines. Purchasing builds the rest of the Matrix.** Purchasing adds Components and cost-only rows, and an Acquire cost on each Component. Optionally it adds Requested Items from Components.
-4. **Canvass.** Purchasing opens a Canvass on a Component, collects Offers (the Canvass is only created, and numbered, when the first Offer is saved), marks a winner and writes the reason. The winner fills the Component's Acquire, spec and brochure. A purchasing approver signs the Canvass.
+4. **Canvass.** Purchasing opens a Canvass on a Component, collects Offers (the Canvass is only created, and numbered, when the first Offer is saved), marks a winner and writes the reason. The winner fills the Component's Acquire, spec and brochure. Nobody signs the Canvass (#728, ADR 0047).
 5. **Costing sign-offs.** Prepared (Sales incharge), Costed (Purchasing incharge), Evaluation approved (evaluation list), Final approved (Final Acquire list). The Final Acquire list sets Final Acquire and markup. Then it takes the Bid Decision: Go, No-go or Revise.
 6. **Stage Conditions** "Costing priced" and "Costing settled" can now pass, so the SOR can leave those stages.
 7. **Ordering in Odoo.** The Requested Item is set to Ordered. A PO number is optional, but without one nothing downstream can link. A PO number is checked against Odoo by the server, and one Odoo does not know is refused.
@@ -348,17 +347,17 @@ Each needs a read tier on the SOR. A signature image is snapshotted at signing, 
 - **Comparison rate** is never the rate actually paid. It pre-fills from the Reference Rate, and the typed value is what is stored. A foreign Offer with no rate has **no PHP figure** at all.
 - **Prices are cost.** Only the Closed Book and cost tiers (Super Admin, Final Acquire list, Purchasing) receive them. A Stage Participant, the Deal Team and anyone "always sees" never do, and the database refuses them, not only the screen. On a Requested Item, prices need Purchasing, Finance or Super Admin on top of reading the request.
 - **Expired quote:** on and after its valid-until date. No date means it never expires.
-- **Winner:** at most one. Marking a new one clears the old. **A winner can be un-picked**, leaving none. That clears the sign-off. What the winner filled on the Costing Matrix stays (still marked "from Canvass") until a new winner replaces it, and the matrix row says no winner is behind it.
+- **Winner:** at most one. Marking a new one clears the old. **A winner can be un-picked**, leaving none. What the winner filled on the Costing Matrix stays (still marked "from Canvass") until a new winner replaces it, and the matrix row says no winner is behind it.
   - On a **Component** the winner fills Acquire (price × comparison rate for foreign, to the centavo), Offer Specification and a brochure citation.
   - A field whose "from Canvass" mark was cleared because someone typed over it is left alone, unless it has no value yet.
   - If a new winner has no price or no description, the old "from Canvass" mark is dropped and the value is kept.
   - On a **Requested Item** a winner fills nothing.
   - The winner's **brand is only proposed.** Sales accepts it into Brand.
 - **Offer Projection:** for each Offer, the Acquire it would fill and the Markup Price that follows. Served to Closed Book and Purchasing only. Purchasing sees the peso price but never the factor.
-- **Sign-off:** the signer must be on the Check by list (the same list that approves Transmittals). They cannot sign a Canvass they opened. It needs a winner and a non-blank reason. A Super Admin who is off the list is refused. Fewer than three Offers is a **warning**, never a block. Editing a signed Canvass **clears the sign-off**: any Offer or price change, a winner change, or a reason change. Nothing locks.
+- **No sign-off (#728, ADR 0047):** a Canvass is not signed off. `canvass_sign` refuses everyone, the Approval Center queue and its notices are gone, and the print has only "Canvassed by". A Canvass signed off before keeps who signed and when as read-only history (screen and print), and later edits no longer clear it. A client cannot write `signed_off_by` or `signed_off_at`. A winner needs three covered supplier slots (ADR 0047).
 - **Create Purchase Request from Canvasses** (Purchasing, on the Canvasses page): pick one or more free-standing Canvasses, give a title, and one Direct request is made with one Requested Item per Canvass, filled from each winner, price included (section 6). Each Canvass then points at its new item and keeps its number, Offers and reason. A Canvass with no winner, one that already has a subject, or one the caller cannot act on is refused, and it is all or nothing. A Canvass not yet signed off only **warns**: buying does not wait for the signature, and the missing sign-off still shows on the item and the printout.
 - **Printout:** suppliers side by side as columns, with price, rate, lead time, quote validity, quality and remarks as rows. When there are more Offers than fit one page, the columns carry on with the row labels repeated.
-- **Canvasser cannot be the signer** is the rule that is easy to trip on. The creator is kept in the trail even if the Canvasser changes.
+- The creator is kept in the trail even if the Canvasser changes.
 
 ---
 
@@ -625,7 +624,6 @@ All are read only. The browser never talks to Odoo, and credentials live in func
 - A flagged Account # clears sections 1 and 2.
 - A Final Offer or Final Acquire change clears the Bid Decision.
 - Spec or verdict changes clear the Evaluation approval.
-- Editing a signed Canvass unsigns it, and so does un-picking its winner.
 - Returning IPAS section 1 or 2 also clears section 4's Received, Noted and Checked.
 
 **Things that can never be undone or are blocked**
@@ -641,7 +639,6 @@ All are read only. The browser never talks to Odoo, and credentials live in func
 
 **Things that warn but do not block**
 - Fewer than three Offers on a Canvass.
-- Creating a Purchase Request from a Canvass that is not signed off yet.
 - Required documents not ticked at Filing.
 - An open Purchase Request at a stage gate (the old rule; the new gate is "Purchasing settled").
 - No Canvass on an ordered item (it says so on the matrix row and the printed sheet).

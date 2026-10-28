@@ -328,16 +328,6 @@ export const NAV_MODULES = {
         isPermitted: (ctx) => ctx.isBidDecider,
         exactMatch: true,
       },
-      {
-        // Canvass sign-offs (#279): Canvasses with a winner and a reason, waiting for the
-        // purchasing approver list (the one that approves Transmittals).
-        key: "approvals.canvassSignoffs",
-        label: "Canvass Sign-offs",
-        link: "/approvals/canvass-signoffs",
-        icon: Scale,
-        isPermitted: (ctx) => ctx.isTransmittalCheckBy,
-        exactMatch: true,
-      },
     ],
   },
   human_resources: {

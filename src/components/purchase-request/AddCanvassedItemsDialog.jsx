@@ -10,7 +10,6 @@ import { SelectField } from "@/components/ui/SelectField";
 import Spinner from "@/components/ui/Spinner";
 import QueryError from "@/components/ui/QueryError";
 import { Button } from "@/components/ui/button";
-import { warningToast } from "@/components/ui/CustomToast";
 import { canvassService } from "../../services/canvassService";
 import { CANVASS_KIND, CANVASS_LIST_KEY } from "../../constants/canvass";
 import { CANVASS_ATTACHABLE_STATUSES } from "../../constants/purchaseRequest";
@@ -72,10 +71,8 @@ export default function AddCanvassedItemsDialog({ open, onOpenChange, requestId,
           return target === NEW_ITEM ? { canvassId: row.id, quantity, unit } : { canvassId: row.id, itemId: target };
         }),
       ),
-    onSuccess: (made) => {
+    onSuccess: () => {
       toast.success(chosen.length === 1 ? "Canvass added." : `${chosen.length} Canvasses added.`);
-      const numbers = chosen.filter((row) => made.unsignedCanvassIds.includes(row.id)).map((row) => row.number);
-      if (numbers.length > 0) warningToast(`Not signed off yet: ${numbers.join(", ")}.`);
       close();
     },
     onError: (error) => toast.error(refusal(error)),
@@ -130,8 +127,8 @@ export default function AddCanvassedItemsDialog({ open, onOpenChange, requestId,
                       {row.number} · {row.productName || row.subjectName}
                     </span>
                     <span className="block text-xs text-muted-foreground">
-                      {winnerLabel(row.winner)} · {row.offerCount} offer{row.offerCount === 1 ? "" : "s"} ·{" "}
-                      {row.signedOffAt ? "Signed off" : "Not signed off"}
+                      {winnerLabel(row.winner)} · {row.offerCount} offer{row.offerCount === 1 ? "" : "s"}
+                      {row.signedOffAt ? " · Signed off" : ""}
                     </span>
                   </span>
                 </FieldBox>

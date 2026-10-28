@@ -1,9 +1,7 @@
 /**
- * Create Purchase Request from Canvasses (ADR 0034). The Canvass is not signed off, so the server
- * answers with `unsignedCanvassIds` and the modal shows a warning. That warning once called
- * `toast.warning`, which react-hot-toast does not have: the request was created, then the handler
- * threw before it refreshed the lists or told the caller. Even without the throw the Purchase
- * Request list was never refreshed, so the new request did not show on its tab until a reload.
+ * Create Purchase Request from Canvasses (ADR 0034). A Canvass is not signed off (#728), so there is no
+ * "not signed off" warning. Once the request is created the lists are refreshed and the caller told;
+ * the Purchase Request list used to go stale until a reload.
  */
 import { describe, expect, it, vi } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
@@ -16,13 +14,13 @@ import { canvassService } from "../services/canvassService"
 vi.mock("../services/canvassService", () => ({ canvassService: { createPurchaseRequest: vi.fn() } }))
 
 describe("Create Purchase Request", () => {
-  it("finishes the create, refreshes the lists and tells the caller, when a Canvass is not signed off", async () => {
-    const made = { requestId: "pr-1", items: [], unsignedCanvassIds: ["c1"] }
+  it("finishes the create, refreshes the lists and tells the caller", async () => {
+    const made = { requestId: "pr-1", items: [], unsignedCanvassIds: [] }
     canvassService.createPurchaseRequest.mockResolvedValue(made)
     const onCreated = vi.fn()
     const client = createTestQueryClient()
     const invalidate = vi.spyOn(client, "invalidateQueries")
-    const canvasses = [{ id: "c1", number: "CNV_0001", winner: { id: "o1" }, signedOffAt: null }]
+    const canvasses = [{ id: "c1", number: "CNV_0001", winner: { id: "o1" } }]
 
     renderWithProviders(<CreatePurchaseRequestModal open onOpenChange={() => {}} canvasses={canvasses} onCreated={onCreated} />, { client })
     await userEvent.type(screen.getByLabelText("Purchase Request title"), "Stretchers")

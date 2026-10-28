@@ -174,7 +174,7 @@ export function signatureBlock(role, title, { who = null, at = null, signaturePa
  *   canvass   `canvassService.get`'s result (Offers carry their price keys only for a money reader)
  *   subject   `{ sor, component: { number, name } }`, `{ sor, requestedItem: { name } }`, or
  *             `{ product: { name } }` for a Canvass with no subject yet
- *   people    `{ creator, approver, checker }`, each `{ name, signaturePath?, at? }` or absent;
+ *   people    `{ creator, approver }`, each `{ name, signaturePath?, at? }` or absent;
  *             `creator` prints as "Canvassed by" (the printer hands the Canvasser over)
  *
  * The Offers come twice: `offers`, one row per Offer, and `offerGroups`, the same rows cut into the
@@ -200,6 +200,8 @@ export function buildCanvassViewModel({ canvass, subject = {}, people = {} }, { 
     offers: rows,
     offerGroups: offerGroups(rows),
     warning: moreOffersWarning(offers, canvass.noOtherSupplier ?? []),
+    // Only "Canvassed by" is signed (#728, ADR 0047). An old Canvass that was signed off still
+    // prints its "Approved by" from the read-only sign-off columns; there is no Check-by block.
     signatures: [
       signatureBlock('Canvassed by', 'Purchasing', {
         who: people.creator?.name,
@@ -207,17 +209,16 @@ export function buildCanvassViewModel({ canvass, subject = {}, people = {} }, { 
         signaturePath: people.creator?.signaturePath,
         verb: 'canvassed',
       }),
-      signatureBlock('Checked by', 'Purchasing', {
-        who: people.checker?.name,
-        at: people.checker?.at,
-        signaturePath: people.checker?.signaturePath,
-      }),
-      signatureBlock('Approved by', 'Purchasing approver', {
-        who: approved ? (people.approver?.name ?? canvass.signer?.name) : null,
-        at: canvass.signed_off_at,
-        signaturePath: people.approver?.signaturePath,
-        verb: 'e-signed',
-      }),
+      ...(approved
+        ? [
+            signatureBlock('Approved by', 'Purchasing approver', {
+              who: people.approver?.name ?? canvass.signer?.name,
+              at: canvass.signed_off_at,
+              signaturePath: people.approver?.signaturePath,
+              verb: 'e-signed',
+            }),
+          ]
+        : []),
     ],
     printedOn: printDate(printedAt),
     printedBy: text(printedBy),

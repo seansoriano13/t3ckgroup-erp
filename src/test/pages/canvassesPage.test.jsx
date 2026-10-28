@@ -370,7 +370,7 @@ describe("the Canvasses page", () => {
     expect(screen.queryByRole("button", { name: /^create purchase request$/i })).not.toBeInTheDocument();
   });
 
-  it("creates one Purchase Request from picked Canvasses and warns when one is not signed", async () => {
+  it("creates one Purchase Request from picked Canvasses, with no sign-off warning", async () => {
     const user = setupUser();
     renderPage();
     await screen.findAllByTestId("canvass-row");
@@ -378,7 +378,8 @@ describe("the Canvasses page", () => {
     expect(screen.queryByLabelText("Pick Canvass CNV_0001")).not.toBeInTheDocument();
     await user.click(screen.getByLabelText("Pick Canvass CNV_0002"));
     await user.click(screen.getByRole("button", { name: /create purchase request \(1\)/i }));
-    expect(await screen.findByRole("status")).toHaveTextContent("CNV_0002");
+    await screen.findByLabelText("Purchase Request title");
+    expect(screen.queryByText(/not signed off/i)).not.toBeInTheDocument();
     await user.type(screen.getByLabelText("Purchase Request title"), "Office buy");
     await user.click(screen.getByRole("button", { name: /create request/i }));
 

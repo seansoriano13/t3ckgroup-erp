@@ -66,7 +66,7 @@ describe("a winner on the S0 Evaluation page", () => {
     expect(await screen.findByTestId("brand-proposal")).toHaveTextContent("Canvass says Redleaf");
   });
 
-  it("un-picks the winner: no winner, sign-off cleared, values kept, and a note on the row", async () => {
+  it("un-picks the winner: no winner, an old sign-off kept, values kept, and a note on the row", async () => {
     const user = mount({ tier: "cost", bands: ["purchasing"] });
     await openLines();
     await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc. the winner/ }));
@@ -79,7 +79,7 @@ describe("a winner on the S0 Evaluation page", () => {
     await user.click(within(await screen.findByRole("dialog", { name: "Clear the winner?" })).getByRole("button", { name: "Clear winner" }));
 
     await waitFor(() => expect(db.rows("sor_canvass_offers").some((o) => o.is_winner)).toBe(false));
-    expect(db.rows("sor_canvasses")[0].signed_off_at).toBeNull();
+    expect(db.rows("sor_canvasses")[0].signed_off_at).toBe("2026-10-20T01:00:00Z");
     // What the winner filled stays, still marked.
     expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
     expect(await screen.findByTestId("no-winner-note")).toBeInTheDocument();
