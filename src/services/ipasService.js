@@ -720,6 +720,25 @@ export const ipasService = {
     return data;
   },
 
+  /** Whether the caller is on the Markup list (or a Super Admin): the only ones who set the multiplier and discount (#710). */
+  async canSetMarkup() {
+    const { data, error } = await supabase.rpc("ipas_can_set_markup");
+    if (error) throw error;
+    return Boolean(data);
+  },
+
+  /** The retail multiplier and the wholesale discount percent of an IPAS (#710). Markup list only. */
+  async setMarkup(id, { multiplier, discount }) {
+    const mult = multiplier === null || multiplier === undefined || multiplier === "" ? null : Number(multiplier);
+    const disc = Number(discount);
+    if ((mult !== null && !(mult > 0)) || !Number.isFinite(disc) || disc < 0 || disc >= 100) {
+      throw new IpasError(IPAS_ERROR.INVALID, "The multiplier must be more than zero, and the discount from 0 up to 100.");
+    }
+    const { data, error } = await supabase.rpc("ipas_set_markup", { p_ipas_id: id, p_multiplier: mult, p_discount_pct: disc });
+    if (error) throw error;
+    return data;
+  },
+
   async removeCharge(chargeId) {
     const { data, error } = await supabase.rpc("ipas_remove_charge", { p_charge_id: chargeId });
     if (error) throw error;

@@ -86,6 +86,8 @@ export function buildBlocks(ctx) {
         canSetStatus={can.setStatus}
         onSetStatus={on.setComputationStatus}
         onSetSplit={on.setSplit}
+        canSetMarkup={can.markup}
+        onSetMarkup={on.setMarkup}
       >
         {signoffs(6)}
       </IpasCostingSection>
