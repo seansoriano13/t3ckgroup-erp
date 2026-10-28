@@ -3,6 +3,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { markRecoveryActive } from "./recoveryFlag";
 import { isResetPasswordPath, isRecoveryLanding } from "./recoveryLink";
+import { reportSupabaseFailure } from "./errorTracking";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -64,6 +65,9 @@ const customFetch = async (url, options, retries = 2) => {
           "[Supabase] SSL Handshake Failed (525) → network/HTTP3 issue"
         );
       }
+
+      // Not awaited: reporting must never slow down or break the request.
+      reportSupabaseFailure({ url, method: options?.method, response }).catch(() => {});
     }
 
     return response;

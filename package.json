@@ -59,6 +59,7 @@
         "@radix-ui/react-dialog": "^1.1.23",
         "@radix-ui/react-visually-hidden": "^1.2.11",
         "@react-oauth/google": "^0.13.5",
+        "@sentry/react": "^11.9.0",
         "@supabase/supabase-js": "^2.103.0",
         "@tailwindcss/vite": "^4.2.2",
         "@tanstack/react-query": "^5.99.0",
@@ -92,6 +93,7 @@
     },
     "devDependencies": {
         "@eslint/js": "^9.39.4",
+        "@sentry/vite-plugin": "^11.9.0",
         "@testing-library/dom": "^10.4.1",
         "@testing-library/jest-dom": "^7.0.1",
         "@testing-library/react": "^16.3.2",

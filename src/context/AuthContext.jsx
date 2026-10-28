@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase.js";
 import { isRecoveryActive } from "../lib/recoveryFlag.js";
 import { isResetPasswordPath } from "../lib/recoveryLink.js";
+import { setErrorTrackingUser } from "../lib/errorTracking.js";
 
 const AuthContext = createContext(null);
 const PROFILE_CACHE_KEY = "t3ck_user_profile";
@@ -31,6 +32,11 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     userEmailRef.current = user?.email;
   }, [user]);
+
+  // Error reports carry who it happened to (id, role, department), nothing else.
+  useEffect(() => {
+    setErrorTrackingUser(user);
+  }, [user?.id, user?.role, user?.department, user?.subDepartment]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resolveEmployee = async (sessionUser, isMounted) => {
     if (!isMounted) return;

@@ -13,6 +13,9 @@ import { VersionUpdateNotifier } from "./components/VersionUpdateNotifier"
 import { StagingBanner } from "./components/StagingBanner"
 import { MaintenanceGate } from "./components/MaintenanceGate"
 import { Button } from "./components/ui/button"
+import { initErrorTracking, reportRenderError } from "./lib/errorTracking"
+
+initErrorTracking()
 
 // Auto-reload when dynamic chunk imports fail due to new deployments
 window.addEventListener("vite:preloadError", () => {
@@ -63,7 +66,7 @@ function ThemeApplier({ children }) {
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <ErrorBoundary FallbackComponent={GlobalErrorFallback}>
+    <ErrorBoundary FallbackComponent={GlobalErrorFallback} onError={reportRenderError}>
       <QueryClientProvider client={queryClient}>
         <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
           <AuthProvider>
