@@ -768,10 +768,10 @@ export default function GroupTaskDetailModal({
         className="z-[70] flex flex-col transition-all duration-300"
       >
         {/* CONTENT WRAPPER — split when isSplitScreen */}
-        <div className={cn("flex flex-1 overflow-hidden", isSplitScreen ? "flex-row" : "flex-col")}>
+        <div className={cn("flex flex-1 min-h-0 overflow-hidden", isSplitScreen ? "flex-row" : "flex-col")}>
 
         {/* TASK PANEL (left in split, full in normal) */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
 
         {/* HEADER */}
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-mauve-3/40 shrink-0 relative overflow-hidden bg-card">
@@ -958,7 +958,7 @@ export default function GroupTaskDetailModal({
         </div>
 
         {/* TASK CONTENT */}
-        <div className="overflow-y-auto custom-scrollbar bg-card/50 p-6 space-y-8 flex-1">
+        <div className="overflow-y-auto min-h-0 custom-scrollbar bg-card/50 p-6 space-y-8 flex-1">
           {activeTab === "overview" ? (
             <>
               {isReadOnly && (
