@@ -253,6 +253,7 @@ create table if not exists public."costing_component_costs" (
   "final_acquire_unit" numeric(18,2),
   "markup_factor" numeric(10,4),
   "acquire_from_offer_id" uuid,
+  "acquire_source" text,
   "p0_unit_price" numeric,
   "p0_quoted_unit_price" numeric,
   "p0_currency" text
@@ -7838,7 +7839,7 @@ begin
   -- Acquire unit: the price as quoted, or price x comparison rate, to the centavo.
   if v_price is not null then
     v_acquire := round(case when v_offer.currency = 'PHP' then v_price else v_price * v_rate end, 2);
-    if v_cost.acquire_from_offer_id is not null or v_cost.acquire_unit is null then
+    if v_cost.acquire_from_offer_id is not null or v_cost.acquire_unit is null or v_cost.acquire_source = 'odoo' then
       perform public.costing_set_money(
         'costing_component_costs', v_component_id,
         jsonb_build_object('acquire_unit', v_acquire, 'acquire_from_offer_id', p_offer_id)
@@ -9537,7 +9538,7 @@ begin
 
   select count(*),
          count(*) filter (where cc.final_acquire_unit is null),
-         count(*) filter (where cc.acquire_unit is null)
+         count(*) filter (where cc.acquire_unit is null and cc.p0_unit_price is null)
     into v_components, v_missing, v_no_acquire
     from public.costing_components c
     join public.costing_tender_lines l on l.id = c.tender_line_id

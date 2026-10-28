@@ -693,3 +693,56 @@ export function costingPriced(inputs) {
   if (inputs.has_purchasing_incharge !== true) failing.push("no_purchasing_incharge");
   return { met: failing.length === 0, failing };
 }
+
+// ---------------------------------------------------------------------------
+// Where a row's cost came from (#701)
+// ---------------------------------------------------------------------------
+
+const hasValue = (value) => value !== null && value !== undefined && value !== "";
+
+/**
+ * A Component's cost and where it came from, or null while it has none. A typed cost wins over
+ * every other source (a fill never replaces it); then the Canvass winner, the attached P0's price,
+ * Odoo's `standard_price`.
+ *
+ * Returns `{ source, pesos, price, currency }`: `source` is "typed" | "canvass" | "p0" | "odoo",
+ * `pesos` the unit cost in pesos, `price` the figure as quoted (the same as `pesos`, except for a
+ * foreign P0). A viewer whose tier was not sent the cost columns gets null.
+ */
+export function resolveCost(component) {
+  const c = component ?? {};
+  const acquire = c.acquire_unit;
+  const own = (source) => ({ source, pesos: acquire, price: acquire, currency: "PHP" });
+  if (hasValue(acquire) && c.acquire_source === "typed") return own("typed");
+  if (hasValue(acquire) && c.acquire_from_offer_id) return own("canvass");
+  if (hasValue(c.p0_unit_price)) {
+    return {
+      source: "p0",
+      pesos: c.p0_unit_price,
+      price: hasValue(c.p0_quoted_unit_price) ? c.p0_quoted_unit_price : c.p0_unit_price,
+      currency: c.p0_currency || "PHP",
+    };
+  }
+  if (hasValue(acquire)) return own(c.acquire_source === "odoo" ? "odoo" : "typed");
+  if (hasValue(c.odoo_unit)) return { source: "odoo", pesos: c.odoo_unit, price: c.odoo_unit, currency: "PHP" };
+  return null;
+}
+
+/**
+ * The cost of one S0 line, per unit of the line. One Component: its own resolved cost. Several: their
+ * costs added up over the line's quantity, `source` the one they share or "mixed". Null while any
+ * part has no cost, or the line has no Component.
+ */
+export function lineCost(line) {
+  const parts = line?.components ?? [];
+  if (parts.length === 0) return null;
+  const costs = parts.map(resolveCost);
+  if (costs.some((cost) => cost === null)) return null;
+  if (parts.length === 1) return costs[0];
+  const quantity = Number(line.quantity);
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+  const total = parts.reduce((sum, part, i) => sum + (extendedCentavos(costs[i].pesos, part.quantity) ?? 0n), 0n);
+  const pesos = Math.round(Number(total) / quantity) / 100;
+  const sources = new Set(costs.map((cost) => cost.source));
+  return { source: sources.size === 1 ? [...sources][0] : "mixed", pesos, price: pesos, currency: "PHP" };
+}
