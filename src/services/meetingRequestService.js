@@ -263,14 +263,12 @@ export const meetingRequestService = {
   },
 
   /**
-   * Requests waiting on the signed-in person's step (#624). A head sees the PENDING_HEAD ones
-   * routed to them; HR and Super Admins see PENDING_HR plus every PENDING_HEAD (which they may
-   * override). Nobody is shown their own request.
+   * Requests waiting on HR (#748). Only HR and Super Admins have a queue; nobody is shown their
+   * own request.
    */
   async listPendingForApprover({ employeeId, isHr = false, isSuperAdmin = false } = {}) {
-    let query = supabase.from('meeting_requests').select(REQUEST_SELECT).order('created_at');
-    if (isHr || isSuperAdmin) query = query.in('status', [MEETING_STATUS.PENDING_HEAD, MEETING_STATUS.PENDING_HR]);
-    else query = query.eq('status', MEETING_STATUS.PENDING_HEAD).eq('head_id', employeeId);
+    if (!isHr && !isSuperAdmin) return [];
+    const query = supabase.from('meeting_requests').select(REQUEST_SELECT).eq('status', MEETING_STATUS.PENDING_HR).order('created_at');
     const { data, error } = await query;
     if (error) throw new Error(error.message);
     return (data ?? []).filter((r) => r.applicant_id !== employeeId);

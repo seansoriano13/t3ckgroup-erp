@@ -60,9 +60,8 @@ export function useNavBadges(user) {
   });
   const leaveApprovals = isSuperAdmin || isHead || isHr ? pendingHeadApprovals.length : 0;
 
-  // 2b. Meeting Requests waiting on this person's step (#624): the head's routed ones, or for
-  // HR / Super Admin everything at the head or HR step.
-  const canSeeMeetings = isSuperAdmin || isHead || isHr;
+  // 2b. Meeting Requests waiting on HR (#748): only HR / Super Admin decide them.
+  const canSeeMeetings = isSuperAdmin || isHr;
   const { data: pendingMeetings = [] } = useQuery({
     queryKey: ["meeting-requests", "nav-badge", user?.id, isHr, isSuperAdmin],
     queryFn: () => meetingRequestService.listPendingForApprover({ employeeId: user.id, isHr, isSuperAdmin }),

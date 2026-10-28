@@ -9,7 +9,7 @@ export const TIME_OPTIONS = Array.from({ length: 64 }, (_, i) => {
 export const manilaInstant = (ymd, hhmm) => new Date(`${ymd}T${hhmm}:00+08:00`).toISOString();
 
 /** Why a draft cannot be filed yet, in plain words, or null. */
-export function draftProblem({ venueId, date, start, end, facilitatorId, purpose, headId, needsHead }, now = new Date()) {
+export function draftProblem({ venueId, date, start, end, facilitatorId, purpose }, now = new Date()) {
   if (!venueId) return 'Choose a Venue.';
   if (!date) return 'Choose a date.';
   if (!start || !end) return 'Choose a start and end time.';
@@ -17,6 +17,5 @@ export function draftProblem({ venueId, date, start, end, facilitatorId, purpose
   if (new Date(manilaInstant(date, start)) < now) return 'The meeting cannot start in the past.';
   if (!facilitatorId) return 'Choose a Facilitator.';
   if (!purpose.trim()) return 'Write the purpose of the meeting.';
-  if (needsHead && !headId) return 'Choose the approving head.';
   return null;
 }

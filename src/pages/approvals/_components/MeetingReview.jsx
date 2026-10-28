@@ -20,10 +20,9 @@ const EVENT_LABEL = {
 
 /**
  * Reviewing one Meeting Request (#624). `onDecide(item, decision, note)` with decision
- * APPROVE | DECLINE | RETURN (a note is required for the last two); `onOverride(item, reason)` is
- * offered to HR / Super Admin while the request still waits on its head.
+ * APPROVE | DECLINE | RETURN (a note is required for the last two). HR is the only approver (#748).
  */
-export function MeetingReview({ item, onDecide, onOverride, canOverride, isSubmitting }) {
+export function MeetingReview({ item, onDecide, isSubmitting }) {
   const req = item.source;
   const [note, setNote] = useState("");
   const needsNote = note.trim() === "";
@@ -74,7 +73,7 @@ export function MeetingReview({ item, onDecide, onOverride, canOverride, isSubmi
           onChange={(e) => setNote(e.target.value)}
           rows={2}
           aria-label="Note to the applicant"
-          placeholder="Note (required to decline, return or skip the head step)"
+          placeholder="Note (required to decline or return)"
           className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]"
         />
         <NotePresets presets={NOTE_PRESETS.meetings} onPick={(q) => setNote((n) => (n ? `${n} ${q}` : q))} />
@@ -89,11 +88,6 @@ export function MeetingReview({ item, onDecide, onOverride, canOverride, isSubmi
             Approve
           </Button>
         </div>
-        {canOverride && req.status === "PENDING_HEAD" && (
-          <Button variant="ghost" className="w-full" disabled={isSubmitting || needsNote} onClick={() => onOverride(item, note)}>
-            Skip the head step (HR override)
-          </Button>
-        )}
       </SlideOverFooter>
     </>
   );

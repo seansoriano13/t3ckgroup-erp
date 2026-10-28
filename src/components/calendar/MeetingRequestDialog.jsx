@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { FieldBox } from '@/components/ui/FieldBox';
 import { SelectField } from '@/components/ui/SelectField';
 import PeoplePicker from '@/components/ui/PeoplePicker';
-import HeadSelectField from '@/components/offsets/HeadSelectField';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
@@ -78,7 +77,6 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const [guests, setGuests] = useState(editing?.guests ?? []);
   const [guestDraft, setGuestDraft] = useState('');
   const [purpose, setPurpose] = useState(editing?.purpose ?? '');
-  const [headId, setHeadId] = useState(editing?.head_id ?? '');
 
   const { data: venues = [] } = useQuery({ queryKey: ['calendar-venues'], queryFn: () => meetingRequestService.listVenues() });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => employeeService.getAllEmployees() });
@@ -117,8 +115,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         })
       : [];
 
-  const needsHead = !user?.is_head && !user?.isHead;
-  const problem = clash ? clashMessage(clash) : draftProblem({ venueId, date, start, end, facilitatorId, purpose, headId, needsHead });
+  const problem = clash ? clashMessage(clash) : draftProblem({ venueId, date, start, end, facilitatorId, purpose });
 
   const addGuest = () => {
     const name = guestDraft.trim();
@@ -138,7 +135,6 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           purpose,
           guests,
           participantIds,
-          headId: needsHead ? headId : null,
           actor: user,
         });
         if (resend) await meetingRequestService.resend({ requestId: editing.id, actor: user });
@@ -152,7 +148,6 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         purpose,
         guests,
         participantIds,
-        headId: needsHead ? headId : null,
         applicant: user,
       });
     },
@@ -257,11 +252,6 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           <FieldBox label="Purpose" className="mb-1.5 block" />
           <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} placeholder="What is the meeting for?" />
         </div>
-        {needsHead && (
-          <div className="sm:col-span-2">
-            <HeadSelectField employee={user} value={headId} onChange={setHeadId} />
-          </div>
-        )}
       </div>
       {warnings.length > 0 && (
         <ul className="mt-2 flex flex-col gap-1 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs" data-testid="soft-warnings">
