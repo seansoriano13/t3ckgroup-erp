@@ -13,6 +13,8 @@ import ReportFigure from "@/components/ui/ReportFigure";
 import { TablePager } from "@/components/ui/TablePager";
 import { FilterSelect } from "@/components/ui/FilterDropdown";
 import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AwardedBadge } from "@/components/purchasing/AwardedBadge";
+import { sorAwardService } from "../../../../services/sorAwardService";
 import { IdentityCell } from "@/components/purchasing/list/IdentityCell";
 import ExportButton from "@/components/purchasing/list/ExportButton";
 import ColumnsMenu from "@/components/purchasing/list/ColumnsMenu";
@@ -118,10 +120,17 @@ function useTrackerData() {
     enabled: sorIds.length > 0,
   });
 
+  const { data: awards } = useQuery({
+    queryKey: ["purchasing-dashboard", "awards", sorIds],
+    queryFn: () => sorAwardService.forSors(sorIds),
+    enabled: sorIds.length > 0,
+  });
+
   return {
     rows,
     orders,
     names,
+    awards,
     deadlines,
     nearDays,
     isLoading: rowsQuery.isLoading || ordersQuery.isLoading,
@@ -311,7 +320,9 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
                               reference={word ? undefined : sor.short}
                               word={word}
                               name={sor.noSor ? "Orders with no SOR" : sor.projectTitle}
-                            />
+                            >
+                              <AwardedBadge date={data.awards?.get(sor.key)} className="mt-1" />
+                            </IdentityCell>
                           );
                         }
                         if (column.stage) {
