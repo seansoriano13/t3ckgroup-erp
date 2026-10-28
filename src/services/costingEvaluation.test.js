@@ -164,11 +164,10 @@ describe("the Evaluation of Specification", () => {
       stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["technical"], actorId: reviewer.id, onEvaluationList: false });
       expect((await costingMatrixService.sign(matrix.id).catch((e) => e)).message).toMatch(/evaluation list/);
 
-      // #274: the other roles belong to the incharges and the Final Acquire list (or a Closed Book reader), none of which
-      // the reviewer is.
-      stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: [], actorId: reviewer.id, onFinalAcquireList: false });
+      // #722: Prepared, Costed and Final approved are no longer sign-offs for anyone.
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: [], actorId: reviewer.id });
       for (const role of ["prepared", "costed", "final_approved"]) {
-        expect((await costingMatrixService.sign(matrix.id, role).catch((e) => e)).message, role).toMatch(/only/);
+        expect((await costingMatrixService.sign(matrix.id, role).catch((e) => e)).message, role).toMatch(/is not a sign-off/);
       }
     });
   });

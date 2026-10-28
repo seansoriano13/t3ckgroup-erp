@@ -252,7 +252,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-2 xl:self-start">
           {tierReadsBidDecision(matrix.tier) && <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} />}
           {showClosedBook && <MarkupPlayground key={matrix.defaultFactor ?? "none"} matrix={matrix} writes={writes} />}
-          <SignoffBar matrix={matrix} actorId={actorId} isFinalAcquire={Boolean(user?.isFinalAcquire)} nameOf={incharge.nameOf} writes={writes} />
+          <SignoffBar matrix={matrix} nameOf={incharge.nameOf} />
         </aside>
       </div>
     </div>
