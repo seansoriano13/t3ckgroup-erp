@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { itemsForVisit, shapeSorOverview } from "../utils/sorPurchaseRequest";
 import { notificationService } from "./notificationService";
+import { sorAwardService } from "./sorAwardService";
 import { accessWindowSummary } from "../utils/stageAudience";
 import { SOURCE_DEAL_TEAM, SOURCE_MENTION } from "../utils/mySorsFilters";
 import { sorStageParticipantService } from "./sorStageParticipantService";
@@ -842,6 +843,11 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
       p_opportunity_id: existing.id,
     });
     if (submittedError) console.error("costing_mark_bid_submitted failed", submittedError);
+  }
+
+  // #746 — a Date of Award that just went from blank to filled tells Purchasing.
+  if (stampsDateOfAward) {
+    await sorAwardService.notifyPurchasing({ ...existing, date_of_award: patch.date_of_award }, actorId);
   }
 
   const fromName = from?.name || "—";
@@ -2235,6 +2241,11 @@ export const opportunityService = {
         { event: "OPPORTUNITY_UPDATED", employeeId: noteActorId, changes },
         noteActorId,
       ).catch(console.error);
+    }
+
+    // #746 — typing in a blank Date of Award tells Purchasing, once.
+    if (!existing.date_of_award && final.date_of_award) {
+      await sorAwardService.notifyPurchasing(final, noteActorId);
     }
 
     // A `field`-kind condition on the Stage this deal is still sitting on

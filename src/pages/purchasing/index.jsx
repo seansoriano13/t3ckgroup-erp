@@ -17,6 +17,8 @@ import { useTableSort } from "../../hooks/useTableSort";
 import { usePaging } from "../../hooks/usePaging";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
 import { IdentityCell } from "../../components/purchasing/list/IdentityCell";
+import { AwardedBadge } from "../../components/purchasing/AwardedBadge";
+import { sorAwardService } from "../../services/sorAwardService";
 import { StateCell, STATE_HEAD_CLASS } from "../../components/purchasing/list/StateCell";
 import ExportButton from "../../components/purchasing/list/ExportButton";
 import { listAge, listAgeDays, listDate } from "../../utils/listDates";
@@ -160,7 +162,7 @@ function TakeButton({ requestId }) {
   );
 }
 
-function QueueRow({ row, selected, onOpen, canTake, stageTones }) {
+function QueueRow({ row, selected, onOpen, canTake, stageTones, awardedOn }) {
   const { reference, title } = requestIdentity(row);
   const direct = requestKind(row) === REQUEST_KIND.DIRECT;
   return (
@@ -188,6 +190,7 @@ function QueueRow({ row, selected, onOpen, canTake, stageTones }) {
       </IdentityCell>
       <TableCell className="hidden md:table-cell">
         <StageCell row={row} tones={stageTones} />
+        <AwardedBadge date={awardedOn} className="mt-1" />
       </TableCell>
       <TableCell className="hidden md:table-cell">
         <ProgressCell row={row} />
@@ -251,6 +254,13 @@ function PurchaseRequests() {
     queryFn: () => salesFlowService.getAllStagesIndex(),
   });
   const stageTones = useMemo(() => flowStageTonesByName(flowStagesIndex), [flowStagesIndex]);
+  // #746: the Date of Award of each request's SOR, for the "Awarded" badge.
+  const sorIds = useMemo(() => [...new Set(rows.map((r) => r.opportunity_id).filter(Boolean))].sort(), [rows]);
+  const { data: awards } = useQuery({
+    queryKey: ["purchase-request", "awards", sorIds],
+    queryFn: () => sorAwardService.forSors(sorIds),
+    enabled: sorIds.length > 0,
+  });
 
   // Search, kind and Buyer narrow first; the Open / Closed / All pills count within that.
   const narrowed = useMemo(() => {
@@ -400,6 +410,7 @@ function PurchaseRequests() {
                       onOpen={open}
                       canTake={purchaser}
                       stageTones={stageTones}
+                      awardedOn={awards?.get(row.opportunity_id)}
                     />
                   ))}
                 </TableBody>
