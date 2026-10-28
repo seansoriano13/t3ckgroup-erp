@@ -163,6 +163,14 @@ export function flowLockBlockers({ stages = [], edges = [], wonStageId = null } 
     }
   }
 
+  // #757 — Auto-move needs exactly one next Stage.
+  for (const s of [...stages].sort(byFlowOrder)) {
+    if (!s.auto_move) continue
+    if (edges.filter((e) => e.from_stage_id === s.id).length !== 1) {
+      blockers.push(`${s.name} is set to move on by itself, so it needs exactly one next Stage.`)
+    }
+  }
+
   return blockers
 }
 

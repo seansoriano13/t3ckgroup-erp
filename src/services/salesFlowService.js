@@ -668,6 +668,45 @@ export const salesFlowService = {
     return stagesOf(flowId);
   },
 
+  /**
+   * Auto-move (#757): a Stage with exactly one next Stage can move a deal on
+   * by itself once every condition is met. Refused on a Stage with any other
+   * number of next Stages.
+   */
+  async setStageAutoMove(stageId, autoMove, actorId) {
+    await requireSuperAdmin(actorId);
+    const { stage } = await requireDraftStage(stageId);
+
+    if (autoMove) {
+      const { data: outgoing, error: edgeError } = await supabase
+        .from("flow_edges")
+        .select("id")
+        .eq("from_stage_id", stageId);
+      if (edgeError) throw edgeError;
+      if ((outgoing || []).length !== 1) {
+        throw new Error(`"${stage.name}" needs exactly one next Stage to move on by itself.`);
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("flow_stages")
+      .update({ auto_move: Boolean(autoMove), updated_at: new Date().toISOString() })
+      .eq("id", stageId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "FLOW_STAGE",
+      stageId,
+      `Stage "${data.name}" auto-move turned ${data.auto_move ? "on" : "off"}.`,
+      { event: "FLOW_STAGE_AUTO_MOVE_SET", autoMove: data.auto_move, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
   /** Marks a Stage as one where deals stop. A flow may have many. */
   async setStageTerminal(stageId, isTerminal, actorId) {
     await requireSuperAdmin(actorId);
