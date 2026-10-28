@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { mealBreakService } from './mealBreakService';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { cleanAttachments, checkOverlap, checkDateTaken, stampApplication } from './offsetService';
@@ -72,6 +73,7 @@ export const silService = {
    * Apply for SIL Leave (Employee)
    */
   async applySilLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
+    await mealBreakService.refresh();
     const parsedHours = deriveLeaveHours(startTime, endTime);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');

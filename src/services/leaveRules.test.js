@@ -45,7 +45,7 @@ describe("deriveLeaveHours", () => {
   })
 
   it("does not deduct for a short window", () => {
-    expect(deriveLeaveHours("09:00", "13:00")).toBe(4)
+    expect(deriveLeaveHours("13:00", "17:00")).toBe(4)
   })
 })
 

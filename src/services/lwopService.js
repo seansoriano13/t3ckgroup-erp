@@ -4,6 +4,7 @@ import { systemAuditLogService } from './systemAuditLogService';
 import { cleanAttachments, checkOverlap, checkDateTaken, stampApplication } from './offsetService';
 import { manilaToday } from '../lib/manilaDate';
 import { describeLeaveRange, formatWindow } from '../utils/time';
+import { mealBreakService } from './mealBreakService';
 import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours } from './leaveRules';
 
 /**
@@ -34,6 +35,7 @@ export const lwopService = {
    * Apply for LWOP on a single day with a time window (Employee).
    */
   async applyLwopLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
+    await mealBreakService.refresh();
     const parsedHours = deriveLeaveHours(startTime, endTime);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
