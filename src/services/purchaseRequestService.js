@@ -394,11 +394,15 @@ export const purchaseRequestService = {
    * the P0's facts. A number Odoo doesn't have is refused (this throws, naming it); so is an
    * Odoo that doesn't answer, because a P0 is never attached unseen. Throws on a number that
    * isn't an Odoo P0 ("P" then digits). Returns the updated item.
+   *
+   * #724: on a project line, a flow with a "Buying opens here" Stage refuses the attach until the
+   * SOR has entered it. That refusal throws an error whose `code` is "buying_not_open"; sending
+   * `orderEarly` with a typed `orderEarlyReason` attaches anyway and records the reason.
    */
-  async attachP0(itemId, poNumber) {
+  async attachP0(itemId, poNumber, { orderEarly = false, orderEarlyReason = "" } = {}) {
     const po = normalizePoNumber(poNumber);
     if (!po || !isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
-    return purchaseRequestService.applyPoAction("attach", itemId, po);
+    return purchaseRequestService.applyPoAction("attach", itemId, po, orderEarly ? { orderEarly: true, orderEarlyReason } : {});
   },
 
   /**
@@ -448,9 +452,9 @@ export const purchaseRequestService = {
    * Saves a PO on an item through the server (`odoo-po-verify`, save mode).
    * `action` is "attach" (#684) or "correct" (#549).
    */
-  async applyPoAction(action, itemId, poNumber) {
+  async applyPoAction(action, itemId, poNumber, extra = {}) {
     const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
-      body: { action, itemId, poNumber },
+      body: { action, itemId, poNumber, ...extra },
     });
     if (error) {
       let message = "Couldn't save the PO number. Try again.";
@@ -462,7 +466,9 @@ export const purchaseRequestService = {
       }
       throw new Error(message);
     }
-    if (!data?.success) throw new Error(data?.message || "Couldn't save the PO number. Try again.");
+    if (!data?.success) {
+      throw Object.assign(new Error(data?.message || "Couldn't save the PO number. Try again."), { code: data?.code });
+    }
     return data.item;
   },
 

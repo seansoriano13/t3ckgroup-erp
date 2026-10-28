@@ -52,6 +52,23 @@ describe("StageSettingsPanel", () => {
     expect(onSetTerminalOutcome).toHaveBeenCalledWith("won");
   });
 
+  it("flags and unflags Buying opens here", () => {
+    const onToggleBuyingOpens = vi.fn();
+    const { rerender } = render(<StageSettingsPanel {...defaultProps} onToggleBuyingOpens={onToggleBuyingOpens} />);
+    const button = screen.getByRole("button", { name: "Buying opens here?" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(button);
+    expect(onToggleBuyingOpens).toHaveBeenCalledTimes(1);
+    rerender(
+      <StageSettingsPanel
+        {...defaultProps}
+        stage={{ ...defaultProps.stage, buying_opens_here: true }}
+        onToggleBuyingOpens={onToggleBuyingOpens}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Buying opens here" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("doesn't ask on a Stage that isn't terminal, or on the Won Stage", () => {
     const props = { ...defaultProps, onSetTerminalOutcome: vi.fn() };
     const { rerender } = render(<StageSettingsPanel {...props} />);

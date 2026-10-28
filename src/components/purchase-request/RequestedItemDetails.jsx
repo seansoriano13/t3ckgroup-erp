@@ -79,6 +79,11 @@ export default function RequestedItemDetails({ item, stock, costText, replaces, 
     // #684: what Sales asked for, and what the attached P0 bought, when they differ.
     item.po_number && item.bought_as && isFromS0(item) && { label: "Asked as", value: item.name },
     item.po_number && item.bought_as && isFromS0(item) && { label: "Bought as", value: <span data-testid="requested-item-bought-as">{item.bought_as}</span> },
+    // #724: the P0 was attached before the SOR reached the stage that opens buying.
+    item.ordered_early_reason && {
+      label: "Ordered early",
+      value: <span data-testid="requested-item-ordered-early">{item.ordered_early_reason}</span>,
+    },
     mergedFrom && { label: "Merged with", value: `Your request "${mergedFrom.name}"` },
     { label: "Source", value: itemSectionLabel(item) },
     isFromS0(item) && { label: "Requested by", value: <>{item.requester?.name || "Unknown"}{item.created_at && <span className="text-muted-foreground"> · {formatDate(item.created_at)}</span>}</> },

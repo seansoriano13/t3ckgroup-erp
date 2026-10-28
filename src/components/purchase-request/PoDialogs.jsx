@@ -9,6 +9,7 @@ import ModalShell from "@/components/ui/ModalShell";
 import QueryError from "@/components/ui/QueryError";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import Spinner from "@/components/ui/Spinner";
 import { warningToast } from "@/components/ui/CustomToast";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
@@ -79,6 +80,9 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
   const refresh = useRefreshRequest(requestId);
   const [typed, setTyped] = useState("");
   const [picked, setPicked] = useState("");
+  // #724: set when the server says buying has not opened for this SOR; the buyer may Order early with a reason.
+  const [notOpen, setNotOpen] = useState(null);
+  const [earlyReason, setEarlyReason] = useState("");
   const reference = p0Reference(request);
   const productId = item.odoo_product_id ?? null;
 
@@ -96,11 +100,18 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
   const close = () => {
     setTyped("");
     setPicked("");
+    setNotOpen(null);
+    setEarlyReason("");
     onOpenChange(false);
   };
 
   const attachMutation = useMutation({
-    mutationFn: () => purchaseRequestService.attachP0(item.id, chosen),
+    mutationFn: () =>
+      purchaseRequestService.attachP0(
+        item.id,
+        chosen,
+        notOpen ? { orderEarly: true, orderEarlyReason: earlyReason.trim() } : undefined,
+      ),
     onSuccess: (updated) => {
       toast.success(
         updated?.status === ITEM_STATUS.TO_PURCHASE
@@ -109,10 +120,14 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
       );
       close();
     },
-    onError: (error) => toast.error(refusal(error)),
+    onError: (error) => {
+      if (error?.code === "buying_not_open") setNotOpen(refusal(error));
+      else toast.error(refusal(error));
+    },
     onSettled: refresh,
   });
   const busy = attachMutation.isPending;
+  const earlyMissing = !!notOpen && !earlyReason.trim();
   const rowsOf = (list) => list.map((p0) => p0Row({ p0, productId, chosen: picked, onChoose: (name) => { setTyped(""); setPicked(name); } }));
 
   return (
@@ -123,12 +138,12 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
       crumbs={["Purchase Requests", "Attach P0"]}
       onSubmit={(e) => {
         e.preventDefault();
-        if (chosen && !busy) attachMutation.mutate();
+        if (chosen && !busy && !earlyMissing) attachMutation.mutate();
       }}
       actions={
-        <Button size="lg" type="submit" disabled={!chosen || busy}>
+        <Button size="lg" type="submit" disabled={!chosen || busy || earlyMissing}>
           {busy && <Spinner size="sm" />}
-          {chosen ? `Attach ${chosen}` : "Attach P0"}
+          {chosen ? `${notOpen ? "Order early and attach" : "Attach"} ${chosen}` : "Attach P0"}
         </Button>
       }
     >
@@ -158,6 +173,19 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
         )
       ) : (
         <p className="text-xs text-muted-foreground">This request has no S0 or PR number to search Odoo by. Type the P0 number below.</p>
+      )}
+      {notOpen && (
+        <section className="space-y-2" data-testid="order-early">
+          <p className="text-sm text-destructive">{notOpen}</p>
+          <FieldBox label="Order early: why now?" bare>
+            <Textarea
+              value={earlyReason}
+              onChange={(e) => setEarlyReason(e.target.value)}
+              rows={2}
+              placeholder="The Deal Owner is told this reason"
+            />
+          </FieldBox>
+        </section>
       )}
       <div className="space-y-1.5">
         <FieldBox label="Or type a P0 number" bare>
