@@ -887,6 +887,44 @@ export const salesFlowService = {
   },
 
   /**
+   * Names the flow's Notice of Award Stage, the Stage whose first arrival fills
+   * in a blank Date of Award (ADR 0047). Like the Won Stage, it is a column on
+   * the flow, so a flow can name only one. Null clears it.
+   */
+  async setAwardStage(flowId, stageId, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraft(flowId);
+
+    let stageName = "None";
+    if (stageId !== null) {
+      const stages = await stagesOf(flowId);
+      const stage = stages.find((s) => s.id === stageId);
+      if (!stage) {
+        throw new Error("A flow's Notice of Award Stage must be one of its own Stages.");
+      }
+      stageName = stage.name;
+    }
+
+    const { data, error } = await supabase
+      .from("sales_flows")
+      .update({ award_stage_id: stageId, updated_at: new Date().toISOString() })
+      .eq("id", flowId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      flowId,
+      `Notice of Award Stage set to "${stageName}".`,
+      { event: "FLOW_AWARD_STAGE_SET", flowId, stageId, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
    * Designates where this flow's deals are won. Set by the developer on the
    * lock screen, phrased as "where have we won the deal" and never labelled
    * with commission vocabulary (issue #36) — but it is what

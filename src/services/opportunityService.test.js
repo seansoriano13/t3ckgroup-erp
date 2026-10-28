@@ -1754,6 +1754,39 @@ describe("opportunityService", () => {
       expect(won.contract_date).toBeTruthy()
     })
 
+    describe("Date of Award (#744, ADR 0047)", () => {
+      beforeEach(() => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).award_stage_id = qualified.id
+      })
+
+      it("fills a blank Date of Award the first time the deal reaches the flow's Notice of Award Stage", async () => {
+        const deal = await register()
+        expect(deal.date_of_award).toBeFalsy()
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.date_of_award).toBeTruthy()
+      })
+
+      it("never overwrites a Date of Award that was typed in earlier", async () => {
+        const deal = await register()
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).date_of_award = "2026-01-15"
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.date_of_award).toBe("2026-01-15")
+      })
+
+      it("leaves the Date of Award blank on a Stage that is not the Notice of Award Stage", async () => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).award_stage_id = null
+        const deal = await register()
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.date_of_award).toBeFalsy()
+      })
+    })
+
     it("keeps the Contract Date when the deal loops back out of the Won Stage", async () => {
       // ADR 0006 — Realized is a fact about the deal, and a later move cannot
       // unsay that it was won. The positional rule needed a special case here.

@@ -583,6 +583,7 @@ export function makeFlowSnapshot(overrides = {}) {
         stageFields,
         followUps,
         wonStageId: flow?.won_stage_id ?? null,
+        awardStageId: flow?.award_stage_id ?? null,
         saleTypeId: flow?.sale_type_id ?? null,
       })
 

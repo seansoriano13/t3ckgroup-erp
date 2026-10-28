@@ -98,6 +98,11 @@ const RECORD_FIELD_WRITERS = {
   sales_reference: (v) => cleanSalesReference(v),
   expected_award_date: (v) => v || null,
   po_date: (v) => v || null,
+  // Manila dates (ADR 0039). Open to the Deal Team while blank; a set Date of
+  // Award is locked to Super Admin by the database.
+  date_of_award: (v) => v || null,
+  date_of_pdi: (v) => v || null,
+  date_of_delivery: (v) => v || null,
   deal_owner_id: (v) => v || null,
   closing_sales_id: (v) => v || null,
   support_sales_1_id: (v) => v || null,
@@ -649,6 +654,7 @@ async function snapshotContextFor(opportunity) {
     conditions: d.conditions || [],
     stageFields: d.stageFields || [],
     wonStageId: d.wonStageId ?? null,
+    awardStageId: d.awardStageId ?? null,
   };
 }
 
@@ -735,6 +741,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     stages,
     edges,
     wonStageId,
+    awardStageId,
     conditions: snapshotConditions,
     actions: snapshotActions,
     stageFields: snapshotStageFields,
@@ -795,6 +802,14 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     patch.contract_date = getCurrentLocalDate();
   }
 
+  // ADR 0047 — the flow's Notice of Award Stage fills in a blank Date of
+  // Award. A date the Deal Team typed in earlier is never overwritten.
+  // A Return lands through its own RPC and stamps nothing.
+  const stampsDateOfAward = !isReturn && awardStageId === to.id && !existing.date_of_award;
+  if (stampsDateOfAward) {
+    patch.date_of_award = getCurrentLocalDate();
+  }
+
   // A Return's move and its choice commit together (sor_move_and_resume /
   // sor_move_and_start_fresh): a refused choice leaves the SOR where it was.
   // It lands before the entry Actions run, so a Start fresh's closed-off
@@ -831,6 +846,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     to: to.id,
     employeeId: actorId,
     stampedContractDate: stampsContractDate,
+    stampedDateOfAward: stampsDateOfAward,
     ...(isReturn ? { returnChoice } : {}),
   };
   const returnChoiceLabel =
