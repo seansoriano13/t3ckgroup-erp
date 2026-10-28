@@ -1,5 +1,5 @@
 import { stubRpc } from "@/test/msw/server"
-import { db, insertRow, updateRow } from "@/test/db/store"
+import { db, deleteRows, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { canvassFill } from "@/test/db/triggers"
 
@@ -123,6 +123,19 @@ export async function seedCanvass(subject = {}, actorId = null, { productName = 
 }
 
 /**
+ * Explains every empty slot 2 and 3 of a Canvass as "No other supplier" (#721), so a test that is
+ * about something else can still pick a winner: a winner needs Offers plus these marks to number three.
+ */
+export function explainEmptySlots(canvassId, reason = "No other supplier in this test") {
+  const offers = rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === canvassId).length
+  for (const slot of [2, 3].filter((n) => offers < n)) {
+    if (!rowsOf("sor_canvass_no_other_supplier").some((m) => m.canvass_id === canvassId && m.slot === slot)) {
+      insertRow("sor_canvass_no_other_supplier", { canvass_id: canvassId, slot, reason })
+    }
+  }
+}
+
+/**
  * `canvass_apply_winner` and `costing_accept_brand` (supabase/migrations/
  * 20261019120000_canvass_winner_fills_matrix.sql, #278), re-implemented on the in-memory store.
  * The fake has no caller, so `bands` says which Costing Matrix bands the caller holds: a
@@ -142,11 +155,43 @@ export function stubCanvassWinnerRpcs({ bands = ["purchasing"], superAdmin = fal
   const roundCentavo = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
   const blank = (v) => v === null || v === undefined || String(v).trim() === ""
 
+  const slotsCovered = (canvassId) => {
+    const offers = rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === canvassId).length
+    return offers + rowsOf("sor_canvass_no_other_supplier").filter((m) => m.canvass_id === canvassId && m.slot > offers).length
+  }
+
+  // canvass_set_no_other_supplier / canvass_clear_no_other_supplier (20261113030000, #721).
+  stubRpc("canvass_set_no_other_supplier", (args) => {
+    const reason = String(args.p_reason ?? "").trim()
+    if (!reason) throw pgrstError("22023", "canvass_set_no_other_supplier: say why there is no other supplier", { status: 400 })
+    const offers = rowsOf("sor_canvass_offers").filter((o) => o.canvass_id === args.p_canvass_id).length
+    for (const slot of args.p_slots ?? []) {
+      if (![2, 3].includes(slot)) throw pgrstError("22023", "canvass_set_no_other_supplier: only slot 2 or slot 3 can be marked", { status: 400 })
+      if (offers >= slot) throw pgrstError("22023", `canvass_set_no_other_supplier: slot ${slot} already has an Offer`, { status: 400 })
+    }
+    for (const slot of args.p_slots ?? []) {
+      const existing = rowsOf("sor_canvass_no_other_supplier").find((m) => m.canvass_id === args.p_canvass_id && m.slot === slot)
+      const fields = { reason, actor_id: null, created_at: new Date().toISOString() }
+      if (existing) updateRow("sor_canvass_no_other_supplier", existing, fields)
+      else insertRow("sor_canvass_no_other_supplier", { canvass_id: args.p_canvass_id, slot, ...fields })
+    }
+    return { canvass_id: args.p_canvass_id, slots: args.p_slots, covered: slotsCovered(args.p_canvass_id) }
+  })
+  stubRpc("canvass_clear_no_other_supplier", (args) => {
+    const existing = rowsOf("sor_canvass_no_other_supplier").find((m) => m.canvass_id === args.p_canvass_id && m.slot === args.p_slot)
+    if (existing) deleteRows("sor_canvass_no_other_supplier", [existing])
+    return { canvass_id: args.p_canvass_id, slot: args.p_slot, cleared: Boolean(existing) }
+  })
+
   stubRpc("canvass_apply_winner", (args) => {
     const canvass = rowsOf("sor_canvasses").find((c) => c.id === args.p_canvass_id)
     if (!canvass) throw pgrstError("P0002", "canvass_apply_winner: not found", { status: 404 })
     const offer = rowsOf("sor_canvass_offers").find((o) => o.id === args.p_offer_id && o.canvass_id === canvass.id)
     if (!offer) throw pgrstError("P0002", "canvass_apply_winner: that Offer is not on this Canvass", { status: 404 })
+    // #721: three slots, each an Offer or an explained "No other supplier".
+    if (slotsCovered(canvass.id) < 3) {
+      throw pgrstError("22023", "canvass_apply_winner: a winner needs three supplier slots filled or explained. Add an Offer or mark No other supplier with a reason", { status: 400 })
+    }
     const price = rowsOf("sor_canvass_offer_prices").find((p) => p.offer_id === offer.id)
     const rate = price?.comparison_rate ?? null
     if (offer.currency !== "PHP" && (rate === null || rate === undefined)) {

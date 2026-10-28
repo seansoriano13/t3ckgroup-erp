@@ -9,6 +9,7 @@
  *               or the Requested Item
  *   Decision    the chosen supplier, brand, lead time, validity, the unit price large in the quoted
  *               currency (the PHP figure and rate beneath where foreign), and the reason as written
+ *   Slots       the three supplier slots: each an Offer's supplier or "No other supplier" with its reason
  *   Offers      side by side: one column per supplier, one row per detail (what was offered,
  *               quoted, PHP figure, lead time, quality, validity, brochure, remarks), the chosen
  *               column marked; more than four suppliers continue in a second table below
@@ -25,7 +26,7 @@
  * Strings are raw text. The composer escapes them.
  */
 
-import { moreOffersWarning, offerCurrency, phpFigure } from '../../utils/canvassMath';
+import { moreOffersWarning, offerCurrency, phpFigure, supplierSlots } from '../../utils/canvassMath';
 import { DEFAULT_CURRENCY } from '../../constants/canvass';
 import { printAmount, printDate } from './ipasViewModel';
 
@@ -109,6 +110,23 @@ function decisionBlock(canvass, winner) {
   };
 }
 
+/**
+ * The three supplier slots as the paper prints them (#721): the supplier of an Offer, or "No other
+ * supplier" with its reason, who said so and when, or "Not filled".
+ */
+export function slotRows(offers = [], marks = []) {
+  const { slots } = supplierSlots(offers, marks);
+  return slots.map((s) => {
+    if (s.kind === 'offer') return { slot: s.slot, kind: 'offer', label: text(s.offer.supplier_name) ?? text(s.offer.brand) ?? BLANK, reason: null, by: null };
+    if (s.kind === 'none') {
+      const when = printDate(s.mark.created_at);
+      const by = [text(s.mark.actor?.name), when].filter(Boolean).join(' · ');
+      return { slot: s.slot, kind: 'none', label: 'No other supplier', reason: text(s.mark.reason) ?? BLANK, by: by || null };
+    }
+    return { slot: s.slot, kind: 'empty', label: 'Not filled', reason: null, by: null };
+  });
+}
+
 /** How many suppliers sit side by side in one comparison table on portrait A4. */
 export const OFFERS_PER_TABLE = 4;
 
@@ -178,9 +196,10 @@ export function buildCanvassViewModel({ canvass, subject = {}, people = {} }, { 
       offerCount: offers.length,
     },
     decision: decisionBlock(canvass, winner),
+    slots: slotRows(offers, canvass.noOtherSupplier ?? []),
     offers: rows,
     offerGroups: offerGroups(rows),
-    warning: moreOffersWarning(offers),
+    warning: moreOffersWarning(offers, canvass.noOtherSupplier ?? []),
     signatures: [
       signatureBlock('Canvassed by', 'Purchasing', {
         who: people.creator?.name,

@@ -247,6 +247,7 @@ describe("the Canvasses page", () => {
   it("refreshes the Purchase Requests when a winner is picked, so a request opened next is not stale", async () => {
     const canvass = db.seed("sor_canvasses", { product_name: "Ink", canvasser_id: marco.id, created_by: marco.id });
     db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Ink Hub", is_winner: false });
+    for (const slot of [2, 3]) db.seed("sor_canvass_no_other_supplier", { canvass_id: canvass.id, slot, reason: "Sole supplier" });
     const user = setupUser();
     const { client } = renderPage();
     client.setQueryData(["purchase-request", "some-request", "items"], []);
@@ -323,6 +324,8 @@ describe("the Canvasses page", () => {
 
     await user.type(await screen.findByLabelText("Canvass 1 product"), "Whiteboard markers");
     await fillOffer(user, 1, 1, { supplier: "National Book Store", price: "45" });
+    await fillOffer(user, 1, 2, { supplier: "Pen Depot", price: "39" });
+    await fillOffer(user, 1, 3, { supplier: "Office Hub", price: "42" });
     await user.click(screen.getByRole("button", { name: "Pick canvass 1 offer 1 as the winner" }));
 
     // Needs a title before the one-step button is on.

@@ -3,7 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
-import { seedCanvass, stubCanvassMoneyRpc, stubCanvassSignoffRpcs, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
+import { explainEmptySlots, seedCanvass, stubCanvassMoneyRpc, stubCanvassSignoffRpcs, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
 import { renderComponentCanvass } from "@/test/support/costingDesk";
@@ -51,6 +51,7 @@ describe("the sign-off on the Canvass panel", () => {
     canvass = await seedCanvass({ componentId: component.id }, purchaser.id);
     const redleaf = await canvassService.addOffer(canvass.id, { supplierName: "Redleaf Inc.", brand: "Redleaf", unitPrice: 78000 }, purchaser.id);
     await canvassService.addOffer(canvass.id, { supplierName: "Ferno", brand: "Ferno", unitPrice: 82500 }, purchaser.id);
+    explainEmptySlots(canvass.id);
     await canvassService.markWinner(canvass.id, redleaf.id);
     await canvassService.setReason(canvass.id, "Cheapest quote that meets the load.");
   });

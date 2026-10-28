@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import ModalShell from "./ui/ModalShell";
 import CanvassOffersGrid from "./CanvassOffersGrid";
+import CanvassSlots from "./CanvassSlots";
 import CanvassSignoffDialog from "./CanvassSignoffDialog";
 import CanvassUnlockDialog from "./CanvassUnlockDialog";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
@@ -53,7 +54,7 @@ import { useAuth } from "../context/AuthContext";
 import { CANVASS_CURRENCIES, CANVASS_KIND, MIN_CANVASS_OFFERS, CANVASS_LIST_KEY, CANVASS_LOCKED_MESSAGE, DEFAULT_CURRENCY } from "../constants/canvass";
 import { getPermissionContext } from "../utils/permissions";
 import { CANVASS_STATE_TONES, canvassRequestState, canvassStateOf } from "../utils/canvassList";
-import { offerCurrency } from "../utils/canvassMath";
+import { canPickWinner, offerCurrency } from "../utils/canvassMath";
 import { projectOffer } from "../utils/offerProjection";
 import { useCostingMatrix, useCostingTier } from "./costing/useCostingMatrix";
 import { COSTING_TIER } from "../constants/costing";
@@ -363,7 +364,7 @@ function OfferProjection({ projection }) {
   );
 }
 
-function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUpdate, onRemove, onMove, onWin, onClearWin, isPending }) {
+function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, canPick = true, onUpdate, onRemove, onMove, onWin, onClearWin, isPending }) {
   const [isEditing, setIsEditing] = useState(false);
   const title = offer.supplier_name || offer.brand || "this offer";
 
@@ -416,10 +417,16 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, onUp
             type="button"
             variant="ghost"
             size="xs"
-            disabled={isPending || needsRate}
+            disabled={isPending || needsRate || !canPick}
             onClick={() => onWin(offer.id)}
             aria-label={`Mark ${title} the winner`}
-            title={needsRate ? "Add the comparison rate before this offer can win" : "Mark this offer the winner"}
+            title={
+              needsRate
+                ? "Add the comparison rate before this offer can win"
+                : !canPick
+                  ? "Fill or explain all three supplier slots first"
+                  : "Mark this offer the winner"
+            }
             className="h-auto rounded-lg px-1.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-amber-a3 hover:text-amber-11"
           >
             <Award size={12} className="mr-1" aria-hidden="true" />
@@ -670,6 +677,18 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
       const what = [filled.acquire && "Acquire", filled.offer_specification && "Offer Specification", filled.documents && "documents"].filter(Boolean);
       toast.success(what.length ? `Winner marked. Filled ${what.join(", ")} from this Canvass.` : "Winner marked.");
     },
+    onError,
+  });
+
+  // "No other supplier" on an empty slot 2 or 3 (#721); a winner needs the three slots covered.
+  const markNoOtherMutation = useMutation({
+    mutationFn: ({ slots, reason }) => canvassService.markNoOtherSupplier(canvass.id, slots, reason),
+    onSuccess: invalidate,
+    onError,
+  });
+  const clearNoOtherMutation = useMutation({
+    mutationFn: (slot) => canvassService.clearNoOtherSupplier(canvass.id, slot),
+    onSuccess: invalidate,
     onError,
   });
 
@@ -1027,6 +1046,18 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
               )}
 
               <section className="space-y-3">
+                <SectionHeading title="Supplier slots" />
+                <CanvassSlots
+                  offers={offers}
+                  marks={canvass.noOtherSupplier || []}
+                  canEdit={canChange}
+                  isPending={markNoOtherMutation.isPending || clearNoOtherMutation.isPending}
+                  onMark={(input) => markNoOtherMutation.mutate(input)}
+                  onClear={(slot) => clearNoOtherMutation.mutate(slot)}
+                />
+              </section>
+
+              <section className="space-y-3">
                 <SectionHeading title={`Offers · ${offers.length}`} />
                 {canvass.moreOffersWarning && (
                   <p className="text-xs text-amber-12" data-testid="more-offers-warning">
@@ -1048,6 +1079,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                       count={offers.length}
                       canEdit={canChange}
                       canReadMoney={canReadMoney}
+                      canPick={canPickWinner(offers, canvass.noOtherSupplier || [])}
                       isPending={busy}
                       onUpdate={(id, patch) => updateMutation.mutate({ offerId: id, patch })}
                       onRemove={setRemoving}

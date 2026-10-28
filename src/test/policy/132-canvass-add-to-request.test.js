@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
+import { coverSlots } from "./support/canvassSlots.js"
 import { MARKER } from "./support/rows.js"
 
 const svc = () => serviceClient()
@@ -35,6 +36,7 @@ const canvassWithWinner = async (label, price = 90) => {
     })
     if (error) throw new Error(`canvass_start: ${error.message}`)
     canvasses.push(data.canvass_id)
+    await coverSlots(data.canvass_id)
     const win = await purchasing.rpc("canvass_apply_winner", { p_canvass_id: data.canvass_id, p_offer_id: data.offer.id })
     if (win.error) throw new Error(`canvass_apply_winner: ${win.error.message}`)
     return data.canvass_id

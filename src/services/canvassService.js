@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { CANVASS_NOTIFICATION, DEFAULT_CURRENCY, OFFER_MONEY_KEYS } from "../constants/canvass";
 import { notificationService } from "./notificationService";
-import { isExpired, moreOffersWarning, needsMoreOffers, phpFigure } from "../utils/canvassMath";
+import { isExpired, moreOffersWarning, needsMoreOffers, phpFigure, slotsCovered } from "../utils/canvassMath";
 
 /**
  * Canvass persistence (#275, built in #276): one Canvass per subject, its Offers, and the
@@ -202,14 +202,56 @@ export const canvassService = {
     const { data: locked, error: lockError } = await supabase.rpc("canvass_is_locked", { p_canvass_id: data.id });
     if (lockError) throw lockError;
 
+    // The explained empty slots (#721): reason, who, when. Names only, no money.
+    const noOtherSupplier = await this.noOtherSupplier(data.id);
+
     return {
       ...data,
       offers: shaped,
+      noOtherSupplier,
+      slotsCovered: slotsCovered(shaped, noOtherSupplier),
       locked: Boolean(locked),
       canReadMoney: Boolean(canReadMoney),
       needsMoreOffers: needsMoreOffers(shaped),
-      moreOffersWarning: moreOffersWarning(shaped),
+      moreOffersWarning: moreOffersWarning(shaped, noOtherSupplier),
     };
+  },
+
+  /** The Canvass's "No other supplier" marks, by slot: `{ slot, reason, created_at, actor }`. */
+  async noOtherSupplier(canvassId) {
+    if (!canvassId) return [];
+    const { data, error } = await supabase
+      .from("sor_canvass_no_other_supplier")
+      .select("id, canvass_id, slot, reason, actor_id, created_at, actor:employees!sor_canvass_no_other_supplier_actor_id_fkey(id, name)")
+      .eq("canvass_id", canvassId)
+      .order("slot", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Marks empty slot 2 and/or 3 "No other supplier" (`canvass_set_no_other_supplier`), one reason for
+   * all the slots named. Refused without a reason, for a slot that already has an Offer, and on a
+   * locked Canvass. A winner needs Offers plus these marks to number three.
+   */
+  async markNoOtherSupplier(canvassId, slots, reason) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    if (!String(reason ?? "").trim()) throw new Error("Say why there is no other supplier.");
+    const { data, error } = await supabase.rpc("canvass_set_no_other_supplier", {
+      p_canvass_id: canvassId,
+      p_slots: slots,
+      p_reason: reason.trim(),
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Takes the "No other supplier" mark off one slot (`canvass_clear_no_other_supplier`). */
+  async clearNoOtherSupplier(canvassId, slot) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    const { data, error } = await supabase.rpc("canvass_clear_no_other_supplier", { p_canvass_id: canvassId, p_slot: slot });
+    if (error) throw error;
+    return data;
   },
 
   /**
@@ -499,7 +541,8 @@ export const canvassService = {
   },
 
   /**
-   * Marks an Offer the winner (`canvass_apply_winner`): the old winner is cleared, and on a
+   * Marks an Offer the winner (`canvass_apply_winner`), refused unless Offers plus "No other
+   * supplier" slots number three (#721): the old winner is cleared, and on a
    * Component the Offer fills Acquire (price x comparison rate when foreign), Offer Specification
    * and the Component's documents, each marked "from Canvass" until someone edits it. A field a
    * person has typed over is left alone. Refused for a foreign Offer with no comparison rate.
@@ -568,7 +611,7 @@ export const canvassService = {
 
   /**
    * Signs the Canvass off (`canvass_sign`): only the purchasing approver list, never the person who
-   * opened it, and only with a winner and a reason. Fewer than three Offers never blocks; the
+   * opened it, and only with a winner and a reason (the winner itself needs three covered slots, #721). The
    * count is recorded and the screen warns beforehand. Returns `{ canvass_id, number,
    * signed_off_at, offer_count }`.
    */

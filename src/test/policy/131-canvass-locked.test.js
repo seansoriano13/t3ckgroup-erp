@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
+import { coverSlots } from "./support/canvassSlots.js"
 import { MARKER } from "./support/rows.js"
 
 const svc = () => serviceClient()
@@ -79,6 +80,7 @@ describe("a Canvass a Purchase Request was made from", () => {
         const id = await makeCanvass("gloves")
         const purchasing = await clientFor("outsider")
         const [first] = await asSvc(svc().from("sor_canvass_offers").select("id").eq("canvass_id", id).order("created_at"), "Offers")
+        await coverSlots(id)
         const win = await purchasing.rpc("canvass_apply_winner", { p_canvass_id: id, p_offer_id: first.id })
         expect(win.error).toBeNull()
         expect(await isLocked(id)).toBe(false)
