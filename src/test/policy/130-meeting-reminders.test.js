@@ -15,6 +15,13 @@ const QUARTER = 15 * 60_000
 // The next quarter hour: between 5 seconds and 15 minutes ahead.
 const nextQuarter = () => Math.ceil((Date.now() + 5_000) / QUARTER) * QUARTER
 
+// A meeting cannot span Manila midnight (meeting_requests_same_manila_day), and these
+// meetings must start within the next quarter hour, so the last 45 minutes of the
+// Manila day cannot seat them (the +2 quarter case ends 45 minutes out).
+const MANILA_OFFSET = 8 * 60 * 60_000
+const DAY = 24 * 60 * 60_000
+const nearManilaMidnight = () => DAY - ((Date.now() + MANILA_OFFSET) % DAY) < 3 * QUARTER + 5_000
+
 // Each request gets its own Venue so slots never clash with each other.
 const seed = async ({ status = "APPROVED", offsetQuarters = 0, facilitator = ids.head, participants = [] } = {}) => {
     const { data: v, error: ve } = await svc()
@@ -71,7 +78,7 @@ afterAll(async () => {
     if (venues.length) await svc().from("calendar_venues").delete().in("id", venues)
 })
 
-describe("send_meeting_reminders", () => {
+describe.skipIf(nearManilaMidnight())("send_meeting_reminders", () => {
     it("reminds an approved due meeting once per person, even with two roles, and stamps it", async () => {
         // the facilitator and the applicant are also listed as participants
         const id = await seed({ participants: [ids.head, ids.ordinary, ids.hr] })

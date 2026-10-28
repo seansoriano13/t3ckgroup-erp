@@ -1,9 +1,9 @@
 /**
  * Edit, send again and cancel a Meeting Request (#628, spec #609, ADR 0013).
  *
- *   edit    applicant only, before the start; PENDING_HR / APPROVED go back to PENDING_HEAD;
+ *   edit    applicant only, before the start; an APPROVED one goes back to PENDING_HR (HR-only chain, #748);
  *           a time change clears reminder_sent_at; a clash is refused; the event row holds the changed fields
- *   resend  applicant, RETURNED -> PENDING_HEAD (PENDING_HR for a head applicant)
+ *   resend  applicant, RETURNED -> PENDING_HR
  *   cancel  applicant: any non-final request before the start; HR / Super Admin: any upcoming one, reason required
  *   a cancelled request frees its slot; anything at or past its start is read-only
  */
@@ -21,7 +21,7 @@ let slot = 0
 const iso = (n) => new Date(Date.UTC(2033, 5, 1, 1, 0, 0) + n * 15 * 60_000).toISOString()
 
 // Each request gets its own 15-minute slot far in the future, so nothing clashes unless a test makes it.
-const seed = async (status = "PENDING_HEAD", { applicant = "ordinary", head = ids.head, startsAt, endsAt } = {}) => {
+const seed = async (status = "PENDING_HR", { applicant = "ordinary", head = ids.head, startsAt, endsAt } = {}) => {
     slot += 1
     const { data, error } = await svc()
         .from("meeting_requests")
@@ -91,26 +91,26 @@ afterAll(async () => {
 })
 
 describe("edit", () => {
-    it("keeps a pending-head request pending-head and records what changed", async () => {
-        const id = await seed("PENDING_HEAD")
+    it("keeps a pending-HR request pending-HR and records what changed", async () => {
+        const id = await seed("PENDING_HR")
         const { data, error } = await edit("ordinary", id, { p_purpose: "A better purpose", p_participant_ids: [ids.outsider] })
         expect(error).toBeNull()
-        expect(data).toMatchObject({ from_status: "PENDING_HEAD", to_status: "PENDING_HEAD", action: "EDITED" })
-        expect(await row(id)).toMatchObject({ status: "PENDING_HEAD", purpose: "A better purpose" })
+        expect(data).toMatchObject({ from_status: "PENDING_HR", to_status: "PENDING_HR", action: "EDITED" })
+        expect(await row(id)).toMatchObject({ status: "PENDING_HR", purpose: "A better purpose" })
         expect(await people(id)).toEqual([ids.outsider])
         const last = (await events(id)).at(-1)
-        expect(last).toMatchObject({ action: "EDITED", actor_id: ids.ordinary, from_status: "PENDING_HEAD", to_status: "PENDING_HEAD" })
+        expect(last).toMatchObject({ action: "EDITED", actor_id: ids.ordinary, from_status: "PENDING_HR", to_status: "PENDING_HR" })
         expect(last.changed_fields.purpose).toEqual({ from: `${MARKER} edit`, to: "A better purpose" })
         expect(last.changed_fields.participant_ids).toBeTruthy()
     })
 
-    it("sends a pending-HR or approved request back to pending-head, so approval starts over", async () => {
-        for (const status of ["PENDING_HR", "APPROVED"]) {
+    it("sends an approved request back to pending-HR, so approval starts over", async () => {
+        for (const status of ["APPROVED"]) {
             const id = await seed(status)
             await svc().from("meeting_requests").update({ head_id: ids.head, head_decided_at: new Date().toISOString(), hr_note: "ok" }).eq("id", id)
             const { error } = await edit("ordinary", id, { p_purpose: "Changed", p_head_id: ids.head })
             expect(error).toBeNull()
-            expect(await row(id)).toMatchObject({ status: "PENDING_HEAD", head_decided_at: null, hr_note: null, hr_override: false })
+            expect(await row(id)).toMatchObject({ status: "PENDING_HR", head_decided_at: null, hr_note: null, hr_override: false })
         }
     })
 
@@ -142,7 +142,7 @@ describe("edit", () => {
     })
 
     it("refuses anyone but the applicant, including HR and the routed head", async () => {
-        const id = await seed("PENDING_HEAD")
+        const id = await seed("PENDING_HR")
         for (const who of ["hr", "superAdmin", "head", "outsider"]) {
             const { error } = await edit(who, id, { p_purpose: "Not mine" })
             expect(error?.message).toMatch(/filed/i)
@@ -159,7 +159,7 @@ describe("edit", () => {
     })
 
     it("refuses moving the meeting into the past", async () => {
-        const id = await seed("PENDING_HEAD")
+        const id = await seed("PENDING_HR")
         const { error } = await edit("ordinary", id, { p_starts_at: "2020-01-01T01:00:00.000Z", p_ends_at: "2020-01-01T02:00:00.000Z" })
         expect(error?.message).toMatch(/past/i)
     })
@@ -173,7 +173,7 @@ describe("edit", () => {
 
     it("refuses a clash with another request at the same Venue, but not at the other Venue", async () => {
         const holder = await seed("APPROVED")
-        const mine = await seed("PENDING_HEAD")
+        const mine = await seed("PENDING_HR")
         const h = await row(holder)
         const clash = await edit("ordinary", mine, { p_starts_at: h.starts_at, p_ends_at: h.ends_at })
         expect(clash.error?.code).toBe("23P01")
@@ -182,7 +182,7 @@ describe("edit", () => {
     })
 
     it("keeps the time rules: quarter hours, same day, end after start", async () => {
-        const id = await seed("PENDING_HEAD")
+        const id = await seed("PENDING_HR")
         const r = await row(id)
         const odd = new Date(new Date(r.starts_at).getTime() + 5 * 60_000).toISOString()
         expect((await edit("ordinary", id, { p_starts_at: odd })).error).toBeTruthy()
@@ -193,14 +193,14 @@ describe("edit", () => {
 })
 
 describe("send again", () => {
-    it("moves a returned request to pending-head and writes an event", async () => {
+    it("moves a returned request to pending-HR and writes an event", async () => {
         const id = await seed("RETURNED")
         await svc().from("meeting_requests").update({ return_note: "Add an agenda" }).eq("id", id)
         const { data, error } = await resend("ordinary", id)
         expect(error).toBeNull()
-        expect(data).toMatchObject({ from_status: "RETURNED", to_status: "PENDING_HEAD", action: "RESENT" })
-        expect((await row(id)).status).toBe("PENDING_HEAD")
-        expect((await events(id)).at(-1)).toMatchObject({ action: "RESENT", actor_id: ids.ordinary, to_status: "PENDING_HEAD" })
+        expect(data).toMatchObject({ from_status: "RETURNED", to_status: "PENDING_HR", action: "RESENT" })
+        expect((await row(id)).status).toBe("PENDING_HR")
+        expect((await events(id)).at(-1)).toMatchObject({ action: "RESENT", actor_id: ids.ordinary, to_status: "PENDING_HR" })
     })
 
     it("sends a head applicant's returned request straight to pending-HR", async () => {
@@ -212,7 +212,7 @@ describe("send again", () => {
     it("refuses anyone else, a request that is not returned, and one already started", async () => {
         const id = await seed("RETURNED")
         expect((await resend("hr", id)).error?.message).toMatch(/filed/i)
-        const pending = await seed("PENDING_HEAD")
+        const pending = await seed("PENDING_HR")
         expect((await resend("ordinary", pending)).error?.message).toMatch(/returned/i)
         await startNow(id)
         expect((await resend("ordinary", id)).error?.message).toMatch(/already started/i)
@@ -221,7 +221,7 @@ describe("send again", () => {
 
 describe("cancel", () => {
     it("lets the applicant cancel any non-final request before it starts, without a reason", async () => {
-        for (const status of ["PENDING_HEAD", "PENDING_HR", "RETURNED", "APPROVED"]) {
+        for (const status of ["PENDING_HR", "PENDING_HR", "RETURNED", "APPROVED"]) {
             const id = await seed(status)
             const { data, error } = await cancel("ordinary", id)
             expect(error).toBeNull()
@@ -233,7 +233,7 @@ describe("cancel", () => {
 
     it("lets HR and a Super Admin cancel any upcoming request with a reason, and refuses them without one", async () => {
         const a = await seed("APPROVED")
-        const b = await seed("PENDING_HEAD")
+        const b = await seed("PENDING_HR")
         for (const reason of [null, "", "   "]) {
             expect((await cancel("hr", a, reason)).error?.message).toMatch(/reason/i)
         }
@@ -246,11 +246,11 @@ describe("cancel", () => {
     })
 
     it("refuses a head who is not the applicant, an outsider and a stranger", async () => {
-        const id = await seed("PENDING_HEAD")
+        const id = await seed("PENDING_HR")
         for (const who of ["head", "subHead", "outsider"]) {
             expect((await cancel(who, id, "No")).error?.message).toMatch(/applicant, HR/i)
         }
-        expect((await row(id)).status).toBe("PENDING_HEAD")
+        expect((await row(id)).status).toBe("PENDING_HR")
     })
 
     it("refuses everyone at or after the start time, HR included", async () => {

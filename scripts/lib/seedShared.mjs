@@ -167,6 +167,8 @@ export const SEED_TABLES = [
 
 /** Tables the migrations build that the seed deliberately leaves out, each with why. */
 export const SEED_EXCLUDED_TABLES = {
+  meal_break_settings:
+    "The default meal-break windows (#759) are inserted by the migration itself, so a seed would only replace them with whatever the remote held.",
   calendar_venues:
     "The two Venues (#619) are inserted by the migration itself, so a seed would only replace them with whatever the remote held.",
   meeting_requests:

@@ -56,6 +56,14 @@ describe("Group Tasks page — create action", () => {
     )
     fireEvent.change(descriptionInput, { target: { value: "Book the venue" } })
 
+    // Start Date and Due Date are required (#750).
+    fireEvent.change(await screen.findByPlaceholderText("Required start date"), {
+      target: { value: "March 3, 2030" },
+    })
+    fireEvent.change(await screen.findByPlaceholderText("Required due date & time"), {
+      target: { value: "March 10, 2030 9:00 AM" },
+    })
+
     const submitButtons = screen.getAllByRole("button", { name: /create group task/i })
     fireEvent.click(submitButtons[submitButtons.length - 1])
 
