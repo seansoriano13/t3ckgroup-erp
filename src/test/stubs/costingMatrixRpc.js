@@ -276,7 +276,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     const refuse = (code, message, status) => {
       throw pgrstError(code, `costing_bid: ${message}`, { status })
     }
-    if (tier !== "closed_book") refuse("42501", "only Sales, Purchasing, a Super Admin or the Final Acquire list can unlock a bid", 403)
+    if (tier !== "closed_book") refuse("42501", "only a Super Admin or the people on the decider's list can unlock a bid", 403)
     if (!String(args.p_reason ?? "").trim()) refuse("22023", "write the reason for unlocking", 400)
     const live = rowsOf("costing_bid_decisions").find((d) => d.matrix_id === args.p_matrix_id && d.cleared_at == null && d.verdict === "go")
     if (!live) refuse("22023", "there is no Go to unlock", 400)

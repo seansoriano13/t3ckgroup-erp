@@ -3,7 +3,7 @@ import StatusBadge from "../../StatusBadge";
 import { COMPLIANCE_LABEL, COMPLIANCE_THEME, EVALUATION_TEAMS } from "../../../constants/costing";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import ComplianceCell from "../ComplianceCell";
-import { lineVerdict } from "./evaluationTeams";
+import { lineVerdict } from "../../../utils/costingVerdict";
 
 /**
  * The Compliance column of the sheet (spec #699, ticket #706). The Technical team that judges the row

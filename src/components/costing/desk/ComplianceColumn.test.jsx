@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import ComplianceColumn from "./ComplianceColumn";
-import { lineVerdict } from "./evaluationTeams";
+import { lineVerdict } from "../../../utils/costingVerdict";
 
 /**
  * The sheet's Compliance column (#706): the team pill, the verdict and its note. Who may mark a row is

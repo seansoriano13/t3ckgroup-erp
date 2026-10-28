@@ -1003,6 +1003,14 @@ export function stubIpasRpcs({
 
   // ── Payments and charges (#244) ──────────────────────────────────────────
 
+  // The payment functions the combined ipas_save_payment calls in turn.
+  const paymentRpcs = new Map()
+  const stubPaymentRpc = (name, handler) => {
+    paymentRpcs.set(name, handler)
+    stubRpc(name, handler)
+  }
+  const callStub = (name, args) => paymentRpcs.get(name)(args)
+
   const requireOpenIpas = (fn, id) => {
     const row = findRow("ipas", id)
     requireOpen(fn, row)
@@ -1035,7 +1043,7 @@ export function stubIpasRpcs({
     return { amount, php, fee, label, proof }
   }
 
-  stubRpc("ipas_add_payment", (args) => {
+  stubPaymentRpc("ipas_add_payment", (args) => {
     requireMoney("ipas_add_payment")
     const ipas = requireOpenIpas("ipas_add_payment", args.p_ipas_id)
     const clean_ = cleanPayment("ipas_add_payment", ipas, args, null)
@@ -1069,7 +1077,7 @@ export function stubIpasRpcs({
     return row
   })
 
-  stubRpc("ipas_update_payment", (args) => {
+  stubPaymentRpc("ipas_update_payment", (args) => {
     requireMoney("ipas_update_payment")
     const before = findRow("ipas_payments", args.p_payment_id)
     if (!before) refuse("P0002", `ipas_update_payment: payment ${args.p_payment_id} not found`)
@@ -1109,7 +1117,7 @@ export function stubIpasRpcs({
     return updated
   })
 
-  stubRpc("ipas_set_payment_money", (args) => {
+  stubPaymentRpc("ipas_set_payment_money", (args) => {
     requireMoney("ipas_set_payment_money")
     const before = findRow("ipas_payments", args.p_payment_id)
     if (!before) refuse("P0002", `ipas_set_payment_money: payment ${args.p_payment_id} not found`)
@@ -1121,6 +1129,32 @@ export function stubIpasRpcs({
       doc_stamp_php: round2(Number(args.p_doc_stamp_php ?? 0)),
       misc_fee_php: round2(Number(args.p_misc_fee_php ?? 0)),
     })
+  })
+
+  // One call for the whole payment (add or change), as the real ipas_save_payment: pesos are
+  // amount x rate, and a refusal in any step keeps nothing.
+  stubRpc("ipas_save_payment", (args) => {
+    const ipas = args.p_payment_id
+      ? findRow("ipas", findRow("ipas_payments", args.p_payment_id)?.ipas_id)
+      : findRow("ipas", args.p_ipas_id)
+    if (!ipas) refuse("22023", "ipas_save_payment: payment not found")
+    const rate = isPhpCopy(ipas.odoo_copy) || args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
+    if (rate !== null && !(rate > 0)) refuse("22023", "ipas_save_payment: the forex rate must be more than zero")
+    const base = {
+      p_kind: args.p_kind,
+      p_paid_on: args.p_paid_on,
+      p_amount: args.p_amount,
+      p_php_debited: rate === null ? null : round2(Number(args.p_amount) * rate),
+      p_charge_fee_php: args.p_charge_fee_php,
+      p_method_id: args.p_method_id,
+      p_check_no: args.p_check_no,
+      p_proof_url: args.p_proof_url,
+    }
+    const money = (row) => ({ p_payment_id: row.id, p_forex_rate: rate, p_doc_stamp_php: args.p_doc_stamp_php, p_misc_fee_php: args.p_misc_fee_php })
+    const saved = args.p_payment_id
+      ? callStub("ipas_update_payment", { p_payment_id: args.p_payment_id, ...base })
+      : callStub("ipas_add_payment", { p_ipas_id: args.p_ipas_id, ...base })
+    return callStub("ipas_set_payment_money", money(saved))
   })
 
   stubRpc("ipas_remove_payment", (args) => {
@@ -1221,6 +1255,11 @@ export function stubIpasRpcs({
     const ipas = requireOpenIpas("ipas_set_freight", args.p_ipas_id)
     const amount = args.p_amount === null || args.p_amount === undefined ? null : Math.round(args.p_amount * 100) / 100
     if (amount !== null && amount < 0) refuse("22023", "ipas_set_freight: the freight can't be negative")
+    const freightCurrency = amount === null ? null : String(args.p_currency || "PHP").toUpperCase()
+    const poCurrency = String(ipas.odoo_copy?.po?.currency ?? "").trim().toUpperCase()
+    if (freightCurrency && freightCurrency !== "PHP" && freightCurrency !== poCurrency) {
+      refuse("22023", `ipas_set_freight: freight can only be in pesos or in the PO's currency (${poCurrency || "PHP"})`)
+    }
     return updateRow("ipas", ipas, {
       freight_amount: amount,
       freight_currency: amount === null ? (args.p_currency || null) : (args.p_currency || "PHP").toUpperCase(),

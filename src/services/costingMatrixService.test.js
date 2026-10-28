@@ -370,6 +370,8 @@ describe("costingMatrixService", () => {
     });
 
     it("gives each tier only the unit costs it may read, and a Stage Participant none", async () => {
+      // The multiplier is written by the Markup list (#703).
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management", "markup"] });
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", isBundle: true, acquireUnit: 2160500, odooUnit: 2200000, finalAcquireUnit: 2100000, markupFactor: 1.35 });
       await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge", acquireUnit: 100000, odooUnit: 110000, finalAcquireUnit: 90000 });
 
@@ -418,6 +420,7 @@ describe("costingMatrixService", () => {
       stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing"] });
       const odoo = await costingMatrixService.updateComponent(id, { odooUnit: 6 }).catch((e) => e);
       expect(odoo.message).toBe("Odoo unit cost is written by Sales (the Deal Team).");
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing", "markup"] });
       await costingMatrixService.updateComponent(id, { markupFactor: 2 });
       const rowId = await costingMatrixService.addCostRow(matrix.id, { description: "Permits" });
       await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 1 });
@@ -577,7 +580,7 @@ describe("costingMatrixService", () => {
       const second = makeEmployee({ name: "Manager Two" });
       const third = makeEmployee({ name: "Evaluator" });
 
-      expect(await costingMatrixService.getSignerLists()).toEqual({ final_acquire: [], evaluation: [] });
+      expect(await costingMatrixService.getSignerLists()).toEqual({ final_acquire: [], evaluation: [], markup: [], team_rrd: [], team_ioe: [] });
       const added = await costingMatrixService.setSignerList("final_acquire", [first.id, second.id, first.id]);
       expect(added.map((m) => m.employeeId).sort()).toEqual([first.id, second.id].sort());
 
@@ -593,7 +596,7 @@ describe("costingMatrixService", () => {
 
   describe("Markup and achieved markup (#269)", () => {
     let lineId
-    const CLOSED_BOOK = { tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management"] }
+    const CLOSED_BOOK = { tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management", "markup"] }
 
     beforeEach(async () => {
       lineId = await costingMatrixService.addTenderLine(matrix.id, { tenderSpecification: "Rescue vehicle", quantity: 1, abcUnit: 4000000, finalOfferUnit: 3300000 })
@@ -734,19 +737,19 @@ describe("costingMatrixService", () => {
       expect(JSON.stringify(matrixRead)).not.toMatch(/markup_factor|markup_price_unit|default_factor/)
     })
 
-    it("refuses the default factor and a row override outside the management band, naming who writes it", async () => {
+    it("refuses the default factor and a row override outside the Markup list, naming who writes it", async () => {
       const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle", acquireUnit: 100 })
       const delivery = await costingMatrixService.addCostRow(matrix.id, { description: "Delivery Charge" })
       stubCostingMatrixRpcs({ tier: COSTING_TIER.PRICE, bands: ["technical"], manageMarkup: false })
 
       const factor = await costingMatrixService.setDefaultMarkup(matrix.id, { factor: 1.35 }).catch((e) => e)
       expect(factor).toBeInstanceOf(CostingBandError)
-      expect(factor).toMatchObject({ table: "costing_matrix_money", column: "default_factor", bands: ["sales", "purchasing", "management"] })
-      expect(factor.message).toBe("The default markup factor is written by Sales (the Deal Team) or Purchasing or the Final Acquire list.")
+      expect(factor).toMatchObject({ table: "costing_matrix_money", column: "default_factor", bands: ["markup"] })
+      expect(factor.message).toBe("The default markup factor is written by the Markup list.")
 
       const override = await costingMatrixService.updateComponent(component, { markupFactor: 2 }).catch((e) => e)
       expect(override).toBeInstanceOf(CostingBandError)
-      expect(override.message).toBe("The markup factor is written by Sales (the Deal Team) or Purchasing or the Final Acquire list.")
+      expect(override.message).toBe("The markup factor is written by the Markup list.")
       const rowOverride = await costingMatrixService.updateCostRow(delivery, { markupFactor: 2 }).catch((e) => e)
       expect(rowOverride).toBeInstanceOf(CostingBandError)
     })
