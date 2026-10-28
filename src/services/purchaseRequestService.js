@@ -469,7 +469,22 @@ export const purchaseRequestService = {
     if (!data?.success) {
       throw Object.assign(new Error(data?.message || "Couldn't save the PO number. Try again."), { code: data?.code });
     }
-    return data.item;
+    // #730: attaching also raises the IPAS (or adds the SOR to the live one); `ipas` says what happened.
+    return data.ipas ? { ...data.item, ipas: data.ipas } : data.item;
+  },
+
+  /**
+   * #730: tries again to raise the IPAS of a project line whose P0 is attached but whose Odoo did not
+   * answer ("IPAS to create"). The server reads the PO itself. Returns `{ result, message, ipas_number }`;
+   * throws when Odoo still does not answer, and the line stays "IPAS to create".
+   */
+  async retryIpas(itemId, poNumber) {
+    const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
+      body: { action: "ipas", itemId, poNumber },
+    });
+    if (error) throw new Error("Couldn't raise the IPAS. Try again.");
+    if (!data?.success) throw new Error(data?.message || "Couldn't raise the IPAS. Try again.");
+    return data.ipas;
   },
 
   /**

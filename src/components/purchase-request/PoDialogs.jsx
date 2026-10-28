@@ -118,6 +118,12 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
           ? `${item.name}: RFQ ${updated.po_number} attached; still To purchase.`
           : `${item.name}: ${updated?.po_number} attached; ${ITEM_STATUS_LABELS[updated?.status] || updated?.status}.`,
       );
+      // #730: the IPAS follows the attach; say what happened to it (raised, SOR added, filed, or Odoo silent).
+      const ipas = updated?.ipas;
+      if (ipas?.message && ipas.result !== "not_project") {
+        if (ipas.result === "created" || ipas.result === "sor_added" || ipas.result === "already_named") toast.success(ipas.message);
+        else warningToast(ipas.message);
+      }
       close();
     },
     onError: (error) => {

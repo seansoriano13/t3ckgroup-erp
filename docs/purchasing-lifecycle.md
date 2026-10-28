@@ -395,7 +395,7 @@ Sign-off sections are numbered as the screen numbers them: **1, 2, 3 and 4**, th
 
 ### The Odoo copy
 - `odoo_copy` holds `{ po, supplier, lines, receipts, bills }`. **Every time an IPAS is opened it is refreshed** (not time-limited, no cache). Anyone who can read IPAS can trigger the refresh. A cancelled IPAS has no refresh, and a filed one keeps its frozen copy and its "fetched" time, so that time only moves on an open IPAS. If Odoo does not answer, the last copy stays and the page says so.
-- **Remarks** can be edited by Purchasing until the IPAS is filed (or cancelled), and each edit is written to history. The **SOR list stays fixed after raising**: to change it, cancel and raise again. Filing still freezes Remarks.
+- **Remarks** can be edited by Purchasing until the IPAS is filed (or cancelled), and each edit is written to history. The **SOR list is fixed after raising, except that an SOR can be added** (#730): attaching a P0 on a project line adds that line's SOR to the P0's live IPAS while it is not filed. Nothing removes an SOR; to do that, cancel and raise again. Filing still freezes Remarks.
 - **Overridable:** Entity, Source Doc and Analytic Dist. only. Each override and reset is written to history. **Not changeable by anyone:** Currency, Supplier, item lines, Brand. Fix those in Odoo.
 - Supplier contact and P.I # are typed. Odoo fills them only while blank.
 - **If lines or the total changed since the last copy, the live section 1 and 2 approvals are cleared** ("PO changed in Odoo") and the preparers are told. A change note records what changed.
@@ -637,7 +637,7 @@ All are read only. The browser never talks to Odoo, and credentials live in func
 - Currency, Supplier, item lines and Brand on an IPAS cannot be overridden.
 - The Computation status ends at LC Odoo Done; nobody can set Checked by any more (section 3's sign-off is the check).
 - A change to the Landed Cost clears section 3's Submitted and Approved, and nothing else: payments and charges never clear section 1 or 2 (#591).
-- An IPAS's Remarks freeze once filed; its SOR list is fixed after raising.
+- An IPAS's Remarks freeze once filed; its SOR list is fixed after raising, except for an SOR added by attaching a P0 (#730), which is refused once filed.
 
 **Things that warn but do not block**
 - Fewer than three Offers on a Canvass.

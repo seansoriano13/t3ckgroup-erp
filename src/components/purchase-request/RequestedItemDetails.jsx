@@ -65,6 +65,9 @@ export default function RequestedItemDetails({ item, stock, costText, replaces, 
         </span>
       ),
     },
+    // #730: the IPAS raised when the P0 was attached, or "IPAS to create" while Odoo has not answered.
+    item.po_number && item.ipas_pending && { label: "IPAS", value: <Warn>IPAS to create</Warn> },
+    item.po_number && !item.ipas_pending && item.ipas_number && { label: "IPAS", value: <span data-testid="requested-item-ipas" className="font-mono">{item.ipas_number}</span> },
     partialReceiptText(item) && { label: "Received", value: <span data-testid="requested-item-partial">{partialReceiptText(item)}</span> },
     poLineNotPicked(item) && { label: "PO line", value: <Warn>PO line not picked</Warn> },
     item.price && {
