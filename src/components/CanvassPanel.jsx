@@ -12,7 +12,6 @@ import {
   Printer,
   Lock,
   LockOpen,
-  ShoppingCart,
   Trash2,
   X,
 } from "lucide-react";
@@ -38,7 +37,6 @@ import CanvassUnlockDialog from "./CanvassUnlockDialog";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import { procurementQueueKey } from "./purchase-request/queryKeys";
 import CanvassSupplierField, { canvassFieldClass as fieldClass } from "./CanvassSupplierField";
-import CreatePurchaseRequestModal from "./CreatePurchaseRequestModal";
 import CanvassRequestBadge from "./CanvassRequestBadge";
 import { Button } from "./ui/button";
 import { AttachmentField, AttachmentList } from "./ui/Attachments";
@@ -549,7 +547,6 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const [productDraft, setProductDraft] = useState(null);
   const [reasonDraft, setReasonDraft] = useState(null);
   const [isSigning, setIsSigning] = useState(false);
-  const [requesting, setRequesting] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [viewingRequest, setViewingRequest] = useState(null);
   // The two questions the record asks first, each a plain confirm dialog: the Offer to remove, and clearing the winner.
@@ -809,7 +806,6 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const badge = { label: rowState.label, theme: CANVASS_STATE_TONES[rowState.state] };
 
   const canSignNow = Boolean(canvass) && !isSigned && isApprover && !isCreator && readyToSign;
-  const canRequestNow = Boolean(canvass) && canEdit && isBare && !prId && !isLocked;
 
   const status = !canvass
     ? ""
@@ -855,7 +851,6 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                 title: "Purchase Request",
                 summary: requestState.label,
                 state: prId ? STATE.DONE : winner ? STATE.CURRENT : STATE.WAITING,
-                needsMe: canRequestNow && Boolean(winner),
                 body: (
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-testid="canvass-request-strip">
                     <span>Purchase Request</span>
@@ -874,21 +869,6 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     <CanvassRequestBadge source={requestSource} />
                   </div>
                 ),
-                moves: canRequestNow ? (
-                  <div className="space-y-1.5">
-                    <Button
-                      type="button"
-                      disabled={!winner}
-                      title={winner ? undefined : "Pick a winner first"}
-                      onClick={() => setRequesting(true)}
-                      className={APPROVE_CLASS}
-                    >
-                      <ShoppingCart className="size-4" aria-hidden="true" />
-                      Create Purchase Request
-                    </Button>
-                    {!winner && <p className="text-xs text-muted-foreground">Pick a winner to create a Purchase Request.</p>}
-                  </div>
-                ) : null,
               },
             ]
           : []),
@@ -1218,18 +1198,6 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         }}
       />
     </ModalShell>
-
-      {requesting && canvass && (
-        <CreatePurchaseRequestModal
-          open={requesting}
-          onOpenChange={setRequesting}
-          canvasses={[{ id: canvass.id, number: canvass.number, winner, signedOffAt: canvass.signed_off_at }]}
-          onCreated={() => {
-            setRequesting(false);
-            invalidate();
-          }}
-        />
-      )}
 
       {unlocking && canvass && (
         <CanvassUnlockDialog open={unlocking} onOpenChange={setUnlocking} canvass={canvass} onUnlocked={invalidate} />

@@ -5,42 +5,6 @@ import { canvassFill } from "@/test/db/triggers"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 
-/**
- * `canvass_add_to_purchase_request` (20261101110000) on the in-memory store: each Canvass becomes a new
- * Requested Item of the request, or is attached to the item named, and is stamped as requested (which
- * locks it). The database's own checks are in the policy tier (132-canvass-add-to-request).
- */
-export function stubCanvassAddToRequestRpc() {
-  stubRpc("canvass_add_to_purchase_request", (args) => {
-    const made = []
-    const unsigned = []
-    for (const entry of args.p_items) {
-      const canvass = rowsOf("sor_canvasses").find((c) => c.id === entry.canvass_id)
-      if (!canvass) throw pgrstError("P0002", "canvass_add_to_purchase_request: a picked Canvass was not found", { status: 404 })
-      const winner = rowsOf("sor_canvass_offers").find((o) => o.canvass_id === canvass.id && o.is_winner)
-      if (!winner) throw pgrstError("22023", `canvass_add_to_purchase_request: ${canvass.number} has no winner yet`, { status: 400 })
-      if (!canvass.signed_off_at) unsigned.push(canvass.id)
-      let itemId = entry.item_id ?? null
-      if (!itemId) {
-        const item = insertRow("purchase_request_items", {
-          request_id: args.p_request_id,
-          source: "new",
-          name: canvass.product_name ?? canvass.number,
-          quantity: entry.quantity ?? 1,
-          unit: entry.unit ?? null,
-          status: "not_checked",
-          description: `From Canvass ${canvass.number}`,
-          requested_by: rowsOf("purchase_requests").find((r) => r.id === args.p_request_id)?.created_by ?? null,
-        })
-        itemId = item.id
-      }
-      updateRow("sor_canvasses", canvass, { requested_item_id: itemId, request_made_at: new Date().toISOString() })
-      made.push({ canvass_id: canvass.id, item_id: itemId })
-    }
-    return { request_id: args.p_request_id, items: made, unsigned_canvass_ids: unsigned }
-  })
-}
-
 /** `canvass_is_locked` (20261101100000), on the in-memory store: a request was made and the lock was not released. */
 function isLocked(canvass) {
   return Boolean(canvass?.request_made_at) && !canvass.lock_released_at
@@ -374,13 +338,11 @@ export function stubCanvassSignoffRpcs({ actorId, approverIds = [] } = {}) {
 }
 
 /**
- * `canvass_list` and `canvass_create_purchase_request` (supabase/migrations/
- * 20261024103000_canvass_before_purchase_request.sql, ADR 0034), re-implemented on the in-memory
- * store for the Canvasses page. The fake has no caller, so `actorId` is who creates the request;
- * the list returns every Canvass (who may read which is the policy tier's,
+ * `canvass_list` (supabase/migrations/20261024103000_canvass_before_purchase_request.sql, ADR 0034),
+ * re-implemented on the in-memory store for the Canvasses page. The list returns every Canvass (who may read which is the policy tier's,
  * 110-canvass-before-purchase-request.test.js).
  */
-export function stubCanvassListRpcs({ actorId = null } = {}) {
+export function stubCanvassListRpcs() {
   const nameOf = (id) => rowsOf("employees").find((e) => e.id === id)?.name ?? null
 
   stubRpc("canvass_list", () =>
@@ -420,39 +382,4 @@ export function stubCanvassListRpcs({ actorId = null } = {}) {
       }
     }),
   )
-
-  stubRpc("canvass_create_purchase_request", (args) => {
-    const refuse = (code, message) => {
-      throw pgrstError(code, `canvass_create_purchase_request: ${message}`, { status: 400 })
-    }
-    const entries = Array.isArray(args.p_items) ? args.p_items : []
-    if (entries.length === 0) refuse("22023", "pick at least one Canvass")
-    const picked = entries.map((entry) => {
-      const canvass = rowsOf("sor_canvasses").find((c) => c.id === entry.canvass_id)
-      if (!canvass) refuse("P0002", "a picked Canvass was not found")
-      if (canvass.component_id || canvass.requested_item_id) refuse("55000", `${canvass.number} already belongs to a Component or a Requested Item`)
-      const winner = rowsOf("sor_canvass_offers").find((o) => o.canvass_id === canvass.id && o.is_winner)
-      if (!winner) refuse("22023", `${canvass.number} has no winner yet`)
-      return { entry, canvass, winner }
-    })
-
-    const request = insertRow("purchase_requests", { title: args.p_title, created_by: actorId })
-    const items = picked.map(({ entry, canvass, winner }) => {
-      const item = insertRow("purchase_request_items", {
-        request_id: request.id,
-        source: "new",
-        name: canvass.product_name || winner.brand || canvass.number,
-        quantity: entry.quantity ?? 1,
-        unit: entry.unit ?? null,
-        description: [[winner.supplier_name, winner.brand].filter(Boolean).join(" · "), winner.description, `From Canvass ${canvass.number}`]
-          .filter(Boolean)
-          .join("\n"),
-        requested_by: actorId,
-      })
-      updateRow("sor_canvasses", canvass, { requested_item_id: item.id })
-      return { canvass_id: canvass.id, item_id: item.id }
-    })
-    const unsigned = picked.filter(({ canvass }) => !canvass.signed_off_at).map(({ canvass }) => canvass.id)
-    return { request_id: request.id, items, unsigned_canvass_ids: unsigned }
-  })
 }

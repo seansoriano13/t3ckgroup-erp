@@ -33,6 +33,16 @@ const start = async (who, args) =>
         ...args,
     })
 
+/**
+ * An old free-standing Canvass, made with the service role (#729: nobody signed in can start one any
+ * more, ADR 0047, but the ones that exist keep working). Returns what canvass_start returned.
+ */
+async function seedBare(name) {
+    const canvass = await asSvc(svc().from("sor_canvasses").insert({ product_name: name, created_by: ids.outsider }).select("id, number").single(), "Canvass")
+    const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: "Redleaf Inc.", currency: "PHP" }).select("id").single(), "Offer")
+    return { data: { canvass_id: canvass.id, number: canvass.number, offer }, error: null }
+}
+
 beforeAll(async () => {
     await ensureCastLoaded()
     await asSvc(svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider), "purchasing flag")
@@ -51,8 +61,8 @@ describe("the first Offer starts the Canvass", () => {
         expect(after).toBe(before)
     })
 
-    it("creates the Canvass with its number, the default Canvasser and the Offer in one call", async () => {
-        const { data, error } = await start("outsider", { p_product_name: `${MARKER} toner` })
+    it("gives an old free-standing Canvass its number and the default Canvasser", async () => {
+        const { data, error } = await seedBare(`${MARKER} toner`)
         expect(error).toBeNull()
         created.push(data.canvass_id)
         expect(data.number).toMatch(/^CNV_\d{4}$/)
@@ -100,7 +110,7 @@ describe("the relaxed subject rule", () => {
 
 describe("un-picking the winner of an unsigned Canvass", () => {
     it("still writes a history row", async () => {
-        const { data, error } = await start("outsider", { p_product_name: `${MARKER} unpick unsigned` })
+        const { data, error } = await seedBare(`${MARKER} unpick unsigned`)
         if (error) throw new Error(error.message)
         created.push(data.canvass_id)
         await asSvc(svc().from("sor_canvass_offers").update({ is_winner: true }).eq("id", data.offer.id), "winner")
@@ -121,7 +131,7 @@ describe("un-picking the winner", () => {
     let canvassId, offerId
 
     beforeAll(async () => {
-        const { data, error } = await start("outsider", { p_product_name: `${MARKER} unpick` })
+        const { data, error } = await seedBare(`${MARKER} unpick`)
         if (error) throw new Error(error.message)
         canvassId = data.canvass_id
         offerId = data.offer.id

@@ -29,6 +29,8 @@ Three changes, one model.
 ### 3. One starting point (ticket #729)
 
 - A Canvass starts from a product line (ADR 0042) or from a Direct request, never free-standing. Creating a free-standing Canvass, and "Create Purchase Request from Canvasses", are refused for new records. Existing ones stay readable and printable and keep their numbers.
+- A Direct request works like a project: the purchaser opens it, types its lines once, and canvasses each line (the line is a Requested Item, so this needed no new database work).
+- In the database: a BEFORE INSERT trigger on `sor_canvasses` refuses a Canvass with no Component and no Requested Item (22023) for a signed-in person, and `canvass_create_purchase_request` and `canvass_add_to_purchase_request` raise 22023. Inserts by the service role or a migration are left alone, so old records and test setups still work. The screen loses "New Canvass", "Create Purchase Request" (page and panel) and "Add a Canvass" on a request.
 - This ends the "Canvass first, then request" order of ADR 0034 for new work. The "several Canvasses make one request" and "winner is enough to create the request" consequences of ADR 0034 no longer apply to new records; they stay true for the old ones.
 
 ## Consequences
