@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useContext } from "react";
+import { useState, useCallback, useEffect, useMemo, useContext, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as dagre from "@dagrejs/dagre";
 import {
@@ -7,6 +7,9 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
+  Copy,
+  Download,
+  Upload,
   Eye,
   Lock,
   LockOpen,
@@ -544,6 +547,45 @@ function FlowCanvasInner() {
       setNewSaleTypeName("");
       refresh();
       toast.success("Sale Type created.");
+    },
+    onError: (err) => toast.error(flowErrorMessage(err)),
+  });
+
+  const importInputRef = useRef(null);
+
+  const exportFlowFile = useMutation({
+    mutationFn: async () => {
+      const file = await salesFlowService.exportFlow(flow?.id);
+      const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(selectedSaleType?.name || "flow").replace(/[^\w-]+/g, "-")}.flow-snapshot.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    onError: (err) => toast.error(flowErrorMessage(err)),
+  });
+
+  const importFlowFile = useMutation({
+    mutationFn: async (file) => {
+      const text = await file.text();
+      const name = file.name.replace(/\.(flow-snapshot\.)?json$/i, "");
+      return salesFlowService.importFlowFile(text, name, user?.id);
+    },
+    onSuccess: () => {
+      refresh();
+      toast.success("Flow imported as a new draft.");
+    },
+    onError: (err) => toast.error(flowErrorMessage(err)),
+  });
+
+  const duplicateFlow = useMutation({
+    mutationFn: () =>
+      salesFlowService.duplicateFlow(flow?.id, `${selectedSaleType?.name} (copy)`, user?.id),
+    onSuccess: () => {
+      refresh();
+      toast.success("Flow duplicated as a new draft.");
     },
     onError: (err) => toast.error(flowErrorMessage(err)),
   });
@@ -1507,6 +1549,52 @@ function FlowCanvasInner() {
                     </div>
                   )}
                 </Dropdown>
+
+                <Tooltip content="Import flow from file" side="bottom">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Import flow"
+                    onClick={() => importInputRef.current?.click()}
+                  >
+                    <Upload size={14} />
+                  </Button>
+                </Tooltip>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) importFlowFile.mutate(file);
+                  }}
+                />
+                {flow && (
+                  <>
+                    <Tooltip content="Export flow to file" side="bottom">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Export flow"
+                        onClick={() => exportFlowFile.mutate()}
+                      >
+                        <Download size={14} />
+                      </Button>
+                    </Tooltip>
+                    <Tooltip content="Duplicate flow" side="bottom">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Duplicate flow"
+                        onClick={() => duplicateFlow.mutate()}
+                      >
+                        <Copy size={14} />
+                      </Button>
+                    </Tooltip>
+                  </>
+                )}
               </>
             )}
           </div>
