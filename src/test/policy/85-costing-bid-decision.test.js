@@ -497,11 +497,12 @@ describe("a Go locks the sheet", () => {
         expect(await live()).toHaveLength(1)
     })
 
-    it("lets only Closed Book unlock it, and only with a reason", async () => {
-        for (const who of ["stageParticipant", "finance", "ordinary"]) {
+    it("lets only the Final Acquire list and a Super Admin unlock it, and only with a reason", async () => {
+        // Sales and Purchasing read the Closed Book and may decide, but cannot unlock (20261112100000).
+        for (const who of ["dealOwner", "outsider", "stageParticipant", "finance", "ordinary"]) {
             const error = await unlock(who)
             expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error?.message, who).toBe("costing_bid: only Sales, Purchasing, a Super Admin or the Final Acquire list can unlock a bid")
+            expect(error?.message, who).toBe("costing_bid: only a Super Admin or the people on the decider's list can unlock a bid")
         }
         for (const reason of ["", "   "]) {
             const error = await unlock("ipasSigner", reason)
@@ -513,11 +514,11 @@ describe("a Go locks the sheet", () => {
 
     it("unlocks with a reason, records who did it, and lets the sheet change again", async () => {
         const [go] = await live()
-        expect(await unlock("dealOwner", "  The supplier moved the price  ")).toBeNull()
+        expect(await unlock("superAdmin", "  The supplier moved the price  ")).toBeNull()
         expect(await live()).toHaveLength(0)
         const cleared = (await rows()).find((r) => r.id === go.id)
         expect(cleared.cleared_reason).toBe("Unlocked: The supplier moved the price")
-        expect(cleared.unlocked_by).toBe(ids.dealOwner)
+        expect(cleared.unlocked_by).toBe(ids.superAdmin)
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineOneId, { abc_unit: 1300 })).toBeNull()
     })
 
