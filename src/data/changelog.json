@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-10-28",
+        "title": "Costing Matrix in the costing-sheet shape, and IPAS money that follows it",
+        "version": "1.9.70",
+        "changes": [
+            "The Costing Matrix is now one flat sheet, one row per line of the S0, with the cost, markup and compliance columns beside the prices. A suggested price now includes the items that come with a tower.",
+            "A Go on the Bid Decision locks the sheet. Only a Super Admin or the people on the decider's list can unlock it, with a reason that is recorded.",
+            "The multiplier is now set by the Markup list. Final Acquire has left the matrix screen.",
+            "On an IPAS, a payment is its amount times the forex rate paid, plus fees. Landed Cost is worked out from those, with freight counted once, and a retail and wholesale table for stock.",
+            "An IPAS can now carry a freight amount and its file. Freight the supplier already billed is not added twice, and freight in a currency other than pesos or the PO's is refused."
+        ]
+    },
+    {
         "date": "2026-10-26",
         "title": "P0s that list a product twice",
         "version": "1.9.69",

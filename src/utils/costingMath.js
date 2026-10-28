@@ -1,3 +1,5 @@
+import { COST_SOURCE } from "../constants/costing";
+
 /**
  * The Costing Matrix's figures (#267, spec #266). Pure: no network, no React.
  * The service, the screen, the print and the Stage Condition evaluators all
@@ -717,18 +719,18 @@ export function resolveCost(component) {
   const c = component ?? {};
   const acquire = c.acquire_unit;
   const own = (source) => ({ source, pesos: acquire, price: acquire, currency: "PHP" });
-  if (hasValue(acquire) && c.acquire_source === "typed") return own("typed");
-  if (hasValue(acquire) && c.acquire_from_offer_id) return own("canvass");
+  if (hasValue(acquire) && c.acquire_source === COST_SOURCE.TYPED) return own(COST_SOURCE.TYPED);
+  if (hasValue(acquire) && c.acquire_from_offer_id) return own(COST_SOURCE.CANVASS);
   if (hasValue(c.p0_unit_price)) {
     return {
-      source: "p0",
+      source: COST_SOURCE.P0,
       pesos: c.p0_unit_price,
       price: hasValue(c.p0_quoted_unit_price) ? c.p0_quoted_unit_price : c.p0_unit_price,
       currency: c.p0_currency || "PHP",
     };
   }
-  if (hasValue(acquire)) return own(c.acquire_source === "odoo" ? "odoo" : "typed");
-  if (hasValue(c.odoo_unit)) return { source: "odoo", pesos: c.odoo_unit, price: c.odoo_unit, currency: "PHP" };
+  if (hasValue(acquire)) return own(c.acquire_source === COST_SOURCE.ODOO ? COST_SOURCE.ODOO : COST_SOURCE.TYPED);
+  if (hasValue(c.odoo_unit)) return { source: COST_SOURCE.ODOO, pesos: c.odoo_unit, price: c.odoo_unit, currency: "PHP" };
   return null;
 }
 
@@ -748,7 +750,7 @@ export function lineCost(line) {
   const total = parts.reduce((sum, part, i) => sum + (extendedCentavos(costs[i].pesos, part.quantity) ?? 0n), 0n);
   const pesos = Math.round(Number(total) / quantity) / 100;
   const sources = new Set(costs.map((cost) => cost.source));
-  return { source: sources.size === 1 ? [...sources][0] : "mixed", pesos, price: pesos, currency: "PHP" };
+  return { source: sources.size === 1 ? [...sources][0] : COST_SOURCE.MIXED, pesos, price: pesos, currency: "PHP" };
 }
 
 /**
@@ -824,7 +826,9 @@ const toCentavos = (value) => (blank(value) || !Number.isFinite(Number(value)) ?
 /**
  * One S0 line's markup figures, per unit of the line (spec #699, ticket #703):
  *
- *   suggested   the bare peso price x the multiplier (not x the landed cost), to the centavo
+ *   suggested   the bare peso price x the multiplier (not x the landed cost), to the centavo. A tower's
+ *               price carries what comes with it: the bare peso price of every included item, spread over
+ *               the line's quantity, goes in before the multiplier ("with N included")
  *   cost        what the line really costs per unit: its own landed cost plus the landed cost of every item
  *               included in it (a tower's parts), spread over the line's quantity
  *   margin      suggested - cost, and `percent` of the suggested price
@@ -836,8 +840,18 @@ const toCentavos = (value) => (blank(value) || !Number.isFinite(Number(value)) ?
 export function lineSheetMarkup(line, kids, defaultFactor, landedOf) {
   const { factor, own } = lineMultiplier(line, defaultFactor);
   const cost = lineCost(line);
-  const suggestedCentavos = cost && factor !== null ? toCentavos(markupPriceUnit(cost.pesos, factor)) : null;
   const quantity = Number(line?.quantity);
+  let groupPesos = cost ? toCentavos(cost.pesos) : null;
+  for (const kid of kids ?? []) {
+    const kidCost = lineCost(kid);
+    const kidCentavos = kidCost ? toCentavos(kidCost.pesos) : null;
+    if (groupPesos === null || kidCentavos === null || !(quantity > 0)) {
+      groupPesos = null;
+      break;
+    }
+    groupPesos += Math.round((kidCentavos * Number(kid.quantity)) / quantity);
+  }
+  const suggestedCentavos = groupPesos !== null && factor !== null ? toCentavos(markupPriceUnit(groupPesos / 100, factor)) : null;
   let costCentavos = toCentavos(landedOf(line));
   for (const kid of kids ?? []) {
     const kidLanded = toCentavos(landedOf(kid));

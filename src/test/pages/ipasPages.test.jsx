@@ -960,19 +960,19 @@ describe("IPAS pages", () => {
       expect(db.rows("ipas")[0].state).toBe("open");
     });
 
-    it("warns when Odoo's S numbers differ from the SORs", async () => {
+    it("warns when the IPAS names an SOR the Odoo PO does not (one way only, #712)", async () => {
       const sor = makeOpportunity({ registered_by: salesperson.id, sales_reference: "S07920", project_title: "Capas LGU" });
       const row = ipas({ po_number: "P02552", purpose: "project", created_by: purchaser.id });
       db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: sor.id });
       stubEdgeFunction(
         "odoo-po-ipas",
-        answer("P02552", { po: { id: 1, name: "P02552", state: "purchase", company: "T3ck Trading", currency: "Php", origin: "S07920 Capas and S06070 Las Nieves", partner_ref: null } }),
+        answer("P02552", { po: { id: 1, name: "P02552", state: "purchase", company: "T3ck Trading", currency: "Php", origin: "S06070 Las Nieves", partner_ref: null }, lines: [{ line_id: 11, name: "Greenspirit 2 Cutter", brand: "SCORPE", quantity: 6, unit: "Unit", price_unit: 1250, price_subtotal: 7500, taxes: [], analytic: ["S06070 Las Nieves"] }] }),
       );
 
       renderDetail(row.id, "sales");
 
-      expect(await screen.findByText("Odoo's S numbers differ from this IPAS's SORs")).toBeInTheDocument();
-      expect(screen.getByText(/Odoo also names S06070/)).toBeInTheDocument();
+      expect(await screen.findByText("This IPAS names an SOR the Odoo PO doesn't")).toBeInTheDocument();
+      expect(screen.getByText(/Odoo doesn't name S07920/)).toBeInTheDocument();
     });
 
     it("stamps the three Odoo statuses, with Partly received, and gives no way to tick them", async () => {

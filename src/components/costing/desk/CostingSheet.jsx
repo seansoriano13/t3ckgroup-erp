@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../ui/tab
 import StatusBadge from "../../StatusBadge";
 import { Cell } from "../GridCell";
 import { costingMatrixService } from "../../../services/costingMatrixService";
-import { COSTING_BAND, COSTING_TIER, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
+import { COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
 import { factorLabel, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
 import { useAuth } from "../../../context/AuthContext";
@@ -15,11 +15,11 @@ import { useMyEvaluationTeams } from "./evaluationTeams";
 
 /** The word and colour under a price for where it came from; a cost Purchasing typed is amber. */
 const SOURCE_BADGE = {
-  canvass: { label: "Canvass", theme: "mauve" },
-  p0: { label: "P0", theme: "mauve" },
-  odoo: { label: "Odoo", theme: "mauve" },
-  typed: { label: "Typed", theme: "amber" },
-  mixed: { label: "Mixed", theme: "mauve" },
+  [COST_SOURCE.CANVASS]: { label: "Canvass", theme: "mauve" },
+  [COST_SOURCE.P0]: { label: "P0", theme: "mauve" },
+  [COST_SOURCE.ODOO]: { label: "Odoo", theme: "mauve" },
+  [COST_SOURCE.TYPED]: { label: "Typed", theme: "amber" },
+  [COST_SOURCE.MIXED]: { label: "Mixed", theme: "mauve" },
 };
 
 /**

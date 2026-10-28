@@ -240,6 +240,8 @@ export const IPAS_LANDED_COST_REASON = {
   NO_LINES: "no_lines",
   /** A payment's pesos are blank and no Reference Rate exists on or before its date (#604). */
   NO_REFERENCE_RATE: "no_reference_rate",
+  /** The freight is in a currency that is neither pesos nor the PO's, so it can't be converted (#709). */
+  FREIGHT_CURRENCY: "freight_currency",
 };
 
 /** The option lists (ipas_options.list). Options are deactivated, never deleted. */

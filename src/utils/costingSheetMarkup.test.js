@@ -37,18 +37,19 @@ describe("lineSheetMarkup", () => {
   it("counts the cost of included items toward the parent's margin", () => {
     const tower = line({ quantity: 2 });
     const kid = line({ quantity: 4, components: [part({ acquire_unit: 50 })] });
-    // Parent unit cost 1000, included cost 50 x 4 = 200 over 2 units = 100 per unit.
+    // Parent unit cost 1000, included cost 50 x 4 = 200 over 2 units = 100 per unit. The suggested
+    // price carries the included items' bare price too: (1000 + 100) x 1.5.
     const out = lineSheetMarkup(tower, [kid], 1.5, landedOf);
-    expect(out.suggested).toBe(1500);
+    expect(out.suggested).toBe(1650);
     expect(out.cost).toBe(1100);
-    expect(out.margin).toBe(400);
+    expect(out.margin).toBe(550);
     expect(out.included).toBe(1);
   });
 
   it("is blank while an included item has no cost", () => {
     const kid = line({ components: [] });
     const out = lineSheetMarkup(line(), [kid], 1.5, landedOf);
-    expect(out.suggested).toBe(1500);
+    expect(out.suggested).toBeNull();
     expect(out.margin).toBeNull();
   });
 

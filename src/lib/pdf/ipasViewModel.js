@@ -209,7 +209,9 @@ function landedCostOf(ipas, filed, charges) {
         ? `This Odoo PO is in ${lc.currency || 'a foreign currency'}. Landed Cost converts at the rate actually paid, so it needs a payment.`
         : lc.reason === IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE
           ? `A payment has no pesos taken from the bank yet, and there is no Reference Rate on or before its date to estimate with.`
-          : 'The Odoo PO has no item lines to cost.';
+          : lc.reason === IPAS_LANDED_COST_REASON.FREIGHT_CURRENCY
+            ? "The freight is in a currency that is neither pesos nor the PO's currency, so it can't be converted."
+            : 'The Odoo PO has no item lines to cost.';
     return { status: lc.status, label: 'Not available', note, lines: [], total: null, build: [], perUnit: null, units: null };
   }
 

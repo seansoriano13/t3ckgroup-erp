@@ -45,6 +45,17 @@ export function pesosFromRate(amount, rate) {
 }
 
 /**
+ * What a payment cost in pesos: amount x the forex rate it was paid at (the database reads it the
+ * same way), or the stored pesos of an old payment with no rate. Null when neither is known.
+ */
+export function paymentPesos(payment) {
+  const rate = finiteNumber(payment?.forex_rate);
+  const amount = finiteNumber(payment?.amount);
+  if (rate !== null && rate > 0 && amount !== null) return pesosFromRate(amount, rate);
+  return finiteNumber(payment?.php_debited);
+}
+
+/**
  * The blended rate of several payments: all their pesos over all their amounts, so a bigger
  * payment weighs more. Payments with no rate are left out. Null when none has one.
  */
@@ -72,7 +83,7 @@ export function isPhpCurrency(currency) {
  */
 export function paymentPhp(payment, isPhp) {
   if (isPhp) return finiteNumber(payment?.amount);
-  return finiteNumber(payment?.php_debited);
+  return paymentPesos(payment);
 }
 
 /**

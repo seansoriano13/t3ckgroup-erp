@@ -52,7 +52,7 @@ import {
   shapeIpas,
 } from "../utils/ipas";
 import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
-import { pesosFromRate, sumPesos } from "../utils/landedCost";
+import { sumPesos } from "../utils/landedCost";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
@@ -641,17 +641,17 @@ export const ipasService = {
    */
   async addPayment(id, payment, { isPhpPo = true } = {}) {
     const args = paymentArgs(payment, isPhpPo);
-    const { data, error } = await supabase.rpc("ipas_add_payment", { p_ipas_id: id, ...args.rpc });
+    const { data, error } = await supabase.rpc("ipas_save_payment", { p_ipas_id: id, p_payment_id: null, ...args });
     if (error) throw error;
-    return writePaymentMoney(data, args.money);
+    return data;
   },
 
   /** Changes a payment on an open IPAS: the same fields as addPayment, all of them. */
   async updatePayment(paymentId, payment, { isPhpPo = true } = {}) {
     const args = paymentArgs(payment, isPhpPo);
-    const { data, error } = await supabase.rpc("ipas_update_payment", { p_payment_id: paymentId, ...args.rpc });
+    const { data, error } = await supabase.rpc("ipas_save_payment", { p_ipas_id: null, p_payment_id: paymentId, ...args });
     if (error) throw error;
-    return writePaymentMoney(data ?? { id: paymentId }, args.money);
+    return data;
   },
 
   /** Removes a payment from an open IPAS; the history keeps what was removed. */
@@ -1686,13 +1686,6 @@ function unavailable(po) {
   );
 }
 
-/** Stores the forex rate and the doc stamp and misc fee of a payment just written (#708). */
-async function writePaymentMoney(row, money) {
-  const { data, error } = await supabase.rpc("ipas_set_payment_money", { p_payment_id: row.id, ...money });
-  if (error) throw error;
-  return data ?? row;
-}
-
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
   const { kind, paidOn, amount, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, checkNo, proofUrl } = payment || {};
@@ -1722,21 +1715,20 @@ function paymentArgs(payment, isPhpPo) {
   });
   if (!methodId) throw new IpasError(IPAS_ERROR.INVALID, "Pick the payment method.");
 
-  const rate = isPhpPo ? null : rateRead.value;
+  // One RPC writes the payment, its pesos (amount x rate, worked out in the database) and the fees
+  // together, so a failure can't leave a half-saved payment.
   return {
-    rpc: {
-      p_kind: kind,
-      p_paid_on: paidOn,
-      p_amount: amountRead.value,
-      // Pesos are worked out, not typed: amount x rate.
-      p_php_debited: rate === null ? null : pesosFromRate(amountRead.value, rate),
-      // charge_fee_php holds every fee: bank charge + doc stamp + misc (#708).
-      p_charge_fee_php: sumPesos(fees),
-      p_method_id: methodId,
-      p_check_no: (checkNo || "").trim() || null,
-      p_proof_url: (proofUrl || "").trim() || null,
-    },
-    money: { p_forex_rate: rate, p_doc_stamp_php: fees[1], p_misc_fee_php: fees[2] },
+    p_kind: kind,
+    p_paid_on: paidOn,
+    p_amount: amountRead.value,
+    p_forex_rate: isPhpPo ? null : rateRead.value,
+    p_doc_stamp_php: fees[1],
+    p_misc_fee_php: fees[2],
+    // charge_fee_php holds every fee: bank charge + doc stamp + misc (#708).
+    p_charge_fee_php: sumPesos(fees),
+    p_method_id: methodId,
+    p_check_no: (checkNo || "").trim() || null,
+    p_proof_url: (proofUrl || "").trim() || null,
   };
 }
 

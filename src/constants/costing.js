@@ -227,6 +227,9 @@ export const tierReadsBid = (tier, column) => (BID_DECISION_TIERS[column] ?? [])
 /** Does this tier receive the Bid Decision at all (its verdict and reason)? */
 export const tierReadsBidDecision = (tier) => tierReadsBid(tier, "verdict");
 
+/** Where a row's cost came from (`resolveCost` / `lineCost` in utils/costingMath.js, #701). MIXED is a line whose parts disagree. */
+export const COST_SOURCE = { TYPED: "typed", CANVASS: "canvass", P0: "p0", ODOO: "odoo", MIXED: "mixed" };
+
 /** Who takes a Bid Decision: the Closed Book tier (a Super Admin or the Final Acquire list). The database decides. */
 export const tierDecidesBid = (tier) => tier === COSTING_TIER.CLOSED_BOOK;
 
