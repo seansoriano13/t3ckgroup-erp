@@ -132,7 +132,7 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
 
   const leavesQuery = useQuery({
     queryKey: ["headPendingApprovals", user?.id],
-    queryFn: () => headApprovalService.getPendingForHead(user.id),
+    queryFn: () => headApprovalService.getPendingForHead(user.id, { all: isSuperAdmin }),
     enabled: !!user?.id && (isHead || isSuperAdmin),
   });
 

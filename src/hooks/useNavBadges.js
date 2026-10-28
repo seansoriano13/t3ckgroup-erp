@@ -54,7 +54,7 @@ export function useNavBadges(user) {
   // 2. Pending leave/overtime requests routed to this head, awaiting decision.
   const { data: pendingHeadApprovals = [] } = useQuery({
     queryKey: ["navHeadPendingApprovals", user?.id],
-    queryFn: () => headApprovalService.getPendingForHead(user.id),
+    queryFn: () => headApprovalService.getPendingForHead(user.id, { all: isSuperAdmin }),
     enabled: !!user?.id && (isSuperAdmin || isHead),
     staleTime: 30000,
   });
