@@ -73,6 +73,6 @@ describe("CostGuideView", () => {
     view({ uncategorised: { total: 50000, share_pct: 5 }, missing_cost: 2 });
     expect(screen.getByTestId("cost-guide-uncategorised")).toHaveTextContent("Uncategorised");
     expect(screen.getByTestId("cost-guide-uncategorised")).toHaveTextContent("5%");
-    expect(screen.getByTestId("cost-guide-missing-cost")).toHaveTextContent("2 costs have no Final Acquire yet");
+    expect(screen.getByTestId("cost-guide-missing-cost")).toHaveTextContent("2 costs have no cost yet");
   });
 });

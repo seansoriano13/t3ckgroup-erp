@@ -76,7 +76,7 @@ export function CostGuideView({ guide }) {
       )}
       {missingCost > 0 && (
         <p className="text-xs text-muted-foreground" data-testid="cost-guide-missing-cost">
-          {missingCost} {missingCost === 1 ? "cost has" : "costs have"} no Final Acquire yet, so the shares may read low.
+          {missingCost} {missingCost === 1 ? "cost has" : "costs have"} no cost yet, so the shares may read low.
         </p>
       )}
     </section>

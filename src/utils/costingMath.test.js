@@ -543,3 +543,19 @@ describe("the Actual cost wins in the totals (#686)", () => {
     expect(lineTotals({ quantity: 1 }, [component, { quantity: 1, acquire_unit: 10 }]).acquireTotal).toBe(250);
   });
 });
+
+describe("a row costed by Acquire only (#787)", () => {
+  const matrix = {
+    tenderLines: [{ quantity: 1, final_offer_unit: "100.00", components: [{ quantity: 2, acquire_unit: "10.00", final_acquire_unit: null }] }],
+    costRows: [{ quantity: 1, acquire_unit: "5.00" }],
+  };
+  it("counts as costed in the summary, not as missing", () => {
+    const { incomplete } = summary(matrix, {});
+    expect(incomplete.missingCost).toBe(0);
+    expect(incomplete.noCostRows).toBe(false);
+  });
+  it("still prefers an old deal's Final Acquire", () => {
+    const m = { ...matrix, costRows: [{ quantity: 1, acquire_unit: "5.00", final_acquire_unit: "7.00" }] };
+    expect(finalAcquireTotal(m.costRows)).toBe(finalAcquireTotal([{ quantity: 1, final_acquire_unit: "7.00" }]));
+  });
+});

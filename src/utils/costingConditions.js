@@ -35,7 +35,7 @@ export const WORDING = {
     const n = Number(i?.missing_cost) || 0;
     return costed === 0
       ? "The summary is incomplete: there is nothing costed yet."
-      : `The summary is incomplete: ${n} ${plural(n, "row has", "rows have")} no Final Acquire.`;
+      : `The summary is incomplete: ${n} ${plural(n, "row has", "rows have")} no cost.`;
   },
   evaluation_not_approved: () => "The Evaluation of Specification is not approved.",
   over_abc: () => "The Final Offer total is over the ABC total.",

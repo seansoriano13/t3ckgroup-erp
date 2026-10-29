@@ -117,12 +117,21 @@ export function costRowsTotals(rows) {
 }
 
 /**
- * The Final Acquire of a set of Components or cost-only rows added up (#270), or null when there are
+ * The cost a row counts at: its Final Acquire (old deals, kept as signed) or else its Acquire
+ * (#787; Final Acquire left the screen in #703). Same rule as the database's costing_settled_met.
+ */
+export function costUnit(row) {
+  const final = row?.final_acquire_unit;
+  return final !== null && final !== undefined && final !== "" ? final : row?.acquire_unit;
+}
+
+/**
+ * The cost of a set of Components or cost-only rows added up (#270), or null when there are
  * none or any one has no Final Acquire. Closed Book only: no other tier is sent the figures.
  */
 export function finalAcquireTotal(rows) {
   const list = rows ?? [];
-  return pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(r?.final_acquire_unit, r?.quantity))));
+  return pesosFromCentavos(sumUnlessBlank(list.map((r) => extendedCentavos(costUnit(r), r?.quantity))));
 }
 
 /**
@@ -256,7 +265,7 @@ export function summary(matrix, settings) {
   const missingOffer = offers.filter((o) => o === null).length;
   const offer = lines.length > 0 && missingOffer === 0 ? offers.reduce((sum, o) => sum + o, 0n) : null;
 
-  const costs = costed.map((row) => extendedCentavos(row?.final_acquire_unit, row?.quantity));
+  const costs = costed.map((row) => extendedCentavos(costUnit(row), row?.quantity));
   const missingCost = costs.filter((c) => c === null).length;
   const acquire = costed.length > 0 && missingCost === 0 ? costs.reduce((sum, c) => sum + c, 0n) : null;
 
@@ -339,7 +348,7 @@ export function revenueInputs(matrix, { ipasShort = false } = {}) {
   const offers = lines.map((line) => extendedCentavos(line?.final_offer_unit, line?.quantity));
   const offer = lines.length > 0 && offers.every((o) => o !== null) ? offers.reduce((sum, o) => sum + o, 0n) : null;
 
-  const costed = [...components, ...costRows].map((row) => extendedCentavos(row?.final_acquire_unit, row?.quantity));
+  const costed = [...components, ...costRows].map((row) => extendedCentavos(costUnit(row), row?.quantity));
   const acquire = costed.length > 0 && costed.every((c) => c !== null) ? costed.reduce((sum, c) => sum + c, 0n) : null;
 
   let landed = 0n;
@@ -354,7 +363,7 @@ export function revenueInputs(matrix, { ipasShort = false } = {}) {
     // A Landed Cost is final only once its IPAS reached LC Odoo Done, so a provisional one is proof of a short IPAS.
     if (component.landed_cost.mark !== "final") provisional = true;
     landed += lc;
-    const fa = extendedCentavos(component?.final_acquire_unit, component?.quantity);
+    const fa = extendedCentavos(costUnit(component), component?.quantity);
     if (fa === null) boughtAcquireKnown = false;
     else boughtAcquire += fa;
   }
