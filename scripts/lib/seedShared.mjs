@@ -224,3 +224,21 @@ export function loadDotEnvLocal(repoRoot) {
   }
   return env
 }
+
+// Plain sequences behind the document numbers (PR_0001, CNV_0001, PKL_001,
+// TG03-1). The restore inserts rows with their numbers already set, so the
+// sequences stay at 1 and the first new row collides (issue #794).
+export const NUMBER_SEQUENCES = [
+  { sequence: "purchase_request_number_seq", table: "purchase_requests", column: "pr_number" },
+  { sequence: "sor_canvass_number_seq", table: "sor_canvasses", column: "number" },
+  { sequence: "packing_list_number_seq", table: "packing_lists", column: "number" },
+  { sequence: "transmittal_number_seq", table: "transmittals", column: "number" },
+]
+
+// SQL that moves a number sequence to the highest number used in its table.
+// An empty table (or one with no digits) leaves the next number at 1.
+export function numberSequenceResyncSql({ sequence, table, column }) {
+  return `select setval('public.${sequence}',
+    coalesce((select max(substring("${column}" from '[0-9]+$')::bigint) from public."${table}"), 1),
+    exists (select 1 from public."${table}" where "${column}" ~ '[0-9]+$'))`
+}
