@@ -1847,9 +1847,6 @@ async function autoMoveIfReady(opportunityId, actorId) {
   }
 }
 
-/** The Stage Actions that open something through an RPC; a failed run of one of these can be retried (#788). */
-const OPEN_RUN_KINDS = ["open_purchase_request", "open_costing_matrix", "evaluate_specification", "request_packing_list"];
-
 export const opportunityService = {
   /**
    * The SOR Register. Every register count, the board, the matrix, and the
@@ -3250,8 +3247,7 @@ export const opportunityService = {
     if (stageError) throw stageError;
 
     if (retrying) {
-      if (!OPEN_RUN_KINDS.includes(action.kind)) throw new Error("This action has already been decided.");
-      // Back to the decided-and-created state the open functions accept, then run the open step again.
+      // Back to the decided-and-created state the create functions accept, then run the step again.
       const { error: reopenError } = await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "created" });
       if (reopenError) throw reopenError;
     } else {
@@ -3314,7 +3310,10 @@ export const opportunityService = {
       await notePackingListRequested(existing.id, stage, action.id, packingListId, actorId).catch(() => {});
       return { outcome: "created" };
     }
-    await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, null);
+    // #788: a task that fails to build is saved as failed and shown to the person, so Create can be tried again.
+    const failedNow = [];
+    await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, failedNow);
+    if (failedNow.length) throw new Error(`Could not create "${failedNow[0]}". Please try again.`);
     return { outcome: "created" };
   },
 
@@ -3364,8 +3363,6 @@ export const opportunityService = {
       const action = actionById.get(run.action_id);
       const stage = stageById.get(run.stage_id);
       if (!action || !stage) continue;
-      // #788: a failed run stays on the card for a retry only when it is an "open" step.
-      if (run.outcome === "failed" && !OPEN_RUN_KINDS.includes(action.kind)) continue;
 
       const deciderIds = await resolveDeciderIds(run.decider || [], existing);
       if (!deciderIds.map(String).includes(String(actorId))) continue;
