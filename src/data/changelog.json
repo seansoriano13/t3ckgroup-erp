@@ -1,6 +1,20 @@
 [
     {
         "date": "2026-10-29",
+        "title": "More fixes from the Purchasing demo run",
+        "version": "1.9.75",
+        "changes": [
+            "The Warehouse can now add boxes and sign \"Packed by\" on a Packing List.",
+            "\"Items bought\" now counts items that are Purchased or Received, and the Tracker count is right.",
+            "SORs with no Deal Owner now show the person who registered them. The \"Go\" link takes you to the Deal Owner field.",
+            "A failed step can be tried again with Create.",
+            "Late deliveries are marked late, Optional items are no longer counted as owed, and a duplicate Sales Reference asks you to confirm.",
+            "Old demo requests for deleted or lost SORs now show as Closed.",
+            "\"Final Acquire\" now reads \"Final cost\" and \"Decider list\" on the costing screens."
+        ]
+    },
+    {
+        "date": "2026-10-29",
         "title": "Fixes from the Purchasing demo run",
         "version": "1.9.74",
         "changes": [

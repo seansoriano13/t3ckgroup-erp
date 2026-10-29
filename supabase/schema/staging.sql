@@ -10877,7 +10877,9 @@ begin
   cross join lateral (
     select
       count(*)::integer as total_items,
-      (count(*) filter (where l.total_php is not null))::integer as bought,
+      (count(*) filter (where l.total_php is not null
+        or exists (select 1 from public.purchase_request_items pi
+                    where pi.component_id = c.id and pi.status in ('purchased', 'received'))))::integer as bought,
       -- Each Component's Landed Cost is rounded to the centavo before it is added, as the SOR summary does.
       coalesce(sum(round(l.total_php, 2)) filter (where l.total_php is not null), 0) as landed,
       case when coalesce(bool_and(l.total_php is null or cc.final_acquire_unit is not null), true)
