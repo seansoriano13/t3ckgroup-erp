@@ -1806,7 +1806,7 @@ export function stubIpasRpcs({
   })
 
   stubRpc("ipas_set_item_location", (args) => {
-    requirePurchasing("ipas_set_item_location")
+    if (!purchasing && !onList("logistics_signed", actorId)) refuse("42501", "ipas_set_item_location: only Purchasing or the Logistics signer list sets the Item Location")
     const row = requireOpenIpas("ipas_set_item_location", args.p_ipas_id)
     const to = args.p_option_id ?? null
     const toLabel = to ? checkOption("ipas_set_item_location", to, "item_location", row.item_location_id, "item location") : null

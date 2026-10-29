@@ -19,7 +19,7 @@ const NONE = "__none__";
  * list the business edits (the Transmittals' Item Location shows until one is
  * typed), and the TG03 Transmittals carrying this IPAS's lines, with links.
  *
- *   canChange   Purchasing on an open IPAS
+ *   canChange   Purchasing, or the Logistics signers (#789), on an open IPAS
  *   signRights  { canSign }: on the Logistics signer list, IPAS open, not signed yet (#713)
  *   onSign      gives the Logistics sign-off; Filing waits for it
  */

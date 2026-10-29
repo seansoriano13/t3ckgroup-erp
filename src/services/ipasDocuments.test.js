@@ -485,6 +485,21 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       expect((await read(ipas.id)).itemLocation).toBeNull()
     })
 
+    it("lets a Logistics signer (the Warehouse) type it, and refuses someone on no list (#789)", async () => {
+      const ipas = await raise("local", "P03061")
+      const place = options.item_location["Marikina Warehouse"]
+      const warehouse = makeEmployee({ name: "Aldrin", department: "WAREHOUSE", has_purchasing_flow: false })
+      db.seed("ipas_signer_lists", { list_key: "logistics_signed", employee_id: warehouse.id })
+      const bystander = makeEmployee({ name: "Bystander", department: "WAREHOUSE", has_purchasing_flow: false })
+
+      stubIpasRpcs({ actorId: bystander.id, purchasing: false })
+      await expect(ipasService.setItemLocation(ipas.id, place.id)).rejects.toThrow()
+
+      stubIpasRpcs({ actorId: warehouse.id, purchasing: false })
+      await ipasService.setItemLocation(ipas.id, place.id)
+      expect((await read(ipas.id)).itemLocation).toMatchObject({ label: "Marikina Warehouse" })
+    })
+
     it("has no TG03 Location: nothing but the typed Item Location is offered", async () => {
       const ipas = await raise("local", "P03061")
 
