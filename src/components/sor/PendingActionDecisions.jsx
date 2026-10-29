@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Wand2 } from "lucide-react";
@@ -38,9 +39,16 @@ export default function PendingActionDecisions({ opportunity, actorId, onChanged
     enabled: !!opportunityId && !!actorId,
   });
 
+  // Set once the decision is actually sent, so a refusal raised before any request (Release Notes samples) does not refetch.
+  const sentRef = useRef(false);
+
   const decideMutation = useMutation({
-    mutationFn: ({ runId, decision }) => opportunityService.decideAction(runId, decision, actorId),
+    mutationFn: ({ runId, decision }) => {
+      sentRef.current = true;
+      return opportunityService.decideAction(runId, decision, actorId);
+    },
     onSuccess: (_, { decision }) => {
+      sentRef.current = false;
       toast.success(decision === "create" ? "Created." : "Skipped.");
       queryClient.invalidateQueries({ queryKey: ["pendingActionDecisions", opportunityId, actorId] });
       queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
@@ -49,6 +57,8 @@ export default function PendingActionDecisions({ opportunity, actorId, onChanged
     onError: (err) => {
       toast.error(err.message);
       // #788: a failed open leaves the run as failed; refresh so the card offers the retry.
+      if (!sentRef.current) return;
+      sentRef.current = false;
       queryClient.invalidateQueries({ queryKey: ["pendingActionDecisions", opportunityId, actorId] });
     },
   });

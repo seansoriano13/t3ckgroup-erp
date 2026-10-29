@@ -497,7 +497,7 @@ describe("the Costing Desk", () => {
     let component;
 
     // One Tender Line at a Final Offer of 2,980,000 against an ABC of 3,200,000, with one Component.
-    function seedSummary({ finalAcquire = null, extraLine = false } = {}) {
+    function seedSummary({ finalAcquire = null, acquire = 2300000, extraLine = false } = {}) {
       matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
       db.seed("costing_settings", { id: 1 });
       const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Rescue vehicle", unit: "unit", quantity: 1 });
@@ -507,11 +507,11 @@ describe("the Costing Desk", () => {
         db.seed("costing_tender_line_prices", { tender_line_id: second.id, abc_unit: 100 });
       }
       component = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "4x4 pick-up", quantity: 1, unit: "unit" });
-      db.seed("costing_component_costs", { component_id: component.id, acquire_unit: 2300000, final_acquire_unit: finalAcquire });
+      db.seed("costing_component_costs", { component_id: component.id, acquire_unit: acquire, final_acquire_unit: finalAcquire });
     }
 
-    it("renders the incomplete summary in words while a Component has no Final Acquire", async () => {
-      seedSummary();
+    it("renders the incomplete summary in words while a Component has no cost (#787: Acquire stands in for Final Acquire)", async () => {
+      seedSummary({ acquire: null });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
       openDesk(deal);
 

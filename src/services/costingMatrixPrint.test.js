@@ -23,7 +23,7 @@ const PEOPLE = {
 const OPPORTUNITY = { sales_reference: "S07983", project_title: "Supply of One Emergency Response Vehicle", client_name: "Palmer Asia Inc" };
 
 /** The raw rows of one matrix: two Tender Lines' worth of structure, with every money column present. */
-function rawTables({ finalAcquireOnSecond = 78000 } = {}) {
+function rawTables({ finalAcquireOnSecond = 78000, acquireOnSecond = 78000 } = {}) {
   return {
     costing_matrices: [{ id: "m1", opportunity_id: "o1", sales_incharge_id: "u-sales", purchasing_incharge_id: "u-buyer" }],
     costing_matrix_money: [{ matrix_id: "m1", default_factor: 1.47, default_preset_id: null, marketing: 0, opex: 0 }],
@@ -35,7 +35,7 @@ function rawTables({ finalAcquireOnSecond = 78000 } = {}) {
     ],
     costing_component_costs: [
       { component_id: "c1", acquire_unit: 2160500, odoo_unit: null, final_acquire_unit: 2160500, markup_factor: null, markup_price_unit: 3176000 },
-      { component_id: "c2", acquire_unit: 78000, odoo_unit: 71400, final_acquire_unit: finalAcquireOnSecond, markup_factor: 1.35, markup_price_unit: 105300 },
+      { component_id: "c2", acquire_unit: acquireOnSecond, odoo_unit: 71400, final_acquire_unit: finalAcquireOnSecond, markup_factor: 1.35, markup_price_unit: 105300 },
     ],
     costing_inclusions: [
       { id: "i1", component_id: "c1", heading: "Interior", position: 1, description: "Custom Cabinet", quantity: 1, completeness: "COVERED" },
@@ -116,7 +116,7 @@ describe("the printed S0 Evaluation, view model", () => {
   });
 
   it("says why the summary is incomplete instead of printing a zero", () => {
-    const tables = rawTables({ finalAcquireOnSecond: null });
+    const tables = rawTables({ finalAcquireOnSecond: null, acquireOnSecond: null });
     const { money } = build(COSTING_TIER.CLOSED_BOOK, { tables });
     expect(money.incomplete).toEqual(["Incomplete — 1 row has no cost"]);
     expect(money.summary.find((r) => r.label === "Operational Expenses").value).toBe("Incomplete — 1 row has no cost");
