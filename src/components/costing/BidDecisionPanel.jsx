@@ -221,6 +221,11 @@ export default function BidDecisionPanel({
             disabled={!ready || writes.busy}
             className="min-h-[64px]"
           />
+          {writes.notice && (
+            <p className="text-sm font-semibold text-destructive" role="alert" data-testid="bid-decision-refusal">
+              {writes.notice}
+            </p>
+          )}
           {locked ? (
             <Button
               size="lg"
