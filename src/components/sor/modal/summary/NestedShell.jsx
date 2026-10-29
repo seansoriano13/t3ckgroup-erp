@@ -21,6 +21,7 @@ import ItemsTab from "../ItemsTab";
 import JourneyTab from "../JourneyTab";
 import PmsTab from "../PmsTab";
 import NotesDrawer, { NotesButton } from "./NotesDrawer";
+import { goToDetails } from "./goToDetails";
 import { blockedLabels, EditBody, showMoney, useWarmTabs } from "./shared";
 
 export function nestedViews(p) {
@@ -78,7 +79,7 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   // here — fixing a missing field is an edit.
   const go = (target) => {
     if (target === "details") {
-      if (p.canEdit) p.handleEditToggle();
+      goToDetails(p);
       return;
     }
     open(target);

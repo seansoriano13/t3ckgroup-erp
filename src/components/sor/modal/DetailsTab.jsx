@@ -258,7 +258,7 @@ export default function DetailsTab({ ctx }) {
               </div>
             )}
 
-            <div className="p-5">
+            <div className="p-5" id="sor-team-assignees">
               <p className="mb-3 text-label font-bold tracking-widest text-muted-foreground uppercase">Team & Assignees</p>
               {isEditing ? (
                 <div className="space-y-3">

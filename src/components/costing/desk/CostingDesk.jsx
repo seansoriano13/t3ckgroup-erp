@@ -220,7 +220,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
           )}
 
           <InchargeSelects
-            sales={matrix.matrix?.sales_incharge_id}
+            sales={matrix.matrix?.sales_incharge_id ?? opportunity?.deal_owner_id}
             purchasing={matrix.matrix?.purchasing_incharge_id}
             salesOptions={incharge.salesOptions}
             purchasingOptions={incharge.purchasingOptions}
