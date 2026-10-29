@@ -2,7 +2,7 @@ import { Briefcase } from "lucide-react";
 import SlideOver, { SlideOverBody } from "../ui/SlideOver";
 
 const identity = (summary) => ({
-  ref: summary.sales_reference || "SOR",
+  ref: summary.sales_reference || summary.sor_code || "SOR",
   title: summary.project_title || "This SOR",
 });
 

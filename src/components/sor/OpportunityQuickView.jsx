@@ -61,7 +61,7 @@ function TaskRow({ task, onOpen }) {
 }
 
 const identity = (opportunity) => ({
-  ref: opportunity.sales_reference || "SOR",
+  ref: opportunity.sales_reference || opportunity.sor_code || "SOR",
   title: opportunity.project_title || opportunity.client_name || "This deal",
   subtitle: opportunity.project_title ? opportunity.client_name : null,
 });

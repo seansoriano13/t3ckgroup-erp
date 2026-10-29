@@ -605,6 +605,8 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const invalidate = () => {
     // Prefix match: the history is keyed under the Canvass's own key.
     queryClient.invalidateQueries({ queryKey });
+    // The request line's own Canvass summary is keyed apart from this panel's key.
+    queryClient.invalidateQueries({ queryKey: ["canvass", "requestedItem"] });
     queryClient.invalidateQueries({ queryKey: CANVASS_LIST_KEY });
     // A request's items show their Canvass, so what changed here has to reach the request too.
     queryClient.invalidateQueries({ queryKey: ["purchase-request"] });

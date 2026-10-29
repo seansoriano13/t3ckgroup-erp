@@ -21,6 +21,10 @@ describe("canvassLine", () => {
     expect(canvassLine({ number: "CNV_0007", offers: [{}, {}] })).toBe("Canvass CNV_0007 · 2 of 3 offers")
   })
 
+  it("counts a No other supplier note as a covered slot (#795 A9)", () => {
+    expect(canvassLine({ number: "CNV_0007", offers: [{}, {}], slotsCovered: 3 })).toBe("Canvass CNV_0007 · 3 of 3 slots")
+  })
+
   it("says a replaced line's Canvass was stopped", () => {
     expect(canvassLine({ number: "CNV_0007", stopped_reason: "Stopped · replaced by B" })).toBe("Canvass CNV_0007 · Stopped · replaced by B")
   })

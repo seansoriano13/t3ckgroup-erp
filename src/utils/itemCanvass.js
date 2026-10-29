@@ -26,5 +26,8 @@ export function canvassLine(canvass) {
   const head = canvass.number ? `Canvass ${canvass.number}` : "Canvass";
   // #687: a replaced line's open Canvass is closed with the reason ("Stopped · replaced by B").
   if (canvass.stopped_reason) return `${head} · ${canvass.stopped_reason}`;
+  // A "No other supplier" note covers a slot too, so count it (#795 A9).
+  const covered = canvass.slotsCovered ?? offers;
+  if (covered > offers) return `${head} · ${covered} of ${MIN_CANVASS_OFFERS} slots`;
   return `${head} · ${offers} of ${MIN_CANVASS_OFFERS} offers`;
 }
