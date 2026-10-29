@@ -337,9 +337,18 @@ function taxedOffer(offer, allowance) {
  *   ipasShort               true while any IPAS of the SOR has not reached LC Odoo Done (the caller says so;
  *                           a bought Component whose Landed Cost is provisional says so too)
  *
- * A Component is bought when it has a Landed Cost. One with none (not ordered, or its PO line not
+ * A Component is bought by isBoughtComponent; its Landed Cost still decides the Actual figures. One with none (not ordered, or its PO line not
  * picked yet) stays at Final Acquire.
  */
+/**
+ * One rule for "bought" (#791), the same as the S0 Evaluation list's Items bought in the database: a
+ * Component has a Landed Cost, or one of its Purchase Request lines is Purchased or Received.
+ */
+export function isBoughtComponent(component) {
+  if (component?.landed_cost && extendedCentavos(component.landed_cost.total, 1) !== null) return true;
+  return (component?.purchases?.requests ?? []).some((r) => r.status === "purchased" || r.status === "received");
+}
+
 export function revenueInputs(matrix, { ipasShort = false } = {}) {
   const lines = matrix?.tenderLines ?? [];
   const components = lines.flatMap((line) => line?.components ?? []);
@@ -357,9 +366,9 @@ export function revenueInputs(matrix, { ipasShort = false } = {}) {
   let itemsBought = 0;
   let provisional = false;
   for (const component of components) {
+    if (isBoughtComponent(component)) itemsBought += 1;
     const lc = component?.landed_cost ? extendedCentavos(component.landed_cost.total, 1) : null;
     if (lc === null) continue;
-    itemsBought += 1;
     // A Landed Cost is final only once its IPAS reached LC Odoo Done, so a provisional one is proof of a short IPAS.
     if (component.landed_cost.mark !== "final") provisional = true;
     landed += lc;
