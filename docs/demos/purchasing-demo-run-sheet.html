@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
-/* Layout: one reading column like a printed run sheet; each part is a numbered block of tickable steps, with a sticky bar for the clock and progress. */
+/* Layout: one reading column like a printed run sheet. Each step is a card with the same five rows (who, where, do, see, say), so the eye always finds the same thing in the same place. Sticky bar for clock and progress. */
 :root {
   --bg: #f3f5f8;
   --paper: #ffffff;
@@ -15,6 +15,8 @@
   --gate-soft: #fbe9e7;
   --done: #1d7a4a;
   --done-soft: #e3f3ea;
+  --warn: #8a5a00;
+  --warn-soft: #fdf3dc;
   --seat-sales: #9a4d00;
   --seat-buy: #2448a6;
   --seat-sign: #6b2fa3;
@@ -28,7 +30,7 @@
   :root:not([data-theme="light"]) {
     --bg: #11151c; --paper: #1a2029; --ink: #e6e9ef; --muted: #9aa4b5; --rule: #2c3442;
     --accent: #8eaaf0; --accent-soft: #1f2b45; --gate: #f08a7e; --gate-soft: #3a1f1d;
-    --done: #6fcf98; --done-soft: #17301f;
+    --done: #6fcf98; --done-soft: #17301f; --warn: #f0c46a; --warn-soft: #33290f;
     --seat-sales: #f0a35c; --seat-buy: #8eaaf0; --seat-sign: #c49af0; --seat-wh: #6fcf98; --seat-boss: #e6e9ef;
     color-scheme: dark;
   }
@@ -36,25 +38,25 @@
 :root[data-theme="dark"] {
   --bg: #11151c; --paper: #1a2029; --ink: #e6e9ef; --muted: #9aa4b5; --rule: #2c3442;
   --accent: #8eaaf0; --accent-soft: #1f2b45; --gate: #f08a7e; --gate-soft: #3a1f1d;
-  --done: #6fcf98; --done-soft: #17301f;
+  --done: #6fcf98; --done-soft: #17301f; --warn: #f0c46a; --warn-soft: #33290f;
   --seat-sales: #f0a35c; --seat-buy: #8eaaf0; --seat-sign: #c49af0; --seat-wh: #6fcf98; --seat-boss: #e6e9ef;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
-.wrap { max-width: 860px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 64px; }
+.wrap { max-width: 880px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 64px; }
 h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: 0.01em; text-wrap: balance; margin: 0; line-height: 1.1; }
 h1 { font-size: 2.6rem; }
 h2 { font-size: 1.75rem; }
-h3 { font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 p { margin: 0; }
 code, .mono { font-family: var(--mono); font-size: 0.9em; }
+code { background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
 a { color: var(--accent); }
 
 /* Sticky bar */
 .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--paper); border-bottom: 1px solid var(--rule); }
-.bar-inner { max-width: 860px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.bar-inner { max-width: 880px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
 .clock { font-family: var(--mono); font-size: 1.35rem; font-variant-numeric: tabular-nums; min-width: 5.5ch; }
 .progress { flex: 1 1 160px; min-width: 0; display: flex; align-items: center; gap: 10px; }
 .track { flex: 1; height: 8px; background: var(--rule); border-radius: 4px; overflow: hidden; }
@@ -65,56 +67,70 @@ button:hover { border-color: var(--accent); }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
 button.danger { color: var(--gate); border-color: var(--gate); }
-.confirm { display: flex; gap: 8px; align-items: center; font-size: 0.85rem; }
+.confirm { display: flex; gap: 8px; align-items: center; font-size: 0.85rem; flex-wrap: wrap; }
 
 /* Header */
 header.top { padding-block: 32px 8px; display: grid; gap: 12px; }
-.eyebrow { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); letter-spacing: 0.04em; }
-.lede { color: var(--muted); max-width: 65ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); letter-spacing: 0.04em; overflow-wrap: anywhere; }
+.lede { color: var(--muted); max-width: 68ch; }
 
-section { margin-top: 36px; display: grid; gap: 14px; }
+section { margin-top: 40px; display: grid; gap: 14px; }
 .part-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; border-bottom: 2px solid var(--ink); padding-bottom: 6px; }
 .part-no { font-family: var(--display); font-size: 1.75rem; color: var(--accent); }
 .mins { margin-left: auto; font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
 .intro { color: var(--muted); max-width: 70ch; }
 
-/* Logins */
-.logins { overflow-x: auto; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+/* Tables */
+.tbl { overflow-x: auto; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
-th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; white-space: nowrap; }
 tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .copy { font-family: var(--mono); font-size: 0.85rem; padding: 3px 8px; border-radius: 4px; background: var(--accent-soft); border: 0; color: var(--ink); }
 .pw { font-family: var(--mono); font-weight: 500; background: var(--done-soft); padding: 2px 8px; border-radius: 4px; }
+.tag { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
+.tag.ok { background: var(--done-soft); color: var(--done); }
+.tag.short { background: var(--gate-soft); color: var(--gate); }
+.tag.gate { background: var(--gate-soft); color: var(--gate); }
 
 /* Seats */
 .seat { display: inline-block; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
 .s-sales { color: var(--seat-sales); } .s-buy { color: var(--seat-buy); } .s-sign { color: var(--seat-sign); } .s-wh { color: var(--seat-wh); } .s-boss { color: var(--seat-boss); }
 
-/* Steps */
+/* Steps: every row has a fixed label column so the eye finds Where / See / Say in the same place */
 ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-ol.steps > li { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+ol.steps > li { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
 ol.steps > li.done { background: var(--done-soft); border-color: transparent; }
-ol.steps > li.done .what { text-decoration: line-through; text-decoration-color: var(--muted); }
-ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--done); grid-row: span 3; cursor: pointer; }
-.what { min-width: 0; }
-.who { display: inline-flex; gap: 6px; margin-right: 6px; vertical-align: 1px; flex-wrap: wrap; }
-.say, .see { grid-column: 2; font-size: 0.88rem; min-width: 0; }
-.say { color: var(--muted); font-style: italic; }
-.see { color: var(--done); }
-.see::before { content: "You should see: "; font-weight: 600; font-style: normal; }
-.say::before { content: "Say: "; font-weight: 600; font-style: normal; }
-ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
+ol.steps > li.done .do { text-decoration: line-through; text-decoration-color: var(--muted); }
+ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--done); grid-row: span 6; cursor: pointer; }
+.head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; min-width: 0; }
+.k { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+.row { display: grid; grid-template-columns: 4.6rem 1fr; gap: 0 10px; font-size: 0.92rem; min-width: 0; }
+.row > b { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding-top: 2px; }
+.row > div { min-width: 0; }
+.row.where > div { font-family: var(--mono); font-size: 0.85rem; color: var(--accent); overflow-wrap: anywhere; }
+.row.see > div { color: var(--done); }
+.row.see > b { color: var(--done); }
+.row.say > div { color: var(--muted); font-style: italic; }
+.row.do ol, .row.do ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+@media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
 
 .gate { background: var(--gate-soft); border-left: 3px solid var(--gate); padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 0.9rem; }
 .gate strong { color: var(--gate); }
 .dash { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 0.9rem; }
 .dash strong { color: var(--accent); }
+.warn { background: var(--warn-soft); border-left: 3px solid var(--warn); padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 0.9rem; }
+.warn strong { color: var(--warn); }
 .note { font-size: 0.9rem; color: var(--muted); max-width: 70ch; }
-.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; min-width: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; min-width: 0; }
 .card h4 { margin: 0; font-size: 0.95rem; }
-.big { font-family: var(--display); font-size: 1.5rem; }
+
+/* Numbers notepad */
+.pad { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.pad label { display: grid; gap: 3px; font-size: 0.8rem; color: var(--muted); font-weight: 600; min-width: 0; }
+.pad input { font: inherit; font-family: var(--mono); font-size: 0.9rem; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); width: 100%; min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
 @media (max-width: 520px) { h1 { font-size: 2rem; } .mins { margin-left: 0; width: 100%; } }
 </style>
@@ -131,246 +147,656 @@ ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
 
 <div class="wrap">
 <header class="top">
-  <span class="eyebrow">STAGING · t3ckgroup-erp-staging.vercel.app · SALE TYPE "PROJECT [FOR DEMO]"</span>
+  <span class="eyebrow">STAGING · t3ckgroup-erp-staging.vercel.app · SALE TYPE "PROJECT [FOR DEMO]" · S0 S03204</span>
   <h1>Purchasing Demo Run Sheet</h1>
-  <p class="lede">One real government deal, from Lead to a filed IPAS, told from Purchasing's side. The deal is Odoo sale order <b class="mono">S03204</b>: Marikina City Government, fire-fighting equipment, 12 product lines, ₱1,452,768. It is bought on four real P0s: two in dollars from China, two in pesos from local suppliers. Part 0 is done alone before the meeting. Parts 1 to 9 are the one-hour demo. Parts A to E are side scenarios you can slip in or run on their own. Tick each step as you go. Ticks stay in this browser only, and "Clear ticks" starts a fresh rehearsal. The counter at the top counts the main demo only.</p>
-  <p class="note"><b>Rewritten 2026-10-29 (not yet rehearsed).</b> What changed since the last demo: the Costing Matrix is now the <b>S0 Evaluation</b>, Final Acquire, Prepared, Costed and Final approved are gone, a Canvass needs three supplier slots and is no longer signed, attaching a P0 raises its IPAS by itself, buying opens at NTP, the IPAS has a Logistics sign-off, and the Dashboard is one Tracker.</p>
+  <p class="lede">One real government deal, from Lead to a filed IPAS, told from Purchasing's side. The deal is Odoo sale order <b class="mono">S03204</b>: Marikina City Government, fire-fighting equipment, 12 product lines, ₱1,452,768. It is bought on four real P0s. Part 0 is setup, done alone. Parts 1 to 9 are the one-hour demo. Parts A to F are side scenarios. Tick each step as you go. Ticks and the numbers you write down stay in this browser only.</p>
+  <p class="note"><b>Rewritten 2026-10-29, second pass.</b> Every button name, field and gate below was checked against the code on <code>staging</code> and against the staging database that day. It has not been rehearsed in the app yet. The fixes from the first version: the setup now says every field to fill, each stage move lists what it asks for, the gates are explained by where they really bite, and the Transmittal and Canvass steps follow the real screens.</p>
 </header>
+
+<section id="howto">
+  <div class="part-head"><h2>How to read a step</h2></div>
+  <div class="grid2">
+    <div class="card"><h4>Five rows, always in this order</h4><p class="note"><b>Who</b> is the seat and login. <b>Where</b> is the screen, written as menu → page → part of the page. <b>Do</b> is what to click or type. <b>See</b> is what the screen should show. <b>Say</b> is the line for the room.</p></div>
+    <div class="card"><h4>Gates check the stage you leave</h4><p class="note">A gate on a stage stops the deal from <b>leaving</b> that stage. It never stops the deal from arriving. So "Costing priced" on PMS Sourcing GS is checked when Sales moves PMS Sourcing GS → Proposal Submitted.</p></div>
+    <div class="card"><h4>Four seats, four windows</h4><p class="note">One browser window keeps one login. <b>Sales</b> in Chrome. <b>Purchasing</b> in Chrome Incognito. <b>Signers</b> in Edge, where you sign out and in between Jelai, Jen, Grace, 201 and 101. <b>Warehouse</b> in Edge InPrivate (Aldrin and Sherwin).</p></div>
+    <div class="card"><h4>One demo file</h4><p class="note">Every upload uses <code>docs/demos/purchasing-demo-files/demo-document.pdf</code>. All four P0s already exist in Odoo and name S03204. Do not make new ones.</p></div>
+  </div>
+</section>
 
 <section id="before">
   <div class="part-head"><h2>Know before you start</h2></div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>P0</th><th>Supplier</th><th>Money</th><th>S03204 lines it covers</th><th>Arrived, per Odoo</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">P01046</td><td>Jiujang Fire Fighting</td><td class="num">USD 3,223</td><td>fire suit, gloves, safety belt, boots, hood, helmet yellow, helmet white (7 lines)</td><td><span class="tag ok">all</span></td></tr>
+        <tr><td class="mono">P01421</td><td>TG Enterprise</td><td class="num">₱13,860</td><td>goggles</td><td><span class="tag ok">all</span></td></tr>
+        <tr><td class="mono">P01047</td><td>Taizhou Sanjiang</td><td class="num">USD 1,380</td><td>hose 1.5" (10 of 10), nozzle 2.5", plus 2.5" NH hose ×8 not on the S0 and a shipping line</td><td>hose 1.5" <span class="tag ok">all</span> · nozzle 2.5" <span class="tag short">0 of 4</span></td></tr>
+        <tr><td class="mono">P01423</td><td>TG Global Trade</td><td class="num">₱21,840</td><td>hose 2.5", nozzle 1.5" ×2</td><td>nozzle 1.5" <span class="tag ok">all</span> · hose 2.5" <span class="tag short">2 of 10</span></td></tr>
+      </tbody>
+    </table>
+  </div>
   <div class="grid2">
-    <div class="card"><h4>The four P0s</h4><p class="note">
-      <b class="mono">P01046</b> Jiujang Fire Fighting, USD 3,223: suit, gloves, belt, boots, hood, both helmets. <b>All arrived.</b><br>
-      <b class="mono">P01421</b> TG Enterprise, ₱13,860: goggles. <b>All arrived.</b><br>
-      <b class="mono">P01047</b> Taizhou Sanjiang, USD 1,380: 1.5" hose (10 of 10 arrived), 2.5" nozzle (<b>0 of 4</b>), 2.5" NH hose ×8 not on the S0 (<b>0 of 8</b>), and a Guangzhou shipping line.<br>
-      <b class="mono">P01423</b> TG Global Trade, ₱21,840: 2.5" hose (<b>2 of 10</b> for the S0 line), 1.5" nozzle ×2 (arrived).</p></div>
-    <div class="card"><h4>Why the deal will not close</h4><p class="note">Odoo says the client got everything, but the P0s only show part of the 2.5" hose and none of the 2.5" nozzles received. The app trusts the P0s, so the "Purchasing settled" gate refuses Collection at the end. That is a real finding, not a bug. Say it out loud in Part 8.</p></div>
-    <div class="card"><h4>Cancelled P0s</h4><p class="note">S03204 also has five cancelled P0s in Odoo (P01415, P01416, P01418, P01419, P01425). They are the material for the refusal in Scenario E.</p></div>
-    <div class="card"><h4>The dollar rate</h4><p class="note">Peso figures use the Reference Rate for the day the app reads it. Every peso figure in this sheet is "about", so read the screen, not the sheet.</p></div>
+    <div class="card"><h4>How the demo ends</h4><p class="note">Odoo says the client got everything, but the P0s show only part of the 2.5" hose and none of the 2.5" nozzles received. The app trusts the P0s, so "Purchasing settled" refuses Project Delivery → Collection at the very end. That is a real finding in our records, not a bug. Say it out loud in step 8.5.</p></div>
+    <div class="card"><h4>Cancelled P0s</h4><p class="note">S03204 also has five cancelled P0s in Odoo: P01415, P01416, P01418, P01419, P01425. Scenario E uses P01415 to show a refusal.</p></div>
+    <div class="card"><h4>Peso figures are "about"</h4><p class="note">Dollar costs turn into pesos at the Reference Rate of the day. Read the screen, not this sheet, for any peso number.</p></div>
+    <div class="card"><h4>Group Tasks open by themselves</h4><p class="note">Several stages open a Group Task for the real teams (BIDCOM, PB Team, DELCOM and so on). Ignore them. Only <b>PQ</b> asks first: press <b>Skip</b> there.</p></div>
   </div>
 </section>
 
 <section id="logins">
   <div class="part-head"><h2>Logins</h2><span class="mins">password for every one: <span class="pw">demo</span></span></div>
-  <p class="intro">Sign in with email and password, not Google. Click an email to copy it. Every demo person shows as "<i>name</i> demo" in the app, so a demo signature is never mistaken for the real person's.</p>
-  <div class="logins">
+  <p class="intro">Sign in with email and password, not Google. Click an email to copy it. Every demo person shows as "<i>name</i> demo", so a demo signature is never mistaken for the real person's.</p>
+  <div class="tbl">
     <table>
-      <thead><tr><th>Email</th><th>Shows as</th><th>What they do in the demo</th><th>Seat</th></tr></thead>
+      <thead><tr><th>Email</th><th>Seat</th><th>What they do in the demo</th></tr></thead>
       <tbody>
-        <tr><td><button class="copy" type="button">dani@demo</button></td><td>Dani demo</td><td>Registers the SOR, Deal Owner, moves stages, ABC and Final Offer, Bid Decision</td><td><span class="seat s-sales">Sales</span></td></tr>
-        <tr><td><button class="copy" type="button">cjay@demo</button></td><td>Cjay demo</td><td>Takes the request, statuses, costs, Canvass, attaches P0s, IPAS, Transmittal</td><td><span class="seat s-buy">Purchasing</span></td></tr>
-        <tr><td><button class="copy" type="button">jelai@demo</button></td><td>Jelai demo</td><td>Payments with proof, IPAS section 3</td><td><span class="seat s-sign">Signers</span></td></tr>
-        <tr><td><button class="copy" type="button">jen@demo</button></td><td>Jen demo</td><td>Transmittal Check by 1</td><td><span class="seat s-sign">Signers</span></td></tr>
-        <tr><td><button class="copy" type="button">grace@demo</button></td><td>Grace demo</td><td>Approves the Evaluation, IPAS section 4 Received, Transmittal Check by 2</td><td><span class="seat s-sign">Signers</span></td></tr>
-        <tr><td><button class="copy" type="button">201@demo</button></td><td>201 demo</td><td>Markup list (applies 1.30), unlocks a Go, IPAS section 4 Checked and Approved</td><td><span class="seat s-sign">Signers</span></td></tr>
-        <tr><td><button class="copy" type="button">101@demo</button></td><td>101 demo (Sales Director, Super Admin)</td><td>Flow Canvas in Part 0. IPAS sections 1 and 2, section 4 Noted</td><td><span class="seat s-sign">Signers</span></td></tr>
-        <tr><td><button class="copy" type="button">aldrin@demo</button></td><td>Aldrin demo</td><td>Warehouse checking and releasing, Received in Odoo, <b>IPAS Logistics sign-off</b>, Packing List</td><td><span class="seat s-wh">Warehouse</span></td></tr>
-        <tr><td><button class="copy" type="button">sherwin@demo</button></td><td>Sherwin demo</td><td>Technical inspection, <b>marks compliance as the RRD team</b></td><td><span class="seat s-wh">Warehouse</span></td></tr>
+        <tr><td><button class="copy" type="button">dani@demo</button></td><td><span class="seat s-sales">Sales</span></td><td>Deal Owner. Registers the SOR, creates the Purchase Request, types the ABC, sets judging teams, takes the Go, moves every stage.</td></tr>
+        <tr><td><button class="copy" type="button">cjay@demo</button></td><td><span class="seat s-buy">Purchasing</span></td><td>Purchasing Incharge. Takes the request, line statuses, Canvass, costs, attaches P0s, fills the IPAS, makes the Transmittal and the Packing List.</td></tr>
+        <tr><td><button class="copy" type="button">jelai@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Finance. Adds the payment with proof. Approves IPAS section 3.</td></tr>
+        <tr><td><button class="copy" type="button">jen@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Transmittal Check by (1).</td></tr>
+        <tr><td><button class="copy" type="button">grace@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Approves the Evaluation of Specification. Transmittal Check by (2). IPAS section 4 Received.</td></tr>
+        <tr><td><button class="copy" type="button">201@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Markup list: applies 1.30. May unlock a Go. IPAS section 4 Checked and Approved.</td></tr>
+        <tr><td><button class="copy" type="button">101@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Sales Director and Super Admin. Does the Flow Canvas in Part 0. Approves IPAS sections 1 and 2. Section 4 Noted.</td></tr>
+        <tr><td><button class="copy" type="button">aldrin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Warehouse checking and releasing, Received in Odoo, IPAS Logistics sign-off.</td></tr>
+        <tr><td><button class="copy" type="button">sherwin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>RRD team: marks compliance on the S0 Evaluation. Transmittal Technical inspection.</td></tr>
       </tbody>
     </table>
   </div>
-  <div class="grid2">
-    <div class="card"><h4>Four seats, four windows</h4><p class="note">One browser window keeps one login. <b>Sales</b> in Chrome, <b>Purchasing</b> in a Chrome Incognito window, <b>Signers</b> in Edge (switch between the signers there), <b>Warehouse</b> in an Edge InPrivate window (Aldrin and Sherwin).</p></div>
-    <div class="card"><h4>Demo file</h4><p class="note">Every upload uses <code>docs/demos/purchasing-demo-files/demo-document.pdf</code>. All four P0s already exist in Odoo and name S03204. Do not make new ones.</p></div>
+</section>
+
+<section id="pad">
+  <div class="part-head"><h2>Numbers from this run</h2><span class="mins">saved in this browser</span></div>
+  <p class="intro">The app gives these out as you go, and later steps ask for them. Type each one in when the step says "write it down".</p>
+  <div class="pad">
+    <label for="n-sor">SOR number (step 2.1)<input id="n-sor" data-n="sor" placeholder="SOR-…" autocomplete="off"></label>
+    <label for="n-pr">Purchase Request (step 3.2)<input id="n-pr" data-n="pr" placeholder="PR_00…" autocomplete="off"></label>
+    <label for="n-i1">IPAS for P01046 (step 6.3)<input id="n-i1" data-n="i1" placeholder="TGIPAS_…" autocomplete="off"></label>
+    <label for="n-i2">IPAS for P01421 (step 6.5)<input id="n-i2" data-n="i2" placeholder="TGIPAS_…" autocomplete="off"></label>
+    <label for="n-i3">IPAS for P01423 (step 6.5)<input id="n-i3" data-n="i3" placeholder="TGIPAS_…" autocomplete="off"></label>
+    <label for="n-i4">IPAS for P01047 (step 6.5)<input id="n-i4" data-n="i4" placeholder="TGIPAS_…" autocomplete="off"></label>
+    <label for="n-tg">Transmittal (step 7.2)<input id="n-tg" data-n="tg" placeholder="TG03…" autocomplete="off"></label>
+  </div>
+  <p id="padClearWrap"><button id="padClear" type="button">Clear numbers</button></p>
+</section>
+
+<section id="moves">
+  <div class="part-head"><h2>Stage moves: what each one asks for</h2></div>
+  <p class="intro">Sales (Dani) does every move. The move asks for these before the deal can leave the stage. Use the demo PDF for every upload and the sample text for every field. Rows marked <span class="tag gate">gate</span> are the purchasing gates from Part 0.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Leave → go to</th><th>What the move asks for</th><th>Step</th></tr></thead>
+      <tbody>
+        <tr><td>Lead → SO Evaluation</td><td>Nothing.</td><td class="num">4.1</td></tr>
+        <tr><td>SO Evaluation → PMS Sourcing GS</td><td>Field <b>Brochure From Client</b>: "On file". Field <b>Project GS</b>: "S03204 GS".</td><td class="num">5.1</td></tr>
+        <tr><td>PMS Sourcing GS → Proposal Submitted</td><td>Field <b>Brochure From Supplier</b>: "Jiujang brochure". <span class="tag gate">gate</span> Costing priced.</td><td class="num">5.6</td></tr>
+        <tr><td>Proposal Submitted → Qualified</td><td>Upload <b>ITB</b>.</td><td class="num">5.7</td></tr>
+        <tr><td>Qualified → For Bidding</td><td>Field <b>Bidder</b>: TG Global. Field <b>Representative</b>: "Dani demo". Field <b>Mode of Pre Bid</b>: Online. (BIDDING DOCS upload is optional.)</td><td class="num">5.7</td></tr>
+        <tr><td>For Bidding → Bid Submitted</td><td>Upload <b>PRICE SCHEDULE / PRICE OFFER</b>. Field <b>Purchasing Involved</b>: "Cjay demo". Field <b>Logistics Representative</b>: "Aldrin demo". <span class="tag gate">gate</span> Costing settled.</td><td class="num">5.7</td></tr>
+        <tr><td>Bid Submitted → PQ</td><td>Field <b>Remarks</b>: Lowest Calculated Responsive Bidder.</td><td class="num">5.7</td></tr>
+        <tr><td>PQ → Negotiation</td><td>Field <b>Product Demo</b>: No. (On arriving at PQ, a "Preparation of PQ" card asks Create or Skip: press <b>Skip</b>.)</td><td class="num">5.7</td></tr>
+        <tr><td>Negotiation → NOA</td><td>Nothing.</td><td class="num">5.7</td></tr>
+        <tr><td>NOA → PB</td><td>Upload <b>NOA</b>. Field <b>NOA Amount</b>: 1452768.</td><td class="num">6.2</td></tr>
+        <tr><td>PB → NTP</td><td>Tick <b>Submit PB</b>.</td><td class="num">6.2</td></tr>
+        <tr><td>NTP → CA/PO</td><td>Upload <b>NTP</b>. (The Delivery Deadline only warns.)</td><td class="num">7.1</td></tr>
+        <tr><td>CA/PO → Project Delivery</td><td>Nothing required. Contract and PO uploads are optional.</td><td class="num">7.1</td></tr>
+        <tr><td>Project Delivery → Collection</td><td>Upload <b>Sales Invoice with date</b> and <b>Inspection &amp; Acceptance Report</b> (PDF). <span class="tag gate">gate</span> Purchasing settled and Goods checked.</td><td class="num">8.5</td></tr>
+      </tbody>
+    </table>
   </div>
 </section>
 
 <section id="part0">
-  <div class="part-head"><span class="part-no">0</span><h2>Setup, before the meeting</h2><span class="mins">about 10 min, alone</span></div>
-  <p class="intro">The reset script now fills every sign-off list and the "Government" markup by itself, so Part 0 is only the flow. Run step 0.1 again before each rehearsal.</p>
+  <div class="part-head"><span class="part-no">0</span><h2>Setup, before the meeting</h2><span class="mins">about 15 min, alone</span></div>
+  <p class="intro">The reset script throws away the last run and gives you a clean draft copy of the Project flow. So redo steps 0.1 to 0.7 before every rehearsal and before the real demo.</p>
+  <div class="warn"><strong>Do not add anything to SO Evaluation.</strong> The last setup on staging (v5.11) put "Costing settled" on SO Evaluation. That stops the deal from leaving SO Evaluation until the Go, which the demo takes two stages later. The reset removes it; just do not add it back.</div>
   <ol class="steps">
-    <li data-k="0.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-boss">Terminal</span></span>Pull <code>staging</code>, then: <code>node scripts/demo-purchasing-setup.mjs --apply</code></div><div class="see">"Committed." The cast is named "… demo". The IPAS, Transmittal and S0 Evaluation lists are filled (see the Logins table). "Government" 1.30 is the only active markup. The old copy of the flow is renamed "(old …)" and its SORs hidden.</div><div class="say">It runs on your PC and writes straight to the staging database (STAGING_DB_URL in .env.local). Nothing is deployed.</div></li>
-    <li data-k="0.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-boss">101</span></span>Open the Flow Canvas (<code>/super-admin/flow-canvas</code>) → <b>Project [FOR DEMO]</b>. Add only these:
-      <ul class="sub">
-        <li><b>Lead</b> → Action "Open Purchase Request", <b>When confirmed</b>, Decider = the Deal Owner and the Sales Director. No Buyer. Access window: until <b>Collection</b> is left.</li>
-        <li><b>Lead</b> → Action "<b>Open S0 Evaluation</b>", automatic: Sales incharge = Deal Owner, Purchasing incharge = Cjay demo, markup preset = Government.</li>
-        <li><b>PMS Sourcing GS</b> → Condition "<b>Costing priced</b>".</li>
-        <li><b>For Bidding</b> → Condition "<b>Costing settled</b>".</li>
-        <li><b>NTP</b> → toggle "<b>Buying opens here</b>".</li>
-        <li><b>Project Delivery</b> → Action "Request Packing List", Conditions "<b>Purchasing settled</b>" and "<b>Goods checked</b>".</li>
-      </ul></div></li>
-    <li data-k="0.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-boss">101</span></span><b>Publish</b> the flow with the note "Purchasing demo".</div><div class="see">Project [FOR DEMO] can now be picked when registering an SOR.</div></li>
-    <li data-k="0.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-boss">101</span></span>Settings → <b>Purchasing</b>: check the IPAS charge kinds. Each active kind becomes a blank charge on a new dollar IPAS, so keep only the ones you will fill (Freight, Brokerage).</div></li>
-    <li data-k="0.5"><input type="checkbox" aria-label="Done"><div class="what">Open the four seat windows and sign in: dani@demo, cjay@demo, grace@demo (Signers), aldrin@demo. Keep the PDF folder open.</div></li>
+    <li data-k="0.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">0.1</span><span class="seat s-boss">Terminal</span></div>
+      <div class="row where"><b>Where</b><div>your PC, in the repo</div></div>
+      <div class="row do"><b>Do</b><div><ol><li><code>git pull</code> on <code>staging</code>.</li><li>Check that <code>.env.local</code> has both <code>STAGING_DB_URL</code> and <code>PROD_DB_URL</code>. The script reads the Project flow from prod and never writes there.</li><li>Rehearse it: <code>node scripts/demo-purchasing-setup.mjs</code>. It rolls back.</li><li>Run it for real: <code>node scripts/demo-purchasing-setup.mjs --apply</code>.</li></ol></div></div>
+      <div class="row see"><b>See</b><div>"Committed". The earlier copy of Project [FOR DEMO] is renamed "(old …)" and its SORs hidden, and its IPAS are cancelled so the P0s are free. A new "Project [FOR DEMO]" draft is listed with its stages and moves.</div></div>
+    </li>
+    <li data-k="0.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">0.2</span><span class="seat s-sign">101</span></div>
+      <div class="row where"><b>Where</b><div>Flow Canvas (/super-admin/flow-canvas) → Sale Type "Project [FOR DEMO]" → click the <b>Lead</b> stage → Add Action</div></div>
+      <div class="row do"><b>Do</b><div>Pick <b>Open Purchase Request</b>, then fill it like this and Save:<ul><li>Default Buyer: <b>None — wait in the queue for a Take</b>.</li><li>Require confirmation before running: <b>on</b>. Decider: the <b>Deal Owner</b> and <b>Sales Director</b> roles.</li><li>Access window: <b>This Stage, through Collection</b>.</li><li>Leave the other fields as they are.</li></ul></div></div>
+    </li>
+    <li data-k="0.3"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">0.3</span><span class="seat s-sign">101</span></div>
+      <div class="row where"><b>Where</b><div>Flow Canvas → Lead → Add Action</div></div>
+      <div class="row do"><b>Do</b><div>Pick <b>Open S0 Evaluation</b>, fill it like this and Save:<ul><li>Sales Incharge: <b>Deal Owner (default)</b>.</li><li>Purchasing Incharge: <b>A person</b> → <b>Cjay demo</b>. ("Costing priced" needs a named Purchasing Incharge.)</li><li>Markup preset: <b>Government</b>.</li><li>Require confirmation before running: <b>off</b>, so it opens by itself.</li></ul></div></div>
+    </li>
+    <li data-k="0.4"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">0.4</span><span class="seat s-sign">101</span></div>
+      <div class="row where"><b>Where</b><div>Flow Canvas → each stage below → Conditions → add</div></div>
+      <div class="row do"><b>Do</b><div>Add four conditions. Each needs a Label: use the kind's name. Keep "required" on.<ul><li><b>PMS Sourcing GS</b>: Costing priced.</li><li><b>For Bidding</b>: Costing settled.</li><li><b>Project Delivery</b>: Purchasing settled, and Goods checked.</li></ul></div></div>
+    </li>
+    <li data-k="0.5"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">0.5</span><span class="seat s-sign">101</span></div>
+      <div class="row where"><b>Where</b><div>Flow Canvas → NTP - Notice to Proceed, then Project Delivery</div></div>
+      <div class="row do"><b>Do</b><div><ol><li>On <b>NTP</b>, press <b>Buying opens here?</b> so it reads "Buying opens here" with a tick.</li><li>On <b>Project Delivery</b>, Add Action → <b>Request Packing List</b>, keep the defaults, Save.</li></ol></div></div>
+    </li>
+    <li data-k="0.6"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">0.6</span><span class="seat s-sign">101</span></div>
+      <div class="row where"><b>Where</b><div>Flow Canvas toolbar → Publish</div></div>
+      <div class="row do"><b>Do</b><div>Publish with the note "Purchasing demo".</div></div>
+      <div class="row see"><b>See</b><div>Project [FOR DEMO] can be picked when registering an SOR.</div></div>
+    </li>
+    <li data-k="0.7"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">0.7</span><span class="seat s-sign">101</span></div>
+      <div class="row where"><b>Where</b><div>Settings → Purchasing → Charge kinds, then Item locations</div></div>
+      <div class="row do"><b>Do</b><div>Check only. Charge kinds: only <b>Brokerage Fee</b> and <b>Freight</b> are active (true on staging on 2026-10-29). Each active kind becomes a blank charge on every new dollar IPAS. Item locations: <b>Marikina Warehouse</b> is active.</div></div>
+    </li>
+    <li data-k="0.8"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">0.8</span><span class="seat s-boss">All</span></div>
+      <div class="row do"><b>Do</b><div>Open the four windows and sign in: dani@demo (Chrome), cjay@demo (Chrome Incognito), grace@demo (Edge), aldrin@demo (Edge InPrivate). Open the demo PDF's folder. Press "Clear numbers" above.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="part1">
   <div class="part-head"><span class="part-no">1</span><h2>The big picture</h2><span class="mins">0:00 – 0:04</span></div>
   <ol class="steps">
-    <li data-k="1.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Open the Purchasing menu: Dashboard, Purchase Requests, Canvasses, IPAS, Transmittals, Packing Lists.</div><div class="say">Purchasing has no stages of its own. The deal moves through Sales stages, and those stages open our work: a Purchase Request and an S0 Evaluation. Everything after that is records: Canvass, P0, IPAS, Transmittal, Packing List.</div></li>
-    <li data-k="1.2"><input type="checkbox" aria-label="Done"><div class="what">Three rules to say out loud.</div><div class="say">One: Odoo is the truth for the S0, the P0 and what arrived. The app reads Odoo and never writes to it. Two: every SOR has one product list, and Sales and Purchasing see the same status on each line. Three: it is a one-way road. Once something is signed or decided, changing it asks for a reason.</div></li>
+    <li data-k="1.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">1.1</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>the Purchasing menu</div></div>
+      <div class="row do"><b>Do</b><div>Point at each item: Dashboard, Purchase Requests, Canvasses, IPAS, Transmittals, Packing Lists.</div></div>
+      <div class="row say"><b>Say</b><div>Purchasing has no stages of its own. The deal moves through Sales stages, and those stages open our work: a Purchase Request and an S0 Evaluation. After that it is records: Canvass, P0, IPAS, Transmittal, Packing List.</div></div>
+    </li>
+    <li data-k="1.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">1.2</span></div>
+      <div class="row do"><b>Do</b><div>Say the three rules.</div></div>
+      <div class="row say"><b>Say</b><div>One: Odoo is the truth for the S0, the P0 and what arrived. The app reads Odoo and never writes to it. Two: every SOR has one product list, and Sales and Purchasing see the same status on each line. Three: it is a one-way road. Once something is signed or decided, changing it asks for a reason.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="part2">
-  <div class="part-head"><span class="part-no">2</span><h2>Sales starts the deal</h2><span class="mins">0:04 – 0:07</span></div>
+  <div class="part-head"><span class="part-no">2</span><h2>Sales starts the deal</h2><span class="mins">0:04 – 0:08</span></div>
   <ol class="steps">
-    <li data-k="2.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Register an SOR. Sale Type <b>Project [FOR DEMO]</b>. Sales Reference <b>S03204</b> → <b>Fetch from Odoo</b>. Title "Fire Fighting Equipment".</div><div class="see">Company "Marikina City Government" and 12 product lines: fire suit ×10, gloves ×10, goggles ×10, safety belt ×10, boots ×10, hood ×10, hose 1.5" ×10, hose 2.5" ×10, nozzle 1.5" ×2, nozzle 2.5" ×2, helmet yellow ×8, helmet white ×2. The SOR sits on Lead.</div><div class="say">Nobody types the products. Each line keeps its Odoo line id, so the request, the S0 Evaluation and the S0 always mean the same line.</div></li>
-    <li data-k="2.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>On the SOR, click <b>Create</b> on "Open Purchase Request".</div><div class="see">The PMS tab shows the Purchase Request card and the S0 Evaluation.</div><div class="say">Sales decides if a deal needs buying at all. One request per deal, used until the end.</div></li>
+    <li data-k="2.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">2.1</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>Sales → SORs → Register</div></div>
+      <div class="row do"><b>Do</b><div><ol><li>Sale Type: <b>Project [FOR DEMO]</b>.</li><li>Sales Reference: <b>S03204</b> → <b>Fetch from Odoo</b>.</li><li>Title: "Fire Fighting Equipment". Register.</li><li>Write the SOR number down.</li></ol></div></div>
+      <div class="row see"><b>See</b><div>Company "Marikina City Government" and 12 product lines: fire suit ×10, gloves ×10, goggles ×10, safety belt ×10, boots ×10, hood ×10, hose 1.5" ×10, hose 2.5" ×10, nozzle 1.5" ×2, nozzle 2.5" ×2, helmet yellow ×8, helmet white ×2. The SOR is on Lead.</div></div>
+      <div class="row say"><b>Say</b><div>Nobody types the products. Each line keeps its Odoo line id, so the request, the S0 Evaluation and the S0 always mean the same line.</div></div>
+    </li>
+    <li data-k="2.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">2.2</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the SOR → the "Open Purchase Request" card</div></div>
+      <div class="row do"><b>Do</b><div>Press <b>Create</b>.</div></div>
+      <div class="row see"><b>See</b><div>"Created." The SOR's PMS tab shows the Purchase Request and the S0 Evaluation (the S0 Evaluation opened by itself at registration).</div></div>
+      <div class="row say"><b>Say</b><div>Sales decides if a deal needs buying at all. One request per deal, used until the end.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="part3">
-  <div class="part-head"><span class="part-no">3</span><h2>The product list</h2><span class="mins">0:07 – 0:13</span></div>
+  <div class="part-head"><span class="part-no">3</span><h2>The product list</h2><span class="mins">0:08 – 0:14</span></div>
   <ol class="steps">
-    <li data-k="3.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Purchasing <b>Dashboard</b>. Show the Tracker: the new SOR with 12 lines under <b>Not checked</b>. Click it to open the side panel.</div><div class="say">One Tracker for every deal. The circles are the line statuses: Not checked, To purchase, Still canvassing, Purchased (not received), Filed.</div></li>
-    <li data-k="3.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Purchase Requests list → the new <span class="mono">PR_00…</span>, no Buyer → <b>Take</b>. Open it.</div><div class="see">"0 of 12 ready". Twelve lines under <b>From the S0</b>, all Not checked. A "Create a PO in Odoo" link sits in the header.</div><div class="say">Nobody approves a request. Whoever has Purchasing access takes it. Ready means Available or Received.</div></li>
-    <li data-k="3.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>In the request chat: "@Cjay can we get the BFP-grade fire suits and the hoses in time?"</div><div class="say">The chat cannot be edited or deleted by anyone. It is the record.</div></li>
-    <li data-k="3.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Set all 12 lines to <b>To purchase</b>. Point at the Undo in the message, then let it go.</div><div class="see">The Tracker moves 12 lines to To purchase.</div><div class="say">Undo works for about 10 seconds, only for the person who did it.</div></li>
+    <li data-k="3.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">3.1</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchasing → Dashboard</div></div>
+      <div class="row do"><b>Do</b><div>Type S03204 in "Search SOR, IPAS or PO". Click the SOR's row to open its side panel.</div></div>
+      <div class="row say"><b>Say</b><div>One Tracker for every deal: where its buying stands and the next move.</div></div>
+    </li>
+    <li data-k="3.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">3.2</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchasing → Purchase Requests</div></div>
+      <div class="row do"><b>Do</b><div>Find the new request with no Buyer → <b>Take</b> → open it. Write the PR number down.</div></div>
+      <div class="row see"><b>See</b><div>"0 of 12 ready". Twelve lines under <b>From the S0</b>, all Not checked. A "Create a PO in Odoo" link in the header.</div></div>
+      <div class="row say"><b>Say</b><div>Nobody approves a request. Whoever has Purchasing access takes it. Ready means Available or Received.</div></div>
+    </li>
+    <li data-k="3.3"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">3.3</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the same request → chat</div></div>
+      <div class="row do"><b>Do</b><div>Write "@Cjay can we get the BFP-grade fire suits and the hoses in time?"</div></div>
+      <div class="row say"><b>Say</b><div>Nobody can edit or delete the chat. It is the record.</div></div>
+    </li>
+    <li data-k="3.4"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">3.4</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>the request → open the fire suit line → its status</div></div>
+      <div class="row do"><b>Do</b><div>Set it to <b>To purchase</b>. Point at <b>Undo</b> in the message and let it go. Do the same for gloves and boots. Leave the rest: a P0 can be attached to a Not checked line too.</div></div>
+      <div class="row see"><b>See</b><div>Three lines To purchase.</div></div>
+      <div class="row say"><b>Say</b><div>Undo lasts about ten seconds, only for the person who did it.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="part4">
-  <div class="part-head"><span class="part-no">4</span><h2>S0 Evaluation and Canvass</h2><span class="mins">0:13 – 0:24</span></div>
+  <div class="part-head"><span class="part-no">4</span><h2>S0 Evaluation and Canvass</h2><span class="mins">0:14 – 0:26</span></div>
   <ol class="steps">
-    <li data-k="4.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Move the SOR <b>Lead → SO Evaluation</b>. Open the <b>S0 Evaluation</b>.</div><div class="see">A sheet in the shape of the Google sheet: one row per S0 line, with team bands "Sales · the client's ask", "Purchasing · cost", "Markup" and "Technical". The header shows the S0, the ABC total and the Final Offer total.</div><div class="say">The stage is still called SO Evaluation; the sheet is the S0 Evaluation. Each team only writes its own band.</div></li>
-    <li data-k="4.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Type the <b>ABC / unit</b> on each row. Use the S0 price, for example fire suit ₱51,785.71, boots ₱9,821.43, nozzles ₱36,607.14.</div><div class="say">Sales owns the client's ask and the budget.</div></li>
-    <li data-k="4.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Fire suit row → open its line → <b>Canvass</b>. Slot 1: Jiujang Fire Fighting Equipment, <b>USD 208</b>. Try to pick the winner.</div><div class="see">Refused: a winner needs three supplier slots filled or explained.</div><div class="say">This is new. One quote is not enough anymore, unless we say why.</div></li>
-    <li data-k="4.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Slot 2: Taizhou Sanjiang, <b>USD 215</b>. Slot 3: <b>No other supplier</b>, reason "Only two makers carry the Aramid IIIA suit". Pick <b>Jiujang</b> as the winner, reason "Cheapest, same maker as our last BFP order".</div><div class="see">"3 of 3 supplier slots filled or explained". The suit's cost fills from the winner, marked <b>Canvass</b>. There is no sign-off button.</div><div class="say">A Canvass is no longer signed. Its Offers, winner and reasons stay as the record.</div></li>
-    <li data-k="4.5"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>On the other 11 rows, check or type the cost from Odoo or the last P0 (for example gloves USD 12, boots USD 26.50, goggles ₱1,386, nozzle 2.5" USD 145). Rows with a typed cost show <b>Typed</b> in amber.</div><div class="say">Every row needs a cost, or "Costing priced" holds the deal.</div></li>
-    <li data-k="4.6"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">201</span></span>In the Markup playground, try 1.35, watch the offer and margin move, go back to 1.30 and <b>Apply</b>.</div><div class="see">Every Final Offer fills in. Each stays under its ABC. The header shows the Final Offer as a % of the ABC.</div><div class="say">Only the Markup list sets the multiplier. Nothing is saved while you try one.</div></li>
+    <li data-k="4.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">4.1</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the SOR → move stage, then PMS tab → S0 Evaluation</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>Lead → SO Evaluation</b> (it asks nothing). Open the <b>S0 Evaluation</b>.</div></div>
+      <div class="row see"><b>See</b><div>A sheet shaped like the Google sheet: one row per S0 line, with bands "Sales · the client's ask", "Purchasing · cost", "Markup" and "Technical". The facts strip shows the S0 and client, S0 lines 12, Judged 0 of 12, ABC total and Final Offer total. Under the sheet is "Line details · open a line for its parts and costs".</div></div>
+      <div class="row say"><b>Say</b><div>The stage is called SO Evaluation; the sheet is the S0 Evaluation. Each team writes only its own band.</div></div>
+    </li>
+    <li data-k="4.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">4.2</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>S0 Evaluation → sheet → ABC / unit column</div></div>
+      <div class="row do"><b>Do</b><div>Type the ABC on each row. Use the S0 price, for example fire suit 51785.71, boots 9821.43, nozzles 36607.14.</div></div>
+      <div class="row see"><b>See</b><div>ABC total fills in the facts strip.</div></div>
+      <div class="row say"><b>Say</b><div>Sales owns the client's ask and the budget.</div></div>
+    </li>
+    <li data-k="4.3"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">4.3</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>S0 Evaluation → Line details → open line 1 (fire suit) → <b>Canvass</b> button</div></div>
+      <div class="row do"><b>Do</b><div><ol><li>Start the Canvass, then <b>New offer</b>: Jiujang Fire Fighting Equipment, <b>USD 208</b>. A dollar offer needs a <b>Comparison rate</b>: keep the Reference Rate it fills. <b>Save offer</b>.</li><li>Hover <b>Pick winner</b> on that offer.</li></ol></div></div>
+      <div class="row see"><b>See</b><div>Pick winner is greyed out: "Fill or explain all three supplier slots first". The strip says "1 of 3 supplier slots filled or explained. A winner needs all 3."</div></div>
+      <div class="row say"><b>Say</b><div>One quote is not enough anymore, unless we write down why.</div></div>
+    </li>
+    <li data-k="4.4"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">4.4</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>the same Canvass</div></div>
+      <div class="row do"><b>Do</b><div><ol><li>New offer: Taizhou Sanjiang, <b>USD 215</b>. Save offer.</li><li>Slot 3 → <b>No other supplier</b>, reason "Only two makers carry the Aramid IIIA suit".</li><li><b>Pick winner</b> on Jiujang. Then "Why this supplier": "Cheapest, same maker as our last BFP order".</li></ol></div></div>
+      <div class="row see"><b>See</b><div>"3 of 3 supplier slots filled or explained." "Winner marked." "Kept as history. Canvasses are no longer signed off." Back on the sheet, the fire suit's Price is filled from the Canvass.</div></div>
+      <div class="row say"><b>Say</b><div>A Canvass is not signed anymore. Its offers, winner and reasons stay as the record.</div></div>
+    </li>
+    <li data-k="4.5"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">4.5</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>S0 Evaluation → sheet → Price column</div></div>
+      <div class="row do"><b>Do</b><div>Most rows already show the Odoo cost. Where a row is blank ("Type a cost"), type it: for example gloves USD 12, boots USD 26.50, goggles ₱1,386, nozzle 2.5" USD 145.</div></div>
+      <div class="row see"><b>See</b><div>A typed price shows <b>Typed</b>. "Our cost (Acquire)" in the numbers strip stops saying "Some costs are blank".</div></div>
+      <div class="row say"><b>Say</b><div>Every row needs a cost, or "Costing priced" holds the deal later.</div></div>
+    </li>
+    <li data-k="4.6"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">4.6</span><span class="seat s-sign">201</span></div>
+      <div class="row where"><b>Where</b><div>S0 Evaluation → right side → Markup playground</div></div>
+      <div class="row do"><b>Do</b><div>Raise it to 1.35 and watch the offer and margin move. Go back to 1.30 and <b>Apply</b>.</div></div>
+      <div class="row see"><b>See</b><div>Every Final Offer / unit fills. Each stays at or under its ABC. The facts strip shows the Final Offer total as a % of the ABC.</div></div>
+      <div class="row say"><b>Say</b><div>Only the Markup list sets the markup. Nothing changes until you apply.</div></div>
+    </li>
   </ol>
-  <div class="dash"><strong>Tracker check.</strong> The fire suit moved through <b>Still canvassing</b> and back. The rest sit in <b>To purchase</b>.</div>
 </section>
 
 <section id="part5">
-  <div class="part-head"><span class="part-no">5</span><h2>Evaluation, Go, and the gates</h2><span class="mins">0:24 – 0:33</span></div>
+  <div class="part-head"><span class="part-no">5</span><h2>Evaluation, Go, and the first two gates</h2><span class="mins">0:26 – 0:36</span></div>
   <ol class="steps">
-    <li data-k="5.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Move SO Evaluation → <b>PMS Sourcing GS</b>.</div><div class="see">It goes through, because every row has a cost.</div></li>
-    <li data-k="5.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>On each row, set the judging team to <b>RRD</b>.</div><div class="say">Compliance is judged by a named team, never by the person selling.</div></li>
-    <li data-k="5.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-wh">sherwin</span></span>Mark all 12 rows <b>Complies</b>.</div><div class="see">"Judged 12 of 12" in the header.</div></li>
-    <li data-k="5.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">grace</span></span>Approve the <b>Evaluation</b>.</div><div class="say">Grace did not mark any row, so she may approve. Someone who marked rows cannot approve them.</div></li>
-    <li data-k="5.5"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Bid Decision card → <b>Go</b>, reason "Within ABC, margin fine".</div><div class="see">The sheet is <b>locked</b>. Every number table says it is locked by a Go.</div><div class="say">The Go freezes the numbers we bid with. Scenario B shows what an unlock costs.</div></li>
-    <li data-k="5.6"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Move on: Proposal Submitted → Qualified → <b>For Bidding</b> → Bid Submitted → PQ → Negotiation → NOA. Upload the demo PDF wherever asked.</div><div class="see">On reaching NOA, the Date of Award fills by itself, and Purchasing gets an "SOR Awarded" notice. The Tracker shows "Awarded · today".</div></li>
+    <li data-k="5.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">5.1</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>SO Evaluation → PMS Sourcing GS</b>. Fill Brochure From Client and Project GS (see the moves table).</div></div>
+      <div class="row see"><b>See</b><div>It goes through. No purchasing gate sits on SO Evaluation.</div></div>
+    </li>
+    <li data-k="5.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">5.2</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>S0 Evaluation → sheet → Compliance column (the "Technical" band)</div></div>
+      <div class="row do"><b>Do</b><div>On each row, change "No team" to <b>RRD</b>.</div></div>
+      <div class="row say"><b>Say</b><div>Compliance is judged by a named team, never by the person selling.</div></div>
+    </li>
+    <li data-k="5.3"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">5.3</span><span class="seat s-wh">sherwin</span></div>
+      <div class="row where"><b>Where</b><div>the same S0 Evaluation → Compliance column</div></div>
+      <div class="row do"><b>Do</b><div>Mark every row <b>Complies</b>.</div></div>
+      <div class="row see"><b>See</b><div>"Judged 12 of 12" in the facts strip.</div></div>
+    </li>
+    <li data-k="5.4"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">5.4</span><span class="seat s-sign">grace</span></div>
+      <div class="row where"><b>Where</b><div>S0 Evaluation → the "Evaluation of Specification" bar above the sheet</div></div>
+      <div class="row do"><b>Do</b><div>Press <b>Approve the evaluation</b>.</div></div>
+      <div class="row see"><b>See</b><div>"Evaluation approved by Grace demo" and today's date.</div></div>
+      <div class="row say"><b>Say</b><div>The button stays off while any row has no verdict. If a specification or a verdict changes later, the approval is cleared and the bar says why.</div></div>
+    </li>
+    <li data-k="5.5"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">5.5</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>S0 Evaluation → right side → Bid Decision card</div></div>
+      <div class="row do"><b>Do</b><div>Choose Go ("Bid at these Final Offers, and lock the sheet"). Reason: "Within ABC, margin fine".</div></div>
+      <div class="row see"><b>See</b><div>"The sheet is locked."</div></div>
+      <div class="row say"><b>Say</b><div>The Go freezes the numbers we bid with. Scenario B shows what an unlock costs.</div></div>
+    </li>
+    <li data-k="5.6"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">5.6</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>PMS Sourcing GS → Proposal Submitted</b>. Fill Brochure From Supplier.</div></div>
+      <div class="row see"><b>See</b><div>It goes through, because Costing priced is met.</div></div>
+      <div class="row say"><b>Say</b><div>This is the first gate. Purchasing must have costed every row and a Purchasing Incharge must be named, or Sales cannot submit a proposal.</div></div>
+    </li>
+    <li data-k="5.7"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">5.7</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the SOR → move stage, several times</div></div>
+      <div class="row do"><b>Do</b><div>Proposal Submitted → Qualified → For Bidding → Bid Submitted → PQ → Negotiation → NOA. Fill each move from the moves table. At PQ, press <b>Skip</b> on "Preparation of PQ".</div></div>
+      <div class="row see"><b>See</b><div>For Bidding → Bid Submitted goes through, because Costing settled is met. On reaching NOA the Date of Award fills by itself, Purchasing gets an "SOR Awarded" notice, and the request shows a green "Awarded · <i>today's date</i>" badge.</div></div>
+      <div class="row say"><b>Say</b><div>Second gate: we cannot submit a bid until the S0 Evaluation is finished, within the ABC, approved, and decided Go.</div></div>
+    </li>
   </ol>
-  <div class="gate"><strong>Gate: Costing priced</strong> on PMS Sourcing GS. Every row needs a cost and a Purchasing incharge must be named.</div>
-  <div class="gate"><strong>Gate: Costing settled</strong> on For Bidding. The offer is within the ABC, every row has a cost, the Evaluation is approved, and the Bid Decision is Go.</div>
+  <div class="gate"><strong>Costing priced</strong>, on PMS Sourcing GS. Every row has a cost, and a Purchasing Incharge is named.</div>
+  <div class="gate"><strong>Costing settled</strong>, on For Bidding. A Final Offer on every line, every row costed, the Evaluation of Specification approved, the Final Offer total within the ABC, and the Bid Decision is Go.</div>
 </section>
 
 <section id="part6">
-  <div class="part-head"><span class="part-no">6</span><h2>Buying opens: four P0s, IPAS by itself</h2><span class="mins">0:33 – 0:44</span></div>
+  <div class="part-head"><span class="part-no">6</span><h2>Buying opens: four P0s, IPAS by itself</h2><span class="mins">0:36 – 0:46</span></div>
   <ol class="steps">
-    <li data-k="6.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Before NTP, open the fire suit line → <b>Attach P0</b> → pick <b class="mono">P01046</b>.</div><div class="see">Refused: buying opens at NTP. The dialog offers "Order early: why now?".</div><div class="say">Close it. We will show Order early in Scenario A. For now, we wait for NTP like a normal deal.</div></li>
-    <li data-k="6.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Move NOA → PB → <b>NTP</b>. Tick "Submit PB", upload the PDF.</div></li>
-    <li data-k="6.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Fire suit line → <b>Attach P0</b> → <b class="mono">P01046</b> under "Suggested from Odoo".</div><div class="see">The line turns <b>Received</b> ("10 of 10 received"). A message says <b>TGIPAS… was raised for P01046</b>.</div><div class="say">Nobody clicks New IPAS anymore. Attaching a P0 raises its IPAS: dollars mean Import, Purpose Project, Priority Medium.</div></li>
-    <li data-k="6.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Attach <b>P01046</b> to gloves, belt, boots, hood, and both helmets.</div><div class="see">All Received. No second IPAS: the same one is used. "7 of 12 ready".</div></li>
-    <li data-k="6.5"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Goggles → attach <b class="mono">P01421</b>. Nozzle 1.5" → attach <b class="mono">P01423</b>. Hose 1.5" → attach <b class="mono">P01047</b>.</div><div class="see">All three Received. Two more IPAS were raised: P01421 and P01423 as <b>Local</b> (pesos), P01047 as Import. "10 of 12 ready".</div></li>
-    <li data-k="6.6"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Hose 2.5" → attach <b class="mono">P01423</b>. Nozzle 2.5" → attach <b class="mono">P01047</b>.</div><div class="see">Hose: <b>Purchased</b>, "2 of 10 received". Nozzle: <b>Purchased</b>, "0 of 4 received". Still "10 of 12 ready".</div><div class="say">This is the real case. Odoo only shows part of these as received, so the app shows the same. When the Warehouse books the rest in Odoo, the lines turn Received by themselves.</div></li>
-    <li data-k="6.7"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Open the <b>P01046</b> IPAS. Show the blank charges ("Fill or remove"). Fill Freight with ₱8,000 and the PDF, and remove the rest. Upload the <b>PI</b>. Type the bank details. <b>Save all</b>.</div><div class="say">A new dollar IPAS starts with one blank charge per kind, so nothing is forgotten. A charge with an amount needs its file.</div></li>
-    <li data-k="6.8"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">jelai</span></span>Edit → add a <b>payment</b>: Full payment, USD 3,223, method BDO, proof = PDF. The Forex rate fills with today's Reference Rate. Change it to the rate the dollars were bought at. Save all.</div><div class="see">"In pesos" = amount × rate. Landed cost uses this rate, not today's.</div></li>
-    <li data-k="6.9"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Submit sections 1 and 2. <span class="who"><span class="seat s-sign">101</span></span>Approval Center → IPAS → approve both.</div><div class="say">Section 1 needs the PI, and section 2 needs proof on every payment. Nobody approves their own work.</div></li>
+    <li data-k="6.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">6.1</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchase Request → open the fire suit line → <b>Attach P0</b></div></div>
+      <div class="row do"><b>Do</b><div>Under "Suggested from Odoo", <b>Choose</b> P01046 → press <b>Attach P01046</b>.</div></div>
+      <div class="row see"><b>See</b><div>A red line: buying has not opened for this SOR. A box "Order early: why now?" appears and the button turns into "Order early and attach P01046".</div></div>
+      <div class="row say"><b>Say</b><div>Buying opens at NTP. We will show Order early in Scenario A. For now, close the dialog and wait for NTP like a normal deal.</div></div>
+    </li>
+    <li data-k="6.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">6.2</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>NOA → PB</b> (upload NOA, NOA Amount 1452768), then <b>PB → NTP</b> (tick Submit PB).</div></div>
+      <div class="row see"><b>See</b><div>The SOR is on NTP.</div></div>
+    </li>
+    <li data-k="6.3"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">6.3</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchase Request → fire suit line → Attach P0</div></div>
+      <div class="row do"><b>Do</b><div>Choose <b>P01046</b> → Attach P01046. Write the IPAS number from the message down.</div></div>
+      <div class="row see"><b>See</b><div>"Fire suit: P01046 attached; Received." A second message says the IPAS for P01046 was raised. The line shows "10 of 10 received".</div></div>
+      <div class="row say"><b>Say</b><div>Nobody clicks New IPAS anymore. Attaching a P0 raises its IPAS: dollars mean Import, Purpose Project, Priority Medium.</div></div>
+    </li>
+    <li data-k="6.4"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">6.4</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchase Request → each line → Attach P0</div></div>
+      <div class="row do"><b>Do</b><div>Attach <b>P01046</b> to gloves, safety belt, boots, hood, helmet yellow and helmet white.</div></div>
+      <div class="row see"><b>See</b><div>All Received. No second IPAS: each attach joins the same one. "7 of 12 ready".</div></div>
+    </li>
+    <li data-k="6.5"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">6.5</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchase Request → three lines → Attach P0</div></div>
+      <div class="row do"><b>Do</b><div>Goggles → <b>P01421</b>. Nozzle 1.5" → <b>P01423</b>. Hose 1.5" → <b>P01047</b>. Write the three IPAS numbers down.</div></div>
+      <div class="row see"><b>See</b><div>All three Received. Three more IPAS were raised: P01421 and P01423 as Local (pesos), P01047 as Import. "10 of 12 ready".</div></div>
+    </li>
+    <li data-k="6.6"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">6.6</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchase Request → two lines → Attach P0</div></div>
+      <div class="row do"><b>Do</b><div>Hose 2.5" → <b>P01423</b>. Nozzle 2.5" → <b>P01047</b>.</div></div>
+      <div class="row see"><b>See</b><div>Hose 2.5": <b>Purchased</b>, "2 of 10 received". Nozzle 2.5": <b>Purchased</b>, "0 of 4 received". Still "10 of 12 ready". No new IPAS: both P0s already have one.</div></div>
+      <div class="row say"><b>Say</b><div>This is the real case. Odoo shows only part of these as received, so the app shows the same. When the Warehouse books the rest in Odoo, the lines turn Received by themselves.</div></div>
+    </li>
+    <li data-k="6.7"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">6.7</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchasing → IPAS → the P01046 IPAS → Edit</div></div>
+      <div class="row do"><b>Do</b><div><ol><li>Charges: Brokerage Fee and Freight sit there blank, marked "Fill or remove". Fill <b>Freight</b> with 8000 and the PDF. Remove Brokerage Fee.</li><li>Documents: attach the PDF to <b>Proforma Invoice</b>.</li><li>Type the bank details.</li><li><b>Save all</b>.</li></ol></div></div>
+      <div class="row see"><b>See</b><div>"All changes saved".</div></div>
+      <div class="row say"><b>Say</b><div>A new dollar IPAS starts with one blank charge per kind, so nothing is forgotten. A charge with an amount needs its file.</div></div>
+    </li>
+    <li data-k="6.8"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">6.8</span><span class="seat s-sign">jelai</span></div>
+      <div class="row where"><b>Where</b><div>the same IPAS → Edit → payments</div></div>
+      <div class="row do"><b>Do</b><div>Add a payment: Full payment, USD 3,223, method BDO, proof = PDF. The Forex rate fills with today's Reference Rate. Change it to the rate the dollars were bought at. Save all.</div></div>
+      <div class="row see"><b>See</b><div>"In pesos" = amount × rate.</div></div>
+      <div class="row say"><b>Say</b><div>A payment from a dollar account takes the rate those dollars were bought at. Landed cost uses that rate, not today's.</div></div>
+    </li>
+    <li data-k="6.9"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">6.9</span><span class="seat s-buy">Purchasing</span><span class="seat s-sign">101</span></div>
+      <div class="row where"><b>Where</b><div>the IPAS → Your move, then (101) Approval Center → IPAS</div></div>
+      <div class="row do"><b>Do</b><div>Cjay submits <b>section 1</b> (Purchasing) and <b>section 2</b> (Purchasing &amp; Finance). 101 approves both.</div></div>
+      <div class="row say"><b>Say</b><div>Section 1 needs the Proforma Invoice. Section 2 needs proof on every payment. Nobody approves their own work.</div></div>
+    </li>
   </ol>
-  <div class="dash"><strong>Tracker check.</strong> Two lines under <b>Purchased (not received)</b>. Open the side panel: four IPAS with their next step and who owes it.</div>
+  <div class="dash"><strong>Tracker check.</strong> Purchasing → Dashboard → the SOR's side panel: two lines still Purchased, and four IPAS, each with its next step and who owes it.</div>
 </section>
 
 <section id="part7">
-  <div class="part-head"><span class="part-no">7</span><h2>Goods arrive: the Transmittal</h2><span class="mins">0:44 – 0:51</span></div>
+  <div class="part-head"><span class="part-no">7</span><h2>Goods arrive: the Transmittal</h2><span class="mins">0:46 – 0:53</span></div>
   <ol class="steps">
-    <li data-k="7.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Move NTP → CA/PO → <b>Project Delivery</b> (upload the PDF).</div><div class="see">Warehouse is told a draft Packing List was started.</div></li>
-    <li data-k="7.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Transmittals → <b>New Transmittal</b> → <b>Fill from an IPAS</b> → the P01046 IPAS. Untick nothing. Checks Warehouse and Technical. <b>Submit</b>.</div><div class="see">A TG03 number, with the seven P01046 lines filled in.</div><div class="say">No more typing the goods. Untick what did not arrive, or change a quantity.</div></li>
-    <li data-k="7.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-wh">aldrin</span></span>Rate the lines <b>GC</b>, add the PDF as the picture, sign Warehouse checking and <b>Releasing</b>.</div></li>
-    <li data-k="7.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-wh">sherwin</span></span>Rate GC and sign <b>Technical inspection</b>.</div></li>
-    <li data-k="7.5"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-wh">aldrin</span></span>Sign <b>Received in Odoo</b>.</div></li>
-    <li data-k="7.6"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">jen</span><span class="seat s-sign">grace</span></span>Approval Center → Transmittals → both sign <b>Check by</b>.</div><div class="see">The slip is Closed. On the IPAS, Delivered and Actual Checking tick by themselves.</div></li>
+    <li data-k="7.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">7.1</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>NTP → CA/PO</b> (upload NTP), then <b>CA/PO → Project Delivery</b>.</div></div>
+      <div class="row see"><b>See</b><div>A draft Packing List is started and the Warehouse is told to pack.</div></div>
+    </li>
+    <li data-k="7.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">7.2</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchasing → Transmittals → New Transmittal</div></div>
+      <div class="row do"><b>Do</b><div><ol><li>Type the P01046 IPAS number (from your notes) in "Fill from an IPAS number" → <b>Fill lines</b>.</li><li>Set the pills: Origin <b>Purchasing</b>, Priority (any), Company (it follows the first line; check it), Location <b>Marikina Warehouse</b>.</li><li>Checking: tick <b>Warehouse</b> and <b>Technical</b>.</li><li><b>Submit</b>. Write the TG03 number down.</li></ol></div></div>
+      <div class="row see"><b>See</b><div>The seven P01046 lines are on the slip. Before Submit, the strip lists anything still missing ("One thing left before Submit").</div></div>
+      <div class="row say"><b>Say</b><div>No more typing the goods. Remove what did not arrive, or change a quantity for a part delivery.</div></div>
+    </li>
+    <li data-k="7.3"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">7.3</span><span class="seat s-wh">aldrin</span></div>
+      <div class="row where"><b>Where</b><div>Transmittals → the TG03 slip → Warehouse checking</div></div>
+      <div class="row do"><b>Do</b><div>Press <b>Mark all GC</b>. Add the PDF under Pictures and videos. Other signatory: <b>Aldrin demo</b> (the only name on the Warehouse list). <b>Sign Warehouse checking</b>.</div></div>
+    </li>
+    <li data-k="7.4"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">7.4</span><span class="seat s-wh">aldrin</span></div>
+      <div class="row where"><b>Where</b><div>the same slip → Warehouse releasing</div></div>
+      <div class="row do"><b>Do</b><div>Add the PDF as the picture. Other signatory: <b>Sherwin demo</b> (from the Technical list, because Technical is ticked). <b>Sign Warehouse releasing</b>.</div></div>
+    </li>
+    <li data-k="7.5"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">7.5</span><span class="seat s-wh">sherwin</span></div>
+      <div class="row where"><b>Where</b><div>the same slip → Technical inspection</div></div>
+      <div class="row do"><b>Do</b><div>Rate every line GC. Add the PDF. Other signatory: <b>Sherwin demo</b>. <b>Sign Technical inspection</b>.</div></div>
+    </li>
+    <li data-k="7.6"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">7.6</span><span class="seat s-wh">aldrin</span></div>
+      <div class="row where"><b>Where</b><div>the same slip → Your move</div></div>
+      <div class="row do"><b>Do</b><div><b>Sign Received in Odoo by</b>. The Odoo receipt number is optional.</div></div>
+    </li>
+    <li data-k="7.7"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">7.7</span><span class="seat s-sign">jen</span><span class="seat s-sign">grace</span></div>
+      <div class="row where"><b>Where</b><div>Approval Center → Transmittals</div></div>
+      <div class="row do"><b>Do</b><div>Jen signs <b>Check by (1)</b>. Grace signs <b>Check by (2)</b>.</div></div>
+      <div class="row see"><b>See</b><div>The slip is Closed. On the P01046 IPAS, Delivered and Actual Checking tick by themselves.</div></div>
+      <div class="row say"><b>Say</b><div>The person who made the slip cannot check it, and one person cannot sign both Check by slots.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="part8">
-  <div class="part-head"><span class="part-no">8</span><h2>File the IPAS, then the last gate</h2><span class="mins">0:51 – 0:57</span></div>
+  <div class="part-head"><span class="part-no">8</span><h2>File the IPAS, then the last gate</h2><span class="mins">0:53 – 0:58</span></div>
   <ol class="steps">
-    <li data-k="8.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>P01046 IPAS: upload BL/Waybill, Packing List, Commercial Invoice and Freight Billing (the PDF each time). Computation status up to <b>LC Odoo Done</b>. Submit <b>section 3</b>. <span class="who"><span class="seat s-sign">jelai</span></span>approves it.</div><div class="see">Landed cost turns Final, and shows on the S0 Evaluation as "Real · from the IPAS".</div></li>
-    <li data-k="8.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-wh">aldrin</span></span>On the IPAS, fill the Item Location and the "Arrived in Whs." date, then sign <b>Logistics</b>.</div><div class="say">New: section 4 waits for Logistics. Logistics needs a location, a TG03 Transmittal, and the arrival date.</div></li>
-    <li data-k="8.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Upload the <b>BIR 2307</b>. <span class="who"><span class="seat s-sign">grace</span><span class="seat s-sign">101</span><span class="seat s-sign">201</span></span>Section 4: Received, Noted, Checked, Approved.</div><div class="see">The IPAS is <b>Filed</b> and frozen. The Tracker counts it under Filed.</div></li>
-    <li data-k="8.4"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-wh">aldrin</span></span>Packing Lists → the draft for the SOR → Box 1 with the fire suits and helmets → <b>Pack</b>.</div></li>
-    <li data-k="8.5"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Try Project Delivery → <b>Collection</b>.</div><div class="see">Refused by <b>Purchasing settled</b>: the 2.5" hose and 2.5" nozzle are Purchased, not Received.</div><div class="say">This is the real S03204. The client got everything, but Odoo's P0s never recorded the rest as received. The app caught a gap in our records. The fix is in Odoo, not here: the Warehouse books the receipt, and the gate opens.</div></li>
+    <li data-k="8.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">8.1</span><span class="seat s-buy">Purchasing</span><span class="seat s-sign">jelai</span></div>
+      <div class="row where"><b>Where</b><div>Purchasing → IPAS → the P01046 IPAS → Edit</div></div>
+      <div class="row do"><b>Do</b><div><ol><li>Documents: attach the PDF to <b>BL or Waybill</b>, <b>Packing List</b>, <b>Commercial Invoice</b> and <b>Freight Billing</b>.</li><li>Computation status: step it up to <b>LC Odoo Done</b> (Encoding → Encoded → LC GS Done → LC Odoo Done). Save all.</li><li>Submit <b>section 3</b>. Jelai approves it.</li></ol></div></div>
+      <div class="row see"><b>See</b><div>Landed cost turns final. On the S0 Evaluation the suit rows show "Real · from the IPAS".</div></div>
+    </li>
+    <li data-k="8.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">8.2</span><span class="seat s-wh">aldrin</span></div>
+      <div class="row where"><b>Where</b><div>the P01046 IPAS → Logistics</div></div>
+      <div class="row do"><b>Do</b><div>Item Location: Marikina Warehouse (the Transmittal already says it; pick it to keep it). Set the <b>Arrived in Whs.</b> date. Sign <b>Logistics</b>.</div></div>
+      <div class="row say"><b>Say</b><div>Filing waits for Logistics. Logistics needs a location, a Transmittal, and the arrival date.</div></div>
+    </li>
+    <li data-k="8.3"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">8.3</span><span class="seat s-buy">Purchasing</span><span class="seat s-sign">grace</span><span class="seat s-sign">101</span><span class="seat s-sign">201</span></div>
+      <div class="row where"><b>Where</b><div>the IPAS → Documents, then Approval Center → IPAS</div></div>
+      <div class="row do"><b>Do</b><div>Cjay attaches the PDF to <b>BIR 2307</b>. Section 4: Grace <b>Received</b>, then 101 <b>Noted</b> and 201 <b>Checked</b> (either order), then 201 <b>Approved</b>.</div></div>
+      <div class="row see"><b>See</b><div>"Filed. Nothing left to do." The IPAS is frozen; only a Super Admin can reopen it.</div></div>
+    </li>
+    <li data-k="8.4"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">8.4</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchasing → Packing Lists → the draft for the SOR</div></div>
+      <div class="row do"><b>Do</b><div><b>Add a box</b>. Contents: pick the fire suit ×10 and both helmets from the Product List. Save. <b>Sign Packed by</b>.</div></div>
+      <div class="row see"><b>See</b><div>"Packed. Nothing left to do."</div></div>
+    </li>
+    <li data-k="8.5"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">8.5</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
+      <div class="row do"><b>Do</b><div>Try <b>Project Delivery → Collection</b>, with both uploads.</div></div>
+      <div class="row see"><b>See</b><div>Refused, naming <b>Purchasing settled (Project Delivery)</b>: the 2.5" hose and 2.5" nozzle are Purchased, not Received. Goods checked is met, because the only slip is Closed.</div></div>
+      <div class="row say"><b>Say</b><div>This is the real S03204. The client got everything, but Odoo's P0s never recorded the rest as received. The app found a gap in our records. The fix is in Odoo, not here: the Warehouse books the receipt, and the gate opens.</div></div>
+    </li>
   </ol>
+  <div class="gate"><strong>Purchasing settled</strong> and <strong>Goods checked</strong>, on Project Delivery. Every requested line is closed (Received, Available, Cannot source or Cancelled), and every submitted Transmittal for the SOR is Closed.</div>
 </section>
 
 <section id="part9">
-  <div class="part-head"><span class="part-no">9</span><h2>Wrap up and questions</h2><span class="mins">0:57 – 1:00+</span></div>
+  <div class="part-head"><span class="part-no">9</span><h2>Wrap up and questions</h2><span class="mins">0:58 – 1:00+</span></div>
   <ol class="steps">
-    <li data-k="9.1"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>The SOR's <b>PMS tab</b>: the S0 Evaluation, the Go, the request, four IPAS, the slip, the Packing List, all in one place.</div></li>
-    <li data-k="9.2"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Dashboard Tracker: the SOR still has two Purchased lines. That is the to-do the room just saw.</div></li>
-    <li data-k="9.3"><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Settings → Purchasing → <b>Ageing rules</b>: set "With P.O.P" to 3 days.</div><div class="say">Every ageing rule starts blank, so nothing is late until you set one.</div></li>
+    <li data-k="9.1"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">9.1</span><span class="seat s-sales">Sales</span></div>
+      <div class="row where"><b>Where</b><div>the SOR → PMS tab</div></div>
+      <div class="row do"><b>Do</b><div>Show it all in one place: the S0 Evaluation, the Go, the request, four IPAS, the slip and the Packing List.</div></div>
+    </li>
+    <li data-k="9.2"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">9.2</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchasing → Dashboard</div></div>
+      <div class="row do"><b>Do</b><div>Open the SOR: two lines are still Purchased.</div></div>
+      <div class="row say"><b>Say</b><div>That is the to-do the room just watched appear.</div></div>
+    </li>
+    <li data-k="9.3"><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">9.3</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Settings → Purchasing → Ageing rules</div></div>
+      <div class="row do"><b>Do</b><div>Set "With P.O.P" to 3 days and save.</div></div>
+      <div class="row say"><b>Say</b><div>Every ageing rule starts blank, so nothing is late until you set one.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="scenA">
-  <div class="part-head"><span class="part-no">A</span><h2>Order early</h2><span class="mins">about 2 min, during Part 5</span></div>
-  <p class="intro">Real-life case: the suits take eight weeks, so Purchasing buys before NTP.</p>
+  <div class="part-head"><span class="part-no">A</span><h2>Order early</h2><span class="mins">about 2 min, in place of step 6.1</span></div>
+  <p class="intro">Real-life case: the suits take eight weeks, so Purchasing buys before NTP. If you run this, the suit is already done in step 6.3.</p>
   <ol class="steps">
-    <li data-k="A.1" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Before NTP, fire suit line → Attach P0 → P01046. Leave "Order early: why now?" blank and press the button.</div><div class="see">Refused: Order early needs a reason.</div></li>
-    <li data-k="A.2" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Reason "8-week lead time, award is near certain" → <b>Order early and attach P01046</b>.</div><div class="see">The line shows "Ordered early: …". Dani gets "Ordered early on your deal".</div><div class="say">Buying early is allowed, but it is never silent.</div></li>
+    <li data-k="A.1" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">A.1</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>Purchase Request → fire suit line → Attach P0, before NTP</div></div>
+      <div class="row do"><b>Do</b><div>Choose P01046 → Attach P01046. Leave "Order early: why now?" blank.</div></div>
+      <div class="row see"><b>See</b><div>The "Order early and attach P01046" button stays off until a reason is written.</div></div>
+    </li>
+    <li data-k="A.2" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">A.2</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row do"><b>Do</b><div>Reason "8-week lead time, award is near certain" → <b>Order early and attach P01046</b>.</div></div>
+      <div class="row see"><b>See</b><div>The line shows "Ordered early: …". Dani gets "Ordered early on your deal".</div></div>
+      <div class="row say"><b>Say</b><div>Buying early is allowed, but it is never silent.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="scenB">
   <div class="part-head"><span class="part-no">B</span><h2>The Go lock</h2><span class="mins">about 3 min, after 5.5</span></div>
   <ol class="steps">
-    <li data-k="B.1" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Change a cost on the locked sheet.</div><div class="see">Refused: the sheet is locked by a Go. Unlock it, with a reason, to change it.</div></li>
-    <li data-k="B.2" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Press Unlock as Dani.</div><div class="see">Refused: only a Super Admin or the decider's list can unlock a bid.</div></li>
-    <li data-k="B.3" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">201</span></span>Unlock, reason "Supplier raised the boots price". Change the boots cost. Take the <b>Go</b> again.</div><div class="say">Every unlock has a name and a reason, and the deal needs a fresh Go.</div></li>
+    <li data-k="B.1" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">B.1</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row do"><b>Do</b><div>Change a cost on the locked sheet.</div></div>
+      <div class="row see"><b>See</b><div>Refused: the sheet is locked by a Go.</div></div>
+    </li>
+    <li data-k="B.2" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">B.2</span><span class="seat s-sales">Sales</span></div>
+      <div class="row do"><b>Do</b><div>Press Unlock on the Bid Decision card as Dani.</div></div>
+      <div class="row see"><b>See</b><div>Refused: only a Super Admin or the unlock list may unlock a bid.</div></div>
+    </li>
+    <li data-k="B.3" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">B.3</span><span class="seat s-sign">201</span></div>
+      <div class="row do"><b>Do</b><div>Unlock, reason "Supplier raised the boots price". Change the boots cost. Dani takes the Go again.</div></div>
+      <div class="row say"><b>Say</b><div>Every unlock has a name and a reason, and the deal needs a fresh Go.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="scenC">
-  <div class="part-head"><span class="part-no">C</span><h2>Evaluation rules</h2><span class="mins">about 2 min, during 5.2 – 5.4</span></div>
+  <div class="part-head"><span class="part-no">C</span><h2>Evaluation rules</h2><span class="mins">about 2 min, around 5.2 to 5.4</span></div>
   <ol class="steps">
-    <li data-k="C.1" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-wh">sherwin</span></span>Before 5.2, try to mark a row.</div><div class="see">Refused: name the team (RRD or IOE) that judges this row first.</div></li>
-    <li data-k="C.2" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">101</span></span>As the Super Admin, try to mark an RRD row.</div><div class="see">Refused: only the RRD team can mark this row. Super Admins get no bypass.</div></li>
-    <li data-k="C.3" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">grace</span></span>If Grace marked a row, she tries to approve.</div><div class="see">Refused: you marked some of these rows, so someone else has to approve.</div></li>
+    <li data-k="C.1" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">C.1</span><span class="seat s-wh">sherwin</span></div>
+      <div class="row do"><b>Do</b><div>Before 5.2, look at a row's Compliance.</div></div>
+      <div class="row see"><b>See</b><div>Only a "Not judged" badge, with no buttons. A row with no team cannot be marked by anyone.</div></div>
+    </li>
+    <li data-k="C.2" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">C.2</span><span class="seat s-sign">101</span></div>
+      <div class="row do"><b>Do</b><div>As the Super Admin, look at an RRD row.</div></div>
+      <div class="row see"><b>See</b><div>No buttons either. Only the RRD team marks an RRD row. Super Admins get no way around it.</div></div>
+    </li>
+    <li data-k="C.3" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">C.3</span><span class="seat s-sign">grace</span></div>
+      <div class="row do"><b>Do</b><div>While some rows are still Not judged, look at the Evaluation of Specification bar.</div></div>
+      <div class="row see"><b>See</b><div>"Approve the evaluation" is off, with "<i>n</i> Components have no verdict yet."</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="scenD">
-  <div class="part-head"><span class="part-no">D</span><h2>IPAS blocks</h2><span class="mins">1 min each, during Part 6 and 8</span></div>
+  <div class="part-head"><span class="part-no">D</span><h2>IPAS blocks</h2><span class="mins">1 min each, during Parts 6 and 8</span></div>
   <ol class="steps">
-    <li data-k="D.1" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Submit section 1 on the P01047 IPAS with its blank charges still there.</div><div class="see">Refused: the charges are blank. Fill each in or remove it first.</div></li>
-    <li data-k="D.2" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Add freight in Chinese yuan.</div><div class="see">Refused: freight can only be in pesos or in the PO's currency (USD).</div></li>
-    <li data-k="D.3" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-wh">aldrin</span></span>Sign Logistics on the P01047 IPAS (no Transmittal yet).</div><div class="see">Refused: Logistics needs the Item Location, a Transmittal, and the received date first.</div></li>
-    <li data-k="D.4" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sign">grace</span></span>Sign section 4 Received before Logistics.</div><div class="see">Refused: section 4 opens once sections 1, 2, 3 and 6 are signed.</div></li>
+    <li data-k="D.1" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">D.1</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row do"><b>Do</b><div>On the P01047 IPAS, submit section 1 with its blank charges still there.</div></div>
+      <div class="row see"><b>See</b><div>Refused: the charges are blank. Fill each one in or remove it first.</div></div>
+    </li>
+    <li data-k="D.2" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">D.2</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row do"><b>Do</b><div>Add freight in Chinese yuan.</div></div>
+      <div class="row see"><b>See</b><div>Refused: freight is in pesos or in the PO's currency (USD) only.</div></div>
+    </li>
+    <li data-k="D.3" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">D.3</span><span class="seat s-wh">aldrin</span></div>
+      <div class="row do"><b>Do</b><div>Sign Logistics on the P01047 IPAS (it has no Transmittal yet).</div></div>
+      <div class="row see"><b>See</b><div>Refused: "Logistics needs the Item Location, a Transmittal, the received date first."</div></div>
+    </li>
+    <li data-k="D.4" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">D.4</span><span class="seat s-sign">grace</span></div>
+      <div class="row do"><b>Do</b><div>Look at section 4 Received on an IPAS before Logistics is signed.</div></div>
+      <div class="row see"><b>See</b><div>"Opens once 1 · Purchasing, 2 · Purchasing &amp; Finance and 3 · Computation status &amp; Landed Cost are approved, and Logistics is signed."</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="scenE">
   <div class="part-head"><span class="part-no">E</span><h2>Odoo says no</h2><span class="mins">1 min each</span></div>
   <ol class="steps">
-    <li data-k="E.1" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>On a line, type <b class="mono">P01415</b> (cancelled in Odoo, it was the first suit order).</div><div class="see">Refused: the P0 is cancelled in Odoo.</div></li>
-    <li data-k="E.2" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Type <span class="mono">P99999</span>.</div><div class="see">Refused: Odoo has no purchase order named P99999.</div></li>
-    <li data-k="E.3" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Open a Received line's buttons.</div><div class="see">Attach P0 and Replace are off: "This line has already arrived."</div></li>
-    <li data-k="E.4" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Open a line's status menu as Dani.</div><div class="see">Available, To purchase and Cancel only. Purchased and Received only ever come from Odoo.</div></li>
+    <li data-k="E.1" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">E.1</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row where"><b>Where</b><div>a line → Attach P0 → "Or type a P0 number"</div></div>
+      <div class="row do"><b>Do</b><div>Type <b class="mono">P01415</b> (cancelled in Odoo; it was the first suit order) and attach.</div></div>
+      <div class="row see"><b>See</b><div>Refused: the P0 is cancelled in Odoo.</div></div>
+    </li>
+    <li data-k="E.2" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">E.2</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row do"><b>Do</b><div>Type <b class="mono">P99999</b> and attach.</div></div>
+      <div class="row see"><b>See</b><div>Refused: Odoo has no purchase order by that name.</div></div>
+    </li>
+    <li data-k="E.3" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">E.3</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row do"><b>Do</b><div>Open a Received line and hover its buttons.</div></div>
+      <div class="row see"><b>See</b><div>Attach P0 is off: "Nothing to attach to this line." Replace is off: "This line has already arrived."</div></div>
+    </li>
+    <li data-k="E.4" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">E.4</span><span class="seat s-sales">Sales</span></div>
+      <div class="row do"><b>Do</b><div>Open a line's status menu as Dani.</div></div>
+      <div class="row see"><b>See</b><div>Only Available, To purchase and Cancel. Purchased and Received only ever come from Odoo.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="scenF">
   <div class="part-head"><span class="part-no">F</span><h2>One IPAS for two projects</h2><span class="mins">about 8 min, on its own</span></div>
-  <p class="intro">Real case: <b class="mono">P02674</b> (USD 150, magnetic roof mounts, Shenzhen Xingshuo Guanglian) names both <b>S04081</b> and <b>S04602</b>, and has not arrived.</p>
+  <p class="intro">Real case: <b class="mono">P02674</b> (USD 150, magnetic roof mounts, Shenzhen Xingshuo Guanglian) names both <b>S04081</b> and <b>S04602</b>, and has not arrived. Staging already has an SOR-73 for S04602 on no Sale Type. Ignore it and register a new one on the demo Sale Type.</p>
   <ol class="steps">
-    <li data-k="F.1" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-sales">Sales</span></span>Register two SORs on Project [FOR DEMO] with Fetch from Odoo: <b>S04081</b> and <b>S04602</b>. Create the Purchase Request on each, and move both past NTP (or use Order early).</div></li>
-    <li data-k="F.2" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>S04081 request → <b>Ask for a product</b> "Magnetic roof mount" ×4, For the client → Attach P0 → type <b class="mono">P02674</b>.</div><div class="see">Purchased, "Not received yet". A message says the IPAS for P02674 was raised.</div></li>
-    <li data-k="F.3" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>Same on S04602: "Magnetic roof mount" ×1, attach P02674.</div><div class="see">"This SOR was added to TGIPAS…". One IPAS, both SORs. Each SOR's PMS tab lists it.</div><div class="say">No second IPAS for the same P0. The new project joins the one already there.</div></li>
-    <li data-k="F.4" data-opt><input type="checkbox" aria-label="Done"><div class="what"><span class="who"><span class="seat s-buy">Purchasing</span></span>On each roof-mount line, <b>Pick PO line…</b>: S04081 takes the line of 4, S04602 the line of 1.</div><div class="see">"0 of 4" and "0 of 1" instead of "0 of 5" on both.</div></li>
+    <li data-k="F.1" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">F.1</span><span class="seat s-sales">Sales</span></div>
+      <div class="row do"><b>Do</b><div>Register two SORs on Project [FOR DEMO] with Fetch from Odoo: <b>S04081</b> and <b>S04602</b>. Press Create on each one's Purchase Request card. Move both past NTP using the moves table, or use Order early in F.2.</div></div>
+    </li>
+    <li data-k="F.2" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">F.2</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row do"><b>Do</b><div>S04081's request → ask for a product "Magnetic roof mount" ×4, for the client → Attach P0 → type <b class="mono">P02674</b>.</div></div>
+      <div class="row see"><b>See</b><div>Purchased, not received yet. A message says the IPAS for P02674 was raised.</div></div>
+    </li>
+    <li data-k="F.3" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">F.3</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row do"><b>Do</b><div>Same on S04602: "Magnetic roof mount" ×1, attach P02674.</div></div>
+      <div class="row see"><b>See</b><div>A message says this SOR was added to the existing IPAS. One IPAS, both SORs. Each SOR's PMS tab lists it.</div></div>
+      <div class="row say"><b>Say</b><div>No second IPAS for the same P0. The new project joins the one already there.</div></div>
+    </li>
+    <li data-k="F.4" data-opt><input type="checkbox" aria-label="Done">
+      <div class="head"><span class="k">F.4</span><span class="seat s-buy">Purchasing</span></div>
+      <div class="row do"><b>Do</b><div>On each roof-mount line → status menu → <b>Pick PO line…</b>: S04081 takes the line of 4, S04602 the line of 1.</div></div>
+      <div class="row see"><b>See</b><div>"0 of 4" and "0 of 1" instead of "0 of 5" on both.</div></div>
+    </li>
   </ol>
 </section>
 
 <section id="cuts">
-  <div class="part-head"><h2>If you run late</h2></div>
+  <div class="part-head"><h2>If you run late, or something goes wrong</h2></div>
   <div class="grid2">
     <div class="card"><h4>Cut first</h4><p class="note">3.3 chat, the 1.35 try in 4.6, 8.4 Packing List, 9.3 Settings.</p></div>
-    <div class="card"><h4>Pre-do before the meeting</h4><p class="note">Do Part 2 and steps 4.2 and 4.5 (typing ABC and costs) alone the morning of the demo. That saves about 8 minutes.</p></div>
-    <div class="card"><h4>If a step is refused</h4><p class="note">Read the message out loud. Most refusals are the rules doing their job. That is part of the demo.</p></div>
-    <div class="card"><h4>Rehearse these once</h4><p class="note">6.6 (does the app really show "2 of 10" and "0 of 4"?), 5.2 (where the team is set on a row), and 8.1 (the documents each section asks for). They come from the code and have not been tried in the app yet.</p></div>
+    <div class="card"><h4>Do before the meeting</h4><p class="note">Part 2, step 4.2 (typing the ABC) and step 4.5 (blank costs), alone the morning of the demo. That saves about 8 minutes. Then start the live demo at 4.3.</p></div>
+    <div class="card"><h4>A move is refused</h4><p class="note">The message names what is missing and on which stage. Check the moves table first. Most refusals are the rules doing their job; read them out loud.</p></div>
+    <div class="card"><h4>Rehearse these once</h4><p class="note">6.6 (does the line really say "2 of 10" and "0 of 4"?), 7.3 to 7.5 (picking yourself as the other signatory), and 8.1 (the Computation status steps). These come from reading the code and have not been tried in the app.</p></div>
   </div>
 </section>
 </div>
 
 <script>
 (function () {
-  var KEY = "pdemo-ticks-v4", CLOCK = "pdemo-clock-v4";
+  var KEY = "pdemo-ticks-v5", CLOCK = "pdemo-clock-v5", NUMS = "pdemo-numbers-v5";
   function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
   var ticks = load(KEY, {});
   var items = Array.prototype.slice.call(document.querySelectorAll("ol.steps > li[data-k]"));
   items.forEach(function (li) {
@@ -379,7 +805,7 @@ ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
     box.checked = !!ticks[li.dataset.k];
     li.classList.toggle("done", box.checked);
     box.addEventListener("change", function () {
-      ticks[li.dataset.k] = box.checked; if (!box.checked) delete ticks[li.dataset.k];
+      if (box.checked) ticks[li.dataset.k] = true; else delete ticks[li.dataset.k];
       li.classList.toggle("done", box.checked); save(KEY, ticks); render();
     });
   });
@@ -392,20 +818,34 @@ ul.sub { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; }
   }
   render();
 
-  var wrap = document.getElementById("clearWrap");
-  function clearButton() {
-    wrap.innerHTML = '<button id="clearBtn" class="danger" type="button">Clear ticks</button>';
-    document.getElementById("clearBtn").onclick = function () {
-      wrap.innerHTML = '<span class="confirm">Start a fresh rehearsal? <button id="yes" class="danger" type="button">Clear</button><button id="no" type="button">Keep</button></span>';
-      document.getElementById("yes").onclick = function () {
-        ticks = {}; save(KEY, ticks);
-        items.forEach(function (li) { li.querySelector("input").checked = false; li.classList.remove("done"); });
-        render(); clearButton();
+  // A two-step confirm in place of confirm(), which the viewer does not show.
+  function confirmButton(wrapId, label, question, onYes) {
+    var wrap = document.getElementById(wrapId);
+    function idle() {
+      wrap.innerHTML = '<button class="danger" type="button">' + label + '</button>';
+      wrap.querySelector("button").onclick = function () {
+        wrap.innerHTML = '<span class="confirm">' + question + ' <button class="danger yes" type="button">Clear</button><button class="no" type="button">Keep</button></span>';
+        wrap.querySelector(".yes").onclick = function () { onYes(); idle(); };
+        wrap.querySelector(".no").onclick = idle;
       };
-      document.getElementById("no").onclick = clearButton;
-    };
+    }
+    idle();
   }
-  clearButton();
+  confirmButton("clearWrap", "Clear ticks", "Start a fresh rehearsal?", function () {
+    ticks = {}; save(KEY, ticks);
+    items.forEach(function (li) { li.querySelector("input").checked = false; li.classList.remove("done"); });
+    render();
+  });
+
+  var nums = load(NUMS, {});
+  var fields = Array.prototype.slice.call(document.querySelectorAll("input[data-n]"));
+  fields.forEach(function (f) {
+    f.value = nums[f.dataset.n] || "";
+    f.addEventListener("input", function () { nums[f.dataset.n] = f.value.trim(); save(NUMS, nums); });
+  });
+  confirmButton("padClearWrap", "Clear numbers", "Clear the numbers?", function () {
+    nums = {}; save(NUMS, nums); fields.forEach(function (f) { f.value = ""; });
+  });
 
   var c = load(CLOCK, { start: null, acc: 0 });
   var el = document.getElementById("clock"), btn = document.getElementById("clockBtn");

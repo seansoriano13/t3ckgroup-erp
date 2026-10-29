@@ -216,6 +216,9 @@ async function freeDemoPos(c, saleTypeId) {
     console.log(`  cancelled ${row.number} (${row.po_number} is free again)`)
   }
   await c.query("reset role")
+  // The claims outlive the role for the rest of the transaction; left set, auth.uid() stays Cjay and
+  // the SOR guard refuses the soft-delete that follows.
+  await c.query("select set_config('request.jwt.claims', '', true)")
 }
 
 async function retireOldCopies(c) {
