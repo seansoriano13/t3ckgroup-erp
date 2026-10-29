@@ -95,7 +95,7 @@ describe("S0 Evaluation settings", () => {
 
     expect(await screen.findByTestId("costing-rates")).toBeInTheDocument();
     const list = await screen.findByTestId("costing-signer-list-final_acquire");
-    expect(within(list).getByText("Final Acquire list")).toBeInTheDocument();
+    expect(within(list).getByText("Decider list")).toBeInTheDocument();
     expect(await within(list).findByText("Manager One")).toBeInTheDocument();
     expect(within(list).queryByText("Nobody yet.")).not.toBeInTheDocument();
   });

@@ -39,7 +39,7 @@ const SECTIONS = [
       <SignerListsSection
         listKey={COSTING_SIGNER_LIST.FINAL_ACQUIRE}
         canEdit
-        description="Writes Final Acquire and the markup factor, and reads the summary and the margin. A Super Admin is not on it unless added here. Changing the list never changes figures already typed."
+        description="Writes the markup factor, and reads the summary and the margin. A Super Admin is not on it unless added here. Changing the list never changes figures already typed."
       />
     ),
   },
@@ -83,7 +83,7 @@ export default function CostingMatrixSettings({ isSuperAdmin = false, hasFinance
     <div className="space-y-8" data-testid="costing-matrix-settings">
       <div>
         <h2 className="text-sm font-semibold text-foreground">S0 Evaluation</h2>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">The markup presets, the rates behind the summary, the people who set Final Acquire, and how the evaluation of specification is run.</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">The markup presets, the rates behind the summary, the people who decide bids, and how the evaluation of specification is run.</p>
       </div>
       {SECTIONS.filter((section) => section.show(access)).map(({ key, render }) => (
         <div key={key}>{render()}</div>

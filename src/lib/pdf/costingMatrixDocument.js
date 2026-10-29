@@ -160,7 +160,7 @@ function moneyTable(money) {
     <colgroup><col style="width:9mm"><col><col style="width:25mm"><col style="width:25mm"><col style="width:25mm"><col style="width:25mm"><col style="width:17mm"><col style="width:22mm"></colgroup>
     <thead>
       <tr class="band owner"><th colspan="2"></th><th class="num">Client</th><th class="num">Sales</th><th class="num">Purchasing</th><th class="num">Management</th><th class="num">Automatic</th><th class="num">After purchase</th></tr>
-      <tr><th>No.</th><th>Tender line · PHP</th><th class="num">ABC</th><th class="num">Final offer</th><th class="num">Acquire</th><th class="num">Final acquire</th><th class="num">Achieved</th><th class="num">Landed cost</th></tr>
+      <tr><th>No.</th><th>Tender line · PHP</th><th class="num">ABC</th><th class="num">Final offer</th><th class="num">Acquire</th><th class="num">Final cost</th><th class="num">Achieved</th><th class="num">Landed cost</th></tr>
     </thead>
     <tbody>${lines}${costRows}${empty}</tbody></table>`;
 }

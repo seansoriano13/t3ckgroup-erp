@@ -109,7 +109,7 @@ describe("S0 Evaluation settings", () => {
     mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
     renderAt("/settings?tab=costing");
 
-        expect(await screen.findByTestId("markup-presets-closed")).toHaveTextContent("Only Super Admins, Purchasing, the Deal Team and the Final Acquire list");
+        expect(await screen.findByTestId("markup-presets-closed")).toHaveTextContent("Only Super Admins, Purchasing, the Deal Team and the decider list");
     expect(screen.queryByLabelText("New markup preset name")).not.toBeInTheDocument();
     expect(screen.queryByTestId("markup-preset-row")).not.toBeInTheDocument();
   });

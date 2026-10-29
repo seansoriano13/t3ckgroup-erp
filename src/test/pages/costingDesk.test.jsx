@@ -605,7 +605,7 @@ describe("the Costing Desk", () => {
 
       await openLines();
       const rows = await screen.findByTestId("cost-rows");
-      await user.type(within(rows).getByLabelText("Other cost 1 Final Acquire"), "2500");
+      await user.type(within(rows).getByLabelText("Other cost 1 Final cost"), "2500");
       await user.tab();
 
       await waitFor(() => expect(db.rows("costing_cost_rows").find((r) => r.id === costRow.id).final_acquire_unit).toBe(2500));

@@ -219,10 +219,10 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
         <Band title="Final cost">
           {showFinal && (
             <>
-              <Field label="Final Acquire / unit">
-                <Cell label={label("Final Acquire")} noun="Final Acquire" value={component.final_acquire_unit} numeric money placeholder="0.00" readOnly={!canCost("final_acquire_unit")} onSave={(value) => save({ finalAcquireUnit: value })} />
+              <Field label="Final cost / unit">
+                <Cell label={label("Final cost")} noun="Final cost" value={component.final_acquire_unit} numeric money placeholder="0.00" readOnly={!canCost("final_acquire_unit")} onSave={(value) => save({ finalAcquireUnit: value })} />
               </Field>
-              <Field label="Final Acquire total">
+              <Field label="Final cost total">
                 <Readout>{pesos(extended(component.final_acquire_unit, component.quantity))}</Readout>
               </Field>
             </>

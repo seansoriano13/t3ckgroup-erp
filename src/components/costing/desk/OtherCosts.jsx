@@ -52,7 +52,7 @@ export default function OtherCosts({ matrix, writes }) {
     { key: "category", label: "Category", width: "12rem" },
     { key: "quantity", label: "Qty", width: "5rem" },
     showAcquire && { key: "acquire", label: "Acquire / unit", width: "9rem" },
-    showFinal && { key: "final", label: "Final Acquire / unit", width: "9rem" },
+    showFinal && { key: "final", label: "Final cost / unit", width: "9rem" },
     showAcquire && { key: "total", label: "Total", width: "8rem" },
     canEditRows && { key: "remove", label: "", width: "2.25rem" },
   ].filter(Boolean);
@@ -143,8 +143,8 @@ export default function OtherCosts({ matrix, writes }) {
                 <div>
                   {caption("final")}
                   <Cell
-                    label={`Other cost ${row.number} Final Acquire`}
-                    noun="Final Acquire"
+                    label={`Other cost ${row.number} Final cost`}
+                    noun="Final cost"
                     value={row.final_acquire_unit}
                     numeric
                     money

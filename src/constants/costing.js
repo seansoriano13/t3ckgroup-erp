@@ -28,7 +28,7 @@ export const COSTING_BAND = {
 export const COSTING_BAND_LABEL = {
   [COSTING_BAND.SALES]: "Sales (the Deal Team)",
   [COSTING_BAND.PURCHASING]: "Purchasing",
-  [COSTING_BAND.MANAGEMENT]: "the Final Acquire list",
+  [COSTING_BAND.MANAGEMENT]: "the decider list",
   [COSTING_BAND.TECHNICAL]: "Technical",
   [COSTING_BAND.FINANCE]: "Finance",
   [COSTING_BAND.SUPER_ADMIN_ONLY]: "Super Admins",
@@ -244,7 +244,7 @@ export const EVALUATION_TEAMS = ["RRD", "IOE"];
 export const EVALUATION_TEAM_LIST = { RRD: COSTING_SIGNER_LIST.TEAM_RRD, IOE: COSTING_SIGNER_LIST.TEAM_IOE };
 
 export const COSTING_SIGNER_LIST_LABEL = {
-  [COSTING_SIGNER_LIST.FINAL_ACQUIRE]: "Final Acquire list",
+  [COSTING_SIGNER_LIST.FINAL_ACQUIRE]: "Decider list",
   [COSTING_SIGNER_LIST.EVALUATION]: "Evaluation of Specification list",
   [COSTING_SIGNER_LIST.MARKUP]: "Markup list",
   [COSTING_SIGNER_LIST.TEAM_RRD]: "RRD team",
@@ -340,7 +340,7 @@ export const COSTING_COLUMN_LABEL = {
   "costing_component_costs.*": "A Component's costs",
   "costing_component_costs.acquire_unit": "Acquire",
   "costing_component_costs.odoo_unit": "Odoo unit cost",
-  "costing_component_costs.final_acquire_unit": "Final Acquire",
+  "costing_component_costs.final_acquire_unit": "Final cost",
   "costing_component_costs.markup_factor": "The markup factor",
   "costing_inclusions.*": "Adding or removing an Inclusion",
   "costing_inclusions.component_id": "Which bundle an Inclusion sits under",
@@ -356,7 +356,7 @@ export const COSTING_COLUMN_LABEL = {
   "costing_cost_rows.quantity": "A cost-only row's quantity",
   "costing_cost_rows.acquire_unit": "Acquire",
   "costing_cost_rows.odoo_unit": "Odoo unit cost",
-  "costing_cost_rows.final_acquire_unit": "Final Acquire",
+  "costing_cost_rows.final_acquire_unit": "Final cost",
   "costing_cost_rows.markup_factor": "The markup factor",
   "costing_matrix_money.marketing": "Marketing",
   "costing_matrix_money.opex": "OPEX",

@@ -557,10 +557,10 @@ describe("costingMatrixService", () => {
       stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["technical"] });
       const refused = await costingMatrixService.updateComponent(component, { finalAcquireUnit: 1 }).catch((e) => e);
       expect(refused).toBeInstanceOf(CostingBandError);
-      expect(refused.message).toBe("Final Acquire is written by Sales (the Deal Team) or Purchasing or the Final Acquire list.");
+      expect(refused.message).toBe("Final cost is written by Sales (the Deal Team) or Purchasing or the decider list.");
       const marketing = await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 1 }).catch((e) => e);
       expect(marketing).toBeInstanceOf(CostingBandError);
-      expect(marketing.message).toBe("Marketing is written by Finance or Sales (the Deal Team) or Purchasing or the Final Acquire list.");
+      expect(marketing.message).toBe("Marketing is written by Finance or Sales (the Deal Team) or Purchasing or the decider list.");
     });
 
     it("reports a rate change that changed nothing (the database let no row through)", async () => {
