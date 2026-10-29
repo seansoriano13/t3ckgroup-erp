@@ -26,8 +26,11 @@ export function stubCostingConditionRpcs() {
     const components = rows("costing_components").filter((c) => lines.some((l) => l.id === c.tender_line_id))
     const costRows = rows("costing_cost_rows").filter((r) => r.matrix_id === matrix.id)
     const finalAcquire = [
-      ...components.map((c) => rows("costing_component_costs").find((k) => k.component_id === c.id)?.final_acquire_unit ?? null),
-      ...costRows.map((r) => r.final_acquire_unit ?? null),
+      ...components.map((c) => {
+        const cost = rows("costing_component_costs").find((k) => k.component_id === c.id)
+        return cost?.final_acquire_unit ?? cost?.acquire_unit ?? null
+      }),
+      ...costRows.map((r) => r.final_acquire_unit ?? r.acquire_unit ?? null),
     ]
 
     const evaluationApproved = rows("costing_signoffs").some(
