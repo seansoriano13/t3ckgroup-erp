@@ -32,3 +32,14 @@ describe("summarize (#680)", () => {
     )
   })
 })
+
+describe("summary names the open line's own P0 (#790)", () => {
+  it("names P01047, not the P0 of a line that is already Received", () => {
+    const items = [
+      { status: "received", po_number: "P01046" },
+      { status: "received", po_number: "P01423" },
+      { status: "purchased", po_number: "P01047" },
+    ]
+    expect(summarize(items).sentence).toContain("1 is on P01047 and not here yet")
+  })
+})
