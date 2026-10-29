@@ -377,6 +377,8 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["opportunityAutomations", id] });
     queryClient.invalidateQueries({ queryKey: ["stageChecklist", id] });
     queryClient.invalidateQueries({ queryKey: ["quickViewChecklist", id] });
+    // The banner's Stage Field values (#791): refresh with every save.
+    queryClient.invalidateQueries({ queryKey: ["stageFieldValues"] });
     // A move can hold, resume or cancel the Stage's tasks; the Activity task
     // cards (#399) read each task's live status under these keys.
     queryClient.invalidateQueries({ queryKey: ["globalTask"] });

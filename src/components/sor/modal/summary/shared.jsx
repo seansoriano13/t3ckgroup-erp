@@ -122,8 +122,13 @@ export function TeamList({ opportunity, compact = false }) {
   );
 }
 
-export function blockedLabels(checklist) {
-  return checklist.filter(({ condition, status }) => condition?.is_required && status === "unsatisfied").map(({ condition }) => condition.label);
+// One list for every "blocked" count (#791): unsatisfied required Conditions
+// plus required, empty Stage Fields, the same two things the move refuses on.
+export function blockedLabels(checklist, missingFields = []) {
+  return [
+    ...checklist.filter(({ condition, status }) => condition?.is_required && status === "unsatisfied").map(({ condition }) => condition.label),
+    ...(missingFields || []).map((field) => field.label),
+  ];
 }
 
 /**
@@ -133,7 +138,7 @@ export function blockedLabels(checklist) {
  * Sales Reference confirm steps).
  */
 export function stageMoves(p) {
-  const blockedBy = blockedLabels(p.checklist);
+  const blockedBy = blockedLabels(p.checklist, p.missingRequiredStageFields);
   const isMoving = p.stageMutation.isPending;
   if (p.isFlowDeal) {
     const canvas = p.flowCanvas;

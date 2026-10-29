@@ -21,6 +21,7 @@ import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
 import { sorCodeOf } from "../../../utils/sorCode";
+import { blockedLabels } from "./summary/shared";
 
 const TONE_CLASSES = {
   green: { current: "bg-green-9 text-white hover:bg-green-9 hover:text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
@@ -101,9 +102,8 @@ export default function SorModalHeader({
   // the ribbon's blockedBy list. Before this, the badge only ever looked at
   // `checklist` and could read "Clear to move" while a Stage Field still
   // blocked the server-side move.
-  const blockedCount =
-    checklist.filter(({ condition, status }) => condition?.is_required && status === "unsatisfied").length +
-    missingRequiredStageFields.length;
+  const blockedLabelList = blockedLabels(checklist, missingRequiredStageFields);
+  const blockedCount = blockedLabelList.length;
 
   const legacyRibbon = (
     <div className="relative w-full">
@@ -395,12 +395,7 @@ export default function SorModalHeader({
             opportunity={opportunity}
             isMoving={stageMutation.isPending}
             disabled={moveDisabled}
-            blockedBy={[
-              ...checklist
-                .filter(({ condition, status }) => condition?.is_required && status === "unsatisfied")
-                .map(({ condition }) => condition.label),
-              ...missingRequiredStageFields.map((field) => field.label),
-            ]}
+            blockedBy={blockedLabelList}
             returnStageIds={returnStageIds}
             onMove={(flowStageId) =>
               stageMutation.mutate({ next: flowStageId, reason: null, salesReference: null })
