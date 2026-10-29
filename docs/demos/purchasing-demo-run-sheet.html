@@ -196,7 +196,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
         <tr><td><button class="copy" type="button">jelai@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Finance. Adds the payment with proof. Approves IPAS section 3.</td></tr>
         <tr><td><button class="copy" type="button">jen@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Transmittal Check by (1).</td></tr>
         <tr><td><button class="copy" type="button">grace@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Approves the Evaluation of Specification. Transmittal Check by (2). IPAS section 4 Received.</td></tr>
-        <tr><td><button class="copy" type="button">201@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Markup list: applies 1.30. May unlock a Go. IPAS section 4 Checked and Approved.</td></tr>
+        <tr><td><button class="copy" type="button">201@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Markup list: may save a new markup. May unlock a Go. IPAS section 4 Checked and Approved.</td></tr>
         <tr><td><button class="copy" type="button">101@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Sales Director and Super Admin. Does the Flow Canvas in Part 0. Approves IPAS sections 1 and 2. Section 4 Noted.</td></tr>
         <tr><td><button class="copy" type="button">aldrin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Warehouse checking and releasing, Received in Odoo, IPAS Logistics sign-off.</td></tr>
         <tr><td><button class="copy" type="button">sherwin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>RRD team: marks compliance on the S0 Evaluation. Transmittal Technical inspection.</td></tr>
@@ -377,8 +377,19 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="4.2"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">4.2</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>S0 Evaluation → sheet → ABC / unit column</div></div>
-      <div class="row do"><b>Do</b><div>Type the ABC on each row. Use the S0 price, for example fire suit 51785.71, boots 9821.43, nozzles 36607.14.</div></div>
-      <div class="row see"><b>See</b><div>ABC total fills in the facts strip.</div></div>
+      <div class="row do"><b>Do</b><div>Type the ABC on <b>all 12 rows</b>, using the S0 unit price. A row left blank makes the offer look "over ABC" later, and the For Bidding move is refused.
+        <div class="tbl" style="margin-top:6px"><table>
+          <thead><tr><th>Row</th><th>ABC / unit</th><th>Row</th><th>ABC / unit</th></tr></thead>
+          <tbody>
+            <tr><td>Fire suit</td><td class="num">51785.71</td><td>Hose 1.5"</td><td class="num">10357.14</td></tr>
+            <tr><td>Gloves</td><td class="num">5803.57</td><td>Hose 2.5"</td><td class="num">13392.86</td></tr>
+            <tr><td>Goggles</td><td class="num">4910.71</td><td>Nozzle 1.5"</td><td class="num">36607.14</td></tr>
+            <tr><td>Safety belt</td><td class="num">4017.86</td><td>Nozzle 2.5"</td><td class="num">36607.14</td></tr>
+            <tr><td>Boots</td><td class="num">9821.43</td><td>Helmet yellow</td><td class="num">13392.87</td></tr>
+            <tr><td>Hood</td><td class="num">8928.57</td><td>Helmet white</td><td class="num">13392.86</td></tr>
+          </tbody>
+        </table></div></div></div>
+      <div class="row see"><b>See</b><div>ABC total ₱1,370,535.74 in the facts strip, with no "without one" note under it.</div></div>
       <div class="row say"><b>Say</b><div>Sales owns the client's ask and the budget.</div></div>
     </li>
     <li data-k="4.3"><input type="checkbox" aria-label="Done">
@@ -403,11 +414,11 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
       <div class="row say"><b>Say</b><div>Every row needs a cost, or "Costing priced" holds the deal later.</div></div>
     </li>
     <li data-k="4.6"><input type="checkbox" aria-label="Done">
-      <div class="head"><span class="k">4.6</span><span class="seat s-sign">201</span></div>
+      <div class="head"><span class="k">4.6</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>S0 Evaluation → right side → Markup playground</div></div>
-      <div class="row do"><b>Do</b><div>Raise it to 1.35 and watch the offer and margin move. Go back to 1.30 and <b>Apply</b>.</div></div>
-      <div class="row see"><b>See</b><div>Every Final Offer / unit fills. Each stays at or under its ABC. The facts strip shows the Final Offer total as a % of the ABC.</div></div>
-      <div class="row say"><b>Say</b><div>Only the Markup list sets the markup. Nothing changes until you apply.</div></div>
+      <div class="row do"><b>Do</b><div><ol><li>It says "Saved: 1.30" (the Government preset from Part 0).</li><li>Press + up to 1.35 and watch "Offer at this markup" and "Margin" move. Press − back to 1.30.</li><li>Keep "Keep each line at or under its ABC" on.</li><li>Press <b>Apply 1.30 to the Final Offers</b>.</li></ol></div></div>
+      <div class="row see"><b>See</b><div>Final Offer / unit fills on every row that has a cost. A row with no cost yet is skipped, and the playground says how many. The facts strip shows the Final Offer total as a % of the ABC.</div></div>
+      <div class="row say"><b>Say</b><div>Nothing changes until you apply. Only Sales fills the Final Offers. The Markup list (201) can save a new markup but cannot fill the offers.</div></div>
     </li>
   </ol>
 </section>
