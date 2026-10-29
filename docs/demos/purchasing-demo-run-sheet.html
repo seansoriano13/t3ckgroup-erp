@@ -483,7 +483,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="6.1"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">6.1</span><span class="seat s-buy">Purchasing</span></div>
       <div class="row where"><b>Where</b><div>Purchase Request → open the fire suit line → <b>Attach P0</b></div></div>
-      <div class="row do"><b>Do</b><div>Under "Suggested from Odoo", <b>Choose</b> P01046 → press <b>Attach P01046</b>.</div></div>
+      <div class="row do"><b>Do</b><div>Under "Suggested from Odoo", <b>Choose</b> P01046 → press <b>Attach P01046</b>. The button works first; the refusal only shows after you press it.</div></div>
       <div class="row see"><b>See</b><div>A red line: buying has not opened for this SOR. A box "Order early: why now?" appears and the button turns into "Order early and attach P01046".</div></div>
       <div class="row say"><b>Say</b><div>Buying opens at NTP. We will show Order early in Scenario A. For now, close the dialog and wait for NTP like a normal deal.</div></div>
     </li>
@@ -496,7 +496,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="6.3"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">6.3</span><span class="seat s-buy">Purchasing</span></div>
       <div class="row where"><b>Where</b><div>Purchase Request → fire suit line → Attach P0</div></div>
-      <div class="row do"><b>Do</b><div>Choose <b>P01046</b> → Attach P01046. Write the IPAS number from the message down.</div></div>
+      <div class="row do"><b>Do</b><div>Choose <b>P01046</b> → Attach P01046. Write the IPAS number from the message down. Older rehearsals may already have an IPAS for P01046 (for example TGIPAS_063), so use the number in the new message, not an old one.</div></div>
       <div class="row see"><b>See</b><div>"Fire suit: P01046 attached; Received." A second message says the IPAS for P01046 was raised. The line shows "10 of 10 received".</div></div>
       <div class="row say"><b>Say</b><div>Nobody clicks New IPAS anymore. Attaching a P0 raises its IPAS: dollars mean Import, Purpose Project, Priority Medium.</div></div>
     </li>
@@ -537,7 +537,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
       <div class="head"><span class="k">6.9</span><span class="seat s-buy">Purchasing</span><span class="seat s-sign">101</span></div>
       <div class="row where"><b>Where</b><div>the IPAS → Your move, then (101) Approval Center → IPAS</div></div>
       <div class="row do"><b>Do</b><div>Cjay submits <b>section 1</b> (Purchasing) and <b>section 2</b> (Purchasing &amp; Finance). 101 approves both.</div></div>
-      <div class="row say"><b>Say</b><div>Section 1 needs the Proforma Invoice. Section 2 needs proof on every payment. Nobody approves their own work.</div></div>
+      <div class="row say"><b>Say</b><div>Section 1 needs the Proforma Invoice. Proof of payment is optional; if any payment has one, it shows on the IPAS. Nobody approves their own work.</div></div>
     </li>
   </ol>
   <div class="dash"><strong>Tracker check.</strong> Purchasing → Dashboard → the SOR's side panel: two lines still Purchased, and four IPAS, each with its next step and who owes it.</div>
