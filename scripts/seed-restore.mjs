@@ -17,7 +17,7 @@ import pg from "pg"
 import { readFileSync } from "fs"
 import { fileURLToPath } from "url"
 import { dirname, join } from "path"
-import { DEFAULT_LOCAL_DB_URL, loadDotEnvLocal } from "./lib/seedShared.mjs"
+import { DEFAULT_LOCAL_DB_URL, NUMBER_SEQUENCES, loadDotEnvLocal, numberSequenceResyncSql } from "./lib/seedShared.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(__dirname, "..")
@@ -90,6 +90,9 @@ async function resyncSequences(client, tableNames) {
       `select setval('public.ipas_number_seq',
          greatest(48, coalesce((select max(substring(number from '[0-9]+$')::int) from public.ipas), 0)))`,
     )
+  }
+  for (const spec of NUMBER_SEQUENCES) {
+    if (tableNames.includes(spec.table)) await client.query(numberSequenceResyncSql(spec))
   }
   for (const table of tableNames) {
     const { rows: identityColumns } = await client.query(
