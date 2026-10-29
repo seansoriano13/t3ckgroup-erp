@@ -464,7 +464,7 @@ function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove
       </div>
       <div className="mt-3">
         <AttachFile label="File" url={row.attachmentUrl} disabled={disabled} onChange={(v) => onPatch({ attachmentUrl: v })} />
-        {saved && row.amountPhp === "" && <p className="mt-1 text-xs text-amber-11">Fill the amount or remove this charge. Section 3 waits for it.</p>}
+        {saved && row.amountPhp === "" && <p className="mt-1 text-xs text-amber-11">Fill the amount or remove this charge. Sections 2 and 3 wait for it.</p>}
       </div>
     </DraftRow>
   );
