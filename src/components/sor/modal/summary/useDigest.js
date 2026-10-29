@@ -36,7 +36,7 @@ export function useDigest(p) {
   const taskRows = currentVisitTaskRows(ctx.automationTasks, currentVisit);
   const openTasks = taskRows.filter((r) => r.totalCount === 0 || r.doneCount < r.totalCount);
   const overdueTasks = openTasks.filter((r) => r.dueDate && new Date(r.dueDate) < new Date());
-  const blocked = blockedLabels(p.checklist);
+  const blocked = blockedLabels(p.checklist, p.missingRequiredStageFields);
   const { missing } = teamRows(opportunity);
   const days = daysSince(currentVisit?.enteredAt);
   const followUpDue = followUp?.nextDue ? new Date(followUp.nextDue) : null;

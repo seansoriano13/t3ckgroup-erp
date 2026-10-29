@@ -24,7 +24,7 @@ import NotesDrawer, { NotesButton } from "./NotesDrawer";
 import { blockedLabels, EditBody, showMoney, useWarmTabs } from "./shared";
 
 export function nestedViews(p) {
-  const blocked = blockedLabels(p.checklist).length;
+  const blocked = blockedLabels(p.checklist, p.missingRequiredStageFields).length;
   return [
     { key: "now", label: "This stage", badge: blocked || null, badgeTone: "amber" },
     { key: "items", label: "Products", badge: p.ctx.items.length || null },
