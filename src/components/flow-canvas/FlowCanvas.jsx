@@ -93,6 +93,7 @@ import FlowMoveEdge from "./FlowMoveEdge";
 import StageSettingsPanel from "./StageSettingsPanel";
 import SorFormBuilder from "./SorFormBuilder";
 import FlowAccessSettings from "./FlowAccessSettings";
+import FlowAccessPanel from "./FlowAccessPanel";
 import DiffSummary from "./FlowSnapshotDiffSummary";
 import FlowVersionRail, { FlowVersionStatusChip } from "./FlowVersionRail";
 import FlowVersionViewer from "../sor/FlowVersionViewer";
@@ -249,6 +250,7 @@ function FlowCanvasInner() {
   // Issue #296: who the Operations Manager is previewing the canvas as — a
   // single resolvePeople.js selector, or null for "nobody, show everything".
   const [viewAsSelector, setViewAsSelector] = useState(null);
+  const [accessOpen, setAccessOpen] = useState(false);
 
   const { data: saleTypes, isLoading: loadingTypes } = useQuery({
     queryKey: ["saleTypes", "all"],
@@ -1638,7 +1640,7 @@ function FlowCanvasInner() {
 
                 <SorFormBuilder flow={flow} />
 
-                <FlowAccessSettings flowId={flow.id} disabled={isLocked} />
+                <FlowAccessSettings open={accessOpen} onToggle={() => setAccessOpen((o) => !o)} />
 
                 {/* Issue #296: preview the canvas as a role/group/person — a
                     pure canvasAccessLens verdict per Stage, not a live
@@ -1719,6 +1721,22 @@ function FlowCanvasInner() {
         )}
       </div>
 
+      {/* ── Access view: takes over the canvas for this Sale Type ──────── */}
+      {flow && accessOpen && !viewingSnapshot && (
+        <FlowAccessPanel
+          key={flow.id}
+          flow={flow}
+          saleTypeName={selectedSaleType?.name}
+          stages={stages}
+          flowAccess={flowAccess}
+          stageAccess={stageAccessByStage}
+          lens={accessLens}
+          viewing={Boolean(viewAsSelector)}
+          disabled={isLocked}
+          onClose={() => setAccessOpen(false)}
+        />
+      )}
+
       {/* ── Lock blockers ───────────────────────────────────────────────── */}
       {flow && !isLocked && !viewingSnapshot && lockBlockers.length > 0 && (
         <div className="pointer-events-none absolute left-1/2 top-16 z-20 -translate-x-1/2">
@@ -1752,7 +1770,7 @@ function FlowCanvasInner() {
       )}
 
       {/* ── Add-Stage plus (issue #195) ───────────────────────────────── */}
-      {flow && !isLocked && !viewingSnapshot && (
+      {flow && !isLocked && !viewingSnapshot && !accessOpen && (
         <div className="absolute bottom-4 left-4 z-20">
           <Dropdown
             usePortal

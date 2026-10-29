@@ -35,7 +35,6 @@ const TITLES = [
   ["/sors", "SORs"],
   ["/super-admin/activity-log", "Activity Log"],
   ["/super-admin/commission", "Commission"],
-  ["/super-admin/flow-access", "Flow Access"],
   ["/super-admin/flow-canvas", "Flow Canvas"],
   ["/tasks", "Tasks"],
   ["/verify", "Verify"],
