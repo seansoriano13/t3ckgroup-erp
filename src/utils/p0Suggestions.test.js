@@ -171,3 +171,17 @@ describe("p0UnitPrice (#686)", () => {
     expect(p0UnitPrice(p0("P01", "S01", [priced(1, 10)]), 1)).toEqual({ price: 10, currency: null });
   });
 });
+
+describe("#790 part-ordered P0", () => {
+  it("compares to the quantity needed, so 2 of 10 stays Purchased", () => {
+    const order = p0("P1", "S1", [line(1, "Hose", 2, 2)]);
+    expect(statusFromP0(p0Facts(order, 1))).toBe("received");
+    const facts = p0Facts(order, 1, [], 10);
+    expect(facts).toMatchObject({ ordered: 10, received: 2 });
+    expect(statusFromP0(facts)).toBe("purchased");
+  });
+  it("leaves a fully ordered line, and a line with nothing bought, alone", () => {
+    expect(p0Facts(p0("P1", "S1", [line(1, "A", 10, 10)]), 1, [], 10)).toMatchObject({ ordered: 10 });
+    expect(p0Facts(p0("P1", "S1", [line(1), line(2)]), null, [], 10).ordered).toBe(0);
+  });
+});

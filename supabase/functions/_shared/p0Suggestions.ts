@@ -106,11 +106,26 @@ const sum = (lines: OdooP0Line[], key: "quantity" | "received") =>
   lines.reduce((total, l) => total + (Number(l[key]) || 0), 0);
 
 /**
+ * #790: a line is covered by what the item NEEDS, not by what the P0 happens to order. A P0 that
+ * orders 2 of a needed 10 reads "2 of 10", never "2 of 2 / Received". With no bought line the figure
+ * stays 0 (the line waits for Purchasing to pick it).
+ */
+function orderedFor(ordered: number, needed: number | null): number {
+  const need = Number(needed);
+  return ordered > 0 && need > ordered ? need : ordered;
+}
+
+/**
  * What the line takes from a P0 as it stands in Odoo, over the lines that bought it
  * (boughtLines). With none, ordered and received are 0, so the line stays Purchased until
  * Purchasing picks its line. Null for a cancelled P0, which cannot be attached.
  */
-export function p0Facts(p0: OdooP0, productId: number | null, pickedLineIds: number[] = []): P0Facts | null {
+export function p0Facts(
+  p0: OdooP0,
+  productId: number | null,
+  pickedLineIds: number[] = [],
+  needed: number | null = null,
+): P0Facts | null {
   if (p0.state === "cancel") return null;
   const lines = boughtLines(p0, productId, pickedLineIds);
   const names = [...new Set(lines.map((l) => l.product_name).filter(Boolean))];
@@ -119,7 +134,7 @@ export function p0Facts(p0: OdooP0, productId: number | null, pickedLineIds: num
     state: RFQ_STATES.has(p0.state) ? "rfq" : "confirmed",
     bought_as: names.join(", ") || null,
     bought_product_id: productIds.length === 1 ? productIds[0] ?? null : null,
-    ordered: sum(lines, "quantity"),
+    ordered: orderedFor(sum(lines, "quantity"), needed),
     received: sum(lines, "received"),
     eta: p0.date_planned ? String(p0.date_planned).slice(0, 10) : null,
   };

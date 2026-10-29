@@ -202,10 +202,10 @@ Deno.serve(async (req) => {
         const [p0] = await readP0s(seen.uid, [["id", "=", seen.order.id]], 1);
         const { data: row } = await admin
           .from("purchase_request_items")
-          .select("odoo_product_id, odoo_po_line_ids")
+          .select("odoo_product_id, odoo_po_line_ids, quantity")
           .eq("id", itemId)
           .maybeSingle();
-        const facts = p0 && p0Facts(p0, row?.odoo_product_id ?? null, row?.odoo_po_line_ids ?? []);
+        const facts = p0 && p0Facts(p0, row?.odoo_product_id ?? null, row?.odoo_po_line_ids ?? [], row?.quantity ?? null);
         if (!facts) {
           return jsonResponse({ success: false, refused: true, message: `${ref} is cancelled in Odoo, so it can't be attached.` });
         }
