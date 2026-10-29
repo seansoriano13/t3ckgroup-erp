@@ -63,6 +63,21 @@ describe("opportunityService", () => {
   })
 
   describe("registering an opportunity", () => {
+    it("makes the registrar the Deal Owner when none is named (#793)", async () => {
+      const created = await opportunityService.createOpportunity(
+        payload({ deal_owner_id: "" }),
+        registrar.id,
+      )
+      const found = await opportunityService.getOpportunityById(created.id)
+      expect(found.deal_owner_id).toBe(registrar.id)
+    })
+
+    it("keeps a Deal Owner that is named (#793)", async () => {
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+      const found = await opportunityService.getOpportunityById(created.id)
+      expect(found.deal_owner_id).toBe(owner.id)
+    })
+
     it("makes the new opportunity retrievable by id", async () => {
       const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
