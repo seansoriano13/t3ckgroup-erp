@@ -373,12 +373,24 @@ export default function OpportunityFormModal({
       setCustomValues((prev) => ({ ...prev, [fieldId]: value })),
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const sales_reference = normalizeSalesReference(form.sales_reference);
     if (sales_reference && !isValidSalesReference(sales_reference)) {
       toast.error(SALES_REFERENCE_HINT);
       return;
+    }
+    // A38: a repeat Sales Reference is allowed, but never silently.
+    if (!isEdit && sales_reference) {
+      try {
+        const same = await opportunityService.findBySalesReference(sales_reference);
+        if (same.length > 0) {
+          const names = same.map((o) => o.opportunity_no || o.client_name).join(", ");
+          if (!window.confirm(`Sales Reference ${sales_reference} is already used by ${names}. Register another one anyway?`)) return;
+        }
+      } catch {
+        // The check is a courtesy; a failed lookup must not block registering.
+      }
     }
     const derivedType = deriveProjectType({
       supportSales1Id: form.support_sales_1_id,

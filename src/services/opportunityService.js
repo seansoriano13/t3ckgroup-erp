@@ -1878,6 +1878,19 @@ export const opportunityService = {
    * inverted. No new table: a retail record is a real SOR with a real
    * sales_reference and amount, just excluded from the pipeline (#171).
    */
+  /** Live SORs already registered under this Sales Reference (A38), for a duplicate warning. */
+  async findBySalesReference(salesReference) {
+    const ref = cleanSalesReference(salesReference);
+    if (!ref) return [];
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select("id, opportunity_no, sales_reference, client_name")
+      .neq("is_deleted", true)
+      .eq("sales_reference", ref);
+    if (error) throw error;
+    return data || [];
+  },
+
   async getRetailOpportunities() {
     const { data, error } = await supabase
       .from("sales_opportunities")

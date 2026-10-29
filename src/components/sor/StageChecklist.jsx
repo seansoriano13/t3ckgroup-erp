@@ -205,7 +205,11 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   // answered by reading every row. Not-applicable rows are excluded from
   // both halves: they never applied to this SOR, so counting them would
   // make a complete Stage read as incomplete forever.
-  const applicable = checklist.filter(({ status }) => status !== CONDITION_STATUS.NOT_APPLICABLE);
+  // Optional rows are labelled Optional and never block, so they are not "owed" either (A22).
+  const applicable = checklist.filter(
+    ({ status, condition }) =>
+      status !== CONDITION_STATUS.NOT_APPLICABLE && condition?.is_required !== false,
+  );
   const satisfiedCount = applicable.filter(
     ({ status }) => status === CONDITION_STATUS.SATISFIED,
   ).length;

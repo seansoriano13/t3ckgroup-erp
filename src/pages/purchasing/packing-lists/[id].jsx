@@ -240,6 +240,8 @@ function PackingListPage({ onClose }) {
   });
 
   const refresh = () => {
+    // Any change to the list makes an earlier refusal stale, so the banner goes away.
+    setFailure(null);
     queryClient.invalidateQueries({ queryKey: KEY(id) });
     queryClient.invalidateQueries({ queryKey: ["packing-lists"] });
   };

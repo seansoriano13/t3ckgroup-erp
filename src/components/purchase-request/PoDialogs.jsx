@@ -125,7 +125,10 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
       const ipas = updated?.ipas;
       if (ipas?.message && ipas.result !== "not_project") {
         if (ipas.result === "created" || ipas.result === "sor_added" || ipas.result === "already_named") toast.success(ipas.message);
-        else warningToast(ipas.message);
+        else if (ipas.result === "filed") {
+          // A37: the P0 is on a Filed IPAS, so this line will not be received into it. Say so plainly, and stay longer.
+          warningToast(`${ipas.message} This line will not be received into that IPAS. Raise a new IPAS if it needs one.`, 15000);
+        } else warningToast(ipas.message);
       }
       close();
     },

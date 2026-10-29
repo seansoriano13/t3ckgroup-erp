@@ -31,6 +31,12 @@ describe("filterQueue", () => {
     expect(isRequestClosed(rows[3])).toBe(true)
   })
 
+  it("a request whose SOR was deleted or lost is closed, even with open lines (A8)", () => {
+    expect(isRequestClosed({ item_count: 3, open_count: 3, sor_closed: "deleted" })).toBe(true)
+    expect(isRequestClosed({ item_count: 3, open_count: 3, sor_closed: "lost" })).toBe(true)
+    expect(isRequestClosed({ item_count: 3, open_count: 3, sor_closed: null })).toBe(false)
+  })
+
   it("slices by Buyer and by open or closed, together", () => {
     expect(ids(filterQueue(rows, { buyer: QUEUE_BUYER.UNASSIGNED }))).toEqual(["a", "b"])
     expect(ids(filterQueue(rows, { buyer: QUEUE_BUYER.MINE }, ME))).toEqual(["c", "d"])

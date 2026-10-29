@@ -319,6 +319,21 @@ export default function EditForm({
   const [planError, setPlanError] = useState(null);
 
   const isOpen = (p) => opened[p.key] ?? (p.left > 0 || p.key === focusKey);
+  // A13: a section that was open stays open when its last field gets filled, so the layout
+  // does not jump under the next click. Only an untouched, already-complete section starts shut.
+  useEffect(() => {
+    setOpened((o) => {
+      let next = o;
+      for (const p of progress) {
+        if (o[p.key] === undefined && (p.left > 0 || p.key === focusKey)) {
+          if (next === o) next = { ...o };
+          next[p.key] = true;
+        }
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress.map((p) => (p.left > 0 ? 1 : 0)).join(""), focusKey]);
   const scrollTo = (key) =>
     requestAnimationFrame(() => cards.current[key]?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" }));
   const go = (key) => {

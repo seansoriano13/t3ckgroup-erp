@@ -100,6 +100,19 @@ describe("what's outstanding", () => {
   })
 })
 
+describe("what the stage owes count (A22)", () => {
+  it("counts only required items, not the ones labelled Optional", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item(),
+      item({ condition: { ...item().condition, id: "opt-1", label: "Contract", is_required: false } }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    await screen.findByText("Contract")
+    expect(screen.getByText("0 of 1")).toBeInTheDocument()
+  })
+})
+
 describe("Costing settled (#272)", () => {
   const costing = (overrides = {}) =>
     item({

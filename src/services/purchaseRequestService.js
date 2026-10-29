@@ -54,7 +54,9 @@ export const QUEUE_KIND = { ALL: "all", ...REQUEST_KIND };
  * A request is closed once it has items and every one is in a closed status.
  * One with nothing asked for yet is still open: someone has to act on it.
  */
-export const isRequestClosed = (row) => (row?.item_count ?? 0) > 0 && (row?.open_count ?? 0) === 0;
+export const isRequestClosed = (row) =>
+  // A request whose SOR was deleted or lost is finished with, whatever lines it still holds (A8).
+  Boolean(row?.sor_closed) || ((row?.item_count ?? 0) > 0 && (row?.open_count ?? 0) === 0);
 
 /** The queue rows matching `filter`; "mine" compares the Buyer with `userId`. */
 export function filterQueue(
