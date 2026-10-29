@@ -12,7 +12,6 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
-import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import OpportunityCommissionFooter from "../../OpportunityCommissionFooter";
@@ -22,6 +21,7 @@ import ItemsTab from "../ItemsTab";
 import JourneyTab from "../JourneyTab";
 import PmsTab from "../PmsTab";
 import NotesDrawer, { NotesButton } from "./NotesDrawer";
+import { goToDetails } from "./goToDetails";
 import { blockedLabels, EditBody, showMoney, useWarmTabs } from "./shared";
 
 export function nestedViews(p) {
@@ -79,8 +79,7 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   // here — fixing a missing field is an edit.
   const go = (target) => {
     if (target === "details") {
-      if (p.canEdit) p.handleEditToggle();
-      else toast.error("You cannot edit this SOR. Ask its Deal Owner or a manager to assign the missing role.");
+      goToDetails(p);
       return;
     }
     open(target);
