@@ -12,6 +12,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
+import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import OpportunityCommissionFooter from "../../OpportunityCommissionFooter";
@@ -79,6 +80,7 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   const go = (target) => {
     if (target === "details") {
       if (p.canEdit) p.handleEditToggle();
+      else toast.error("You cannot edit this SOR. Ask its Deal Owner or a manager to assign the missing role.");
       return;
     }
     open(target);
