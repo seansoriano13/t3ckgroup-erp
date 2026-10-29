@@ -759,6 +759,9 @@ function IpasPage({ onClose }) {
   const cancelled = ipas.state === IPAS_STATE.CANCELLED;
   const filed = ipas.state === IPAS_STATE.FILED;
   const canChange = hasPurchasingFlow && open;
+  // #789: the Logistics signers (the Warehouse) pick the Item Location too, as the run sheet has them do.
+  const onLogisticsList = (signerLists?.[IPAS_SIGNER_LIST.LOGISTICS_SIGNED] ?? []).some((member) => member.employeeId === user?.id);
+  const canPickLocation = (hasPurchasingFlow || onLogisticsList) && open;
   // Payments and charges: Purchasing or Finance, until Filing.
   const canRecord = (hasPurchasingFlow || hasFinanceFlow) && open;
   const canHold = (hasPurchasingFlow || hasFinanceFlow) && open;
@@ -907,6 +910,7 @@ function IpasPage({ onClose }) {
     refreshing: refresh.isFetching,
     can: {
       change: canChange,
+      pickLocation: canPickLocation,
       record: canRecord,
       tickFinance: canTickFinance,
       // Only Purchasing moves the Computation status; section 3's sign-off is the check.

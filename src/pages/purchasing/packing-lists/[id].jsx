@@ -323,7 +323,7 @@ function PackingListPage({ onClose }) {
       ? "Packed. Nothing left to do."
       : moves.length > 0
         ? "Waiting for you: Packed by"
-        : "Nothing needs you right now. Waiting on the maker of the list or Purchasing for Packed by.";
+        : "Nothing needs you right now. Purchasing (or whoever made the list) adds the boxes and signs Packed by.";
 
   const weightText = weighed > 0 ? `${totalWeight.toFixed(2)} kg${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}` : "";
   const pills = list
