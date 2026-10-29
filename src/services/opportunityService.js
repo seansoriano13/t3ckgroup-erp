@@ -1847,6 +1847,9 @@ async function autoMoveIfReady(opportunityId, actorId) {
   }
 }
 
+/** The Stage Actions that open something through an RPC; a failed run of one of these can be retried (#788). */
+const OPEN_RUN_KINDS = ["open_purchase_request", "open_costing_matrix", "evaluate_specification", "request_packing_list"];
+
 export const opportunityService = {
   /**
    * The SOR Register. Every register count, the board, the matrix, and the
@@ -3212,7 +3215,9 @@ export const opportunityService = {
       .eq("id", runId)
       .single();
     if (runError) throw runError;
-    if (run.outcome !== "pending") {
+    // #788: a run whose "open" step failed is saved as failed; Create may be pressed again for it.
+    const retrying = run.outcome === "failed" && decision === "create";
+    if (run.outcome !== "pending" && !retrying) {
       throw new Error("This action has already been decided.");
     }
 
@@ -3242,12 +3247,19 @@ export const opportunityService = {
       .single();
     if (stageError) throw stageError;
 
-    const { error: decideError } = await supabase.rpc("sor_decide_action_run", {
-      p_run_id: runId,
-      p_decision: decision,
-      p_actor_id: actorId,
-    });
-    if (decideError) throw decideError;
+    if (retrying) {
+      if (!OPEN_RUN_KINDS.includes(action.kind)) throw new Error("This action has already been decided.");
+      // Back to the decided-and-created state the open functions accept, then run the open step again.
+      const { error: reopenError } = await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "created" });
+      if (reopenError) throw reopenError;
+    } else {
+      const { error: decideError } = await supabase.rpc("sor_decide_action_run", {
+        p_run_id: runId,
+        p_decision: decision,
+        p_actor_id: actorId,
+      });
+      if (decideError) throw decideError;
+    }
 
     if (decision === "skip") {
       await opportunityService.addSystemNote(
@@ -3319,7 +3331,7 @@ export const opportunityService = {
       .from("sor_action_runs")
       .select("*")
       .eq("opportunity_id", opportunityId)
-      .eq("outcome", "pending");
+      .in("outcome", ["pending", "failed"]);
     if (runsError) throw runsError;
     if (!runs?.length) return [];
 
@@ -3350,6 +3362,8 @@ export const opportunityService = {
       const action = actionById.get(run.action_id);
       const stage = stageById.get(run.stage_id);
       if (!action || !stage) continue;
+      // #788: a failed run stays on the card for a retry only when it is an "open" step.
+      if (run.outcome === "failed" && !OPEN_RUN_KINDS.includes(action.kind)) continue;
 
       const deciderIds = await resolveDeciderIds(run.decider || [], existing);
       if (!deciderIds.map(String).includes(String(actorId))) continue;
@@ -3400,6 +3414,7 @@ export const opportunityService = {
         stageName: stage.name,
         title: renderActionTitle(action, templateContext),
         target,
+        failed: run.outcome === "failed",
       });
     }
 

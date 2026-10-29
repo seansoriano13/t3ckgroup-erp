@@ -3,6 +3,7 @@ import { Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import MoveButton from "@/components/record/MoveButton";
+import InlineError from "@/components/record/InlineError";
 import RecordSections from "@/components/record/RecordSections";
 import { CHROME, MOVE_ORIGIN, RecordSectionChrome } from "@/components/record/sectionChrome";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
@@ -68,9 +69,17 @@ export default function SectionsPanel({ ctx, blocks, digest, open, headRef, onEd
     // Submit lives only in Your move; a section's foot keeps the rest and its Edit section button.
     const moves = footerMovesFor(ctx, digest, key).filter((item) => item.kind !== "prepare");
     const editable = canEditSection(key, ctx);
-    if (moves.length === 0 && !editable) return null;
+    // #788: a refusal of a move made in Your move (Submit) is also written on the section it is about.
+    const echoed =
+      failure && failure.origin !== MOVE_ORIGIN.SECTION && footerMovesFor(ctx, digest, key).some((item) => item.key === failure.key)
+        ? failure
+        : null;
+    if (moves.length === 0 && !editable && !echoed) return null;
     return (
       <div className="mt-5 space-y-4 border-t border-border pt-4">
+        {echoed && (
+          <InlineError message={echoed.message} busy={busy.signoff || busy.give} onRetry={echoed.retry} onDismiss={echoed.dismiss} />
+        )}
         {editable && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onEdit(key)}>
             <Pencil size={14} aria-hidden="true" />

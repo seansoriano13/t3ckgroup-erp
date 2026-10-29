@@ -46,7 +46,11 @@ export default function PendingActionDecisions({ opportunity, actorId, onChanged
       queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
       onChanged?.();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      toast.error(err.message);
+      // #788: a failed open leaves the run as failed; refresh so the card offers the retry.
+      queryClient.invalidateQueries({ queryKey: ["pendingActionDecisions", opportunityId, actorId] });
+    },
   });
 
   if (!pending.length) return null;
@@ -65,17 +69,24 @@ export default function PendingActionDecisions({ opportunity, actorId, onChanged
               <p className="truncate text-xs text-muted-foreground">
                 {describeTarget(run.target)} · waiting on you since entering {run.stageName}
               </p>
+              {run.failed && (
+                <p className="truncate text-xs font-semibold text-destructive" role="alert">
+                  It failed the last time. Press Create to try again.
+                </p>
+              )}
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={decideMutation.isPending}
-              onClick={() => decideMutation.mutate({ runId: run.runId, decision: "skip" })}
-            >
-              Skip
-            </Button>
+            {!run.failed && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={decideMutation.isPending}
+                onClick={() => decideMutation.mutate({ runId: run.runId, decision: "skip" })}
+              >
+                Skip
+              </Button>
+            )}
             <Button
               size="sm"
               disabled={decideMutation.isPending}

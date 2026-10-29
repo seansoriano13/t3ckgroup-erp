@@ -83,6 +83,8 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
   // #724: set when the server says buying has not opened for this SOR; the buyer may Order early with a reason.
   const [notOpen, setNotOpen] = useState(null);
   const [earlyReason, setEarlyReason] = useState("");
+  // #788: a refusal is also written inside the dialog, where the person clicked.
+  const [refused, setRefused] = useState("");
   const reference = p0Reference(request);
   const productId = item.odoo_product_id ?? null;
 
@@ -102,6 +104,7 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
     setPicked("");
     setNotOpen(null);
     setEarlyReason("");
+    setRefused("");
     onOpenChange(false);
   };
 
@@ -126,9 +129,13 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
       }
       close();
     },
+    onMutate: () => setRefused(""),
     onError: (error) => {
       if (error?.code === "buying_not_open") setNotOpen(refusal(error));
-      else toast.error(refusal(error));
+      else {
+        setRefused(refusal(error));
+        toast.error(refusal(error));
+      }
     },
     onSettled: refresh,
   });
@@ -192,6 +199,11 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
             />
           </FieldBox>
         </section>
+      )}
+      {refused && (
+        <p className="text-sm font-semibold text-destructive" role="alert" data-testid="attach-refusal">
+          {refused}
+        </p>
       )}
       <div className="space-y-1.5">
         <FieldBox label="Or type a P0 number" bare>
