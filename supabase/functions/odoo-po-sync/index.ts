@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: items, error: itemsError } = await admin
     .from("purchase_request_items")
-    .select("id, po_number, odoo_product_id, odoo_po_line_ids, component_id, status")
+    .select("id, po_number, odoo_product_id, odoo_po_line_ids, component_id, status, quantity")
     .eq("request_id", requestId)
     .not("po_number", "is", null)
     .neq("status", "cancelled");
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
     const facts = items.flatMap((item) => {
       const p0 = byName.get(String(item.po_number).toUpperCase());
-      const f = p0 && p0Facts(p0, item.odoo_product_id ?? null, item.odoo_po_line_ids ?? []);
+      const f = p0 && p0Facts(p0, item.odoo_product_id ?? null, item.odoo_po_line_ids ?? [], item.quantity);
       return f ? [{ item_id: item.id, ...f }] : [];
     });
     if (!facts.length) return jsonResponse({ success: true, changed: 0 });
