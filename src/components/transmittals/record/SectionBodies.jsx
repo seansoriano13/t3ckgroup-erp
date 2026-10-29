@@ -174,10 +174,10 @@ export function StageBody({ t, stage, rights, form, setForm, members, userId, on
   const rated = checking || technical;
   const pickOther = picksOtherSigner(t, stage);
   const chooseSlot = choosesSlot(stage);
-  // Nobody countersigns their own signature (A15), so the signer is never offered.
-  const otherOptions = (checking ? members.warehouse : pickOther ? members.technical : [])
-    .filter((m) => m.id !== userId)
-    .map((m) => ({ value: m.id, label: m.name }));
+  const otherOptions = (checking ? members.warehouse : pickOther ? members.technical : []).map((m) => ({
+    value: m.id,
+    label: m.name,
+  }));
   const blocker = !signed && canSign ? stageBlocker(t, stage, form) : null;
   const set = (patch) => setForm(stage, patch);
 
@@ -336,11 +336,6 @@ export function StageBody({ t, stage, rights, form, setForm, members, userId, on
                 onChange={(v) => set({ otherId: v })}
                 placeholder="Pick a name"
               />
-              {otherOptions.length === 0 && (
-                <p className="mt-1 text-muted-foreground">
-                  No one else is on the {checking ? "Warehouse" : "Technical"} list yet. Ask an admin to add a second person.
-                </p>
-              )}
             </FieldBox>
           ) : (
             <FieldBox label="Received by (typed name)" bare>
