@@ -128,6 +128,15 @@ describe("Packing List record page", () => {
     await waitFor(() => expect(service.pack).toHaveBeenCalledWith("pl1"));
   });
 
+  it("lets a Warehouse list member who did not make the list add boxes and sign", async () => {
+    mockUser.current = { id: "u-wh", name: "Aldrin", is_transmittal_warehouse: true };
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Your move" });
+    expect(screen.getByRole("button", { name: "Sign Packed by" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Add a box/ }).length).toBeGreaterThan(0);
+  });
+
   it("offers the one sign button, once", async () => {
     renderPage();
 
