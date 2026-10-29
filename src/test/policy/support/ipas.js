@@ -154,7 +154,7 @@ async function attachDocument(ipasId, label) {
  * before `ipas_sign`; it does nothing for a sign-off that has no such rule, and it never signs.
  *
  *   screen 1 (stored 1)  the Proforma Invoice (import) or Quotation (Local)
- *   screen 2 (stored 3)  proof of payment on every payment
+ *   screen 2 (stored 3)  proof of payment on every payment; blank charges removed (#792)
  *   screen 3 (stored 6)  import: BL or Waybill, Packing List, Commercial Invoice, Freight Billing;
  *                        blank charges removed, charges with an amount given a file
  *   screen 4 (stored 7)  BIR 2307 (before Received)
@@ -178,6 +178,7 @@ async function giveWhatTheSignoffAsks(ipasId, section, role) {
         await attachDocument(ipasId, source === "import" ? "Proforma Invoice" : "Quotation (Local)")
     } else if (section === 3 && role === "prepared") {
         await sql().query(`update public.ipas_payments set proof_url = $2 where ipas_id = $1 and proof_url is null`, [ipasId, FIXTURE_FILE])
+        await sql().query(`delete from public.ipas_charges where ipas_id = $1 and amount_php is null`, [ipasId])
     } else if (section === 6 && role === "prepared") {
         if (source === "import") {
             for (const label of ["BL or Waybill", "Packing List", "Commercial Invoice", "Freight Billing"]) {

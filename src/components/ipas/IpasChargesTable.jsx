@@ -146,7 +146,7 @@ export default function IpasChargesTable({ ipas, canRecord = false, onEditCharge
         <p role="status" data-testid="ipas-charges-blank-note" className="flex items-start gap-2 text-xs text-amber-11">
           <CircleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
           <span>
-            {blanks} {blanks === 1 ? "charge is" : "charges are"} blank. Section 3 waits until each is filled in or removed.
+            {blanks} {blanks === 1 ? "charge is" : "charges are"} blank. Sections 2 and 3 wait until each is filled in or removed.
           </span>
         </p>
       )}
