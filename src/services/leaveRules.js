@@ -1,4 +1,4 @@
-import { deriveHours } from '../utils/time';
+import { deriveHours, safeDeriveHours } from '../utils/time';
 import { netHoursAfterMealBreak } from '../utils/mealBreak';
 
 /**
@@ -50,6 +50,15 @@ export function applyLunchDeduction(hours, meals) {
  */
 export function deriveLeaveHours(startTime, endTime, options = {}) {
   return netHoursAfterMealBreak(deriveHours(startTime, endTime, false), startTime, endTime, options);
+}
+
+/**
+ * Live-preview hours for a form that is still being typed: the same net hours
+ * as deriveLeaveHours, but 0 (not a throw) for an empty or backwards window.
+ */
+export function previewLeaveHours(startTime, endTime, { allowOvernight = false } = {}) {
+  const gross = safeDeriveHours(startTime, endTime, allowOvernight);
+  return gross > 0 ? netHoursAfterMealBreak(gross, startTime, endTime) : 0;
 }
 
 /**

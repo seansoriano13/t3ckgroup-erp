@@ -55,7 +55,7 @@ import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
 import { groupTaskTemplateService } from "@/services/groupTaskTemplateService";
 import { computeDueDateOffsetDays } from "../utils/templateApply";
-import { getDueCountdown } from "../utils/dueCountdown";
+import { getDueCountdown, dueDateInputValue } from "../utils/dueCountdown";
 import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
 import {
   hasChecklistContent,
@@ -278,7 +278,7 @@ export default function GroupTaskDetailModal({
     setTaskEditDraft({
       title: task.title || "",
       description: task.description || "",
-      dueDate: task.due_date ? task.due_date.split("T")[0] : "",
+      dueDate: dueDateInputValue(task.due_date),
       startDate: task.start_date || "",
       leadTime: task.lead_time || "",
     });

@@ -275,6 +275,28 @@ describe("the Costing Desk", () => {
       expect(within(row).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
     });
 
+    it("lets Purchasing start a Canvass from the Component (#720), and gives Sales no such button", async () => {
+      seedComponents();
+      stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
+      openDesk(deal);
+
+      await openLines();
+
+      const row = within(await screen.findByTestId("components")).getAllByTestId("component")[0];
+      expect(within(row).getByRole("button", { name: "Canvass Component 1.1" })).toBeInTheDocument();
+    });
+
+    it("shows a Sales viewer no Canvass button on a Component that has none", async () => {
+      seedComponents();
+      stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+      openDesk(deal);
+
+      await openLines();
+
+      const row = within(await screen.findByTestId("components")).getAllByTestId("component")[0];
+      expect(within(row).queryByRole("button", { name: /^Canvass Component/ })).toBeNull();
+    });
+
     it("gives a Stage Participant the Components read-only with no money columns and no add or remove", async () => {
       seedComponents();
       db.seed("costing_cost_rows", { matrix_id: matrix.id, position: 1, description: "Delivery Charge", quantity: 1, acquire_unit: 100000 });

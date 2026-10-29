@@ -24,3 +24,13 @@ export function getDueCountdown(dueDate, now = new Date()) {
   const days = Math.floor(diff / DAY_MS);
   return { label: `${days} ${days === 1 ? "day" : "days"} left`, overdue: false };
 }
+
+/** A stored due date as the "YYYY-MM-DD" a date input wants: the local calendar day. */
+export function dueDateInputValue(dueDate) {
+  if (!dueDate) return "";
+  const d = new Date(dueDate);
+  if (Number.isNaN(d.getTime())) return "";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}

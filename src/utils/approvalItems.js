@@ -283,20 +283,22 @@ export function shortDate(iso, now = Date.now()) {
 }
 
 /**
- * A Meeting Request's approval chain (#624): Requested -> Department head -> HR approval.
- * A head step skipped by HR reads "Skipped by HR".
+ * A Meeting Request's approval chain: Requested -> HR approval (#748, HR is the only approver).
+ * An old request that went through a department head keeps that step as history.
  */
 export function meetingChain(request) {
-    const atHr = request?.status === "PENDING_HR";
+    const hadHeadStep = Boolean(request?.head_decided_at || request?.hr_override);
     return [
         { label: "Requested", who: request?.applicant?.name || "Employee", state: "done", at: request?.created_at || null },
-        {
-            label: "Department head",
-            who: request?.hr_override ? "Skipped by HR" : "Department head",
-            state: atHr ? "done" : "current",
-            at: request?.head_decided_at || null,
-        },
-        { label: "HR approval", who: "HR", state: atHr ? "current" : "next", at: null },
+        ...(hadHeadStep
+            ? [{
+                label: "Department head",
+                who: request?.hr_override ? "Skipped by HR" : "Department head",
+                state: "done",
+                at: request?.head_decided_at || null,
+            }]
+            : []),
+        { label: "HR approval", who: "HR", state: "current", at: null },
     ];
 }
 
@@ -309,7 +311,7 @@ export function meetingToItem(request, now = Date.now()) {
         queue: "meetings",
         ref: shortRef("MTG", request.id),
         title: request.purpose,
-        typeLabel: request.status === "PENDING_HR" ? "Waiting for HR" : "Waiting for head",
+        typeLabel: "Waiting for HR",
         person: { id: a.id, name: a.name || "Unknown", avatarPath: null, dept: a.department || "" },
         submittedAt: clockAt,
         clockAt,

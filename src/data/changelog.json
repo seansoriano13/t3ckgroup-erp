@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-10-29",
+        "title": "Fixes from the October review",
+        "version": "1.9.73",
+        "changes": [
+            "The leave and overtime forms now show the right hours after the meal break, wherever the time window starts.",
+            "Teams now show up when you pick members for a Group Task, and editing a Group Task no longer moves its Due Date back a day.",
+            "A duplicated or imported flow keeps its Stage colours, positions and won/lost endings.",
+            "Purchasing can start a Canvass from a line on the S0 Evaluation, including a line typed by Sales.",
+            "Meeting Requests now show only the HR step, and the S0 Evaluation page has its own tab title."
+        ]
+    },
+    {
         "date": "2026-10-28",
         "title": "October backlog: Awarded SORs, Meal Breaks, flow tools and meeting types",
         "version": "1.9.72",

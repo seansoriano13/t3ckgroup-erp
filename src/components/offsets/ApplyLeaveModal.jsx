@@ -15,7 +15,7 @@ import { Checkbox } from '../ui/checkbox';
 import { AttachmentField } from '../ui/Attachments';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
-import { applyLunchDeduction, computeAvailableHours, deriveUndertimeHours, assertNotWeekend } from '../../services/leaveRules';
+import { applyLunchDeduction, previewLeaveHours, computeAvailableHours, deriveUndertimeHours, assertNotWeekend } from '../../services/leaveRules';
 import { enumerateDateRange } from '../../utils/dateUtils';
 import { dayShiftService } from '../../services/dayShiftService';
 import { DEFAULT_DAY_SHIFT_CONFIG, getShiftForDate } from '../../services/dayShift';
@@ -158,11 +158,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const [utSubmitting, setUtSubmitting] = useState(false);
   const utFiles = useFileAttachments();
 
-  const currentOtHours = safeDeriveHours(otStartTime, otEndTime, true);
+  const currentOtHours = previewLeaveHours(otStartTime, otEndTime, { allowOvernight: true });
   const currentOffsetHoursRaw = safeDeriveHours(offsetStartTime, offsetEndTime, false);
-  const currentOffsetHours = applyLunchDeduction(currentOffsetHoursRaw);
+  const currentOffsetHours = previewLeaveHours(offsetStartTime, offsetEndTime);
   const currentSilHoursRaw = safeDeriveHours(silStartTime, silEndTime, false);
-  const currentSilHours = applyLunchDeduction(currentSilHoursRaw);
+  const currentSilHours = previewLeaveHours(silStartTime, silEndTime);
   // deriveUndertimeHours throws on a backwards window (via deriveHours) — the
   // right behavior for the submit path, but this live preview renders on every
   // keystroke while the user is still mid-edit, so a half-typed end time before
@@ -711,7 +711,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   {currentOffsetHours > 0 && (
                     <div className="text-xs font-semibold text-blue-11 px-1">
                       Derived: {currentOffsetHours} hrs
-                      {currentOffsetHours !== currentOffsetHoursRaw && ' (1 hr lunch deducted)'}
+                      {currentOffsetHours !== currentOffsetHoursRaw && ' (meal break deducted)'}
                     </div>
                   )}
                 </>
@@ -843,7 +843,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   {currentSilHours > 0 && (
                     <div className="text-xs font-semibold text-green-11 px-1">
                       Derived: {currentSilHours} hrs
-                      {currentSilHours !== currentSilHoursRaw && ' (1 hr lunch deducted)'}
+                      {currentSilHours !== currentSilHoursRaw && ' (meal break deducted)'}
                     </div>
                   )}
                 </>

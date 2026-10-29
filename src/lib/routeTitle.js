@@ -14,6 +14,7 @@ const TITLES = [
   ["/approvals", "Approvals"],
   ["/bug-reports", "Bug Reports"],
   ["/calendar", "Calendar"],
+  ["/costing-matrix", "S0 Evaluation"],
   ["/flow-versions", "Flow Snapshot"],
   ["/group-tasks/templates", "Group Task Templates"],
   ["/group-tasks", "Group Tasks"],

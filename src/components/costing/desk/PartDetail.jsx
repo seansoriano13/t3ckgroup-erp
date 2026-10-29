@@ -25,7 +25,7 @@ import ComplianceCell from "../ComplianceCell";
 import InchargeSelects from "../InchargeSelects";
 import InclusionList from "../InclusionList";
 import ComponentRequests from "../ComponentRequests";
-import { BrandProposal, FromCanvass } from "../ComponentCanvass";
+import ComponentCanvass, { BrandProposal, FromCanvass } from "../ComponentCanvass";
 import SupplierMismatch from "../SupplierMismatch";
 import ComponentPurchases from "../ComponentPurchases";
 import { LandedCostCell } from "../LandedCost";
@@ -83,7 +83,7 @@ export function Band({ title, hint, children, className }) {
  *
  * `asProduct`: the line's only Component, the product it is priced from, so the line's words are not repeated.
  */
-export default function PartDetail({ component, line, matrix, writes, incharge, requests, bundles, stockData, asProduct = false, onRemove }) {
+export default function PartDetail({ component, line, matrix, writes, incharge, requests, canvasses, bundles, stockData, opportunityId, actorId, asProduct = false, onRemove }) {
   const { busy, run, refresh } = writes;
   const [inchargeOpen, setInchargeOpen] = useState(false);
   const { bands, tier } = matrix;
@@ -332,6 +332,7 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
 
       <div className="space-y-3 empty:hidden">
         <ComponentRequests items={requests.get(component.id)} />
+        <ComponentCanvass component={component} canvass={canvasses?.get(component.id)} canWrite={can("source")} opportunityId={opportunityId} actorId={actorId} />
         {component.is_bundle && (
           <div data-testid="component-inclusions">
             <InclusionList component={component} bands={bands} otherBundles={bundles.filter((b) => b.id !== component.id)} writes={writes} />

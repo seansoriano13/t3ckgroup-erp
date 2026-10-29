@@ -1,5 +1,5 @@
 /**
- * Ticket #744 (spec #735, ADR 0047) - Date of Award: stamped by the stage move,
+ * Ticket #744 (spec #735, ADR 0048) - Date of Award: stamped by the stage move,
  * cleared by Revert, locked to Super Admin once set. Every assertion runs as a
  * signed-in cast member; the service role only seeds.
  */

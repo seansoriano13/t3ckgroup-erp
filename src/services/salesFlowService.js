@@ -141,8 +141,21 @@ async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
   const stageIdMap = {};
 
   for (const oldStage of snapshotData.stages || []) {
-    const newStage = await salesFlowService.addStage(flow.id, oldStage.name, actorId);
+    const newStage = await salesFlowService.addStage(
+      flow.id, oldStage.name, actorId, oldStage.pos_x ?? 0, oldStage.pos_y ?? 0,
+    );
     stageIdMap[oldStage.id] = newStage.id;
+
+    // The look and the outcome travel with the Stage (#756).
+    if (oldStage.color) await salesFlowService.updateStageColor(newStage.id, oldStage.color, actorId);
+    if (oldStage.bracket_label) await salesFlowService.updateStageBracket(newStage.id, oldStage.bracket_label, actorId);
+    if (oldStage.is_terminal) {
+      await salesFlowService.setStageTerminal(newStage.id, true, actorId);
+      if (oldStage.terminal_outcome) {
+        await salesFlowService.setStageTerminalOutcome(newStage.id, oldStage.terminal_outcome, actorId);
+      }
+    }
+    if (oldStage.buying_opens_here) await salesFlowService.setStageBuyingOpens(newStage.id, true, actorId);
   }
 
   if (snapshotData.wonStageId && stageIdMap[snapshotData.wonStageId]) {
@@ -154,6 +167,19 @@ async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
     const targetId = stageIdMap[oldEdge.to_stage_id];
     if (sourceId && targetId) {
       await salesFlowService.addEdge(flow.id, sourceId, targetId, actorId);
+    }
+  }
+
+  if (snapshotData.awardStageId && stageIdMap[snapshotData.awardStageId]) {
+    await salesFlowService.setAwardStage(flow.id, stageIdMap[snapshotData.awardStageId], actorId);
+  }
+
+  // Auto-move needs its one next Stage, so it is set once the moves exist.
+  for (const oldStage of snapshotData.stages || []) {
+    if (oldStage.auto_move && stageIdMap[oldStage.id]) {
+      // An old file whose Stage no longer has exactly one next Stage skips Auto-move
+      // rather than failing the whole copy.
+      await salesFlowService.setStageAutoMove(stageIdMap[oldStage.id], true, actorId).catch(() => {});
     }
   }
 
@@ -953,7 +979,7 @@ export const salesFlowService = {
 
   /**
    * Names the flow's Notice of Award Stage, the Stage whose first arrival fills
-   * in a blank Date of Award (ADR 0047). Like the Won Stage, it is a column on
+   * in a blank Date of Award (ADR 0048). Like the Won Stage, it is a column on
    * the flow, so a flow can name only one. Null clears it.
    */
   async setAwardStage(flowId, stageId, actorId) {

@@ -24,9 +24,7 @@ export function whyYouSeeThis(item) {
     return `You are on the section ${ipasSectionNo(item.source?.section)} approval list, and ${first} prepared it. Whoever prepares a section can't approve it.`;
   }
   if (item.queue === "meetings") {
-    return item.source?.status === "PENDING_HR"
-      ? `${first}’s Meeting Request cleared the head step, so HR gives the final decision.`
-      : `You are ${first}’s department head, the first approver for a Meeting Request. HR can also decide this step.`;
+    return `HR gives the final decision on ${first}’s Meeting Request.`;
   }
   if (item.queue === "leaves") return `You are ${first}’s department head, the first approver for leave and overtime.`;
   return item.source?.reportedTo

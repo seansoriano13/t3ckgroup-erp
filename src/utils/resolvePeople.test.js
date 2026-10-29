@@ -92,6 +92,22 @@ describe("teamOptions", () => {
   })
 })
 
+describe("app-shaped employees (camelCase subDepartment)", () => {
+  const appStaff = [
+    { id: "ana", subDepartment: "PURCHASING" },
+    { id: "ben", subDepartment: "MARKETING" },
+  ]
+
+  it("offers Teams from the shape employeeService returns", () => {
+    expect(teamOptions(appStaff)).toEqual(["MARKETING", "PURCHASING"])
+  })
+
+  it("resolves a Team selector and a group's Teams the same way", () => {
+    expect(resolvePeople([{ type: "team", team: "purchasing" }], { employees: appStaff })).toEqual(["ana"])
+    expect(resolveGroupMemberIds({ teams: ["MARKETING"] }, appStaff)).toEqual(["ben"])
+  })
+})
+
 describe("resolvePeople department", () => {
   const staff = [
     { id: "sam", department: "SALES", sub_department: "" },

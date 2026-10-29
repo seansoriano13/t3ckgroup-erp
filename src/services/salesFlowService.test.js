@@ -628,6 +628,31 @@ describe("salesFlowService", () => {
       await expect(salesFlowService.importFlowFile({ a: 1 }, "X", admin.id)).rejects.toThrow(/not a Flow Snapshot/)
     })
 
+    it("a copy keeps stage colour, canvas position, bracket and won/lost outcome", async () => {
+      const st = await salesFlowService.createSaleType("Look Source", admin.id)
+      const flow = (await salesFlowService.getFlow(st.id)).flow
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id, 120, 40)
+      const won = await salesFlowService.addStage(flow.id, "Closed Won", admin.id, 480, 40)
+      const lost = await salesFlowService.addStage(flow.id, "Closed Lost", admin.id, 480, 200)
+      await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
+      await salesFlowService.updateStageColor(lead.id, "blue", admin.id)
+      await salesFlowService.updateStageBracket(lead.id, "Pre-Sales", admin.id)
+      await salesFlowService.setStageTerminal(won.id, true, admin.id)
+      await salesFlowService.setStageTerminalOutcome(won.id, "won", admin.id)
+      await salesFlowService.setStageTerminal(lost.id, true, admin.id)
+      await salesFlowService.setStageTerminalOutcome(lost.id, "lost", admin.id)
+
+      const copy = await salesFlowService.duplicateFlow(flow.id, "Look Copy", admin.id)
+      const byName = Object.fromEntries(copy.stages.map((s) => [s.name, s]))
+      expect([byName.Lead.pos_x, byName.Lead.pos_y]).toEqual([120, 40])
+      expect([byName["Closed Lost"].pos_x, byName["Closed Lost"].pos_y]).toEqual([480, 200])
+      expect(byName.Lead.color).toBe("blue")
+      expect(byName.Lead.bracket_label).toBe("Pre-Sales")
+      expect(byName["Closed Won"].is_terminal).toBe(true)
+      expect(byName["Closed Won"].terminal_outcome).toBe("won")
+      expect(byName["Closed Lost"].terminal_outcome).toBe("lost")
+    })
+
     it("duplicate makes a new draft Sale Type", async () => {
       const flow = await buildSource("Dup Source")
       const copy = await salesFlowService.duplicateFlow(flow.id, "Dup Copy", admin.id)

@@ -1,4 +1,4 @@
-# ADR 0047 — The Contract Date is the contract's own date
+# ADR 0048 — The Contract Date is the contract's own date
 
 ## Status
 

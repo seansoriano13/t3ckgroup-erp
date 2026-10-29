@@ -1781,7 +1781,7 @@ describe("opportunityService", () => {
       expect(won.contract_date).toBeTruthy()
     })
 
-    describe("Date of Award (#744, ADR 0047)", () => {
+    describe("Date of Award (#744, ADR 0048)", () => {
       beforeEach(() => {
         db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).award_stage_id = qualified.id
       })

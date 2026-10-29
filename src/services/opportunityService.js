@@ -807,7 +807,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     patch.contract_date = getCurrentLocalDate();
   }
 
-  // ADR 0047 — the flow's Notice of Award Stage fills in a blank Date of
+  // ADR 0048 — the flow's Notice of Award Stage fills in a blank Date of
   // Award. A date the Deal Team typed in earlier is never overwritten.
   // A Return carries the date through its own RPC.
   const stampsDateOfAward = awardStageId === to.id && !existing.date_of_award;
