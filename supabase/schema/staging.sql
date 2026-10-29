@@ -6043,7 +6043,7 @@ declare
   v_blank integer;
   v_nofile integer;
 begin
-  if new.section = 6 and new.role = 'prepared' then
+  if new.section in (3, 6) and new.role = 'prepared' then
     select count(*) filter (where amount_php is null),
            count(*) filter (where amount_php is not null and attachment_url is null)
       into v_blank, v_nofile
@@ -6052,7 +6052,7 @@ begin
       raise exception 'ipas_sign: % charge(s) are blank. Fill each in or remove it first', v_blank
         using errcode = '22023';
     end if;
-    if v_nofile > 0 then
+    if new.section = 6 and v_nofile > 0 then
       raise exception 'ipas_sign: % charge(s) with an amount have no file', v_nofile
         using errcode = '22023';
     end if;
@@ -8166,7 +8166,7 @@ begin
   -- Acquire unit: the price as quoted, or price x comparison rate, to the centavo.
   if v_price is not null then
     v_acquire := round(case when v_offer.currency = 'PHP' then v_price else v_price * v_rate end, 2);
-    if v_cost.acquire_from_offer_id is not null or v_cost.acquire_unit is null then
+    if v_cost.acquire_from_offer_id is not null or v_cost.acquire_unit is null or v_cost.acquire_source = 'odoo' then
       perform public.costing_set_money(
         'costing_component_costs', v_component_id,
         jsonb_build_object('acquire_unit', v_acquire, 'acquire_from_offer_id', p_offer_id)
@@ -9678,7 +9678,7 @@ begin
   select * into v_totals from public.costing_bid_totals(v_matrix);
 
   select count(*),
-         count(*) filter (where cc.final_acquire_unit is null),
+         count(*) filter (where coalesce(cc.final_acquire_unit, cc.acquire_unit) is null),
          count(*) filter (where cc.acquire_unit is null and cc.p0_unit_price is null)
     into v_components, v_missing, v_no_acquire
     from public.costing_components c
@@ -9688,7 +9688,7 @@ begin
 
   v_costed := v_components + (select count(*) from public.costing_cost_rows r where r.matrix_id = v_matrix);
   v_missing := v_missing + (select count(*) from public.costing_cost_rows r
-                             where r.matrix_id = v_matrix and r.final_acquire_unit is null);
+                             where r.matrix_id = v_matrix and coalesce(r.final_acquire_unit, r.acquire_unit) is null);
   v_no_acquire := v_no_acquire + (select count(*) from public.costing_cost_rows r
                                    where r.matrix_id = v_matrix and r.acquire_unit is null);
 
@@ -9782,16 +9782,16 @@ begin
     v_offer := null;
   end if;
 
-  select coalesce(sum(cc.final_acquire_unit * c.quantity), 0),
-         count(*) filter (where cc.final_acquire_unit is null)
+  select coalesce(sum(coalesce(cc.final_acquire_unit, cc.acquire_unit) * c.quantity), 0),
+         count(*) filter (where coalesce(cc.final_acquire_unit, cc.acquire_unit) is null)
     into v_product, v_missing_cost
     from public.costing_tender_lines l
     join public.costing_components c on c.tender_line_id = l.id
     left join public.costing_component_costs cc on cc.component_id = c.id
    where l.matrix_id = v_matrix;
 
-  select coalesce(sum(r.final_acquire_unit * r.quantity), 0),
-         v_missing_cost + count(*) filter (where r.final_acquire_unit is null)
+  select coalesce(sum(coalesce(r.final_acquire_unit, r.acquire_unit) * r.quantity), 0),
+         v_missing_cost + count(*) filter (where coalesce(r.final_acquire_unit, r.acquire_unit) is null)
     into v_uncat, v_missing_cost
     from public.costing_cost_rows r
    where r.matrix_id = v_matrix and r.category_key is null;
@@ -9817,7 +9817,7 @@ begin
         cross join lateral (
           select case when k.key = 'products' then v_product else 0 end
                  + coalesce((
-                     select sum(r.final_acquire_unit * r.quantity)
+                     select sum(coalesce(r.final_acquire_unit, r.acquire_unit) * r.quantity)
                        from public.costing_cost_rows r
                       where r.matrix_id = v_matrix and r.category_key = k.key
                    ), 0) as total
@@ -9827,7 +9827,7 @@ begin
   -- Rows in a category with no Final Acquire yet.
   select v_missing_cost + count(*) into v_missing_cost
     from public.costing_cost_rows r
-   where r.matrix_id = v_matrix and r.category_key is not null and r.final_acquire_unit is null;
+   where r.matrix_id = v_matrix and r.category_key is not null and coalesce(r.final_acquire_unit, r.acquire_unit) is null;
 
   return jsonb_build_object(
     'final_offer_total', v_offer,
@@ -11577,7 +11577,7 @@ begin
     return false;
   end if;
 
-  select count(*), count(*) filter (where cc.final_acquire_unit is null)
+  select count(*), count(*) filter (where coalesce(cc.final_acquire_unit, cc.acquire_unit) is null)
     into v_costed, v_missing
     from public.costing_components c
     join public.costing_tender_lines l on l.id = c.tender_line_id
@@ -11585,7 +11585,8 @@ begin
    where l.matrix_id = p_matrix_id;
   v_costed := v_costed + (select count(*) from public.costing_cost_rows r where r.matrix_id = p_matrix_id);
   v_missing := v_missing + (select count(*) from public.costing_cost_rows r
-                             where r.matrix_id = p_matrix_id and r.final_acquire_unit is null);
+                             where r.matrix_id = p_matrix_id
+                               and coalesce(r.final_acquire_unit, r.acquire_unit) is null);
   if v_costed = 0 or v_missing <> 0 then
     return false;
   end if;
@@ -16340,11 +16341,19 @@ CREATE OR REPLACE FUNCTION public.ipas_set_item_location(p_ipas_id uuid, p_optio
  SET search_path TO 'public'
 AS $function$
 declare
-  v_actor uuid := public._ipas_purchasing_writer('ipas_set_item_location');
+  v_actor uuid := public.get_employee_id();
   v_row public.ipas;
   v_from_label text;
   v_to_label text;
 begin
+  if v_actor is null then
+    raise exception 'ipas_set_item_location: not signed in' using errcode = '42501';
+  end if;
+  if not (public.has_purchasing_access() or public._ipas_on_list('logistics_signed', v_actor)) then
+    raise exception 'ipas_set_item_location: only Purchasing or the Logistics signer list sets the Item Location'
+      using errcode = '42501';
+  end if;
+
   v_row := public._ipas_lock_open('ipas_set_item_location', p_ipas_id);
 
   if p_option_id is not null then

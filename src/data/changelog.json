@@ -1,6 +1,21 @@
 [
     {
         "date": "2026-10-29",
+        "title": "Fixes from the Purchasing demo run",
+        "version": "1.9.74",
+        "changes": [
+            "A fully costed deal now passes \"Costing settled\". A row with no Final Acquire counts at its Acquire cost.",
+            "When something is refused, the reason now shows where you clicked. A failed Create can be tried again.",
+            "A Logistics signer can now pick the Item Location on an IPAS.",
+            "A line that is only partly ordered now shows as Purchased, not Received.",
+            "The Blocked count is now the same everywhere on an SOR.",
+            "IPAS section 2 cannot be submitted while a charge is blank.",
+            "The person who registers an SOR becomes its Deal Owner when no one else is picked.",
+            "The canvass count, the people picker and the sheet header now show the right thing."
+        ]
+    },
+    {
+        "date": "2026-10-29",
         "title": "Fixes from the October review",
         "version": "1.9.73",
         "changes": [
