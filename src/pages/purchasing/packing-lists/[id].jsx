@@ -225,7 +225,7 @@ function PackingListPage({ onClose }) {
   const { id } = useParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { hasPurchasingFlow, isSuperAdmin } = getPermissionContext(user);
+  const { hasPurchasingFlow, isSuperAdmin, isTransmittalWarehouse } = getPermissionContext(user);
 
   // `seq` remounts the box dialog on every open, so a new box starts blank.
   const [boxDialog, setBoxDialog] = useState({ open: false, box: null, seq: 0 });
@@ -293,7 +293,7 @@ function PackingListPage({ onClose }) {
   };
 
   const draft = list?.state === "draft";
-  const canEdit = draft && (hasPurchasingFlow || isSuperAdmin || list?.createdById === user?.id);
+  const canEdit = draft && (hasPurchasingFlow || isSuperAdmin || isTransmittalWarehouse || list?.createdById === user?.id);
 
   const boxes = list?.boxes ?? [];
   const totalWeight = boxes.reduce((sum, box) => sum + (box.grossWeightKg ?? 0), 0);
@@ -323,7 +323,7 @@ function PackingListPage({ onClose }) {
       ? "Packed. Nothing left to do."
       : moves.length > 0
         ? "Waiting for you: Packed by"
-        : "Nothing needs you right now. Purchasing (or whoever made the list) adds the boxes and signs Packed by.";
+        : "Nothing needs you right now. Purchasing, the Warehouse list (or whoever made the list) adds the boxes and signs Packed by.";
 
   const weightText = weighed > 0 ? `${totalWeight.toFixed(2)} kg${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}` : "";
   const pills = list
@@ -376,7 +376,7 @@ function PackingListPage({ onClose }) {
 
   const packedLine = packed
     ? `Packed by ${list.packerName ?? "someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
-    : "Waiting for the maker of the list or Purchasing";
+    : "Waiting for the maker of the list, Purchasing or the Warehouse";
 
   const restate = () => (list ? `Signs Packed by on ${list.number}. The boxes and their contents can't be changed after.` : "");
 
