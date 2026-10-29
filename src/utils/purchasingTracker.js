@@ -38,6 +38,9 @@ export const MOVE_BAND = { NOW: "now", WAITING: "waiting", CLEAR: "clear" };
 
 const NO_SOR = "no-sor";
 
+/** An order whose goods are Received in Odoo is no longer "Purchased (not received)". */
+const isReceived = (order) => Boolean(order.buyerTrack?.find((step) => step.key === "received_in_odoo")?.ticked);
+
 /** What the person on a project record has to do next, by the kind of record and the group it sits in. */
 function rowAction(row) {
   if (row.grp === "to_purchase") return "Place the P0";
@@ -230,8 +233,9 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
       const sor = sorOf(key, s ? { id: s.id, salesReference: s.salesReference, projectTitle: s.projectTitle } : {});
       sor.orders.push(order);
       if (order.group === ORDER_GROUP.FILED) sor.byStage.filed += 1;
-      // An open order the dashboard's rows do not know still counts, as one item where it stands.
-      else if (!ipasRowIds.has(order.id)) sor.byStage.purchased += 1;
+      // An open order the dashboard's rows do not know still counts, as one item where it stands,
+      // unless it is already Received in Odoo: the stage is "Purchased (not received)" (#791).
+      else if (!ipasRowIds.has(order.id) && !isReceived(order)) sor.byStage.purchased += 1;
       touch(sor, order.createdAt);
     }
   }

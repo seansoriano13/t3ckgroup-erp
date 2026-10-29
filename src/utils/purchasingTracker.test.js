@@ -87,6 +87,12 @@ describe("stages", () => {
     expect(sors[0].byStage.purchased).toBe(1);
   });
 
+  it("does not count an open order already Received in Odoo as Purchased (not received)", () => {
+    const received = order({ buyerTrack: [{ key: "received_in_odoo", ticked: true }] });
+    const { sors } = buildTracker({ rows: [], orders: [received], today: TODAY });
+    expect(sors).toHaveLength(0);
+  });
+
   it("keeps an order with no SOR together on one row", () => {
     const { sors } = buildTracker({ rows: [], orders: [order({ sors: [] }), order({ id: "ip-2", sors: [] })], today: TODAY });
     expect(sors).toHaveLength(1);

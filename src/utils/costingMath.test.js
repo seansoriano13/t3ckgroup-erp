@@ -456,6 +456,27 @@ describe("Planned and Actual Revenue (#605)", () => {
     },
     ipasShort,
   });
+  it("counts a Component with a Purchased or Received line as bought, though it has no Landed Cost (#791)", () => {
+    const matrix = {
+      tenderLines: [
+        {
+          quantity: 1,
+          final_offer_unit: 100,
+          components: [
+            { quantity: 1, final_acquire_unit: 10, landed_cost: notBought, purchases: { requests: [{ status: "received" }] } },
+            { quantity: 1, final_acquire_unit: 10, landed_cost: notBought, purchases: { requests: [{ status: "purchased" }] } },
+            { quantity: 1, final_acquire_unit: 10, landed_cost: notBought, purchases: { requests: [{ status: "still_canvassing" }] } },
+          ],
+        },
+      ],
+      costRows: [],
+    };
+    const totals = revenueInputs(matrix);
+    expect(totals.itemsBought).toBe(2);
+    expect(totals.itemsTotal).toBe(3);
+    expect(totals.landedCostTotal).toBe(0);
+  });
+
   const work = (args) => {
     const { matrix, ipasShort } = sample(args);
     return { totals: revenueInputs(matrix, { ipasShort }), result: revenueComparison(revenueInputs(matrix, { ipasShort }), settings) };
