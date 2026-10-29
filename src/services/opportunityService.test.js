@@ -2054,6 +2054,28 @@ describe("opportunityService", () => {
         expect(decided.task_id).toBe(task.id)
       })
 
+      it("Create can be tried again on a failed task run (#788)", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register({ sales_reference: "S09912" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        run.outcome = "failed"
+
+        const pending = await opportunityService.getPendingActionsForActor(deal.id, decider.id)
+        expect(pending).toHaveLength(1)
+        expect(pending[0].failed).toBe(true)
+
+        const result = await opportunityService.decideAction(run.id, "create", decider.id)
+        expect(result.outcome).toBe("created")
+        expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(1)
+      })
+
       it("Skip creates nothing and logs the skip", async () => {
         const decider = makeEmployee({ name: "Decider Dana" })
         makeStageAction({
