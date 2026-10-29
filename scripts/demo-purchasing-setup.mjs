@@ -6,13 +6,15 @@
  *   1. Demo cast: one-word logins `<first name>@demo`, password `demo`, for every
  *      person the SOR happy path needs (sales, purchaser, finance, signers,
  *      warehouse, technical). Idempotent, like seed-mock-employees.mjs.
- *   2. Purchasing settings back to empty: IPAS sign-off lists, Transmittal
- *      staff lists, Costing signer lists, ageing rules, markup presets and the
- *      Evaluation template. Option lists (payment methods etc.) and costing
- *      rates are left as they are: they are the defaults, not a choice.
- *   4. Requested Items (#678): the demo Purchase Requests list every S0 line as a Not
+ *   2. Purchasing settings back to the demo's: IPAS sign-off lists, Transmittal
+ *      staff lists and S0 Evaluation lists are refilled with the cast (DEMO_LISTS),
+ *      the "Government" markup preset (1.30) is the only active one, ageing rules
+ *      are blank and the Evaluation template is cleared. Option lists (payment
+ *      methods etc.) and costing rates are left as they are: they are the defaults,
+ *      not a choice.
+ *   3. Requested Items (#678): the demo Purchase Requests list every S0 line as a Not
  *      checked item, the shape the app now keeps by itself.
- *   3. "Project [FOR DEMO]": the production "Project" Sales Flow, copied from
+ *   4. "Project [FOR DEMO]": the production "Project" Sales Flow, copied from
  *      its latest Flow Snapshot under NEW ids (staging already has the real
  *      Project under the same ids), left as a draft so the demo can add the
  *      purchasing Stage Actions and Conditions and Publish it. A copy from an
@@ -36,19 +38,20 @@ export const DEMO_DOMAIN = "demo"
 export const DEMO_SALE_TYPE = "Project [FOR DEMO]"
 const PROD_SALE_TYPE = "Project"
 
-// Named after the real staff (first names and call signs) so the room recognises them.
+// Named after the real staff (first names and call signs) so the room recognises them, with
+// "demo" after the name so nobody mistakes a demo signature for the real person's.
 // `was`: earlier keys of the same login, renamed in place so their SORs and sign-offs follow.
 export const DEMO = {
-  "dani": { was: ["sales"], name: "Dani", department: "SALES", sub_department: "GOV", role: "SALES EXECUTIVE", has_sales_flow: true, has_retail_access: true },
-  "cjay": { was: ["purchaser"], name: "Cjay", department: "OPERATIONS", sub_department: "PURCHASING", role: "PURCHASER", has_purchasing_flow: true, has_task_flow: true },
-  "jelai": { was: ["finance"], name: "Jelai", department: "ADMIN", sub_department: "FINANCE", role: "ACCOUNTING STAFF", has_task_flow: true, has_finance_flow: true },
-  "jen": { was: ["admin"], name: "Jen", department: "ADMIN", sub_department: "ADMIN", role: "ADMIN MANAGER", is_head: true, has_task_flow: true },
-  "grace": { was: ["ops"], name: "Grace", department: "OPERATIONS", role: "OPERATIONS MANAGER", is_head: true, has_task_flow: true },
-  "201": { was: ["gm"], name: "201", department: "ADMIN", sub_department: "ADMIN", role: "GENERAL MANAGER", is_head: true, has_task_flow: true },
+  "dani": { was: ["sales"], name: "Dani demo", department: "SALES", sub_department: "GOV", role: "SALES EXECUTIVE", has_sales_flow: true, has_retail_access: true },
+  "cjay": { was: ["purchaser"], name: "Cjay demo", department: "OPERATIONS", sub_department: "PURCHASING", role: "PURCHASER", has_purchasing_flow: true, has_task_flow: true },
+  "jelai": { was: ["finance"], name: "Jelai demo", department: "ADMIN", sub_department: "FINANCE", role: "ACCOUNTING STAFF", has_task_flow: true, has_finance_flow: true },
+  "jen": { was: ["admin"], name: "Jen demo", department: "ADMIN", sub_department: "ADMIN", role: "ADMIN MANAGER", is_head: true, has_task_flow: true },
+  "grace": { was: ["ops"], name: "Grace demo", department: "OPERATIONS", role: "OPERATIONS MANAGER", is_head: true, has_task_flow: true },
+  "201": { was: ["gm"], name: "201 demo", department: "ADMIN", sub_department: "ADMIN", role: "GENERAL MANAGER", is_head: true, has_task_flow: true },
   // 101 is both the Sales Director and the Super Admin, so one login does both.
-  "101": { was: ["boss", "saleshead"], name: "101", department: "SALES", role: "SALES DIRECTOR", is_head: true, has_sales_flow: true, has_retail_access: true, is_super_admin: true, can_edit_sales_flows: true },
-  "aldrin": { was: ["warehouse"], name: "Aldrin", department: "OPERATIONS", sub_department: "WAREHOUSE", role: "WAREHOUSE STAFF", has_task_flow: true },
-  "sherwin": { was: ["technical"], name: "Sherwin", department: "OPERATIONS", sub_department: "TECHNICAL", role: "TECHNICIAN", has_task_flow: true },
+  "101": { was: ["boss", "saleshead"], name: "101 demo", department: "SALES", role: "SALES DIRECTOR", is_head: true, has_sales_flow: true, has_retail_access: true, is_super_admin: true, can_edit_sales_flows: true },
+  "aldrin": { was: ["warehouse"], name: "Aldrin demo", department: "OPERATIONS", sub_department: "WAREHOUSE", role: "WAREHOUSE STAFF", has_task_flow: true },
+  "sherwin": { was: ["technical"], name: "Sherwin demo", department: "OPERATIONS", sub_department: "TECHNICAL", role: "TECHNICIAN", has_task_flow: true },
 }
 
 /** Moves a login to a new email, keeping its id (auth user, identity and employee row). */
@@ -57,6 +60,23 @@ async function renameLogin(c, id, email) {
   await c.query("update auth.identities set identity_data = identity_data || jsonb_build_object('email', $2::text) where user_id = $1", [id, email])
   await c.query("update public.employees set email = $2 where id = $1", [id, email])
 }
+
+// Who sits on each list after a reset. IPAS s1 = section 1, s3 = section 2, s6 = section 3,
+// s7_* = section 4. The Markup list is 201 (101 is a Super Admin); Final Acquire is kept only
+// because it is the list that may unlock a Go.
+export const DEMO_LISTS = {
+  ipas_signer_lists: {
+    s1_approved: ["101"], s3_approved: ["101"], s6_approved: ["jelai"],
+    s7_received: ["grace"], s7_noted: ["101"], s7_checked: ["201"], s7_approved: ["201"],
+    logistics_signed: ["aldrin"],
+    transmittal_warehouse: ["aldrin"], transmittal_technical: ["sherwin"], transmittal_logistics: ["aldrin"],
+    transmittal_check_by: ["jen", "grace"],
+  },
+  costing_signer_lists: {
+    markup: ["201"], final_acquire: ["201"], evaluation: ["grace"], team_rrd: ["sherwin"], team_ioe: ["sherwin"],
+  },
+}
+export const DEMO_PRESET = { label: "Government", factor: 1.3 }
 
 const FLAGS = ["is_head", "is_hr", "is_super_admin", "can_manage_leaves", "can_edit_sales_flows", "has_sales_flow", "has_task_flow", "has_purchasing_flow", "has_finance_flow", "has_retail_access"]
 
@@ -130,13 +150,28 @@ async function seedCast(c) {
 async function resetSettings(c) {
   const n = async (sql) => (await c.query(sql)).rowCount
   console.log(`  IPAS sign-off and Transmittal staff lists: ${await n("delete from public.ipas_signer_lists")} rows removed`)
-  console.log(`  Costing signer lists: ${await n("delete from public.costing_signer_lists")} rows removed`)
+  console.log(`  S0 Evaluation lists: ${await n("delete from public.costing_signer_lists")} rows removed`)
+  for (const [table, lists] of Object.entries(DEMO_LISTS)) {
+    for (const [listKey, keys] of Object.entries(lists)) {
+      const emails = keys.map((k) => `${k}@${DEMO_DOMAIN}`)
+      const added = await c.query(
+        `insert into public.${table} (list_key, employee_id)
+         select $1, e.id from public.employees e where e.email = any($2::text[])
+         on conflict do nothing`,
+        [listKey, emails],
+      )
+      if (added.rowCount !== keys.length) throw new Error(`${table}.${listKey}: added ${added.rowCount} of ${keys.join(", ")}`)
+    }
+    console.log(`  ${table}: ${Object.keys(lists).length} lists filled with the cast`)
+  }
   console.log(`  Ageing rules blanked: ${await n("update public.order_ageing_rules set days = null, updated_at = now() where days is not null")}`)
   console.log(`  Evaluation template cleared: ${await n("update public.costing_evaluation_settings set evaluation_template_id = null, updated_at = now() where evaluation_template_id is not null")}`)
-  // A preset a matrix already used stays (deactivated); an unused one goes.
+  // A preset a matrix already used stays (deactivated); an unused one goes. Then the demo's one.
   const used = await n("update public.costing_markup_presets p set active = false, updated_at = now() where exists (select 1 from public.costing_matrix_money m where m.default_preset_id = p.id)")
   const gone = await n("delete from public.costing_markup_presets p where not exists (select 1 from public.costing_matrix_money m where m.default_preset_id = p.id)")
-  console.log(`  Markup presets: ${gone} removed, ${used} deactivated (used by a matrix)`)
+  const revived = await n(`update public.costing_markup_presets set factor = ${DEMO_PRESET.factor}, active = true, updated_at = now() where label = '${DEMO_PRESET.label}'`)
+  if (!revived) await c.query("insert into public.costing_markup_presets (label, factor, sort, active) values ($1, $2, 0, true)", [DEMO_PRESET.label, DEMO_PRESET.factor])
+  console.log(`  Markup presets: ${gone} removed, ${used} deactivated (used by a matrix), "${DEMO_PRESET.label}" ${DEMO_PRESET.factor} is the active one`)
 }
 
 /** Every id the flow owns inside a snapshot, so the copy can live beside the real Project. */

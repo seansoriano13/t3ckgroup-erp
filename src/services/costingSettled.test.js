@@ -54,9 +54,9 @@ describe("Costing settled", () => {
     return matrix
   }
   const prices = (abc, offer) => db.seed("costing_tender_line_prices", { tender_line_id: line.id, abc_unit: abc, final_offer_unit: offer })
-  const costed = () => {
+  const costed = (cost = { acquire_unit: 400 }) => {
     const component = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "Harness", offer_specification: "Full body" })
-    db.seed("costing_component_costs", { component_id: component.id, final_acquire_unit: 400 })
+    db.seed("costing_component_costs", { component_id: component.id, ...cost })
     return component
   }
   const approve = () =>
@@ -97,6 +97,15 @@ describe("Costing settled", () => {
     expect(await checklist()).toEqual([["costing_settled", "satisfied", undefined]])
     const moved = await move()
     expect(moved.flow_stage_id).toBe(qualified.id)
+  })
+
+  it("still counts an old deal's Final Acquire as its cost", async () => {
+    openMatrix()
+    prices(1000, 900)
+    costed({ final_acquire_unit: 400 })
+    approve()
+    decide("go")
+    expect(await checklist()).toEqual([["costing_settled", "satisfied", undefined]])
   })
 
   it("is unmet again when an Offer Specification edit clears the approval", async () => {
