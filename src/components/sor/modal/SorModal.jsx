@@ -38,6 +38,7 @@ import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
 import SorChatColumn from "./SorChatColumn";
+import { costingKeys } from "../../costing/costingKeys";
 import { pullOdooLines, saveOdooLines, toRow } from "./odooLines";
 import SummaryLayout from "./summary/SummaryLayout";
 
@@ -392,6 +393,8 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["followUpStatus", id] });
     // #310: the Now card, Items statuses and Journey read the Purchase Request.
     queryClient.invalidateQueries({ queryKey: ["sor-purchase-request", id] });
+    // #791: the PMS tab's S0 Evaluation card ("Lines") reads the matrix; a move or save can add its lines.
+    queryClient.invalidateQueries({ queryKey: costingKeys.all(id) });
   }, [queryClient, id]);
 
   const handleMentionClick = (person) => {
