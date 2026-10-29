@@ -1970,7 +1970,9 @@ export const opportunityService = {
         metadata: payload.metadata || null,
         expected_award_date: payload.expected_award_date || null,
         po_date: payload.po_date || null,
-        deal_owner_id: payload.deal_owner_id || null,
+        // #793: an SOR is never left without a Deal Owner. When none is
+        // named, the person registering it owns it.
+        deal_owner_id: payload.deal_owner_id || actorId || null,
         closing_sales_id: payload.closing_sales_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
         support_sales_2_id: payload.support_sales_2_id || null,
