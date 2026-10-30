@@ -15,10 +15,11 @@ import Dropdown from "../../ui/Dropdown";
 import StatusBadge from "../../StatusBadge";
 import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
-import MarkLostButton, { MarkLostDialogHost } from "../MarkLostButton";
+import MarkLostButton from "../MarkLostButton";
+import MarkLostDialogHost from "../MarkLostDialogHost";
 import ReopenButton from "../ReopenButton";
 import { isLostCode, isWonCode } from "../../../constants/sor";
-import { isLostFlowStage } from "../../../constants/salesFlow";
+import { lostStagesOfFlow } from "../../../constants/salesFlow";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
 import SorVersionUpdate from "../SorVersionUpdate";
@@ -106,7 +107,7 @@ export default function SorModalHeader({
     ? Boolean(currentFlowStage) && !currentFlowStage.is_terminal
     : !isLostCode(opportunity.status, pipelineStages) && !isWonCode(opportunity.status, pipelineStages);
   const lostStages = flowCanvas
-    ? (flowCanvas.stages || []).filter((st) => isLostFlowStage(st, flowCanvas.flow?.won_stage_id ?? null))
+    ? lostStagesOfFlow(flowCanvas.stages, flowCanvas.flow?.won_stage_id)
     : [];
 
   const currentIndex = pipelineStages.findIndex((s) => s.code === opportunity.status);
@@ -434,12 +435,11 @@ export default function SorModalHeader({
           <>
             {legacyRibbon}
             {/* #812: Mark as Lost on an old-pipeline deal, open statuses only. */}
-            {!isLostCode(opportunity.status, pipelineStages) &&
-              !isWonCode(opportunity.status, pipelineStages) && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <MarkLostButton opportunity={opportunity} />
-                </div>
-              )}
+            {canMarkLost && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <MarkLostButton opportunity={opportunity} />
+              </div>
+            )}
             {/* #813: Reopen takes the same spot on a Lost deal. */}
             {isLostCode(opportunity.status, pipelineStages) && (
               <div className="mt-2 flex flex-wrap items-center gap-2">

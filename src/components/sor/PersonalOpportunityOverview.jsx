@@ -56,9 +56,8 @@ export default function PersonalOpportunityOverview({ opportunities }) {
   });
 
   // The won/lost tiles link to the register filtered by those stages, so they
-  // follow the flags rather than assuming the policy codes.
+  // follow the flags rather than assuming the policy codes; Lost uses the register's Lost filter, which covers both kinds of deal.
   const wonCode = pipelineStages.find((s) => s.is_won)?.code;
-  const lostCode = pipelineStages.find((s) => s.is_lost)?.code;
 
   const stats = useMemo(() => {
     const total = mine.length;
@@ -101,7 +100,7 @@ export default function PersonalOpportunityOverview({ opportunities }) {
           { label: "Open", value: stats.open, sub: "In progress", onClick: () => navigate("/sors", { state: { filterEmployeeId: user?.id } }) },
           { label: "Value", value: formatPHP(stats.value), sub: "Total pipeline" },
           { label: "Won", value: stats.won, sub: "Closed won", onClick: () => goToStage(wonCode) },
-          { label: "Lost", value: stats.lost, sub: "Closed lost", onClick: () => goToStage(lostCode) },
+          { label: "Lost", value: stats.lost, sub: "Closed lost", onClick: () => goToStage("LOST") },
         ]}
       />
 

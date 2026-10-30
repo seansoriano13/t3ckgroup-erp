@@ -3,6 +3,7 @@ import { RotateCcw } from "lucide-react";
 import toast from "react-hot-toast";
 import { opportunityService } from "../../services/opportunityService";
 import { Button } from "../ui/button";
+import { invalidateOpportunityQueries } from "./invalidateOpportunityQueries";
 
 /**
  * Issue #813 — "Reopen" on a Lost deal, in the header spot "Mark as Lost" holds
@@ -16,7 +17,7 @@ export default function ReopenButton({ opportunity }) {
     mutationFn: () => opportunityService.reopen(opportunity.id),
     onSuccess: () => {
       toast.success("Deal reopened.");
-      queryClient.invalidateQueries();
+      invalidateOpportunityQueries(queryClient);
     },
     onError: (err) => toast.error(err.message),
   });

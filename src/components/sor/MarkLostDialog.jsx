@@ -59,7 +59,7 @@ export default function MarkLostDialog({ isOpen, lostStages = [], isPending = fa
           />
           {mustPickStage && (
             <div role="radiogroup" aria-label="Move to which Lost Stage?" className="flex flex-col gap-1.5">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+              <p className="text-label font-bold uppercase tracking-widest text-muted-foreground">
                 Move to which Lost Stage?
               </p>
               {lostStages.map((stage) => (

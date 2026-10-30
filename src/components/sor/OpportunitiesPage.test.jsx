@@ -450,6 +450,14 @@ describe("Lost deals in the register (#814)", () => {
     expect(screen.queryByText("Old lost deal")).toBeNull()
   })
 
+  it("keeps a Lost flow deal out of a Stage filter on its never-changing status", async () => {
+    renderPage({ filterStatus: "LEAD" })
+
+    expect(await screen.findByText("Still open deal")).toBeInTheDocument()
+    expect(screen.queryByText("Coded lost deal")).toBeNull()
+    expect(screen.queryByText("Old lost deal")).toBeNull()
+  })
+
   it("the Lost filter shows them with a reason column, old free text as Other", async () => {
     const user = setupUser()
     renderPage()
