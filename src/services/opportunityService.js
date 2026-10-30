@@ -4198,6 +4198,22 @@ export const opportunityService = {
     return Boolean(data);
   },
 
+  /**
+   * Mark as Lost (#810): the only way to lose a deal. The database checks the
+   * reason list, the note for "Other", the permission and the flow's Lost Stage.
+   * `lostStageId` is only needed when the flow has more than one Lost Stage.
+   */
+  async markLost(opportunityId, reasonCode, note = null, lostStageId = null) {
+    const { data, error } = await supabase.rpc("mark_opportunity_lost", {
+      p_opportunity_id: opportunityId,
+      p_reason_code: reasonCode,
+      p_note: note,
+      p_lost_stage_id: lostStageId,
+    });
+    if (error) throw new Error(error.message.replace(/^Mark as Lost: /, ""));
+    return Array.isArray(data) ? data[0] : data;
+  },
+
   async revertStage(opportunityId, progressChoice = null) {
     const { data, error } = await supabase.rpc("sor_revert_stage", {
       p_opportunity_id: opportunityId,
