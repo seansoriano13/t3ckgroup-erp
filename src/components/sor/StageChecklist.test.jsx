@@ -150,6 +150,46 @@ describe("Costing settled (#272)", () => {
   })
 })
 
+describe("Goods checked shows its basis", () => {
+  const goods = (overrides = {}) =>
+    item({
+      condition: { id: "gc-1", kind: "goods_checked", label: "Goods checked", is_required: true, sort_order: 0 },
+      ...overrides,
+    })
+
+  it("names each Transmittal and its state while it is unmet", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      goods({
+        detail: {
+          failing: ["slips_not_closed"],
+          messages: ["1 Transmittal naming this SOR is not Closed yet."],
+          basis: [
+            { number: "TG03-581", state: "Closed" },
+            { number: "TG03-590", state: "Waiting on Technical" },
+          ],
+        },
+      }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    const basis = await screen.findByRole("list", { name: "Goods checked: based on" })
+    expect(basis).toHaveTextContent("TG03-581 · Closed")
+    expect(basis).toHaveTextContent("TG03-590 · Waiting on Technical")
+  })
+
+  it("still names them once it is met", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      goods({
+        status: CONDITION_STATUS.SATISFIED,
+        detail: { failing: [], messages: [], basis: [{ number: "TG03-581", state: "Closed" }] },
+      }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect(await screen.findByRole("list", { name: "Goods checked: based on" })).toHaveTextContent("TG03-581 · Closed")
+  })
+})
+
 describe("who satisfied what and when", () => {
   it("shows the satisfier's name and date on a satisfied item", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([

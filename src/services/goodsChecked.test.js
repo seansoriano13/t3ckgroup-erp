@@ -74,16 +74,35 @@ describe("Goods checked", () => {
     (await opportunityService.getStageChecklist(deal.id)).map((row) => [row.condition.kind, row.status, row.detail?.failing])
   const move = (deal) => opportunityService.updateStatus(deal.id, next.id, owner.id)
 
-  it("is met, and lets the move through, for an SOR no Transmittal names", async () => {
-    expect(await checklist(dealA)).toEqual([["goods_checked", "satisfied", undefined]])
+  const basis = async (deal) => (await opportunityService.getStageChecklist(deal.id))[0].detail?.basis
+
+  it("is unmet, and blocks the move, for an SOR no Transmittal names: nothing is ticked without a basis", async () => {
+    expect(await checklist(dealA)).toEqual([["goods_checked", "unsatisfied", ["no_slips"]]])
+    await expect(move(dealA)).rejects.toThrow(/Goods checked — No Transmittal names this SOR yet/)
+  })
+
+  it("does not take a Draft or a Cancelled slip as a basis, and is met once a Closed slip names the SOR", async () => {
+    slip("draft", [dealA])
+    slip("cancelled", [dealA])
+    expect((await checklist(dealA))[0][2]).toEqual(["no_slips"])
+    slip("closed", [dealA])
+    expect((await checklist(dealA))[0][1]).toBe("satisfied")
     expect((await move(dealA)).flow_stage_id).toBe(next.id)
   })
 
-  it("ignores Drafts, Closed and Cancelled slips", async () => {
-    slip("draft", [dealA])
-    slip("closed", [dealA])
-    slip("cancelled", [dealA])
+  it("names each Transmittal it read, with its state, met or not", async () => {
+    const closed = slip("closed", [dealA])
+    const open = slip("technical_inspection", [dealA])
+    expect(await basis(dealA)).toEqual([
+      { number: closed.number, state: "Closed" },
+      { number: open.number, state: "Waiting on Technical" },
+    ])
+    db.internal.rowsOf("transmittals").find((row) => row.id === open.id).state = "closed"
     expect((await checklist(dealA))[0][1]).toBe("satisfied")
+    expect(await basis(dealA)).toEqual([
+      { number: closed.number, state: "Closed" },
+      { number: open.number, state: "Closed" },
+    ])
   })
 
   it("blocks the move while a submitted slip is still in its checks", async () => {
@@ -105,7 +124,7 @@ describe("Goods checked", () => {
 
   it("does not count a slip that names only the other SOR", async () => {
     slip("awaiting_check", [dealB])
-    expect((await checklist(dealA))[0][1]).toBe("satisfied")
-    expect((await checklist(dealB))[0][1]).toBe("unsatisfied")
+    expect((await checklist(dealA))[0][2]).toEqual(["no_slips"])
+    expect((await checklist(dealB))[0][2]).toEqual(["slips_not_closed"])
   })
 })
