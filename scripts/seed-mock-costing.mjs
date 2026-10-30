@@ -85,7 +85,7 @@ async function main() {
       console.log("Mock Costing Matrices are already there. Nothing added.")
       return
     }
-    const emps = await q("select id from employees where coalesce(is_deleted,false) = false order by (email in ('purchaser@mock.t3ck.test', 'purchaser@local')) desc, (email like '%@policy.fixture') asc, (email like 'super-admin%') desc, email")
+    const emps = await q("select id from employees where coalesce(is_deleted,false) = false order by (email in ('purchaser@mock.t3ck.test', 'ayla@local')) desc, (email like '%@policy.fixture') asc, (email like 'super-admin%') desc, email")
     const buyer = emps[0].id
 
     await c.query("begin")
