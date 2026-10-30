@@ -109,10 +109,13 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       refuse(`${fn}: can't move from ${ITEM_STATUS_LABELS[from]} to ${ITEM_STATUS_LABELS[to]}`, "42501")
     }
     const changedAt = new Date().toISOString()
+    // Any status choice clears a "Now x free of y" warning (#681), as the database does.
     const updated = updateRow("purchase_request_items", item, {
       status: to,
       status_changed_by: actorId,
       status_changed_at: changedAt,
+      stock_short_free: null,
+      stock_short_needed: null,
     })
     insertRow("purchase_request_messages", {
       request_id: item.request_id,
@@ -160,8 +163,45 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     if ((details.po_number || "").toString().trim()) {
       refuse("purchase_request_set_item_status: a PO number is saved by the server after Odoo is asked; use the Order / Correct PO action", "42501")
     }
+    if (args.p_status === "available") return setAvailable(item, details)
     return setStatus(item, args.p_status, details, false)
   })
+
+  // #803: Available on short stock needs a reason. The latest stock check for the request's SOR
+  // decides: its free count for the item's Odoo product, against the quantity. Mirrors the
+  // Available branch of purchase_request_set_item_status (20261118020000_803_available_short_stock_reason.sql).
+  function setAvailable(item, details) {
+    const extra = Object.keys(details).find((key) => key !== "reason")
+    if (extra) refuse(`purchase_request_set_item_status: Available takes a reason, not ${extra}`, "22023")
+    const reason = (details.reason || "").toString().trim() || null
+    const request = findRow("purchase_requests", item.request_id)
+    const snapshot = rowsOf("sor_stock_snapshots").find((s) => request?.opportunity_id && s.opportunity_id === request.opportunity_id)
+    const product = item.odoo_product_id ? snapshot?.data?.products?.[item.odoo_product_id] : null
+    const free = Number(product?.free ?? 0)
+    const needed = Number(item.quantity)
+    const short = product?.type === "product" && free < needed ? { free, needed } : null
+    if (short && !reason) {
+      refuse(`purchase_request_set_item_status: Now ${free} free of ${needed}. Give a short reason to mark it Available`, "22023")
+    }
+    // Choosing Available again is allowed only to clear a warning (#681).
+    if (item.status === "available" && item.stock_short_free == null) {
+      refuse("purchase_request_set_item_status: the item is already Available", "22023")
+    }
+    const moved = move(item, "available", null, "purchase_request_set_item_status")
+    if (!short) return moved
+    // updateRow writes into the stored row, so flag the stored row, not the copy move returned.
+    const flagged = updateRow("purchase_request_items", findRow("purchase_request_items", item.id), {
+      stock_short_free: free,
+      stock_short_needed: needed,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `${item.name}: Available on short stock, now ${free} free of ${needed}. Reason: ${reason}`,
+      metadata: { event: "item_short_stock_reason", item_id: item.id, reason, free, needed },
+    })
+    return flagged
+  }
 
   function setStatus(item, status, details, server) {
     const po = (details.po_number || "").trim().toUpperCase() || null
