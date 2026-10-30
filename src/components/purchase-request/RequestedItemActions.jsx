@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Dropdown from "@/components/ui/Dropdown";
 import Spinner from "@/components/ui/Spinner";
+import { FieldBox } from "@/components/ui/FieldBox";
+import { Textarea } from "@/components/ui/textarea";
 import StatusBadge from "../StatusBadge";
 import { CorrectPoDialog, PickPoLinesDialog } from "./PoDialogs";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
@@ -24,6 +26,7 @@ import { purchaseRequestKeys } from "./queryKeys";
 import { useRefreshRequest } from "./requestHooks";
 import { useItemStatusUndo } from "./useItemStatusUndo";
 import { OVER_REQUEST_MODAL } from "./stacking";
+import { shortStockOf } from "../../utils/requestedItem";
 
 /** The database's refusal, without the function name it leads with. */
 const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
@@ -136,12 +139,23 @@ export default function RequestedItemActions({ item, request, actor }) {
   const [confirming, setConfirming] = useState(null);
   const [pickingLines, setPickingLines] = useState(false);
   const [correctingPo, setCorrectingPo] = useState(false);
+  // #803: the reason box for Available on short stock, open while that choice is being made.
+  const [shortOpen, setShortOpen] = useState(false);
+  const [shortReason, setShortReason] = useState("");
   const requestId = request?.id;
   const side = actor?.side ?? null;
   const onPo =
     side === MEMBER_SIDE.PURCHASING &&
     !!item.po_number &&
     (item.status === ITEM_STATUS.PURCHASED || item.status === ITEM_STATUS.RECEIVED);
+
+  // #803: the SOR's stock check, read the same way RequestedItems reads it (one cache entry).
+  const { data: stockSnapshot } = useQuery({
+    queryKey: purchaseRequestKeys.stock(requestId),
+    queryFn: () => purchaseRequestService.stockSnapshot(requestId),
+    enabled: !!requestId,
+  });
+  const short = shortStockOf(item, stockSnapshot);
 
   const { data: poLineRows = [] } = useQuery({
     queryKey: purchaseRequestKeys.poLines(requestId, item.id),
@@ -150,10 +164,10 @@ export default function RequestedItemActions({ item, request, actor }) {
   });
 
   const moveMutation = useMutation({
-    mutationFn: (status) => purchaseRequestService.setItemStatus(item.id, status),
+    mutationFn: ({ status, details }) => purchaseRequestService.setItemStatus(item.id, status, details),
     // The item as it was, for Undo to say what it goes back to.
     onMutate: () => ({ before: item }),
-    onSuccess: (updated, status, { before }) =>
+    onSuccess: (updated, { status }, { before }) =>
       announce(before, updated, `${item.name}: ${ITEM_STATUS_LABELS[status]}.`),
     onError: (error) => toast.error(refusal(error)),
     onSettled: refresh,
@@ -181,7 +195,9 @@ export default function RequestedItemActions({ item, request, actor }) {
 
   const choose = (status) => {
     if (CONFIRM[status]) setConfirming(status);
-    else moveMutation.mutate(status);
+    // #803: Available on short stock is never refused, but the reason is asked for first.
+    else if (status === ITEM_STATUS.AVAILABLE && short) setShortOpen(true);
+    else moveMutation.mutate({ status });
   };
   const busy = moveMutation.isPending;
 
@@ -197,8 +213,36 @@ export default function RequestedItemActions({ item, request, actor }) {
         cancelLabel="Keep it"
         tone="destructive"
         className={OVER_REQUEST_MODAL}
-        onConfirm={() => moveMutation.mutate(confirming)}
+        onConfirm={() => moveMutation.mutate({ status: confirming })}
       />
+      {short && (
+        <ConfirmDialog
+          open={shortOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShortOpen(false);
+              setShortReason("");
+            }
+          }}
+          title="Available on short stock"
+          description={`Now ${short.free} free of ${short.needed}. Say why it is Available anyway. The reason is kept in the request history.`}
+          confirmLabel="Mark Available"
+          cancelLabel="Keep it"
+          confirmDisabled={!shortReason.trim()}
+          className={OVER_REQUEST_MODAL}
+          onConfirm={() => moveMutation.mutate({ status: ITEM_STATUS.AVAILABLE, details: { reason: shortReason.trim() } })}
+        >
+          <FieldBox bare label="Reason">
+            <Textarea
+              value={shortReason}
+              onChange={(e) => setShortReason(e.target.value)}
+              rows={2}
+              maxLength={200}
+              placeholder="Why it is Available although stock is short, in a few words"
+            />
+          </FieldBox>
+        </ConfirmDialog>
+      )}
       {canCorrectPo && correctingPo && (
         <CorrectPoDialog open onOpenChange={setCorrectingPo} item={item} requestId={requestId} />
       )}
