@@ -202,7 +202,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       if (body.action === "attach") {
         if (odoo === "unreachable") return { success: false, message: "Odoo didn't answer. The P0 was not attached; try again." }
         if (sideOf(item.request_id) !== "purchasing") return { success: false, refused: true, message: "only Purchasing attaches a P0" }
-        if (["cancelled", "received"].includes(item.status)) return { success: false, refused: true, message: "nothing to attach to this line" }
+        if (item.status === "cancelled") return { success: false, refused: true, message: "nothing to attach to this line" }
         const facts = { state: "confirmed", ordered: item.quantity, received: 0, bought_as: null, ...(p0s[po] || {}) }
         const to = facts.state === "rfq" ? "to_purchase" : facts.ordered > 0 && facts.received >= facts.ordered ? "received" : "purchased"
         const attached = updateRow("purchase_request_items", item, {
