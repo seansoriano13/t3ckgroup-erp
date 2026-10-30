@@ -6,6 +6,7 @@ import {
   formatPHP,
   isAnchorCode,
   isLostCode,
+  isLostOpportunity,
   isOpenRegionStage,
   isRealizedOpportunity,
   isOpenPipelineOpportunity,
@@ -683,5 +684,55 @@ describe("an SOR on a flow with no version on record", () => {
     const pinned = { ...versionless("LEAD"), flow_snapshot_id: "snap-1" }
     expect(isOpenPipelineOpportunity(pinned, { snapshotsById: {} })).toBe(false)
     expect(isRealizedOpportunity(pinned, { snapshotsById: {} })).toBe(false)
+  })
+})
+
+// Issue #806 — one rule answers "is this deal lost?" for both kinds of deals.
+describe("isLostOpportunity", () => {
+  const flowDeal = (stage, status = "LEAD") => ({
+    sale_type_id: "st-1",
+    status, // stale: a flow deal's status never changes
+    flow_stage_id: stage.id,
+    flow_snapshot: {
+      snapshot_data: {
+        wonStageId: "s-won",
+        stages: [{ id: "s-won", is_terminal: false }, stage],
+      },
+    },
+  })
+
+  it("old pipeline: lost by its status code", () => {
+    expect(isLostOpportunity({ status: "CLOSED_LOST" })).toBe(true)
+    expect(isLostOpportunity({ status: "NEGOTIATION" })).toBe(false)
+  })
+
+  it("flow deal: lost on a terminal Stage with outcome Lost", () => {
+    const stage = { id: "s-lost", is_terminal: true, terminal_outcome: "lost" }
+    expect(isLostOpportunity(flowDeal(stage))).toBe(true)
+  })
+
+  it("flow deal: a terminal Stage with no outcome (BG CHECKING) is not lost", () => {
+    const stage = { id: "s-bg", is_terminal: true, terminal_outcome: null }
+    expect(isLostOpportunity(flowDeal(stage))).toBe(false)
+  })
+
+  it("flow deal: a Won outcome or an unresolvable Stage is not lost", () => {
+    const won = { id: "s-cw", is_terminal: true, terminal_outcome: "won" }
+    expect(isLostOpportunity(flowDeal(won))).toBe(false)
+    expect(isLostOpportunity({ ...flowDeal(won), flow_stage_id: "missing" })).toBe(false)
+  })
+
+  it("flow deal: reads its own snapshot from snapshotsById", () => {
+    const deal = { sale_type_id: "st-1", flow_snapshot_id: "snap-1", flow_stage_id: "s-lost" }
+    const snapshotsById = {
+      "snap-1": { snapshot_data: { stages: [{ id: "s-lost", is_terminal: true, terminal_outcome: "lost" }] } },
+    }
+    expect(isLostOpportunity(deal, { snapshotsById, stages: PIPELINE_STAGE_SEED })).toBe(true)
+  })
+
+  it("keeps a lost flow deal out of Open Pipeline and Realized", () => {
+    const deal = flowDeal({ id: "s-lost", is_terminal: true, terminal_outcome: "lost" })
+    expect(isOpenPipelineOpportunity(deal)).toBe(false)
+    expect(isRealizedOpportunity(deal)).toBe(false)
   })
 })
