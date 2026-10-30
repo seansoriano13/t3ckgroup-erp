@@ -1239,6 +1239,10 @@ _Avoid_: Approval, Go/No-go (as the record's name), Project Evaluation, Sign-off
 Anything in the shared UI folder (`src/components/ui/`): one shared building block per job — Button, Dialog, Input, Select, Dropdown and so on. Raw HTML for a covered element (button, input, textarea, select, label, table, img, a, hand-rolled modal) is banned outside that folder, enforced by lint; feature code uses the Primitive. If none fits, ask the maintainer rather than hand-rolling. Catalogued in DESIGN.md.
 _Avoid_: Component (already means an S0 Evaluation row), Widget, Shared component
 
+**Hover detail**:
+The short explanation of why something is in the state it shows (locked, switched off, not checked, and so on), such as "Locked after Lead". It is shown on hover, as a tooltip on the icon, badge or control, and never as standing text on the screen. The screen shows the state (a lock icon, a badge); the hover says why.
+_Avoid_: Helper text, Caption (when meaning this)
+
 **Release Notes**:
 The page every employee can open to see what changed in the ERP over a window of time, grouped by screen. Each change is shown with the real screen fed Sample Data, never live records.
 _Avoid_: Presentation, Deck, Changelog, What's new
