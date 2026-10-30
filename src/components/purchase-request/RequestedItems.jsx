@@ -18,7 +18,7 @@ import LineButtons from "./LineButtons";
 import { AskedSub, ColumnHeads, COLUMNS, ForCell, NotesCell, P0Cell, ProductCode, QtyCell, StockCell } from "./ProductLineCells";
 import { YoursBadge } from "./YoursDialog";
 import StatusBadge from "../StatusBadge";
-import { isFromS0, requestedItemStock } from "../../utils/requestedItem";
+import { isFromS0, isOpenWithoutOdooProduct, requestedItemStock } from "../../utils/requestedItem";
 import { mergedRequestOf, splitProductName, thumbnailOf } from "../../utils/productLine";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME, MEMBER_SIDE, isClosedStatus } from "../../constants/purchaseRequest";
@@ -57,12 +57,23 @@ function askedMain(item) {
 function requestedItemRow({ item, stockSnapshot, side = null, costText = null, status, notes, buttons = null, replaces = null, replacedBy = null, mergedFrom = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   const asked = !isFromS0(item);
+  // #807: an open line with no Odoo product says so under its name.
+  const noOdooProduct = isOpenWithoutOdooProduct(item) ? (
+    <span className="block w-fit">
+      <StatusBadge label="No Odoo product" theme="amber" />
+    </span>
+  ) : null;
   return {
     key: item.id,
     testId: "requested-item",
     label: item.name,
     main: asked ? askedMain(item) : splitProductName(item.name).name,
-    sub: asked ? <AskedSub item={item} side={side} /> : <ProductCode item={item} />,
+    sub: (
+      <>
+        {asked ? <AskedSub item={item} side={side} /> : <ProductCode item={item} />}
+        {noOdooProduct}
+      </>
+    ),
     subWrap: asked,
     actions: (
       <div className={cn("grid items-center gap-3", COLUMNS)}>

@@ -337,7 +337,7 @@ function taxedOffer(offer, allowance) {
  *   ipasShort               true while any IPAS of the SOR has not reached LC Odoo Done (the caller says so;
  *                           a bought Component whose Landed Cost is provisional says so too)
  *
- * A Component is bought by isBoughtComponent; its Landed Cost still decides the Actual figures. One with none (not ordered, or its PO line not
+ * A Component is bought by isBoughtComponent; its Landed Cost still decides the Actual figures. One with none (not ordered, or its P0 line not
  * picked yet) stays at Final Acquire.
  */
 /**

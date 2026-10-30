@@ -3,6 +3,7 @@ import {
   ITEM_STATUS,
   ITEM_STATUSES,
   ITEM_STATUS_LABELS,
+  ITEM_STATUS_THEME,
   CLOSED_STATUSES,
   MEMBER_SIDE,
   allowedTransitions,
@@ -15,6 +16,7 @@ import {
   requestIdentity,
   requestKind,
 } from "./purchaseRequest";
+import { STATUS_THEME } from "./statusTheme";
 
 const S = ITEM_STATUS;
 const OPEN = [S.NOT_CHECKED, S.TO_PURCHASE, S.STILL_CANVASSING, S.PURCHASED];
@@ -234,5 +236,19 @@ describe("stockWarning (#681)", () => {
   it("says nothing once the line is no longer Available, or when no check flagged it", () => {
     expect(stockWarning({ ...warned, status: S.TO_PURCHASE })).toBeNull();
     expect(stockWarning({ status: S.AVAILABLE, stock_short_free: null, stock_short_needed: null })).toBeNull();
+  });
+});
+
+describe("the item status colours (#801)", () => {
+  it("gives Available, Not checked, Received and Purchased four different colours", () => {
+    const colours = [S.AVAILABLE, S.NOT_CHECKED, S.RECEIVED, S.PURCHASED].map((status) => ITEM_STATUS_THEME[status]);
+    expect(new Set(colours).size).toBe(4);
+  });
+
+  it("colours Available teal, Not checked grey, and keeps Received green and Purchased blue", () => {
+    expect(ITEM_STATUS_THEME[S.AVAILABLE]).toBe(STATUS_THEME.TEAL);
+    expect(ITEM_STATUS_THEME[S.NOT_CHECKED]).toBe(STATUS_THEME.GREY);
+    expect(ITEM_STATUS_THEME[S.RECEIVED]).toBe(STATUS_THEME.GREEN);
+    expect(ITEM_STATUS_THEME[S.PURCHASED]).toBe(STATUS_THEME.BLUE);
   });
 });

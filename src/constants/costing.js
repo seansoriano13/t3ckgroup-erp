@@ -186,9 +186,9 @@ export const tierReadsLandedCost = (tier) => [COSTING_TIER.CLOSED_BOOK, COSTING_
 /** Why a Component shows no Landed Cost (costing_landed_costs.blank_reason, #283), in words. */
 export const LANDED_COST_BLANK_LABEL = {
   not_ordered: "Not ordered yet",
-  po_line_not_picked: "PO line not picked",
+  po_line_not_picked: "P0 line not picked",
   landed_cost_unavailable: "Landed Cost not yet available",
-  line_removed: "Pick the PO line again",
+  line_removed: "Pick the P0 line again",
 };
 
 /** A Landed Cost's mark: provisional until every IPAS it draws from has Costs complete. */

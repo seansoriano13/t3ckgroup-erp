@@ -30,7 +30,7 @@ export default function LineButtons({ item, request, actor }) {
 
   const cancelled = item.status === ITEM_STATUS.CANCELLED;
   const received = item.status === ITEM_STATUS.RECEIVED;
-  const attachOff = cancelled || received ? "Nothing to attach to this line." : null;
+  const attachOff = cancelled ? "Nothing to attach to this line." : null;
   const replaceOff = cancelled ? "This line is already cancelled." : received ? "This line has already arrived." : null;
 
   return (

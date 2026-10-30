@@ -26,6 +26,7 @@ import {
 import { refusal, useRefreshRequest } from "./requestHooks";
 import { purchaseRequestKeys } from "./queryKeys";
 import { OVER_REQUEST_MODAL } from "./stacking";
+import { AttachToOthers } from "./AttachToOthers";
 
 /**
  * Tells the buyer how their PO number was checked (#548): a success toast, or,
@@ -45,15 +46,46 @@ function outcomeOf(p0, productId) {
   return status === "to_purchase" ? "RFQ: the line stays To purchase" : `The line becomes ${ITEM_STATUS_LABELS[status]}`;
 }
 
+/** A P0's rows, one per line. This item's own product is marked; more than five rows show five and a "Show all" link. */
+const P0_ROWS_SHOWN = 5;
+function P0Lines({ lines, productId }) {
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? lines : lines.slice(0, P0_ROWS_SHOWN);
+  return (
+    <div className="space-y-1">
+      <ul className="divide-y divide-border">
+        {shown.map((line, index) => {
+          const mine = line.product_id === productId;
+          return (
+            <li key={line.id ?? index} data-testid="p0-line" className="flex items-baseline justify-between gap-3 py-1.5 text-[13px]">
+              <span className={mine ? "font-semibold text-foreground" : "text-foreground"}>
+                {line.product_name || `Product ${line.product_id}`}
+                {mine && <span className="ml-2 text-xs text-muted-foreground">This item</span>}
+              </span>
+              <span className="shrink-0 font-mono text-xs text-foreground">{line.quantity}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {!showAll && lines.length > P0_ROWS_SHOWN && (
+        <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setShowAll(true)}>
+          Show all {lines.length}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /** One P0 from Odoo as a LinerList row; choosing it selects it, and the dialog confirms once. */
 function p0Row({ p0, productId, chosen, onChoose }) {
-  const bought = [...new Set(p0.lines.map((l) => l.product_name).filter(Boolean))].join(", ");
   return {
     key: p0.name,
     testId: "p0-suggestion",
     main: p0.name,
-    sub: [p0.supplier, bought, outcomeOf(p0, productId)].filter(Boolean).join(" · "),
+    sub: [p0.supplier, outcomeOf(p0, productId)].filter(Boolean).join(" · "),
     subWrap: true,
+    defaultOpen: true,
+    children: p0.lines.length ? <P0Lines lines={p0.lines} productId={productId} /> : undefined,
     actions: (
       <Button
         type="button"
@@ -85,6 +117,8 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
   const [earlyReason, setEarlyReason] = useState("");
   // #788: a refusal is also written inside the dialog, where the person clicked.
   const [refused, setRefused] = useState("");
+  // #809: set after a successful attach when the server offers other items this P0 covers.
+  const [followUp, setFollowUp] = useState(null);
   const reference = p0Reference(request);
   const productId = item.odoo_product_id ?? null;
 
@@ -105,6 +139,7 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
     setNotOpen(null);
     setEarlyReason("");
     setRefused("");
+    setFollowUp(null);
     onOpenChange(false);
   };
 
@@ -121,6 +156,8 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
           ? `${item.name}: RFQ ${updated.po_number} attached; still To purchase.`
           : `${item.name}: ${updated?.po_number} attached; ${ITEM_STATUS_LABELS[updated?.status] || updated?.status}.`,
       );
+      // #798 review (Story 16): the P0 has no row for this item's product, so it may be the wrong P0.
+      if (updated?.warning) warningToast(updated.warning, 15000);
       // #730: the IPAS follows the attach; say what happened to it (raised, SOR added, filed, or Odoo silent).
       const ipas = updated?.ipas;
       if (ipas?.message && ipas.result !== "not_project") {
@@ -129,6 +166,12 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
           // A37: the P0 is on a Filed IPAS, so this line will not be received into it. Say so plainly, and stay longer.
           warningToast(`${ipas.message} This line will not be received into that IPAS. Raise a new IPAS if it needs one.`, 15000);
         } else warningToast(ipas.message);
+      }
+      // #809: the other items this P0 covers are offered before the window closes. #811: so are open
+      // items with no Odoo product, on their own.
+      if (updated?.offer?.offered?.length || updated?.offer?.unticked?.length || updated?.offer?.noOdooProduct?.length) {
+        setFollowUp({ offer: updated.offer, poNumber: chosen, orderEarly: !!notOpen, earlyReason: earlyReason.trim() });
+        return;
       }
       close();
     },
@@ -145,6 +188,20 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
   const busy = attachMutation.isPending;
   const earlyMissing = !!notOpen && !earlyReason.trim();
   const rowsOf = (list) => list.map((p0) => p0Row({ p0, productId, chosen: picked, onChoose: (name) => { setTyped(""); setPicked(name); } }));
+
+  if (followUp) {
+    return (
+      <AttachToOthers
+        open={open}
+        onClose={close}
+        requestId={requestId}
+        poNumber={followUp.poNumber}
+        offer={followUp.offer}
+        orderEarly={followUp.orderEarly}
+        earlyReason={followUp.earlyReason}
+      />
+    );
+  }
 
   return (
     <ModalShell
@@ -222,7 +279,7 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
 
 /**
  * Issue #549 — correcting the PO number on an Purchased item. The new number is
- * checked against Odoo like the first; PO lines picked on the old PO are cleared.
+ * checked against Odoo like the first; P0 lines picked on the old PO are cleared.
  */
 export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
   const refresh = useRefreshRequest(requestId);
@@ -267,7 +324,7 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
       }
     >
       <p className="text-sm text-muted-foreground">
-        {item.name}{item.po_number ? `, now on PO ${item.po_number}` : ", with no PO yet"}. The new number is checked against Odoo, and any PO line picked on the old PO is cleared.
+        {item.name}{item.po_number ? `, now on PO ${item.po_number}` : ", with no PO yet"}. The new number is checked against Odoo, and any P0 line picked on the old PO is cleared.
       </p>
       <div className="space-y-1.5">
         <FieldBox label="New PO number" bare>
@@ -282,11 +339,12 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
 }
 
 /**
- * Issue #312 — picking the Odoo PO line(s) an Purchased item is bought on, from
- * the lines its PO has on the IPAS stored Odoo copy (`lineIds`). The caller
- * only offers this when there are lines; the database refuses any other.
+ * Issue #312 — picking the Odoo P0 line(s) an Purchased item is bought on, from
+ * the lines its PO has on the IPAS stored Odoo copy (`lines`: `{ line_id, product_name,
+ * quantity }` rows, #804). The caller only offers this when there are lines; the database
+ * refuses any other.
  */
-export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds }) {
+export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lines }) {
   const refresh = useRefreshRequest(requestId);
   const [picked, setPicked] = useState(() => new Set(item.odoo_po_line_ids || []));
 
@@ -301,13 +359,14 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds
   const pickMutation = useMutation({
     mutationFn: (ids) => purchaseRequestService.pickPoLines(item.id, ids),
     onSuccess: () => {
-      toast.success(`${item.name}: PO line picked.`);
+      toast.success(`${item.name}: P0 line picked.`);
       onOpenChange(false);
     },
     onError: (error) => toast.error(refusal(error)),
     onSettled: refresh,
   });
 
+  const lineIds = lines.map((line) => line.line_id);
   const pickedIds = lineIds.filter((id) => picked.has(id));
 
   return (
@@ -315,7 +374,7 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds
       open={open}
       onOpenChange={onOpenChange}
       className={OVER_REQUEST_MODAL}
-      crumbs={["Purchase Requests", "Pick the PO line"]}
+      crumbs={["Purchase Requests", "Pick the P0 line"]}
       actions={
         <Button
           size="lg"
@@ -331,11 +390,14 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds
         {item.name}, on PO {item.po_number}. The lines are from the PO&apos;s IPAS copy of Odoo.
       </p>
       <ul className="divide-y divide-border">
-          {lineIds.map((id) => (
-            <li key={id} className="py-2.5">
+          {lines.map((line) => (
+            <li key={line.line_id} className="py-2.5">
               <FieldBox inline className="gap-3">
-                <Checkbox checked={picked.has(id)} onCheckedChange={(on) => toggle(id, on)} />
-                <span className="text-sm font-semibold text-foreground">PO line {id}</span>
+                <Checkbox checked={picked.has(line.line_id)} onCheckedChange={(on) => toggle(line.line_id, on)} />
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                  {line.product_name || "No product name"}
+                </span>
+                <span className="shrink-0 text-sm text-muted-foreground">Qty {line.quantity}</span>
               </FieldBox>
             </li>
           ))}

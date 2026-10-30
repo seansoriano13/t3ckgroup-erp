@@ -216,10 +216,10 @@ describe("the TSR a Technical inspection gives", () => {
   });
 });
 
-describe("a picked PO line's label", () => {
+describe("a picked P0 line's label", () => {
   it("shows the product, with its quantity and unit", () => {
     expect(pickedLineLabel({ productName: "Cutter", quantity: 6, unit: "Unit" })).toBe("Cutter · 6 Unit");
-    expect(pickedLineLabel({ productName: null, quantity: null, unit: null })).toBe("PO line");
+    expect(pickedLineLabel({ productName: null, quantity: null, unit: null })).toBe("P0 line");
   });
 });
 
@@ -254,7 +254,7 @@ describe("what still stops a draft slip from being submitted", () => {
     expect(gaps.map((g) => g.key)).toEqual(["lines", "origin", "priority", "entity"]);
   });
 
-  it("asks a typed line for its description and unit, but not a PO line", () => {
+  it("asks a typed line for its description and unit, but not a P0 line", () => {
     const typed = { kind: "typed", description: "", unit: "", quantity: "1" };
     expect(slipGaps({ header, lines: [{ ...po, description: "", unit: "" }, typed] }).map((g) => g.key)).toEqual(["description", "unit"]);
   });

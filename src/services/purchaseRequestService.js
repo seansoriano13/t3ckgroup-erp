@@ -28,7 +28,7 @@ const MEMBER_SELECT =
  * side may only cancel) and posts the change in the request.
  *
  * PO (#312): Ordered takes an optional PO number, checked against Odoo first;
- * the PO line(s) the item is bought on are picked from the PO's IPAS stored
+ * the P0 line(s) the item is bought on are picked from the PO's IPAS stored
  * Odoo copy (none exists yet, so nothing can be picked).
  *
  * Chat and Buyer (#307): members post straight into the request's messages
@@ -376,7 +376,7 @@ export const purchaseRequestService = {
     return data;
   },
 
-  // ── PO number and PO lines (#312) ────────────────────────────────────────
+  // ── PO number and P0 lines (#312) ────────────────────────────────────────
 
   /**
    * Attaches an Odoo P0 to an item (#684). The `odoo-po-verify` edge function reads the P0
@@ -394,6 +394,40 @@ export const purchaseRequestService = {
     const po = normalizePoNumber(poNumber);
     if (!po || !isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
     return purchaseRequestService.applyPoAction("attach", itemId, po, orderEarly ? { orderEarly: true, orderEarlyReason } : {});
+  },
+
+  /**
+   * #809: attaches one P0 to several items of the same request in one call (`odoo-po-verify`,
+   * action "attach_many"). The server reads the P0 from Odoo once. Returns one result per item,
+   * in the order sent: `{ itemId, ok, status }` when it attached, or `{ itemId, ok: false, message }`
+   * naming why it did not (one failure never stops the others). Throws when the call as a whole is
+   * refused (no Odoo answer, not signed in). `orderEarly` and its reason apply to every item.
+   */
+  async attachMany(poNumber, itemIds, { orderEarly = false, orderEarlyReason = "" } = {}) {
+    const po = normalizePoNumber(poNumber);
+    if (!po || !isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
+    const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
+      body: {
+        action: "attach_many",
+        poNumber: po,
+        itemIds,
+        ...(orderEarly ? { orderEarly: true, orderEarlyReason } : {}),
+      },
+    });
+    if (error) {
+      let message = "Couldn't attach the P0 to the other items. Try again.";
+      try {
+        const body = await error.context?.json?.();
+        if (body?.message) message = body.message;
+      } catch {
+        // keep the generic message
+      }
+      throw new Error(message);
+    }
+    if (!data?.success) {
+      throw Object.assign(new Error(data?.message || "Couldn't attach the P0 to the other items. Try again."), { code: data?.code });
+    }
+    return data.results || [];
   },
 
   /**
@@ -430,7 +464,7 @@ export const purchaseRequestService = {
 
   /**
    * Corrects the PO on an Ordered item (#549). The new number is checked against
-   * Odoo like the first one; picked PO lines on the old PO are cleared. Throws on
+   * Odoo like the first one; picked P0 lines on the old PO are cleared. Throws on
    * a number that isn't an Odoo PO. Returns the updated item.
    */
   async correctPo(itemId, poNumber) {
@@ -461,7 +495,11 @@ export const purchaseRequestService = {
       throw Object.assign(new Error(data?.message || "Couldn't save the PO number. Try again."), { code: data?.code });
     }
     // #730: attaching also raises the IPAS (or adds the SOR to the live one); `ipas` says what happened.
-    return data.ipas ? { ...data.item, ipas: data.ipas } : data.item;
+    const updated = data.ipas ? { ...data.item, ipas: data.ipas } : data.item;
+    // #798 review: the P0 may be the wrong one for this item (no row for its product); the server says so here.
+    const withWarning = data.warning ? { ...updated, warning: data.warning } : updated;
+    // #809: after an attach, the other items this P0 covers (the server's offer).
+    return data.offer ? { ...withWarning, offer: data.offer } : withWarning;
   },
 
   /**
@@ -479,7 +517,7 @@ export const purchaseRequestService = {
   },
 
   /**
-   * The Odoo PO line ids on the IPAS stored copy of the item's PO — what may
+   * The Odoo P0 line ids on the IPAS stored copy of the item's PO — what may
    * be picked. Empty when the item has no PO number or its PO has no IPAS.
    */
   async poLines(itemId) {
@@ -490,7 +528,18 @@ export const purchaseRequestService = {
   },
 
   /**
-   * Records the PO line(s) an Ordered item is bought on. The database
+   * #804: the same lines as poLines, each with its product name and quantity, as
+   * `{ line_id, product_name, quantity }` rows. What the Pick P0 line screen lists.
+   */
+  async poLineRows(itemId) {
+    if (!itemId) return [];
+    const { data, error } = await supabase.rpc("purchase_request_item_po_line_rows", { p_item_id: itemId });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Records the P0 line(s) an Ordered item is bought on. The database
    * refuses any line not on the PO's IPAS copy. Returns the updated item.
    */
   async pickPoLines(itemId, lineIds) {

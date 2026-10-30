@@ -19,6 +19,8 @@ describe("STATUS_THEME", () => {
         ["VIOLET", "violet"],
         ["ORANGE", "orange"],
         ["MAUVE", "mauve"],
+        ["TEAL", "teal"],
+        ["GREY", "gray"],
     ])("names %s as %s", (key, value) => {
         expect(STATUS_THEME[key]).toBe(value)
     })

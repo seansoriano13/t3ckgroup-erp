@@ -79,7 +79,7 @@ describe("purchasing", () => {
     await user.click(screen.getByRole("button", { name: "To purchase" }))
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("To purchase")).toBeInTheDocument())
 
-    await user.click(await screen.findByRole("button", { name: "Undo" }))
+    await user.click(await screen.findByRole("button", { name: "Undo: back to Not checked" }))
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Not checked")).toBeInTheDocument())
     expect(db.rows("purchase_request_items")[0].status).toBe("not_checked")
   })
@@ -182,6 +182,60 @@ describe("the sales side", () => {
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Cancelled")).toBeInTheDocument())
     expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
     expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "cancelled", status_changed_by: salesperson.id })
+  })
+})
+
+describe("Available on short stock (#803)", () => {
+  beforeEach(() => stubPurchaseRequestItemRpcs({ actorId: buyer.id, canSubstitute: true }))
+
+  const stockCheck = (free) =>
+    db.seed("sor_stock_snapshots", {
+      opportunity_id: request.opportunity_id,
+      fetched_at: new Date().toISOString(),
+      data: { products: { 101: { type: "product", free } } },
+    })
+
+  it("asks for a reason, showing Now x free of y, before a short line becomes Available", async () => {
+    seedItem({ status: "to_purchase", odoo_product_id: 101 })
+    stockCheck(4)
+    const user = setupUser()
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
+
+    const row = await rowNamed("Full Body Harness")
+    await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
+    await user.click(screen.getByRole("button", { name: "Available" }))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByText(/Now 4 free of 10/)).toBeInTheDocument()
+    const confirm = within(dialog).getByRole("button", { name: "Mark Available" })
+    expect(confirm).toBeDisabled()
+    await user.type(within(dialog).getByLabelText("Reason"), "Transfer due Friday")
+    await user.click(confirm)
+
+    await waitFor(() => expect(db.rows("purchase_request_items")[0].status).toBe("available"))
+    expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "available", stock_short_free: 4, stock_short_needed: 10 })
+    expect(db.rows("purchase_request_messages")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ metadata: expect.objectContaining({ event: "item_short_stock_reason", reason: "Transfer due Friday" }) }),
+      ]),
+    )
+  })
+
+  it("asks nothing when the latest stock check covers the line", async () => {
+    seedItem({ status: "to_purchase", odoo_product_id: 101, quantity: 3 })
+    stockCheck(4)
+    const user = setupUser()
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
+
+    const row = await rowNamed("Full Body Harness")
+    await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
+    await user.click(screen.getByRole("button", { name: "Available" }))
+
+    await waitFor(() => expect(db.rows("purchase_request_items")[0].status).toBe("available"))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "available", stock_short_free: null })
   })
 })
 

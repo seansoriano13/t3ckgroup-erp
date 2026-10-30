@@ -222,7 +222,7 @@ function checkBySlot(id, employee, at, signatureDeclined) {
 /** The label a line's PO picks show: product name, then quantity and unit. */
 export function pickedLineLabel({ productName, quantity, unit }) {
   const qty = quantity == null ? "" : ` · ${Number(quantity)} ${unit ?? ""}`.trimEnd();
-  return `${productName || "PO line"}${qty}`;
+  return `${productName || "P0 line"}${qty}`;
 }
 
 /**

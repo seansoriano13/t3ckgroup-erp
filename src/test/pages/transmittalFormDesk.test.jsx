@@ -23,14 +23,14 @@ const pick = (id, name) => ({
   sors: [{ id: "s1", sales_reference: "SOR-1" }],
 });
 
-/** The Transmittal form's two panes (#252): live PO lines on the left, the slip on the right. */
-describe("Transmittal form, PO lines beside the slip", () => {
+/** The Transmittal form's two panes (#252): live P0 lines on the left, the slip on the right. */
+describe("Transmittal form, P0 lines beside the slip", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service.pickablePoLines.mockResolvedValue([pick(1, "Cutter"), pick(2, "Blade")]);
   });
 
-  it("puts a clicked PO line on the slip, fills Company and Project from it, and takes it off on a second click", async () => {
+  it("puts a clicked P0 line on the slip, fills Company and Project from it, and takes it off on a second click", async () => {
     const user = setupUser();
     renderWithProviders(<TransmittalForm />);
 
@@ -51,7 +51,7 @@ describe("Transmittal form, PO lines beside the slip", () => {
     const user = setupUser();
     renderWithProviders(<TransmittalForm />);
 
-    await user.type(await screen.findByLabelText("Find a PO line"), "P02552");
+    await user.type(await screen.findByLabelText("Find a P0 line"), "P02552");
     await user.click(await screen.findByRole("button", { name: /Add all 2 lines of P02552/ }));
 
     expect(screen.getByText("On the slip · 2")).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe("Transmittal form, PO lines beside the slip", () => {
     service.pickablePoLines.mockResolvedValue([]);
     renderWithProviders(<TransmittalForm />);
 
-    await user.type(await screen.findByLabelText("Find a PO line"), "Spare cable");
+    await user.type(await screen.findByLabelText("Find a P0 line"), "Spare cable");
     await user.click(await screen.findByRole("button", { name: /Add “Spare cable” as a typed line/ }));
 
     await waitFor(() => expect(screen.getByLabelText("Description")).toHaveValue("Spare cable"));
