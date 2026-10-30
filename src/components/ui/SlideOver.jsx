@@ -16,6 +16,8 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "./drawer"
  * The last record stays rendered while the panel slides shut, and focus lands
  * on the panel itself rather than its first button, so a bare Enter reaches a
  * decision shortcut instead of clicking the crumb.
+ *
+ * `overModal` lifts it above a record window (a Dialog at `z-[70]`) it is opened from.
  */
 export default function SlideOver({
   record,
@@ -29,6 +31,7 @@ export default function SlideOver({
   onOpenFull,
   openFullLabel = "Open full",
   headerActions,
+  overModal = false,
   children,
 }) {
   // A lone record (no list to step through) shows no position count or arrows.
@@ -56,7 +59,7 @@ export default function SlideOver({
 
   return (
     <Drawer open={!!record} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="w-[560px] max-sm:w-full" initialFocus={focusRef}>
+      <DrawerContent className={overModal ? "z-[75] w-[560px] max-sm:w-full" : "w-[560px] max-sm:w-full"} initialFocus={focusRef}>
         {current && (
           <div ref={focusRef} tabIndex={-1} className="flex min-h-0 flex-1 flex-col outline-none">
             <div className="flex items-start gap-3 border-b border-border px-6 py-5">
