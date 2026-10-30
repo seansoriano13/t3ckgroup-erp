@@ -15,6 +15,7 @@ import StatusBadge from "../../StatusBadge";
 import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
 import MarkLostButton from "../MarkLostButton";
+import ReopenButton from "../ReopenButton";
 import { isLostCode, isWonCode } from "../../../constants/sor";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
@@ -413,6 +414,12 @@ export default function SorModalHeader({
                   <MarkLostButton opportunity={opportunity} />
                 </div>
               )}
+            {/* #813: Reopen takes the same spot on a Lost deal. */}
+            {isLostCode(opportunity.status, pipelineStages) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <ReopenButton opportunity={opportunity} />
+              </div>
+            )}
           </>
         )}
       </div>

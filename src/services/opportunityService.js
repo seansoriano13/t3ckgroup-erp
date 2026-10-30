@@ -4214,6 +4214,18 @@ export const opportunityService = {
     return Array.isArray(data) ? data[0] : data;
   },
 
+  /**
+   * Reopen (#813): the only way out of a Lost Stage or status. The database
+   * checks the deal is Lost, the permission, and where it goes back to.
+   */
+  async reopen(opportunityId) {
+    const { data, error } = await supabase.rpc("reopen_opportunity", {
+      p_opportunity_id: opportunityId,
+    });
+    if (error) throw new Error(error.message.replace(/^Reopen: /, ""));
+    return Array.isArray(data) ? data[0] : data;
+  },
+
   async revertStage(opportunityId, progressChoice = null) {
     const { data, error } = await supabase.rpc("sor_revert_stage", {
       p_opportunity_id: opportunityId,
