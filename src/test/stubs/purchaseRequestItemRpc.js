@@ -230,9 +230,17 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     })
   }
 
-  const ipasOf = (poNumber) => (poNumber && ipasLines[poNumber]) || []
+  // #804: an ipasLines entry is a list of line ids, or of `{ line_id, product_name, quantity }` rows.
+  const ipasRowsOf = (poNumber) =>
+    ((poNumber && ipasLines[poNumber]) || []).map((l) =>
+      typeof l === "number" ? { line_id: l, product_name: `Product ${l}`, quantity: 1 } : { quantity: 1, ...l },
+    )
+  const ipasOf = (poNumber) => ipasRowsOf(poNumber).map((l) => l.line_id)
 
   stubRpc("purchase_request_item_po_lines", (args) => ipasOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
+
+  // #804: 20261118030000_804_attach_po_line_ids.sql. The lines of the IPAS copy with their product and quantity.
+  stubRpc("purchase_request_item_po_line_rows", (args) => ipasRowsOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
 
   // #688: 20261105000000_is_this_yours_on_s0.sql. The rules are proven in 240-is-this-yours.test.js.
   stubRpc("purchase_request_answer_yours", (args) => {

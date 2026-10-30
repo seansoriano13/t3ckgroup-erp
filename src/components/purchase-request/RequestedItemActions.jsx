@@ -143,9 +143,9 @@ export default function RequestedItemActions({ item, request, actor }) {
     !!item.po_number &&
     (item.status === ITEM_STATUS.PURCHASED || item.status === ITEM_STATUS.RECEIVED);
 
-  const { data: poLineIds = [] } = useQuery({
+  const { data: poLineRows = [] } = useQuery({
     queryKey: purchaseRequestKeys.poLines(requestId, item.id),
-    queryFn: () => purchaseRequestService.poLines(item.id),
+    queryFn: () => purchaseRequestService.poLineRows(item.id),
     enabled: onPo,
   });
 
@@ -165,7 +165,7 @@ export default function RequestedItemActions({ item, request, actor }) {
   const next = allowedTransitions(item.status, side).filter(
     (status) => !NOT_FROM_THE_MENU.includes(status) && (status !== item.status || warned),
   );
-  const canPickLines = onPo && poLineIds.length > 0;
+  const canPickLines = onPo && poLineRows.length > 0;
   // #549: Purchasing can correct the PO while the item is Ordered; Received is fixed.
   const canCorrectPo = side === MEMBER_SIDE.PURCHASING && item.status === ITEM_STATUS.PURCHASED;
   const canInteract = next.length > 0 || canPickLines || canCorrectPo;
@@ -203,7 +203,7 @@ export default function RequestedItemActions({ item, request, actor }) {
         <CorrectPoDialog open onOpenChange={setCorrectingPo} item={item} requestId={requestId} />
       )}
       {canPickLines && pickingLines && (
-        <PickPoLinesDialog open onOpenChange={setPickingLines} item={item} requestId={requestId} lineIds={poLineIds} />
+        <PickPoLinesDialog open onOpenChange={setPickingLines} item={item} requestId={requestId} lines={poLineRows} />
       )}
     </>
   );

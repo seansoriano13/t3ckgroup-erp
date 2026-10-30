@@ -22,7 +22,8 @@
 //     a verdict or a P0 fact.
 //       attach (#684): reads the P0 as it stands in Odoo and calls
 //         purchase_request_item_attach_po (#724: with `orderEarly` and `orderEarlyReason` from
-//         the body when buying has not opened yet), which sets the line from it (an RFQ
+//         the body when buying has not opened yet; #804: with the P0 rows picked for the item's
+//         Odoo product, from _shared/p0Matching.ts, and a `warning` when the P0 has no row for it), which sets the line from it (an RFQ
 //         stays To purchase; a confirmed P0 is Purchased, or Received once
 //         everything arrived). Odoo must answer; a P0 is never attached unseen.
 //         #730: it then raises the P0's IPAS, or adds the line's SOR to the live one, and answers `ipas`.
@@ -34,7 +35,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { callerEmail } from "../_shared/caller.ts";
 import { readPo } from "../_shared/odooIpasCopy.ts";
 import { readP0s } from "../_shared/odooP0.ts";
-import { p0Facts, p0UnitPrice } from "../_shared/p0Suggestions.ts";
+import { matchP0ToItems, pickedLineIds, type MatchItem } from "../_shared/p0Matching.ts";
+import { type OdooP0, p0Facts, p0UnitPrice } from "../_shared/p0Suggestions.ts";
 import {
   authenticate,
   corsHeaders,
@@ -146,6 +148,92 @@ async function autoIpas(admin: ReturnType<typeof createClient>, email: string, i
 /** The database's refusal, without the function name it leads with. */
 const refusalText = (message: string) => message.replace(/^[a-z_]+: /, "");
 
+/** What the attach of one item gave back: the saved item and its IPAS answer, or the refusal to show. */
+type AttachResult =
+  | { ok: true; item: Record<string, unknown>; ipas: unknown; warning: string | null }
+  | { ok: false; refused: boolean; message: string; code?: string };
+
+/** Said when the P0 has no line for the item's Odoo product (#804). */
+const NO_ROW_WARNING = "This P0 has no line for this product. It may be the wrong P0.";
+
+/**
+ * #804: attaches one P0 to one Requested Item. This is the per-item body of the attach action; the
+ * bulk attach (#809) calls it once per item with the same P0 read. It reads the item and its sibling items
+ * on the request, picks the P0 rows for the item's Odoo product (pickedLineIds: none when another open item
+ * shares the product), sets the line from the P0's facts, stores the picked rows, records the product and the
+ * Actual cost, and raises the IPAS. Never throws on a refusal; returns it as `ok: false`.
+ */
+async function attachP0ToItem(
+  admin: ReturnType<typeof createClient>,
+  email: string,
+  itemId: string,
+  p0: OdooP0 | undefined,
+  poNumber: string | null,
+  order: { orderEarly: boolean; orderEarlyReason: string | null },
+): Promise<AttachResult> {
+  const { data: target } = await admin
+    .from("purchase_request_items")
+    .select("request_id, quantity")
+    .eq("id", itemId)
+    .maybeSingle();
+  if (!target) return { ok: false, refused: true, message: "This line was not found." };
+  const { data: siblings } = await admin
+    .from("purchase_request_items")
+    .select("id, status, odoo_product_id, po_number")
+    .eq("request_id", target.request_id);
+  // The item is being attached now, so the P0 it had (if any) does not count against it.
+  const items: MatchItem[] = ((siblings ?? []) as MatchItem[]).map((i) => (i.id === itemId ? { ...i, po_number: null } : i));
+  const self = items.find((i) => i.id === itemId);
+  if (!p0 || !self) {
+    return { ok: false, refused: true, message: `${poNumber ?? "This P0"} is not in Odoo, so it can't be attached.` };
+  }
+
+  const picked = pickedLineIds(p0, self, items);
+  const facts = p0Facts(p0, self.odoo_product_id, picked, target.quantity ?? null);
+  if (!facts) {
+    return { ok: false, refused: true, message: `${p0.name} is cancelled in Odoo, so it can't be attached.` };
+  }
+  const outcome = matchP0ToItems(p0, items).find((o) => o.itemId === itemId);
+
+  const { data, error } = await admin.rpc("purchase_request_item_attach_po", {
+    p_actor_email: email,
+    p_item_id: itemId,
+    p_po_number: p0.name,
+    p_facts: facts,
+    // #724: Order early. The database decides whether the SOR's stage needs it.
+    p_order_early: order.orderEarly,
+    p_order_early_reason: order.orderEarlyReason,
+    // #804: the P0 rows picked for this item's product (empty when none).
+    p_line_ids: picked,
+  });
+  if (error) {
+    // "Buying opens here" refusal: the screen offers Order early instead of just showing the text.
+    // The database names it in the error's hint, the repo's refusal code.
+    const code = error.hint === "buying_not_open" ? "buying_not_open" : undefined;
+    return { ok: false, refused: true, message: refusalText(error.message), ...(code ? { code } : {}) };
+  }
+  // #688: remember the Odoo product on the P0 line, so a new S0 line for the same product can ask "Is this yours?".
+  await admin.from("purchase_request_items").update({ bought_product_id: facts.bought_product_id }).eq("id", itemId);
+  // The P0's price is the Component's Actual cost (#686), sent in its own currency: the database turns a
+  // foreign one into pesos at the Canvass winner's rate. The attach already stands, so a miss here is logged, not fatal.
+  const actual = p0UnitPrice(p0, self.odoo_product_id, picked);
+  const { error: priceError } = await admin.rpc("costing_set_p0_price", {
+    p_actor_email: email,
+    p_item_id: itemId,
+    p_price: actual.price,
+    p_currency: actual.currency,
+  });
+  if (priceError) console.error("odoo-po-verify actual cost error:", priceError.message);
+  // #730: the IPAS follows the attach. A miss here never undoes it.
+  const ipas = await autoIpas(admin, email, itemId, p0.name);
+  return {
+    ok: true,
+    item: { ...data, bought_product_id: facts.bought_product_id },
+    ipas,
+    warning: outcome?.outcome === "no_row" ? NO_ROW_WARNING : null,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -200,45 +288,20 @@ Deno.serve(async (req) => {
         // Read the P0 as it stands now; its own number is the canonical one (a typed one may have lost zeroes).
         const seen = odoo as unknown as { uid: number; order: { id: number } };
         const [p0] = await readP0s(seen.uid, [["id", "=", seen.order.id]], 1);
-        const { data: row } = await admin
-          .from("purchase_request_items")
-          .select("odoo_product_id, odoo_po_line_ids, quantity")
-          .eq("id", itemId)
-          .maybeSingle();
-        const facts = p0 && p0Facts(p0, row?.odoo_product_id ?? null, row?.odoo_po_line_ids ?? [], row?.quantity ?? null);
-        if (!facts) {
-          return jsonResponse({ success: false, refused: true, message: `${ref} is cancelled in Odoo, so it can't be attached.` });
-        }
-        const { data, error } = await admin.rpc("purchase_request_item_attach_po", {
-          p_actor_email: email,
-          p_item_id: itemId,
-          p_po_number: p0.name,
-          p_facts: facts,
-          // #724: Order early. The database decides whether the SOR's stage needs it.
-          p_order_early: body.orderEarly === true,
-          p_order_early_reason: typeof body.orderEarlyReason === "string" ? body.orderEarlyReason : null,
+        const result = await attachP0ToItem(admin, email, itemId as string, p0, ref, {
+          orderEarly: body.orderEarly === true,
+          orderEarlyReason: typeof body.orderEarlyReason === "string" ? body.orderEarlyReason : null,
         });
-        if (error) {
-          // "Buying opens here" refusal: the screen offers Order early instead of just showing the text.
-          // The database names it in the error's hint, the repo's refusal code.
-          const code = error.hint === "buying_not_open" ? "buying_not_open" : undefined;
-          return jsonResponse({ success: false, refused: true, message: refusalText(error.message), ...(code ? { code } : {}) });
+        if (!result.ok) {
+          return jsonResponse({ success: false, refused: result.refused, message: result.message, ...(result.code ? { code: result.code } : {}) });
         }
-        // #688: remember the Odoo product on the P0 line, so a new S0 line for the same product can ask "Is this yours?".
-        await admin.from("purchase_request_items").update({ bought_product_id: facts.bought_product_id }).eq("id", itemId);
-        // The P0's price is the Component's Actual cost (#686), sent in its own currency: the database turns a
-        // foreign one into pesos at the Canvass winner's rate. The attach already stands, so a miss here is logged, not fatal.
-        const actual = p0UnitPrice(p0, row?.odoo_product_id ?? null, row?.odoo_po_line_ids ?? []);
-        const { error: priceError } = await admin.rpc("costing_set_p0_price", {
-          p_actor_email: email,
-          p_item_id: itemId,
-          p_price: actual.price,
-          p_currency: actual.currency,
+        return jsonResponse({
+          success: true,
+          verdict: "verified",
+          item: result.item,
+          ipas: result.ipas,
+          ...(result.warning ? { warning: result.warning } : {}),
         });
-        if (priceError) console.error("odoo-po-verify actual cost error:", priceError.message);
-        // #730: the IPAS follows the attach. A miss here never undoes it.
-        const ipas = await autoIpas(admin, email, itemId as string, p0.name);
-        return jsonResponse({ success: true, verdict: "verified", item: { ...data, bought_product_id: facts.bought_product_id }, ipas });
       } catch (err) {
         console.error("odoo-po-verify attach error:", err);
         return jsonResponse({ success: false, message: err instanceof Error ? err.message : "Odoo lookup failed." });

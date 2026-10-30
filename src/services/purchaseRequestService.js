@@ -490,6 +490,17 @@ export const purchaseRequestService = {
   },
 
   /**
+   * #804: the same lines as poLines, each with its product name and quantity, as
+   * `{ line_id, product_name, quantity }` rows. What the Pick P0 line screen lists.
+   */
+  async poLineRows(itemId) {
+    if (!itemId) return [];
+    const { data, error } = await supabase.rpc("purchase_request_item_po_line_rows", { p_item_id: itemId });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
    * Records the PO line(s) an Ordered item is bought on. The database
    * refuses any line not on the PO's IPAS copy. Returns the updated item.
    */

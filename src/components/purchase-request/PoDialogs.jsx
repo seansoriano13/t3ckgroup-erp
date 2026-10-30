@@ -314,10 +314,11 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
 
 /**
  * Issue #312 — picking the Odoo PO line(s) an Purchased item is bought on, from
- * the lines its PO has on the IPAS stored Odoo copy (`lineIds`). The caller
- * only offers this when there are lines; the database refuses any other.
+ * the lines its PO has on the IPAS stored Odoo copy (`lines`: `{ line_id, product_name,
+ * quantity }` rows, #804). The caller only offers this when there are lines; the database
+ * refuses any other.
  */
-export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds }) {
+export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lines }) {
   const refresh = useRefreshRequest(requestId);
   const [picked, setPicked] = useState(() => new Set(item.odoo_po_line_ids || []));
 
@@ -339,6 +340,7 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds
     onSettled: refresh,
   });
 
+  const lineIds = lines.map((line) => line.line_id);
   const pickedIds = lineIds.filter((id) => picked.has(id));
 
   return (
@@ -362,11 +364,14 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lineIds
         {item.name}, on PO {item.po_number}. The lines are from the PO&apos;s IPAS copy of Odoo.
       </p>
       <ul className="divide-y divide-border">
-          {lineIds.map((id) => (
-            <li key={id} className="py-2.5">
+          {lines.map((line) => (
+            <li key={line.line_id} className="py-2.5">
               <FieldBox inline className="gap-3">
-                <Checkbox checked={picked.has(id)} onCheckedChange={(on) => toggle(id, on)} />
-                <span className="text-sm font-semibold text-foreground">PO line {id}</span>
+                <Checkbox checked={picked.has(line.line_id)} onCheckedChange={(on) => toggle(line.line_id, on)} />
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                  {line.product_name || "No product name"}
+                </span>
+                <span className="shrink-0 text-sm text-muted-foreground">Qty {line.quantity}</span>
               </FieldBox>
             </li>
           ))}

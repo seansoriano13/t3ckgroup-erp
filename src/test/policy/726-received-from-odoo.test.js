@@ -7,7 +7,7 @@
  *   - an item with no picked line, or a copy with no received figure, does not move
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { FIXTURE_DOMAIN, ids, ensureCastLoaded } from "./support/cast.js"
+import { FIXTURE_DOMAIN, ids, ensureCastLoaded, castEmail } from "./support/cast.js"
 import { closeSql, serviceClient } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { purgeFixtureIpas, raiseAsPurchaser, recordOdooCopyAs } from "./support/ipas.js"
@@ -119,6 +119,24 @@ describe("Received from the Odoo receipt (#726)", () => {
         await raiseAndRefresh(po, [lineOf(881004, 6, 0), lineOf(881005, 4, 0), lineOf(881006, 50, 0)],
             [lineOf(881004, 6, 6), lineOf(881005, 4, 1), lineOf(881006, 50, 50)])
         expect(await item(id)).toMatchObject({ status: "purchased", odoo_received_qty: 7 })
+    })
+
+    it("#804: an item attached with picked lines moves to Received when its IPAS refresh shows it received", async () => {
+        const po = "P9871006"
+        const id = await insert("purchase_request_items", {
+            request_id: requestId, source: "new", name: `${MARKER} Boots ${po}`, unit: "pc", quantity: 10,
+            status: "to_purchase", requested_by: ids.dealOwner,
+        })
+        // The attach stores the P0 line the edge function picked for the item's product.
+        const attached = await svc().rpc("purchase_request_item_attach_po", {
+            p_actor_email: castEmail("outsider"), p_item_id: id, p_po_number: po,
+            p_facts: { state: "confirmed", ordered: 10, received: 0, bought_as: "Boots" }, p_line_ids: [881006],
+        })
+        expect(attached.error).toBeNull()
+        expect(await item(id)).toMatchObject({ status: "purchased", odoo_po_line_ids: [881006] })
+
+        await raiseAndRefresh(po, [lineOf(881006, 10, 0)], [lineOf(881006, 10, 10)])
+        expect(await item(id)).toMatchObject({ status: "received", odoo_received_qty: 10 })
     })
 
     it("no picked line, or a copy with no received figure: nothing moves", async () => {

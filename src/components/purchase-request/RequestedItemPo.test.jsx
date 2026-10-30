@@ -327,6 +327,26 @@ describe("picking the PO line", () => {
     expect(screen.queryByRole("button", { name: /Pick PO line/ })).not.toBeInTheDocument()
   })
 
+  it("lists each P0 line with its product name and quantity", async () => {
+    stubPurchaseRequestItemRpcs({
+      actorId: buyer.id,
+      ipasLines: { P01234: [{ line_id: 501, product_name: "Full Body Harness", quantity: 4 }, { line_id: 502, product_name: "Lanyard", quantity: 6 }] },
+    })
+    seedItem({ status: "received", po_number: "P01234", po_verification: "VERIFIED" })
+    const user = setupUser()
+    renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
+
+    await showDoneLines()
+    const row = await rowNamed("Full Body Harness")
+    await user.click(await within(row).findByRole("button", { name: "Change status of Full Body Harness" }))
+    await statusMenuReady()
+    await user.click(screen.getByRole("button", { name: /Pick PO line/ }))
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByRole("checkbox", { name: /Full Body Harness.*Qty 4/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole("checkbox", { name: /Lanyard.*Qty 6/ })).toBeInTheDocument()
+    expect(within(dialog).queryByText(/PO line 50/)).not.toBeInTheDocument()
+  })
+
   it("picks lines from the PO's IPAS copy once it exists, even after Received", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, ipasLines: { P01234: [501, 502] } })
     seedItem({ status: "received", po_number: "P01234", po_verification: "VERIFIED" })
@@ -339,7 +359,7 @@ describe("picking the PO line", () => {
     await statusMenuReady()
     await user.click(screen.getByRole("button", { name: /Pick PO line/ }))
     const dialog = await screen.findByRole("dialog")
-    await user.click(within(dialog).getByRole("checkbox", { name: "PO line 502" }))
+    await user.click(within(dialog).getByRole("checkbox", { name: /Product 502/ }))
     await user.click(within(dialog).getByRole("button", { name: "Pick line" }))
 
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText(/PO line 502/)).toBeInTheDocument())

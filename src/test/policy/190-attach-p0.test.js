@@ -30,8 +30,15 @@ const seedItem = (status = "to_purchase") =>
         requested_by: ids.dealOwner,
     })
 
-const attach = (who, itemId, facts, po = "P01234") =>
-    svc().rpc("purchase_request_item_attach_po", { p_actor_email: castEmail(who), p_item_id: itemId, p_po_number: po, p_facts: facts })
+// #804: `lineIds` is the P0 rows the edge function picked; left out, the database default (null) applies.
+const attach = (who, itemId, facts, po = "P01234", lineIds) =>
+    svc().rpc("purchase_request_item_attach_po", {
+        p_actor_email: castEmail(who),
+        p_item_id: itemId,
+        p_po_number: po,
+        p_facts: facts,
+        ...(lineIds === undefined ? {} : { p_line_ids: lineIds }),
+    })
 
 const byHand = async (who, itemId, status) =>
     (await clientFor(who)).rpc("purchase_request_set_item_status", { p_item_id: itemId, p_status: status })
@@ -97,6 +104,51 @@ describe("attaching a P0", () => {
         const { data, error } = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 4 }, "P05678")
         expect(error).toBeNull()
         expect(data).toMatchObject({ status: "purchased", po_number: "P05678", po_received: 4, odoo_po_line_ids: [] })
+    })
+
+    it("#804: stores the P0 line ids it is given, and a re-attach of the same P0 with new ids replaces them", async () => {
+        const id = await seedItem()
+        const first = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P01234", [701, 702])
+        expect(first.error).toBeNull()
+        expect(first.data).toMatchObject({ odoo_po_line_ids: [701, 702] })
+
+        const again = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P01234", [703])
+        expect(again.data).toMatchObject({ odoo_po_line_ids: [703] })
+    })
+
+    it("#804: a re-attach of a different P0 clears the old lines and stores the new ones", async () => {
+        const id = await seedItem()
+        await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P01234", [701, 702])
+        const { data, error } = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P05678", [811])
+        expect(error).toBeNull()
+        expect(data).toMatchObject({ po_number: "P05678", odoo_po_line_ids: [811] })
+    })
+
+    it("#804: a re-attach of a different P0 with no ids clears the old lines", async () => {
+        const id = await seedItem()
+        await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P01234", [701])
+        const { data } = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P05678")
+        expect(data).toMatchObject({ po_number: "P05678", odoo_po_line_ids: [] })
+    })
+
+    it("#804: the Pick P0 line rows read name and quantity from the live IPAS copy", async () => {
+        const id = await seedItem()
+        await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P04804")
+        const { error: ipasError } = await svc().from("ipas").insert({
+            po_number: "P04804",
+            priority: "medium",
+            source: "local",
+            purpose: "project",
+            state: "open",
+            odoo_copy: { po: { name: "P04804" }, lines: [{ line_id: 701, name: "Harness XL", quantity: 4 }, { line_id: 702, name: "Lanyard", quantity: 6 }] },
+        })
+        expect(ipasError).toBeNull()
+        const { data, error } = await (await clientFor("stageParticipant")).rpc("purchase_request_item_po_line_rows", { p_item_id: id })
+        expect(error).toBeNull()
+        expect(data).toEqual([
+            { line_id: 701, product_name: "Harness XL", quantity: 4 },
+            { line_id: 702, product_name: "Lanyard", quantity: 6 },
+        ])
     })
 
     it("refuses a Cancelled line", async () => {

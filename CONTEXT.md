@@ -695,7 +695,7 @@ its item through its SOR line. Once Purchased it records the Odoo purchase order
 number, which is how Landed Cost finds its way back. The server checks the PO
 number against Odoo itself: a PO Odoo doesn't know is refused, and when Odoo
 doesn't answer the PO is saved as "Not checked". Purchasing can Correct PO while
-the item is Purchased, which is checked again. Carries its own status: Not checked, then Available, or To purchase → Still canvassing → Purchased → Received; or out via Cannot source or Cancelled. There is no Substituted status: a substitute cancels the old item and keeps the "substitute for" link.
+the item is Purchased, which is checked again. An attach picks the P0 lines for the item's Odoo product automatically: every P0 row with that product (matched by Odoo product id, never by name), so a product split over two rows is counted whole. Nothing is picked when another open item on the request has the same product, when the P0 has no row for it (a warning says the P0 may be wrong), or when the item has no Odoo product. Carries its own status: Not checked, then Available, or To purchase → Still canvassing → Purchased → Received; or out via Cannot source or Cancelled. There is no Substituted status: a substitute cancels the old item and keeps the "substitute for" link.
 _Avoid_: Line Item, Procurement Request
 
 **Other request**:
