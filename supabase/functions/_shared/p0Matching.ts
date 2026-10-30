@@ -37,11 +37,18 @@ const CLOSED_STATUSES = new Set(["cancelled", "cannot_source", "received"]);
 
 const isOpen = (item: MatchItem) => !CLOSED_STATUSES.has(item.status);
 
-/** True when another open item on the request has the same Odoo product as `item`. */
-function sharesProduct(item: MatchItem, items: MatchItem[]): boolean {
+/**
+ * True when another open item on the request has the same Odoo product as `item`, and that item does not
+ * already have a different P0 (#798 review): an item on a different P0 is not competing for this P0's rows.
+ */
+function sharesProduct(item: MatchItem, items: MatchItem[], p0Name: string): boolean {
   if (item.odoo_product_id == null) return false;
   return items.some(
-    (other) => other.id !== item.id && isOpen(other) && other.odoo_product_id === item.odoo_product_id,
+    (other) =>
+      other.id !== item.id &&
+      isOpen(other) &&
+      !(other.po_number && other.po_number !== p0Name) &&
+      other.odoo_product_id === item.odoo_product_id,
   );
 }
 
@@ -51,7 +58,7 @@ function sharesProduct(item: MatchItem, items: MatchItem[]): boolean {
  * item on the request has the same product, or when the P0 has no row for it.
  */
 export function pickedLineIds(p0: OdooP0, item: MatchItem, items: MatchItem[]): number[] {
-  if (item.odoo_product_id == null || sharesProduct(item, items)) return [];
+  if (item.odoo_product_id == null || sharesProduct(item, items, p0.name)) return [];
   const ids = p0.lines
     .filter((line) => line.product_id === item.odoo_product_id && line.id != null)
     .map((line) => Number(line.id));
@@ -68,7 +75,7 @@ export function matchP0ToItems(p0: OdooP0, items: MatchItem[]): MatchOutcome[] {
     if (!p0.lines.some((line) => line.product_id === item.odoo_product_id)) {
       return { itemId: item.id, outcome: "no_row" };
     }
-    if (sharesProduct(item, items)) return { itemId: item.id, outcome: "shared_product" };
+    if (sharesProduct(item, items, p0.name)) return { itemId: item.id, outcome: "shared_product" };
     return { itemId: item.id, outcome: "offered", lineIds: pickedLineIds(p0, item, items) };
   });
 }

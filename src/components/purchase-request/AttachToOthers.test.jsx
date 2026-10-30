@@ -5,7 +5,8 @@
  */
 import { openRowNamed } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it } from "vitest"
-import { screen, waitFor, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
+import { Toaster } from "react-hot-toast"
 import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
@@ -148,16 +149,84 @@ describe("Attach to the other items", () => {
     expect(sent.filter((body) => body.action === "attach")).toHaveLength(1)
   })
 
-  it("names an item that shares its product as unticked, with a note", async () => {
+  it("lists an item that shares its product unticked, with a note, and lets it be ticked", async () => {
     stubVerify()
     mount()
-    await attachHarness(setupUser()); const dialog = await followUpWindow()
+    const user = setupUser()
+    await attachHarness(user); const dialog = await followUpWindow()
 
     const shared = await within(dialog).findByRole("checkbox", { name: "Attach to Sling" })
     expect(shared).not.toBeChecked()
-    // A base-ui checkbox is not a native disabled control: disabled is aria-disabled.
-    expect(shared).toHaveAttribute("aria-disabled", "true")
-    expect(within(dialog).getByText(/Same product as another open item on this request/)).toBeInTheDocument()
+    expect(shared).not.toHaveAttribute("aria-disabled", "true")
+    expect(within(dialog).getAllByText("Same product is on another line of this request. Its P0 line is not picked.")).toHaveLength(1)
+    expect(within(dialog).getByRole("button", { name: "Attach to 2 items" })).toBeEnabled()
+
+    await user.click(shared)
+    expect(shared).toBeChecked()
+    expect(within(dialog).getByRole("button", { name: "Attach to 3 items" })).toBeEnabled()
+    await user.click(within(dialog).getByRole("button", { name: "Attach to 3 items" }))
+    await waitFor(() => expect(sent.filter((body) => body.action === "attach_many")).toHaveLength(1))
+    // The server picks no P0 line for a shared item; the screen only sends its id.
+    expect(sent.find((body) => body.action === "attach_many").itemIds).toEqual([carabiner.id, lanyard.id, sling.id])
+  })
+
+  it("opens the window when the only other items are shared-product items, all unticked", async () => {
+    stubEdgeFunction("odoo-po-verify", (body) => {
+      sent.push(body)
+      return {
+        success: true,
+        verdict: "verified",
+        item: { id: harness.id, status: "purchased", po_number: "P01111" },
+        ipas: null,
+        offer: { offered: [], unticked: [{ itemId: sling.id, name: "Sling", reason: "shared_product" }], noOdooProduct: [] },
+      }
+    })
+    mount()
+    const user = setupUser()
+    await attachHarness(user)
+    const dialog = await followUpWindow()
+
+    expect(within(dialog).getByRole("checkbox", { name: "Attach to Sling" })).not.toBeChecked()
+    expect(within(dialog).getByRole("button", { name: "Attach to 0 items" })).toBeDisabled()
+  })
+
+  it("shows the warning for each item in the results, when the P0 has no row for it", async () => {
+    stubVerify({
+      manyResults: (body) =>
+        body.itemIds.map((itemId) =>
+          itemId === carabiner.id
+            ? { itemId, ok: true, status: "purchased", warning: "This P0 has no line for this product. It may be the wrong P0." }
+            : { itemId, ok: true, status: "to_purchase", warning: null },
+        ),
+    })
+    mount()
+    const user = setupUser()
+    await attachHarness(user); const dialog = await followUpWindow()
+    await user.click(await within(dialog).findByRole("button", { name: "Attach to 2 items" }))
+
+    const results = await within(dialog).findAllByTestId("attach-other-result")
+    expect(results[0]).toHaveTextContent("Carabiner: Purchased.")
+    expect(within(results[0]).getByTestId("attach-other-warning")).toHaveTextContent("This P0 has no line for this product. It may be the wrong P0.")
+    expect(within(results[1]).queryByTestId("attach-other-warning")).not.toBeInTheDocument()
+  })
+
+  it("shows the P0 warning as a toast after a single attach that has no row for the item's product", async () => {
+    stubEdgeFunction("odoo-po-verify", (body) => {
+      sent.push(body)
+      return {
+        success: true,
+        verdict: "verified",
+        item: { id: harness.id, name: "Full Body Harness", status: "purchased", po_number: "P01111" },
+        ipas: null,
+        offer: { offered: [], unticked: [], noOdooProduct: [] },
+        warning: "This P0 has no line for this product. It may be the wrong P0.",
+      }
+    })
+    mount()
+    render(<Toaster />)
+    await attachHarness(setupUser())
+
+    expect(await screen.findByText("This P0 has no line for this product. It may be the wrong P0.")).toBeInTheDocument()
   })
 
   it("shows the result for each item: its new status, and the reason a failed one did not attach", async () => {

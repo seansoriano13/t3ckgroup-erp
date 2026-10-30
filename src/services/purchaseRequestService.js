@@ -496,8 +496,10 @@ export const purchaseRequestService = {
     }
     // #730: attaching also raises the IPAS (or adds the SOR to the live one); `ipas` says what happened.
     const updated = data.ipas ? { ...data.item, ipas: data.ipas } : data.item;
+    // #798 review: the P0 may be the wrong one for this item (no row for its product); the server says so here.
+    const withWarning = data.warning ? { ...updated, warning: data.warning } : updated;
     // #809: after an attach, the other items this P0 covers (the server's offer).
-    return data.offer ? { ...updated, offer: data.offer } : updated;
+    return data.offer ? { ...withWarning, offer: data.offer } : withWarning;
   },
 
   /**

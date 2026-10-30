@@ -156,6 +156,8 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
           ? `${item.name}: RFQ ${updated.po_number} attached; still To purchase.`
           : `${item.name}: ${updated?.po_number} attached; ${ITEM_STATUS_LABELS[updated?.status] || updated?.status}.`,
       );
+      // #798 review (Story 16): the P0 has no row for this item's product, so it may be the wrong P0.
+      if (updated?.warning) warningToast(updated.warning, 15000);
       // #730: the IPAS follows the attach; say what happened to it (raised, SOR added, filed, or Odoo silent).
       const ipas = updated?.ipas;
       if (ipas?.message && ipas.result !== "not_project") {
@@ -167,7 +169,7 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
       }
       // #809: the other items this P0 covers are offered before the window closes. #811: so are open
       // items with no Odoo product, on their own.
-      if (updated?.offer?.offered?.length || updated?.offer?.noOdooProduct?.length) {
+      if (updated?.offer?.offered?.length || updated?.offer?.unticked?.length || updated?.offer?.noOdooProduct?.length) {
         setFollowUp({ offer: updated.offer, poNumber: chosen, orderEarly: !!notOpen, earlyReason: earlyReason.trim() });
         return;
       }

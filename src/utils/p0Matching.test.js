@@ -115,3 +115,31 @@ describe("matchP0ToItems", () => {
     ]);
   });
 });
+
+describe("shared product and a different P0 (#798 review)", () => {
+  it("picks the rows when the other open item already has a different P0", () => {
+    const order = p0("P1", "S1", [line(1, "A", 2, 0, 10)]);
+    const items = [item("a", 1), item("b", 1, "purchased", { po_number: "P9" })];
+    expect(pickedLineIds(order, items[0], items)).toEqual([10]);
+  });
+
+  it("offers the item, not shared, when the other open item has a different P0", () => {
+    const order = p0("P1", "S1", [line(1, "A", 2, 0, 10)]);
+    const items = [item("a", 1), item("b", 1, "to_purchase", { po_number: "P9" })];
+    expect(outcomeOf(order, items, "a")).toEqual({ itemId: "a", outcome: "offered", lineIds: [10] });
+  });
+
+  it("still blocks when the other open item has no P0 yet", () => {
+    const order = p0("P1", "S1", [line(1, "A", 2, 0, 10)]);
+    const items = [item("a", 1), item("b", 1, "to_purchase", { po_number: null })];
+    expect(pickedLineIds(order, items[0], items)).toEqual([]);
+    expect(outcomeOf(order, items, "a")).toEqual({ itemId: "a", outcome: "shared_product" });
+  });
+
+  it("still blocks when the other open item already has this same P0", () => {
+    const order = p0("P1", "S1", [line(1, "A", 2, 0, 10)]);
+    const items = [item("a", 1), item("b", 1, "purchased", { po_number: "P1" })];
+    expect(pickedLineIds(order, items[0], items)).toEqual([]);
+    expect(outcomeOf(order, items, "a")).toEqual({ itemId: "a", outcome: "shared_product" });
+  });
+});

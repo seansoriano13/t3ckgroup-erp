@@ -10,24 +10,26 @@ import { ITEM_STATUS_LABELS } from "../../constants/purchaseRequest";
 import { refusal, useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
 
-/** Said beside an item that shares its Odoo product with another open item, so it cannot be ticked. */
-const SHARED_NOTE = "Same product as another open item on this request, so it cannot take this P0 line. Attach it on its own.";
+/** Said beside an item that shares its Odoo product with another open item. It can be ticked, but no P0 line is picked for it. */
+const SHARED_NOTE = "Same product is on another line of this request. Its P0 line is not picked.";
 
 /**
  * #809: shown after a P0 is attached to one item, when the server's offer names other items it covers.
  * Each offered item is pre-ticked with the P0 line it matched and the status it will get. Items that
- * share a product with another open item are listed with a note and cannot be ticked. "Attach to N
- * items" sends the ticked ones in one call; "Skip" sends nothing. The result names each item, with its
- * new status or the reason it failed.
+ * share a product with another open item start unticked, with a note; they can be ticked, and then
+ * attach with no P0 line picked. "Attach to N items" sends the ticked ones in one call; "Skip" sends
+ * nothing. The result names each item, with its new status or the reason it failed, and any warning.
  */
 export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orderEarly, earlyReason }) {
   const refresh = useRefreshRequest(requestId);
   // #811: open items with no Odoo product start unticked; only the P0 items are pre-ticked.
   const noProduct = offer.noOdooProduct ?? [];
+  const shared = offer.unticked ?? [];
   const [ticked, setTicked] = useState(() => new Set(offer.offered.map((row) => row.itemId)));
   const [results, setResults] = useState(null);
   const [failure, setFailure] = useState("");
-  const names = new Map([...offer.offered, ...offer.unticked, ...noProduct].map((row) => [row.itemId, row.name]));
+  const names = new Map([...offer.offered, ...shared, ...noProduct].map((row) => [row.itemId, row.name]));
+  const tickable = [...offer.offered, ...shared, ...noProduct];
 
   const toggle = (itemId, on) => {
     setTicked((current) => {
@@ -40,7 +42,7 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
 
   const attachMutation = useMutation({
     mutationFn: () => {
-      const itemIds = [...offer.offered, ...noProduct].filter((row) => ticked.has(row.itemId)).map((row) => row.itemId);
+      const itemIds = tickable.filter((row) => ticked.has(row.itemId)).map((row) => row.itemId);
       return purchaseRequestService.attachMany(poNumber, itemIds, {
         orderEarly,
         orderEarlyReason: orderEarly ? earlyReason : "",
@@ -53,7 +55,7 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
   });
 
   const busy = attachMutation.isPending;
-  const count = [...offer.offered, ...noProduct].filter((row) => ticked.has(row.itemId)).length;
+  const count = tickable.filter((row) => ticked.has(row.itemId)).length;
   const title = `Attach P0 ${poNumber}`;
 
   if (results) {
@@ -81,6 +83,11 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
                 <span className="text-foreground">{ITEM_STATUS_LABELS[result.status] ?? result.status}.</span>
               ) : (
                 <span className="text-destructive">{result.message || "Not attached."}</span>
+              )}
+              {result.ok && result.warning && (
+                <span className="block text-xs font-medium text-destructive" data-testid="attach-other-warning">
+                  {result.warning}
+                </span>
               )}
               {result.ok && result.ipas && <span className="block text-xs text-muted-foreground">{result.ipas}</span>}
             </li>
@@ -132,9 +139,15 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
             </div>
           </li>
         ))}
-        {offer.unticked.map((row) => (
+        {shared.map((row) => (
           <li key={row.itemId} data-testid="attach-other-row" className="flex items-start gap-3 py-2">
-            <Checkbox className="mt-0.5" aria-label={`Attach to ${row.name}`} checked={false} disabled />
+            <Checkbox
+              className="mt-0.5"
+              aria-label={`Attach to ${row.name}`}
+              checked={ticked.has(row.itemId)}
+              disabled={busy}
+              onCheckedChange={(on) => toggle(row.itemId, on)}
+            />
             <div className="min-w-0 text-sm">
               <div className="font-medium text-foreground">{row.name}</div>
               <div className="text-xs text-muted-foreground">{SHARED_NOTE}</div>
