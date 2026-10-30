@@ -138,7 +138,7 @@ describe("attaching a P0", () => {
             po_number: "P04804",
             priority: "medium",
             source: "local",
-            purpose: "project",
+            purpose: "inventory",
             state: "open",
             odoo_copy: { po: { name: "P04804" }, lines: [{ line_id: 701, name: "Harness XL", quantity: 4 }, { line_id: 702, name: "Lanyard", quantity: 6 }] },
         })

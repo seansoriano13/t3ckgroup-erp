@@ -1,7 +1,7 @@
 -- Spec #798 / ticket #801: the Pick P0 line history post and its refusals say "P0 line" (zero), not "PO line".
 --
--- Only wording changes. The body is the one in 20261012100600_purchase_request_rpc_names.sql (the latest
--- definition of purchase_request_pick_po_lines); the three texts are the only edits. Identifiers, the
+-- Only wording changes. The body is the live one (supabase/schema/staging.sql; the status words were patched to
+-- Purchased in place after 20261012100600); the three texts are the only edits. Identifiers, the
 -- event name and the result are unchanged.
 
 create or replace function public.purchase_request_pick_po_lines(p_item_id uuid, p_line_ids int[])
@@ -28,8 +28,8 @@ begin
   if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
     raise exception 'purchase_request_pick_po_lines: only Purchasing picks an item''s P0 line' using errcode = '42501';
   end if;
-  if v_item.status not in ('ordered', 'received') then
-    raise exception 'purchase_request_pick_po_lines: % is %, not Ordered', v_item.name,
+  if v_item.status not in ('purchased', 'received') then
+    raise exception 'purchase_request_pick_po_lines: % is %, not Purchased', v_item.name,
       public._purchase_request_item_status_label(v_item.status)
       using errcode = '22023';
   end if;
