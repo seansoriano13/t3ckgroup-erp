@@ -203,12 +203,32 @@ describe("Attach P0", () => {
     expect(asked).toEqual([{ reference: "PR_0042", productId: null }])
   })
 
-  it("is off on a Received line", async () => {
+  it("is on for a Received line, so a wrong P0 can be replaced", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id })
-    seedItem({ status: "received" })
+    seedItem({ status: "received", po_number: "P01234", po_verification: "VERIFIED" })
     mount()
-    await screen.findByText(/done/)
-    expect(screen.queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
+    await showDoneLines()
+    const row = await rowNamed("Full Body Harness")
+    expect(within(row).getByRole("button", { name: "Attach P0" })).toBeEnabled()
+  })
+
+  it("is off on a Cancelled line", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id })
+    seedItem({ status: "cancelled" })
+    mount()
+    await showDoneLines()
+    const row = await rowNamed("Full Body Harness")
+    expect(within(row).getByRole("button", { name: "Attach P0" })).toBeDisabled()
+  })
+
+  it("re-attaching a different P0 to a Received line sets the status from Odoo", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found", p0s: { P01111: { ordered: 10, received: 0 } } })
+    seedItem({ status: "received", po_number: "P01234", po_verification: "VERIFIED", po_received: 10, po_ordered: 10 })
+    mount()
+    await showDoneLines()
+    await attach(setupUser(), "P01111")
+
+    await waitFor(() => expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "purchased", po_number: "P01111" }))
   })
 
   it("can't choose Purchased by hand", async () => {

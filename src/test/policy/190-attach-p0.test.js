@@ -87,11 +87,26 @@ describe("attaching a P0", () => {
         expect(data).toMatchObject({ status: "received" })
     })
 
-    it("refuses Cancelled and Received lines, the sales side, and a bad P0 number", async () => {
-        for (const status of ["cancelled", "received"]) {
-            const id = await seedItem(status)
-            expect((await attach("stageParticipant", id, { state: "confirmed", ordered: 1, received: 0 })).error).not.toBeNull()
-        }
+    it("a Received line takes a different P0: status comes from the facts and lines picked on the old P0 are cleared", async () => {
+        const id = await seedItem()
+        const first = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 10 }, "P01234")
+        expect(first.data).toMatchObject({ status: "received", po_number: "P01234" })
+        const picked = await svc().from("purchase_request_items").update({ odoo_po_line_ids: [111, 222] }).eq("id", id)
+        expect(picked.error).toBeNull()
+
+        const { data, error } = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 4 }, "P05678")
+        expect(error).toBeNull()
+        expect(data).toMatchObject({ status: "purchased", po_number: "P05678", po_received: 4, odoo_po_line_ids: [] })
+    })
+
+    it("refuses a Cancelled line", async () => {
+        const id = await seedItem("cancelled")
+        const { error } = await attach("stageParticipant", id, { state: "confirmed", ordered: 1, received: 0 })
+        expect(error).not.toBeNull()
+        expect(error.code).toBe("22023")
+    })
+
+    it("refuses the sales side and a bad P0 number", async () => {
         const id = await seedItem()
         expect((await attach("dealOwner", id, { state: "confirmed", ordered: 1, received: 0 })).error?.code).toBe("42501")
         expect((await attach("stageParticipant", id, { state: "confirmed", ordered: 1, received: 0 }, "PO-12")).error?.code).toBe("22023")
