@@ -6,6 +6,7 @@ import { flowStageTone, isLostFlowStage, outgoingStages } from "../../constants/
 import { bracketRuns } from "../flow-canvas/flowCanvasLayout";
 import RevertStageButton from "./RevertStageButton";
 import MarkLostButton from "./MarkLostButton";
+import ReopenButton from "./ReopenButton";
 import StageRibbonScroller from "./StageRibbonScroller";
 
 /**
@@ -201,6 +202,9 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
             opportunity={opportunity}
             lostStages={stages.filter((s) => isLostFlowStage(s, flow?.won_stage_id ?? null))}
           />
+        )}
+        {current && isLostFlowStage(current, flow?.won_stage_id ?? null) && (
+          <ReopenButton opportunity={opportunity} />
         )}
       </div>
 
