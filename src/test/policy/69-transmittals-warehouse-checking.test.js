@@ -51,7 +51,7 @@ async function raiseIpas() {
 const HEADER = { origin: "purchasing", check_warehouse: true, check_technical: true, priority: "high", entity: "T3ck Trading" }
 const WAREHOUSE_ONLY = { ...HEADER, check_technical: false }
 
-/** A submitted slip (as the warehouse member), with one PO line. Returns its id. */
+/** A submitted slip (as the warehouse member), with one P0 line. Returns its id. */
 async function submittedSlip(ipas, header = HEADER) {
     const { data: made, error } = await rpc("warehouse", "transmittal_create", {
         p_fields: header,

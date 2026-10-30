@@ -32,7 +32,7 @@ describe("purchaseRequestService — RPC names", () => {
     }
   })
 
-  it("calls the queue, status, PO line and Buyer RPCs by their purchase_request_ names", async () => {
+  it("calls the queue, status, P0 line and Buyer RPCs by their purchase_request_ names", async () => {
     await purchaseRequestService.listQueue()
     await purchaseRequestService.get("r1")
     await purchaseRequestService.itemActor("r1")

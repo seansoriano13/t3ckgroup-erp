@@ -691,7 +691,7 @@ line (name, quantity, unit) whenever the S0 is read; it is unique per SOR line,
 starts at Not checked, and stays with a "Removed from S0" note if Odoo drops the
 line, so a bought product is never lost. The request shows two sections, From the
 S0 and Other requests, with each product's status beside it. A Component reaches
-its item through its SOR line. Once Purchased it records the Odoo purchase order line as well as its
+its item through its SOR line. Once Purchased it records the P0 line (zero, the Odoo purchase order line) as well as its
 number, which is how Landed Cost finds its way back. The server checks the PO
 number against Odoo itself: a PO Odoo doesn't know is refused, and when Odoo
 doesn't answer the PO is saved as "Not checked". Purchasing can Correct PO while

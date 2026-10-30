@@ -49,7 +49,7 @@ async function raiseIpas() {
 
 const HEADER = { origin: "purchasing", check_warehouse: true, check_technical: true, priority: "high", entity: "T3ck Trading" }
 
-/** A submitted slip with one PO line, prepared by the Warehouse list. */
+/** A submitted slip with one P0 line, prepared by the Warehouse list. */
 async function submittedSlip(ipas, header = {}) {
     const { data: made, error } = await rpc("warehouse", "transmittal_create", {
         p_fields: { ...HEADER, ...header },

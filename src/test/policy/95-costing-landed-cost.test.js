@@ -1,7 +1,7 @@
 /**
  * Landed Cost flows back to the Costing Matrix (#283, map #210).
  *
- *   ipas_line_landed_costs     per PO line, #218's maths (internal: read here as the superuser)
+ *   ipas_line_landed_costs     per P0 line, #218's maths (internal: read here as the superuser)
  *   costing_landed_costs       per Component: picked lines' Landed Cost, shared lines split by
  *                              quantity, blank never partial, provisional until every IPAS is final;
  *                              cost tiers only (closed_book, cost: #546)
@@ -11,7 +11,7 @@
  *
  * The cast, on SOR A (dealOwner's): dealOwner (Deal Team), outsider (Purchasing access),
  * ipasSigner (final_acquire list) read cost; dealOwner (price tier, #546), technical (open Stage Participant window) and
- * ordinary don't. SOR B (closingSales') shares a PO line with SOR A.
+ * ordinary don't. SOR B (closingSales') shares a P0 line with SOR A.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"

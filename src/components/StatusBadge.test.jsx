@@ -8,6 +8,13 @@ import StatusBadge from "./StatusBadge"
 describe("StatusBadge theme", () => {
   const CANVAS_COLORS = ["sky", "violet", "plum", "pink", "crimson", "indigo", "teal", "cyan", "jade", "lime", "gold", "yellow", "brown", "tomato"]
 
+  it("colours a grey badge grey, distinct from the mauve Cancelled badge", () => {
+    render(<StatusBadge label="Not checked" theme="gray" />)
+    const className = screen.getByText("Not checked").className
+    expect(className).toContain("text-gray-11")
+    expect(className).not.toContain("text-muted-foreground")
+  })
+
   it.each(CANVAS_COLORS)("colors a %s Stage with its own color, not gray", (color) => {
     render(<StatusBadge label="Stage" theme={color} />)
 

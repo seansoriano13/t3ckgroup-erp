@@ -130,7 +130,7 @@ function StatusMenu({ close, children }) {
  * only Cancel; anyone else gets a static StatusBadge.
  *
  * Nobody moves a line to Purchased by hand: Purchasing attaches the P0 from the opened line (#684,
- * #695), as it Replaces (#687). Once an item is Purchased on a PO, "Pick PO line…" appears only
+ * #695), as it Replaces (#687). Once an item is Purchased on a PO, "Pick P0 line…" appears only
  * when that PO's IPAS copy has lines to pick (none do until IPAS exists).
  */
 export default function RequestedItemActions({ item, request, actor }) {
@@ -303,7 +303,7 @@ export default function RequestedItemActions({ item, request, actor }) {
                 }}
               >
                 <ListChecks size={14} />
-                Pick PO line…
+                Pick P0 line…
               </MenuItem>
             )}
             {canCorrectPo && (

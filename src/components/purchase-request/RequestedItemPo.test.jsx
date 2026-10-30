@@ -1,5 +1,5 @@
 /**
- * The PO number and PO line on Ordered (#312) on screen, against the fake
+ * The PO number and P0 line on Ordered (#312) on screen, against the fake
  * database with the item RPCs re-implemented on its store and Odoo's
  * `odoo-po-verify` stubbed. Who may and which lines are accepted is the
  * policy tier's (43-purchase-request-item-po).
@@ -312,7 +312,7 @@ describe("Attach P0", () => {
   })
 })
 
-describe("picking the PO line", () => {
+describe("picking the P0 line", () => {
   it("is not offered while the PO has no IPAS", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id })
     seedItem({ status: "purchased", po_number: "P01234", po_verification: "VERIFIED" })
@@ -320,11 +320,11 @@ describe("picking the PO line", () => {
     renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
 
     const row = await rowNamed("Full Body Harness")
-    expect(within(currentRow("Full Body Harness")).getByText("PO line not picked")).toBeInTheDocument()
+    expect(within(currentRow("Full Body Harness")).getByText("P0 line not picked")).toBeInTheDocument()
     expect(within(row).getByRole("button", { name: "Attach P0" })).toBeInTheDocument()
     await user.click(within(row).getByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
-    expect(screen.queryByRole("button", { name: /Pick PO line/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Pick P0 line/ })).not.toBeInTheDocument()
   })
 
   it("lists each P0 line with its product name and quantity", async () => {
@@ -340,11 +340,11 @@ describe("picking the PO line", () => {
     const row = await rowNamed("Full Body Harness")
     await user.click(await within(row).findByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
-    await user.click(screen.getByRole("button", { name: /Pick PO line/ }))
+    await user.click(screen.getByRole("button", { name: /Pick P0 line/ }))
     const dialog = await screen.findByRole("dialog")
     expect(within(dialog).getByRole("checkbox", { name: /Full Body Harness.*Qty 4/ })).toBeInTheDocument()
     expect(within(dialog).getByRole("checkbox", { name: /Lanyard.*Qty 6/ })).toBeInTheDocument()
-    expect(within(dialog).queryByText(/PO line 50/)).not.toBeInTheDocument()
+    expect(within(dialog).queryByText(/P0 line 50/)).not.toBeInTheDocument()
   })
 
   it("picks lines from the PO's IPAS copy once it exists, even after Received", async () => {
@@ -357,13 +357,13 @@ describe("picking the PO line", () => {
     const row = await rowNamed("Full Body Harness")
     await user.click(await within(row).findByRole("button", { name: "Change status of Full Body Harness" }))
     await statusMenuReady()
-    await user.click(screen.getByRole("button", { name: /Pick PO line/ }))
+    await user.click(screen.getByRole("button", { name: /Pick P0 line/ }))
     const dialog = await screen.findByRole("dialog")
     await user.click(within(dialog).getByRole("checkbox", { name: /Product 502/ }))
     await user.click(within(dialog).getByRole("button", { name: "Pick line" }))
 
-    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText(/PO line 502/)).toBeInTheDocument())
-    expect(within(currentRow("Full Body Harness")).queryByText("PO line not picked")).not.toBeInTheDocument()
+    await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText(/P0 line 502/)).toBeInTheDocument())
+    expect(within(currentRow("Full Body Harness")).queryByText("P0 line not picked")).not.toBeInTheDocument()
     expect(db.rows("purchase_request_items")[0].odoo_po_line_ids).toEqual([502])
   })
 
@@ -375,7 +375,7 @@ describe("picking the PO line", () => {
     await showDoneLines()
     const row = await rowNamed("Full Body Harness")
     expect(within(row).getByText("P01234")).toBeInTheDocument()
-    expect(within(currentRow("Full Body Harness")).getByText("PO line not picked")).toBeInTheDocument()
+    expect(within(currentRow("Full Body Harness")).getByText("P0 line not picked")).toBeInTheDocument()
     expect(within(row).queryByRole("button", { name: /Change status/ })).not.toBeInTheDocument()
   })
 })

@@ -87,7 +87,7 @@ describe("what a P0 does to the line", () => {
   });
 });
 
-// Odoo line ids, as "Pick PO line…" stores them in odoo_po_line_ids.
+// Odoo line ids, as "Pick P0 line…" stores them in odoo_po_line_ids.
 const lineWithId = (id, product_id, quantity, received = 0, price_unit = null) => ({
   ...line(product_id, `Product ${product_id}`, quantity, received),
   id,

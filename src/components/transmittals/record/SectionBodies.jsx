@@ -428,7 +428,7 @@ export function CheckByBody({ t, rights, userId, onChanged }) {
       </div>
       {rights.checkByBlocked && (
         <p className="text-xs text-muted-foreground">
-          Received in Odoo by is signed first: this slip carries a PO line.
+          Received in Odoo by is signed first: this slip carries a P0 line.
         </p>
       )}
       <ClearedList entries={t.cleared.filter((c) => c.kind === "check_by")} />

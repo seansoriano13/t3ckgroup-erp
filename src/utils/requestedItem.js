@@ -160,7 +160,7 @@ export function shortStockOf(item, stockSnapshot) {
 }
 
 /**
- * Issue #312 — whether an item bought on a PO still lacks its Odoo PO line:
+ * Issue #312 — whether an item bought on a PO still lacks its Odoo P0 line:
  * Ordered (or since Received) with a PO number and no line picked. A line is
  * never guessed; Purchasing picks it from the PO's IPAS stored Odoo copy once
  * that exists.

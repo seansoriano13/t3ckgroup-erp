@@ -102,7 +102,7 @@ describe("gatesOf and the numbers strip", () => {
     expect(numbersOf(t, gates)).toMatchObject({ stepsDone: 1, stepsTotal: 4 });
   });
 
-  it("counts Received in Odoo as a step only when a PO line needs it", () => {
+  it("counts Received in Odoo as a step only when a P0 line needs it", () => {
     const withPo = slip({ lines: [line(1, { kind: "po_line" })] });
     expect(gatesOf(withPo).map((g) => g.key)).toContain(SECTION.ODOO);
     expect(gatesOf(slip()).map((g) => g.key)).not.toContain(SECTION.ODOO);

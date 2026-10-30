@@ -59,7 +59,7 @@ export default function RequestedItemDetails({ item, stock, costText, replaces, 
           </span>
           {lines.length > 0 && (
             <span>
-              {lines.length === 1 ? "PO line" : "PO lines"} {lines.join(", ")}
+              {lines.length === 1 ? "P0 line" : "P0 lines"} {lines.join(", ")}
             </span>
           )}
         </span>
@@ -69,7 +69,7 @@ export default function RequestedItemDetails({ item, stock, costText, replaces, 
     item.po_number && item.ipas_pending && { label: "IPAS", value: <Warn>IPAS to create</Warn> },
     item.po_number && !item.ipas_pending && item.ipas_number && { label: "IPAS", value: <span data-testid="requested-item-ipas" className="font-mono">{item.ipas_number}</span> },
     partialReceiptText(item) && { label: "Received", value: <span data-testid="requested-item-partial">{partialReceiptText(item)}</span> },
-    poLineNotPicked(item) && { label: "PO line", value: <Warn>PO line not picked</Warn> },
+    poLineNotPicked(item) && { label: "P0 line", value: <Warn>P0 line not picked</Warn> },
     item.price && {
       label: "Price each",
       value: (

@@ -73,7 +73,7 @@ async function withLineRefs(row) {
 /** "Waiting on Warehouse" → "waiting on Warehouse": a stage name mid-sentence keeps its proper nouns. */
 const lowerFirst = (text) => (text ? text.charAt(0).toLowerCase() + text.slice(1) : text);
 
-/** A pickable PO line row (from either pick RPC) as the screen holds it. */
+/** A pickable P0 line row (from either pick RPC) as the screen holds it. */
 const shapePickable = (row) => ({
   ipasId: row.ipas_id,
   ipasNumber: row.ipas_number,
@@ -140,7 +140,7 @@ export const transmittalService = {
   },
 
   /**
-   * The submitted, uncancelled Transmittals that carry a PO line of this IPAS,
+   * The submitted, uncancelled Transmittals that carry a P0 line of this IPAS,
    * with their stages and ratings (#256). Raw rows, for utils/ipasTransmittals.js.
    * The database returns only what the caller may read.
    */
@@ -151,7 +151,7 @@ export const transmittalService = {
   },
 
   /**
-   * The submitted, uncancelled Transmittals that carry a PO line of any of
+   * The submitted, uncancelled Transmittals that carry a P0 line of any of
    * these IPAS (#263): the same rows as `forIpas`, read for the whole list in
    * two queries. A slip is filed under every IPAS it names. Returns a Map of
    * IPAS id to its slips (raw rows, for utils/ipasTransmittals.js and
@@ -247,7 +247,7 @@ export const transmittalService = {
   },
 
   /**
-   * The PO lines a preparer may put on a slip, matching `search` on the PO
+   * The P0 lines a preparer may put on a slip, matching `search` on the PO
    * number or the line's name. No prices, supplier or bank columns come back.
    */
   async pickablePoLines(search = "") {
@@ -259,7 +259,7 @@ export const transmittalService = {
   },
 
   /**
-   * Every PO line of one live IPAS, by its number (#725), shaped like
+   * Every P0 line of one live IPAS, by its number (#725), shaped like
    * `pickablePoLines`, for a New Transmittal to fill as draft lines. Throws when
    * the IPAS does not exist or is cancelled.
    */
@@ -652,7 +652,7 @@ function checkedPayload(header = {}, lines = []) {
     },
     lines: lines.map((line) => {
       if (line.kind !== TRANSMITTAL_LINE_KIND.PO_LINE && line.kind !== TRANSMITTAL_LINE_KIND.TYPED) {
-        throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "Each line is a PO line or a typed line.");
+        throw new TransmittalError(TRANSMITTAL_ERROR.INVALID, "Each line is a P0 line or a typed line.");
       }
       return {
         kind: line.kind,

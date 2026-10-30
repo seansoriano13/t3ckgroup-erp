@@ -79,7 +79,7 @@ describe("purchasing", () => {
     await user.click(screen.getByRole("button", { name: "To purchase" }))
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("To purchase")).toBeInTheDocument())
 
-    await user.click(await screen.findByRole("button", { name: "Undo" }))
+    await user.click(await screen.findByRole("button", { name: "Undo: back to Not checked" }))
     await waitFor(() => expect(within(currentRow("Full Body Harness")).getByText("Not checked")).toBeInTheDocument())
     expect(db.rows("purchase_request_items")[0].status).toBe("not_checked")
   })
