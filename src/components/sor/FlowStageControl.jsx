@@ -2,9 +2,10 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "../../lib/utils";
 import { salesFlowService } from "../../services/salesFlowService";
-import { flowStageTone, outgoingStages } from "../../constants/salesFlow";
+import { flowStageTone, isLostFlowStage, outgoingStages } from "../../constants/salesFlow";
 import { bracketRuns } from "../flow-canvas/flowCanvasLayout";
 import RevertStageButton from "./RevertStageButton";
+import MarkLostButton from "./MarkLostButton";
 import StageRibbonScroller from "./StageRibbonScroller";
 
 /**
@@ -193,7 +194,15 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
         </p>
       )}
 
-      <RevertStageButton opportunity={opportunity} stageName={current?.name} />
+      <div className="flex flex-wrap items-center gap-2">
+        <RevertStageButton opportunity={opportunity} stageName={current?.name} />
+        {current && !current.is_terminal && (
+          <MarkLostButton
+            opportunity={opportunity}
+            lostStages={stages.filter((s) => isLostFlowStage(s, flow?.won_stage_id ?? null))}
+          />
+        )}
+      </div>
 
       {current?.is_terminal && (
         <div className="flex flex-wrap items-center gap-2">

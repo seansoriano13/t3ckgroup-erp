@@ -314,7 +314,8 @@ A Stage no SOR can leave — where a Sales Flow ends (Closed Won, Closed Lost).
 Not the Won Stage, which usually sits mid-flow with PO, delivery and collection
 still ahead of it. Each Terminal Stage says how deals end there, **Won** (Closed
 Won) or **Lost** (Closed Lost, Cancelled), set on the Flow Canvas; one left
-unset ends as Lost. SORs on a Terminal Stage sink to the bottom of the
+unset ends as neither, so it never counts as Lost. A Lost Terminal Stage is
+left only by **Reopen**. SORs on a Terminal Stage sink to the bottom of the
 register's default order.
 _Avoid_: Last Stage, Final Stage, Closed
 
@@ -546,6 +547,34 @@ shut out of it is not asked and keeps progress. On screen: **Revert to last
 stage**. Unrelated
 to reverting a Sales Flow to an earlier Flow Snapshot on the Flow Canvas.
 _Avoid_: Correction, Stage Correction, Rollback, Undo
+
+**Mark as Lost**:
+The one way to close a deal as lost. Works from any open Stage, with no edge
+drawn to the Lost Stage, and skips Stage Fields and Stage Conditions, the way a
+Return does. The person picks a **Lost reason**; the deal moves to the flow's
+Lost Stage (the person picks when a flow has two), remembers the Stage it was
+lost from, and the history records who, when, the reason and the note. A
+Purchase Request chat on the deal is told "Deal marked Lost: <reason>". Nothing
+is cancelled. Made by anyone who can move the deal's Stage. A flow with no Lost
+Stage refuses: "This flow has no Lost Stage. Add one in Flow Canvas." On screen:
+**Mark as Lost**. Unlike Delete, a Lost deal stays in reports.
+_Avoid_: Close Lost, Drop, Archive, Cancel the SOR
+
+**Reopen**:
+Putting a Lost deal back on the Stage it was lost from. The only way out of a
+Lost Terminal Stage; skips Stage Fields and Stage Conditions. The Lost history
+and its reason stay; the deal's current Lost reason clears, so a second loss
+records afresh. On screen: **Reopen**, in the spot Mark as Lost held.
+_Avoid_: Restore (that is bringing back a deleted SOR), Undo Lost
+
+**Lost reason**:
+Why a deal was lost: one reason from a fixed list, plus an optional note
+(required for **Other**). In order: No response from client; Price too high;
+Lost to competitor; Client cancelled the project; No budget / not approved; Did
+not meet the requirements; Other. Stored as a reason code with the note in the
+deal's free-text loss reason. An old free-text reason with no code reads as
+"Other: <text>". The list lives in the app and the database checks it.
+_Avoid_: Loss reason, Close reason
 
 **Won** (or **Realized**):
 An SOR counts as booked money when its current Stage is its Sales Flow's designated Won Stage, any non-terminal post-won Stage downstream from it, or a Terminal Stage that ends as Won. For legacy SORs with no Sales Flow, it means occupying the Awarded stage or beyond. Labelled **Won** on screen.

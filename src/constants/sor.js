@@ -173,6 +173,22 @@ const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIP
 };
 
 /**
+ * The fixed Lost reason list (#810, CONTEXT.md "Lost reason"), in the order the
+ * picker shows it. The database checks the same codes in mark_opportunity_lost.
+ */
+export const LOST_REASONS = [
+  { code: "NO_RESPONSE", label: "No response from client" },
+  { code: "PRICE_TOO_HIGH", label: "Price too high" },
+  { code: "LOST_TO_COMPETITOR", label: "Lost to competitor" },
+  { code: "CLIENT_CANCELLED", label: "Client cancelled the project" },
+  { code: "NO_BUDGET", label: "No budget / not approved" },
+  { code: "REQUIREMENTS_NOT_MET", label: "Did not meet the requirements" },
+  { code: "OTHER", label: "Other" },
+];
+
+export const LOST_REASON_OTHER = "OTHER";
+
+/**
  * Lost, for either kind of deal: the one rule every list, count, commission
  * and Open Pipeline check reads (issue #806). A legacy deal is lost by its
  * status code. A flow-built deal's status never changes after registration
