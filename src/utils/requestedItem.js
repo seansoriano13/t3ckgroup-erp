@@ -40,6 +40,12 @@ export const p0Reference = (request) => (request?.opportunity_id ? request.sales
 /** The section an item sits in, in the screen's words. */
 export const itemSectionLabel = (item) => (isFromS0(item) ? "From the S0" : "Other request");
 
+/**
+ * #807 — an open item (not Cancelled) that has no Odoo product: a typed S0 product or an Other
+ * request. Derived from the item's status and product id, never stored.
+ */
+export const isOpenWithoutOdooProduct = (item) => item?.status !== ITEM_STATUS.CANCELLED && !item?.odoo_product_id;
+
 /** "1.2 · Rescue tripod": the Component a Requested Item buys for, or null when it names none (or it was removed). */
 export const componentLabel = (item) => (item?.component ? `${item.component.number} · ${item.component.name}` : null);
 
