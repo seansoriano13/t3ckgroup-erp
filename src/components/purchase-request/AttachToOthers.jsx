@@ -22,10 +22,12 @@ const SHARED_NOTE = "Same product as another open item on this request, so it ca
  */
 export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orderEarly, earlyReason }) {
   const refresh = useRefreshRequest(requestId);
+  // #811: open items with no Odoo product start unticked; only the P0 items are pre-ticked.
+  const noProduct = offer.noOdooProduct ?? [];
   const [ticked, setTicked] = useState(() => new Set(offer.offered.map((row) => row.itemId)));
   const [results, setResults] = useState(null);
   const [failure, setFailure] = useState("");
-  const names = new Map([...offer.offered, ...offer.unticked].map((row) => [row.itemId, row.name]));
+  const names = new Map([...offer.offered, ...offer.unticked, ...noProduct].map((row) => [row.itemId, row.name]));
 
   const toggle = (itemId, on) => {
     setTicked((current) => {
@@ -38,7 +40,7 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
 
   const attachMutation = useMutation({
     mutationFn: () => {
-      const itemIds = offer.offered.filter((row) => ticked.has(row.itemId)).map((row) => row.itemId);
+      const itemIds = [...offer.offered, ...noProduct].filter((row) => ticked.has(row.itemId)).map((row) => row.itemId);
       return purchaseRequestService.attachMany(poNumber, itemIds, {
         orderEarly,
         orderEarlyReason: orderEarly ? earlyReason : "",
@@ -51,7 +53,7 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
   });
 
   const busy = attachMutation.isPending;
-  const count = offer.offered.filter((row) => ticked.has(row.itemId)).length;
+  const count = [...offer.offered, ...noProduct].filter((row) => ticked.has(row.itemId)).length;
   const title = `Attach P0 ${poNumber}`;
 
   if (results) {
@@ -140,6 +142,28 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
           </li>
         ))}
       </ul>
+      {noProduct.length > 0 && (
+        <section aria-label="No Odoo product" className="space-y-1">
+          <h4 className="text-sm font-semibold text-foreground">No Odoo product. Tick if this P0 covers them</h4>
+          <p className="text-xs text-muted-foreground">No P0 line is picked for these. Purchasing picks the line by hand.</p>
+          <ul className="divide-y divide-border">
+            {noProduct.map((row) => (
+              <li key={row.itemId} data-testid="attach-no-product-row" className="flex items-start gap-3 py-2">
+                <Checkbox
+                  className="mt-0.5"
+                  aria-label={`Attach to ${row.name}`}
+                  checked={ticked.has(row.itemId)}
+                  disabled={busy}
+                  onCheckedChange={(on) => toggle(row.itemId, on)}
+                />
+                <div className="min-w-0 text-sm">
+                  <div className="font-medium text-foreground">{row.name}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {failure && <p className="text-sm text-destructive">{failure}</p>}
     </ModalShell>
   );

@@ -14,7 +14,7 @@ import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc
 import { MemoryRouter } from "react-router"
 import RequestedItems from "./RequestedItems"
 
-let salesperson, buyer, request, harness, carabiner, lanyard, sling, sent
+let salesperson, buyer, request, harness, carabiner, lanyard, sling, typed, sent
 
 const seedItem = (fields = {}) =>
   db.seed("purchase_request_items", {
@@ -42,6 +42,7 @@ const offer = () => ({
     { itemId: lanyard.id, name: "Lanyard", lineIds: [12], products: ["Lanyard 2m"], status: "to_purchase" },
   ],
   unticked: [{ itemId: sling.id, name: "Sling", reason: "shared_product" }],
+  noOdooProduct: [{ itemId: typed.id, name: "Typed product" }],
 })
 
 /**
@@ -103,6 +104,7 @@ beforeEach(() => {
   carabiner = seedItem({ name: "Carabiner", odoo_product_id: 2, status: "not_checked" })
   lanyard = seedItem({ name: "Lanyard", odoo_product_id: 3, status: "not_checked" })
   sling = seedItem({ name: "Sling", odoo_product_id: 3, status: "not_checked" })
+  typed = seedItem({ name: "Typed product", odoo_product_id: null, status: "not_checked" })
   stubEdgeFunction("odoo-po-suggest", () => SUGGESTIONS)
   stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
 })
@@ -209,5 +211,56 @@ describe("Attach to the other items", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
     expect(sent.filter((body) => body.action === "attach_many")).toHaveLength(0)
+  })
+
+  it("shows an item with no Odoo product in its own section, unticked, and leaves the count alone", async () => {
+    stubVerify()
+    mount()
+    await attachHarness(setupUser())
+    const dialog = await followUpWindow()
+
+    const section = within(dialog).getByRole("region", { name: "No Odoo product" })
+    expect(within(section).getByText("No Odoo product. Tick if this P0 covers them")).toBeInTheDocument()
+    expect(within(section).getByRole("checkbox", { name: "Attach to Typed product" })).not.toBeChecked()
+    // The P0 items stay pre-ticked, so the count is still the two of them.
+    expect(within(dialog).getByRole("button", { name: "Attach to 2 items" })).toBeEnabled()
+  })
+
+  it("sends a ticked item with no Odoo product in the bulk attach, and the result shows it", async () => {
+    stubVerify()
+    mount()
+    const user = setupUser()
+    await attachHarness(user)
+    const dialog = await followUpWindow()
+    await user.click(within(dialog).getByRole("checkbox", { name: "Attach to Typed product" }))
+    await user.click(within(dialog).getByRole("button", { name: "Attach to 3 items" }))
+
+    await waitFor(() => expect(sent.filter((body) => body.action === "attach_many")).toHaveLength(1))
+    expect(sent.find((body) => body.action === "attach_many")).toMatchObject({
+      poNumber: "P01111",
+      itemIds: [carabiner.id, lanyard.id, typed.id],
+    })
+    const results = await within(dialog).findAllByTestId("attach-other-result")
+    expect(results[2]).toHaveTextContent("Typed product: Purchased.")
+  })
+
+  it("opens the window when the only other item is one with no Odoo product", async () => {
+    stubEdgeFunction("odoo-po-verify", (body) => {
+      sent.push(body)
+      return {
+        success: true,
+        verdict: "verified",
+        item: { id: harness.id, status: "purchased", po_number: "P01111" },
+        ipas: null,
+        offer: { offered: [], unticked: [], noOdooProduct: [{ itemId: typed.id, name: "Typed product" }] },
+      }
+    })
+    mount()
+    const user = setupUser()
+    await attachHarness(user)
+    const dialog = await followUpWindow()
+
+    expect(within(dialog).getByRole("checkbox", { name: "Attach to Typed product" })).not.toBeChecked()
+    expect(within(dialog).getByRole("button", { name: "Attach to 0 items" })).toBeDisabled()
   })
 })
