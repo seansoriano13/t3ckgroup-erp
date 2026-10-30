@@ -13,11 +13,11 @@ Run them locally only. The AI types test passwords, and it may only do that on `
 5. Start the app: `pnpm dev`. Open `http://localhost:5173` (or the port it prints).
 6. A local database needs a **published Sales Flow** (the seed does not publish one), and the **`currency-rates-fetch` function run once** so Reference Rates exist (SET-06 and the foreign-currency stories need them). Without a published Flow, FLOW-00 cannot register an SOR.
 
-Check before starting: log in as `purchaser@mock.t3ck.test`, open IPAS list, start a new IPAS with PO `P02401`. If it shows the supplier "Dee Hwa Liong", Odoo works. Close the form without saving.
+Check before starting: log in as `ayla@staging`, open IPAS list, start a new IPAS with PO `P02401`. If it shows the supplier "Dee Hwa Liong", Odoo works. Close the form without saving.
 
 ## 2. The cast
 
-Password for all: `MockStaging#2026`. Email is `<key>@mock.t3ck.test`.
+Password for all: `staging`. Email is the person's login with `@staging` (see docs/mock-employees.md), for example `ayla@staging` for the purchaser.
 
 | Key | Used as |
 |---|---|

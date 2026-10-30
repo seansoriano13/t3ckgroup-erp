@@ -6,7 +6,7 @@ Spec #251, tickets #252–#260. Local stack. Tick each box; write feedback under
 
 1. `supabase start`, `pnpm dev`. Mock cast + lists: `node scripts/seed-mock-employees.mjs --local` (already run 2026-10-15).
 2. Sign in with **email + password** (not magic login). Password for all: `MockStaging#2026`. Use a second browser / incognito for the other person in two-signer steps.
-3. Cast (`@mock.t3ck.test`):
+3. Cast (`@staging`, see docs/mock-employees.md):
 
 | Login | Plays |
 |---|---|
