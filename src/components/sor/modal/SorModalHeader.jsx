@@ -14,6 +14,8 @@ import Dropdown from "../../ui/Dropdown";
 import StatusBadge from "../../StatusBadge";
 import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
+import MarkLostButton from "../MarkLostButton";
+import { isLostCode, isWonCode } from "../../../constants/sor";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
 import SorVersionUpdate from "../SorVersionUpdate";
@@ -402,7 +404,16 @@ export default function SorModalHeader({
             }
           />
         ) : (
-          legacyRibbon
+          <>
+            {legacyRibbon}
+            {/* #812: Mark as Lost on an old-pipeline deal, open statuses only. */}
+            {!isLostCode(opportunity.status, pipelineStages) &&
+              !isWonCode(opportunity.status, pipelineStages) && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <MarkLostButton opportunity={opportunity} />
+                </div>
+              )}
+          </>
         )}
       </div>
     </div>
