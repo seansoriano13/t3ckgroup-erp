@@ -1,5 +1,5 @@
 /**
- * The P0 number and Odoo PO line on a Purchased line (#312, part of #209; attach path #684).
+ * The P0 number and Odoo P0 line on a Purchased line (#312, part of #209; attach path #684).
  *
  * A P0 is attached by the server-only `purchase_request_item_attach_po`, which moves the line to
  * Purchased; `purchase_request_pick_po_lines` records the PO
@@ -149,7 +149,7 @@ describe("a P0 is attached, never typed onto a hand move", () => {
 })
 
 describe("a PO with no IPAS yet (the seam answers empty)", () => {
-    it("offers no lines, refuses every pick, and the item stays 'PO line not picked'", async () => {
+    it("offers no lines, refuses every pick, and the item stays 'P0 line not picked'", async () => {
         const id = await seedItem()
         await attachP0("stageParticipant", id, IPAS_PO)
 
@@ -240,7 +240,7 @@ describe("a PO whose IPAS exists", () => {
 })
 
 describe("reading the lines", () => {
-    it("a non-member can't see an item's PO lines", async () => {
+    it("a non-member can't see an item's P0 lines", async () => {
         const id = await seedItem({ status: "purchased", po_number: IPAS_PO })
         expect((await poLines("ordinary", id)).error?.code).toBe("P0002")
     })

@@ -7,11 +7,11 @@ import { transmittalService } from "@/services/transmittalService";
 import { ipasErrorMessage } from "@/utils/ipas";
 
 /**
- * "Fill from an IPAS" (#725): type an IPAS number and every PO line of that IPAS
+ * "Fill from an IPAS" (#725): type an IPAS number and every P0 line of that IPAS
  * goes on the slip as a draft line. The preparer then removes what did not arrive
  * or edits a quantity for a part delivery, the same as any other line.
  *
- * `onFill(picks)` receives the IPAS's PO lines (shaped like the live list's).
+ * `onFill(picks)` receives the IPAS's P0 lines (shaped like the live list's).
  */
 export default function FillFromIpas({ onFill }) {
   const [number, setNumber] = useState("");
@@ -25,7 +25,7 @@ export default function FillFromIpas({ onFill }) {
     try {
       const picks = await transmittalService.poLinesOfIpas(number);
       if (picks.length === 0) {
-        setProblem("That IPAS has no PO lines.");
+        setProblem("That IPAS has no P0 lines.");
         return;
       }
       onFill(picks);

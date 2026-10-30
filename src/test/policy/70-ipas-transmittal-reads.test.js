@@ -1,6 +1,6 @@
 /**
  * IPAS reads Transmittals (#256, spec #251): the hand stamp of Actual Checking
- * is refused once a submitted, uncancelled Transmittal carries a PO line of the
+ * is refused once a submitted, uncancelled Transmittal carries a P0 line of the
  * IPAS, and allowed before. Builds on 68 and 69 (the same seeds and helpers).
  *
  * The freeze is proven against the service role, which bypasses row level
@@ -44,7 +44,7 @@ async function raiseIpas() {
 
 const HEADER = { origin: "purchasing", check_warehouse: true, check_technical: false, priority: "high", entity: "T3ck Trading" }
 
-/** A draft slip with one PO line of the IPAS, as the warehouse member. Returns its id. */
+/** A draft slip with one P0 line of the IPAS, as the warehouse member. Returns its id. */
 async function draftSlip(ipas) {
     const { data: made, error } = await rpc("warehouse", "transmittal_create", {
         p_fields: HEADER,

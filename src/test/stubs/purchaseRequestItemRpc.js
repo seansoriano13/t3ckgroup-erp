@@ -109,10 +109,13 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       refuse(`${fn}: can't move from ${ITEM_STATUS_LABELS[from]} to ${ITEM_STATUS_LABELS[to]}`, "42501")
     }
     const changedAt = new Date().toISOString()
+    // Any status choice clears a "Now x free of y" warning (#681), as the database does.
     const updated = updateRow("purchase_request_items", item, {
       status: to,
       status_changed_by: actorId,
       status_changed_at: changedAt,
+      stock_short_free: null,
+      stock_short_needed: null,
     })
     insertRow("purchase_request_messages", {
       request_id: item.request_id,
@@ -160,8 +163,45 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     if ((details.po_number || "").toString().trim()) {
       refuse("purchase_request_set_item_status: a PO number is saved by the server after Odoo is asked; use the Order / Correct PO action", "42501")
     }
+    if (args.p_status === "available") return setAvailable(item, details)
     return setStatus(item, args.p_status, details, false)
   })
+
+  // #803: Available on short stock needs a reason. The latest stock check for the request's SOR
+  // decides: its free count for the item's Odoo product, against the quantity. Mirrors the
+  // Available branch of purchase_request_set_item_status (20261118020000_803_available_short_stock_reason.sql).
+  function setAvailable(item, details) {
+    const extra = Object.keys(details).find((key) => key !== "reason")
+    if (extra) refuse(`purchase_request_set_item_status: Available takes a reason, not ${extra}`, "22023")
+    const reason = (details.reason || "").toString().trim() || null
+    const request = findRow("purchase_requests", item.request_id)
+    const snapshot = rowsOf("sor_stock_snapshots").find((s) => request?.opportunity_id && s.opportunity_id === request.opportunity_id)
+    const product = item.odoo_product_id ? snapshot?.data?.products?.[item.odoo_product_id] : null
+    const free = Number(product?.free ?? 0)
+    const needed = Number(item.quantity)
+    const short = product?.type === "product" && free < needed ? { free, needed } : null
+    if (short && !reason) {
+      refuse(`purchase_request_set_item_status: Now ${free} free of ${needed}. Give a short reason to mark it Available`, "22023")
+    }
+    // Choosing Available again is allowed only to clear a warning (#681).
+    if (item.status === "available" && item.stock_short_free == null) {
+      refuse("purchase_request_set_item_status: the item is already Available", "22023")
+    }
+    const moved = move(item, "available", null, "purchase_request_set_item_status")
+    if (!short) return moved
+    // updateRow writes into the stored row, so flag the stored row, not the copy move returned.
+    const flagged = updateRow("purchase_request_items", findRow("purchase_request_items", item.id), {
+      stock_short_free: free,
+      stock_short_needed: needed,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `${item.name}: Available on short stock, now ${free} free of ${needed}. Reason: ${reason}`,
+      metadata: { event: "item_short_stock_reason", item_id: item.id, reason, free, needed },
+    })
+    return flagged
+  }
 
   function setStatus(item, status, details, server) {
     const po = (details.po_number || "").trim().toUpperCase() || null
@@ -202,7 +242,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
       if (body.action === "attach") {
         if (odoo === "unreachable") return { success: false, message: "Odoo didn't answer. The P0 was not attached; try again." }
         if (sideOf(item.request_id) !== "purchasing") return { success: false, refused: true, message: "only Purchasing attaches a P0" }
-        if (["cancelled", "received"].includes(item.status)) return { success: false, refused: true, message: "nothing to attach to this line" }
+        if (item.status === "cancelled") return { success: false, refused: true, message: "nothing to attach to this line" }
         const facts = { state: "confirmed", ordered: item.quantity, received: 0, bought_as: null, ...(p0s[po] || {}) }
         const to = facts.state === "rfq" ? "to_purchase" : facts.ordered > 0 && facts.received >= facts.ordered ? "received" : "purchased"
         const attached = updateRow("purchase_request_items", item, {
@@ -230,9 +270,17 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     })
   }
 
-  const ipasOf = (poNumber) => (poNumber && ipasLines[poNumber]) || []
+  // #804: an ipasLines entry is a list of line ids, or of `{ line_id, product_name, quantity }` rows.
+  const ipasRowsOf = (poNumber) =>
+    ((poNumber && ipasLines[poNumber]) || []).map((l) =>
+      typeof l === "number" ? { line_id: l, product_name: `Product ${l}`, quantity: 1 } : { quantity: 1, ...l },
+    )
+  const ipasOf = (poNumber) => ipasRowsOf(poNumber).map((l) => l.line_id)
 
   stubRpc("purchase_request_item_po_lines", (args) => ipasOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
+
+  // #804: 20261118030000_804_attach_po_line_ids.sql. The lines of the IPAS copy with their product and quantity.
+  stubRpc("purchase_request_item_po_line_rows", (args) => ipasRowsOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
 
   // #688: 20261105000000_is_this_yours_on_s0.sql. The rules are proven in 240-is-this-yours.test.js.
   stubRpc("purchase_request_answer_yours", (args) => {
@@ -269,7 +317,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
   stubRpc("purchase_request_pick_po_lines", (args) => {
     const item = findRow("purchase_request_items", args.p_item_id)
     if (!item) refuse(`purchase_request_pick_po_lines: item ${args.p_item_id} not found`, "P0002")
-    if (sideOf(item.request_id) !== "purchasing") refuse("purchase_request_pick_po_lines: only Purchasing picks an item's PO line", "42501")
+    if (sideOf(item.request_id) !== "purchasing") refuse("purchase_request_pick_po_lines: only Purchasing picks an item's P0 line", "42501")
     const ipas = ipasOf(item.po_number)
     if (!ipas.length) refuse(`purchase_request_pick_po_lines: PO ${item.po_number} has no IPAS yet; pick its line once it does`, "22023")
     const lines = [...new Set(args.p_line_ids || [])].sort((a, b) => a - b)
@@ -279,7 +327,7 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     insertRow("purchase_request_messages", {
       request_id: item.request_id,
       author_id: actorId,
-      content: `${item.name}: PO line picked on ${item.po_number}.`,
+      content: `${item.name}: P0 line picked on ${item.po_number}.`,
       metadata: { event: "item_po_lines_picked", item_id: item.id, po_number: item.po_number, line_ids: lines },
     })
     return updated

@@ -4837,6 +4837,37 @@ AS $function$
   end
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._costing_item_components(p_opportunity_id uuid)
+ RETURNS TABLE(item_id uuid, component_id uuid)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with comps as (
+    select c.id, c.tender_line_id, t.sor_item_id
+    from public.costing_components c
+    join public.costing_tender_lines t on t.id = c.tender_line_id
+    join public.costing_matrices m on m.id = t.matrix_id
+    where m.opportunity_id = p_opportunity_id
+  ),
+  sole as (
+    select min(comps.id::text)::uuid as component_id, comps.sor_item_id
+    from comps
+    where comps.sor_item_id is not null
+    group by comps.tender_line_id, comps.sor_item_id
+    having count(*) = 1
+  )
+  select pri.id, pri.component_id
+  from public.purchase_request_items pri
+  join comps on comps.id = pri.component_id
+  union all
+  select pri.id, sole.component_id
+  from public.purchase_request_items pri
+  join public.purchase_requests r on r.id = pri.request_id and r.opportunity_id = p_opportunity_id
+  join sole on sole.sor_item_id = pri.sor_item_id
+  where pri.component_id is null
+$function$
+;
 CREATE OR REPLACE FUNCTION public._employee_has_purchasing_access(p_employee_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -9572,26 +9603,31 @@ AS $function$
     join public.costing_matrices m on m.id = t.matrix_id
     where m.opportunity_id = p_opportunity_id
       and public.costing_can_read(p_opportunity_id)
+  ),
+  linked as (
+    select ic.component_id, pri.id, pri.request_id, pri.name, pri.po_number, pri.status, pri.quantity, pri.odoo_po_line_ids, pri.created_at
+    from public._costing_item_components(p_opportunity_id) ic
+    join public.purchase_request_items pri on pri.id = ic.item_id
   )
   select
     comps.id,
     comps.po_rfq_no,
-    (select coalesce(sum(pri.quantity), 0) from public.purchase_request_items pri
-      where pri.component_id = comps.id and pri.status in ('purchased', 'received')),
+    (select coalesce(sum(l.quantity), 0) from linked l
+      where l.component_id = comps.id and l.status in ('purchased', 'received')),
     coalesce((
-      select jsonb_agg(jsonb_build_object('item_id', pri.id, 'request_id', pri.request_id, 'name', pri.name, 'po_number', nullif(btrim(pri.po_number), ''), 'status', pri.status, 'odoo_po_line_ids', coalesce(to_jsonb(pri.odoo_po_line_ids), '[]'::jsonb))
-        order by pri.created_at)
-      from public.purchase_request_items pri
-      where pri.component_id = comps.id
+      select jsonb_agg(jsonb_build_object('item_id', l.id, 'request_id', l.request_id, 'name', l.name, 'po_number', nullif(btrim(l.po_number), ''), 'status', l.status, 'odoo_po_line_ids', coalesce(to_jsonb(l.odoo_po_line_ids), '[]'::jsonb))
+        order by l.created_at)
+      from linked l
+      where l.component_id = comps.id
     ), '[]'::jsonb),
     coalesce((
       select jsonb_agg(jsonb_build_object('po_number', po.po_number, 'ipas_id', ip.id, 'number', ip.number, 'state', ip.state)
         order by po.po_number)
       from (
         select distinct p.po_number from (
-          select nullif(btrim(pri.po_number), '') as po_number
-          from public.purchase_request_items pri
-          where pri.component_id = comps.id and pri.status <> 'cancelled'
+          select nullif(btrim(l.po_number), '') as po_number
+          from linked l
+          where l.component_id = comps.id and l.status <> 'cancelled'
           union select comps.po_rfq_no
         ) p
         where p.po_number is not null
@@ -9621,18 +9657,13 @@ begin
   return (
     select coalesce(
       jsonb_agg(
-        jsonb_build_object('id', i.id, 'component_id', i.component_id, 'status', i.status, 'request_id', i.request_id)
+        jsonb_build_object('id', i.id, 'component_id', ic.component_id, 'status', i.status, 'request_id', i.request_id)
         order by i.created_at, i.id
       ),
       '[]'::jsonb
     )
-    from public.purchase_request_items i
-    where i.component_id in (
-      select c.id
-      from public.costing_components c
-      join public.costing_tender_lines l on l.id = c.tender_line_id
-      where l.matrix_id = v_matrix
-    )
+    from public._costing_item_components(p_opportunity_id) ic
+    join public.purchase_request_items i on i.id = ic.item_id
   );
 end;
 $function$
@@ -10347,14 +10378,15 @@ AS $function$
   ),
   -- Purchased and Received claim; Cancelled, Cancelled and Cannot source claim nothing.
   live as (
-    select pri.id, pri.component_id, pri.quantity, pri.po_number, coalesce(pri.odoo_po_line_ids, '{}') as picked
+    select pri.id, pri.quantity, pri.po_number, coalesce(pri.odoo_po_line_ids, '{}') as picked
     from public.purchase_request_items pri
     where pri.status in ('purchased', 'received')
   ),
   items as (
-    select live.*, public._lc_ipas_for_po(live.po_number) as ipas_id
+    select live.*, ic.component_id, public._lc_ipas_for_po(live.po_number) as ipas_id
     from live
-    join comps on comps.id = live.component_id
+    join public._costing_item_components(p_opportunity_id) ic on ic.item_id = live.id
+    join comps on comps.id = ic.component_id
   ),
   claims as (
     select items.id as item_id, items.component_id, items.quantity, items.ipas_id, pick.lid
@@ -18288,7 +18320,19 @@ begin
          from public.ipas i
          join public.ipas_sors s on s.ipas_id = i.id
         where s.opportunity_id = p_opportunity_id
-          and i.state = 'open')
+          and i.state = 'open'),
+    'slips',
+      coalesce((select jsonb_agg(jsonb_build_object('number', t.number, 'state', t.state) order by t.submitted_at, t.number)
+                  from public.transmittals t
+                 where t.state not in ('draft', 'cancelled')
+                   and exists (select 1 from public.transmittal_lines l
+                                where l.transmittal_id = t.id and l.opportunity_id = p_opportunity_id)), '[]'::jsonb),
+    'orders',
+      coalesce((select jsonb_agg(jsonb_build_object('number', i.number, 'state', i.state) order by i.created_at, i.number)
+                  from public.ipas i
+                 where i.state <> 'cancelled'
+                   and exists (select 1 from public.ipas_sors s
+                                where s.ipas_id = i.id and s.opportunity_id = p_opportunity_id)), '[]'::jsonb)
   );
 end;
 $function$
@@ -19292,7 +19336,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.purchase_request_item_attach_po(p_actor_email text, p_item_id uuid, p_po_number text, p_facts jsonb, p_order_early boolean DEFAULT false, p_order_early_reason text DEFAULT NULL::text)
+CREATE OR REPLACE FUNCTION public.purchase_request_item_attach_po(p_actor_email text, p_item_id uuid, p_po_number text, p_facts jsonb, p_order_early boolean DEFAULT false, p_order_early_reason text DEFAULT NULL::text, p_line_ids integer[] DEFAULT NULL::integer[])
  RETURNS purchase_request_items
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -19340,7 +19384,7 @@ begin
   if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
     raise exception 'purchase_request_item_attach_po: only Purchasing attaches a P0' using errcode = '42501';
   end if;
-  if v_item.status in ('cancelled', 'received') then
+  if v_item.status = 'cancelled' then
     raise exception 'purchase_request_item_attach_po: nothing to attach to this line; % is %',
       v_item.name, public._purchase_request_item_status_label(v_item.status)
       using errcode = '22023';
@@ -19377,8 +19421,13 @@ begin
          bought_as = v_bought,
          -- A reason sent with an attach that was not early is ignored; an earlier one stays.
          ordered_early_reason = coalesce(v_early, ordered_early_reason),
-         -- Lines picked on another P0 do not carry over.
-         odoo_po_line_ids = case when po_number is distinct from v_po then '{}' else odoo_po_line_ids end
+         -- #804: the P0 rows the edge function picked for this item. Sent (even empty), they are stored as they are.
+         -- Not sent: lines picked on another P0 do not carry over.
+         odoo_po_line_ids = case
+           when p_line_ids is not null then p_line_ids
+           when po_number is distinct from v_po then '{}'
+           else odoo_po_line_ids
+         end
    where id = v_item.id
   returning * into v_item;
 
@@ -19579,6 +19628,45 @@ AS $function$
     and can_read_purchase_request(p_request_id);
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_item_po_line_rows(p_item_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_item public.purchase_request_items;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'purchase_request_item_po_line_rows: not signed in' using errcode = '42501';
+  end if;
+  select * into v_item from public.purchase_request_items where id = p_item_id;
+  if v_item.id is null or not public.can_read_purchase_request(v_item.request_id) then
+    raise exception 'purchase_request_item_po_line_rows: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+  if v_item.po_number is null then
+    return '[]'::jsonb;
+  end if;
+  return coalesce((
+    select jsonb_agg(
+             jsonb_build_object(
+               'line_id', (l.line->>'line_id')::int,
+               'product_name', coalesce(l.line->>'name', ''),
+               'quantity', coalesce((l.line->>'quantity')::numeric, 0)
+             )
+             order by (l.line->>'line_id')::int
+           )
+      from public.ipas i
+     cross join lateral jsonb_array_elements(
+       case when jsonb_typeof(i.odoo_copy->'lines') = 'array' then i.odoo_copy->'lines' else '[]'::jsonb end
+     ) as l(line)
+     where i.po_number = v_item.po_number
+       and i.state <> 'cancelled'
+       and (l.line->>'line_id') ~ '^[0-9]+$'
+  ), '[]'::jsonb);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchase_request_item_po_lines(p_item_id uuid)
  RETURNS integer[]
  LANGUAGE plpgsql
@@ -19729,7 +19817,7 @@ begin
     raise exception 'purchase_request_pick_po_lines: item % not found', p_item_id using errcode = 'P0002';
   end if;
   if coalesce(public.purchase_request_actor_side(v_item.request_id), '') <> 'purchasing' then
-    raise exception 'purchase_request_pick_po_lines: only Purchasing picks an item''s PO line' using errcode = '42501';
+    raise exception 'purchase_request_pick_po_lines: only Purchasing picks an item''s P0 line' using errcode = '42501';
   end if;
   if v_item.status not in ('purchased', 'received') then
     raise exception 'purchase_request_pick_po_lines: % is %, not Purchased', v_item.name,
@@ -19741,7 +19829,7 @@ begin
   end if;
 
   if p_line_ids is null or cardinality(p_line_ids) = 0 or array_position(p_line_ids, null) is not null then
-    raise exception 'purchase_request_pick_po_lines: pick at least one PO line' using errcode = '22023';
+    raise exception 'purchase_request_pick_po_lines: pick at least one P0 line' using errcode = '22023';
   end if;
   select array_agg(distinct l order by l) into v_lines from unnest(p_line_ids) l;
 
@@ -19764,7 +19852,7 @@ begin
   perform public._purchase_request_post_event(
     v_item.request_id,
     v_actor,
-    format('%s: PO line picked on %s.', v_item.name, v_item.po_number),
+    format('%s: P0 line picked on %s.', v_item.name, v_item.po_number),
     jsonb_build_object(
       'event', 'item_po_lines_picked',
       'item_id', v_item.id,
@@ -20012,8 +20100,88 @@ CREATE OR REPLACE FUNCTION public.purchase_request_set_item_status(p_item_id uui
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_details jsonb := coalesce(p_details, '{}'::jsonb);
+  v_item public.purchase_request_items;
+  v_product jsonb;
+  v_free numeric;
+  v_reason text;
+  v_key text;
 begin
-  return public._purchase_request_set_item_status(p_item_id, p_status, p_details, false);
+  -- Every other status is unchanged.
+  if p_status is distinct from 'available' then
+    return public._purchase_request_set_item_status(p_item_id, p_status, p_details, false);
+  end if;
+
+  if v_actor is null then
+    raise exception 'purchase_request_set_item_status: not signed in' using errcode = '42501';
+  end if;
+  if jsonb_typeof(v_details) <> 'object' then
+    raise exception 'purchase_request_set_item_status: details must be an object' using errcode = '22023';
+  end if;
+  for v_key in select jsonb_object_keys(v_details) loop
+    if v_key <> 'reason' then
+      raise exception 'purchase_request_set_item_status: Available takes a reason, not %', v_key
+        using errcode = '22023';
+    end if;
+  end loop;
+  if v_details ? 'reason' and jsonb_typeof(v_details->'reason') not in ('string', 'null') then
+    raise exception 'purchase_request_set_item_status: the reason must be text' using errcode = '22023';
+  end if;
+  v_reason := nullif(btrim(v_details->>'reason'), '');
+
+  select * into v_item from public.purchase_request_items where id = p_item_id;
+  if v_item.id is null then
+    raise exception 'purchase_request_set_item_status: item % not found', p_item_id using errcode = 'P0002';
+  end if;
+
+  -- The latest stock check on the request's SOR (one row per SOR, #202). The same test the
+  -- stock check trigger (_flag_short_available_items) uses to flag a line.
+  select s.data->'products'->(v_item.odoo_product_id::text)
+    into v_product
+    from public.purchase_requests r
+    join public.sor_stock_snapshots s on s.opportunity_id = r.opportunity_id
+   where r.id = v_item.request_id;
+
+  if v_item.odoo_product_id is not null
+     and v_product->>'type' = 'product'
+     and coalesce((v_product->>'free')::numeric, 0) < v_item.quantity then
+    v_free := coalesce((v_product->>'free')::numeric, 0);
+
+    if v_reason is null then
+      raise exception 'purchase_request_set_item_status: Now % free of %. Give a short reason to mark it Available',
+        v_free, v_item.quantity
+        using errcode = '22023';
+    end if;
+
+    v_item := public._purchase_request_set_item_status(p_item_id, 'available', '{}'::jsonb, false);
+
+    update public.purchase_request_items
+       set stock_short_free = v_free,
+           stock_short_needed = v_item.quantity
+     where id = v_item.id
+    returning * into v_item;
+
+    perform public._purchase_request_post_event(
+      v_item.request_id,
+      v_actor,
+      format('%s: Available on short stock, now %s free of %s. Reason: %s',
+        v_item.name, v_free, v_item.quantity, v_reason),
+      jsonb_build_object(
+        'event', 'item_short_stock_reason',
+        'item_id', v_item.id,
+        'reason', v_reason,
+        'free', v_free,
+        'needed', v_item.quantity
+      )
+    );
+
+    return v_item;
+  end if;
+
+  -- No stock check, or enough stock: Available as before, no reason needed.
+  return public._purchase_request_set_item_status(p_item_id, 'available', '{}'::jsonb, false);
 end;
 $function$
 ;

@@ -1,7 +1,7 @@
 /**
  * Correct PO on a Purchased item (#549, spec #544): the 'correct' action of
  * `purchase_request_item_apply_po_check`. Purchasing only, while the item is Purchased; the new PO
- * gets the same three Odoo verdicts (Odoo faked by passing its answer), picked PO lines are
+ * gets the same three Odoo verdicts (Odoo faked by passing its answer), picked P0 lines are
  * cleared, and the request's history records the old and new PO. Set-up follows
  * 103-purchase-request-po-check.
  */

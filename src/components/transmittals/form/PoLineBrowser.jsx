@@ -11,10 +11,10 @@ import { pickedLineLabel } from "@/utils/transmittals";
 
 const MAX_SHOWN = 80;
 
-/** The key a PO line has on the slip and in the live list. */
+/** The key a P0 line has on the slip and in the live list. */
 const pickKey = (pick) => `${pick.ipasId}:${pick.odooPoLineId}`;
 
-/** The PO lines already on the slip, as a Set of pick keys. */
+/** The P0 lines already on the slip, as a Set of pick keys. */
 const onSlipKeys = (lines) =>
   new Set(lines.filter((l) => l.kind === TRANSMITTAL_LINE_KIND.PO_LINE).map((l) => `${l.ipasId}:${l.odooPoLineId}`));
 
@@ -61,7 +61,7 @@ function PickRow({ pick, active, onSlip, onToggle, onHover }) {
 }
 
 /**
- * The live PO lines, always open beside the slip (#252). One search box: type a
+ * The live P0 lines, always open beside the slip (#252). One search box: type a
  * PO number or an item name and the matching lines show. Click a line to put it
  * on the slip, click it again to take it off; Enter does the same for the
  * highlighted one (↑ ↓ move). When a PO number matches, "Add all" takes every
@@ -135,12 +135,12 @@ export default function PoLineBrowser({ lines, onToggle, onAddAll, onAddTyped })
         }}
         onKeyDown={onKeyDown}
         placeholder="Type a PO number or an item name"
-        aria-label="Find a PO line"
+        aria-label="Find a P0 line"
       />
       <div className="max-h-[52vh] overflow-y-auto rounded-xl border border-border bg-card p-1">
-        {isError && <p className="p-4 text-center text-[13px] text-muted-foreground">The PO lines could not be loaded.</p>}
+        {isError && <p className="p-4 text-center text-[13px] text-muted-foreground">The P0 lines could not be loaded.</p>}
         {!isError && items.length === 0 && (
-          <p className="p-4 text-center text-[13px] text-muted-foreground">{isFetching ? "Searching…" : "No live PO lines."}</p>
+          <p className="p-4 text-center text-[13px] text-muted-foreground">{isFetching ? "Searching…" : "No live P0 lines."}</p>
         )}
         {items.map((item, index) => {
           if (item.type === "all") {

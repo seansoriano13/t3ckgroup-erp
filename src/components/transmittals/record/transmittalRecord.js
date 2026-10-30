@@ -59,7 +59,7 @@ const OPEN_STATE = {
   [STAGE.TECHNICAL_INSPECTION]: STATE.TECHNICAL_INSPECTION,
 };
 
-/** True when the slip carries a PO line, which Check by waits on Received in Odoo for. */
+/** True when the slip carries a P0 line, which Check by waits on Received in Odoo for. */
 export function hasPoLine(t) {
   return t.lines.some((line) => line.kind === TRANSMITTAL_LINE_KIND.PO_LINE);
 }
@@ -79,7 +79,7 @@ export function rightsOf(t, { userId = null, lists = [], hasPurchasingFlow = fal
   const onCheckBy = lists.includes(LIST.CHECK_BY);
   const { first, second } = t.checkBy;
   const awaiting = t.state === STATE.AWAITING_CHECK;
-  // A slip carrying a PO line is checked only once Received in Odoo is signed.
+  // A slip carrying a P0 line is checked only once Received in Odoo is signed.
   const needsReceipt = !t.odooReceivedAt && hasPoLine(t);
   // The preparer never signs Check by on their own slip.
   const notPreparer = t.preparedById !== userId;
@@ -271,7 +271,7 @@ export function sectionState(key, t, gates) {
             : "Not yet";
     return { state: gate.state, detail };
   }
-  // Rows with no gate: the optional releasing of a Warehouse-only slip, and Received in Odoo where no PO line needs it.
+  // Rows with no gate: the optional releasing of a Warehouse-only slip, and Received in Odoo where no P0 line needs it.
   if (key === SECTION.ODOO) {
     return t.odooReceivedAt
       ? { state: GATE_STATE.DONE, detail: "Recorded" }

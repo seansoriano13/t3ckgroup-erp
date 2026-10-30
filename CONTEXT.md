@@ -720,11 +720,11 @@ line (name, quantity, unit) whenever the S0 is read; it is unique per SOR line,
 starts at Not checked, and stays with a "Removed from S0" note if Odoo drops the
 line, so a bought product is never lost. The request shows two sections, From the
 S0 and Other requests, with each product's status beside it. A Component reaches
-its item through its SOR line. Once Purchased it records the Odoo purchase order line as well as its
+its item through its SOR line. Once Purchased it records the P0 line (zero, the Odoo purchase order line) as well as its
 number, which is how Landed Cost finds its way back. The server checks the PO
 number against Odoo itself: a PO Odoo doesn't know is refused, and when Odoo
 doesn't answer the PO is saved as "Not checked". Purchasing can Correct PO while
-the item is Purchased, which is checked again. Carries its own status: Not checked, then Available, or To purchase → Still canvassing → Purchased → Received; or out via Cannot source or Cancelled. There is no Substituted status: a substitute cancels the old item and keeps the "substitute for" link.
+the item is Purchased, which is checked again. An attach picks the P0 lines for the item's Odoo product automatically: every P0 row with that product (matched by Odoo product id, never by name), so a product split over two rows is counted whole. Nothing is picked when another open item on the request has the same product, when the P0 has no row for it (a warning says the P0 may be wrong), or when the item has no Odoo product. Carries its own status: Not checked, then Available, or To purchase → Still canvassing → Purchased → Received; or out via Cannot source or Cancelled. There is no Substituted status: a substitute cancels the old item and keeps the "substitute for" link.
 _Avoid_: Line Item, Procurement Request
 
 **Other request**:

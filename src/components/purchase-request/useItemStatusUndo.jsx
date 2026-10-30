@@ -37,7 +37,7 @@ export function useItemStatusUndo(requestId) {
     toast.custom(
       (t) => (
         <CustomToast
-          t={undoable ? { ...t, action: { label: "Undo", onClick: () => undo(item, updated) } } : t}
+          t={undoable ? { ...t, action: { label: `Undo: back to ${ITEM_STATUS_LABELS[item.status] || item.status}`, onClick: () => undo(item, updated) } } : t}
           variant={variant}
           description={message}
         />

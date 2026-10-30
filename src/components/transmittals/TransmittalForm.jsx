@@ -55,7 +55,7 @@ function lineFrom(line) {
   };
 }
 
-/** A PO line picked from an IPAS: its name and unit are the Odoo ones, and its SORs the choices. */
+/** A P0 line picked from an IPAS: its name and unit are the Odoo ones, and its SORs the choices. */
 function poLineFromPick(pick) {
   return {
     key: nextLineKey(),
@@ -100,7 +100,7 @@ const sameLine = (line, pick) => line.ipasId === pick.ipasId && line.odooPoLineI
  * draft; "Submit" saves and submits it, which fixes it and opens the first
  * stage. The database refuses anything the screen lets through.
  *
- * Two panes: the live PO lines on the left (click one to put it on the slip),
+ * Two panes: the live P0 lines on the left (click one to put it on the slip),
  * the slip on the right (header as property pills, lines as one-line rows).
  *
  * `actionsSlot`: when the form sits in a modal, the footer node to put Save draft
@@ -135,7 +135,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
     setLines((prev) => prev.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   const removeLine = (key) => setLines((prev) => prev.filter((line) => line.key !== key));
 
-  // The first PO line sets the Company, unless one was already picked.
+  // The first P0 line sets the Company, unless one was already picked.
   const addPickedLine = (pick) => {
     setLines((prev) => [...prev, poLineFromPick(pick)]);
     setHeader((prev) => (prev.entity ? prev : { ...prev, entity: matchCompany(companyNames, pick.entity) }));
@@ -207,14 +207,14 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
   return (
     <div className="grid gap-8 pb-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <aside className="min-w-0">
-        <SectionTitle title="Live PO lines" note="Click a line to put it on the slip. Click it again to take it off." />
+        <SectionTitle title="Live P0 lines" note="Click a line to put it on the slip. Click it again to take it off." />
         <FillFromIpas onFill={addPicks} />
         <PoLineBrowser lines={lines} onToggle={togglePick} onAddAll={addPicks} onAddTyped={addTyped} />
       </aside>
 
       <section className="min-w-0 space-y-6">
         <div>
-          <SectionTitle title="The slip" note="Click a pill to set it. Company follows the first PO line." />
+          <SectionTitle title="The slip" note="Click a pill to set it. Company follows the first P0 line." />
           <SlipProperties
             header={header}
             setField={setField}
