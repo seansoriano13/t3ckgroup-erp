@@ -5,7 +5,7 @@
 import { openRowNamed } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it } from "vitest"
 import { screen, within } from "@testing-library/react"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
@@ -140,5 +140,42 @@ describe("the product list as a table", () => {
 
     const s0 = await screen.findByRole("region", { name: "From the S0" })
     expect(within(s0).getByText("Product").closest(".overflow-x-auto")).not.toBeNull()
+  })
+})
+
+describe("the No Odoo product tag (#807)", () => {
+  it("shows on an open Other request with no Odoo product", async () => {
+    seedOther({ status: "still_canvassing", odoo_product_id: null })
+    show(buyer.id)
+
+    const row = (await screen.findAllByTestId("requested-item"))[0]
+    expect(within(row).getByText("No Odoo product")).toBeInTheDocument()
+  })
+
+  it("shows on an open S0 line whose product was typed, not picked from Odoo", async () => {
+    await seedS0({ odoo_product_id: null, odoo_line_id: null })
+    show(buyer.id)
+
+    const row = await openRowNamed("Milwaukee Charger M18")
+    expect(within(row).getByText("No Odoo product")).toBeInTheDocument()
+  })
+
+  it("is hidden on a line that has an Odoo product", async () => {
+    await seedS0()
+    show(buyer.id)
+
+    const row = await openRowNamed("Milwaukee Charger M18")
+    expect(within(row).queryByText("No Odoo product")).not.toBeInTheDocument()
+  })
+
+  it("is hidden on a Cancelled item even with no Odoo product", async () => {
+    seedOther({ status: "cancelled", odoo_product_id: null })
+    show(buyer.id)
+
+    // A Cancelled line folds into "1 done", so open that first.
+    const other = await screen.findByRole("region", { name: "Other requests" })
+    await setupUser().click(within(other).getByRole("button", { name: "show" }))
+    const row = within(other).getByTestId("requested-item")
+    expect(within(row).queryByText("No Odoo product")).not.toBeInTheDocument()
   })
 })
