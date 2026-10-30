@@ -375,16 +375,13 @@ export default function OpportunitiesPage() {
       // Open Pipeline (CONTEXT.md): the same rule the Open pipeline value
       // adds up, so the filter lists exactly the rows behind the figure.
       if (stageFilter === "OPEN" && !isOpenPipelineOpportunity(o, stageContext)) return false;
-      // #814: Lost deals stay in reports but out of the working list. The Lost
-      // filter (or a Stage filter that names their own Stage) brings them
-      // back; the Board keeps them, since Lost is one of its columns.
+      // #814: Lost deals stay in reports but out of the working list, for both
+      // kinds of deal (a flow deal's status never changes, so a status Stage
+      // filter cannot be trusted to leave it out). Only the Lost filter brings
+      // them back; the Board keeps them, since Lost is one of its columns.
       if (stageFilter === "LOST") {
         if (!isLostOpportunity(o, stageContext)) return false;
-      } else if (
-        view !== "board" &&
-        o.status !== stageFilter &&
-        isLostOpportunity(o, stageContext)
-      ) {
+      } else if (view !== "board" && isLostOpportunity(o, stageContext)) {
         return false;
       }
       if (stageFilter !== "ALL" && stageFilter !== "OPEN" && stageFilter !== "LOST" && o.status !== stageFilter) return false;

@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-10-30",
+        "title": "Mark a deal as Lost, and bring it back",
+        "version": "1.9.77",
+        "changes": [
+            "You can now mark a deal as Lost from the SOR window or by dragging it to the Lost column on the board. You pick a reason first.",
+            "A Lost deal can be reopened. It goes back to the stage it was lost from.",
+            "Lost deals no longer clutter the SOR list. Use the new \"Lost\" filter to see them, with the reason."
+        ]
+    },
+    {
+        "date": "2026-10-30",
         "title": "Clearer compliance wording",
         "version": "1.9.76",
         "changes": [

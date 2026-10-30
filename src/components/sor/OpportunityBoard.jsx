@@ -4,10 +4,10 @@ import { Clock, ChevronDown, LayoutGrid, Rows3, GitBranch } from "lucide-react";
 import Avatar from "../Avatar";
 import Dropdown from "../ui/Dropdown";
 import MoveConfirmDialog from "./MoveConfirmDialog";
-import { MarkLostDialogHost } from "./MarkLostButton";
+import MarkLostDialogHost from "./MarkLostDialogHost";
 import { PROJECT_TYPE_SHORT, formatPHP } from "../../constants/sor";
 import { flowBoardColumns, legacyBoardColumns } from "../../constants/board";
-import { outgoingStages, isLostFlowStage } from "../../constants/salesFlow";
+import { outgoingStages, isLostFlowStage, lostStagesOfFlow } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { getStatusTheme } from "../../constants/status";
 import HighlightText from "../HighlightText";
@@ -227,8 +227,8 @@ export default function OpportunityBoard({
       ),
     [columns, activeFlow],
   );
-  const lostStagesOfFlow = useMemo(
-    () => activeFlowStages.filter((s) => activeFlow && isLostFlowStage(s, activeFlow.won_stage_id)),
+  const flowLostStages = useMemo(
+    () => (activeFlow ? lostStagesOfFlow(activeFlowStages, activeFlow.won_stage_id) : []),
     [activeFlowStages, activeFlow],
   );
   // Mark as Lost works from any open Stage, so a Lost column is a target
@@ -459,7 +459,7 @@ export default function OpportunityBoard({
       {pendingLost && (
         <MarkLostDialogHost
           opportunity={pendingLost.opportunity}
-          lostStages={lostStagesOfFlow}
+          lostStages={flowLostStages}
           isOpen
           onClose={() => setPendingLost(null)}
           onDone={() => onMoved?.()}

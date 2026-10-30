@@ -273,6 +273,15 @@ export function isLostFlowStage(flowStage, wonStageId) {
 }
 
 /**
+ * The Lost Stages of a flow: every Stage a deal can be marked Lost into.
+ * One list for the Mark as Lost picker, the Board's Lost columns and the
+ * "can this deal be lost" checks.
+ */
+export function lostStagesOfFlow(stages, wonStageId) {
+  return (stages || []).filter((s) => isLostFlowStage(s, wonStageId ?? null))
+}
+
+/**
  * Classifies a Stage within a Sales Flow graph:
  * - "WON": the designated Won Stage
  * - "POST_WON": an active Stage strictly downstream of the Won Stage, or a
