@@ -7,7 +7,7 @@ import { lineVerdict } from "../../../utils/costingVerdict";
 
 /**
  * The Compliance column of the sheet (spec #699, ticket #706). The Technical team that judges the row
- * as a small pill, then the verdict (Complies / Deviates / Not judged) with its note under it. Only a
+ * as a small pill, then the verdict (Complies / Deviates / Not inspected) with its note under it. Only a
  * member of that team can mark the row; everyone else reads it. Sales and Purchasing choose the team.
  * No money here: the column is served to every tier.
  */
@@ -40,7 +40,7 @@ export default function ComplianceColumn({ line, myTeams, canSetTeam, onChanged 
         ))
       ) : (
         <>
-          <StatusBadge label={COMPLIANCE_LABEL[verdict] ?? "Not judged"} theme={COMPLIANCE_THEME[verdict] ?? "mauve"} title="Compliance" />
+          <StatusBadge label={COMPLIANCE_LABEL[verdict] ?? "Not inspected"} theme={COMPLIANCE_THEME[verdict] ?? "mauve"} title="Compliance" />
           {parts
             .filter((part) => part.compliance === "deviates" && part.compliance_note)
             .map((part) => (

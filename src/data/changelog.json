@@ -1,5 +1,13 @@
 [
     {
+        "date": "2026-10-30",
+        "title": "Clearer compliance wording",
+        "version": "1.9.76",
+        "changes": [
+            "A row that has no verdict yet now says \"Not inspected\" in the Compliance column instead of \"Not judged\"."
+        ]
+    },
+    {
         "date": "2026-10-29",
         "title": "More fixes from the Purchasing demo run",
         "version": "1.9.75",
