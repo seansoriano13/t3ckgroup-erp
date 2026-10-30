@@ -55,7 +55,7 @@ async function main() {
       console.log("Mock purchasing data is already there. Nothing added.")
       return
     }
-    const emps = await q("select id, email from employees where coalesce(is_deleted,false) = false order by (email in ('purchaser@mock.t3ck.test', 'purchaser@local')) desc, (email like '%@policy.fixture') asc, (email like 'super-admin%') desc, email")
+    const emps = await q("select id, email from employees where coalesce(is_deleted,false) = false order by (email in ('ayla@staging', 'ayla@local')) desc, (email like '%@policy.fixture') asc, (email like 'super-admin%') desc, email")
     if (emps.length < 2) throw new Error("Need at least two employees. Run seed-mock-employees.mjs first.")
     const buyer = emps[0].id
     const people = emps.map((e) => e.id)

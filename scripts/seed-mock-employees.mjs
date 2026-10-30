@@ -18,12 +18,13 @@ import { DEFAULT_LOCAL_DB_URL, loadDotEnvLocal } from "./lib/seedShared.mjs"
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..")
 
-export const MOCK_PASSWORD = "MockStaging#2026"
-// Local stack only: a short password that is easy to type. Staging keeps MOCK_PASSWORD.
-export const LOCAL_MOCK_PASSWORD = "password"
-export const MOCK_DOMAIN = "mock.t3ck.test"
-// Local stack only: a short domain, so emails read purchaser@local.
+// Short and easy to type: dani@staging / staging, dani@local / local.
+export const MOCK_PASSWORD = "staging"
+export const LOCAL_MOCK_PASSWORD = "local"
+export const MOCK_DOMAIN = "staging"
 export const LOCAL_MOCK_DOMAIN = "local"
+// The emails before the rename; such an account is renamed in place, so its work stays with it.
+const OLD_DOMAIN = { staging: "mock.t3ck.test", local: "local" }
 
 export const MOCK = {
   "super-admin": { name: "Mock Super Admin", department: "SUPER ADMIN", role: "SYSTEM ADMINISTRATOR", is_super_admin: true },
@@ -46,6 +47,29 @@ export const MOCK = {
   "purchaser-2": { name: "Mock Purchaser Two", department: "OPERATIONS", sub_department: "PURCHASING", role: "PURCHASER", has_purchasing_flow: true, has_task_flow: true },
   "approver": { name: "Mock Approver", department: "ADMIN", sub_department: "ADMIN", role: "GENERAL MANAGER", is_head: true, has_task_flow: true },
 }
+
+// Each mock role signs in as the real person who does that job (dani@staging, dani@local), and the
+// name ends in "(staging)" or "(local)" so a mock screen is never mistaken for the real one.
+export const LOGINS = {
+  "super-admin": "101",
+  "sales-head": "maey",
+  "sales-subhead": "grace",
+  "sales-exec": "dani",
+  "sales-exec-2": "aldrin",
+  "hr": "geane",
+  "leave-manager": "ysabelle",
+  "admin-head": "jen",
+  "finance": "jelai",
+  "ops-head": "gracean",
+  "purchaser": "ayla",
+  "logistics": "alvin",
+  "technical": "oliver",
+  "flow-editor": "sean",
+  "plain": "jade",
+  "purchaser-2": "micko",
+  "approver": "201",
+}
+const mockName = (login, where) => `${/^\d+$/.test(login) ? login : login[0].toUpperCase() + login.slice(1)} (${where})`
 
 const FLAGS = ["is_head", "is_hr", "is_super_admin", "can_manage_leaves", "can_edit_sales_flows", "has_sales_flow", "has_task_flow", "has_purchasing_flow", "has_finance_flow", "has_retail_access"]
 
@@ -84,8 +108,16 @@ async function main() {
   await c.connect()
   try {
     for (const [key, spec] of Object.entries(MOCK)) {
-      const email = `${key}@${domain}`
+      const email = `${LOGINS[key]}@${domain}`
+      const name = mockName(LOGINS[key], domain)
       await c.query("begin")
+      // An account from before the rename (purchaser@mock.t3ck.test, purchaser@local) keeps its id, and so its work, under the new email.
+      const old = `${key}@${OLD_DOMAIN[domain]}`
+      const taken = await c.query("select 1 from auth.users where email = $1", [email])
+      if (!taken.rows.length) {
+        await c.query("update auth.users set email = $2 where email = $1", [old, email])
+        await c.query("update auth.identities set identity_data = identity_data || jsonb_build_object('email', $2::text) where identity_data->>'email' = $1", [old, email])
+      }
       const existing = await c.query("select id from auth.users where email = $1", [email])
       let id = existing.rows[0]?.id
       if (id) {
@@ -118,21 +150,23 @@ async function main() {
          on conflict (id) do update set email = excluded.email, name = excluded.name, department = excluded.department,
            sub_department = excluded.sub_department, role = excluded.role, is_deleted = false,
            ${FLAGS.map((f) => `${f} = excluded.${f}`).join(", ")}`,
-        [id, email, spec.name, spec.department, spec.sub_department ?? null, spec.role, ...flags],
+        [id, email, name, spec.department, spec.sub_department ?? null, spec.role, ...flags],
       )
       await c.query("commit")
       console.log(`ok  ${email}`)
     }
     if (local) {
       for (const [key, sign] of Object.entries(LOCAL_CALL_SIGNS)) {
-        await c.query("update public.employees set call_sign = $2 where email = $1", [`${key}@${domain}`, sign])
+        // A call sign is unique; another local row (a staging mock copied down) may hold it already.
+        await c.query("update public.employees set call_sign = null where call_sign = $2 and email <> $1", [`${LOGINS[key]}@${domain}`, sign])
+        await c.query("update public.employees set call_sign = $2 where email = $1", [`${LOGINS[key]}@${domain}`, sign])
       }
       for (const [list, keys] of Object.entries(LOCAL_LISTS)) {
         for (const key of keys) {
           await c.query(
             `insert into public.ipas_signer_lists (list_key, employee_id)
              select $1, id from public.employees where email = $2 on conflict (list_key, employee_id) do nothing`,
-            [list, `${key}@${domain}`],
+            [list, `${LOGINS[key]}@${domain}`],
           )
         }
         console.log(`ok  ${list}: ${keys.join(", ")}`)
@@ -142,7 +176,7 @@ async function main() {
           await c.query(
             `insert into public.costing_signer_lists (list_key, employee_id)
              select $1, id from public.employees where email = $2 on conflict (list_key, employee_id) do nothing`,
-            [list, `${key}@${domain}`],
+            [list, `${LOGINS[key]}@${domain}`],
           )
         }
         console.log(`ok  ${list}: ${keys.join(", ")}`)

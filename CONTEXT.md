@@ -1108,6 +1108,17 @@ nobody has bought yet counts at its Final Acquire, marked not bought yet. The
 gap between the two is what buying cost or saved against the plan.
 _Avoid_: Margin, Profit, Projected Revenue (the Offer's projected margin is a Canvass figure)
 
+**Item Road**:
+Where one Component is on its way from plan to warehouse: Planned, Go, Requested,
+Ordered (a P0 is on it), Paying (its P0 has an IPAS), Cost final (the Landed Cost
+is final) and Received, or From stock when the warehouse already holds it. A
+Tender Line is as far along as its slowest Component. A Requested Item counts for
+a Component when it names it, or, naming none, when it buys the same SOR line as
+a Tender Line that has only that one Component. Shown on the S0 Evaluation; the
+IPAS is where one supplier's share of the road is paid. Not a record of its own:
+worked out from the Requested Items, P0s and IPAS that already exist.
+_Avoid_: Status (a Requested Item's own word), Progress, Pipeline
+
 **Tender Line**:
 One thing the client asked for in the S0 Evaluation — its specification,
 quantity, ABC and Final Offer. The offer price is quoted per tender line. Typed,

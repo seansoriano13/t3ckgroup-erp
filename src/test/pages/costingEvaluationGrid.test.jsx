@@ -5,7 +5,7 @@ import { chooseOption } from "@/test/support";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { closeLine, openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * The Evaluation of Specification on the Costing Matrix grid (#271): the Offer Specification
@@ -112,7 +112,6 @@ describe("the Evaluation of Specification on the grid", () => {
     it("offers the button to someone on the evaluation list, disabled while a Component has no verdict", async () => {
       db.seed("costing_signer_lists", { list_key: "evaluation", employee_id: reviewer.id });
       mount();
-      await openLines();
       const button = await screen.findByRole("button", { name: "Approve the evaluation" });
       expect(button).toBeDisabled();
       expect(screen.getByTestId("evaluation-waiting")).toHaveTextContent("2 Components have no verdict yet.");
@@ -123,7 +122,6 @@ describe("the Evaluation of Specification on the grid", () => {
       db.seed("costing_signer_lists", { list_key: "evaluation", employee_id: reviewer.id });
       for (const row of db.internal.rowsOf("costing_components")) row.compliance = "complies";
       const user = mount();
-      await openLines();
       await user.click(await screen.findByRole("button", { name: "Approve the evaluation" }));
       const approval = await screen.findByTestId("evaluation-approval");
       await waitFor(() => expect(within(approval).getByText("Evaluation approved")).toBeInTheDocument());
@@ -152,6 +150,7 @@ describe("the Evaluation of Specification on the grid", () => {
       await user.clear(offer);
       await user.type(offer, "Head, 3 m");
       await user.tab();
+      await closeLine();
 
       expect(await screen.findByTestId("evaluation-cleared")).toHaveTextContent("The last approval was cleared: an Offer Specification changed.");
       expect(screen.getByRole("button", { name: "Approve the evaluation" })).toBeEnabled();

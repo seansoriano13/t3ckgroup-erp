@@ -4,7 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { closeLine, openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * Markup on the Costing Matrix grid (#269, #703: only the Markup list writes the multiplier, so the tests that
@@ -133,7 +133,6 @@ describe("markup on the S0 Evaluation grid", () => {
     stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management", "markup"] });
     const user = openDesk(deal);
 
-    await openLines();
     const presets = await screen.findByLabelText("Markup presets");
     // A preset that was switched off is not offered.
     expect(within(presets).queryByRole("button", { name: /Retired/ })).not.toBeInTheDocument();
@@ -147,6 +146,7 @@ describe("markup on the S0 Evaluation grid", () => {
     await waitFor(() => expect(db.rows("costing_matrix_money")[0]).toMatchObject({ default_factor: 2.4 }));
     await waitFor(() => expect(screen.getByTestId("markup-default-shown")).toHaveTextContent("×2.40 +140%"));
     // The bolts follow the new default; the vehicle keeps its own x1.47; Final Offer is where Sales left it.
+    await openLines();
     expect(within(screen.getAllByTestId("component")[1]).getByTestId("markup-factor-shown")).toHaveTextContent("×2.40 · +140% (default)");
     expect(within(screen.getAllByTestId("component")[0]).getByTestId("markup-factor-shown")).toHaveTextContent("×1.47 · +47%");
     expect(db.rows("costing_tender_line_prices")[0].final_offer_unit).toBe(3300000);
@@ -157,7 +157,6 @@ describe("markup on the S0 Evaluation grid", () => {
     stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management", "markup"] });
     const user = openDesk(deal);
 
-    await openLines();
     const tried = await screen.findByLabelText("Markup factor to try");
     await user.clear(tried);
     await user.type(tried, "1.2");
@@ -183,12 +182,14 @@ describe("markup on the S0 Evaluation grid", () => {
     await openLines();
     expect(await screen.findByTestId("markup-default-shown")).toHaveTextContent("none yet");
     expect(within(screen.getAllByTestId("component")[1]).getByTestId("markup-factor-shown")).toHaveTextContent("No factor yet");
+    await closeLine();
 
     const tried = screen.getByLabelText("Markup factor to try");
     await user.clear(tried);
     await user.type(tried, "1.5");
     await user.click(screen.getByRole("button", { name: "Save ×1.50 as the markup" }));
     await waitFor(() => expect(db.rows("costing_matrix_money")[0].default_factor).toBe(1.5));
+    await openLines();
 
     const boltsFactor = within(screen.getAllByTestId("component")[1]).getByLabelText("Markup factor 1.2");
     await user.type(boltsFactor, "2.0644");

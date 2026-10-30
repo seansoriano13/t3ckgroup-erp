@@ -6,7 +6,7 @@ import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { seedCanvass, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc";
 import { canvassService } from "@/services/canvassService";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import { openLines, renderComponentCanvass, renderCostingDesk } from "@/test/support/costingDesk";
+import { closeLine, openLines, renderComponentCanvass, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * The winner on the Costing Matrix page (#278): Purchasing marks a winner in the Canvass panel (opened
@@ -56,10 +56,10 @@ describe("a winner on the S0 Evaluation page", () => {
 
   it("marks a winner from the panel and shows 'from Canvass' on Acquire and Offer Specification", async () => {
     const user = mount({ tier: "cost", bands: ["purchasing"] });
-    await openLines();
     await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc\. the winner/ }));
 
     await waitFor(() => expect(db.rows("sor_canvass_offers").find((o) => o.id === redleaf.id).is_winner).toBe(true));
+    await openLines();
     await waitFor(() => expect(screen.getAllByTestId("from-canvass")).toHaveLength(2));
     expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
     // Purchasing gets the Accept too: Brand is written by Sales and Purchasing.
@@ -68,10 +68,11 @@ describe("a winner on the S0 Evaluation page", () => {
 
   it("un-picks the winner: no winner, an old sign-off kept, values kept, and a note on the row", async () => {
     const user = mount({ tier: "cost", bands: ["purchasing"] });
-    await openLines();
     await user.click(await screen.findByRole("button", { name: /Mark Redleaf Inc. the winner/ }));
+    await openLines();
     await waitFor(() => expect(screen.getAllByTestId("from-canvass")).toHaveLength(2));
     expect(screen.queryByTestId("canvass-no-winner-note")).not.toBeInTheDocument();
+    await closeLine();
     db.internal.rowsOf("sor_canvasses")[0].signed_off_at = "2026-10-20T01:00:00Z";
 
     await user.click(await screen.findByRole("button", { name: /Clear Redleaf Inc. as the winner/ }));
@@ -82,9 +83,11 @@ describe("a winner on the S0 Evaluation page", () => {
     expect(db.rows("sor_canvasses")[0].signed_off_at).toBe("2026-10-20T01:00:00Z");
     // What the winner filled stays, still marked.
     expect(db.rows("costing_component_costs")[0]).toMatchObject({ acquire_unit: 78000, acquire_from_offer_id: redleaf.id });
+    await openLines();
     expect(await screen.findByTestId("no-winner-note")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("canvass-no-winner-note")).toHaveTextContent("CNV_0001"));
     expect(screen.getAllByTestId("from-canvass")).toHaveLength(2);
+    await closeLine();
 
     // A new winner takes the note away.
     await user.click(await screen.findByRole("button", { name: /Mark Ferno the winner/ }));

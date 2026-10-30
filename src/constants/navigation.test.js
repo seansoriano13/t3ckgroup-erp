@@ -266,8 +266,8 @@ describe("navigation registry", () => {
         // Flow Plans / the Sandbox mode were removed by #186.
         // System Admin and Lead Sources moved into Settings (#177).
         // Commission Pool moved onto the Commission Dashboard's Formula tab (#441).
+        // Flow Access moved inside the Flow Canvas, per Sale Type.
         "Flow Canvas",
-        "Flow Access",
         // Release Notes moved to Workspace, open to everyone (ADR 0030).
         "Bug Reports",
       ]);

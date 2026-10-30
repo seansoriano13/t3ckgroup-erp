@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Item Road Demo</title>
+<style>
+  :root { --bg:#fafaf9; --fg:#1c1917; --muted:#57534e; --line:#e7e5e4; --card:#fff; --ok:#166534; --warn:#92400e; --warnbg:#fffbeb; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1c1917; --fg:#f5f5f4; --muted:#a8a29e; --line:#44403c; --card:#292524; --ok:#4ade80; --warn:#fbbf24; --warnbg:#3a2f12; } }
+  body { background:var(--bg); color:var(--fg); font:15px/1.55 system-ui, sans-serif; margin:0; }
+  main { max-width:820px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:26px; margin:0 0 4px; } h2 { font-size:18px; margin:32px 0 8px; }
+  .muted { color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:10px 0; }
+  .warn { background:var(--warnbg); border-color:var(--warn); }
+  ol.steps { padding-left:22px; } ol.steps > li { margin:10px 0; }
+  .expect { display:block; margin-top:4px; color:var(--ok); }
+  .expect::before { content:"✓ You should see: "; font-weight:600; }
+  code { background:var(--line); padding:1px 5px; border-radius:4px; font-size:13px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; } td, th { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  input[type=checkbox] { transform:scale(1.2); margin-right:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Item Road demo: SOR-250, Fire fighting equipment</h1>
+  <p class="muted">A real deal on staging: S0 <b>S03204</b>, 12 lines, purchase request <b>PR_0171</b>, and the real Odoo P0 <b>P01046</b>, which covers 7 of the 12 items. Tick each box as you go.</p>
+
+  <div class="card">
+    <b>What you are checking.</b> Each line of the S0 Evaluation now says where it is on the road:
+    <b>Planned → Go → Requested → Ordered → Paying → Cost final → Received</b>. Before this change, SOR-250's twelve purchase items never reached the S0 Evaluation at all, because they were made from the S0's lines and not "from the S0 Evaluation".
+  </div>
+
+  <div class="card warn">
+    <b>Before you start.</b> This runs on <b>staging</b>, not the live product. Step 7 writes to staging: it marks one purchase item Purchased on P01046 and creates a new IPAS for it there. Odoo is only read, never changed. The old IPAS for P01046 (TGIPAS_063) is cancelled, so a new one is expected.
+  </div>
+
+  <h2>Part 1: put the change on staging</h2>
+  <ol class="steps">
+    <li><input type="checkbox">Ask Claude to merge the <code>feat/item-road</code> branch into staging and push it.
+      <span class="expect">GitHub runs "Apply migrations — staging" and it finishes green; the staging site rebuilds a few minutes later.</span></li>
+  </ol>
+
+  <h2>Part 2: see the road</h2>
+  <ol class="steps" start="2">
+    <li><input type="checkbox">Open <code>https://t3ckgroup-erp-staging.vercel.app</code> and sign in as <code>101@staging</code>, password <code>staging</code>.</li>
+    <li><input type="checkbox">Open <b>SOR-250</b>, then its <b>S0 Evaluation</b>.
+      <span class="expect">every one of the 12 lines has a blue <b>Requested</b> badge under its name. (Before this change they had no badge, and the parts showed nothing being bought.)</span></li>
+    <li><input type="checkbox">Click the first item, <b>FFS Fire Suit Aramid</b>. In the side panel, open its part.
+      <span class="expect">a row of steps at the top of the part, with <b>Requested</b> lit and Planned and Go before it.</span></li>
+    <li><input type="checkbox">Close the panel.</li>
+  </ol>
+
+  <h2>Part 3: order one item and watch it move</h2>
+  <ol class="steps" start="6">
+    <li><input type="checkbox">Sign out, then sign in as the purchaser: <code>ayla@staging</code>, same password. (The super admin may not see the Attach P0 button; the purchaser does.)</li>
+    <li><input type="checkbox">Go to <b>Purchasing → Purchase Requests → PR_0171</b>. Open the line <b>FFS Fire Suit Aramid</b> and press <b>Attach P0</b>. Pick <b>P01046</b>, and pick its Fire Suit line when asked.
+      <span class="expect">the item becomes Purchased on P01046, and a message says an IPAS was created.</span></li>
+    <li><input type="checkbox">Go back to <b>SOR-250 → S0 Evaluation</b>.
+      <span class="expect">line 1 now says <b>Paying</b> (purple). The other 11 lines still say Requested.</span></li>
+    <li><input type="checkbox">Open line 1 and its part again.
+      <span class="expect"><b>Paying</b> lit, and under the steps: "Paid through TGIPAS_… (P01046, Open)", which links to the new IPAS.</span></li>
+    <li><input type="checkbox">Click that IPAS link.
+      <span class="expect">the IPAS for P01046 opens, naming SOR-250. This is the same purchase, seen from the paying side.</span></li>
+  </ol>
+
+  <h2>What each step means</h2>
+  <table>
+    <tr><th>Step</th><th>When a part is on it</th></tr>
+    <tr><td>Planned</td><td>Still being priced. No Go, nothing asked for.</td></tr>
+    <tr><td>Go</td><td>The bid got a Go, but nothing is asked for yet.</td></tr>
+    <tr><td>Requested</td><td>A purchase request item buys it, with no P0 yet.</td></tr>
+    <tr><td>Ordered</td><td>A P0 is on it, with no IPAS yet.</td></tr>
+    <tr><td>Paying</td><td>Its P0 has an IPAS.</td></tr>
+    <tr><td>Cost final</td><td>The IPAS's real cost for it is final. Only people who can see costs see this step.</td></tr>
+    <tr><td>Received</td><td>Every item for it is received. "From stock" means the warehouse already had it.</td></tr>
+  </table>
+  <p class="muted">A line with several parts shows its slowest part. A purchase item made from an S0 line only counts for a line that has exactly one part; with two or more parts, the app does not guess which one it buys.</p>
+
+  <h2>If something looks wrong</h2>
+  <ul>
+    <li>All lines still have no badge: the staging site has not rebuilt yet. Wait a few minutes and reload.</li>
+    <li>Lines say Planned instead of Requested: the database change did not apply. Check "Apply migrations — staging" on GitHub.</li>
+    <li>No Attach P0 button: you are not signed in as the purchaser.</li>
+  </ul>
+</main>
+</body>
+</html>
