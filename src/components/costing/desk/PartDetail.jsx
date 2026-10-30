@@ -28,6 +28,7 @@ import ComponentRequests from "../ComponentRequests";
 import ComponentCanvass, { BrandProposal, FromCanvass } from "../ComponentCanvass";
 import SupplierMismatch from "../SupplierMismatch";
 import ComponentPurchases from "../ComponentPurchases";
+import ItemRoad from "./ItemRoad";
 import { LandedCostCell } from "../LandedCost";
 import { costComparisonText } from "../../../utils/costComparison";
 
@@ -107,6 +108,7 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
 
   return (
     <div data-testid="component">
+      <ItemRoad component={component} locked={Boolean(matrix.locked)} linkIpas={tier !== COSTING_TIER.PARTICIPANT} />
       <Band title={asProduct ? "Product" : "Part"} hint="What we supply">
         <Field label="Name" wide>
           <div className="flex items-start gap-1">

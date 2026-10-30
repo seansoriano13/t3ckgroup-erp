@@ -13,6 +13,18 @@ import { pesos } from "../gridFormat";
 import { useAuth } from "../../../context/AuthContext";
 import ComplianceColumn from "./ComplianceColumn";
 import { useMyEvaluationTeams } from "./evaluationTeams";
+import { ROAD_THEMES, lineRoad } from "../../../utils/itemRoad";
+
+/** Where the line is on its way from plan to warehouse (utils/itemRoad), as one badge; a stuck part says so. */
+function RoadBadge({ line, locked }) {
+  const road = lineRoad(line, { locked });
+  return (
+    <span data-testid="line-road" className="inline-flex items-center gap-1">
+      <StatusBadge label={road.label} theme={ROAD_THEMES[road.step]} />
+      {road.stuck && <StatusBadge label="Cannot source" theme="red" />}
+    </span>
+  );
+}
 
 /** The word and colour under a price for where it came from; a cost Purchasing typed is amber. */
 const SOURCE_BADGE = {
@@ -382,6 +394,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
                           <span>{kid ? `comes with ${parent ? itemName(parent) : "the line above"}` : `line ${line.number}`}</span>
                           {line.source === "typed" && !line.sor_item_id && <StatusBadge label="Not on the S0" theme="amber" />}
+                          {!kid && <RoadBadge line={line} locked={Boolean(matrix.locked)} />}
                           {parts > 1 && <span>· {parts} parts</span>}
                         </div>
                       </div>
