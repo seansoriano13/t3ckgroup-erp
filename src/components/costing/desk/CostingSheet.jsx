@@ -1,7 +1,8 @@
-import { CornerDownRight } from "lucide-react";
+import { ChevronRight, CornerDownRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@/lib/utils";
+import { Button } from "../../ui/button";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../ui/table";
 import StatusBadge from "../../StatusBadge";
 import { Cell } from "../GridCell";
@@ -26,7 +27,7 @@ const SOURCE_BADGE = {
  * The Costing Matrix as one flat grid, one row per line of the SOR's S0 (layout A "Sheet", spec #699,
  * ticket #700). A header strip of facts, two header rows (the team that owns each column, then the
  * column), and the Item column frozen while the money scrolls sideways. A box you can type in is a
- * `Cell`; everything else is plain text. This ticket draws Item, Qty, Client asks for, ABC / unit and
+ * `Cell`; everything else is plain text. The item opens the line's slide-over (CostingDesk). This ticket draws Item, Qty, Client asks for, ABC / unit and
  * Final Offer / unit; later tickets add the cost, markup and compliance columns after them. A column
  * the viewer's tier is not sent is left out, not blanked.
  */
@@ -190,7 +191,7 @@ function MarkupCells({ line, kid, figures, tier, canMarkup, onSaveFactor }) {
   );
 }
 
-export default function CostingSheet({ matrix, opportunity, writes, canWrite }) {
+export default function CostingSheet({ matrix, opportunity, writes, canWrite, onOpenLine }) {
   const { user } = useAuth();
   const myTeams = useMyEvaluationTeams(user?.id ?? null);
   const lines = matrix.tenderLines;
@@ -364,7 +365,20 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
                     <div className={cn("flex gap-2", kid && "pl-5")}>
                       {kid && <CornerDownRight size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground" />}
                       <div className="min-w-0">
-                        <div className={cn(!kid && "font-semibold")}>{itemName(line)}</div>
+                        {onOpenLine ? (
+                          <Button
+                            type="button"
+                            variant="link"
+                            className={cn("group h-auto items-start gap-1 whitespace-normal p-0 text-left text-sm text-foreground", kid ? "font-normal" : "font-semibold")}
+                            aria-label={`Open line ${line.number}: ${itemName(line)}`}
+                            onClick={() => onOpenLine(line.id)}
+                          >
+                            <span>{itemName(line)}</span>
+                            <ChevronRight size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground group-hover:text-foreground" />
+                          </Button>
+                        ) : (
+                          <div className={cn(!kid && "font-semibold")}>{itemName(line)}</div>
+                        )}
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
                           <span>{kid ? `comes with ${parent ? itemName(parent) : "the line above"}` : `line ${line.number}`}</span>
                           {line.source === "typed" && !line.sor_item_id && <StatusBadge label="Not on the S0" theme="amber" />}
@@ -445,7 +459,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite }) 
           </TableBody>
         </Table>
       </div>
-      <p className="text-xs text-muted-foreground">A box you can type in is yours to change. An S0 line priced at ₱0 reads as included in the line above it.</p>
+      <p className="text-xs text-muted-foreground">A box you can type in is yours to change. Click an item to open its parts, costs and evaluation. An S0 line priced at ₱0 reads as included in the line above it.</p>
     </div>
   );
 }

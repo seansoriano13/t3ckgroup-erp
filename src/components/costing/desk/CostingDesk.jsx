@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { AlertTriangle, ListTree, Plus, RefreshCw, Sparkles } from "lucide-react";
 
 import { Button } from "../../ui/button";
-import LinerList from "../../record/LinerList";
+import SlideOver, { SlideOverBody } from "../../ui/SlideOver";
+import StatusBadge from "../../StatusBadge";
 import NumbersStrip from "../../record/NumbersStrip";
 import RecordHeader from "../../record/RecordHeader";
 import { costingMatrixService, requestsByComponent } from "../../../services/costingMatrixService";
@@ -77,8 +78,9 @@ function useFill(matrix, opportunityId, writes) {
 
 /**
  * The Costing Desk: one SOR's Costing Matrix in its record window (layout A, chosen 2026-10-22). The
- * overview first (ABC, Final Offer, cost, margin), then the lines as a liner list that opens in place to
- * be typed into, the other costs and the summary; on the right the Bid Decision, the markup playground
+ * overview first (ABC, Final Offer, cost, margin), then the lines as one sheet, the other costs and the
+ * summary. A line's parts, costs and evaluation open in a slide-over from its row, so the sheet stays
+ * one table; on the right the Bid Decision, the markup playground
  * and the sign-offs. Lines come from the SOR's products, each priced from its product until it is broken
  * down into parts. Every figure and every write is the database's to allow; a tier sees only its columns.
  */
@@ -90,6 +92,8 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   const incharge = useInchargeOptions(opportunity);
   const { canFill, fill, odooNote } = useFill(matrix, opportunityId, writes);
   const lines = matrix?.tenderLines ?? [];
+  // The line open in the slide-over, by id, so it stays open while lines are moved or refreshed.
+  const [openLineId, setOpenLineId] = useState(null);
 
   const { data: stockSnapshot } = useQuery({
     queryKey: costingKeys.stock(opportunityId),
@@ -156,23 +160,16 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   if (showCost)
     stats.push({ key: "margin", label: "Margin", value: pesos(margin), sub: margin == null ? "Needs every offer and cost" : `${((margin / totals.finalOfferTotal) * 100).toFixed(1)}% of the offer` });
 
-  const rows = lines.map((line, index) => {
+  const openIndex = lines.findIndex((l) => l.id === openLineId);
+  const openLine = openIndex >= 0 ? lines[openIndex] : null;
+  const lineSummary = (line) => {
     const parts = line.components.length;
     const bits = [`${line.quantity} ${line.unit ?? ""}`.trim()];
     if (showAbc) bits.push(`ABC ${pesos(line.totals.abcTotal)}`);
     if (showCost) bits.push(`Cost ${pesos(line.totals.acquireTotal)}`);
     bits.push(parts === 1 ? "priced from its product" : parts === 0 ? "nothing supplied yet" : `${parts} parts`);
-    return {
-      key: line.id,
-      testId: "tender-line",
-      label: `Tender Line ${line.number}`,
-      main: `${line.number}. ${firstLine(line.tender_specification) || "Untitled line"}`,
-      sub: bits.join(" · "),
-      quantity: showOffer ? pesos(line.totals.finalOfferTotal) : null,
-      badge: lineBadge(line, { showAbc, showOffer, showCost }),
-      children: <LineDetail line={line} index={index} count={lines.length} matrix={matrix} ctx={ctx} />,
-    };
-  });
+    return bits.join(" · ");
+  };
 
   const canSalesIncharge = inAnyBand(matrix.allBands ?? matrix.bands, COMPONENT_BANDS.sales_incharge_id);
   const canPurchasingIncharge = inAnyBand(matrix.allBands ?? matrix.bands, COMPONENT_BANDS.purchasing_incharge_id);
@@ -236,22 +233,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
 
           <section className="space-y-3">
             <h3 className="text-sm font-bold text-foreground">Lines · {lines.length}</h3>
-            <CostingSheet matrix={matrix} opportunity={opportunity} writes={writes} canWrite={canWrite} />
-            {/* Every line still opens in place for its parts, costs and evaluation; the later tickets move those onto the grid rows. */}
-            {rows.length > 0 && (
-              <div className="space-y-2" data-testid="line-details">
-                <h4 className="text-sm font-bold text-foreground">
-                  Line details
-                  <span className="font-normal text-muted-foreground"> · open a line for its parts and costs</span>
-                </h4>
-                <LinerList
-                  label="Tender Lines"
-                  rows={rows}
-                  empty="No lines yet."
-                  total={showOffer ? { label: "Final Offer total", value: pesos(totals.finalOfferTotal), testId: "tender-totals" } : undefined}
-                />
-              </div>
-            )}
+            <CostingSheet matrix={matrix} opportunity={opportunity} writes={writes} canWrite={canWrite} onOpenLine={setOpenLineId} />
             {canWrite && (
               <Button type="button" variant="outline" size="sm" disabled={writes.busy} onClick={() => writes.run(() => costingMatrixService.addTenderLine(matrix.matrixId, {}, actorId))}>
                 <Plus size={14} aria-hidden="true" />
@@ -277,6 +259,37 @@ export default function CostingDesk({ opportunityId, opportunity }) {
           <SignoffBar matrix={matrix} nameOf={incharge.nameOf} />
         </aside>
       </div>
+
+      <SlideOver
+        record={openLine}
+        icon={ListTree}
+        crumb="Lines"
+        overModal
+        identity={(line) => {
+          const badge = lineBadge(line, { showAbc, showOffer, showCost });
+          return {
+            ref: `Line ${line.number}`,
+            title: firstLine(line.tender_specification) || "Untitled line",
+            badge: badge && <StatusBadge label={badge.label} theme={badge.theme} />,
+            subtitle: [lineSummary(line), showOffer && `Final Offer ${pesos(line.totals.finalOfferTotal)}`].filter(Boolean).join(" · "),
+          };
+        }}
+        index={Math.max(openIndex, 0)}
+        total={lines.length}
+        onStep={(by) => setOpenLineId(lines[openIndex + by]?.id ?? openLineId)}
+        onClose={() => setOpenLineId(null)}
+      >
+        {(line) => {
+          const index = lines.findIndex((l) => l.id === line.id);
+          return (
+            <SlideOverBody>
+              <div data-testid="tender-line">
+                <LineDetail line={line} index={index} count={lines.length} matrix={matrix} ctx={ctx} />
+              </div>
+            </SlideOverBody>
+          );
+        }}
+      </SlideOver>
     </div>
   );
 }

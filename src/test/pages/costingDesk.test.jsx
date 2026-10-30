@@ -6,7 +6,7 @@ import { pgrstError } from "@/test/db/schema";
 import { stubRpc } from "@/test/msw/server";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "@/test/factories";
-import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { closeLine, openLines, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * The Costing Desk, the Costing Matrix's record window (#267, layout A of 2026-10-22): its Tender
@@ -43,14 +43,16 @@ describe("the Costing Desk", () => {
     await openLines();
 
     const row = await screen.findByTestId("tender-line");
-    expect(within(row).getByText("1. Fire hose, 65 mm")).toBeInTheDocument();
+    // The slide-over's header names the line and carries its totals and badge.
+    const panel = screen.getByRole("dialog");
+    expect(within(panel).getAllByText("Fire hose, 65 mm").length).toBeGreaterThan(0);
     expect(within(row).getByLabelText("Tender Specification 1")).toHaveValue("Fire hose, 65 mm");
     expect(within(row).getByLabelText("ABC 1")).toHaveValue(1500);
     expect(within(row).getByLabelText("Final Offer 1")).toHaveValue(1600);
     // 4 x 1,500 = 6,000 and 4 x 1,600 = 6,400, so the offer is above the ABC.
-    expect(within(row).getByText("₱6,000.00")).toBeInTheDocument();
-    expect(within(row).getAllByText("₱6,400.00").length).toBeGreaterThan(0);
-    expect(within(row).getAllByText("Over ABC").length).toBeGreaterThan(0);
+    expect(within(panel).getAllByText(/₱6,000\.00/).length).toBeGreaterThan(0);
+    expect(within(panel).getAllByText(/₱6,400\.00/).length).toBeGreaterThan(0);
+    expect(within(panel).getAllByText("Over ABC").length).toBeGreaterThan(0);
     expect(screen.getByText("106.7% of the ABC")).toBeInTheDocument();
   });
 
@@ -109,26 +111,29 @@ describe("the Costing Desk", () => {
     const user = openDesk(deal);
 
     // The SOR's one product came in by itself, priced from its product.
-    const filled = await screen.findByTestId("tender-line");
-    expect(within(filled).getByText("1. Fire Hose")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByTestId("sheet-row")).toHaveLength(1));
+    expect(within(screen.getAllByTestId("sheet-row")[0]).getByText("Fire Hose")).toBeInTheDocument();
     expect(db.rows("costing_tender_lines")[0]).toMatchObject({ source: "sor_line", tender_specification: "Fire Hose", quantity: 4 });
     expect(db.rows("costing_components")[0]).toMatchObject({ name: "Fire Hose", quantity: 4, odoo_product_id: 55 });
 
     await user.click(screen.getByRole("button", { name: /Add a line that is not on the SOR/ }));
-    await waitFor(() => expect(screen.getAllByTestId("tender-line")).toHaveLength(2));
-    await openLines();
-    const typed = screen.getAllByTestId("tender-line")[1];
+    await waitFor(() => expect(screen.getAllByTestId("sheet-row")).toHaveLength(2));
+    await openLines(2);
+    const typed = screen.getByTestId("tender-line");
     await user.type(within(typed).getByLabelText("Tender Specification 2"), "Rescue tripod");
     await user.tab();
     await waitFor(() => expect(db.rows("costing_tender_lines")[1].tender_specification).toBe("Rescue tripod"));
+    await closeLine();
 
-    const hose = screen.getAllByTestId("tender-line")[0];
+    await openLines(1);
+    const hose = screen.getByTestId("tender-line");
     await user.type(within(hose).getByLabelText("Final Offer 1"), "1300");
     await user.tab();
     await waitFor(() => expect(db.rows("costing_tender_line_prices").find((p) => p.final_offer_unit === 1300)).toBeTruthy());
-    expect((await within(screen.getAllByTestId("tender-line")[0]).findAllByText("₱5,200.00")).length).toBeGreaterThan(0);
+    expect((await within(screen.getByRole("dialog")).findAllByText(/₱5,200\.00/)).length).toBeGreaterThan(0);
     // The quotation's price shows beside the Final Offer when they differ.
-    expect(within(screen.getAllByTestId("tender-line")[0]).getByTestId("quotation-price")).toHaveTextContent("Quotation ₱1,200.00");
+    expect(within(screen.getByTestId("tender-line")).getByTestId("quotation-price")).toHaveTextContent("Quotation ₱1,200.00");
+    await closeLine();
 
     // Refresh finds nothing new on the SOR.
     await user.click(screen.getByRole("button", { name: /Refresh from the SOR/ }));
@@ -405,7 +410,6 @@ describe("the Costing Desk", () => {
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing"] });
       const user = openDesk(deal);
 
-      await openLines();
       // #723: a new cost names its cost guide category first; the button waits for one.
       expect(await screen.findByRole("button", { name: /Add another cost/ })).toBeDisabled();
       await user.click(screen.getByRole("combobox", { name: "Category of the new cost" }));
@@ -423,6 +427,7 @@ describe("the Costing Desk", () => {
       const costRows = screen.getByTestId("cost-rows");
       expect(await within(costRows).findByTestId("cost-row-totals")).toHaveTextContent("₱100,000.00");
       // The Tender Line's parts total did not take it in.
+      await openLines();
       expect(within(screen.getByTestId("component-totals")).queryByText(/100,000/)).not.toBeInTheDocument();
     });
 
@@ -589,6 +594,7 @@ describe("the Costing Desk", () => {
       const user = openDesk(deal);
       await openLines();
       await screen.findByTestId("component");
+      await closeLine();
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["technical"] });
 
       await user.type(within(screen.getByTestId("summary-marketing")).getByLabelText("Marketing"), "5");
@@ -663,7 +669,6 @@ describe("the Costing Desk", () => {
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
       openDesk(deal);
 
-      await openLines();
 
       const panel = await screen.findByTestId("bid-decision");
       expect(within(panel).getByTestId("bid-decision-live")).toHaveTextContent("Go");
@@ -682,7 +687,6 @@ describe("the Costing Desk", () => {
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
       openDesk(deal);
 
-      await openLines();
 
       const panel = await screen.findByTestId("bid-decision");
       expect(within(panel).getByRole("button", { name: "Go" })).toBeInTheDocument();
@@ -696,7 +700,6 @@ describe("the Costing Desk", () => {
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
       const user = openDesk(deal);
 
-      await openLines();
 
       const panel = await screen.findByTestId("bid-decision");
       expect(within(panel).getByTestId("bid-decision-none")).toHaveTextContent("No decision yet.");
@@ -717,7 +720,6 @@ describe("the Costing Desk", () => {
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
       openDesk(deal);
 
-      await openLines();
 
       const panel = await screen.findByTestId("bid-decision");
       expect(within(panel).getByTestId("bid-decision-none")).toHaveTextContent("once every Tender Line has a Final Offer");
