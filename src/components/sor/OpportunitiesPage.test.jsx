@@ -401,3 +401,77 @@ describe("SOR register paging", () => {
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
   });
 });
+
+// Issue #814 — Lost deals are out of the default list; the Lost filter shows
+// them with the reason they were lost for.
+describe("Lost deals in the register (#814)", () => {
+  const snapshot = makeFlowSnapshot({
+    snapshot_data: {
+      wonStageId: "stage-won",
+      stages: [
+        { id: "stage-lead", name: "Lead", is_terminal: false },
+        { id: "stage-lost", name: "Lost", is_terminal: true, terminal_outcome: "lost" },
+      ],
+    },
+  })
+  const flow = {
+    sale_type_id: "st-1",
+    flow_snapshot_id: snapshot.id,
+    flow_snapshot: { snapshot_data: snapshot.snapshot_data },
+    status: "LEAD",
+  }
+  const open = { ...MOCK_OPP_1, ...flow, id: "o-open", project_title: "Still open deal", flow_stage_id: "stage-lead" }
+  const lostCoded = {
+    ...MOCK_OPP_2, ...flow, id: "o-lost-1", serial_no: 3, project_title: "Coded lost deal",
+    flow_stage_id: "stage-lost", lost_reason_code: "NO_RESPONSE", lost_reason: null,
+  }
+  const lostOld = {
+    ...MOCK_OPP_2, ...flow, id: "o-lost-2", serial_no: 4, project_title: "Old lost deal",
+    flow_stage_id: "stage-lost", lost_reason_code: null, lost_reason: "Client went silent",
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    opportunityService.getOpportunities.mockResolvedValue([open, lostCoded, lostOld])
+  })
+
+  const renderPage = (state) =>
+    renderWithProviders(
+      <MemoryRouter initialEntries={[{ pathname: "/opportunities", state }]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    )
+
+  it("hides Lost deals from the default list", async () => {
+    renderPage()
+
+    expect(await screen.findByText("Still open deal")).toBeInTheDocument()
+    expect(screen.queryByText("Coded lost deal")).toBeNull()
+    expect(screen.queryByText("Old lost deal")).toBeNull()
+  })
+
+  it("keeps a Lost flow deal out of a Stage filter on its never-changing status", async () => {
+    renderPage({ filterStatus: "LEAD" })
+
+    expect(await screen.findByText("Still open deal")).toBeInTheDocument()
+    expect(screen.queryByText("Coded lost deal")).toBeNull()
+    expect(screen.queryByText("Old lost deal")).toBeNull()
+  })
+
+  it("the Lost filter shows them with a reason column, old free text as Other", async () => {
+    const user = setupUser()
+    renderPage()
+
+    await screen.findByText("Still open deal")
+    await user.click(screen.getByText("Filters"))
+    await user.click(screen.getByText("All Stages"))
+    await user.click(await screen.findByRole("button", { name: /^lost$/i }))
+
+    expect(await screen.findByText("Coded lost deal")).toBeInTheDocument()
+    expect(screen.getByText("Old lost deal")).toBeInTheDocument()
+    expect(screen.queryByText("Still open deal")).toBeNull()
+    expect(screen.getByRole("columnheader", { name: "Reason" })).toBeInTheDocument()
+    expect(screen.getByText("No response from client")).toBeInTheDocument()
+    expect(screen.getByText("Other: Client went silent")).toBeInTheDocument()
+  })
+})

@@ -21,6 +21,7 @@ import {
   Trash2,
   Check,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -84,7 +85,7 @@ import { actionTitle } from "./flowStageKinds";
 
 import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
-import { entryStage, flowLockBlockers, flowPublishWarnings } from "../../constants/salesFlow";
+import { endsAsLost, entryStage, flowLockBlockers, flowPublishWarnings } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
 import FlowCanvasNode, { HANDLE_IN, HANDLE_OUT } from "./FlowCanvasNode";
 import FlowSatelliteNode from "./FlowSatelliteNode";
@@ -279,6 +280,7 @@ function FlowCanvasInner() {
   });
 
   const stages = useMemo(() => canvas?.stages ?? [], [canvas?.stages]);
+  const hasLostStage = useMemo(() => stages.some(endsAsLost), [stages]);
   const edges = useMemo(() => canvas?.edges ?? [], [canvas?.edges]);
   const flow = canvas?.flow ?? null;
   const entry = entryStage(stages);
@@ -1603,6 +1605,17 @@ function FlowCanvasInner() {
 
         {flow && (
           <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
+            {stages.length > 0 && !hasLostStage && (
+              <Tooltip content="Mark as Lost needs one." side="bottom">
+                <span
+                  role="status"
+                  className="ml-1 inline-flex items-center gap-1 rounded-md bg-amber-a4 px-2 py-1 text-xs font-bold text-amber-11"
+                >
+                  <AlertTriangle size={12} strokeWidth={2.75} />
+                  This flow has no Lost Stage.
+                </span>
+              </Tooltip>
+            )}
             {peers.length > 0 && (
               <div className="ml-1 mr-2 flex -space-x-2">
                 {peers.map((peer) => (
