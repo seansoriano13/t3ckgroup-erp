@@ -736,3 +736,13 @@ describe("isLostOpportunity", () => {
     expect(isRealizedOpportunity(deal)).toBe(false)
   })
 })
+
+describe("formatLostReason (#814)", () => {
+  it("reads old free text with no code as Other", async () => {
+    const { formatLostReason } = await import("./sor")
+    expect(formatLostReason({ lost_reason: "Client went silent", lost_reason_code: null })).toBe("Other: Client went silent")
+    expect(formatLostReason({ lost_reason_code: "PRICE_TOO_HIGH" })).toBe("Price too high")
+    expect(formatLostReason({ lost_reason_code: "OTHER", lost_reason: "Merged" })).toBe("Other: Merged")
+    expect(formatLostReason({})).toBe("")
+  })
+})

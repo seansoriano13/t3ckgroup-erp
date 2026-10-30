@@ -42,6 +42,8 @@ import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 import {
   isOpenPipelineOpportunity,
+  isLostOpportunity,
+  formatLostReason,
   isStillMovingOpportunity,
   isOnTerminalStage,
   isRealizedOpportunity,
@@ -373,7 +375,19 @@ export default function OpportunitiesPage() {
       // Open Pipeline (CONTEXT.md): the same rule the Open pipeline value
       // adds up, so the filter lists exactly the rows behind the figure.
       if (stageFilter === "OPEN" && !isOpenPipelineOpportunity(o, stageContext)) return false;
-      if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter) return false;
+      // #814: Lost deals stay in reports but out of the working list. The Lost
+      // filter (or a Stage filter that names their own Stage) brings them
+      // back; the Board keeps them, since Lost is one of its columns.
+      if (stageFilter === "LOST") {
+        if (!isLostOpportunity(o, stageContext)) return false;
+      } else if (
+        view !== "board" &&
+        o.status !== stageFilter &&
+        isLostOpportunity(o, stageContext)
+      ) {
+        return false;
+      }
+      if (stageFilter !== "ALL" && stageFilter !== "OPEN" && stageFilter !== "LOST" && o.status !== stageFilter) return false;
       if (leadSourceFilter !== "ALL" && o.lead_source !== leadSourceFilter) return false;
       if (projectTypeFilter !== "ALL" && o.project_type !== projectTypeFilter) return false;
       if (!matchesSaleType(o, effectiveSaleTypeFilter)) return false;
@@ -422,6 +436,7 @@ export default function OpportunitiesPage() {
     employees,
     search,
     stageFilter,
+    view,
     leadSourceFilter,
     projectTypeFilter,
     effectiveSaleTypeFilter,
@@ -557,8 +572,11 @@ export default function OpportunitiesPage() {
   const stageOptions = [
     { value: "ALL", label: "All Stages" },
     { value: "OPEN", label: "Open Only" },
+    { value: "LOST", label: "Lost" },
     ...pipelineStages.map((s) => ({ value: s.code, label: s.label })),
   ];
+
+  const showLostReason = stageFilter === "LOST";
 
   const currentStageLabel =
     stageOptions.find((o) => o.value === stageFilter)?.label || "All Stages";
@@ -1062,6 +1080,7 @@ export default function OpportunitiesPage() {
                     <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
                     <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Deal Owner</SortableTh>
                     <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[192px]">Status</SortableTh>
+                    {showLostReason && <TableHead className="w-[220px] px-2.5 py-2.5">Reason</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1200,6 +1219,11 @@ export default function OpportunitiesPage() {
                             )}
                           </div>
                         </TableCell>
+                        {showLostReason && (
+                          <TableCell className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap" title={formatLostReason(o)}>
+                            {formatLostReason(o) || <span className="text-muted-foreground/50">—</span>}
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
