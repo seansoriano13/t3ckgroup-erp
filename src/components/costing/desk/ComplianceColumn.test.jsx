@@ -14,7 +14,7 @@ const part = (fields) => ({ id: fields.id ?? "p1", compliance: null, compliance_
 const line = (fields) => ({ id: "l1", number: 1, evaluating_team: "RRD", components: [part({})], ...fields });
 
 describe("lineVerdict", () => {
-  it("is Deviates when any part deviates, Complies when all comply, else not judged", () => {
+  it("is Deviates when any part deviates, Complies when all comply, else not inspected", () => {
     expect(lineVerdict(line({ components: [part({ compliance: "complies" }), part({ id: "p2", compliance: "deviates" })] }))).toBe("deviates");
     expect(lineVerdict(line({ components: [part({ compliance: "complies" }), part({ id: "p2", compliance: "complies" })] }))).toBe("complies");
     expect(lineVerdict(line({ components: [part({ compliance: "complies" }), part({ id: "p2" })] }))).toBeNull();
@@ -33,11 +33,11 @@ describe("ComplianceColumn", () => {
     expect(screen.queryByLabelText("Compliance 1")).not.toBeInTheDocument();
   });
 
-  it("reads Not judged until a verdict is marked, and No team before one is named", () => {
+  it("reads Not inspected until a verdict is marked, and No team before one is named", () => {
     render(<ComplianceColumn line={line({ evaluating_team: null })} myTeams={["RRD"]} canSetTeam={false} />);
 
     expect(screen.getByText("No team")).toBeInTheDocument();
-    expect(screen.getByText("Not judged")).toBeInTheDocument();
+    expect(screen.getByText("Not inspected")).toBeInTheDocument();
     expect(screen.queryByLabelText("Compliance 1")).not.toBeInTheDocument();
   });
 
