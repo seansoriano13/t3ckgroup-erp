@@ -123,17 +123,19 @@ const notApplicable = () => ({
   satisfiedAt: null,
 })
 // `detail` (#272) says why a condition is unmet where the kind can tell:
-// `{ failing: [check keys], messages: [plain sentences] }`. Absent otherwise.
+// `{ failing: [check keys], messages: [plain sentences] }`. The order kinds add
+// `basis: [{ number, state }]`, the records they read, met or not. Absent otherwise.
 const unsatisfied = (detail) => ({
   status: CONDITION_STATUS.UNSATISFIED,
   satisfiedBy: null,
   satisfiedAt: null,
   ...(detail ? { detail } : {}),
 })
-const satisfied = (satisfiedBy = null, satisfiedAt = null) => ({
+const satisfied = (satisfiedBy = null, satisfiedAt = null, detail = null) => ({
   status: CONDITION_STATUS.SATISFIED,
   satisfiedBy,
   satisfiedAt,
+  ...(detail ? { detail } : {}),
 })
 
 /**
@@ -268,8 +270,8 @@ export function evaluateCondition(condition, {
     }
     case CONDITION_KINDS.GOODS_CHECKED:
     case CONDITION_KINDS.ORDERS_FILED: {
-      const { met, failing, messages } = evaluateOrderCondition(condition.kind, orderInputs)
-      return met ? satisfied() : unsatisfied({ failing, messages })
+      const { met, failing, messages, basis } = evaluateOrderCondition(condition.kind, orderInputs)
+      return met ? satisfied(null, null, { failing, messages, basis }) : unsatisfied({ failing, messages, basis })
     }
     default:
       return unsatisfied()

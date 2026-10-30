@@ -67,15 +67,28 @@ describe("Orders filed", () => {
     (await opportunityService.getStageChecklist(deal.id)).map((row) => [row.condition.kind, row.status, row.detail?.failing])
   const move = (deal) => opportunityService.updateStatus(deal.id, next.id, owner.id)
 
-  it("is met, and lets the move through, for an SOR no IPAS names", async () => {
-    expect(await checklist(dealA)).toEqual([["orders_filed", "satisfied", undefined]])
+  const basis = async (deal) => (await opportunityService.getStageChecklist(deal.id))[0].detail?.basis
+
+  it("is unmet, and blocks the move, for an SOR no IPAS names: nothing is ticked without a basis", async () => {
+    expect(await checklist(dealA)).toEqual([["orders_filed", "unsatisfied", ["no_orders"]]])
+    await expect(move(dealA)).rejects.toThrow(/Orders filed — No IPAS names this SOR yet/)
+  })
+
+  it("does not take a cancelled IPAS as a basis, and is met once a filed IPAS names the SOR", async () => {
+    ipas("cancelled", [dealA])
+    expect((await checklist(dealA))[0][2]).toEqual(["no_orders"])
+    ipas("filed", [dealA])
+    expect((await checklist(dealA))[0][1]).toBe("satisfied")
     expect((await move(dealA)).flow_stage_id).toBe(next.id)
   })
 
-  it("ignores filed and cancelled IPAS", async () => {
-    ipas("filed", [dealA])
-    ipas("cancelled", [dealA])
-    expect((await checklist(dealA))[0][1]).toBe("satisfied")
+  it("names each IPAS it read, with its state, met or not", async () => {
+    const filed = ipas("filed", [dealA])
+    const open = ipas("open", [dealA])
+    expect(await basis(dealA)).toEqual([
+      { number: filed.number, state: "Filed" },
+      { number: open.number, state: "Open" },
+    ])
   })
 
   it("blocks the move while an uncancelled IPAS is unfiled, naming it", async () => {
@@ -96,7 +109,7 @@ describe("Orders filed", () => {
 
   it("does not count an IPAS that names only the other SOR", async () => {
     ipas("open", [dealB])
-    expect((await checklist(dealA))[0][1]).toBe("satisfied")
-    expect((await checklist(dealB))[0][1]).toBe("unsatisfied")
+    expect((await checklist(dealA))[0][2]).toEqual(["no_orders"])
+    expect((await checklist(dealB))[0][2]).toEqual(["orders_not_filed"])
   })
 })

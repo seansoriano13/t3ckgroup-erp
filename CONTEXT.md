@@ -465,20 +465,25 @@ Return is not blocked by them, nor by a required Stage Field.
 _Avoid_: Gate, Requirement, Rule
 
 **Goods checked**:
-A Stage Condition, met when every submitted Transmittal with a line naming the
-SOR is Closed (both Check by signatures) or Cancelled. It exists because a
-Transmittal is per slip and cannot mount on a Stage. A Draft is ignored, as it
-has not entered a check; an SOR no Transmittal names meets it; a slip carrying
-lines for two SORs counts for both. A line rated NA does not hold it open: the
+A Stage Condition, met when at least one submitted Transmittal has a line naming
+the SOR and every such Transmittal is Closed (both Check by signatures) or
+Cancelled. It exists because a Transmittal is per slip and cannot mount on a
+Stage. A Draft is ignored, as it has not entered a check; an SOR no Transmittal
+names does not meet it, since placing the condition is what says the Stage
+needs one and nothing is ticked without a basis; a slip carrying lines for two
+SORs counts for both. The Stage Checklist names each Transmittal it read, by
+number and state, met or not. A line rated NA does not hold it open: the
 check happened, and the replacement rides a new slip that must itself close.
 Placed by Operations, on Government at the exit of Project Delivery.
 _Avoid_: Goods received, Delivery checked
 
 **Orders filed**:
 A Stage Condition, met when every IPAS naming the SOR that is not cancelled
-has been filed — section 4 approved, so its Landed Cost is final. It exists
-because an IPAS is per Odoo PO and cannot mount on a Stage. An SOR no IPAS
-names meets it; an IPAS naming several SORs counts for each. Built with the
+has been filed — section 4 approved, so its Landed Cost is final, and at least
+one such IPAS exists. It exists because an IPAS is per Odoo PO and cannot mount
+on a Stage. An SOR no IPAS names does not meet it, as with Goods checked; an
+IPAS naming several SORs counts for each. The Stage Checklist names each IPAS
+it read, by number and state. Built with the
 IPAS block but not placed on Government yet: Finance does not file in the ERP
 yet, and a gate on closing would stall deals and commission. Operations can
 place it later.

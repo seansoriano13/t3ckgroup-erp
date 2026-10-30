@@ -57,7 +57,8 @@ export default function StageChecklistRow({
   satisfiedBy,
   satisfiedAt,
   // Why a condition is unmet, where the kind can say (Costing settled, #272):
-  // { failing: [keys], messages: [plain sentences] }.
+  // { failing: [keys], messages: [plain sentences] }. Goods checked and Orders
+  // filed add `basis` ([{ number, state }]), the records they read, met or not.
   detail = null,
   employees = [],
   groups = [],
@@ -152,16 +153,19 @@ export default function StageChecklistRow({
         </div>
 
         {isSatisfied ? (
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {who || satisfiedAt ? (
-              <>
-                Satisfied{who ? ` by ${who}` : ""}
-                {satisfiedAt ? ` on ${formatDate(satisfiedAt)}` : ""}
-              </>
-            ) : (
-              "Satisfied."
-            )}
-          </p>
+          <>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {who || satisfiedAt ? (
+                <>
+                  Satisfied{who ? ` by ${who}` : ""}
+                  {satisfiedAt ? ` on ${formatDate(satisfiedAt)}` : ""}
+                </>
+              ) : (
+                "Satisfied."
+              )}
+            </p>
+            <ConditionBasis label={condition.label} basis={detail?.basis} />
+          </>
         ) : (
           <div className="mt-0.5 space-y-2">
             <p
@@ -181,6 +185,8 @@ export default function StageChecklistRow({
                 ))}
               </ul>
             )}
+
+            <ConditionBasis label={condition.label} basis={detail?.basis} />
 
             {condition.kind === CONDITION_KINDS.FIELD && onSaveField && (
               <div className="flex items-center gap-2 max-w-[240px]">
@@ -286,5 +292,19 @@ export default function StageChecklistRow({
 
       {isSatisfied && who && <Avatar name={who} size="xs" className="mt-0.5 shrink-0" />}
     </div>
+  );
+}
+
+/** The records a condition read (Goods checked's Transmittals, Orders filed's IPAS), by number and state. */
+function ConditionBasis({ label, basis }) {
+  if (!basis?.length) return null;
+  return (
+    <ul aria-label={`${label}: based on`} className="mt-1 flex flex-wrap gap-1">
+      {basis.map((record) => (
+        <li key={record.number} className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          <span className="font-semibold text-foreground">{record.number}</span> · {record.state}
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -4,7 +4,7 @@
  *
  * A Transmittal is per slip and an IPAS per Odoo PO, so neither mounts on a Stage; the condition
  * asks the database for counts instead. The mover may be unable to read either, so the answer is
- * read past RLS by anyone who can see the SOR at all and holds counts only.
+ * read past RLS by anyone who can see the SOR at all and holds counts, plus each record's number and state.
  *
  * The cast:
  *   dealOwner   Deal Team of the SORs   -> reads the evidence
@@ -301,10 +301,32 @@ describe("who may ask", () => {
         expect(anon.error).toBeTruthy()
     })
 
-    it("holds counts only", async () => {
+    it("holds counts, and each record's number and state only", async () => {
         await slip("warehouse_checking", [sorA])
         const data = await counts(sorA)
-        expect(Object.keys(data).sort()).toEqual(["unclosed_slips", "unfiled_orders"])
+        expect(Object.keys(data).sort()).toEqual(["orders", "slips", "unclosed_slips", "unfiled_orders"])
         expect(Number.isInteger(data.unclosed_slips)).toBe(true)
+        for (const record of [...data.slips, ...data.orders]) expect(Object.keys(record).sort()).toEqual(["number", "state"])
+    })
+})
+
+describe("the basis: which records the counts read", () => {
+    it("lists the SOR's submitted, uncancelled Transmittals and uncancelled IPAS by number and state", async () => {
+        const sor = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+        sorIds.push(sor)
+        expect(await counts(sor)).toMatchObject({ slips: [], orders: [] })
+
+        await slip("draft", [sor])
+        await slip("cancelled", [sor])
+        const closed = await slip("closed", [sor, sor])
+        const cancelledIpas = await raise([sor])
+        await setIpasState(cancelledIpas, "cancelled")
+        const open = await raise([sor])
+
+        const { rows } = await sql().query(`select number from public.transmittals where id = $1`, [closed])
+        const { rows: ipasRows } = await sql().query(`select number from public.ipas where id = $1`, [open])
+        const data = await counts(sor)
+        expect(data.slips).toEqual([{ number: rows[0].number, state: "closed" }])
+        expect(data.orders).toEqual([{ number: ipasRows[0].number, state: "open" }])
     })
 })

@@ -517,7 +517,7 @@ async function resolveCostingInputs(conditions, opportunityId) {
 
 /**
  * Goods checked / Orders filed's evidence (#465, #466): `order_condition_inputs`, counts of
- * the SOR's open Transmittals and unfiled IPAS, read through a SECURITY DEFINER RPC because
+ * the SOR's open Transmittals and unfiled IPAS plus each one's number and state, read through a SECURITY DEFINER RPC because
  * the mover may not be able to read either. Undefined when no condition asks for it; the
  * evaluator fails closed on that.
  */
@@ -528,7 +528,7 @@ async function resolveOrderInputs(conditions, opportunityId) {
     p_opportunity_id: opportunityId,
   });
   if (error) throw error;
-  return data ?? { unclosed_slips: 0, unfiled_orders: 0 };
+  return data ?? { unclosed_slips: 0, unfiled_orders: 0, slips: [], orders: [] };
 }
 
 /**
