@@ -165,8 +165,9 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
           warningToast(`${ipas.message} This line will not be received into that IPAS. Raise a new IPAS if it needs one.`, 15000);
         } else warningToast(ipas.message);
       }
-      // #809: the other items this P0 covers are offered before the window closes.
-      if (updated?.offer?.offered?.length) {
+      // #809: the other items this P0 covers are offered before the window closes. #811: so are open
+      // items with no Odoo product, on their own.
+      if (updated?.offer?.offered?.length || updated?.offer?.noOdooProduct?.length) {
         setFollowUp({ offer: updated.offer, poNumber: chosen, orderEarly: !!notOpen, earlyReason: earlyReason.trim() });
         return;
       }

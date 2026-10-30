@@ -30,6 +30,7 @@ describe("buildAttachOffer", () => {
         { itemId: "b", name: "Item b", reason: "shared_product" },
         { itemId: "c", name: "Item c", reason: "shared_product" },
       ],
+      noOdooProduct: [],
     });
   });
 
@@ -39,6 +40,7 @@ describe("buildAttachOffer", () => {
     expect(buildAttachOffer(order, items, "a")).toEqual({
       offered: [{ itemId: "b", name: "Item b", lineIds: [11], products: ["Carabiner"], status: "purchased" }],
       unticked: [],
+      noOdooProduct: [],
     });
   });
 
@@ -58,7 +60,7 @@ describe("buildAttachOffer", () => {
     expect(offered).toMatchObject({ lineIds: [11, 12], products: ["Carabiner"] });
   });
 
-  it("leaves out items with a P0 already, cancelled, closed, with no row on the P0, or no Odoo product", () => {
+  it("leaves out items with a P0 already, cancelled, closed, or with no row on the P0", () => {
     const order = p0("P1", "S1", [line(2, "Carabiner", 2, 0, 11)]);
     const items = [
       item("a", 1),
@@ -66,13 +68,29 @@ describe("buildAttachOffer", () => {
       item("cancelled", 2, "cancelled"),
       item("closed", 2, "cannot_source"),
       item("norow", 3, "not_checked"),
-      item("noproduct", null, "not_checked"),
     ];
-    expect(buildAttachOffer(order, items, "a")).toEqual({ offered: [], unticked: [] });
+    expect(buildAttachOffer(order, items, "a")).toEqual({ offered: [], unticked: [], noOdooProduct: [] });
+  });
+
+  it("lists an open item with no Odoo product in noOdooProduct, never in offered", () => {
+    const order = p0("P1", "S1", [line(2, "Carabiner", 2, 0, 11)]);
+    const items = [item("a", 1), item("noproduct", null, "not_checked", { name: "Typed S0 product" })];
+    expect(buildAttachOffer(order, items, "a")).toEqual({
+      offered: [],
+      unticked: [],
+      noOdooProduct: [{ itemId: "noproduct", name: "Typed S0 product" }],
+    });
+  });
+
+  it("never auto-picks a P0 line for a no-Odoo-product item, even when the P0 has one line", () => {
+    const order = p0("P1", "S1", [line(2, "Carabiner", 2, 0, 11)]);
+    const [entry] = buildAttachOffer(order, [item("a", 1), item("noproduct", null)], "a").noOdooProduct;
+    expect(entry).not.toHaveProperty("lineIds");
+    expect(entry).toEqual({ itemId: "noproduct", name: "Item noproduct" });
   });
 
   it("never names the item attached now", () => {
     const order = p0("P1", "S1", [line(1, "Harness", 4, 0, 10)]);
-    expect(buildAttachOffer(order, [item("a", 1)], "a")).toEqual({ offered: [], unticked: [] });
+    expect(buildAttachOffer(order, [item("a", 1)], "a")).toEqual({ offered: [], unticked: [], noOdooProduct: [] });
   });
 });
