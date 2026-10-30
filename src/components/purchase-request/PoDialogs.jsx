@@ -26,6 +26,7 @@ import {
 import { refusal, useRefreshRequest } from "./requestHooks";
 import { purchaseRequestKeys } from "./queryKeys";
 import { OVER_REQUEST_MODAL } from "./stacking";
+import { AttachToOthers } from "./AttachToOthers";
 
 /**
  * Tells the buyer how their PO number was checked (#548): a success toast, or,
@@ -116,6 +117,8 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
   const [earlyReason, setEarlyReason] = useState("");
   // #788: a refusal is also written inside the dialog, where the person clicked.
   const [refused, setRefused] = useState("");
+  // #809: set after a successful attach when the server offers other items this P0 covers.
+  const [followUp, setFollowUp] = useState(null);
   const reference = p0Reference(request);
   const productId = item.odoo_product_id ?? null;
 
@@ -136,6 +139,7 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
     setNotOpen(null);
     setEarlyReason("");
     setRefused("");
+    setFollowUp(null);
     onOpenChange(false);
   };
 
@@ -161,6 +165,11 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
           warningToast(`${ipas.message} This line will not be received into that IPAS. Raise a new IPAS if it needs one.`, 15000);
         } else warningToast(ipas.message);
       }
+      // #809: the other items this P0 covers are offered before the window closes.
+      if (updated?.offer?.offered?.length) {
+        setFollowUp({ offer: updated.offer, poNumber: chosen, orderEarly: !!notOpen, earlyReason: earlyReason.trim() });
+        return;
+      }
       close();
     },
     onMutate: () => setRefused(""),
@@ -176,6 +185,20 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
   const busy = attachMutation.isPending;
   const earlyMissing = !!notOpen && !earlyReason.trim();
   const rowsOf = (list) => list.map((p0) => p0Row({ p0, productId, chosen: picked, onChoose: (name) => { setTyped(""); setPicked(name); } }));
+
+  if (followUp) {
+    return (
+      <AttachToOthers
+        open={open}
+        onClose={close}
+        requestId={requestId}
+        poNumber={followUp.poNumber}
+        offer={followUp.offer}
+        orderEarly={followUp.orderEarly}
+        earlyReason={followUp.earlyReason}
+      />
+    );
+  }
 
   return (
     <ModalShell

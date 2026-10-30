@@ -397,6 +397,40 @@ export const purchaseRequestService = {
   },
 
   /**
+   * #809: attaches one P0 to several items of the same request in one call (`odoo-po-verify`,
+   * action "attach_many"). The server reads the P0 from Odoo once. Returns one result per item,
+   * in the order sent: `{ itemId, ok, status }` when it attached, or `{ itemId, ok: false, message }`
+   * naming why it did not (one failure never stops the others). Throws when the call as a whole is
+   * refused (no Odoo answer, not signed in). `orderEarly` and its reason apply to every item.
+   */
+  async attachMany(poNumber, itemIds, { orderEarly = false, orderEarlyReason = "" } = {}) {
+    const po = normalizePoNumber(poNumber);
+    if (!po || !isValidPoNumber(po)) throw new Error(PO_NUMBER_HINT);
+    const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
+      body: {
+        action: "attach_many",
+        poNumber: po,
+        itemIds,
+        ...(orderEarly ? { orderEarly: true, orderEarlyReason } : {}),
+      },
+    });
+    if (error) {
+      let message = "Couldn't attach the P0 to the other items. Try again.";
+      try {
+        const body = await error.context?.json?.();
+        if (body?.message) message = body.message;
+      } catch {
+        // keep the generic message
+      }
+      throw new Error(message);
+    }
+    if (!data?.success) {
+      throw Object.assign(new Error(data?.message || "Couldn't attach the P0 to the other items. Try again."), { code: data?.code });
+    }
+    return data.results || [];
+  },
+
+  /**
    * The P0s Purchasing can attach to a line (#684): P0s in Odoo whose Source Document names
    * `reference` (the S0, or a Direct request's PR number). `suggested` list the line's own
    * Odoo product; `others` name the reference for another product. Read-only; throws when
@@ -461,7 +495,9 @@ export const purchaseRequestService = {
       throw Object.assign(new Error(data?.message || "Couldn't save the PO number. Try again."), { code: data?.code });
     }
     // #730: attaching also raises the IPAS (or adds the SOR to the live one); `ipas` says what happened.
-    return data.ipas ? { ...data.item, ipas: data.ipas } : data.item;
+    const updated = data.ipas ? { ...data.item, ipas: data.ipas } : data.item;
+    // #809: after an attach, the other items this P0 covers (the server's offer).
+    return data.offer ? { ...updated, offer: data.offer } : updated;
   },
 
   /**

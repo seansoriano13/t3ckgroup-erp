@@ -27,6 +27,8 @@
 //         stays To purchase; a confirmed P0 is Purchased, or Received once
 //         everything arrived). Odoo must answer; a P0 is never attached unseen.
 //         #730: it then raises the P0's IPAS, or adds the line's SOR to the live one, and answers `ipas`.
+//       attach (#809): the answer also carries `offer` (_shared/p0Offer.ts): the other items this P0 covers.
+//       attach_many (#809): no itemId; `itemIds` and the same P0 read once; answers `results` per item.
 //       ipas (#730): retries that step for a line whose Odoo did not answer ("IPAS to create").
 //       correct (#549): purchase_request_item_apply_po_check swaps the P0 on a
 //         Purchased line (verified / refused naming the PO / saved as not checked).
@@ -36,6 +38,7 @@ import { callerEmail } from "../_shared/caller.ts";
 import { readPo } from "../_shared/odooIpasCopy.ts";
 import { readP0s } from "../_shared/odooP0.ts";
 import { matchP0ToItems, pickedLineIds, type MatchItem } from "../_shared/p0Matching.ts";
+import { buildAttachOffer, type AttachOffer, type OfferItem } from "../_shared/p0Offer.ts";
 import { type OdooP0, p0Facts, p0UnitPrice } from "../_shared/p0Suggestions.ts";
 import {
   authenticate,
@@ -150,7 +153,7 @@ const refusalText = (message: string) => message.replace(/^[a-z_]+: /, "");
 
 /** What the attach of one item gave back: the saved item and its IPAS answer, or the refusal to show. */
 type AttachResult =
-  | { ok: true; item: Record<string, unknown>; ipas: unknown; warning: string | null }
+  | { ok: true; item: Record<string, unknown>; ipas: unknown; warning: string | null; items: OfferItem[] }
   | { ok: false; refused: boolean; message: string; code?: string };
 
 /** Said when the P0 has no line for the item's Odoo product (#804). */
@@ -161,7 +164,9 @@ const NO_ROW_WARNING = "This P0 has no line for this product. It may be the wron
  * bulk attach (#809) calls it once per item with the same P0 read. It reads the item and its sibling items
  * on the request, picks the P0 rows for the item's Odoo product (pickedLineIds: none when another open item
  * shares the product), sets the line from the P0's facts, stores the picked rows, records the product and the
- * Actual cost, and raises the IPAS. Never throws on a refusal; returns it as `ok: false`.
+ * Actual cost, and raises the IPAS (unless `raiseIpas` is false: the bulk attach raises it once
+ * after all its items). Never throws on a refusal; returns it as `ok: false`. On success it also
+ * returns the request's items as they were before the attach, for the offer (#809).
  */
 async function attachP0ToItem(
   admin: ReturnType<typeof createClient>,
@@ -170,6 +175,7 @@ async function attachP0ToItem(
   p0: OdooP0 | undefined,
   poNumber: string | null,
   order: { orderEarly: boolean; orderEarlyReason: string | null },
+  raiseIpas = true,
 ): Promise<AttachResult> {
   const { data: target } = await admin
     .from("purchase_request_items")
@@ -179,10 +185,10 @@ async function attachP0ToItem(
   if (!target) return { ok: false, refused: true, message: "This line was not found." };
   const { data: siblings } = await admin
     .from("purchase_request_items")
-    .select("id, status, odoo_product_id, po_number")
+    .select("id, name, quantity, status, odoo_product_id, po_number")
     .eq("request_id", target.request_id);
   // The item is being attached now, so the P0 it had (if any) does not count against it.
-  const items: MatchItem[] = ((siblings ?? []) as MatchItem[]).map((i) => (i.id === itemId ? { ...i, po_number: null } : i));
+  const items: OfferItem[] = ((siblings ?? []) as OfferItem[]).map((i) => (i.id === itemId ? { ...i, po_number: null } : i));
   const self = items.find((i) => i.id === itemId);
   if (!p0 || !self) {
     return { ok: false, refused: true, message: `${poNumber ?? "This P0"} is not in Odoo, so it can't be attached.` };
@@ -225,13 +231,56 @@ async function attachP0ToItem(
   });
   if (priceError) console.error("odoo-po-verify actual cost error:", priceError.message);
   // #730: the IPAS follows the attach. A miss here never undoes it.
-  const ipas = await autoIpas(admin, email, itemId, p0.name);
+  const ipas = raiseIpas ? await autoIpas(admin, email, itemId, p0.name) : null;
   return {
     ok: true,
     item: { ...data, bought_product_id: facts.bought_product_id },
     ipas,
     warning: outcome?.outcome === "no_row" ? NO_ROW_WARNING : null,
+    items,
   };
+}
+
+/**
+ * #809: attaches one P0 to several items of one request in one call. Odoo is read once; each item then
+ * goes through attachP0ToItem in its own try/catch, so one failure does not stop the others. The IPAS
+ * is raised or extended after the loop, once for each attached item (the database adds that item's SOR),
+ * so the P0 gets its IPAS only after all the items are on it.
+ */
+async function attachManyToItems(
+  admin: ReturnType<typeof createClient>,
+  email: string,
+  itemIds: string[],
+  p0: OdooP0 | undefined,
+  poNumber: string,
+  order: { orderEarly: boolean; orderEarlyReason: string | null },
+) {
+  const results: Array<{ itemId: string; ok: boolean; status?: string; message?: string; code?: string; ipas?: string; ipasResult?: string }> = [];
+  const attached: string[] = [];
+  for (const itemId of itemIds) {
+    try {
+      const result = await attachP0ToItem(admin, email, itemId, p0, poNumber, order, false);
+      if (result.ok) {
+        attached.push(itemId);
+        results.push({ itemId, ok: true, status: String(result.item.status ?? "") });
+      } else {
+        results.push({ itemId, ok: false, message: result.message, ...(result.code ? { code: result.code } : {}) });
+      }
+    } catch (err) {
+      console.error("odoo-po-verify attach many error:", err);
+      results.push({ itemId, ok: false, message: err instanceof Error ? err.message : "The P0 could not be attached to this item." });
+    }
+  }
+  // #730: one IPAS step per attached item, after all of them. A miss never undoes an attach.
+  for (const itemId of attached) {
+    const ipas = await autoIpas(admin, email, itemId, poNumber);
+    const row = results.find((r) => r.itemId === itemId);
+    if (row && ipas.message && ipas.result !== "not_project") {
+      row.ipas = ipas.message;
+      row.ipasResult = ipas.result;
+    }
+  }
+  return results;
 }
 
 Deno.serve(async (req) => {
@@ -247,6 +296,47 @@ Deno.serve(async (req) => {
   }
   const { poNumber, itemId } = body;
   const ref = normalizePoNumber(poNumber);
+
+  // #809: one P0 attached to several items of one request. Same checks as the single attach; the
+  // database refuses a non-Purchasing caller for each item.
+  if (body.action === "attach_many") {
+    const itemIds = Array.isArray(body.itemIds)
+      ? [...new Set(body.itemIds.filter((id): id is string => typeof id === "string" && id !== ""))]
+      : [];
+    if (!itemIds.length) {
+      return jsonResponse({ success: false, refused: true, message: "Pick at least one item to attach the P0 to." });
+    }
+    if (!ref) {
+      return jsonResponse({
+        success: false,
+        refused: true,
+        message: 'Enter a valid PO Number — "P" followed by digits, e.g. P01234.',
+      });
+    }
+    const email = await callerEmail(req);
+    if (!email) {
+      return jsonResponse({ success: false, refused: true, message: "Sign in to change an item." }, 401);
+    }
+    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const odoo = await askOdoo(ref);
+    if (odoo.answer === "not_found") return jsonResponse({ success: false, refused: true, message: odoo.message });
+    if (odoo.answer !== "found") {
+      return jsonResponse({ success: false, message: `${odoo.message} The P0 was not attached; try again.` });
+    }
+    try {
+      // Odoo is read once for the whole batch.
+      const seen = odoo as unknown as { uid: number; order: { id: number } };
+      const [p0] = await readP0s(seen.uid, [["id", "=", seen.order.id]], 1);
+      const results = await attachManyToItems(admin, email, itemIds, p0, ref, {
+        orderEarly: body.orderEarly === true,
+        orderEarlyReason: typeof body.orderEarlyReason === "string" ? body.orderEarlyReason : null,
+      });
+      return jsonResponse({ success: true, results });
+    } catch (err) {
+      console.error("odoo-po-verify attach many error:", err);
+      return jsonResponse({ success: false, message: err instanceof Error ? err.message : "Odoo lookup failed." });
+    }
+  }
 
   // Save mode (#548): an item is given, so the server checks the PO and makes
   // the move itself. Without an item this is the plain lookup below.
@@ -295,11 +385,14 @@ Deno.serve(async (req) => {
         if (!result.ok) {
           return jsonResponse({ success: false, refused: result.refused, message: result.message, ...(result.code ? { code: result.code } : {}) });
         }
+        // #809: the other items this P0 covers, built from the same Odoo read (ADR 0044).
+        const offer: AttachOffer = buildAttachOffer(p0, result.items, itemId as string);
         return jsonResponse({
           success: true,
           verdict: "verified",
           item: result.item,
           ipas: result.ipas,
+          offer,
           ...(result.warning ? { warning: result.warning } : {}),
         });
       } catch (err) {
