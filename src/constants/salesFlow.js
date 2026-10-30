@@ -253,17 +253,23 @@ export function endsAsWon(flowStage) {
   return Boolean(flowStage?.is_terminal) && flowStage.terminal_outcome === TERMINAL_OUTCOME.WON
 }
 
+/** Whether a Terminal Stage ends deals as lost: outcome explicitly Lost. */
+export function endsAsLost(flowStage) {
+  return Boolean(flowStage?.is_terminal) && flowStage.terminal_outcome === TERMINAL_OUTCOME.LOST
+}
+
 /**
- * Whether a deal sitting on `flowStage` counts as lost: a Terminal Stage that
- * is neither the flow's Won Stage (`won_stage_id`, on the flow) nor one that
- * ends as won. The deal has stopped moving somewhere other than a win.
+ * Whether a deal sitting on `flowStage` counts as lost: a Terminal Stage whose
+ * outcome is explicitly Lost and that is not the flow's Won Stage
+ * (`won_stage_id`, on the flow). A Terminal Stage with no outcome set (like
+ * "BG CHECKING") is not lost.
  *
  * The flow twin of `isLostCode`, which only knows `crm_pipeline_stages` codes
  * a flow deal never carries.
  */
 export function isLostFlowStage(flowStage, wonStageId) {
   if (!flowStage?.is_terminal) return false
-  return flowStage.id !== wonStageId && !endsAsWon(flowStage)
+  return flowStage.id !== wonStageId && endsAsLost(flowStage)
 }
 
 /**
@@ -272,8 +278,8 @@ export function isLostFlowStage(flowStage, wonStageId) {
  * - "POST_WON": an active Stage strictly downstream of the Won Stage, or a
  *   Terminal Stage that ends as won (Closed Won)
  * - "PRE_WON": an active Stage preceding the Won Stage (open pipeline)
- * - "LOST": a Terminal Stage that is not the Won Stage and doesn't end as won
- * - null: unknown or unresolvable Stage
+ * - "LOST": a Terminal Stage that is not the Won Stage and ends as lost
+ * - null: unknown or unresolvable Stage, or a Terminal Stage with no outcome
  */
 export function classifyFlowStage(stageId, { stages = [], edges = [], wonStageId = null } = {}) {
   if (!stageId) return null
@@ -281,7 +287,8 @@ export function classifyFlowStage(stageId, { stages = [], edges = [], wonStageId
   if (!stage) return null
 
   if (stage.is_terminal && stage.id !== wonStageId) {
-    return endsAsWon(stage) ? "POST_WON" : "LOST"
+    if (endsAsWon(stage)) return "POST_WON"
+    return endsAsLost(stage) ? "LOST" : null
   }
 
   if (wonStageId && stage.id === wonStageId) {

@@ -173,6 +173,26 @@ const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIP
 };
 
 /**
+ * Lost, for either kind of deal: the one rule every list, count, commission
+ * and Open Pipeline check reads (issue #806). A legacy deal is lost by its
+ * status code. A flow-built deal's status never changes after registration
+ * (it moves via flow_stage_id), so it is lost when it sits on a Terminal
+ * Stage of its own Flow Snapshot whose outcome is explicitly Lost. A Terminal
+ * Stage with no outcome is not lost, and a deal whose Stage cannot be
+ * resolved is not treated as lost.
+ */
+export const isLostOpportunity = (opportunity, context = PIPELINE_STAGE_SEED) => {
+  if (!opportunity) return false;
+  const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(context)
+    ? { stages: context }
+    : context || {};
+  if (isJudgedByStageCode(opportunity)) return isLostCode(opportunity.status, stages);
+  const snapshotData = flowSnapshotData(opportunity, snapshotsById);
+  const flowStage = (snapshotData?.stages || []).find((s) => s.id === opportunity.flow_stage_id);
+  return isLostFlowStage(flowStage, snapshotData?.wonStageId ?? null);
+};
+
+/**
  * Open Pipeline (CONTEXT.md):
  * For Flow SORs: any active deal currently sitting on a pre-won Stage
  * (a stage preceding the Won Stage in the flow graph).
@@ -181,6 +201,7 @@ const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIP
  */
 export const isOpenPipelineOpportunity = (opportunity, context = PIPELINE_STAGE_SEED) => {
   if (!opportunity) return false;
+  if (isLostOpportunity(opportunity, context)) return false;
 
   const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(context)
     ? { stages: context }

@@ -639,7 +639,7 @@ describe("classifyFlowStage, isPreWonFlowStage, and isWonOrPostWonFlowStage", ()
     { id: "s-won", name: "Won", sort_order: 2, is_terminal: false },
     { id: "s-deliv", name: "Delivery", sort_order: 3, is_terminal: false },
     { id: "s-close", name: "Closed Won", sort_order: 4, is_terminal: true },
-    { id: "s-lost", name: "Closed Lost", sort_order: 5, is_terminal: true },
+    { id: "s-lost", name: "Closed Lost", sort_order: 5, is_terminal: true, terminal_outcome: "lost" },
   ]
   const edges = [
     { from_stage_id: "s-lead", to_stage_id: "s-prop" },
@@ -675,11 +675,11 @@ describe("classifyFlowStage, isPreWonFlowStage, and isWonOrPostWonFlowStage", ()
     expect(isPreWonFlowStage(deliv, snapshotData)).toBe(false)
   })
 
-  it("classifies terminal non-won stages as LOST (neither pre-won nor won)", () => {
+  it("classifies a terminal stage with outcome Lost as LOST; an unset outcome is not lost", () => {
     const lost = stages.find((s) => s.id === "s-lost")
     const close = stages.find((s) => s.id === "s-close")
     expect(classifyFlowStage("s-lost", snapshotData)).toBe("LOST")
-    expect(classifyFlowStage("s-close", snapshotData)).toBe("LOST")
+    expect(classifyFlowStage("s-close", snapshotData)).toBe(null)
     expect(isPreWonFlowStage(lost, snapshotData)).toBe(false)
     expect(isWonOrPostWonFlowStage(lost, snapshotData)).toBe(false)
     expect(isPreWonFlowStage(close, snapshotData)).toBe(false)
@@ -695,10 +695,12 @@ describe("classifyFlowStage, isPreWonFlowStage, and isWonOrPostWonFlowStage", ()
     expect(isLostFlowStage(closedWon, "s-won")).toBe(false)
   })
 
-  it("keeps a Terminal Stage marked as ending lost, or unmarked, as LOST", () => {
+  it("counts only a Terminal Stage explicitly marked Lost as lost; an unset outcome is not lost", () => {
     const closedLost = { ...stages[5], terminal_outcome: "lost" }
     expect(isLostFlowStage(closedLost, "s-won")).toBe(true)
-    expect(isLostFlowStage(stages[4], "s-won")).toBe(true)
+    expect(isLostFlowStage(stages[4], "s-won")).toBe(false)
+    expect(isLostFlowStage({ id: "x", is_terminal: false, terminal_outcome: "lost" }, "s-won")).toBe(false)
+    expect(isLostFlowStage(closedLost, "s-lost")).toBe(false)
     expect(endsAsWon(stages[4])).toBe(false)
   })
 

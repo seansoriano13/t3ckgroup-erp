@@ -604,6 +604,7 @@ describe("commissionService", () => {
         name: "Lost to Competitor",
         sort_order: 1,
         is_terminal: true,
+        terminal_outcome: "lost",
       })
       makeFlowEdge(won, lost)
       db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = won.id
