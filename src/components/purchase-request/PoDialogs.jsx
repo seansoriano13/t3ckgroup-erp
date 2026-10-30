@@ -45,15 +45,46 @@ function outcomeOf(p0, productId) {
   return status === "to_purchase" ? "RFQ: the line stays To purchase" : `The line becomes ${ITEM_STATUS_LABELS[status]}`;
 }
 
+/** A P0's rows, one per line. This item's own product is marked; more than five rows show five and a "Show all" link. */
+const P0_ROWS_SHOWN = 5;
+function P0Lines({ lines, productId }) {
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? lines : lines.slice(0, P0_ROWS_SHOWN);
+  return (
+    <div className="space-y-1">
+      <ul className="divide-y divide-border">
+        {shown.map((line, index) => {
+          const mine = line.product_id === productId;
+          return (
+            <li key={line.id ?? index} data-testid="p0-line" className="flex items-baseline justify-between gap-3 py-1.5 text-[13px]">
+              <span className={mine ? "font-semibold text-foreground" : "text-foreground"}>
+                {line.product_name || `Product ${line.product_id}`}
+                {mine && <span className="ml-2 text-xs text-muted-foreground">This item</span>}
+              </span>
+              <span className="shrink-0 font-mono text-xs text-foreground">{line.quantity}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {!showAll && lines.length > P0_ROWS_SHOWN && (
+        <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setShowAll(true)}>
+          Show all {lines.length}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /** One P0 from Odoo as a LinerList row; choosing it selects it, and the dialog confirms once. */
 function p0Row({ p0, productId, chosen, onChoose }) {
-  const bought = [...new Set(p0.lines.map((l) => l.product_name).filter(Boolean))].join(", ");
   return {
     key: p0.name,
     testId: "p0-suggestion",
     main: p0.name,
-    sub: [p0.supplier, bought, outcomeOf(p0, productId)].filter(Boolean).join(" · "),
+    sub: [p0.supplier, outcomeOf(p0, productId)].filter(Boolean).join(" · "),
     subWrap: true,
+    defaultOpen: true,
+    children: p0.lines.length ? <P0Lines lines={p0.lines} productId={productId} /> : undefined,
     actions: (
       <Button
         type="button"

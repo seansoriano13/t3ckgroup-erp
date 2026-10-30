@@ -95,6 +95,74 @@ describe("Attach P0", () => {
     expect(within(suggested).getByText(/RFQ: the line stays To purchase/)).toBeInTheDocument()
   })
 
+  it("lists each suggested P0's rows one per line, with this item's row marked", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
+    seedItem({ status: "to_purchase", odoo_product_id: 7 })
+    mount()
+    const { dialog } = await openAttachDialog(setupUser())
+    const suggested = within(await within(dialog).findByRole("group", { name: "Suggested P0s" }))
+    const first = suggested.getAllByTestId("p0-suggestion")[0]
+
+    expect(first).toHaveTextContent("Acme")
+    const lines = within(first).getAllByTestId("p0-line")
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toHaveTextContent("Full Body Harness XL")
+    expect(lines[0]).toHaveTextContent("10")
+    expect(within(lines[0]).getByText("This item")).toBeInTheDocument()
+  })
+
+  it("marks only this item's row when a P0 has several lines", async () => {
+    stubEdgeFunction("odoo-po-suggest", () => ({
+      success: true,
+      suggested: [
+        {
+          id: 1,
+          name: "P01111",
+          state: "purchase",
+          supplier: "Acme",
+          lines: [
+            { id: 11, product_id: 4, product_name: "Safety Net", quantity: 2, received: 0 },
+            { id: 12, product_id: 7, product_name: "Full Body Harness", quantity: 6, received: 0 },
+          ],
+        },
+      ],
+      others: [],
+    }))
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
+    seedItem({ status: "to_purchase", odoo_product_id: 7 })
+    mount()
+    const { dialog } = await openAttachDialog(setupUser())
+    const lines = await within(dialog).findAllByTestId("p0-line")
+
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toHaveTextContent("Safety Net")
+    expect(within(lines[0]).queryByText("This item")).not.toBeInTheDocument()
+    expect(within(lines[1]).getByText("This item")).toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument()
+  })
+
+  it("shows five rows of a long P0, then Show all N opens the rest", async () => {
+    const lines = Array.from({ length: 7 }, (_, i) => ({ id: 100 + i, product_id: 20 + i, product_name: `Part ${i + 1}`, quantity: i + 1, received: 0 }))
+    stubEdgeFunction("odoo-po-suggest", () => ({
+      success: true,
+      suggested: [{ id: 1, name: "P01111", state: "purchase", supplier: "Acme", lines }],
+      others: [],
+    }))
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
+    seedItem({ status: "to_purchase", odoo_product_id: 7 })
+    mount()
+    const user = setupUser()
+    const { dialog } = await openAttachDialog(user)
+    await within(dialog).findAllByTestId("p0-line")
+
+    expect(within(dialog).getAllByTestId("p0-line")).toHaveLength(5)
+    expect(within(dialog).queryByText("Part 6")).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole("button", { name: "Show all 7" }))
+    expect(within(dialog).getAllByTestId("p0-line")).toHaveLength(7)
+    expect(within(dialog).getByText("Part 7")).toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument()
+  })
+
   it("attaches a confirmed P0 with one confirmation: Purchased, and says what was bought", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found", p0s: { P01111: { bought_as: "Full Body Harness XL" } } })
     seedItem({ status: "to_purchase", odoo_product_id: 7 })
