@@ -248,6 +248,11 @@ export function isAtEntryStage(opportunity, stages = []) {
  */
 export const TERMINAL_OUTCOME = { WON: "won", LOST: "lost" }
 
+/** Whether a Terminal Stage is explicitly set to end deals as lost. An unset outcome is not Lost. */
+export function endsAsLost(flowStage) {
+  return Boolean(flowStage?.is_terminal) && flowStage.terminal_outcome === TERMINAL_OUTCOME.LOST
+}
+
 /** Whether a Terminal Stage ends deals as won (e.g. Closed Won). */
 export function endsAsWon(flowStage) {
   return Boolean(flowStage?.is_terminal) && flowStage.terminal_outcome === TERMINAL_OUTCOME.WON

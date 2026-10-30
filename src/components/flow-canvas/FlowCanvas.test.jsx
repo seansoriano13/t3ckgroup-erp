@@ -114,6 +114,28 @@ describe("FlowCanvas", () => {
     expect(within(awardedNode).getByText(/Won/)).toBeInTheDocument()
   })
 
+  it("warns when a flow has no Lost Stage, and stops once one is set", async () => {
+    const { saleType, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setStageTerminal(awarded.id, true, mockUser.current.id)
+    await salesFlowService.setStageTerminalOutcome(awarded.id, "won", mockUser.current.id)
+
+    const { unmount } = renderWithProviders(<FlowCanvas />)
+    await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
+    expect(await screen.findByText("This flow has no Lost Stage.")).toBeInTheDocument()
+    const awardedNode = screen.getByText("Awarded").closest(".react-flow__node")
+    expect(within(awardedNode).getByText("Won")).toBeInTheDocument()
+    unmount()
+
+    await salesFlowService.setStageTerminal(awarded.id, true, mockUser.current.id)
+    await salesFlowService.setStageTerminalOutcome(awarded.id, "lost", mockUser.current.id)
+    renderWithProviders(<FlowCanvas />)
+    await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
+    const node = (await screen.findByText("Awarded")).closest(".react-flow__node")
+    expect(within(node).getByText("Lost")).toBeInTheDocument()
+    expect(screen.queryByText("This flow has no Lost Stage.")).not.toBeInTheDocument()
+  })
+
   it("names the handles a move runs between", async () => {
     // React Flow resolves an edge that names no handle to whichever source
     // handle it finds first. A Stage node also carries the two bottom anchors
