@@ -9,6 +9,7 @@ import {
   partialReceiptText,
   poLineNotPicked,
   requestedItemStock,
+  shortStockOf,
   sorLineChange,
 } from "./requestedItem"
 import { STOCK_BADGE } from "@/constants/stock"
@@ -130,6 +131,22 @@ describe("requestedItemStock", () => {
 
   it("has none for a new product", () => {
     expect(requestedItemStock({ source: ITEM_SOURCE.NEW, quantity: 1 }, snapshot)).toBeNull()
+  })
+})
+
+describe("shortStockOf (#803)", () => {
+  const snapshot = { data: { products: { 101: { type: "product", free: 4 }, 202: { type: "consu", free: 0 } } } }
+  const line = (fields) => ({ odoo_product_id: 101, quantity: 10, ...fields })
+
+  it("names the free count and the need when the check is short", () => {
+    expect(shortStockOf(line(), snapshot)).toEqual({ free: 4, needed: 10 })
+  })
+
+  it("is null when stock covers the line, the product is not stock, or there is no check", () => {
+    expect(shortStockOf(line({ quantity: 4 }), snapshot)).toBeNull()
+    expect(shortStockOf(line({ odoo_product_id: 202 }), snapshot)).toBeNull()
+    expect(shortStockOf(line(), null)).toBeNull()
+    expect(shortStockOf(line({ odoo_product_id: null }), snapshot)).toBeNull()
   })
 })
 

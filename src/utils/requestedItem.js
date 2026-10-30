@@ -145,6 +145,21 @@ export function requestedItemStock(item, stockSnapshot, now = Date.now()) {
 }
 
 /**
+ * #803 — the "Now x free of y" a choice of Available would show, or null. Judged on the SOR's
+ * latest stock check the way the database judges it (purchase_request_set_item_status): a stock
+ * check for the item's Odoo product, type "product", with less free than the item needs. No
+ * check, no product or enough stock: null, and Available needs no reason.
+ */
+export function shortStockOf(item, stockSnapshot) {
+  if (!item?.odoo_product_id) return null;
+  const product = stockSnapshot?.data?.products?.[item.odoo_product_id];
+  if (product?.type !== "product") return null;
+  const free = Number(product.free ?? 0);
+  const needed = Number(item.quantity);
+  return free < needed ? { free, needed } : null;
+}
+
+/**
  * Issue #312 — whether an item bought on a PO still lacks its Odoo PO line:
  * Ordered (or since Received) with a PO number and no line picked. A line is
  * never guessed; Purchasing picks it from the PO's IPAS stored Odoo copy once
