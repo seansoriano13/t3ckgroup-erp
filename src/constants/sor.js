@@ -189,6 +189,20 @@ export const LOST_REASONS = [
 export const LOST_REASON_OTHER = "OTHER";
 
 /**
+ * #814 — how a Lost deal's reason reads in the register. A coded reason shows
+ * its label (plus the note, when there is one); a deal with only the old free
+ * text and no code reads "Other: <text>". Empty when nothing was recorded.
+ */
+export const formatLostReason = (opportunity) => {
+  if (!opportunity) return "";
+  const note = (opportunity.lost_reason || "").trim();
+  const code = opportunity.lost_reason_code;
+  if (!code) return note ? `Other: ${note}` : "";
+  const label = LOST_REASONS.find((r) => r.code === code)?.label || code;
+  return note ? `${label}: ${note}` : label;
+};
+
+/**
  * Lost, for either kind of deal: the one rule every list, count, commission
  * and Open Pipeline check reads (issue #806). A legacy deal is lost by its
  * status code. A flow-built deal's status never changes after registration

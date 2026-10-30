@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  CircleX,
   MoreHorizontal,
   Pencil,
   Target,
@@ -14,8 +15,9 @@ import Dropdown from "../../ui/Dropdown";
 import StatusBadge from "../../StatusBadge";
 import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
-import MarkLostButton from "../MarkLostButton";
+import MarkLostButton, { MarkLostDialogHost } from "../MarkLostButton";
 import { isLostCode, isWonCode } from "../../../constants/sor";
+import { isLostFlowStage } from "../../../constants/salesFlow";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
 import SorVersionUpdate from "../SorVersionUpdate";
@@ -70,6 +72,7 @@ export default function SorModalHeader({
   returnStageIds = [],
 }) {
   const activeChevronRef = useRef(null);
+  const [markLostOpen, setMarkLostOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -95,6 +98,15 @@ export default function SorModalHeader({
     });
     return () => cancelAnimationFrame(raf);
   }, [opportunity?.status, isOpen]);
+
+  // #814: Mark as Lost from the More-actions menu, open Stages only. The
+  // database is the real gate; this only decides whether to offer it.
+  const canMarkLost = isFlowDeal
+    ? Boolean(currentFlowStage) && !currentFlowStage.is_terminal
+    : !isLostCode(opportunity.status, pipelineStages) && !isWonCode(opportunity.status, pipelineStages);
+  const lostStages = flowCanvas
+    ? (flowCanvas.stages || []).filter((st) => isLostFlowStage(st, flowCanvas.flow?.won_stage_id ?? null))
+    : [];
 
   const currentIndex = pipelineStages.findIndex((s) => s.code === opportunity.status);
   const lastIndex = pipelineStages.length - 1;
@@ -315,6 +327,20 @@ export default function SorModalHeader({
               >
                 {({ close }) => (
                   <div className="flex flex-col gap-0.5">
+                    {canMarkLost && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          close();
+                          setMarkLostOpen(true);
+                        }}
+                        className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground"
+                      >
+                        <CircleX size={14} className="text-muted-foreground" />
+                        Mark as Lost
+                      </Button>
+                    )}
                     {canEdit && (
                       <Button
                         type="button"
@@ -323,7 +349,7 @@ export default function SorModalHeader({
                           close();
                           confirmDeleteToast(
                             `Delete ${sorCodeOf(opportunity) || "this SOR"}?`,
-                            "The record is archived, not erased.",
+                            "The record is archived, not erased. Client stopped responding? Mark as Lost instead, so it shows in reports.",
                             () => deleteMutation.mutate(),
                           );
                         }}
@@ -416,6 +442,12 @@ export default function SorModalHeader({
           </>
         )}
       </div>
+      <MarkLostDialogHost
+        opportunity={opportunity}
+        lostStages={lostStages}
+        isOpen={markLostOpen}
+        onClose={() => setMarkLostOpen(false)}
+      />
     </div>
   );
 }

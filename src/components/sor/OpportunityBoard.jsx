@@ -4,6 +4,7 @@ import { Clock, ChevronDown, LayoutGrid, Rows3, GitBranch } from "lucide-react";
 import Avatar from "../Avatar";
 import Dropdown from "../ui/Dropdown";
 import MoveConfirmDialog from "./MoveConfirmDialog";
+import { MarkLostDialogHost } from "./MarkLostButton";
 import { PROJECT_TYPE_SHORT, formatPHP } from "../../constants/sor";
 import { flowBoardColumns, legacyBoardColumns } from "../../constants/board";
 import { outgoingStages, isLostFlowStage } from "../../constants/salesFlow";
@@ -213,11 +214,36 @@ export default function OpportunityBoard({
   // after this deal registered doesn't change what a drag offers it.
   const [dragging, setDragging] = useState(null); // { opportunity, allowedStageIds }
   const [pendingMove, setPendingMove] = useState(null); // { opportunity, targetStage }
+  // #814: a drop on a Lost column opens the Mark as Lost reason picker instead
+  // of moving directly, so a drag never skips the reason.
+  const [pendingLost, setPendingLost] = useState(null); // { opportunity }
+
+  const lostColumnKeys = useMemo(
+    () =>
+      new Set(
+        columns
+          .filter((c) => activeFlow && c.stage && isLostFlowStage(c.stage, activeFlow.won_stage_id))
+          .map((c) => c.key),
+      ),
+    [columns, activeFlow],
+  );
+  const lostStagesOfFlow = useMemo(
+    () => activeFlowStages.filter((s) => activeFlow && isLostFlowStage(s, activeFlow.won_stage_id)),
+    [activeFlowStages, activeFlow],
+  );
+  // Mark as Lost works from any open Stage, so a Lost column is a target
+  // whether or not a line was drawn to it.
+  const canLoseFrom = (opportunity) => {
+    if (lostColumnKeys.size === 0 || lostColumnKeys.has(opportunity.flow_stage_id)) return false;
+    const current = activeFlowStages.find((s) => s.id === opportunity.flow_stage_id);
+    return Boolean(current) && !current.is_terminal;
+  };
 
   const handleDragStart = (opportunity) => {
     const snapshotData = snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data;
+    const lostKeys = canLoseFrom(opportunity) ? [...lostColumnKeys] : [];
     if (!snapshotData) {
-      setDragging({ opportunity, allowedStageIds: new Set() });
+      setDragging({ opportunity, allowedStageIds: new Set(lostKeys) });
       return;
     }
     const targets = outgoingStages(opportunity.flow_stage_id, snapshotData.stages, snapshotData.edges);
@@ -226,7 +252,10 @@ export default function OpportunityBoard({
       opportunity,
       currentName: current?.name || "This stage",
       allowedNames: targets.filter((s) => columnKeys.has(s.id)).map((s) => s.name),
-      allowedStageIds: new Set(targets.map((s) => s.id).filter((id) => columnKeys.has(id))),
+      allowedStageIds: new Set([
+        ...targets.map((s) => s.id).filter((id) => columnKeys.has(id)),
+        ...lostKeys,
+      ]),
     });
   };
 
@@ -242,7 +271,11 @@ export default function OpportunityBoard({
       setDragging(null);
       return;
     }
-    setPendingMove({ opportunity: dragging.opportunity, targetStage: column.stage });
+    if (lostColumnKeys.has(column.key)) {
+      setPendingLost({ opportunity: dragging.opportunity });
+    } else {
+      setPendingMove({ opportunity: dragging.opportunity, targetStage: column.stage });
+    }
     setDragging(null);
   };
 
@@ -421,6 +454,16 @@ export default function OpportunityBoard({
             </p>
           )}
         </div>
+      )}
+
+      {pendingLost && (
+        <MarkLostDialogHost
+          opportunity={pendingLost.opportunity}
+          lostStages={lostStagesOfFlow}
+          isOpen
+          onClose={() => setPendingLost(null)}
+          onDone={() => onMoved?.()}
+        />
       )}
 
       <MoveConfirmDialog
