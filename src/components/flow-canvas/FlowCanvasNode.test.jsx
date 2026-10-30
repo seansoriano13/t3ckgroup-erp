@@ -180,4 +180,23 @@ describe("FlowCanvasNode", () => {
       expect(screen.queryByLabelText(/Add Stage after/)).not.toBeInTheDocument()
     })
   })
+
+  describe("terminal outcome label", () => {
+    it("says Won on a terminal Stage that ends as won", () => {
+      renderNode({ stage: makeFlowStage({ is_terminal: true, terminal_outcome: "won" }) })
+      expect(screen.getByText("Won")).toBeInTheDocument()
+      expect(screen.queryByText("Lost")).not.toBeInTheDocument()
+    })
+
+    it("says Lost on a terminal Stage that ends as lost", () => {
+      renderNode({ stage: makeFlowStage({ is_terminal: true, terminal_outcome: "lost" }) })
+      expect(screen.getByText("Lost")).toBeInTheDocument()
+    })
+
+    it("says neither on a terminal Stage with no outcome set, or a plain Stage", () => {
+      renderNode({ stage: makeFlowStage({ is_terminal: true }) })
+      expect(screen.queryByText("Lost")).not.toBeInTheDocument()
+      expect(screen.queryByText("Won")).not.toBeInTheDocument()
+    })
+  })
 })
