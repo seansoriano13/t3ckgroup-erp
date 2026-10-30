@@ -384,7 +384,7 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.next.step).toBe("check_open")
     })
 
-    it("stops flagging an NA once a later Transmittal rates the same PO line GC at its checking stage", async () => {
+    it("stops flagging an NA once a later Transmittal rates the same P0 line GC at its checking stage", async () => {
       const ipas = seedOrder({ deliveredOn: "2026-10-14" })
       seedPayment(ipas)
       seedSlip({
@@ -764,7 +764,7 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(rowsFor(await listAll(), ipas).transmittals.latest.check).toBe("na")
     })
 
-    it("shows NA · replaced when a later Transmittal rates the same PO line GC", async () => {
+    it("shows NA · replaced when a later Transmittal rates the same P0 line GC", async () => {
       const ipas = seedOrder()
       seedSlip({
         state: "closed",

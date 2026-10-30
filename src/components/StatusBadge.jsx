@@ -27,6 +27,7 @@ export default function StatusBadge({
     violet: "bg-card text-violet-11 border-violet-7",
     orange: "bg-card text-orange-12 border-orange-7",
     mauve: "bg-card text-muted-foreground border-mauve-5",
+    gray: "bg-card text-gray-11 border-gray-7",
     tomato: "bg-card text-tomato-11 border-tomato-7",
     crimson: "bg-card text-crimson-11 border-crimson-7",
     pink: "bg-card text-pink-11 border-pink-7",

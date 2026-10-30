@@ -53,7 +53,7 @@ function ProjectChoice({ line, onChange }) {
 /**
  * One slip line as a single tidy row: the item (typed in, for a typed line),
  * its quantity and unit, its project, and a "More" fold for SN# and the box
- * quantity. A PO line brings its item, quantity, unit and project from the PO.
+ * quantity. A P0 line brings its item, quantity, unit and project from the PO.
  */
 export default function LineLiner({ line, index, onChange, onRemove }) {
   const isPo = line.kind === TRANSMITTAL_LINE_KIND.PO_LINE;
@@ -66,7 +66,7 @@ export default function LineLiner({ line, index, onChange, onRemove }) {
         <div className="min-w-44 flex-1">
           {isPo ? (
             <>
-              <p className="truncate text-[13px] font-semibold text-foreground">{line.description || "PO line"}</p>
+              <p className="truncate text-[13px] font-semibold text-foreground">{line.description || "P0 line"}</p>
               <p className="truncate text-[12px] text-muted-foreground">
                 <span className="font-mono">{line.poNumber}</span> · {line.ipasNumber}
               </p>

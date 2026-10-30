@@ -178,7 +178,7 @@ describe("who raises a Transmittal", () => {
         expect(technical.error).toBeTruthy()
     })
 
-    it("returns PO lines with no money, supplier or bank column", async () => {
+    it("returns P0 lines with no money, supplier or bank column", async () => {
         await raiseIpas()
         const { data, error } = await rpc("warehouse", "transmittal_pickable_po_lines", { p_search: null })
         expect(error).toBeNull()
@@ -192,7 +192,7 @@ describe("who raises a Transmittal", () => {
         expect(refused.error).toBeTruthy()
     })
 
-    it("refuses a PO line that isn't on its IPAS's Odoo copy, and warns on a PO line of another Company", async () => {
+    it("refuses a P0 line that isn't on its IPAS's Odoo copy, and warns on a P0 line of another Company", async () => {
         const ipas = await raiseIpas()
         const missing = await rpc("warehouse", "transmittal_create", {
             p_fields: HEADER,

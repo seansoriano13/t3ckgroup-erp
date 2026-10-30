@@ -276,7 +276,7 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
 
 /**
  * Issue #549 — correcting the PO number on an Purchased item. The new number is
- * checked against Odoo like the first; PO lines picked on the old PO are cleared.
+ * checked against Odoo like the first; P0 lines picked on the old PO are cleared.
  */
 export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
   const refresh = useRefreshRequest(requestId);
@@ -321,7 +321,7 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
       }
     >
       <p className="text-sm text-muted-foreground">
-        {item.name}{item.po_number ? `, now on PO ${item.po_number}` : ", with no PO yet"}. The new number is checked against Odoo, and any PO line picked on the old PO is cleared.
+        {item.name}{item.po_number ? `, now on PO ${item.po_number}` : ", with no PO yet"}. The new number is checked against Odoo, and any P0 line picked on the old PO is cleared.
       </p>
       <div className="space-y-1.5">
         <FieldBox label="New PO number" bare>
@@ -336,7 +336,7 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
 }
 
 /**
- * Issue #312 — picking the Odoo PO line(s) an Purchased item is bought on, from
+ * Issue #312 — picking the Odoo P0 line(s) an Purchased item is bought on, from
  * the lines its PO has on the IPAS stored Odoo copy (`lines`: `{ line_id, product_name,
  * quantity }` rows, #804). The caller only offers this when there are lines; the database
  * refuses any other.
@@ -356,7 +356,7 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lines }
   const pickMutation = useMutation({
     mutationFn: (ids) => purchaseRequestService.pickPoLines(item.id, ids),
     onSuccess: () => {
-      toast.success(`${item.name}: PO line picked.`);
+      toast.success(`${item.name}: P0 line picked.`);
       onOpenChange(false);
     },
     onError: (error) => toast.error(refusal(error)),
@@ -371,7 +371,7 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lines }
       open={open}
       onOpenChange={onOpenChange}
       className={OVER_REQUEST_MODAL}
-      crumbs={["Purchase Requests", "Pick the PO line"]}
+      crumbs={["Purchase Requests", "Pick the P0 line"]}
       actions={
         <Button
           size="lg"

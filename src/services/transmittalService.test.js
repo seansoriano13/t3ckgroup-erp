@@ -71,7 +71,7 @@ describe("transmittalService", () => {
     stubTransmittalRpcs({ actorId: buyer.id, purchasing: true, superAdmin: true })
   })
 
-  it("raises a slip whose PO lines carry each IPAS's SOR, and warns on a PO line of another Company", async () => {
+  it("raises a slip whose P0 lines carry each IPAS's SOR, and warns on a P0 line of another Company", async () => {
     const sor = makeOpportunity({ sales_reference: "S07920", project_title: "Capas LGU" })
     const onSor = seedIpas({ po: "P02552", company: "T3ck Trading", sorIds: [sor.id] })
     const otherCompany = seedIpas({ po: "P02554", company: "TG Enterprise" })
@@ -193,7 +193,7 @@ describe("transmittalService", () => {
     let tech
     let checkBy
 
-    /** A submitted Warehouse + Technical slip with one PO line, in Warehouse checking. */
+    /** A submitted Warehouse + Technical slip with one P0 line, in Warehouse checking. */
     async function submittedSlip({ header = HEADER, lines = 1 } = {}) {
       const ipas = seedIpas()
       const made = await transmittalService.create({

@@ -94,7 +94,7 @@ describe("the tables", () => {
         expect(await constraintInsert("purchase_request_items", itemRow(unassigned, { status }))).toBeNull()
     })
 
-    it("a new item starts at Not checked, with no PO lines", async () => {
+    it("a new item starts at Not checked, with no P0 lines", async () => {
         const { data } = await svc()
             .from("purchase_request_items")
             .select("status, po_verification, odoo_po_line_ids, images")

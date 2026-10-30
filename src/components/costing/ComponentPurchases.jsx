@@ -14,7 +14,7 @@ import { PickPoLinesDialog } from "../purchase-request/PoDialogs";
  * cover its quantity. No money, so every tier sees it; the IPAS links only for a tier above
  * participant, and the IPAS page itself still decides who may read it.
  *
- * When Purchasing reads "Pick the PO line again" (a refresh removed a picked line), each Purchased item
+ * When Purchasing reads "Pick the P0 line again" (a refresh removed a picked line), each Purchased item
  * with a PO offers the pick again here, from the PO's IPAS copy. Purchasing can also unlink a
  * Requested Item from the Component (kept in the matrix's history), so the Component can be removed.
  */
@@ -74,7 +74,7 @@ export default function ComponentPurchases({ component, linkIpas, canPick, onPic
       )}
       {pickable.map((request) => (
         <Button key={request.itemId} type="button" size="sm" variant="outline" onClick={() => startPick(request)}>
-          Pick the PO line again{pickable.length > 1 ? ` (${request.poNumber})` : ""}
+          Pick the P0 line again{pickable.length > 1 ? ` (${request.poNumber})` : ""}
         </Button>
       ))}
       {unlinkable.map((request) => (

@@ -28,7 +28,7 @@ const MEMBER_SELECT =
  * side may only cancel) and posts the change in the request.
  *
  * PO (#312): Ordered takes an optional PO number, checked against Odoo first;
- * the PO line(s) the item is bought on are picked from the PO's IPAS stored
+ * the P0 line(s) the item is bought on are picked from the PO's IPAS stored
  * Odoo copy (none exists yet, so nothing can be picked).
  *
  * Chat and Buyer (#307): members post straight into the request's messages
@@ -376,7 +376,7 @@ export const purchaseRequestService = {
     return data;
   },
 
-  // ── PO number and PO lines (#312) ────────────────────────────────────────
+  // ── PO number and P0 lines (#312) ────────────────────────────────────────
 
   /**
    * Attaches an Odoo P0 to an item (#684). The `odoo-po-verify` edge function reads the P0
@@ -464,7 +464,7 @@ export const purchaseRequestService = {
 
   /**
    * Corrects the PO on an Ordered item (#549). The new number is checked against
-   * Odoo like the first one; picked PO lines on the old PO are cleared. Throws on
+   * Odoo like the first one; picked P0 lines on the old PO are cleared. Throws on
    * a number that isn't an Odoo PO. Returns the updated item.
    */
   async correctPo(itemId, poNumber) {
@@ -515,7 +515,7 @@ export const purchaseRequestService = {
   },
 
   /**
-   * The Odoo PO line ids on the IPAS stored copy of the item's PO — what may
+   * The Odoo P0 line ids on the IPAS stored copy of the item's PO — what may
    * be picked. Empty when the item has no PO number or its PO has no IPAS.
    */
   async poLines(itemId) {
@@ -537,7 +537,7 @@ export const purchaseRequestService = {
   },
 
   /**
-   * Records the PO line(s) an Ordered item is bought on. The database
+   * Records the P0 line(s) an Ordered item is bought on. The database
    * refuses any line not on the PO's IPAS copy. Returns the updated item.
    */
   async pickPoLines(itemId, lineIds) {

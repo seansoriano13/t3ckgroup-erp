@@ -6,7 +6,7 @@ import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 
 /**
- * The PO number and PO lines on Ordered (#312) through the service, against
+ * The PO number and P0 lines on Ordered (#312) through the service, against
  * the fake database with the RPCs re-implemented on its store and Odoo's
  * `odoo-po-verify` stubbed (it can't run locally). Proves the wiring; the
  * rules are the policy tier's (43-purchase-request-item-po).

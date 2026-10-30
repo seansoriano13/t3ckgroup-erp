@@ -27,7 +27,7 @@ const charge = (amount_php) => ({ amount_php })
 
 describe("computeLandedCost", () => {
   describe("a peso PO", () => {
-    it("takes the unit price from the PO line, not from the PHP 8,325 paid (sample P02552: 6 x 1,250)", () => {
+    it("takes the unit price from the P0 line, not from the PHP 8,325 paid (sample P02552: 6 x 1,250)", () => {
       // 7,500 + 12% VAT - 1% withholding = 8,325 is what left the bank.
       const result = computeLandedCost({
         copy: copy("Php", [line(11400, 6, 1250, { price_subtotal: 7500 })]),

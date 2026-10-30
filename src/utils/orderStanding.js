@@ -7,7 +7,7 @@
  * The decision order is the spec's and must not change. The first match is the
  * next thing:
  *   1. a line rated NA at its slip's checking stage (unless a later slip rates
- *      the same Odoo PO line GC at its checking stage)
+ *      the same Odoo P0 line GC at its checking stage)
  *   2. a slip whose checking stage isn't complete (owner: the Warehouse or Technical)
  *   3. a slip awaiting Check by
  *   4. costs complete but section 3 (the Landed Cost check) not approved
@@ -97,7 +97,7 @@ function ratingAtChecking(slip, line) {
   return checkingStage(slip) === TRANSMITTAL_STAGE.TECHNICAL_INSPECTION ? line.tech_rating : line.wh_rating;
 }
 
-/** Every NA line of this IPAS at its slip's checking stage, each marked cleared when a later slip rates the same PO line GC there. */
+/** Every NA line of this IPAS at its slip's checking stage, each marked cleared when a later slip rates the same P0 line GC there. */
 function naLinesOf(orderId, sorted) {
   const found = [];
   for (let i = 0; i < sorted.length; i += 1) {

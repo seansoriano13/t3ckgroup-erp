@@ -1,6 +1,6 @@
 /**
  * Transmittal from an IPAS (#725, spec #718): `transmittal_ipas_po_lines` returns
- * every PO line of one live IPAS so a New Transmittal can fill them as draft
+ * every P0 line of one live IPAS so a New Transmittal can fill them as draft
  * lines. Only a Transmittal preparer may ask, no money column comes back, and the
  * slip is still written (and refused) by `transmittal_create`, unchanged.
  */
@@ -60,7 +60,7 @@ afterAll(async () => {
 })
 
 describe("a New Transmittal fills its lines from an IPAS", () => {
-    it("returns every PO line of that IPAS, and no price, supplier or bank column", async () => {
+    it("returns every P0 line of that IPAS, and no price, supplier or bank column", async () => {
         const ipas = await raiseIpas()
         const { data, error } = await rpc("warehouse", "transmittal_ipas_po_lines", { p_ipas_number: ipas.number })
         expect(error).toBeNull()

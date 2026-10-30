@@ -46,7 +46,7 @@ async function raiseIpasFor(sorId) {
     return data
 }
 
-/** A submitted slip on the SOR, with its PO line. Returns its number. */
+/** A submitted slip on the SOR, with its P0 line. Returns its number. */
 async function submittedSlipFor(sorId) {
     const ipas = await raiseIpasFor(sorId)
     const { data: made, error } = await rpc("warehouse", "transmittal_create", {
