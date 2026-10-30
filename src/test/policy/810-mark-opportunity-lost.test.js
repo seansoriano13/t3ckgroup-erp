@@ -299,3 +299,122 @@ describe("Mark as Lost and the Purchase Request chat", () => {
         expect((await lose("dealOwner", sor, "NO_RESPONSE", null)).error).toBeNull()
     })
 })
+
+/**
+ * Issue #812 — the same function on an old-pipeline deal (status codes, no
+ * Flow Stage). The local pipeline may hold only LEAD, so the test adds the
+ * statuses it needs (a middle one, a Won and a Lost) and removes what it added.
+ */
+describe("Mark as Lost on an old-pipeline deal", () => {
+    const added = []
+    let midCode
+    let wonCode
+    let lostCode
+
+    async function ensureStatus(code, flags, sortOrder) {
+        const col = flags.is_won ? "is_won" : flags.is_lost ? "is_lost" : null
+        if (col) {
+            const { data } = await svc().from("crm_pipeline_stages").select("code").eq(col, true).maybeSingle()
+            if (data) return data.code
+        }
+        await ok(svc().from("crm_pipeline_stages").insert({ code, label: code, sort_order: sortOrder, ...flags }), `status ${code}`)
+        added.push(code)
+        return code
+    }
+
+    beforeAll(async () => {
+        midCode = await ensureStatus("T812_MID", {}, 900)
+        wonCode = await ensureStatus("T812_WON", { is_won: true }, 910)
+        lostCode = await ensureStatus("T812_LOST", { is_lost: true }, 920)
+    })
+
+    afterAll(async () => {
+        await svc().from("sales_opportunities").update({ lost_from_status: null }).in("id", sorIds)
+        await svc().from("sales_opportunities").delete().in("id", sorIds)
+        if (added.length) await svc().from("crm_pipeline_stages").delete().in("code", added)
+    })
+
+    async function oldDeal(status, salesReference = null) {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, closingSalesId: ids.closingSales })
+        sorIds.push(id)
+        // LEAD may be set without a Sales Reference; leaving LEAD needs one, except to Lost.
+        if (salesReference) await ok(svc().from("sales_opportunities").update({ sales_reference: salesReference }).eq("id", id), "reference")
+        if (status !== "LEAD") await ok(svc().from("sales_opportunities").update({ status }).eq("id", id), "status")
+        return id
+    }
+
+    const oldRow = (sorId) =>
+        ok(svc().from("sales_opportunities").select("status, flow_stage_id, lost_reason_code, lost_reason, lost_from_status, lost_from_flow_stage_id, sales_reference").eq("id", sorId).single(), "deal row")
+
+    it("moves to the Lost status and records the status it came from", async () => {
+        const sor = await oldDeal(midCode, "S81200")
+        const { error } = await lose("dealOwner", sor, "PRICE_TOO_HIGH", "Quoted 20% over")
+        expect(error).toBeNull()
+        expect(await oldRow(sor)).toMatchObject({
+            status: lostCode,
+            flow_stage_id: null,
+            lost_reason_code: "PRICE_TOO_HIGH",
+            lost_reason: "Quoted 20% over",
+            lost_from_status: midCode,
+            lost_from_flow_stage_id: null,
+        })
+    })
+
+    it("loses a deal with no Sales Reference (the Lost exemption)", async () => {
+        const sor = await oldDeal("LEAD")
+        expect((await oldRow(sor)).sales_reference).toBeNull()
+        const { error } = await lose("dealOwner", sor, "NO_RESPONSE", null)
+        expect(error).toBeNull()
+        expect(await oldRow(sor)).toMatchObject({ status: lostCode, lost_from_status: "LEAD", sales_reference: null })
+    })
+
+    it("writes the same history and posts the same chat message as the Flow Canvas case", async () => {
+        const sor = await oldDeal(midCode, "S81201")
+        const request = await ok(svc().from("purchase_requests").insert({ opportunity_id: sor, created_by: ids.dealOwner }).select("id").single(), "request")
+        expect((await lose("dealOwner", sor, "LOST_TO_COMPETITOR", "Went with Acme")).error).toBeNull()
+
+        const { data: logs } = await svc().from("sales_opportunity_logs").select("author_id, content, metadata").eq("opportunity_id", sor).eq("metadata->>event", "MARKED_LOST")
+        expect(logs).toHaveLength(1)
+        expect(logs[0].author_id).toBe(ids.dealOwner)
+        expect(logs[0].content).toBe("Deal marked Lost: Lost to competitor — Went with Acme")
+        expect(logs[0].metadata).toMatchObject({ reasonCode: "LOST_TO_COMPETITOR", note: "Went with Acme", from: midCode, to: lostCode })
+
+        const { data: messages } = await svc().from("purchase_request_messages").select("content, metadata").eq("request_id", request.id)
+        expect(messages).toHaveLength(1)
+        expect(messages[0].content).toBe("Deal marked Lost: Lost to competitor — Went with Acme")
+        expect(messages[0].metadata).toMatchObject({ event: "deal_marked_lost" })
+        await svc().from("purchase_request_messages").delete().eq("request_id", request.id)
+        await svc().from("purchase_requests").delete().eq("id", request.id)
+    })
+
+    it.each([
+        ["an empty reason", "", null, /pick a reason/i],
+        ["an unknown reason", "BORED", null, /not a reason on the list/i],
+        ["Other without a note", "OTHER", "  ", /say what happened/i],
+    ])("refuses %s and leaves the deal where it was", async (_label, code, note, message) => {
+        const sor = await oldDeal(midCode, "S81202")
+        const { error } = await lose("dealOwner", sor, code, note)
+        expect(error?.message).toMatch(message)
+        expect(await oldRow(sor)).toMatchObject({ status: midCode, lost_reason_code: null, lost_from_status: null })
+    })
+
+    it("refuses a deal already at the Won or Lost status", async () => {
+        for (const status of [wonCode, lostCode]) {
+            const sor = await oldDeal(status, "S81203")
+            expect((await lose("dealOwner", sor, "NO_RESPONSE", null)).error?.message).toMatch(/already closed/i)
+            expect((await oldRow(sor)).status).toBe(status)
+        }
+    })
+
+    it.each(["outsider", "ordinary"])("refuses %s, who cannot move this deal", async (who) => {
+        const sor = await oldDeal(midCode, "S81204")
+        const { error } = await lose(who, sor, "NO_RESPONSE", null)
+        expect(error).not.toBeNull()
+        expect(await oldRow(sor)).toMatchObject({ status: midCode, lost_reason_code: null })
+    })
+
+    it("lets a Super Admin do it", async () => {
+        const sor = await oldDeal(midCode, "S81205")
+        expect((await lose("superAdmin", sor, "NO_RESPONSE", null)).error).toBeNull()
+    })
+})
