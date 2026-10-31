@@ -80,6 +80,37 @@ async function previewChange(req: Request, opportunityId: string, salesReference
   return jsonResponse({ success: true, preview: data });
 }
 
+// ---- action "recheck" (#817) -------------------------------------------------------------------
+// Opening a SOR re-checks its current S0 against Odoo. Only the Odoo state moves (found / gone);
+// no lines, no S0. Anyone who can open the SOR may trigger it, so the access check is in the
+// database function. Unreachable Odoo changes nothing.
+
+async function recheck(email: string, opportunityId: string) {
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const { data: row } = await admin
+    .from("sales_opportunities")
+    .select("sales_reference")
+    .eq("id", opportunityId)
+    .maybeSingle();
+  const typed = normalizeS0(row?.sales_reference);
+  if (!typed) return jsonResponse({ success: true, odoo_state: null });
+  const answer = await askOdoo(typed);
+  const { data, error } = await admin.rpc("recheck_sales_reference", {
+    p_actor_email: email,
+    p_opportunity_id: opportunityId,
+    p_odoo: answer.kind,
+  });
+  if (error) {
+    return jsonResponse({
+      success: false,
+      refused: true,
+      message: refusalText(error.message),
+      ...(error.hint ? { hint: error.hint } : {}),
+    });
+  }
+  return jsonResponse({ success: true, ...(data as Record<string, unknown>) });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -102,6 +133,10 @@ Deno.serve(async (req) => {
   const email = await callerEmail(req);
   if (!email) {
     return jsonResponse({ success: false, refused: true, message: "Sign in to change the S0." }, 401);
+  }
+
+  if (body.action === "recheck") {
+    return await recheck(email, opportunityId);
   }
 
   if (body.action === "preview") {

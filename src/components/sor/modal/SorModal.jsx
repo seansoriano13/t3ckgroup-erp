@@ -536,6 +536,30 @@ export default function SorModal({
     };
   }, [isOpen, id, opportunity, user?.id, invalidate]);
 
+  // #817: re-check a Not checked / Found S0 against Odoo once per SOR window, in the background.
+  // Only the Odoo state moves; the card is refreshed after.
+  const hasRechecked = useRef(new Set());
+  useEffect(() => {
+    if (!isOpen || !id || !opportunity?.sales_reference) return;
+    if (hasRechecked.current.has(id)) return;
+    hasRechecked.current.add(id);
+    (async () => {
+      try {
+        const cardKey = ["salesReferenceCard", id];
+        const card = await queryClient.fetchQuery({
+          queryKey: cardKey,
+          queryFn: () => opportunityService.getSalesReferenceCard(id),
+          staleTime: 5000,
+        });
+        if (card?.odoo_state && card.odoo_state !== "found" && card.odoo_state !== "not_checked") return;
+        const result = await opportunityService.recheckSalesReference(id);
+        if (result) queryClient.invalidateQueries({ queryKey: cardKey });
+      } catch (err) {
+        console.error("S0 re-check failed", err);
+      }
+    })();
+  }, [isOpen, id, opportunity?.sales_reference, queryClient]);
+
   // ←/→ step to siblingIds' neighbour, skipped while a text field is focused
   // so it doesn't fight with normal cursor movement while typing.
   useEffect(() => {

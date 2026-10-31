@@ -2327,6 +2327,23 @@ export const opportunityService = {
   },
 
   /**
+   * Re-checks the SOR's current S0 against Odoo (#817), in the background when the SOR opens. Only
+   * the Odoo state moves (found, or gone with one history entry). Never throws: a failed re-check
+   * leaves the card as it was.
+   */
+  async recheckSalesReference(id) {
+    try {
+      const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+        body: { action: "recheck", opportunityId: id },
+      });
+      if (error || !data?.success) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * The one way the S0 changes after registration (#815): set, change or clear (`salesReference`
    * empty). The edge function checks Odoo and calls the database function as the caller. A refusal
    * (format, lock, duplicate, ...) throws an Error carrying the text to show and a `hint` code.

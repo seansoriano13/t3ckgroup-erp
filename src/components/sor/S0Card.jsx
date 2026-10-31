@@ -18,7 +18,7 @@ const ODOO_BADGES = {
     theme: "amber",
     hover: "Odoo did not answer when this was saved. It is checked again when the SOR opens.",
   },
-  gone: { label: "Gone from Odoo", theme: "red", hover: "Odoo no longer has this S0." },
+  gone: { label: "Gone from Odoo", theme: "red", hover: (s0) => `Odoo no longer has ${s0}.` },
 };
 
 const formatReadAt = (iso) =>
@@ -215,7 +215,7 @@ export default function S0Card({ opportunityId }) {
             <span className="text-sm font-medium text-muted-foreground">Not set</span>
           )}
           {badge && (
-            <Tooltip content={badge.hover}>
+            <Tooltip content={typeof badge.hover === "function" ? badge.hover(card.sales_reference) : badge.hover}>
               <span>
                 <StatusBadge label={badge.label} theme={badge.theme} />
               </span>
