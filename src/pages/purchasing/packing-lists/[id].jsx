@@ -115,11 +115,14 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
 
   // Loaded when the dialog opens: the SOR's Product List to pick from, and the
   // box's current contents as editable rows.
-  const { data: productList = [] } = useQuery({
+  const { data: allProducts = [] } = useQuery({
     queryKey: ["sor-product-list", sorId],
     queryFn: () => packingListService.sorProducts(sorId),
     enabled: open && Boolean(sorId),
   });
+  // Only lines already received can be packed (#795).
+  const productList = allProducts.filter((line) => line.received === true);
+  const nothingReceived = allProducts.length > 0 && productList.length === 0;
 
 
   const setRow = (index, patch) => setRows((current) => current.map((r, i) => (i === index ? { ...r, ...patch } : r)));
@@ -170,7 +173,12 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
         </Button>
       }
     >
-      <p className="text-sm text-muted-foreground">Type each content, or pick it from the SOR's Product List (copied as it is now).</p>
+      <p className="text-sm text-muted-foreground">Type each content, or pick it from the SOR's Product List (copied as it is now). Only received items can be packed.</p>
+      {nothingReceived && (
+        <p className="text-sm text-muted-foreground" data-testid="nothing-received">
+          None of this SOR's items have been received yet, so there is nothing to pick. You can still type a content.
+        </p>
+      )}
         <div className="space-y-3">
           {rows.map((row, index) => (
             <div key={index} className="grid grid-cols-1 gap-2 md:grid-cols-[2fr_1fr_1fr_auto] md:items-end">

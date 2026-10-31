@@ -118,6 +118,17 @@ describe("Packing List record page", () => {
     expect(screen.queryByRole("button", { name: /^(Expand|Collapse)$/ })).not.toBeInTheDocument();
   });
 
+  it("offers only received Product List lines, and says so when none is received", async () => {
+    const user = setupUser();
+    service.sorProducts.mockResolvedValue([{ id: "l1", product_name: "Hose", quantity: 2, unit: "pc", received: false }]);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /^Box 1 · M1/ }));
+    await user.click(screen.getAllByRole("button", { name: "Contents" })[0]);
+    expect(await screen.findByTestId("nothing-received")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Pick from the Product List")).not.toBeInTheDocument();
+  });
+
   it("signs Packed by from the card, asking first", async () => {
     const user = setupUser();
     renderPage();
