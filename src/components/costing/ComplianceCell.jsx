@@ -22,9 +22,10 @@ const OPTIONS = [
  * note and the alternative. A gap is recorded, never blocked: nothing here touches a figure.
  *
  * `number` is the Component's number ("1.2") for the cells' labels. `onChanged` runs after each
- * save so the matrix refreshes.
+ * save so the matrix refreshes (awaited: the verdict shown early is dropped after it).
+ * `onVerdict(id, verdict)` shows a chosen verdict early; `onVerdictSettled(id)` drops it.
  */
-export default function ComplianceCell({ component, number, readOnly, onChanged }) {
+export default function ComplianceCell({ component, number, readOnly, onChanged, onVerdict, onVerdictSettled }) {
   // "Deviates" chosen but not saved yet: it waits for its note.
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
@@ -34,9 +35,18 @@ export default function ComplianceCell({ component, number, readOnly, onChanged 
   const hasNote = Boolean(String(component.compliance_note ?? "").trim());
 
   const save = async (fields) => {
-    await costingMatrixService.setCompliance(component.id, fields);
-    setPending(false);
-    await onChanged?.();
+    // A save that sets a verdict shows it at once (the Judged count too). A note-only save has no verdict
+    // to show, so it leaves the overlay alone. The overlay is dropped once the refetch has landed, or
+    // when the save is refused.
+    const showsVerdict = "verdict" in fields;
+    if (showsVerdict) onVerdict?.(component.id, fields.verdict);
+    try {
+      await costingMatrixService.setCompliance(component.id, fields);
+      setPending(false);
+      await onChanged?.();
+    } finally {
+      if (showsVerdict) onVerdictSettled?.(component.id);
+    }
   };
 
   const choose = async (next) => {

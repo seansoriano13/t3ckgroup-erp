@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchP0ToItems, pickedLineIds } from "../../supabase/functions/_shared/p0Matching.ts";
+import { lacksRowForProduct, matchP0ToItems, pickedLineIds } from "../../supabase/functions/_shared/p0Matching.ts";
 
 const line = (product_id, product_name = `Product ${product_id}`, quantity = 1, received = 0, id = null) => ({
   id,
@@ -53,6 +53,25 @@ describe("pickedLineIds", () => {
   it("skips rows that have no Odoo line id", () => {
     const order = p0("P1", "S1", [line(1, "A", 2, 0, null)]);
     expect(pickedLineIds(order, item("a", 1), [item("a", 1)])).toEqual([]);
+  });
+});
+
+describe("lacksRowForProduct", () => {
+  const order = p0("P1", "S1", [line(2, "B", 1, 0, 11)]);
+
+  it("is true when the P0 has no row for the item's product, whatever the item's status", () => {
+    for (const status of ["not_checked", "to_purchase", "purchased", "received"]) {
+      expect(lacksRowForProduct(order, item("a", 1, status))).toBe(true);
+    }
+  });
+
+  it("is false when the P0 has a row for the product, or the item has no Odoo product", () => {
+    expect(lacksRowForProduct(order, item("a", 2, "received"))).toBe(false);
+    expect(lacksRowForProduct(order, item("a", null, "received"))).toBe(false);
+  });
+
+  it("still says not_offered for a Received item, so the offer skips it while its own attach warns", () => {
+    expect(outcomeOf(order, [item("a", 1, "received")], "a")).toEqual({ itemId: "a", outcome: "not_offered" });
   });
 });
 

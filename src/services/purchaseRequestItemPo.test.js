@@ -126,7 +126,7 @@ describe("purchaseRequestService — PO on Ordered", () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
     await purchaseRequestService.attachP0(itemId, "P01234")
 
-    expect(await purchaseRequestService.poLines(itemId)).toEqual([])
+    expect(await purchaseRequestService.poLineRows(itemId)).toEqual([])
     await expect(purchaseRequestService.pickPoLines(itemId, [501])).rejects.toMatchObject({ code: "22023" })
   })
 
@@ -134,7 +134,7 @@ describe("purchaseRequestService — PO on Ordered", () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, ipasLines: { P01234: [501, 502] }, odoo: "found" })
     await purchaseRequestService.attachP0(itemId, "P01234")
 
-    expect(await purchaseRequestService.poLines(itemId)).toEqual([501, 502])
+    expect((await purchaseRequestService.poLineRows(itemId)).map((r) => r.line_id)).toEqual([501, 502])
     expect(await purchaseRequestService.pickPoLines(itemId, [502])).toMatchObject({ odoo_po_line_ids: [502] })
     await expect(purchaseRequestService.pickPoLines(itemId, [999])).rejects.toMatchObject({ code: "22023" })
   })

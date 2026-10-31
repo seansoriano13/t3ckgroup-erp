@@ -92,6 +92,20 @@ const itemFields = ({ name, quantity, unit, description, images }) => ({
 const itemArgs = (item) =>
   Object.fromEntries(Object.entries(itemFields(item)).map(([key, value]) => [`p_${key}`, value]));
 
+/**
+ * The refusal text an edge function put in the body of a failed call, or `fallback` when there is none.
+ * supabase-js hands the response over as `error.context`.
+ */
+async function edgeErrorMessage(error, fallback) {
+  try {
+    const body = await error.context?.json?.();
+    if (body?.message) return body.message;
+  } catch {
+    // keep the generic message
+  }
+  return fallback;
+}
+
 export const purchaseRequestService = {
   // ── The queue and one request (#308) ─────────────────────────────────────
 
@@ -414,16 +428,7 @@ export const purchaseRequestService = {
         ...(orderEarly ? { orderEarly: true, orderEarlyReason } : {}),
       },
     });
-    if (error) {
-      let message = "Couldn't attach the P0 to the other items. Try again.";
-      try {
-        const body = await error.context?.json?.();
-        if (body?.message) message = body.message;
-      } catch {
-        // keep the generic message
-      }
-      throw new Error(message);
-    }
+    if (error) throw new Error(await edgeErrorMessage(error, "Couldn't attach the P0 to the other items. Try again."));
     if (!data?.success) {
       throw Object.assign(new Error(data?.message || "Couldn't attach the P0 to the other items. Try again."), { code: data?.code });
     }
@@ -481,18 +486,9 @@ export const purchaseRequestService = {
     const { data, error } = await supabase.functions.invoke("odoo-po-verify", {
       body: { action, itemId, poNumber, ...extra },
     });
-    if (error) {
-      let message = "Couldn't save the PO number. Try again.";
-      try {
-        const body = await error.context?.json?.();
-        if (body?.message) message = body.message;
-      } catch {
-        // keep the generic message
-      }
-      throw new Error(message);
-    }
+    if (error) throw new Error(await edgeErrorMessage(error, "Couldn't save the P0 number. Try again."));
     if (!data?.success) {
-      throw Object.assign(new Error(data?.message || "Couldn't save the PO number. Try again."), { code: data?.code });
+      throw Object.assign(new Error(data?.message || "Couldn't save the P0 number. Try again."), { code: data?.code });
     }
     // #730: attaching also raises the IPAS (or adds the SOR to the live one); `ipas` says what happened.
     const updated = data.ipas ? { ...data.item, ipas: data.ipas } : data.item;
@@ -517,19 +513,9 @@ export const purchaseRequestService = {
   },
 
   /**
-   * The Odoo P0 line ids on the IPAS stored copy of the item's PO — what may
-   * be picked. Empty when the item has no PO number or its PO has no IPAS.
-   */
-  async poLines(itemId) {
-    if (!itemId) return [];
-    const { data, error } = await supabase.rpc("purchase_request_item_po_lines", { p_item_id: itemId });
-    if (error) throw error;
-    return data || [];
-  },
-
-  /**
-   * #804: the same lines as poLines, each with its product name and quantity, as
-   * `{ line_id, product_name, quantity }` rows. What the Pick P0 line screen lists.
+   * #804: the P0 lines on the IPAS stored copy of the item's P0 (what may be picked), each with its
+   * product name and quantity, as `{ line_id, product_name, quantity }` rows. What the Pick P0 line screen
+   * lists. Empty when the item has no P0 number or its P0 has no IPAS.
    */
   async poLineRows(itemId) {
     if (!itemId) return [];

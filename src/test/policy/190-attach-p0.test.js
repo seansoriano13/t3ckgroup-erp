@@ -106,14 +106,23 @@ describe("attaching a P0", () => {
         expect(data).toMatchObject({ status: "purchased", po_number: "P05678", po_received: 4, odoo_po_line_ids: [] })
     })
 
-    it("#804: stores the P0 line ids it is given, and a re-attach of the same P0 with new ids replaces them", async () => {
+    it("#804: stores the P0 line ids it is given, and a re-attach of the same P0 keeps the lines already picked", async () => {
         const id = await seedItem()
         const first = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P01234", [701, 702])
         expect(first.error).toBeNull()
         expect(first.data).toMatchObject({ odoo_po_line_ids: [701, 702] })
 
         const again = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P01234", [703])
-        expect(again.data).toMatchObject({ odoo_po_line_ids: [703] })
+        expect(again.error).toBeNull()
+        expect(again.data).toMatchObject({ odoo_po_line_ids: [701, 702] })
+    })
+
+    it("#804: a re-attach of the same P0 stores the sent lines when none are picked yet", async () => {
+        const id = await seedItem()
+        await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P01234", [])
+        const { data, error } = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P01234", [703])
+        expect(error).toBeNull()
+        expect(data).toMatchObject({ odoo_po_line_ids: [703] })
     })
 
     it("#804: a re-attach of a different P0 clears the old lines and stores the new ones", async () => {

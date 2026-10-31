@@ -113,7 +113,7 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
           kind: "po_line",
           ipas_id: ipas.id,
           odoo_po_line_id: poLine.line_id,
-          description: (poLine.name ?? "").trim() || `PO line ${poLine.line_id}`,
+          description: (poLine.name ?? "").trim() || `P0 line ${poLine.line_id}`,
           quantity,
           unit: poLine.unit ?? null,
           opportunity_id: opportunityId,

@@ -6556,6 +6556,20 @@ AS $function$
   end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_items_clear_short_stock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if old.status = 'available' and new.status is distinct from 'available' then
+    new.stock_short_free := null;
+    new.stock_short_needed := null;
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_label(p_request_id uuid)
  RETURNS text
  LANGUAGE sql
@@ -7477,7 +7491,7 @@ begin
         opportunity_id, serial_numbers, box_quantity
       ) values (
         p_transmittal_id, v_position, 'po_line', v_ipas.id, (v_po_line->>'line_id')::integer,
-        coalesce(nullif(btrim(v_po_line->>'name'), ''), 'PO line ' || (v_po_line->>'line_id')),
+        coalesce(nullif(btrim(v_po_line->>'name'), ''), 'P0 line ' || (v_po_line->>'line_id')),
         v_quantity,
         nullif(btrim(v_po_line->>'unit'), ''),
         v_opportunity,
@@ -18624,7 +18638,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.packing_list_sor_products(p_opportunity_id uuid)
- RETURNS TABLE(id uuid, product_name text, quantity numeric, unit text)
+ RETURNS TABLE(id uuid, product_name text, quantity numeric, unit text, on_hand boolean)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -18637,7 +18651,11 @@ begin
     raise exception 'packing_list_sor_products: only Purchasing or the Warehouse list packs an SOR' using errcode = '42501';
   end if;
   return query
-    select i.id, i.product_name, i.quantity, i.unit
+    select i.id, i.product_name, i.quantity, i.unit,
+           exists (
+             select 1 from public.purchase_request_items r
+              where r.sor_item_id = i.id and r.status in ('received', 'available')
+           ) as on_hand
       from public.sales_opportunity_items i
      where i.opportunity_id = p_opportunity_id
      order by i.sort_order, i.created_at;
@@ -19421,11 +19439,12 @@ begin
          bought_as = v_bought,
          -- A reason sent with an attach that was not early is ignored; an earlier one stays.
          ordered_early_reason = coalesce(v_early, ordered_early_reason),
-         -- #804: the P0 rows the edge function picked for this item. Sent (even empty), they are stored as they are.
-         -- Not sent: lines picked on another P0 do not carry over.
+         -- #804: the P0 rows the edge function picked for this item. They replace the stored lines only when the
+         -- P0 changes (lines picked on another P0 never carry over) or when no line is picked yet. Attaching the
+         -- same P0 again keeps the lines already picked.
          odoo_po_line_ids = case
-           when p_line_ids is not null then p_line_ids
-           when po_number is distinct from v_po then '{}'
+           when po_number is distinct from v_po then coalesce(p_line_ids, '{}')
+           when p_line_ids is not null and coalesce(cardinality(odoo_po_line_ids), 0) = 0 then p_line_ids
            else odoo_po_line_ids
          end
    where id = v_item.id
@@ -19825,7 +19844,7 @@ begin
       using errcode = '22023';
   end if;
   if v_item.po_number is null then
-    raise exception 'purchase_request_pick_po_lines: % has no PO number', v_item.name using errcode = '22023';
+    raise exception 'purchase_request_pick_po_lines: % has no P0 number', v_item.name using errcode = '22023';
   end if;
 
   if p_line_ids is null or cardinality(p_line_ids) = 0 or array_position(p_line_ids, null) is not null then
@@ -19835,12 +19854,12 @@ begin
 
   v_ipas := coalesce(public._ipas_po_line_ids(v_item.po_number), '{}'::int[]);
   if cardinality(v_ipas) = 0 then
-    raise exception 'purchase_request_pick_po_lines: PO % has no IPAS yet; pick its line once it does', v_item.po_number
+    raise exception 'purchase_request_pick_po_lines: P0 % has no IPAS yet; pick its line once it has one', v_item.po_number
       using errcode = '22023';
   end if;
   select array_agg(l order by l) into v_stray from unnest(v_lines) l where not (l = any (v_ipas));
   if v_stray is not null then
-    raise exception 'purchase_request_pick_po_lines: line % isn''t on PO %''s IPAS copy', array_to_string(v_stray, ', '), v_item.po_number
+    raise exception 'purchase_request_pick_po_lines: line % isn''t on P0 %''s IPAS copy', array_to_string(v_stray, ', '), v_item.po_number
       using errcode = '22023';
   end if;
 
@@ -20131,7 +20150,7 @@ begin
   end if;
   v_reason := nullif(btrim(v_details->>'reason'), '');
 
-  select * into v_item from public.purchase_request_items where id = p_item_id;
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
   if v_item.id is null then
     raise exception 'purchase_request_set_item_status: item % not found', p_item_id using errcode = 'P0002';
   end if;
@@ -27436,6 +27455,7 @@ CREATE TRIGGER packing_lists_guard BEFORE DELETE OR UPDATE ON public.packing_lis
 CREATE TRIGGER pms_evidence_guard BEFORE INSERT OR DELETE OR UPDATE ON public.pms_evidence FOR EACH ROW EXECUTE FUNCTION pms_evidence_guard();
 CREATE TRIGGER pms_handoff_events_no_change BEFORE DELETE OR UPDATE ON public.pms_handoff_events FOR EACH ROW EXECUTE FUNCTION pms_handoff_events_append_only();
 CREATE TRIGGER pms_handoff_events_no_truncate BEFORE TRUNCATE ON public.pms_handoff_events FOR EACH STATEMENT EXECUTE FUNCTION pms_handoff_events_append_only();
+CREATE TRIGGER purchase_request_items_clear_short_stock BEFORE UPDATE OF status ON public.purchase_request_items FOR EACH ROW EXECUTE FUNCTION _purchase_request_items_clear_short_stock();
 CREATE TRIGGER trg_purchase_request_item_ask_yours AFTER INSERT ON public.purchase_request_items FOR EACH ROW EXECUTE FUNCTION trg_purchase_request_item_ask_yours();
 CREATE TRIGGER trg_purchase_request_item_ask_yours_on_p0 AFTER UPDATE OF po_number, bought_product_id ON public.purchase_request_items FOR EACH ROW WHEN (((new.bought_product_id IS NOT NULL) AND ((old.po_number IS DISTINCT FROM new.po_number) OR (old.bought_product_id IS DISTINCT FROM new.bought_product_id)))) EXECUTE FUNCTION trg_purchase_request_item_ask_yours_on_p0();
 CREATE TRIGGER trg_purchase_request_items_clear_s0_still_lists BEFORE UPDATE OF removed_from_s0 ON public.purchase_request_items FOR EACH ROW EXECUTE FUNCTION trg_purchase_request_items_clear_s0_still_lists();

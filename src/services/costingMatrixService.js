@@ -594,11 +594,17 @@ export const costingMatrixService = {
    */
   async get(opportunityId) {
     if (!opportunityId) return null;
+    // The rates are only needed for the summary (the Closed Book tier), but the tier is not known until
+    // the read returns, so start them beside it instead of after it. A failure only counts when used.
+    const settingsRead = costingMatrixService.getSettings();
+    settingsRead.catch(() => {});
     const { data, error } = await supabase.rpc("costing_matrix_read", { p_opportunity_id: opportunityId });
     if (error) throw error;
-    // The rates are only needed for the summary, which only the Closed Book tier is given.
-    const settings = data && tierReadsSummary(data.tier) ? await costingMatrixService.getSettings() : null;
-    return withPurchases(await withCanvass(shapeMatrix(data, settings), opportunityId), opportunityId);
+    const settings = data && tierReadsSummary(data.tier) ? await settingsRead : null;
+    const shaped = shapeMatrix(data, settings);
+    // Canvass and purchases touch different fields of the matrix, so they read side by side.
+    await Promise.all([withCanvass(shaped, opportunityId), withPurchases(shaped, opportunityId)]);
+    return shaped;
   },
 
   /** The default add-on percents for the estimated landed cost (#702): `{ import, local }`, 0 when unset. */

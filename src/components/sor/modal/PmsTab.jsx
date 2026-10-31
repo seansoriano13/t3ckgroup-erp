@@ -1,5 +1,5 @@
 import CostingMatrixSection from "../../costing/CostingMatrixSection";
-import { useCostingTier } from "../../costing/useCostingMatrix";
+import { useCostingMatrix, useCostingTier } from "../../costing/useCostingMatrix";
 import IpasSorSection from "../../ipas/IpasSorSection";
 import HandoffsSorSection from "../HandoffsSorSection";
 import DirectRequestsSorSection from "../DirectRequestsSorSection";
@@ -17,6 +17,9 @@ export default function PmsTab({ opportunityId, opportunity }) {
   // The tab is for everyone who can see the SOR (Finance gets the IPAS here, #319); the matrix section
   // only for a viewer with a Costing Matrix read tier. Each other section keeps its own visibility rule.
   const { data: costingTier } = useCostingTier(opportunityId);
+  // Start the matrix read now, beside the tier read, so the section does not wait on the tier before it
+  // begins loading. Same query key as the section's own call, so it is one request, not two.
+  useCostingMatrix(opportunityId);
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8 p-6">
       {/* #267: the grid once the SOR's S0 Evaluation has been opened (#462); until then one plain line. */}

@@ -108,13 +108,16 @@ export const ipasSorStandingService = {
    */
   async summariesForSor(opportunityId, { today = new Date() } = {}) {
     if (!opportunityId) return [];
-    const summaries = await ipasService.summariesForSor(opportunityId);
-    if (summaries.length === 0) return [];
-
-    const [{ data, error }, rules] = await Promise.all([
+    // The standing facts and ageing rules do not depend on the summaries, so they load beside them.
+    const standingRead = Promise.all([
       supabase.rpc("ipas_standing_for_sor", { p_opportunity_id: opportunityId }),
       orderAgeingRulesService.getRules(),
     ]);
+    standingRead.catch(() => {});
+    const summaries = await ipasService.summariesForSor(opportunityId);
+    if (summaries.length === 0) return [];
+
+    const [{ data, error }, rules] = await standingRead;
     if (error) throw error;
     const factsById = new Map((data ?? []).map((row) => [row.ipas_id, row]));
 
