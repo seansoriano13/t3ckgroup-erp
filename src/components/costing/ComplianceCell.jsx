@@ -24,7 +24,7 @@ const OPTIONS = [
  * `number` is the Component's number ("1.2") for the cells' labels. `onChanged` runs after each
  * save so the matrix refreshes.
  */
-export default function ComplianceCell({ component, number, readOnly, onChanged }) {
+export default function ComplianceCell({ component, number, readOnly, onChanged, onVerdict }) {
   // "Deviates" chosen but not saved yet: it waits for its note.
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
@@ -34,9 +34,15 @@ export default function ComplianceCell({ component, number, readOnly, onChanged 
   const hasNote = Boolean(String(component.compliance_note ?? "").trim());
 
   const save = async (fields) => {
-    await costingMatrixService.setCompliance(component.id, fields);
-    setPending(false);
-    await onChanged?.();
+    // Show the new verdict at once (the sheet's Judged count too); put it back if the save is refused.
+    if (fields.verdict !== undefined) onVerdict?.(component.id, fields.verdict);
+    try {
+      await costingMatrixService.setCompliance(component.id, fields);
+      setPending(false);
+      await onChanged?.();
+    } finally {
+      onVerdict?.(component.id, undefined);
+    }
   };
 
   const choose = async (next) => {
