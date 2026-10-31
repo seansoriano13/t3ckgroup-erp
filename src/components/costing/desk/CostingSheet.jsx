@@ -1,5 +1,4 @@
 import { ChevronRight, CornerDownRight } from "lucide-react";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@/lib/utils";
@@ -9,7 +8,7 @@ import StatusBadge from "../../StatusBadge";
 import { Cell } from "../GridCell";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import { COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
-import { complianceRollup, factorLabel, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
+import { factorLabel, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
 import { useAuth } from "../../../context/AuthContext";
 import ComplianceColumn from "./ComplianceColumn";
@@ -204,24 +203,10 @@ function MarkupCells({ line, kid, figures, tier, canMarkup, onSaveFactor }) {
   );
 }
 
-export default function CostingSheet({ matrix, opportunity, writes, canWrite, onOpenLine }) {
+export default function CostingSheet({ matrix, opportunity, writes, canWrite, onOpenLine, onVerdict, onVerdictSettled }) {
   const { user } = useAuth();
   const myTeams = useMyEvaluationTeams(user?.id ?? null);
-  // Verdicts just chosen in a Compliance dropdown, shown before the refetch lands (undefined clears one).
-  const [verdicts, setVerdicts] = useState({});
-  const setVerdict = (id, verdict) =>
-    setVerdicts((current) => {
-      if (verdict === undefined) {
-        const { [id]: _gone, ...rest } = current;
-        return rest;
-      }
-      return { ...current, [id]: verdict };
-    });
-  const lines = matrix.tenderLines.map((line) =>
-    line.components?.some((part) => part.id in verdicts)
-      ? { ...line, components: line.components.map((part) => (part.id in verdicts ? { ...part, compliance: verdicts[part.id] } : part)) }
-      : line,
-  );
+  const lines = matrix.tenderLines;
   const { totals } = matrix;
   const showAbc = tierReads(matrix.tier, "abc_unit");
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
@@ -245,8 +230,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const kidsOf = new Map();
   for (const line of lines) if (line.included && line.includedIn) kidsOf.set(line.includedIn, [...(kidsOf.get(line.includedIn) ?? []), line]);
   const priced = lines.filter((line) => !line.included);
-  const compliance = complianceRollup(lines.flatMap((line) => line.components ?? []));
-  const judged = compliance.total - compliance.notEvaluated;
+  const judged = matrix.compliance.total - matrix.compliance.notEvaluated;
 
   const save = (line, fields) => async (value) => {
     await costingMatrixService.updateTenderLine(line.id, fields(value));
@@ -283,7 +267,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           {lines.length}
         </Fact>
         <Fact label="Judged">
-          {judged} of {compliance.total}
+          {judged} of {matrix.compliance.total}
         </Fact>
         {closed && (
           <Fact label="Default multiplier" sub={canMarkup ? "rows can override it" : "set by the Markup list"}>
@@ -480,7 +464,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                   {showLanded && <LandedCell line={line} addons={addons} />}
                   {showSuggested && <MarkupCells line={line} kid={kid} figures={figures} tier={matrix.tier} canMarkup={canMarkup} onSaveFactor={saveFactor(line)} />}
                   <TableCell className={cn(CELL, "min-w-[12rem] max-w-[16rem] border-r-0")}>
-                    <ComplianceColumn line={line} myTeams={myTeams} canSetTeam={canWrite} onChanged={writes.refresh} onVerdict={setVerdict} />
+                    <ComplianceColumn line={line} myTeams={myTeams} canSetTeam={canWrite} onChanged={writes.refresh} onVerdict={onVerdict} onVerdictSettled={onVerdictSettled} />
                   </TableCell>
                 </TableRow>
               );
