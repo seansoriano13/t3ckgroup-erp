@@ -250,7 +250,8 @@ describe("OpportunityFormModal — Project Type Auto-derivation & Strategic Togg
  * only filled when empty, because the typed value routinely carries a mobile
  * number or a working name that Odoo does not hold.
  */
-describe("OpportunityFormModal — the customer fetched from Odoo", () => {
+// #816 removed the registration form's Fetch from Odoo button; #820 reworks the lookup, so these wait for it.
+describe.skip("OpportunityFormModal — the customer fetched from Odoo", () => {
   const COMPANY = "e.g. Acme Corp";
   const CONTACT = "e.g. Juan Dela Cruz";
   const REFERENCE = "e.g. S01237";
@@ -420,7 +421,8 @@ describe("OpportunityFormModal — the customer fetched from Odoo", () => {
  * still gets verified) put the Product List in reach of a response that
  * carries no items. These pin the two things that must NOT follow from that.
  */
-describe("OpportunityFormModal — a quotation with no product lines", () => {
+// #816 removed the registration form's Fetch from Odoo button; #820 reworks the lookup, so these wait for it.
+describe.skip("OpportunityFormModal — a quotation with no product lines", () => {
   const COMPANY = "e.g. Acme Corp";
   const REFERENCE = "e.g. S01237";
   const PRODUCT = "e.g. Boom Lift";
@@ -478,7 +480,8 @@ describe("OpportunityFormModal — a quotation with no product lines", () => {
   });
 });
 
-describe("SorField — the fetched-value highlight", () => {
+// #816 removed the registration form's Fetch from Odoo button; #820 reworks the lookup, so these wait for it.
+describe.skip("SorField — the fetched-value highlight", () => {
   it("replaces the resting border rather than stacking a second one on it", async () => {
     // Both are border-colour utilities, so which one wins is decided by
     // stylesheet order, not by the order they appear in the class attribute.
@@ -514,7 +517,8 @@ describe("SorField — the fetched-value highlight", () => {
  * falls back to a fuzzy `ilike` match, so a mistyped reference can resolve to
  * a real but different quotation and hand back a real but different customer.
  */
-describe("OpportunityFormModal — putting back a Company the fetch displaced", () => {
+// #816 removed the registration form's Fetch from Odoo button; #820 reworks the lookup, so these wait for it.
+describe.skip("OpportunityFormModal — putting back a Company the fetch displaced", () => {
   const COMPANY = "e.g. Acme Corp";
   const REFERENCE = "e.g. S01237";
 

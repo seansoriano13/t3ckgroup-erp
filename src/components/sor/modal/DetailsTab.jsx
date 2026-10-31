@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import DatePicker from "react-datepicker";
-import { Download, ExternalLink, FileDown, Link2 } from "lucide-react";
+import { ExternalLink, FileDown, Link2 } from "lucide-react";
 import Spinner from "../../ui/Spinner";
 import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
@@ -178,8 +178,6 @@ export default function DetailsTab({ ctx }) {
     handleCopyQuotationLink,
     downloadStep,
     handleDownloadQuotation,
-    fetchingOdoo,
-    handleFetchFromOdoo,
     onClose,
     accessLevel,
   } = ctx;
@@ -659,16 +657,6 @@ export default function DetailsTab({ ctx }) {
                       />
                     }
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={fetchingOdoo || !editForm.sales_reference}
-                    onClick={handleFetchFromOdoo}
-                    className="h-full min-h-[66px] shrink-0 gap-2 rounded-xl px-4 text-[13px]"
-                  >
-                    {fetchingOdoo ? <Spinner size="sm" /> : <Download size={16} />}
-                    <span className="hidden sm:inline">Fetch Items</span>
-                  </Button>
                 </div>
               ) : (
                 <Detail label="Sales Reference">

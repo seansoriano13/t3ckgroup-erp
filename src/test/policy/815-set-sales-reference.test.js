@@ -111,13 +111,14 @@ async function oldDeal(past = false, salesReference = null) {
     return id
 }
 
-const save = (who, sorId, ref, { reason, odoo } = {}) =>
+const save = (who, sorId, ref, { reason, odoo, items } = {}) =>
     svc().rpc("set_sales_reference", {
         p_actor_email: castEmail(who),
         p_opportunity_id: sorId,
         p_sales_reference: ref,
         ...(reason === undefined ? {} : { p_reason: reason }),
         ...(odoo === undefined ? {} : { p_odoo: odoo }),
+        ...(items === undefined ? {} : { p_items: items }),
     })
 
 async function row(sorId) {
@@ -292,6 +293,52 @@ describe("the Odoo fact", () => {
         const r = await row(sor)
         expect(r.sales_reference_odoo_state).toBe("found")
         expect(r.sales_reference_checked_at).toBeTruthy()
+    })
+})
+
+// #816: the edge function passes the Odoo lines (mapped like modal/odooLines.js toRow) with the fact.
+const odooRow = (line, name) => ({
+    product_name: name,
+    unit: "Unit",
+    quantity: 2,
+    unit_price: 100,
+    odoo_product_id: null,
+    odoo_line_id: line,
+    removed_from_s0: false,
+})
+
+const itemsOf = async (sorId) =>
+    ok(svc().from("sales_opportunity_items").select("product_name, odoo_line_id, removed_from_s0").eq("opportunity_id", sorId).order("odoo_line_id"), "items")
+
+describe("pulling products in the same step (#816)", () => {
+    it("pulls the Odoo lines when the S0 is found", async () => {
+        const sor = await flowDeal("first")
+        const { error } = await save("dealOwner", sor, s0(), { odoo: "found", items: [odooRow(710001, "Pump"), odooRow(710002, "Hose")] })
+        expect(error).toBeNull()
+        expect((await itemsOf(sor)).map((i) => [i.product_name, i.odoo_line_id])).toEqual([["Pump", 710001], ["Hose", 710002]])
+    })
+
+    it("leaves the Product List alone when Odoo has no such S0 (refused)", async () => {
+        const sor = await flowDeal("first")
+        const { error } = await save("dealOwner", sor, s0(), { odoo: "not_found", items: [odooRow(710003, "Ghost")] })
+        expect(error?.hint).toBe("not_found")
+        expect(await itemsOf(sor)).toEqual([])
+    })
+
+    it("saves as Not checked and pulls nothing when Odoo did not answer", async () => {
+        const sor = await flowDeal("first")
+        expect((await save("dealOwner", sor, s0(), { odoo: "unreachable" })).error).toBeNull()
+        expect((await row(sor)).sales_reference_odoo_state).toBe("not_checked")
+        expect(await itemsOf(sor)).toEqual([])
+    })
+
+    it("does not pull lines when the save is refused for another reason (duplicate)", async () => {
+        const taken = s0()
+        await flowDeal("first", taken)
+        const sor = await flowDeal("first")
+        const { error } = await save("dealOwner", sor, taken, { odoo: "found", items: [odooRow(710004, "Dup")] })
+        expect(error?.hint).toBe("duplicate")
+        expect(await itemsOf(sor)).toEqual([])
     })
 })
 

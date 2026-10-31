@@ -1,6 +1,4 @@
-import { Download, Loader2 } from "lucide-react";
 import { TextField, SelectField } from "./SorField";
-import { isValidSalesReference } from "../../constants/sor";
 import { Button } from "../ui/button";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 
@@ -58,31 +56,16 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
     case "sales_reference":
       return (
         <div className="space-y-2">
-          <div className="flex gap-2">
-            <TextField
-              label={field.label}
-              placeholder="e.g. S01237"
-              required={field.isRequired}
-              disabled={disabled}
-              value={form.sales_reference || ""}
-              onChange={set("sales_reference")}
-              className="flex-1"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={ctx.handleFetchFromOdoo}
-              disabled={disabled || ctx.fetchingOdoo || !isValidSalesReference(form.sales_reference || "")}
-              title="Pull the customer and the product list from this quotation in Odoo"
-              className="whitespace-nowrap"
-            >
-              {ctx.fetchingOdoo ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-              Fetch from Odoo
-            </Button>
-          </div>
+          <TextField
+            label={field.label}
+            placeholder="e.g. S01237"
+            required={field.isRequired}
+            disabled={disabled}
+            value={form.sales_reference || ""}
+            onChange={set("sales_reference")}
+          />
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Fetching fills the Company, the Contact Person and the Product List from the
-            quotation. No quotation yet? Leave it blank — it is required before this
+            Odoo is checked when this is saved. No quotation yet? Leave it blank — it is required before this
             opportunity can move from Lead to Qualified.
           </p>
         </div>

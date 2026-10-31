@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Download, PackageSearch, RefreshCw, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, PackageSearch, RefreshCw, Search } from "lucide-react";
 import Spinner from "../../ui/Spinner";
 import StatusBadge from "../../StatusBadge";
 import OpportunityItemsEditor from "../OpportunityItemsEditor";
@@ -15,9 +13,8 @@ import { ExternalLink } from "@/components/ui/external-link";
 import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../../../constants/purchaseRequest";
 import { opportunityService } from "../../../services/opportunityService";
 import { stockBadge, STOCK_BADGE_THEME } from "../../../constants/stock";
-import { formatPHP, isValidSalesReference, normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
+import { formatPHP } from "../../../constants/sor";
 import { formatDate } from "../../../utils/formatDate";
-import { pullOdooLines, saveOdooLines } from "./odooLines";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -103,7 +100,7 @@ export function ItemStockRow({ item, snapshotData }) {
  * different next steps (#301): with a Sales Reference there is a quotation
  * in Odoo to pull from, without one there is nothing to pull yet.
  */
-function EmptyItems({ opportunity, onFetch, fetching }) {
+function EmptyItems({ opportunity }) {
   const hasSalesReference = !!opportunity?.sales_reference;
 
   return (
@@ -113,23 +110,14 @@ function EmptyItems({ opportunity, onFetch, fetching }) {
         <>
           <p className="text-sm font-semibold text-foreground">No products on this SOR yet</p>
           <p className="max-w-xs text-xs text-muted-foreground">
-            Pull the lines from <span className="font-mono font-semibold text-primary">{opportunity.sales_reference}</span> in Odoo.
+            <span className="font-mono font-semibold text-primary">{opportunity.sales_reference}</span> has no product lines in Odoo yet. They come in when the S0 is saved or Odoo is read again.
           </p>
-          <Button
-            type="button"
-            onClick={onFetch}
-            disabled={fetching}
-            className="mt-1"
-          >
-            {fetching ? <Spinner size="sm" /> : <Download size={14} />}
-            Fetch from Odoo
-          </Button>
         </>
       ) : (
         <>
           <p className="text-sm font-semibold text-foreground">Add a Sales Reference first</p>
           <p className="max-w-xs text-xs text-muted-foreground">
-            The Product List comes from the Odoo quotation. Add this SOR&apos;s Sales Reference in Details to pull it.
+            The Product List comes from the Odoo quotation. Set this SOR&apos;s S0 on the S0 card to pull it.
           </p>
         </>
       )}
@@ -157,8 +145,6 @@ export default function ItemsTab({ ctx, hasOpened }) {
     isEditing,
     editForm,
     setEditForm,
-    user,
-    invalidate,
     autoSyncingOdoo,
     handleRefreshStock,
     refreshingStock,
@@ -183,25 +169,6 @@ export default function ItemsTab({ ctx, hasOpened }) {
     hasOpened,
   });
 
-  // The empty state's Fetch from Odoo (#301). Unlike the edit form's Fetch
-  // Items, there is no form open to hold the lines until a Save, so they go
-  // straight to the SOR — and with nothing on the list, nothing is replaced.
-  const pullMutation = useMutation({
-    mutationFn: async () => {
-      const ref = normalizeSalesReference(opportunity.sales_reference);
-      if (!isValidSalesReference(ref)) throw new Error(SALES_REFERENCE_HINT);
-      const { problem, rows, stock, quotation } = await pullOdooLines(ref);
-      if (problem) throw new Error(problem);
-      await saveOdooLines({ opportunity, rows, stock, actorId: user?.id });
-      return { count: rows.length, quotation };
-    },
-    onSuccess: ({ count, quotation }) => {
-      invalidate();
-      toast.success(`Pulled ${count} item(s) from ${quotation}.`);
-    },
-    onError: (err) => toast.error(err.message || "Could not reach Odoo — enter items manually."),
-  });
-
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return items;
@@ -212,7 +179,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
 
   // A line the S0 dropped stays on the list, marked, and is left out of the total (#677).
   const total = visible.reduce((sum, it) => (it.removed_from_s0 ? sum : sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
-  const isSyncing = autoSyncingOdoo || pullMutation.isPending;
+  const isSyncing = autoSyncingOdoo;
 
   if (isEditing) {
     return (
@@ -225,7 +192,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
   if (isLoading || itemsLoading) return <TabSkeleton />;
 
   if (!items.length && !isSyncing) {
-    return <EmptyItems opportunity={opportunity} onFetch={() => pullMutation.mutate()} fetching={pullMutation.isPending} />;
+    return <EmptyItems opportunity={opportunity} />;
   }
 
   return (
