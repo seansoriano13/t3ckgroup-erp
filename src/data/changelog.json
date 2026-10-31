@@ -1,5 +1,19 @@
 [
     {
+        "date": "2026-10-31",
+        "title": "Attach a P0 to more items, with the right lines",
+        "version": "1.9.78",
+        "changes": [
+            "After you attach a P0 to an item, the same window offers to attach it to the other items in the request. Items that share a product start unticked, and items with no Odoo product are tagged \"No Odoo product\".",
+            "The P0 lines for an item are picked for you from the P0's rows with the same Odoo product. Attaching the same P0 again keeps the lines you already picked.",
+            "Attach P0 now lists the rows of the P0, so you can see what it holds before you attach it. If the P0 has no row for the item's product, you get a warning that it may be the wrong P0.",
+            "A Received item can now take a new P0.",
+            "\"P0 line\" now reads the same everywhere. It used to say \"PO line\" in some places.",
+            "Status badges use clearer teal and grey colors for the Purchasing steps, and the Undo button says what it will undo.",
+            "Marking an item Available when the stock check shows too little now asks for a short reason. The reason goes in the request history, and the item shows \"Now x free of y\" until it leaves Available."
+        ]
+    },
+    {
         "date": "2026-10-30",
         "title": "Mark a deal as Lost, and bring it back",
         "version": "1.9.77",

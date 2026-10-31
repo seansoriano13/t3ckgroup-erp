@@ -65,6 +65,15 @@ export function pickedLineIds(p0: OdooP0, item: MatchItem, items: MatchItem[]): 
   return [...new Set(ids)].sort((a, b) => a - b);
 }
 
+/**
+ * True when the item has an Odoo product and the P0 has no row for it, so the P0 may be the wrong one.
+ * Whatever the item's status: the attach of the item itself warns for a Received or Purchased line too.
+ * An item with no Odoo product has nothing to compare, so it never warns.
+ */
+export function lacksRowForProduct(p0: OdooP0, item: MatchItem): boolean {
+  return item.odoo_product_id != null && !p0.lines.some((line) => line.product_id === item.odoo_product_id);
+}
+
 /** One outcome per item of the request, in the same order as `items`. */
 export function matchP0ToItems(p0: OdooP0, items: MatchItem[]): MatchOutcome[] {
   return items.map((item): MatchOutcome => {
@@ -72,9 +81,7 @@ export function matchP0ToItems(p0: OdooP0, items: MatchItem[]): MatchOutcome[] {
     if (item.po_number) return { itemId: item.id, outcome: "has_p0" };
     if (!OFFERED_STATUSES.has(item.status)) return { itemId: item.id, outcome: "not_offered" };
     if (item.odoo_product_id == null) return { itemId: item.id, outcome: "no_odoo_product" };
-    if (!p0.lines.some((line) => line.product_id === item.odoo_product_id)) {
-      return { itemId: item.id, outcome: "no_row" };
-    }
+    if (lacksRowForProduct(p0, item)) return { itemId: item.id, outcome: "no_row" };
     if (sharesProduct(item, items, p0.name)) return { itemId: item.id, outcome: "shared_product" };
     return { itemId: item.id, outcome: "offered", lineIds: pickedLineIds(p0, item, items) };
   });

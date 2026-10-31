@@ -37,7 +37,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { callerEmail } from "../_shared/caller.ts";
 import { readPo } from "../_shared/odooIpasCopy.ts";
 import { readP0s } from "../_shared/odooP0.ts";
-import { matchP0ToItems, pickedLineIds, type MatchItem } from "../_shared/p0Matching.ts";
+import { lacksRowForProduct, pickedLineIds } from "../_shared/p0Matching.ts";
 import { buildAttachOffer, type AttachOffer, type OfferItem } from "../_shared/p0Offer.ts";
 import { type OdooP0, p0Facts, p0UnitPrice } from "../_shared/p0Suggestions.ts";
 import {
@@ -196,7 +196,6 @@ async function attachP0ToItem(
   if (!facts) {
     return { ok: false, refused: true, message: `${p0.name} is cancelled in Odoo, so it can't be attached.` };
   }
-  const outcome = matchP0ToItems(p0, items).find((o) => o.itemId === itemId);
 
   const { data, error } = await admin.rpc("purchase_request_item_attach_po", {
     p_actor_email: email,
@@ -238,7 +237,8 @@ async function attachP0ToItem(
     ok: true,
     item: { ...data, bought_product_id: facts.bought_product_id },
     ipas,
-    warning: outcome?.outcome === "no_row" ? NO_ROW_WARNING : null,
+    // #798 review: the target item always gets the warning, whatever its status (Received and Purchased too).
+    warning: lacksRowForProduct(p0, self) ? NO_ROW_WARNING : null,
     items,
   };
 }
@@ -246,8 +246,8 @@ async function attachP0ToItem(
 /**
  * #809: attaches one P0 to several items of one request in one call. Odoo is read once; each item then
  * goes through attachP0ToItem in its own try/catch, so one failure does not stop the others. The IPAS
- * is raised or extended after the loop, once for each attached item (the database adds that item's SOR),
- * so the P0 gets its IPAS only after all the items are on it.
+ * is raised or extended once after the loop (raiseIpasAfterMany), so the P0 gets its IPAS only after all
+ * the items are on it.
  */
 async function attachManyToItems(
   admin: ReturnType<typeof createClient>,
@@ -275,7 +275,11 @@ async function attachManyToItems(
   return { results, attached };
 }
 
-/** #809: the IPAS step after a bulk attach, once for each attached item. A miss never undoes an attach. */
+/**
+ * #809: the IPAS step after a bulk attach, run once. All the items sit on one request, so on one SOR: a single
+ * call raises the P0's IPAS or adds that SOR to the live one. The answer is named on every attached item.
+ * A miss never undoes an attach.
+ */
 async function raiseIpasAfterMany(
   admin: ReturnType<typeof createClient>,
   email: string,
@@ -283,13 +287,12 @@ async function raiseIpasAfterMany(
   results: Array<{ itemId: string; ipas?: string; ipasResult?: string }>,
   attached: string[],
 ) {
-  for (const itemId of attached) {
-    const ipas = await autoIpas(admin, email, itemId, poNumber);
-    const row = results.find((r) => r.itemId === itemId);
-    if (row && ipas.message && ipas.result !== "not_project") {
-      row.ipas = ipas.message;
-      row.ipasResult = ipas.result;
-    }
+  if (!attached.length) return results;
+  const ipas = await autoIpas(admin, email, attached[0], poNumber);
+  if (!ipas.message || ipas.result === "not_project") return results;
+  for (const row of results.filter((r) => attached.includes(r.itemId))) {
+    row.ipas = ipas.message;
+    row.ipasResult = ipas.result;
   }
   return results;
 }
@@ -401,7 +404,7 @@ Deno.serve(async (req) => {
     if (refusal) return jsonResponse({ success: false, refused: true, message: refusal });
     try {
       const { results, attached } = await attachManyToItems(setup.admin, setup.email, itemIds, setup.p0, setup.order);
-      // #730: one IPAS step per attached item, after all of them.
+      // #730: one IPAS step for the whole batch, after all the items.
       await raiseIpasAfterMany(setup.admin, setup.email, setup.ref, results, attached);
       return jsonResponse({ success: true, results });
     } catch (err) {
