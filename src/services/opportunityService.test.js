@@ -29,7 +29,7 @@ import { employeeGroupService } from "./employeeGroupService"
 import { waitForNetworkIdle } from "@/test/network"
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { stubActionRunRpcs } from "@/test/stubs/actionRunRpc"
-import { stubRestoreOpportunityRpc } from "@/test/stubs/salesReferenceCard"
+import { stubRestoreOpportunityRpc, stubSalesReferenceSave } from "@/test/stubs/salesReferenceCard"
 
 /**
  * Sales Opportunity Registration, exercised end to end through the service's
@@ -48,6 +48,7 @@ describe("opportunityService", () => {
   beforeEach(() => {
     seedPipeline()
     stubActionRunRpcs()
+    stubSalesReferenceSave() // registration's S0 checks (#820); tests below override it
     registrar = makeEmployee({ name: "Ana Reyes" })
     owner = makeEmployee({ name: "Ben Cruz" })
   })
@@ -182,6 +183,87 @@ describe("opportunityService", () => {
       )
 
       expect(created.sales_reference).toBe("S01237")
+    })
+
+    // #820: registering runs the same checks as the S0 save step.
+    describe("the S0 on the form (#820)", () => {
+      const sorCount = () => db.internal.rowsOf("sales_opportunities").length
+
+      it("refuses an S0 already on another SOR and registers nothing", async () => {
+        makeOpportunity({ registered_by: registrar.id, sales_reference: "S01237", project_title: "Rope Rescue" })
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toMatchObject({ hint: "duplicate", message: expect.stringMatching(/already on SOR "Rope Rescue".*One S0 per SOR/) })
+        expect(sorCount()).toBe(before)
+      })
+
+      it("refuses an S0 Odoo does not have and registers nothing", async () => {
+        stubSalesReferenceSave({ odoo: "not_found" })
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S09999" }), registrar.id),
+        ).rejects.toMatchObject({ hint: "not_found", message: "Odoo has no S09999. Check the number." })
+        expect(sorCount()).toBe(before)
+      })
+
+      it("registers as Not checked when Odoo does not answer", async () => {
+        stubSalesReferenceSave({ odoo: "unreachable" })
+
+        const created = await opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id)
+
+        expect(created.sales_reference).toBe("S01237")
+        expect(created.sales_reference_odoo_state).toBe("not_checked")
+      })
+
+      it("pulls Odoo's products on registration, in place of the form's list", async () => {
+        stubSalesReferenceSave({
+          odoo: "found",
+          odooItems: [{ product_name: "Rescue rope", quantity: 4, unit_price: 900, odoo_line_id: 9001 }],
+        })
+
+        const created = await opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id)
+
+        expect(created.sales_reference_odoo_state).toBe("found")
+        const items = await opportunityService.getItems(created.id)
+        expect(items.map((i) => i.product_name)).toEqual(["Rescue rope"])
+      })
+
+      it("checks before it writes, then saves through the save step's own edge function", async () => {
+        const calls = stubSalesReferenceSave()
+
+        const created = await opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id)
+
+        expect(calls.checks).toHaveLength(1)
+        expect(calls).toHaveLength(1)
+        expect(calls[0]).toMatchObject({ opportunityId: created.id, salesReference: "S01237" })
+      })
+
+      it("takes the new SOR back out when the save step refuses after the check (a race)", async () => {
+        const before = sorCount()
+        stubEdgeFunction("sor-sales-reference", (body) =>
+          body.action === "check"
+            ? { success: true, sales_reference: "S01237", odoo_state: "not_checked" }
+            : { success: false, refused: true, message: 'S01237 is already on SOR "X" (Y). One S0 per SOR.', hint: "duplicate" },
+        )
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toMatchObject({ hint: "duplicate" })
+        expect(sorCount()).toBe(before)
+      })
+
+      it("makes no S0 call at all when the form has none", async () => {
+        const calls = stubSalesReferenceSave()
+
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        expect(created.sales_reference).toBeFalsy()
+        expect(calls.checks).toHaveLength(0)
+        expect(calls).toHaveLength(0)
+      })
     })
   })
 

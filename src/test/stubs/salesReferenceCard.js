@@ -1,5 +1,5 @@
 import { stubRpc, stubEdgeFunction } from "@/test/msw/server"
-import { db, updateRow, insertRow } from "@/test/db/store"
+import { db, updateRow, insertRow, deleteRows } from "@/test/db/store"
 
 const findRow = (id) => db.internal.rowsOf("sales_opportunities").find((row) => row.id === id)
 
@@ -38,15 +38,54 @@ export function stubSalesReferenceCard({
 }
 
 /**
- * The `sor-sales-reference` edge function: saves the typed S0 on the stored row (as Not checked,
- * the #815 behaviour) and records each call. `refuse` is `{ message, hint }` to answer a refusal.
- * Returns the recorded calls.
+ * The `sor-sales-reference` edge function: saves the typed S0 on the stored row and records each
+ * call. `refuse` is `{ message, hint }` to answer a refusal.
+ *
+ *   odoo        what Odoo answered: "unreachable" (default; the S0 saves as Not checked), "found"
+ *               (state found; `odooItems` replace the SOR's products, the pull) or "not_found"
+ *               (the check and the save both refuse, "Odoo has no <S0>")
+ *   odooItems   product rows Odoo's order holds ({ product_name, quantity, unit_price, odoo_line_id })
+ *
+ * The `check` action (#820, registration's pre-flight) runs format, duplicates and Odoo with the
+ * database's refusal texts and hints and writes nothing. The policy tier
+ * (815-set-sales-reference, 820-check-sales-reference) is the authority; this keeps the service and
+ * screen tests honest. Returns the recorded save calls; `.previews` and `.checks` hold the others.
  */
-export function stubSalesReferenceSave({ refuse = null, preview = null } = {}) {
+export function stubSalesReferenceSave({ refuse = null, preview = null, odoo = "unreachable", odooItems = [] } = {}) {
   const calls = []
   const previews = []
+  const checks = []
   calls.previews = previews
+  calls.checks = checks
+  const normalise = (v) => {
+    let ref = v ? String(v).trim().toUpperCase() : null
+    if (ref && /^SO\d+$/.test(ref)) ref = "S" + ref.slice(2)
+    return ref
+  }
+  const notFound = (ref) => ({ success: false, refused: true, message: `Odoo has no ${ref}. Check the number.`, hint: "not_found" })
+  const duplicate = (ref, exceptId) => {
+    const other = db.internal
+      .rowsOf("sales_opportunities")
+      .find((o) => o.id !== exceptId && o.sales_reference === ref && !o.is_deleted)
+    return other
+      ? { success: false, refused: true, message: `${ref} is already on SOR "${other.project_title}" (${other.client_name}). One S0 per SOR.`, hint: "duplicate" }
+      : null
+  }
   stubEdgeFunction("sor-sales-reference", (body) => {
+    // #820: registration's pre-flight. Nothing is written.
+    if (body.action === "check") {
+      checks.push(body)
+      if (refuse) return { success: false, refused: true, ...refuse }
+      const ref = normalise(body.salesReference)
+      if (!ref) return { success: true, sales_reference: null, odoo_state: null }
+      if (!/^S\d+$/.test(ref)) {
+        return { success: false, refused: true, message: 'Sales Reference must be the Odoo quotation number — "S" followed by digits, e.g. S01237.', hint: "format" }
+      }
+      const taken = duplicate(ref, null)
+      if (taken) return taken
+      if (odoo === "not_found") return notFound(ref)
+      return { success: true, sales_reference: ref, odoo_state: odoo === "found" ? "found" : "not_checked" }
+    }
     // #818: a preview asks what a save would do; it is answered with `preview` and is not a save.
     if (body.action === "preview") {
       previews.push(body)
@@ -54,12 +93,22 @@ export function stubSalesReferenceSave({ refuse = null, preview = null } = {}) {
     }
     calls.push(body)
     if (refuse) return { success: false, refused: true, ...refuse }
-    const value = body.salesReference ? String(body.salesReference).trim().toUpperCase() : null
+    const value = normalise(body.salesReference)
+    if (value) {
+      const taken = duplicate(value, body.opportunityId)
+      if (taken) return taken
+      if (odoo === "not_found") return notFound(value)
+    }
+    const state = !value ? null : odoo === "found" ? "found" : "not_checked"
     updateRow("sales_opportunities", findRow(body.opportunityId), {
       sales_reference: value,
-      sales_reference_odoo_state: value ? "not_checked" : null,
+      sales_reference_odoo_state: state,
     })
-    return { success: true, sales_reference: value, odoo_state: value ? "not_checked" : null, checked_at: null }
+    if (value && odoo === "found" && odooItems.length) {
+      deleteRows("sales_opportunity_items", db.internal.rowsOf("sales_opportunity_items").filter((i) => i.opportunity_id === body.opportunityId))
+      odooItems.forEach((item, index) => insertRow("sales_opportunity_items", { opportunity_id: body.opportunityId, sort_order: index, ...item }))
+    }
+    return { success: true, sales_reference: value, odoo_state: state, checked_at: null }
   })
   return calls
 }

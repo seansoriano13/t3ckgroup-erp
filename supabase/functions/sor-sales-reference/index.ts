@@ -80,6 +80,39 @@ async function previewChange(req: Request, opportunityId: string, salesReference
   return jsonResponse({ success: true, preview: data });
 }
 
+// ---- action "check" (#820) ---------------------------------------------------------------------
+// The registration form's pre-flight: format, duplicates and Odoo, the save step's checks in the
+// same order, but nothing is written (there is no SOR yet). The form's save runs it before the SOR
+// is created, so a refused S0 never leaves a half-registered SOR; registering then goes through the
+// save step itself, which pulls the products. Kept apart from the save path below.
+
+async function checkOnly(email: string, salesReference: string | null) {
+  const typed = normalizeS0(salesReference);
+  const outcome = typed
+    ? outcomeFromAnswer(typed, await askOdoo(typed))
+    : { odoo: "unreachable" as const, salesReference, items: null };
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  try {
+    const { data, error } = await admin.rpc("check_sales_reference", {
+      p_actor_email: email,
+      p_sales_reference: outcome.salesReference,
+      p_odoo: outcome.odoo,
+    });
+    if (error) {
+      return jsonResponse({
+        success: false,
+        refused: true,
+        message: refusalText(error.message),
+        ...(error.hint ? { hint: error.hint } : {}),
+      });
+    }
+    return jsonResponse({ success: true, ...(data as Record<string, unknown>) });
+  } catch (err) {
+    console.error("sor-sales-reference check error:", err);
+    return jsonResponse({ success: false, message: err instanceof Error ? err.message : "The S0 could not be checked." });
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -93,7 +126,7 @@ Deno.serve(async (req) => {
   }
 
   const opportunityId = typeof body.opportunityId === "string" ? body.opportunityId : "";
-  if (!opportunityId) {
+  if (!opportunityId && body.action !== "check") {
     return jsonResponse({ success: false, refused: true, message: "Say which SOR to change." });
   }
   const salesReference = typeof body.salesReference === "string" ? body.salesReference : null;
@@ -102,6 +135,10 @@ Deno.serve(async (req) => {
   const email = await callerEmail(req);
   if (!email) {
     return jsonResponse({ success: false, refused: true, message: "Sign in to change the S0." }, 401);
+  }
+
+  if (body.action === "check") {
+    return await checkOnly(email, salesReference);
   }
 
   if (body.action === "preview") {

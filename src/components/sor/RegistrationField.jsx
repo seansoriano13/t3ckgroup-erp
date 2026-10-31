@@ -1,6 +1,4 @@
 import { TextField, SelectField } from "./SorField";
-import { Button } from "../ui/button";
-import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * One field of the SOR registration form, rendered from its resolved
@@ -19,7 +17,7 @@ import { CAPTION_BASE } from "@/lib/captionStyle";
  * markup renders as a non-interactive sample.
  */
 export default function RegistrationField({ field, ctx, disabled = false }) {
-  const { form, set, odooFilled, displacedCompany, handleUndoCompany } = ctx;
+  const { form, set } = ctx;
 
   if (field.source === "custom") {
     const value = ctx.customValues?.[field.id] ?? "";
@@ -108,20 +106,6 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           placeholder="e.g. Acme Corp"
           value={form.client_name || ""}
           onChange={set("client_name")}
-          autofilled={!!odooFilled?.client_name}
-          action={
-            displacedCompany ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleUndoCompany}
-                title={`Restore "${displacedCompany}"`}
-                className={`h-auto -my-1.5 -mr-1 px-1.5 py-1.5 ${CAPTION_BASE} tracking-widest text-mauve-12 underline underline-offset-2 decoration-mauve-8 hover:decoration-mauve-11 hover:bg-transparent`}
-              >
-                Undo
-              </Button>
-            ) : null
-          }
         />
       );
 
@@ -134,7 +118,6 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           placeholder="e.g. Juan Dela Cruz"
           value={form.contact_person || ""}
           onChange={set("contact_person")}
-          autofilled={!!odooFilled?.contact_person}
         />
       );
 
@@ -171,11 +154,6 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
 export const SAMPLE_FIELD_CTX = {
   form: {},
   set: () => () => {},
-  odooFilled: {},
-  displacedCompany: null,
-  handleUndoCompany: () => {},
-  handleFetchFromOdoo: () => {},
-  fetchingOdoo: false,
   leadSourceOptions: [],
   customValues: {},
   onCustomChange: () => {},
