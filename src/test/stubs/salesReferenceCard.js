@@ -4,7 +4,7 @@ import { db, updateRow, insertRow, deleteRows } from "@/test/db/store"
 const findRow = (id) => db.internal.rowsOf("sales_opportunities").find((row) => row.id === id)
 
 /**
- * `sales_reference_card` (supabase/migrations/20261118110000_815_set_sales_reference.sql) lives in
+ * `sales_reference_card` (supabase/migrations/20261118120000_815_set_sales_reference.sql) lives in
  * Postgres, which the fake database does not run. This answers it from the stored SOR row; the lock
  * and who may edit are given, because the policy tier (815-set-sales-reference.test.js) is the
  * authority on them.
