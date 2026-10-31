@@ -1,11 +1,12 @@
--- #795 (A24): a Packing List box can only hold what has arrived. The picker needs to know,
--- per SOR line, whether a purchase request item for it is Received. The Warehouse cannot read
+-- #795 (A24): a Packing List box can only hold what is physically in the warehouse. The picker needs
+-- to know, per SOR line, whether a purchase request item for it is on hand: Received (bought and
+-- arrived) or Available (served from stock). Any one such item is enough, so partial packing works. The Warehouse cannot read
 -- purchase_request_items directly, so this security-definer read says it. Nothing is written.
 
 drop function if exists public.packing_list_sor_products(uuid);
 
 create function public.packing_list_sor_products(p_opportunity_id uuid)
-returns table (id uuid, product_name text, quantity numeric, unit text, received boolean)
+returns table (id uuid, product_name text, quantity numeric, unit text, on_hand boolean)
 language plpgsql
 stable
 security definer
@@ -22,8 +23,8 @@ begin
     select i.id, i.product_name, i.quantity, i.unit,
            exists (
              select 1 from public.purchase_request_items r
-              where r.sor_item_id = i.id and r.status = 'received'
-           ) as received
+              where r.sor_item_id = i.id and r.status in ('received', 'available')
+           ) as on_hand
       from public.sales_opportunity_items i
      where i.opportunity_id = p_opportunity_id
      order by i.sort_order, i.created_at;
@@ -31,7 +32,7 @@ end;
 $$;
 
 comment on function public.packing_list_sor_products(uuid) is
-  '#255/#795: an SOR''s Product List lines (name, quantity, unit, received; no prices) for a Packing List''s box contents. Purchasing or the Warehouse list.';
+  '#255/#795: an SOR''s Product List lines (name, quantity, unit, on_hand; no prices) for a Packing List''s box contents. Purchasing or the Warehouse list.';
 
 revoke all on function public.packing_list_sor_products(uuid) from public, anon;
 grant execute on function public.packing_list_sor_products(uuid) to authenticated;

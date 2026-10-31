@@ -120,10 +120,9 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
     queryFn: () => packingListService.sorProducts(sorId),
     enabled: open && Boolean(sorId),
   });
-  // Only lines already received can be packed (#795).
-  const productList = allProducts.filter((line) => line.received === true);
+  // Only lines that are on hand (received, or served from stock) can be packed (#795).
+  const productList = allProducts.filter((line) => line.on_hand === true);
   const nothingReceived = allProducts.length > 0 && productList.length === 0;
-
 
   const setRow = (index, patch) => setRows((current) => current.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   const pick = (index, lineId) => {
@@ -173,10 +172,10 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
         </Button>
       }
     >
-      <p className="text-sm text-muted-foreground">Type each content, or pick it from the SOR's Product List (copied as it is now). Only received items can be packed.</p>
+      <p className="text-sm text-muted-foreground">Type each content, or pick it from the SOR's Product List (copied as it is now). Only items already received (or from stock) can be packed.</p>
       {nothingReceived && (
         <p className="text-sm text-muted-foreground" data-testid="nothing-received">
-          None of this SOR's items have been received yet, so there is nothing to pick. You can still type a content.
+          None of this SOR's items are on hand yet (received or from stock), so there is nothing to pick. You can still type a content.
         </p>
       )}
         <div className="space-y-3">

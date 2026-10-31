@@ -118,9 +118,26 @@ describe("Packing List record page", () => {
     expect(screen.queryByRole("button", { name: /^(Expand|Collapse)$/ })).not.toBeInTheDocument();
   });
 
-  it("offers only received Product List lines, and says so when none is received", async () => {
+  it("offers the lines that are on hand (received or from stock) and hides the rest", async () => {
     const user = setupUser();
-    service.sorProducts.mockResolvedValue([{ id: "l1", product_name: "Hose", quantity: 2, unit: "pc", received: false }]);
+    service.sorProducts.mockResolvedValue([
+      { id: "l1", product_name: "Hose", quantity: 2, unit: "pc", on_hand: true },
+      { id: "l2", product_name: "Valve", quantity: 1, unit: "pc", on_hand: false },
+    ]);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /^Box 1 · M1/ }));
+    await user.click(screen.getAllByRole("button", { name: "Contents" })[0]);
+    expect(await screen.findByLabelText("Pick from the Product List")).toBeInTheDocument();
+    expect(screen.queryByTestId("nothing-received")).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("Pick from the Product List"));
+    expect(await screen.findByText(/Hose/)).toBeInTheDocument();
+    expect(screen.queryByText(/Valve/)).not.toBeInTheDocument();
+  });
+
+  it("says so when no Product List line is on hand yet", async () => {
+    const user = setupUser();
+    service.sorProducts.mockResolvedValue([{ id: "l1", product_name: "Hose", quantity: 2, unit: "pc", on_hand: false }]);
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: /^Box 1 · M1/ }));
