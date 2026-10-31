@@ -33,6 +33,23 @@ The ERP's own number for an SOR (SOR-198), given when it is registered. Every
 SOR has one.
 _Avoid_: SO number, Sales Reference
 
+**S0 card**:
+The box at the top of the SOR window that shows the SOR's S0: the number, whether
+Odoo found it, when it was last read, how many products came from it, an Edit
+button while the S0 can still change, and a lock icon once it cannot. The S0
+changes only through it (and the registration form and the Sales Reference Stage
+Field, which use the same input and the same save). Why it is locked shows on
+hover only (see Hover detail).
+_Avoid_: Sales Reference box, SO field
+
+**Locked S0**:
+An S0 that can no longer be changed by the people who work the SOR. It is free
+to change or clear in the deal's first Stage (Lead on the old pipeline). Past the
+first Stage an empty S0 can be filled once; after that it is locked. Only a Super
+Admin can change a Locked S0, and must give a reason, which goes in the deal's
+history. No one can give an S0 that is on another SOR that is not deleted.
+_Avoid_: frozen S0, read-only S0
+
 **SO number**:
 The Odoo sales order number of an SOR (S04081), kept as its Sales Reference. An
 SOR may not have one yet. Purchasing writes it before the project name ("S04081

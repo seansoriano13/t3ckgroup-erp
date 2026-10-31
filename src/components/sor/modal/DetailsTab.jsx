@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import DatePicker from "react-datepicker";
-import { Download, ExternalLink, FileDown, Link2 } from "lucide-react";
+import { ExternalLink, FileDown, Link2 } from "lucide-react";
 import Spinner from "../../ui/Spinner";
 import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
@@ -178,8 +178,6 @@ export default function DetailsTab({ ctx }) {
     handleCopyQuotationLink,
     downloadStep,
     handleDownloadQuotation,
-    fetchingOdoo,
-    handleFetchFromOdoo,
     onClose,
     accessLevel,
   } = ctx;
@@ -643,42 +641,13 @@ export default function DetailsTab({ ctx }) {
                 {opportunity.contact_person}
               </Detail>
 
-              {isEditing ? (
-                <div className="flex gap-2 items-stretch col-span-1 sm:col-span-2 md:col-span-1 lg:col-span-2 xl:col-span-1 2xl:col-span-2">
-                  <Detail
-                    label="Sales Reference"
-                    isEditing={true}
-                    wrapperClass="flex-1"
-                    control={
-                      <Input
-                        type="text"
-                        value={editForm.sales_reference}
-                        onChange={(e) => setEditForm((f) => ({ ...f, sales_reference: e.target.value.toUpperCase() }))}
-                        containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground/50 outline-none font-medium uppercase"
-                        placeholder="e.g. S01237"
-                      />
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={fetchingOdoo || !editForm.sales_reference}
-                    onClick={handleFetchFromOdoo}
-                    className="h-full min-h-[66px] shrink-0 gap-2 rounded-xl px-4 text-[13px]"
-                  >
-                    {fetchingOdoo ? <Spinner size="sm" /> : <Download size={16} />}
-                    <span className="hidden sm:inline">Fetch Items</span>
-                  </Button>
-                </div>
-              ) : (
-                <Detail label="Sales Reference">
-                  {opportunity.sales_reference ? (
-                    <span className="font-mono text-primary font-bold">{opportunity.sales_reference}</span>
-                  ) : opportunity.status === "LEAD" ? (
-                    <span className="text-xs font-medium text-amber-11">Required to qualify</span>
-                  ) : null}
-                </Detail>
-              )}
+              <Detail label="Sales Reference">
+                {opportunity.sales_reference ? (
+                  <span className="font-mono text-primary font-bold">{opportunity.sales_reference}</span>
+                ) : opportunity.status === "LEAD" ? (
+                  <span className="text-xs font-medium text-amber-11">Required to qualify</span>
+                ) : null}
+              </Detail>
 
               {itbGateSatisfiedBy(opportunity) && (
                 <Detail label="ITB Number (Invitation to Bid)">

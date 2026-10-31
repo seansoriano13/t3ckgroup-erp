@@ -1351,7 +1351,9 @@ create table if not exists public."sales_opportunities" (
   "date_of_delivery" date,
   "lost_reason_code" text,
   "lost_from_flow_stage_id" uuid,
-  "lost_from_status" text
+  "lost_from_status" text,
+  "sales_reference_odoo_state" text,
+  "sales_reference_checked_at" timestamp with time zone
 );
 
 create table if not exists public."sales_opportunity_items" (
@@ -2288,6 +2290,7 @@ alter table sales_opportunities add constraint "sales_opportunities_flow_pairing
 alter table sales_opportunities add constraint "sales_opportunities_lost_reason_code_check" CHECK (((lost_reason_code IS NULL) OR (lost_reason_code = ANY (ARRAY['NO_RESPONSE'::text, 'PRICE_TOO_HIGH'::text, 'LOST_TO_COMPETITOR'::text, 'CLIENT_CANCELLED'::text, 'NO_BUDGET'::text, 'REQUIREMENTS_NOT_MET'::text, 'OTHER'::text]))));
 alter table sales_opportunities add constraint "sales_opportunities_project_type_chk" CHECK ((project_type = ANY (ARRAY['SSP'::text, 'CP'::text, 'STRATEGIC'::text])));
 alter table sales_opportunities add constraint "sales_opportunities_sales_reference_chk" CHECK (((sales_reference IS NULL) OR (sales_reference ~ '^S[0-9]+$'::text)));
+alter table sales_opportunities add constraint "sales_opportunities_sales_reference_odoo_state_chk" CHECK (((sales_reference_odoo_state IS NULL) OR (sales_reference_odoo_state = ANY (ARRAY['found'::text, 'not_checked'::text, 'gone'::text]))));
 alter table sales_opportunity_logs add constraint "sales_opportunity_logs_type_chk" CHECK ((type = ANY (ARRAY['COMMENT'::text, 'SYSTEM'::text])));
 alter table sil_leaves add constraint "sil_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table sil_leaves add constraint "sil_leaves_hours_check" CHECK ((hours > (0)::numeric));
@@ -7233,6 +7236,26 @@ AS $function$
   where x.employee_id is not null;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._sor_first_stage(p_opportunity_id uuid)
+ RETURNS TABLE(stage_id uuid, stage_name text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select s.id, s.name
+  from (
+    select (st->>'id')::uuid as id,
+           st->>'name' as name,
+           coalesce((st->>'sort_order')::numeric, 999999999) as ord
+    from public.sales_opportunities o
+    join public.flow_snapshots fs on fs.id = o.flow_snapshot_id
+    cross join lateral jsonb_array_elements(coalesce(fs.snapshot_data->'stages', '[]'::jsonb)) st
+    where o.id = p_opportunity_id and o.sale_type_id is not null
+  ) s
+  order by s.ord, s.name
+  limit 1
+$function$
+;
 CREATE OR REPLACE FUNCTION public._sor_purchasing_closed_reason(p_opp sales_opportunities)
  RETURNS text
  LANGUAGE sql
@@ -7638,6 +7661,10 @@ begin
   if v_item.status <> 'pending' then
     raise exception 'Queue item is no longer pending.';
   end if;
+
+  -- #822: the S0 guard lets this one insert through (Retail is a report; its S0 comes from Odoo's
+  -- queue, not from a person).
+  perform set_config('app.sor_set_sales_reference', 'on', true);
 
   insert into sales_opportunities (
     sales_reference, client_name, contact_person, project_title, expected_value,
@@ -8849,6 +8876,62 @@ begin
     raise exception 'Chat messages can only be changed through reactions or unsend' using errcode = '42501';
   end if;
   return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.check_sales_reference(p_actor_email text, p_sales_reference text, p_odoo text DEFAULT 'unreachable'::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_new text := upper(nullif(btrim(coalesce(p_sales_reference, '')), ''));
+  v_other record;
+begin
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'check_sales_reference: not signed in' using errcode = '42501';
+  end if;
+  if p_odoo is null or p_odoo not in ('found', 'not_found', 'unreachable') then
+    raise exception 'check_sales_reference: p_odoo must be found, not_found or unreachable' using errcode = '22023';
+  end if;
+
+  -- Nothing typed: nothing to check (an S0 can be added later).
+  if v_new is null then
+    return jsonb_build_object('sales_reference', null, 'odoo_state', null);
+  end if;
+
+  -- 1. Format.
+  if v_new ~ '^SO[0-9]+$' then
+    v_new := 'S' || substr(v_new, 3);
+  end if;
+  if v_new !~ '^S[0-9]+$' then
+    raise exception 'Sales Reference must be the Odoo quotation number — "S" followed by digits, e.g. S01237.'
+      using errcode = '22023', hint = 'format';
+  end if;
+
+  -- 2. Duplicates: any SOR that is not deleted (Lost included). No bypass.
+  select o.id, o.project_title, o.client_name into v_other
+    from public.sales_opportunities o
+    where o.sales_reference = v_new
+      and coalesce(o.is_deleted, false) = false
+    order by o.created_at
+    limit 1;
+  if v_other.id is not null then
+    raise exception '% is already on SOR "%" (%). One S0 per SOR.',
+      v_new, v_other.project_title, v_other.client_name
+      using errcode = '23505', hint = 'duplicate';
+  end if;
+
+  -- 3. Odoo.
+  if p_odoo = 'not_found' then
+    raise exception 'Odoo has no %. Check the number.', v_new using errcode = '22023', hint = 'not_found';
+  end if;
+
+  return jsonb_build_object(
+    'sales_reference', v_new,
+    'odoo_state', case p_odoo when 'found' then 'found' else 'not_checked' end
+  );
 end;
 $function$
 ;
@@ -20673,6 +20756,88 @@ AS $function$
    where r.item_count > 0
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.recheck_sales_reference(p_actor_email text, p_opportunity_id uuid, p_odoo text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid;
+  v_opp public.sales_opportunities;
+  v_content text;
+  v_meta jsonb;
+begin
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'recheck_sales_reference: not signed in' using errcode = '42501';
+  end if;
+  if p_odoo is null or p_odoo not in ('found', 'not_found', 'unreachable') then
+    raise exception 'recheck_sales_reference: p_odoo must be found, not_found or unreachable' using errcode = '22023';
+  end if;
+
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
+  v_actor := public.get_employee_id();
+  if v_actor is null then
+    raise exception 'recheck_sales_reference: not signed in' using errcode = '42501';
+  end if;
+  if public.sor_access_level(p_opportunity_id) = 'none' then
+    raise exception 'You do not have access to this SOR.' using errcode = '42501', hint = 'forbidden';
+  end if;
+
+  select * into v_opp from public.sales_opportunities
+    where id = p_opportunity_id and coalesce(is_deleted, false) = false
+    for update;
+  if v_opp.id is null then
+    raise exception 'That SOR could not be found.' using errcode = 'P0002', hint = 'not_found_sor';
+  end if;
+
+  -- Nothing to check without an S0, and an unanswered question changes nothing.
+  if nullif(btrim(coalesce(v_opp.sales_reference, '')), '') is null or p_odoo = 'unreachable' then
+    return jsonb_build_object(
+      'sales_reference', v_opp.sales_reference,
+      'odoo_state', v_opp.sales_reference_odoo_state,
+      'checked_at', v_opp.sales_reference_checked_at
+    );
+  end if;
+
+  -- Only the two state columns move; the flag keeps the S0 column guard (#822) quiet.
+  perform set_config('app.sor_set_sales_reference', 'on', true);
+
+  if p_odoo = 'found' then
+    update public.sales_opportunities
+       set sales_reference_odoo_state = 'found',
+           sales_reference_checked_at = now()
+     where id = v_opp.id
+    returning * into v_opp;
+  elsif v_opp.sales_reference_odoo_state is distinct from 'gone' then
+    update public.sales_opportunities
+       set sales_reference_odoo_state = 'gone'
+     where id = v_opp.id
+    returning * into v_opp;
+
+    v_content := format('Odoo no longer has %s', v_opp.sales_reference);
+    v_meta := jsonb_build_object(
+      'event', 'SALES_REFERENCE_GONE',
+      'old', v_opp.sales_reference,
+      'new', v_opp.sales_reference,
+      'reason', null,
+      'employeeId', v_actor
+    );
+    insert into public.sales_opportunity_logs (opportunity_id, author_id, type, content, metadata)
+    values (v_opp.id, v_actor, 'SYSTEM', v_content, v_meta);
+    insert into public.system_audit_logs (author_id, entity_type, entity_id, content, type, metadata)
+    values (v_actor, 'OPPORTUNITY', v_opp.id::text, v_content, 'SYSTEM', v_meta);
+  end if;
+
+  return jsonb_build_object(
+    'sales_reference', v_opp.sales_reference,
+    'odoo_state', v_opp.sales_reference_odoo_state,
+    'checked_at', v_opp.sales_reference_checked_at
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.record_currency_rate(p_currency text, p_rate_date date, p_php_per_unit numeric, p_source text)
  RETURNS void
  LANGUAGE sql
@@ -21436,6 +21601,72 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.restore_opportunity(p_opportunity_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_opp public.sales_opportunities;
+  v_other record;
+  v_content text;
+  v_meta jsonb;
+begin
+  if v_actor is null then
+    raise exception 'You are not signed in.' using errcode = '42501';
+  end if;
+
+  select * into v_opp from public.sales_opportunities where id = p_opportunity_id for update;
+  if v_opp.id is null then
+    raise exception 'That SOR could not be found.' using errcode = 'P0002', hint = 'not_found_sor';
+  end if;
+
+  if not (public.is_super_admin() or v_opp.deal_owner_id = v_actor) then
+    raise exception 'Only a Super Admin or this SOR''s Deal Owner can restore it.'
+      using errcode = '42501', hint = 'forbidden';
+  end if;
+
+  -- One S0 per SOR: refuse when another SOR that is not deleted has taken this S0.
+  if nullif(btrim(coalesce(v_opp.sales_reference, '')), '') is not null then
+    select o.id, o.project_title, o.client_name into v_other
+      from public.sales_opportunities o
+      where o.sales_reference = v_opp.sales_reference
+        and o.id <> v_opp.id
+        and coalesce(o.is_deleted, false) = false
+      order by o.created_at
+      limit 1;
+    if v_other.id is not null then
+      raise exception '% is now on SOR "%" (%). One S0 per SOR; change one before restoring.',
+        v_opp.sales_reference, v_other.project_title, v_other.client_name
+        using errcode = '23505', hint = 'duplicate';
+    end if;
+  end if;
+
+  update public.sales_opportunities
+     set is_deleted = false, deleted_at = null, deleted_by = null
+   where id = v_opp.id
+   returning * into v_opp;
+
+  v_content := 'SOR restored from Deleted.';
+  v_meta := jsonb_build_object('event', 'OPPORTUNITY_RESTORED', 'employeeId', v_actor);
+
+  insert into public.sales_opportunity_logs (opportunity_id, author_id, type, content, metadata)
+  values (v_opp.id, v_actor, 'SYSTEM', v_content, v_meta);
+  insert into public.system_audit_logs (author_id, entity_type, entity_id, content, type, metadata)
+  values (
+    v_actor, 'OPPORTUNITY', v_opp.id::text,
+    case when nullif(btrim(coalesce(v_opp.sales_reference, '')), '') is not null
+      then 'Sales opportunity ' || v_opp.sales_reference
+      else 'Sales opportunity for ' || v_opp.client_name end || ' restored.',
+    'SYSTEM', v_meta
+  );
+
+  return to_jsonb(v_opp);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.retail_orders_broadcast_change()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -21545,6 +21776,102 @@ begin
   new.updated_at := now();
   return new;
 end $function$
+;
+CREATE OR REPLACE FUNCTION public.sales_reference_card(p_opportunity_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_opp public.sales_opportunities;
+  v_lock text;
+  v_first text;
+  v_can boolean;
+begin
+  if public.get_employee_id() is null or public.sor_access_level(p_opportunity_id) = 'none' then
+    raise exception 'You do not have access to this SOR.' using errcode = '42501';
+  end if;
+  select * into v_opp from public.sales_opportunities where id = p_opportunity_id;
+  v_lock := public.sor_sales_reference_lock(p_opportunity_id);
+  select stage_name into v_first from public._sor_first_stage(p_opportunity_id);
+  if v_first is null then
+    select c.label into v_first from public.crm_pipeline_stages c
+      where coalesce(c.is_default, false) order by c.sort_order limit 1;
+  end if;
+  v_can := coalesce(v_opp.is_deleted, false) = false
+    and public.sor_can_edit_opportunity(p_opportunity_id)
+    and (v_lock <> 'locked' or public.is_super_admin());
+
+  return jsonb_build_object(
+    'sales_reference', v_opp.sales_reference,
+    'lock', v_lock,
+    'first_stage_name', v_first,
+    'can_edit', v_can,
+    'odoo_state', v_opp.sales_reference_odoo_state,
+    'checked_at', v_opp.sales_reference_checked_at,
+    'product_count', (
+      select count(*)::int from public.sales_opportunity_items i
+      where i.opportunity_id = p_opportunity_id
+        and coalesce(i.removed_from_s0, false) = false
+        and i.odoo_line_id is not null
+    ),
+    'duplicates', case
+      when nullif(btrim(coalesce(v_opp.sales_reference, '')), '') is null then '[]'::jsonb
+      else coalesce((
+        select jsonb_agg(jsonb_build_object(
+                 'id', o.id,
+                 'name', coalesce(o.project_title, '') || ' (' || coalesce(o.client_name, '') || ')'
+               ) order by o.created_at)
+        from public.sales_opportunities o
+        where o.sales_reference = v_opp.sales_reference
+          and o.id <> v_opp.id
+          and coalesce(o.is_deleted, false) = false
+      ), '[]'::jsonb)
+    end
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sales_reference_change_preview(p_opportunity_id uuid, p_new_odoo_line_ids text[] DEFAULT NULL::text[])
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ids uuid[];
+begin
+  if public.get_employee_id() is null or public.sor_access_level(p_opportunity_id) = 'none' then
+    raise exception 'You do not have access to this SOR.' using errcode = '42501';
+  end if;
+
+  select coalesce(array_agg(i.id), '{}') into v_ids
+    from public.sales_opportunity_items i
+    where i.opportunity_id = p_opportunity_id
+      and coalesce(i.removed_from_s0, false) = false
+      and i.odoo_line_id is not null
+      and i.odoo_line_id::text <> all (coalesce(p_new_odoo_line_ids, '{}'::text[]));
+
+  return jsonb_build_object(
+    'removed_products', coalesce(array_length(v_ids, 1), 0),
+    'requested_items', (
+      select count(*)::int
+      from public.purchase_request_items pri
+      join public.purchase_requests pr on pr.id = pri.request_id
+      where pr.opportunity_id = p_opportunity_id
+        and pri.sor_item_id = any (v_ids)
+    ),
+    'tender_lines', (
+      select count(*)::int
+      from public.costing_tender_lines tl
+      join public.costing_matrices m on m.id = tl.matrix_id
+      where m.opportunity_id = p_opportunity_id
+        and tl.sor_item_id = any (v_ids)
+    )
+  );
+end;
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.send_group_task_evaluation_reminders()
  RETURNS integer
@@ -21739,6 +22066,165 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.set_sales_reference(p_actor_email text, p_opportunity_id uuid, p_sales_reference text, p_reason text DEFAULT NULL::text, p_odoo text DEFAULT 'unreachable'::text, p_items jsonb DEFAULT NULL::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_new text := upper(nullif(btrim(coalesce(p_sales_reference, '')), ''));
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_actor uuid;
+  v_opp public.sales_opportunities;
+  v_lock text;
+  v_super boolean;
+  v_other record;
+  v_state text;
+  v_checked timestamptz;
+  v_event text;
+  v_content text;
+  v_meta jsonb;
+begin
+  if p_actor_email is null or btrim(p_actor_email) = '' then
+    raise exception 'set_sales_reference: not signed in' using errcode = '42501';
+  end if;
+  if p_odoo is null or p_odoo not in ('found', 'not_found', 'unreachable') then
+    raise exception 'set_sales_reference: p_odoo must be found, not_found or unreachable' using errcode = '22023';
+  end if;
+
+  -- 1. Format ("S" then digits; SO123 is read as S123, as the app does).
+  if v_new is not null then
+    if v_new ~ '^SO[0-9]+$' then
+      v_new := 'S' || substr(v_new, 3);
+    end if;
+    if v_new !~ '^S[0-9]+$' then
+      raise exception 'Sales Reference must be the Odoo quotation number — "S" followed by digits, e.g. S01237.'
+        using errcode = '22023', hint = 'format';
+    end if;
+  end if;
+
+  -- Act as the caller the edge function authenticated.
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('email', p_actor_email, 'role', 'authenticated')::text, true);
+  v_actor := public.get_employee_id();
+  if v_actor is null then
+    raise exception 'set_sales_reference: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_opp from public.sales_opportunities
+    where id = p_opportunity_id and coalesce(is_deleted, false) = false
+    for update;
+  if v_opp.id is null then
+    raise exception 'That SOR could not be found.' using errcode = 'P0002', hint = 'not_found_sor';
+  end if;
+
+  -- Same value as now: nothing to do.
+  if v_new is not distinct from v_opp.sales_reference then
+    return jsonb_build_object(
+      'sales_reference', v_opp.sales_reference,
+      'odoo_state', v_opp.sales_reference_odoo_state,
+      'checked_at', v_opp.sales_reference_checked_at
+    );
+  end if;
+
+  -- 2 + 3. Permission and lock.
+  v_super := public.is_super_admin();
+  v_lock := public.sor_sales_reference_lock(v_opp.id);
+  if not public.sor_can_edit_opportunity(v_opp.id) then
+    raise exception 'You do not have permission to change this SOR''s S0.' using errcode = '42501', hint = 'forbidden';
+  end if;
+  if v_lock = 'locked' then
+    if not v_super then
+      raise exception 'This S0 is locked. Only a Super Admin can change it.' using errcode = '42501', hint = 'locked';
+    end if;
+    if v_reason is null then
+      raise exception 'Say why the locked S0 is being changed.' using errcode = '22023', hint = 'reason_required';
+    end if;
+  end if;
+
+  -- 4. Duplicates: any other SOR that is not deleted (Lost included). No bypass. The lock on the
+  -- S0 value makes a second save of the same S0 wait for the first, then see its row.
+  if v_new is not null then
+    perform pg_advisory_xact_lock(hashtext('sales_reference:' || v_new));
+    select o.id, o.project_title, o.client_name into v_other
+      from public.sales_opportunities o
+      where o.sales_reference = v_new
+        and o.id <> v_opp.id
+        and coalesce(o.is_deleted, false) = false
+      order by o.created_at
+      limit 1;
+    if v_other.id is not null then
+      raise exception '% is already on SOR "%" (%). One S0 per SOR.',
+        v_new, v_other.project_title, v_other.client_name
+        using errcode = '23505', hint = 'duplicate';
+    end if;
+  end if;
+
+  -- 5. Odoo. Clearing needs no answer.
+  if v_new is null then
+    v_state := null;
+    v_checked := null;
+  elsif p_odoo = 'not_found' then
+    raise exception 'Odoo has no %. Check the number.', v_new using errcode = '22023', hint = 'not_found';
+  elsif p_odoo = 'found' then
+    v_state := 'found';
+    v_checked := now();
+  else
+    v_state := 'not_checked';
+    v_checked := null;
+  end if;
+
+  v_event := case
+    when v_lock = 'locked' then 'SALES_REFERENCE_OVERRIDDEN'
+    when v_new is null then 'SALES_REFERENCE_CLEARED'
+    when v_opp.sales_reference is null then 'SALES_REFERENCE_SET'
+    else 'SALES_REFERENCE_CHANGED'
+  end;
+
+  perform set_config('app.sor_set_sales_reference', 'on', true);
+  update public.sales_opportunities
+     set sales_reference = v_new,
+         sales_reference_odoo_state = v_state,
+         sales_reference_checked_at = v_checked
+   where id = v_opp.id;
+
+  -- The Odoo lines, through the line-matching save (ADR 0041), when the edge function sent them.
+  if p_items is not null then
+    perform public.sor_replace_items(v_opp.id, p_items);
+  elsif v_new is null or p_odoo = 'found' then
+    -- Cleared, or an S0 Odoo has with no lines: the old S0's products are kept and marked, as
+    -- the change preview (#818) says. Hand-typed lines stay.
+    update public.sales_opportunity_items i
+       set removed_from_s0 = true
+     where i.opportunity_id = v_opp.id
+       and i.odoo_line_id is not null
+       and not i.removed_from_s0;
+  end if;
+
+  v_content := case v_event
+    when 'SALES_REFERENCE_SET' then format('S0 set to %s', v_new)
+    when 'SALES_REFERENCE_CLEARED' then format('S0 %s cleared', v_opp.sales_reference)
+    when 'SALES_REFERENCE_OVERRIDDEN' then format('Locked S0 changed from %s to %s', v_opp.sales_reference, coalesce(v_new, '(none)'))
+    else format('S0 changed from %s to %s', v_opp.sales_reference, v_new)
+  end || coalesce(' — ' || v_reason, '');
+  v_meta := jsonb_build_object(
+    'event', v_event,
+    'old', v_opp.sales_reference,
+    'new', v_new,
+    'reason', v_reason,
+    'employeeId', v_actor
+  );
+
+  insert into public.sales_opportunity_logs (opportunity_id, author_id, type, content, metadata)
+  values (v_opp.id, v_actor, 'SYSTEM', v_content, v_meta);
+  insert into public.system_audit_logs (author_id, entity_type, entity_id, content, type, metadata)
+  values (v_actor, 'OPPORTUNITY', v_opp.id::text, v_content, 'SYSTEM', v_meta);
+
+  return jsonb_build_object('sales_reference', v_new, 'odoo_state', v_state, 'checked_at', v_checked);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.sor_access_contact(p_opportunity_id uuid)
  RETURNS TABLE(deal_owner_name text)
  LANGUAGE sql
@@ -21845,6 +22331,31 @@ AS $function$
     where f.sale_type_id = p_opp.sale_type_id
       and public.sor_selector_covers(selector, p_opp, p_employee_id)
   )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_at_first_stage(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_opp public.sales_opportunities;
+  v_first uuid;
+begin
+  select * into v_opp from public.sales_opportunities where id = p_opportunity_id;
+  if v_opp.id is null then
+    return false;
+  end if;
+  if v_opp.sale_type_id is not null and v_opp.flow_snapshot_id is not null then
+    select stage_id into v_first from public._sor_first_stage(p_opportunity_id);
+    return v_first is not null and v_opp.flow_stage_id = v_first;
+  end if;
+  return exists (
+    select 1 from public.crm_pipeline_stages c
+    where c.code = v_opp.status and coalesce(c.is_default, false)
+  );
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_award_dates(p_opportunity_ids uuid[])
@@ -22676,6 +23187,63 @@ begin
     raise exception 'You can move this SOR, but not edit it.' using errcode = '42501';
   end if;
 
+  return NEW;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_guard_sales_reference()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_old text;
+  v_new text := nullif(btrim(upper(coalesce(NEW.sales_reference, ''))), '');
+  v_other record;
+begin
+  -- Only browser callers are judged. service_role (the edge functions) and direct database
+  -- connections carry no 'authenticated' / 'anon' request role.
+  if coalesce(auth.role(), '') not in ('authenticated', 'anon') then
+    return NEW;
+  end if;
+
+  -- Bringing back a deleted SOR whose S0 another live SOR now has (#819), however it is written.
+  if TG_OP = 'UPDATE' and coalesce(OLD.is_deleted, false) and not coalesce(NEW.is_deleted, false)
+     and v_new is not null then
+    select o.project_title, o.client_name into v_other
+      from public.sales_opportunities o
+      where o.sales_reference = v_new
+        and o.id <> NEW.id
+        and coalesce(o.is_deleted, false) = false
+      order by o.created_at
+      limit 1;
+    if found then
+      raise exception '% is now on SOR "%" (%). Change one S0 before restoring.',
+        v_new, v_other.project_title, v_other.client_name
+        using errcode = '23505', hint = 'duplicate';
+    end if;
+  end if;
+
+  if coalesce(current_setting('app.sor_set_sales_reference', true), '') = 'on' then
+    return NEW;
+  end if;
+
+  if TG_OP = 'INSERT' then
+    if v_new is not null or NEW.sales_reference_odoo_state is not null or NEW.sales_reference_checked_at is not null then
+      raise exception 'The S0 is set from the S0 card, not when a row is written directly.'
+        using errcode = '42501', hint = 'sales_reference_direct_write';
+    end if;
+    return NEW;
+  end if;
+
+  v_old := nullif(btrim(upper(coalesce(OLD.sales_reference, ''))), '');
+  if v_new is distinct from v_old
+     or NEW.sales_reference_odoo_state is distinct from OLD.sales_reference_odoo_state
+     or NEW.sales_reference_checked_at is distinct from OLD.sales_reference_checked_at then
+    raise exception 'The S0 can only be changed from the S0 card.'
+      using errcode = '42501', hint = 'sales_reference_direct_write';
+  end if;
   return NEW;
 end;
 $function$
@@ -24478,6 +25046,22 @@ begin
 
   return jsonb_build_object('failed', to_jsonb(v_failed), 'created', to_jsonb(v_created));
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_sales_reference_lock(p_opportunity_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when public.sor_at_first_stage(p_opportunity_id) then 'open'
+    when exists (
+      select 1 from public.sales_opportunities
+      where id = p_opportunity_id and nullif(btrim(coalesce(sales_reference, '')), '') is null
+    ) then 'fill_once'
+    else 'locked'
+  end
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_selector_covers(p_selector jsonb, p_opp sales_opportunities, p_employee_id uuid)
@@ -27477,6 +28061,7 @@ CREATE TRIGGER sor_stage_visits_on_insert AFTER INSERT ON public.sales_opportuni
 CREATE TRIGGER sor_stage_visits_on_stage_change AFTER UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION record_stage_visit();
 CREATE TRIGGER trg_sales_opportunities_guard BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_guard();
 CREATE TRIGGER trg_sales_opportunities_require_sales_ref BEFORE INSERT OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_require_sales_ref();
+CREATE TRIGGER trg_sales_opportunities_s0_guard BEFORE INSERT OR UPDATE OF sales_reference, sales_reference_odoo_state, sales_reference_checked_at, is_deleted ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_sales_reference();
 CREATE TRIGGER trg_sales_opportunity_items_touch BEFORE UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sales_opportunity_items_touch();
 CREATE TRIGGER trg_sor_items_recalc AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sor_recalc_expected_value();
 CREATE TRIGGER trg_sor_line_sync_request_item AFTER INSERT OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION trg_sor_line_sync_request_item();

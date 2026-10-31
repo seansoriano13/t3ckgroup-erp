@@ -29,6 +29,7 @@ import { employeeGroupService } from "./employeeGroupService"
 import { waitForNetworkIdle } from "@/test/network"
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { stubActionRunRpcs } from "@/test/stubs/actionRunRpc"
+import { stubRestoreOpportunityRpc, stubSalesReferenceSave } from "@/test/stubs/salesReferenceCard"
 
 /**
  * Sales Opportunity Registration, exercised end to end through the service's
@@ -47,6 +48,7 @@ describe("opportunityService", () => {
   beforeEach(() => {
     seedPipeline()
     stubActionRunRpcs()
+    stubSalesReferenceSave() // registration's S0 checks (#820); tests below override it
     registrar = makeEmployee({ name: "Ana Reyes" })
     owner = makeEmployee({ name: "Ben Cruz" })
   })
@@ -181,6 +183,90 @@ describe("opportunityService", () => {
       )
 
       expect(created.sales_reference).toBe("S01237")
+    })
+
+    // #820: registering runs the same checks as the S0 save step.
+    describe("the S0 on the form (#820)", () => {
+      const sorCount = () => db.internal.rowsOf("sales_opportunities").length
+
+      it("refuses an S0 already on another SOR and registers nothing", async () => {
+        makeOpportunity({ registered_by: registrar.id, sales_reference: "S01237", project_title: "Rope Rescue" })
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toMatchObject({ hint: "duplicate", message: expect.stringMatching(/already on SOR "Rope Rescue".*One S0 per SOR/) })
+        expect(sorCount()).toBe(before)
+      })
+
+      it("refuses an S0 Odoo does not have and registers nothing", async () => {
+        stubSalesReferenceSave({ odoo: "not_found" })
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S09999" }), registrar.id),
+        ).rejects.toMatchObject({ hint: "not_found", message: "Odoo has no S09999. Check the number." })
+        expect(sorCount()).toBe(before)
+      })
+
+      it("registers as Not checked when Odoo does not answer", async () => {
+        stubSalesReferenceSave({ odoo: "unreachable" })
+
+        const created = await opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id)
+
+        expect(created.sales_reference).toBe("S01237")
+        expect(created.sales_reference_odoo_state).toBe("not_checked")
+      })
+
+      it("pulls Odoo's products on registration, in place of the form's list", async () => {
+        stubSalesReferenceSave({
+          odoo: "found",
+          odooItems: [{ product_name: "Rescue rope", quantity: 4, unit_price: 900, odoo_line_id: 9001 }],
+        })
+
+        const created = await opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id)
+
+        expect(created.sales_reference_odoo_state).toBe("found")
+        const items = await opportunityService.getItems(created.id)
+        expect(items.map((i) => i.product_name)).toEqual(["Rescue rope"])
+      })
+
+      it("checks before it writes, then saves through the save step's own edge function", async () => {
+        const calls = stubSalesReferenceSave()
+
+        const created = await opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id)
+
+        expect(calls.checks).toHaveLength(1)
+        expect(calls).toHaveLength(1)
+        expect(calls[0]).toMatchObject({ opportunityId: created.id, salesReference: "S01237" })
+      })
+
+      it("deletes the new SOR when the save step refuses after the check (a race)", async () => {
+        const live = () => db.internal.rowsOf("sales_opportunities").filter((r) => !r.is_deleted).length
+        const before = live()
+        stubEdgeFunction("sor-sales-reference", (body) =>
+          body.action === "check"
+            ? { success: true, sales_reference: "S01237", odoo_state: "not_checked" }
+            : { success: false, refused: true, message: 'S01237 is already on SOR "X" (Y). One S0 per SOR.', hint: "duplicate" },
+        )
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toMatchObject({ hint: "duplicate" })
+        expect(live()).toBe(before)
+        const created = db.internal.rowsOf("sales_opportunities").find((r) => r.is_deleted && r.deleted_by === registrar.id)
+        expect(created).toBeTruthy()
+      })
+
+      it("makes no S0 call at all when the form has none", async () => {
+        const calls = stubSalesReferenceSave()
+
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        expect(created.sales_reference).toBeFalsy()
+        expect(calls.checks).toHaveLength(0)
+        expect(calls).toHaveLength(0)
+      })
     })
   })
 
@@ -448,16 +534,49 @@ describe("opportunityService", () => {
       expect(notes.at(-1).content).toBe("Stage moved: Lead → Closed Lost — Lost on price")
     })
 
-    it("records the sales reference separately from the stage move", async () => {
+    it("saves the sales reference through the save step, then moves (#822)", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
+      const calls = stubSalesReferenceSave()
 
       await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" })
 
+      // The S0 is not written by the move: the save step does it (and writes its own history).
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ opportunityId: lead.id, salesReference: "S01237" })
       const notes = await opportunityService.getNotes(lead.id)
-      expect(notes.map((n) => n.content)).toEqual([
-        "Sales Reference recorded: S01237",
-        "Stage moved: Lead → Proposal Submitted",
-      ])
+      expect(notes.map((n) => n.content)).toEqual(["Stage moved: Lead → Proposal Submitted"])
+    })
+
+    it("stops the move when the save step refuses the S0 (#822)", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id })
+      stubSalesReferenceSave({ refuse: { message: "S01237 is already on SOR \"Other\".", hint: "duplicate" } })
+
+      await expect(
+        opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" }),
+      ).rejects.toThrow(/already on SOR/)
+      expect((await opportunityService.getOpportunityById(lead.id)).status).toBe("LEAD")
+    })
+
+    it("ignores an unchanged S0 in a general update and routes a changed one (#822)", async () => {
+      const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      const calls = stubSalesReferenceSave()
+
+      await opportunityService.updateOpportunity(deal.id, { sales_reference: "s00999", contact_person: "Ana" }, registrar.id)
+      expect(calls).toHaveLength(0)
+
+      await opportunityService.updateOpportunity(deal.id, { sales_reference: "S01234" }, registrar.id)
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ opportunityId: deal.id, salesReference: "S01234" })
+    })
+
+    it("saves a Stage Field S0 through the save step, not into metadata (#822)", async () => {
+      const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      const calls = stubSalesReferenceSave()
+
+      await opportunityService.saveRecordField(deal.id, "sales_reference", "S01234", registrar.id)
+
+      expect(calls).toHaveLength(1)
+      expect((await opportunityService.getOpportunityById(deal.id)).metadata?.sales_reference).toBeUndefined()
     })
 
     it("does not re-record a sales reference that is already the one on file", async () => {
@@ -4277,11 +4396,16 @@ describe("opportunityService", () => {
     })
 
     describe("restoring", () => {
+      const restoreAs = (actor, id) => {
+        stubRestoreOpportunityRpc({ actorId: actor.id })
+        return opportunityService.restoreOpportunity(id, actor.id)
+      }
+
       it("lets a Super Admin restore, clearing the delete stamp", async () => {
         const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
-        const restored = await opportunityService.restoreOpportunity(opportunity.id, superAdmin.id)
+        const restored = await restoreAs(superAdmin, opportunity.id)
 
         expect(restored.is_deleted).toBe(false)
         const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
@@ -4293,7 +4417,7 @@ describe("opportunityService", () => {
         const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
-        const restored = await opportunityService.restoreOpportunity(opportunity.id, owner.id)
+        const restored = await restoreAs(owner, opportunity.id)
 
         expect(restored.is_deleted).toBe(false)
       })
@@ -4303,8 +4427,19 @@ describe("opportunityService", () => {
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
         await expect(
-          opportunityService.restoreOpportunity(opportunity.id, registrar.id),
+          restoreAs(registrar, opportunity.id),
         ).rejects.toThrow(/Super Admin or this SOR's Deal Owner/i)
+
+        const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
+        expect(stored.is_deleted).toBe(true)
+      })
+
+      it("refuses when another SOR now has the S0, naming it, and leaves the SOR deleted", async () => {
+        const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id, sales_reference: "S01300" })
+        await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
+        makeOpportunity({ registered_by: registrar.id, sales_reference: "S01300", project_title: "Rope Rescue", client_name: "Acme" })
+
+        await expect(restoreAs(owner, opportunity.id)).rejects.toThrow(/S01300 is now on SOR "Rope Rescue" \(Acme\)/)
 
         const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
         expect(stored.is_deleted).toBe(true)
@@ -4314,7 +4449,7 @@ describe("opportunityService", () => {
         const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
-        await opportunityService.restoreOpportunity(opportunity.id, owner.id)
+        await restoreAs(owner, opportunity.id)
         await waitForNetworkIdle()
 
         const notes = await opportunityService.getNotes(opportunity.id)

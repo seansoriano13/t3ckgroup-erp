@@ -7,7 +7,6 @@ import { opportunityService } from "../../../services/opportunityService";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../context/AuthContext";
 import { usePagedChat } from "../../../hooks/usePagedChat";
-import { confirmActionToast } from "../../ui/CustomToast";
 import { useFileAttachments } from "../../../hooks/useFileAttachments";
 import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { employeeService } from "../../../services/employeeService";
@@ -25,7 +24,6 @@ import {
   isValidSalesReference,
   normalizeSalesReference,
   requiresSalesReference,
-  SALES_REFERENCE_HINT,
 } from "../../../constants/sor";
 import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
@@ -182,7 +180,6 @@ export default function SorModal({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
-  const [fetchingOdoo, setFetchingOdoo] = useState(false);
   const [buildingLink, setBuildingLink] = useState(false);
   const [shareUrl, setShareUrl] = useState(null);
   const [downloadStep, setDownloadStep] = useState(null);
@@ -539,6 +536,30 @@ export default function SorModal({
     };
   }, [isOpen, id, opportunity, user?.id, invalidate]);
 
+  // #817: re-check a Not checked / Found S0 against Odoo once per SOR window, in the background.
+  // Only the Odoo state moves; the card is refreshed after.
+  const hasRechecked = useRef(new Set());
+  useEffect(() => {
+    if (!isOpen || !id || !opportunity?.sales_reference) return;
+    if (hasRechecked.current.has(id)) return;
+    hasRechecked.current.add(id);
+    (async () => {
+      try {
+        const cardKey = ["salesReferenceCard", id];
+        const card = await queryClient.fetchQuery({
+          queryKey: cardKey,
+          queryFn: () => opportunityService.getSalesReferenceCard(id),
+          staleTime: 5000,
+        });
+        if (card?.odoo_state && card.odoo_state !== "found" && card.odoo_state !== "not_checked") return;
+        const result = await opportunityService.recheckSalesReference(id);
+        if (result) queryClient.invalidateQueries({ queryKey: cardKey });
+      } catch (err) {
+        console.error("S0 re-check failed", err);
+      }
+    })();
+  }, [isOpen, id, opportunity?.sales_reference, queryClient]);
+
   // ←/→ step to siblingIds' neighbour, skipped while a text field is focused
   // so it doesn't fight with normal cursor movement while typing.
   useEffect(() => {
@@ -575,24 +596,6 @@ export default function SorModal({
     addNoteMutation.mutate({ content, attachments: uploaded, mentions: noteMentions });
   };
 
-  const executeOdooFetch = async (ref) => {
-    setFetchingOdoo(true);
-    try {
-      const { problem, rows, stock, quotation } = await pullOdooLines(ref);
-      if (problem) {
-        toast.error(problem);
-        return;
-      }
-      setEditForm((f) => ({ ...f, items: rows }));
-      pendingStockRef.current = stock;
-      toast.success(`Pulled ${rows.length} item(s) from ${quotation}.`);
-    } catch (err) {
-      toast.error(err.message || "Could not reach Odoo — enter items manually.");
-    } finally {
-      setFetchingOdoo(false);
-    }
-  };
-
   const handleRefreshStock = async () => {
     const productIds = items.map((it) => it.odoo_product_id).filter((pid) => Number.isInteger(pid));
     if (!productIds.length) {
@@ -613,26 +616,6 @@ export default function SorModal({
       toast.error(err.message || "Could not reach Odoo to refresh stock.");
     } finally {
       setRefreshingStock(false);
-    }
-  };
-
-  const handleFetchFromOdoo = () => {
-    const ref = normalizeSalesReference(editForm.sales_reference);
-    if (!isValidSalesReference(ref)) {
-      toast.error(SALES_REFERENCE_HINT);
-      return;
-    }
-    const hasItems = editForm.items?.some((it) => (it.product_name || "").trim());
-    if (hasItems) {
-      confirmActionToast(
-        "Overwrite Products?",
-        "This replaces the current Product List with the items from Odoo. Continue?",
-        "Continue",
-        "warning",
-        () => executeOdooFetch(ref),
-      );
-    } else {
-      executeOdooFetch(ref);
     }
   };
 
@@ -751,7 +734,6 @@ export default function SorModal({
       date_of_pdi: opportunity.date_of_pdi || "",
       date_of_delivery: opportunity.date_of_delivery || "",
       contact_person: opportunity.contact_person || "",
-      sales_reference: opportunity.sales_reference || "",
       deal_owner_id: opportunity.deal_owner_id || "",
       closing_sales_id: opportunity.closing_sales_id || "",
       sales_director_id: opportunity.sales_director_id || "",
@@ -856,8 +838,6 @@ export default function SorModal({
     handleCopyQuotationLink,
     downloadStep,
     handleDownloadQuotation,
-    fetchingOdoo,
-    handleFetchFromOdoo,
     items,
     itemsLoading,
     autoSyncingOdoo,

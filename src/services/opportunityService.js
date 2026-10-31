@@ -96,7 +96,8 @@ const RECORD_FIELD_WRITERS = {
   client_name: (v) => v,
   contact_person: (v) => v || null,
   project_title: (v) => v,
-  sales_reference: (v) => cleanSalesReference(v),
+  // sales_reference is NOT here (#822): the S0 changes only through setSalesReference. The
+  // database refuses a direct write to the column.
   expected_award_date: (v) => v || null,
   po_date: (v) => v || null,
   // Manila dates (ADR 0039). Open to the Deal Team while blank; a set Date of
@@ -1946,6 +1947,13 @@ export const opportunityService = {
    * registrations cannot collide.
    */
   async createOpportunity(payload, actorId) {
+    // #820: registering runs the same checks as the S0 save step (format, duplicates, Odoo). They
+    // run FIRST, before anything is written, so a refused S0 never leaves a half-registered SOR.
+    // The SOR is then created without its S0 and the S0 goes in through the save step itself
+    // (below), which pulls the products and records the Odoo state.
+    const salesReference = cleanSalesReference(payload.sales_reference);
+    if (salesReference) await opportunityService.checkSalesReference(salesReference);
+
     // Issue #36 — a deal registered against a Sale Type enters that Sale
     // Type's flow at its first Stage. Both columns are set together or neither
     // is (migration 0049's CHECK), because a deal with a Sale Type and no
@@ -1976,7 +1984,8 @@ export const opportunityService = {
           supportSales2Id: payload.support_sales_2_id,
           currentProjectType: payload.project_type,
         }),
-        sales_reference: cleanSalesReference(payload.sales_reference),
+        // The S0 is NOT part of the insert: it goes in through setSalesReference below.
+        sales_reference: null,
         metadata: payload.metadata || null,
         expected_award_date: payload.expected_award_date || null,
         po_date: payload.po_date || null,
@@ -1998,6 +2007,20 @@ export const opportunityService = {
     // items first, then re-read the row to pick up the computed total before
     // it's quoted in the notes below.
     await opportunityService.replaceItems(data.id, payload.items);
+
+    // The S0, through the one save step: Odoo is asked again (the SOR did not exist for the
+    // pre-check), duplicates are refused, and Odoo's product lines replace the form's list. Only a
+    // race can refuse here (someone took the S0 in the last moment); then the new SOR is deleted
+    // the normal way (salespeople may not hard-delete a row) so it is out of every list, and the
+    // refusal is shown.
+    if (salesReference) {
+      try {
+        await opportunityService.setSalesReference(data.id, salesReference);
+      } catch (err) {
+        await opportunityService.deleteOpportunity(data.id, actorId).catch(() => {});
+        throw err;
+      }
+    }
 
     // The flow's custom registration fields, answered on the form that this
     // Sale Type's Flow Snapshot defines. Written separately for the same
@@ -2079,7 +2102,19 @@ export const opportunityService = {
     for (const [key, write] of Object.entries(RECORD_FIELD_WRITERS)) {
       if (has(key)) patch[key] = write(payload[key]);
     }
-    if (has("client_name") || has("sales_reference")) {
+    // The S0 (#822): an unchanged value is ignored (saveOdooLines re-sends it on every sync); a
+    // changed one goes through the save step first, so its checks, lock and history apply and
+    // a refusal stops the whole update.
+    let s0Changed = false;
+    if (has("sales_reference")) {
+      const nextRef = cleanSalesReference(payload.sales_reference);
+      const currentRef = cleanSalesReference(existing.sales_reference);
+      if (nextRef !== currentRef) {
+        await opportunityService.setSalesReference(id, nextRef);
+        s0Changed = true;
+      }
+    }
+    if (has("client_name") || s0Changed) {
       patch.odoo_partner_id = resolveOdooPartner(existing, {
         client_name: existing.client_name,
         ...payload,
@@ -2143,8 +2178,8 @@ export const opportunityService = {
     checkField('contact_person', 'Contact Person');
     checkField('project_title', 'Project');
     checkField('project_type', 'Sales Division');
-    checkField('sales_reference', 'Sales Reference');
-    
+    // Sales Reference: its own history entry comes from the save step (#822).
+
     // Check metadata fields dynamically
     const oldMeta = touched.has("metadata") ? existing.metadata || {} : {};
     const newMeta = touched.has("metadata") ? final.metadata || {} : {};
@@ -2287,7 +2322,9 @@ export const opportunityService = {
    * validation, derived fields and change notes match an edit-form change.
    */
   async saveRecordField(id, column, value, actorId) {
-    if (Object.prototype.hasOwnProperty.call(RECORD_FIELD_WRITERS, column)) {
+    // The S0 is a real column but not in RECORD_FIELD_WRITERS (#822): updateOpportunity sends it
+    // through the save step.
+    if (column === "sales_reference" || Object.prototype.hasOwnProperty.call(RECORD_FIELD_WRITERS, column)) {
       return opportunityService.updateOpportunity(id, { [column]: value }, actorId);
     }
     const { data: fresh, error } = await supabase
@@ -2301,6 +2338,82 @@ export const opportunityService = {
       { metadata: { ...(fresh?.metadata || {}), [column]: value } },
       actorId,
     );
+  },
+
+  /**
+   * What the S0 card shows (#815): the S0, its lock, the first Stage's name, whether the caller may
+   * change it now, the Odoo state and last read, and the product count.
+   */
+  async getSalesReferenceCard(id) {
+    const { data, error } = await supabase.rpc("sales_reference_card", { p_opportunity_id: id });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * What saving this S0 (or clearing it, `salesReference` empty) would do to the products (#818):
+   * `{ removed_products, requested_items, tender_lines }`, or null when Odoo could not be asked, in
+   * which case the save goes ahead without a preview. Read-only.
+   */
+  async previewSalesReferenceChange(id, salesReference) {
+    const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+      body: { action: "preview", opportunityId: id, salesReference: salesReference || null },
+    });
+    if (error || !data?.success) return null;
+    return data.preview || null;
+  },
+
+  /**
+   * Re-checks the SOR's current S0 against Odoo (#817), in the background when the SOR opens. Only
+   * the Odoo state moves (found, or gone with one history entry). Never throws: a failed re-check
+   * leaves the card as it was.
+   */
+  async recheckSalesReference(id) {
+    try {
+      const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+        body: { action: "recheck", opportunityId: id },
+      });
+      if (error || !data?.success) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Registration's pre-flight (#820): the save step's checks (format, duplicates, Odoo) without
+   * saving, because the SOR does not exist yet. Throws the refusal (message and `hint`); an Odoo
+   * outage is not a refusal (the S0 registers as Not checked).
+   */
+  async checkSalesReference(salesReference) {
+    const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+      body: { action: "check", salesReference: salesReference || null },
+    });
+    if (error) throw new Error(error.message || "The S0 could not be checked.");
+    if (!data?.success) {
+      const refusal = new Error(data?.message || "The S0 could not be checked.");
+      refusal.hint = data?.hint;
+      throw refusal;
+    }
+    return data;
+  },
+
+  /**
+   * The one way the S0 changes after registration (#815): set, change or clear (`salesReference`
+   * empty). The edge function checks Odoo and calls the database function as the caller. A refusal
+   * (format, lock, duplicate, ...) throws an Error carrying the text to show and a `hint` code.
+   */
+  async setSalesReference(id, salesReference, reason = null) {
+    const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+      body: { opportunityId: id, salesReference: salesReference || null, reason: reason || null },
+    });
+    if (error) throw new Error(error.message || "The S0 could not be saved.");
+    if (!data?.success) {
+      const refusal = new Error(data?.message || "The S0 could not be saved.");
+      refusal.hint = data?.hint;
+      throw refusal;
+    }
+    return data;
   },
 
   /**
@@ -2378,8 +2491,11 @@ export const opportunityService = {
       status: nextStatus,
       lost_reason: isLostCode(nextStatus) ? lostReason : null,
     };
-    const recordsRef = providedRef && providedRef !== existing.sales_reference;
-    if (recordsRef) patch.sales_reference = providedRef;
+    // The S0 goes through the save step BEFORE the move (#822): the database refuses a direct
+    // write, and the save step writes its own history entry (SALES_REFERENCE_SET).
+    if (providedRef && providedRef !== existing.sales_reference) {
+      await opportunityService.setSalesReference(id, providedRef);
+    }
     if (existing.sale_type_id) patch.flow_stage_id = await legacyFlowStageFor(existing.sale_type_id, nextStatus);
 
     // Contract Date anchors which dated Commission Rate applies to this
@@ -2401,23 +2517,6 @@ export const opportunityService = {
       .single();
 
     if (error) throw error;
-
-    if (recordsRef) {
-      await opportunityService.addSystemNote(
-        id,
-        `Sales Reference recorded: ${providedRef}`,
-        { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
-        actorId,
-      );
-
-      systemAuditLogService.addSystemEvent(
-        "OPPORTUNITY",
-        id,
-        `${auditLabel(existing)}: Sales Reference recorded as ${providedRef}.`,
-        { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
-        actorId,
-      ).catch(console.error);
-    }
 
     const from = STAGE_LABELS[existing.status] || existing.status;
     const to = STAGE_LABELS[nextStatus] || nextStatus;
@@ -2795,51 +2894,19 @@ export const opportunityService = {
   /**
    * Restores a deleted SOR — a Super Admin or its own Deal Owner. Clears the
    * flag and its deletion stamp. A Purchase Request is untouched by either
-   * delete or restore.
+   * delete or restore. Goes through `restore_opportunity` (#819), which also
+   * refuses when another SOR now uses this SOR's S0; the refusal text names
+   * that SOR and is thrown as the Error message (`hint` is "duplicate").
+   * `actorId` is unused: the database knows the caller.
    */
+  // eslint-disable-next-line no-unused-vars
   async restoreOpportunity(id, actorId) {
-    const { data: existing, error: readError } = await supabase
-      .from("sales_opportunities")
-      .select("id, client_name, sales_reference, deal_owner_id")
-      .eq("id", id)
-      .single();
-    if (readError) throw readError;
-
-    const { data: actor, error: actorError } = await supabase
-      .from("employees")
-      .select("id, is_super_admin")
-      .eq("id", actorId)
-      .maybeSingle();
-    if (actorError) throw actorError;
-
-    const allowed = actor?.is_super_admin || existing.deal_owner_id === actorId;
-    if (!allowed) {
-      throw new Error("Only a Super Admin or this SOR's Deal Owner can restore it.");
+    const { data, error } = await supabase.rpc("restore_opportunity", { p_opportunity_id: id });
+    if (error) {
+      const refusal = new Error(error.message || "The SOR could not be restored.");
+      refusal.hint = error.hint;
+      throw refusal;
     }
-
-    const { data, error } = await supabase
-      .from("sales_opportunities")
-      .update({ is_deleted: false, deleted_at: null, deleted_by: null })
-      .eq("id", id)
-      .select(PARTICIPANT_SELECT)
-      .single();
-    if (error) throw error;
-
-    await opportunityService.addSystemNote(
-      id,
-      "SOR restored from Deleted.",
-      { event: "OPPORTUNITY_RESTORED", employeeId: actorId },
-      actorId,
-    );
-
-    systemAuditLogService.addSystemEvent(
-      "OPPORTUNITY",
-      id,
-      `${auditLabel(existing)} restored.`,
-      { event: "OPPORTUNITY_RESTORED", employeeId: actorId },
-      actorId,
-    ).catch(console.error);
-
     return data;
   },
 

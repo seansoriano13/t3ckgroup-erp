@@ -272,6 +272,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                 tickDisabled={satisfyMutation.isPending}
                 fieldValue={fieldValues[condition.id]}
                 savingField={savingField === condition.id}
+                onFieldSaved={onChanged}
                 onFieldChange={(val) => setFieldValues((p) => ({ ...p, [condition.id]: val }))}
                 onSaveField={
                   onSaveField && opportunityService.isChecklistWritableField(condition.config?.column)

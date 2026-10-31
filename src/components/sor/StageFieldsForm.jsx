@@ -9,6 +9,7 @@ import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
+import SalesReferenceStageField, { SALES_REFERENCE_COLUMN } from "./SalesReferenceStageField";
 
 /**
  * A Stage's own small form, under its checklist — never checklist rows
@@ -123,7 +124,14 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                     </p>
                   )}
                   <div className="flex items-center gap-2 max-w-sm">
-                    {field.source === "custom" && field.field_type === "choice" ? (
+                    {isSor && field.sor_field === SALES_REFERENCE_COLUMN ? (
+                      <SalesReferenceStageField
+                        opportunityId={opportunityId}
+                        value={opportunity?.sales_reference || ""}
+                        readOnly={!onSaveField}
+                        onSaved={() => onChanged?.()}
+                      />
+                    ) : field.source === "custom" && field.field_type === "choice" ? (
                       <SelectField
                         aria-label={field.label}
                         value={value}
@@ -150,6 +158,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                         containerClassName="flex w-full" className="h-8 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
                       />
                     )}
+                    {!(isSor && field.sor_field === SALES_REFERENCE_COLUMN) && (
                     <Button
                       type="button"
                       disabled={isSaving || !value}
@@ -158,6 +167,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                     >
                       {isSaving ? "…" : "Save"}
                     </Button>
+                    )}
                   </div>
                 </>
               )}
