@@ -203,7 +203,7 @@ function MarkupCells({ line, kid, figures, tier, canMarkup, onSaveFactor }) {
   );
 }
 
-export default function CostingSheet({ matrix, opportunity, writes, canWrite, onOpenLine }) {
+export default function CostingSheet({ matrix, opportunity, writes, canWrite, onOpenLine, onVerdict, onVerdictSettled }) {
   const { user } = useAuth();
   const myTeams = useMyEvaluationTeams(user?.id ?? null);
   const lines = matrix.tenderLines;
@@ -464,7 +464,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                   {showLanded && <LandedCell line={line} addons={addons} />}
                   {showSuggested && <MarkupCells line={line} kid={kid} figures={figures} tier={matrix.tier} canMarkup={canMarkup} onSaveFactor={saveFactor(line)} />}
                   <TableCell className={cn(CELL, "min-w-[12rem] max-w-[16rem] border-r-0")}>
-                    <ComplianceColumn line={line} myTeams={myTeams} canSetTeam={canWrite} onChanged={writes.refresh} />
+                    <ComplianceColumn line={line} myTeams={myTeams} canSetTeam={canWrite} onChanged={writes.refresh} onVerdict={onVerdict} onVerdictSettled={onVerdictSettled} />
                   </TableCell>
                 </TableRow>
               );

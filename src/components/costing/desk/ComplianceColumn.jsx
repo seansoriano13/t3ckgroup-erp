@@ -15,7 +15,7 @@ import { lineVerdict } from "../../../utils/costingVerdict";
 const NO_TEAM = "__none__";
 const TEAM_OPTIONS = [{ value: NO_TEAM, label: "No team" }, ...EVALUATION_TEAMS.map((team) => ({ value: team, label: team }))];
 
-export default function ComplianceColumn({ line, myTeams, canSetTeam, onChanged }) {
+export default function ComplianceColumn({ line, myTeams, canSetTeam, onChanged, onVerdict, onVerdictSettled }) {
   const team = line.evaluating_team ?? null;
   const mayMark = team !== null && myTeams.includes(team);
   const parts = line.components ?? [];
@@ -36,7 +36,7 @@ export default function ComplianceColumn({ line, myTeams, canSetTeam, onChanged 
 
       {mayMark && parts.length > 0 ? (
         parts.map((part, index) => (
-          <ComplianceCell key={part.id} component={part} number={parts.length > 1 ? `${line.number}.${index + 1}` : `${line.number}`} readOnly={false} onChanged={onChanged} />
+          <ComplianceCell key={part.id} component={part} number={parts.length > 1 ? `${line.number}.${index + 1}` : `${line.number}`} readOnly={false} onChanged={onChanged} onVerdict={onVerdict} onVerdictSettled={onVerdictSettled} />
         ))
       ) : (
         <>

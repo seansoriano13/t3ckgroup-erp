@@ -11,6 +11,7 @@ import { costingMatrixService, requestsByComponent } from "../../../services/cos
 import { canvassService } from "../../../services/canvassService";
 import { opportunityService } from "../../../services/opportunityService";
 import { COMPONENT_BANDS, COSTING_BAND, inAnyBand, tierReads, tierReadsBidDecision, tierReadsCost } from "../../../constants/costing";
+import { complianceRollup } from "../../../utils/costingMath";
 import { matrixPlay } from "../../../utils/costingPlayground";
 import { useAuth } from "../../../context/AuthContext";
 import { useCostingMatrix } from "../useCostingMatrix";
@@ -40,6 +41,17 @@ function lineBadge(line, { showAbc, showOffer, showCost }) {
   if (showOffer && line.final_offer_unit == null) return { label: "No offer", theme: "amber" };
   if (showOffer && line.totals.overAbc) return { label: "Over ABC", theme: "red" };
   return null;
+}
+
+/** The matrix with the verdicts in `verdicts` (component id to verdict, null for none) laid over its Components, and the compliance roll-up recounted. */
+function withVerdicts(matrix, verdicts) {
+  if (!matrix || Object.keys(verdicts).length === 0) return matrix;
+  const tenderLines = matrix.tenderLines.map((line) =>
+    line.components?.some((part) => part.id in verdicts)
+      ? { ...line, components: line.components.map((part) => (part.id in verdicts ? { ...part, compliance: verdicts[part.id] } : part)) }
+      : line,
+  );
+  return { ...matrix, tenderLines, compliance: complianceRollup(tenderLines.flatMap((line) => line.components ?? [])) };
 }
 
 /**
@@ -87,7 +99,17 @@ function useFill(matrix, opportunityId, writes) {
 export default function CostingDesk({ opportunityId, opportunity }) {
   const { user } = useAuth();
   const actorId = user?.id ?? null;
-  const { data: matrix, isLoading, isError, error } = useCostingMatrix(opportunityId);
+  const { data: fetched, isLoading, isError, error } = useCostingMatrix(opportunityId);
+  // Verdicts just chosen in a Compliance dropdown, shown before the refetch lands. One overlay, so the
+  // sheet's Judged count and the Evaluation bar read the same roll-up.
+  const [verdicts, setVerdicts] = useState({});
+  const showVerdict = (id, verdict) => setVerdicts((current) => ({ ...current, [id]: verdict }));
+  const dropVerdict = (id) =>
+    setVerdicts((current) => {
+      const { [id]: _settled, ...rest } = current;
+      return rest;
+    });
+  const matrix = withVerdicts(fetched, verdicts);
   const writes = useCostingWrites(opportunityId);
   const incharge = useInchargeOptions(opportunity);
   const { canFill, fill, odooNote } = useFill(matrix, opportunityId, writes);
@@ -233,7 +255,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
 
           <section className="space-y-3">
             <h3 className="text-sm font-bold text-foreground">Lines · {lines.length}</h3>
-            <CostingSheet matrix={matrix} opportunity={opportunity} writes={writes} canWrite={canWrite} onOpenLine={setOpenLineId} />
+            <CostingSheet matrix={matrix} opportunity={opportunity} writes={writes} canWrite={canWrite} onOpenLine={setOpenLineId} onVerdict={showVerdict} onVerdictSettled={dropVerdict} />
             {canWrite && (
               <Button type="button" variant="outline" size="sm" disabled={writes.busy} onClick={() => writes.run(() => costingMatrixService.addTenderLine(matrix.matrixId, {}, actorId))}>
                 <Plus size={14} aria-hidden="true" />

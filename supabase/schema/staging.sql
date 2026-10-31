@@ -18638,7 +18638,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.packing_list_sor_products(p_opportunity_id uuid)
- RETURNS TABLE(id uuid, product_name text, quantity numeric, unit text)
+ RETURNS TABLE(id uuid, product_name text, quantity numeric, unit text, on_hand boolean)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -18651,7 +18651,11 @@ begin
     raise exception 'packing_list_sor_products: only Purchasing or the Warehouse list packs an SOR' using errcode = '42501';
   end if;
   return query
-    select i.id, i.product_name, i.quantity, i.unit
+    select i.id, i.product_name, i.quantity, i.unit,
+           exists (
+             select 1 from public.purchase_request_items r
+              where r.sor_item_id = i.id and r.status in ('received', 'available')
+           ) as on_hand
       from public.sales_opportunity_items i
      where i.opportunity_id = p_opportunity_id
      order by i.sort_order, i.created_at;
