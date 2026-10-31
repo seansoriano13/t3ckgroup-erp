@@ -5,12 +5,11 @@
  * Odoo edge function is stubbed.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 
 import { renderWithProviders } from "../../../test/support"
 import { stubEdgeFunction } from "../../../test/msw/server"
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "../../../test/factories"
-import { opportunityService } from "../../../services/opportunityService"
 import OpportunityDetailsModal from "../OpportunityDetailsModal"
 
 let authUser

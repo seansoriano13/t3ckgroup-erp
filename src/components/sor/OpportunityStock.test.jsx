@@ -15,7 +15,7 @@ import { describe, it, expect, vi } from "vitest"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 
 import { renderWithProviders } from "../../test/support"
-import { stubEdgeFunction, stubRpc } from "../../test/msw/server"
+import { stubEdgeFunction } from "../../test/msw/server"
 import { waitForNetworkIdle } from "../../test/network"
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "../../test/factories"
 import { opportunityService } from "../../services/opportunityService"

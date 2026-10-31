@@ -31,7 +31,7 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
  * counts, e.g. "12 products will be marked Removed from S0. 5 Requested Items and 3 Tender Lines
  * stay on them." Returns null when all are zero.
  */
-export function previewMessage(preview) {
+function previewMessage(preview) {
   const removed = preview?.removed_products || 0;
   const requested = preview?.requested_items || 0;
   const tender = preview?.tender_lines || 0;
