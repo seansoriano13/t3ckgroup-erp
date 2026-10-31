@@ -429,7 +429,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="5.1"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">5.1</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
-      <div class="row do"><b>Do</b><div>Move <b>SO Evaluation → PMS Sourcing GS</b>. Fill Brochure From Client and Project GS (see the moves table). The Project flow can ask for more required fields than the table lists; the move names each one it still needs, so fill those with sample text too.</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>SO Evaluation → PMS Sourcing GS</b>. Fill Brochure From Client and Project GS (see the moves table). The S0 Evaluation stage needs both attachments, so the move to PMS Sourcing GS names them if one is missing. The Project flow can ask for more required fields than the table lists; the move names each one it still needs, so fill those with sample text too.</div></div>
       <div class="row see"><b>See</b><div>It goes through. No purchasing gate sits on SO Evaluation.</div></div>
     </li>
     <li data-k="5.2"><input type="checkbox" aria-label="Done">
@@ -461,8 +461,8 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="5.6"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">5.6</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
-      <div class="row do"><b>Do</b><div>Move <b>PMS Sourcing GS → Proposal Submitted</b>. Fill Brochure From Supplier, and any other required field the move names. If it asks for the <b>PRICE SCHEDULE / PRICE OFFER</b>, upload the demo PDF (the moves table has it again at Bid Submitted).</div></div>
-      <div class="row see"><b>See</b><div>It goes through, because Costing priced is met.</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>PMS Sourcing GS → Proposal Submitted</b>. Fill Brochure From Supplier (PMS Sourcing GS also needs it), and any other required field the move names. If it asks for the <b>PRICE SCHEDULE / PRICE OFFER</b>, upload the demo PDF (the moves table has it again at Bid Submitted).</div></div>
+      <div class="row see"><b>See</b><div>It goes through, because Costing priced is met. Later, at For Bidding, "Costing settled" is not the only block: the move also asks for the <b>PRICE SCHEDULE / PRICE OFFER</b> attachment and the fields <b>Purchasing involved</b> and <b>Logistics Representative</b>.</div></div>
       <div class="row say"><b>Say</b><div>This is the first gate. Purchasing must have costed every row and a Purchasing Incharge must be named, or Sales cannot submit a proposal.</div></div>
     </li>
     <li data-k="5.7"><input type="checkbox" aria-label="Done">
@@ -549,8 +549,8 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="7.1"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">7.1</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
-      <div class="row do"><b>Do</b><div>Move <b>NTP → CA/PO</b> (upload NTP), then <b>CA/PO → Project Delivery</b>.</div></div>
-      <div class="row see"><b>See</b><div>A draft Packing List is started and the Warehouse is told to pack.</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>NTP → CA/PO</b> (upload NTP), then <b>CA/PO → Project Delivery</b>. The move asks "Move back to Project Delivery?" with <b>Resume previous work</b> or <b>Start fresh</b>. Choose <b>Start fresh</b>.</div></div>
+      <div class="row see"><b>See</b><div>With Start fresh, a draft Packing List is started and the Warehouse is told to pack.</div></div>
     </li>
     <li data-k="7.2"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">7.2</span><span class="seat s-buy">Purchasing</span></div>
@@ -696,7 +696,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="C.1" data-opt><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">C.1</span><span class="seat s-wh">sherwin</span></div>
       <div class="row do"><b>Do</b><div>Before 5.2, look at a row's Compliance.</div></div>
-      <div class="row see"><b>See</b><div>Only a "Not inspected" badge, with no buttons. A row with no team cannot be marked by anyone.</div></div>
+      <div class="row see"><b>See</b><div>A row with no team shows "NO TEAM" and "NOT JUDGED" chips and no dropdown at all, so nobody can try to mark it. It is not a refusal; the control is simply missing.</div></div>
     </li>
     <li data-k="C.2" data-opt><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">C.2</span><span class="seat s-sign">101</span></div>
