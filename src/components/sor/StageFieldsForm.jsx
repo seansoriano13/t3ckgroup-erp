@@ -128,6 +128,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                       <SalesReferenceStageField
                         opportunityId={opportunityId}
                         value={opportunity?.sales_reference || ""}
+                        readOnly={!onSaveField}
                         onSaved={() => onChanged?.()}
                       />
                     ) : field.source === "custom" && field.field_type === "choice" ? (

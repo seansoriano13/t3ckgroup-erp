@@ -22143,8 +22143,10 @@ begin
     end if;
   end if;
 
-  -- 4. Duplicates: any other SOR that is not deleted (Lost included). No bypass.
+  -- 4. Duplicates: any other SOR that is not deleted (Lost included). No bypass. The lock on the
+  -- S0 value makes a second save of the same S0 wait for the first, then see its row.
   if v_new is not null then
+    perform pg_advisory_xact_lock(hashtext('sales_reference:' || v_new));
     select o.id, o.project_title, o.client_name into v_other
       from public.sales_opportunities o
       where o.sales_reference = v_new
@@ -22190,6 +22192,14 @@ begin
   -- The Odoo lines, through the line-matching save (ADR 0041), when the edge function sent them.
   if p_items is not null then
     perform public.sor_replace_items(v_opp.id, p_items);
+  elsif v_new is null or p_odoo = 'found' then
+    -- Cleared, or an S0 Odoo has with no lines: the old S0's products are kept and marked, as
+    -- the change preview (#818) says. Hand-typed lines stay.
+    update public.sales_opportunity_items i
+       set removed_from_s0 = true
+     where i.opportunity_id = v_opp.id
+       and i.odoo_line_id is not null
+       and not i.removed_from_s0;
   end if;
 
   v_content := case v_event
@@ -23190,16 +23200,37 @@ AS $function$
 declare
   v_old text;
   v_new text := nullif(btrim(upper(coalesce(NEW.sales_reference, ''))), '');
+  v_other record;
 begin
-  if coalesce(current_setting('app.sor_set_sales_reference', true), '') = 'on' then
+  -- Only browser callers are judged. service_role (the edge functions) and direct database
+  -- connections carry no 'authenticated' / 'anon' request role.
+  if coalesce(auth.role(), '') not in ('authenticated', 'anon') then
     return NEW;
   end if;
-  if auth.role() = 'service_role' or auth.uid() is null then
+
+  -- Bringing back a deleted SOR whose S0 another live SOR now has (#819), however it is written.
+  if TG_OP = 'UPDATE' and coalesce(OLD.is_deleted, false) and not coalesce(NEW.is_deleted, false)
+     and v_new is not null then
+    select o.project_title, o.client_name into v_other
+      from public.sales_opportunities o
+      where o.sales_reference = v_new
+        and o.id <> NEW.id
+        and coalesce(o.is_deleted, false) = false
+      order by o.created_at
+      limit 1;
+    if found then
+      raise exception '% is now on SOR "%" (%). Change one S0 before restoring.',
+        v_new, v_other.project_title, v_other.client_name
+        using errcode = '23505', hint = 'duplicate';
+    end if;
+  end if;
+
+  if coalesce(current_setting('app.sor_set_sales_reference', true), '') = 'on' then
     return NEW;
   end if;
 
   if TG_OP = 'INSERT' then
-    if v_new is not null then
+    if v_new is not null or NEW.sales_reference_odoo_state is not null or NEW.sales_reference_checked_at is not null then
       raise exception 'The S0 is set from the S0 card, not when a row is written directly.'
         using errcode = '42501', hint = 'sales_reference_direct_write';
     end if;
@@ -23207,7 +23238,9 @@ begin
   end if;
 
   v_old := nullif(btrim(upper(coalesce(OLD.sales_reference, ''))), '');
-  if v_new is distinct from v_old then
+  if v_new is distinct from v_old
+     or NEW.sales_reference_odoo_state is distinct from OLD.sales_reference_odoo_state
+     or NEW.sales_reference_checked_at is distinct from OLD.sales_reference_checked_at then
     raise exception 'The S0 can only be changed from the S0 card.'
       using errcode = '42501', hint = 'sales_reference_direct_write';
   end if;
@@ -28028,7 +28061,7 @@ CREATE TRIGGER sor_stage_visits_on_insert AFTER INSERT ON public.sales_opportuni
 CREATE TRIGGER sor_stage_visits_on_stage_change AFTER UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION record_stage_visit();
 CREATE TRIGGER trg_sales_opportunities_guard BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_guard();
 CREATE TRIGGER trg_sales_opportunities_require_sales_ref BEFORE INSERT OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_require_sales_ref();
-CREATE TRIGGER trg_sales_opportunities_s0_guard BEFORE INSERT OR UPDATE OF sales_reference ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_sales_reference();
+CREATE TRIGGER trg_sales_opportunities_s0_guard BEFORE INSERT OR UPDATE OF sales_reference, sales_reference_odoo_state, sales_reference_checked_at, is_deleted ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_sales_reference();
 CREATE TRIGGER trg_sales_opportunity_items_touch BEFORE UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sales_opportunity_items_touch();
 CREATE TRIGGER trg_sor_items_recalc AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sor_recalc_expected_value();
 CREATE TRIGGER trg_sor_line_sync_request_item AFTER INSERT OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION trg_sor_line_sync_request_item();

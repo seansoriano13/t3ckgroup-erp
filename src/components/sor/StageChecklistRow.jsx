@@ -197,6 +197,7 @@ export default function StageChecklistRow({
                 <SalesReferenceStageField
                   opportunityId={opportunity.id}
                   value={opportunity.sales_reference || ""}
+                  readOnly={!onSaveField}
                   onSaved={onFieldSaved}
                 />
               )}

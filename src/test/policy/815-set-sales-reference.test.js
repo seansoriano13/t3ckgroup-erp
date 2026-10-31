@@ -340,6 +340,31 @@ describe("pulling products in the same step (#816)", () => {
         expect(error?.hint).toBe("duplicate")
         expect(await itemsOf(sor)).toEqual([])
     })
+
+    it("marks the old S0's products Removed from S0 on a clear, as the preview says, and keeps hand-typed lines", async () => {
+        const sor = await flowDeal("first")
+        expect((await save("dealOwner", sor, s0(), { odoo: "found", items: [odooRow(710005, "Pump")] })).error).toBeNull()
+        await ok(svc().from("sales_opportunity_items").insert({ opportunity_id: sor, product_name: "Typed", unit: "Unit", quantity: 1, unit_price: 1 }), "typed line")
+
+        expect((await save("dealOwner", sor, null)).error).toBeNull()
+        const items = await itemsOf(sor)
+        expect(items.find((i) => i.product_name === "Pump").removed_from_s0).toBe(true)
+        expect(items.find((i) => i.product_name === "Typed").removed_from_s0).toBe(false)
+    })
+
+    it("marks the old products Removed from S0 when Odoo has the new S0 with no lines", async () => {
+        const sor = await flowDeal("first")
+        expect((await save("dealOwner", sor, s0(), { odoo: "found", items: [odooRow(710006, "Pump")] })).error).toBeNull()
+        expect((await save("dealOwner", sor, s0(), { odoo: "found" })).error).toBeNull()
+        expect((await itemsOf(sor)).map((i) => i.removed_from_s0)).toEqual([true])
+    })
+
+    it("leaves the products alone on a change Odoo did not answer", async () => {
+        const sor = await flowDeal("first")
+        expect((await save("dealOwner", sor, s0(), { odoo: "found", items: [odooRow(710007, "Pump")] })).error).toBeNull()
+        expect((await save("dealOwner", sor, s0(), { odoo: "unreachable" })).error).toBeNull()
+        expect((await itemsOf(sor)).map((i) => i.removed_from_s0)).toEqual([false])
+    })
 })
 
 describe("history", () => {

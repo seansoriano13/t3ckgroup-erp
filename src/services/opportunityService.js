@@ -2010,13 +2010,14 @@ export const opportunityService = {
 
     // The S0, through the one save step: Odoo is asked again (the SOR did not exist for the
     // pre-check), duplicates are refused, and Odoo's product lines replace the form's list. Only a
-    // race can refuse here (someone took the S0 in the last moment); then the new SOR is taken
-    // back out so nothing half-registered is left, and the refusal is shown.
+    // race can refuse here (someone took the S0 in the last moment); then the new SOR is deleted
+    // the normal way (salespeople may not hard-delete a row) so it is out of every list, and the
+    // refusal is shown.
     if (salesReference) {
       try {
         await opportunityService.setSalesReference(data.id, salesReference);
       } catch (err) {
-        await supabase.from("sales_opportunities").delete().eq("id", data.id);
+        await opportunityService.deleteOpportunity(data.id, actorId).catch(() => {});
         throw err;
       }
     }

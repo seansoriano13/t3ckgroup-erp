@@ -1,6 +1,21 @@
 [
     {
         "date": "2026-10-31",
+        "title": "One place for the S0",
+        "version": "1.9.79",
+        "changes": [
+            "Each SOR now shows its S0 in a card at the top of the window, with an Edit button while it can still change.",
+            "In the deal's first Stage you can change or clear the S0 freely. After that it can be filled once if it is empty, and then it is locked. Only a Super Admin can change a locked S0, and they must say why.",
+            "Saving an S0 checks it in Odoo and brings in its products at the same time, so the separate Fetch from Odoo buttons are gone. If Odoo does not answer, the S0 is saved as Not checked.",
+            "An S0 already used by another SOR is refused, and the message names that SOR. SORs that already share an S0 get a red Duplicate badge.",
+            "Before you change or clear an S0, you are told how many products will be marked Removed from S0, and how many Requested Items and Tender Lines sit on them.",
+            "When you open an SOR, its S0 is checked in Odoo again. If Odoo no longer has it, the card shows Gone from Odoo.",
+            "Registering an SOR and the Sales Reference Stage Field run the same checks as the S0 card. Restoring a deleted SOR is refused if its S0 is now on another SOR.",
+            "Every S0 set, change, clear and override is written in the deal's history, with who, when, the old and new S0, and the reason."
+        ]
+    },
+    {
+        "date": "2026-10-31",
         "title": "Attach a P0 to more items, with the right lines",
         "version": "1.9.78",
         "changes": [

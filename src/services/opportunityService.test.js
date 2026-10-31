@@ -241,8 +241,9 @@ describe("opportunityService", () => {
         expect(calls[0]).toMatchObject({ opportunityId: created.id, salesReference: "S01237" })
       })
 
-      it("takes the new SOR back out when the save step refuses after the check (a race)", async () => {
-        const before = sorCount()
+      it("deletes the new SOR when the save step refuses after the check (a race)", async () => {
+        const live = () => db.internal.rowsOf("sales_opportunities").filter((r) => !r.is_deleted).length
+        const before = live()
         stubEdgeFunction("sor-sales-reference", (body) =>
           body.action === "check"
             ? { success: true, sales_reference: "S01237", odoo_state: "not_checked" }
@@ -252,7 +253,9 @@ describe("opportunityService", () => {
         await expect(
           opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
         ).rejects.toMatchObject({ hint: "duplicate" })
-        expect(sorCount()).toBe(before)
+        expect(live()).toBe(before)
+        const created = db.internal.rowsOf("sales_opportunities").find((r) => r.is_deleted && r.deleted_by === registrar.id)
+        expect(created).toBeTruthy()
       })
 
       it("makes no S0 call at all when the form has none", async () => {

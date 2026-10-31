@@ -116,6 +116,29 @@ describe("direct writes are refused", () => {
         expect(error?.message).toMatch(/S0 card/i)
     })
 
+    it("refuses a direct write of the Odoo state or the time it was read", async () => {
+        const owner = await clientFor("dealOwner")
+        const id = await deal({ salesReference: s0() })
+        const state = await owner.from("sales_opportunities").update({ sales_reference_odoo_state: "found" }).eq("id", id).select("id")
+        expect(state.error?.message).toMatch(/S0 card/i)
+        const read = await owner.from("sales_opportunities").update({ sales_reference_checked_at: new Date().toISOString() }).eq("id", id).select("id")
+        expect(read.error?.message).toMatch(/S0 card/i)
+        const insert = await directInsert(owner, { sales_reference_odoo_state: "found" })
+        if (insert.data?.length) sorIds.push(...insert.data.map((r) => r.id))
+        expect(insert.error?.message).toMatch(/S0 card/i)
+    })
+
+    it("refuses bringing back a deleted SOR directly when another SOR now has its S0", async () => {
+        const admin = await clientFor("superAdmin")
+        const held = s0()
+        const gone = await deal({ salesReference: held })
+        await ok(svc().from("sales_opportunities").update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq("id", gone), "delete")
+        await deal({ salesReference: held })
+        const { error } = await admin.from("sales_opportunities").update({ is_deleted: false, deleted_at: null }).eq("id", gone).select("id")
+        expect(error?.hint).toBe("duplicate")
+        expect((await ok(svc().from("sales_opportunities").select("is_deleted").eq("id", gone).single(), "row")).is_deleted).toBe(true)
+    })
+
     it("allows writing the same S0 back, and other columns", async () => {
         const owner = await clientFor("dealOwner")
         const held = s0()
