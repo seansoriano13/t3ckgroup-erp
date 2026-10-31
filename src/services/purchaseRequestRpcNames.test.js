@@ -16,7 +16,7 @@ describe("purchaseRequestService — RPC names", () => {
     purchase_request_actor_side: "purchasing",
     purchase_request_can_add_substitute: true,
     purchase_request_set_item_status: { id: "item-1" },
-    purchase_request_item_po_lines: [7],
+    purchase_request_item_po_line_rows: [{ line_id: 7 }],
     purchase_request_pick_po_lines: { id: "item-1" },
     purchase_request_take: { id: "r1" },
     purchase_request_set_buyer: { id: "r1" },
@@ -38,7 +38,7 @@ describe("purchaseRequestService — RPC names", () => {
     await purchaseRequestService.itemActor("r1")
     await purchaseRequestService.setItemStatus("item-1", "to_purchase")
     await purchaseRequestService.cancelItem("item-1")
-    await purchaseRequestService.poLines("item-1")
+    await purchaseRequestService.poLineRows("item-1")
     await purchaseRequestService.pickPoLines("item-1", [7])
     await purchaseRequestService.take("r1")
     await purchaseRequestService.setBuyer("r1", null)
