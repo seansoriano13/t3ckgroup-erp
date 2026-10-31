@@ -9,6 +9,7 @@ import { acceptsLabel } from "../../utils/attachments";
 import { resolvePeople } from "../../utils/resolvePeople";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
+import SalesReferenceStageField, { SALES_REFERENCE_COLUMN } from "./SalesReferenceStageField";
 
 /** PO Date and Expected Award Date are dates; every other writable field is text. */
 const DATE_FIELDS = new Set(["po_date", "expected_award_date"]);
@@ -69,6 +70,7 @@ export default function StageChecklistRow({
   onFieldChange,
   onSaveField,
   savingField = false,
+  onFieldSaved,
   // Tickbox
   onTick,
   tickDisabled = false,
@@ -188,7 +190,19 @@ export default function StageChecklistRow({
 
             <ConditionBasis label={condition.label} basis={detail?.basis} />
 
-            {condition.kind === CONDITION_KINDS.FIELD && onSaveField && (
+            {condition.kind === CONDITION_KINDS.FIELD &&
+              condition.config?.column === SALES_REFERENCE_COLUMN &&
+              opportunity?.id &&
+              !isPreview && (
+                <SalesReferenceStageField
+                  opportunityId={opportunity.id}
+                  value={opportunity.sales_reference || ""}
+                  onSaved={onFieldSaved}
+                />
+              )}
+
+            {condition.kind === CONDITION_KINDS.FIELD && onSaveField &&
+              !(condition.config?.column === SALES_REFERENCE_COLUMN && opportunity?.id && !isPreview) && (
               <div className="flex items-center gap-2 max-w-[240px]">
                 <Input
                   type={DATE_FIELDS.has(condition.config?.column) ? "date" : "text"}
