@@ -531,16 +531,49 @@ describe("opportunityService", () => {
       expect(notes.at(-1).content).toBe("Stage moved: Lead → Closed Lost — Lost on price")
     })
 
-    it("records the sales reference separately from the stage move", async () => {
+    it("saves the sales reference through the save step, then moves (#822)", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
+      const calls = stubSalesReferenceSave()
 
       await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" })
 
+      // The S0 is not written by the move: the save step does it (and writes its own history).
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ opportunityId: lead.id, salesReference: "S01237" })
       const notes = await opportunityService.getNotes(lead.id)
-      expect(notes.map((n) => n.content)).toEqual([
-        "Sales Reference recorded: S01237",
-        "Stage moved: Lead → Proposal Submitted",
-      ])
+      expect(notes.map((n) => n.content)).toEqual(["Stage moved: Lead → Proposal Submitted"])
+    })
+
+    it("stops the move when the save step refuses the S0 (#822)", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id })
+      stubSalesReferenceSave({ refuse: { message: "S01237 is already on SOR \"Other\".", hint: "duplicate" } })
+
+      await expect(
+        opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" }),
+      ).rejects.toThrow(/already on SOR/)
+      expect((await opportunityService.getOpportunityById(lead.id)).status).toBe("LEAD")
+    })
+
+    it("ignores an unchanged S0 in a general update and routes a changed one (#822)", async () => {
+      const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      const calls = stubSalesReferenceSave()
+
+      await opportunityService.updateOpportunity(deal.id, { sales_reference: "s00999", contact_person: "Ana" }, registrar.id)
+      expect(calls).toHaveLength(0)
+
+      await opportunityService.updateOpportunity(deal.id, { sales_reference: "S01234" }, registrar.id)
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ opportunityId: deal.id, salesReference: "S01234" })
+    })
+
+    it("saves a Stage Field S0 through the save step, not into metadata (#822)", async () => {
+      const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      const calls = stubSalesReferenceSave()
+
+      await opportunityService.saveRecordField(deal.id, "sales_reference", "S01234", registrar.id)
+
+      expect(calls).toHaveLength(1)
+      expect((await opportunityService.getOpportunityById(deal.id)).metadata?.sales_reference).toBeUndefined()
     })
 
     it("does not re-record a sales reference that is already the one on file", async () => {

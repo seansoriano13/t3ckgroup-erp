@@ -734,7 +734,6 @@ export default function SorModal({
       date_of_pdi: opportunity.date_of_pdi || "",
       date_of_delivery: opportunity.date_of_delivery || "",
       contact_person: opportunity.contact_person || "",
-      sales_reference: opportunity.sales_reference || "",
       deal_owner_id: opportunity.deal_owner_id || "",
       closing_sales_id: opportunity.closing_sales_id || "",
       sales_director_id: opportunity.sales_director_id || "",

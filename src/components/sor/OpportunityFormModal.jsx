@@ -238,6 +238,8 @@ export default function OpportunityFormModal({
   // rather than passed one prop at a time so the builder's inert equivalent
   // (SAMPLE_FIELD_CTX) is obviously the same shape.
   const fieldCtx = {
+    // Editing a SOR never writes the S0: it changes on the S0 card (#822).
+    s0ReadOnly: isEdit,
     form,
     set,
     leadSourceOptions,
@@ -261,7 +263,7 @@ export default function OpportunityFormModal({
       supportSales2Id: form.support_sales_2_id,
       currentProjectType: form.project_type,
     });
-    onSubmit({
+    const payload = {
       ...form,
       project_type: derivedType,
       sale_type_id: form.sale_type_id || null,
@@ -271,7 +273,10 @@ export default function OpportunityFormModal({
       // Only the custom fields still on this form — see the Sale Type switch
       // above. `createOpportunity` writes these to sor_form_values.
       formValues: customValues,
-    });
+    };
+    // Editing never sends the S0 (#822): it changes only through the S0 card's save step.
+    if (isEdit) delete payload.sales_reference;
+    onSubmit(payload);
   };
 
   return (

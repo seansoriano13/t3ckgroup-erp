@@ -58,13 +58,14 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
             label={field.label}
             placeholder="e.g. S01237"
             required={field.isRequired}
-            disabled={disabled}
+            disabled={disabled || ctx.s0ReadOnly}
             value={form.sales_reference || ""}
             onChange={set("sales_reference")}
           />
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Odoo is checked when this is saved. No quotation yet? Leave it blank — it is required before this
-            opportunity can move from Lead to Qualified.
+            {ctx.s0ReadOnly
+              ? "Change the S0 on the S0 card at the top of the SOR window."
+              : "Odoo is checked when this is saved. No quotation yet? Leave it blank — it is required before this opportunity can move from Lead to Qualified."}
           </p>
         </div>
       );

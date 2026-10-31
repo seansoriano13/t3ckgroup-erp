@@ -96,7 +96,8 @@ const RECORD_FIELD_WRITERS = {
   client_name: (v) => v,
   contact_person: (v) => v || null,
   project_title: (v) => v,
-  sales_reference: (v) => cleanSalesReference(v),
+  // sales_reference is NOT here (#822): the S0 changes only through setSalesReference. The
+  // database refuses a direct write to the column.
   expected_award_date: (v) => v || null,
   po_date: (v) => v || null,
   // Manila dates (ADR 0039). Open to the Deal Team while blank; a set Date of
@@ -2100,7 +2101,19 @@ export const opportunityService = {
     for (const [key, write] of Object.entries(RECORD_FIELD_WRITERS)) {
       if (has(key)) patch[key] = write(payload[key]);
     }
-    if (has("client_name") || has("sales_reference")) {
+    // The S0 (#822): an unchanged value is ignored (saveOdooLines re-sends it on every sync); a
+    // changed one goes through the save step first, so its checks, lock and history apply and
+    // a refusal stops the whole update.
+    let s0Changed = false;
+    if (has("sales_reference")) {
+      const nextRef = cleanSalesReference(payload.sales_reference);
+      const currentRef = cleanSalesReference(existing.sales_reference);
+      if (nextRef !== currentRef) {
+        await opportunityService.setSalesReference(id, nextRef);
+        s0Changed = true;
+      }
+    }
+    if (has("client_name") || s0Changed) {
       patch.odoo_partner_id = resolveOdooPartner(existing, {
         client_name: existing.client_name,
         ...payload,
@@ -2164,8 +2177,8 @@ export const opportunityService = {
     checkField('contact_person', 'Contact Person');
     checkField('project_title', 'Project');
     checkField('project_type', 'Sales Division');
-    checkField('sales_reference', 'Sales Reference');
-    
+    // Sales Reference: its own history entry comes from the save step (#822).
+
     // Check metadata fields dynamically
     const oldMeta = touched.has("metadata") ? existing.metadata || {} : {};
     const newMeta = touched.has("metadata") ? final.metadata || {} : {};
@@ -2308,7 +2321,9 @@ export const opportunityService = {
    * validation, derived fields and change notes match an edit-form change.
    */
   async saveRecordField(id, column, value, actorId) {
-    if (Object.prototype.hasOwnProperty.call(RECORD_FIELD_WRITERS, column)) {
+    // The S0 is a real column but not in RECORD_FIELD_WRITERS (#822): updateOpportunity sends it
+    // through the save step.
+    if (column === "sales_reference" || Object.prototype.hasOwnProperty.call(RECORD_FIELD_WRITERS, column)) {
       return opportunityService.updateOpportunity(id, { [column]: value }, actorId);
     }
     const { data: fresh, error } = await supabase
@@ -2475,8 +2490,11 @@ export const opportunityService = {
       status: nextStatus,
       lost_reason: isLostCode(nextStatus) ? lostReason : null,
     };
-    const recordsRef = providedRef && providedRef !== existing.sales_reference;
-    if (recordsRef) patch.sales_reference = providedRef;
+    // The S0 goes through the save step BEFORE the move (#822): the database refuses a direct
+    // write, and the save step writes its own history entry (SALES_REFERENCE_SET).
+    if (providedRef && providedRef !== existing.sales_reference) {
+      await opportunityService.setSalesReference(id, providedRef);
+    }
     if (existing.sale_type_id) patch.flow_stage_id = await legacyFlowStageFor(existing.sale_type_id, nextStatus);
 
     // Contract Date anchors which dated Commission Rate applies to this
@@ -2498,23 +2516,6 @@ export const opportunityService = {
       .single();
 
     if (error) throw error;
-
-    if (recordsRef) {
-      await opportunityService.addSystemNote(
-        id,
-        `Sales Reference recorded: ${providedRef}`,
-        { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
-        actorId,
-      );
-
-      systemAuditLogService.addSystemEvent(
-        "OPPORTUNITY",
-        id,
-        `${auditLabel(existing)}: Sales Reference recorded as ${providedRef}.`,
-        { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
-        actorId,
-      ).catch(console.error);
-    }
 
     const from = STAGE_LABELS[existing.status] || existing.status;
     const to = STAGE_LABELS[nextStatus] || nextStatus;
