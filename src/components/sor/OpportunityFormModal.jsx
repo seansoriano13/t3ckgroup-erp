@@ -1,5 +1,5 @@
 import { manilaToday } from "@/lib/manilaDate.js";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import HRFormModal from "../hr/HRFormModal";
@@ -7,7 +7,6 @@ import { TextField, SelectField } from "./SorField";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import { employeeService } from "../../services/employeeService";
 import { opportunityService } from "../../services/opportunityService";
-import { odooService } from "../../services/odooService";
 import {
   PROJECT_TYPES,
   PROJECT_TYPE_LABELS,
@@ -201,31 +200,8 @@ export default function OpportunityFormModal({
     employees.find((e) => /sales\s*director/i.test(e.role || ""))?.id || "";
   const effectiveSalesDirectorId = form.sales_director_id || salesDirectorId;
 
-  const [fetchingOdoo, setFetchingOdoo] = useState(false);
-
-  // Which fields the last fetch actually changed, so only those wear the
-  // highlight. A field Odoo agreed with must not flash: if everything lit up,
-  // the highlight would stop meaning "look at this".
-  const [odooFilled, setOdooFilled] = useState({});
-
-  // The Company text the fetch displaced, kept so it can be put back. Only set
-  // when there was something there to lose: filling a blank Company is not a
-  // thing anyone needs to undo, and the field is required, so "undo" into an
-  // empty value would just break the form.
-  const [displacedCompany, setDisplacedCompany] = useState(null);
-
-  const highlightTimer = useRef(null);
-  useEffect(() => () => clearTimeout(highlightTimer.current), []);
-
   const set = (key) => (e) => {
     const val = e.target.value;
-    // Typing in a field the fetch just filled retires its highlight — the
-    // highlight reports what Odoo did, and the moment the value is the
-    // salesperson's again it is reporting something untrue.
-    setOdooFilled((prev) => (prev[key] ? { ...prev, [key]: false } : prev));
-    // Typing over the fetched Company retires the offer to restore the older
-    // one: two competing "previous values" is a worse position than none.
-    if (key === "client_name") setDisplacedCompany(null);
     setForm((prev) => {
       const next = { ...prev, [key]: val };
       // A verification marker that outlives the value it verified makes an
@@ -258,115 +234,12 @@ export default function OpportunityFormModal({
     }));
   };
 
-  const handleFetchFromOdoo = async () => {
-    const ref = normalizeSalesReference(form.sales_reference);
-    if (!isValidSalesReference(ref)) {
-      toast.error(SALES_REFERENCE_HINT);
-      return;
-    }
-    const hasItems = items.some((it) => (it.product_name || "").trim());
-    if (
-      hasItems &&
-      !window.confirm(
-        "This replaces the current Product List with the items from Odoo. Continue?",
-      )
-    ) {
-      return;
-    }
-
-    setFetchingOdoo(true);
-    try {
-      const result = await odooService.fetchOrderLines(ref);
-      if (!result?.success) {
-        toast.error(
-          result?.message ||
-          "Could not fetch items from Odoo — enter them manually.",
-        );
-        return;
-      }
-
-      const customer = result.customer || {};
-      const changed = {};
-      const previousCompany = form.client_name.trim();
-      setDisplacedCompany(
-        customer.company && previousCompany && customer.company !== previousCompany
-          ? previousCompany
-          : null,
-      );
-
-      // The two fields are filled with opposite trust rules (ADR 0006).
-      // Company is whatever Odoo says — that is the field salespeople get
-      // wrong, and the quotation is the record of who is actually being sold
-      // to. Contact Person is filled only when empty, because a typed one
-      // usually carries a mobile number or a working name ("Sir Prado") that
-      // Odoo has never held, and overwriting that destroys information.
-      setForm((prev) => {
-        const next = { ...prev };
-        if (customer.company && customer.company !== prev.client_name) {
-          next.client_name = customer.company;
-          changed.client_name = true;
-        }
-        if (customer.company_id) {
-          next.odoo_partner_id = customer.company_id;
-        }
-        if (customer.contact && !(prev.contact_person || "").trim()) {
-          next.contact_person = customer.contact;
-          changed.contact_person = true;
-        }
-        return next;
-      });
-      setOdooFilled(changed);
-      // The highlight is a glance, not a state to be dismissed: it retires
-      // itself and fades out through the border transition the field already
-      // carries.
-      clearTimeout(highlightTimer.current);
-      highlightTimer.current = setTimeout(() => setOdooFilled({}), 1500);
-
-      // An empty list means the quotation is half-built, NOT that its products
-      // were deleted — replacing the editor with nothing would throw away work
-      // the salesperson typed. Only a list with something in it replaces one.
-      if (result.items.length) setItems(result.items.map(toRow));
-
-      const quotation = result.order?.name || ref;
-      const from = [quotation, customer.company]
-        .filter(Boolean)
-        .join(" — ");
-      toast.success(
-        result.items.length
-          ? `Pulled ${result.items.length} item(s) from ${from}.`
-          : `Fetched ${from} — no product lines on it yet, so enter them below.`,
-      );
-    } catch (err) {
-      toast.error(err.message || "Could not reach Odoo — enter items manually.");
-    } finally {
-      setFetchingOdoo(false);
-    }
-  };
-
-  // Restores the Company the fetch displaced. The verification marker goes
-  // with it: the name is no longer the one Odoo gave, so it is no longer
-  // vouched for by an Odoo customer.
-  const handleUndoCompany = () => {
-    setForm((prev) => ({
-      ...prev,
-      client_name: displacedCompany,
-      odoo_partner_id: null,
-    }));
-    setOdooFilled((prev) => ({ ...prev, client_name: false }));
-    setDisplacedCompany(null);
-  };
-
   // Everything RegistrationField needs to draw a live, working field. Bundled
   // rather than passed one prop at a time so the builder's inert equivalent
   // (SAMPLE_FIELD_CTX) is obviously the same shape.
   const fieldCtx = {
     form,
     set,
-    odooFilled,
-    displacedCompany,
-    handleUndoCompany,
-    handleFetchFromOdoo,
-    fetchingOdoo,
     leadSourceOptions,
     customValues,
     onCustomChange: (fieldId, value) =>
@@ -380,18 +253,9 @@ export default function OpportunityFormModal({
       toast.error(SALES_REFERENCE_HINT);
       return;
     }
-    // A38: a repeat Sales Reference is allowed, but never silently.
-    if (!isEdit && sales_reference) {
-      try {
-        const same = await opportunityService.findBySalesReference(sales_reference);
-        if (same.length > 0) {
-          const names = same.map((o) => o.opportunity_no || o.client_name).join(", ");
-          if (!window.confirm(`Sales Reference ${sales_reference} is already used by ${names}. Register another one anyway?`)) return;
-        }
-      } catch {
-        // The check is a courtesy; a failed lookup must not block registering.
-      }
-    }
+    // Duplicates, Odoo and the product pull are checked when the SOR is registered
+    // (createOpportunity, #820): the same checks as the S0 card's save step. A refusal comes back
+    // as the error toast and nothing is registered.
     const derivedType = deriveProjectType({
       supportSales1Id: form.support_sales_1_id,
       supportSales2Id: form.support_sales_2_id,

@@ -1946,6 +1946,13 @@ export const opportunityService = {
    * registrations cannot collide.
    */
   async createOpportunity(payload, actorId) {
+    // #820: registering runs the same checks as the S0 save step (format, duplicates, Odoo). They
+    // run FIRST, before anything is written, so a refused S0 never leaves a half-registered SOR.
+    // The SOR is then created without its S0 and the S0 goes in through the save step itself
+    // (below), which pulls the products and records the Odoo state.
+    const salesReference = cleanSalesReference(payload.sales_reference);
+    if (salesReference) await opportunityService.checkSalesReference(salesReference);
+
     // Issue #36 — a deal registered against a Sale Type enters that Sale
     // Type's flow at its first Stage. Both columns are set together or neither
     // is (migration 0049's CHECK), because a deal with a Sale Type and no
@@ -1976,7 +1983,8 @@ export const opportunityService = {
           supportSales2Id: payload.support_sales_2_id,
           currentProjectType: payload.project_type,
         }),
-        sales_reference: cleanSalesReference(payload.sales_reference),
+        // The S0 is NOT part of the insert: it goes in through setSalesReference below.
+        sales_reference: null,
         metadata: payload.metadata || null,
         expected_award_date: payload.expected_award_date || null,
         po_date: payload.po_date || null,
@@ -1998,6 +2006,19 @@ export const opportunityService = {
     // items first, then re-read the row to pick up the computed total before
     // it's quoted in the notes below.
     await opportunityService.replaceItems(data.id, payload.items);
+
+    // The S0, through the one save step: Odoo is asked again (the SOR did not exist for the
+    // pre-check), duplicates are refused, and Odoo's product lines replace the form's list. Only a
+    // race can refuse here (someone took the S0 in the last moment); then the new SOR is taken
+    // back out so nothing half-registered is left, and the refusal is shown.
+    if (salesReference) {
+      try {
+        await opportunityService.setSalesReference(data.id, salesReference);
+      } catch (err) {
+        await supabase.from("sales_opportunities").delete().eq("id", data.id);
+        throw err;
+      }
+    }
 
     // The flow's custom registration fields, answered on the form that this
     // Sale Type's Flow Snapshot defines. Written separately for the same
@@ -2341,6 +2362,24 @@ export const opportunityService = {
     } catch {
       return null;
     }
+  },
+
+  /**
+   * Registration's pre-flight (#820): the save step's checks (format, duplicates, Odoo) without
+   * saving, because the SOR does not exist yet. Throws the refusal (message and `hint`); an Odoo
+   * outage is not a refusal (the S0 registers as Not checked).
+   */
+  async checkSalesReference(salesReference) {
+    const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+      body: { action: "check", salesReference: salesReference || null },
+    });
+    if (error) throw new Error(error.message || "The S0 could not be checked.");
+    if (!data?.success) {
+      const refusal = new Error(data?.message || "The S0 could not be checked.");
+      refusal.hint = data?.hint;
+      throw refusal;
+    }
+    return data;
   },
 
   /**
