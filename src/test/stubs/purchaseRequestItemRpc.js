@@ -319,10 +319,10 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     if (!item) refuse(`purchase_request_pick_po_lines: item ${args.p_item_id} not found`, "P0002")
     if (sideOf(item.request_id) !== "purchasing") refuse("purchase_request_pick_po_lines: only Purchasing picks an item's P0 line", "42501")
     const ipas = ipasOf(item.po_number)
-    if (!ipas.length) refuse(`purchase_request_pick_po_lines: PO ${item.po_number} has no IPAS yet; pick its line once it does`, "22023")
+    if (!ipas.length) refuse(`purchase_request_pick_po_lines: P0 ${item.po_number} has no IPAS yet; pick its line once it has one`, "22023")
     const lines = [...new Set(args.p_line_ids || [])].sort((a, b) => a - b)
     const stray = lines.filter((l) => !ipas.includes(l))
-    if (!lines.length || stray.length) refuse(`purchase_request_pick_po_lines: line ${stray.join(", ")} isn't on PO ${item.po_number}'s IPAS copy`, "22023")
+    if (!lines.length || stray.length) refuse(`purchase_request_pick_po_lines: line ${stray.join(", ")} isn't on P0 ${item.po_number}'s IPAS copy`, "22023")
     const updated = updateRow("purchase_request_items", item, { odoo_po_line_ids: lines })
     insertRow("purchase_request_messages", {
       request_id: item.request_id,

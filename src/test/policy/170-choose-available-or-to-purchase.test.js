@@ -115,6 +115,18 @@ describe("Now x free of y", () => {
         expect((await row(id)).stock_short_free).toBeNull()
     })
 
+    it("Undo out of Available clears it, so the line no longer says Now x free of y", async () => {
+        const id = await seedItem("to_purchase", { odoo_product_id: 901 })
+        expect((await stockCheck(1)).error).toBeNull()
+        expect((await choose("dealOwner", id, "available", { reason: "Transfer due Friday" })).error).toBeNull()
+        const flagged = await row(id)
+        expect(flagged).toMatchObject({ status: "available", stock_short_free: 1, stock_short_needed: 4 })
+
+        const undo = await (await clientFor("dealOwner")).rpc("purchase_request_undo_item_status", { p_item_id: id, p_changed_at: flagged.status_changed_at })
+        expect(undo.error).toBeNull()
+        expect(await row(id)).toMatchObject({ status: "to_purchase", stock_short_free: null, stock_short_needed: null })
+    })
+
     it("choosing Available again with no warning is still refused as already so", async () => {
         const id = await seedItem("available")
         expect((await choose("dealOwner", id, "available")).error).not.toBeNull()

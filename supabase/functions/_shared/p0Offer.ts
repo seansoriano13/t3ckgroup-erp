@@ -3,7 +3,7 @@
 // Built on the server from the same Odoo read as the attach, so the browser never sends P0 facts
 // (ADR 0044). Pure: the rules are tested without Odoo or the database. The offer has one list per
 // kind of item it can name. `offered` items get the P0 when ticked. `unticked` items are shown with a
-// note and cannot be ticked. `noOdooProduct` items (#811) are open items with no P0 and no Odoo product.
+// note and start unticked; they can be ticked, and then get the P0 with no P0 line picked. `noOdooProduct` items (#811) are open items with no P0 and no Odoo product.
 // They start unticked. A ticked one gets the P0 with no P0 line picked, so Purchasing picks its line by hand.
 
 import { type MatchItem, matchP0ToItems } from "./p0Matching.ts";

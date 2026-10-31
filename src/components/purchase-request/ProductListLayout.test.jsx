@@ -75,7 +75,7 @@ describe("the product list as a table", () => {
       po_verification: "VERIFIED",
       po_ordered: 2,
       po_received: 0,
-      po_eta: "2099-10-30", // far ahead so it never reads as late
+      po_eta: "2099-10-30",
     })
     show(buyer.id)
 

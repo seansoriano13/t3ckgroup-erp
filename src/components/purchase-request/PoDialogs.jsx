@@ -296,7 +296,7 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
     mutationFn: () => purchaseRequestService.correctPo(item.id, po),
     onSuccess: (updated) => {
       toastPoVerdict(
-        `${item.name}: PO ${updated?.po_number}: ${PO_VERIFICATION_LABELS[updated?.po_verification] || updated?.po_verification}.`,
+        `${item.name}: P0 ${updated?.po_number}: ${PO_VERIFICATION_LABELS[updated?.po_verification] || updated?.po_verification}.`,
         updated,
       );
       close();
@@ -324,7 +324,7 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
       }
     >
       <p className="text-sm text-muted-foreground">
-        {item.name}{item.po_number ? `, now on PO ${item.po_number}` : ", with no PO yet"}. The new number is checked against Odoo, and any P0 line picked on the old PO is cleared.
+        {item.name}{item.po_number ? `, now on P0 ${item.po_number}` : ", with no P0 yet"}. The new number is checked against Odoo, and any P0 line picked on the old P0 is cleared.
       </p>
       <div className="space-y-1.5">
         <FieldBox label="New PO number" bare>
@@ -387,7 +387,7 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lines }
       }
     >
       <p className="text-sm text-muted-foreground">
-        {item.name}, on PO {item.po_number}. The lines are from the PO&apos;s IPAS copy of Odoo.
+        {item.name}, on P0 {item.po_number}. The lines are from the P0&apos;s IPAS copy of Odoo.
       </p>
       <ul className="divide-y divide-border">
           {lines.map((line) => (
