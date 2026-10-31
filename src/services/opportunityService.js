@@ -2314,6 +2314,19 @@ export const opportunityService = {
   },
 
   /**
+   * What saving this S0 (or clearing it, `salesReference` empty) would do to the products (#818):
+   * `{ removed_products, requested_items, tender_lines }`, or null when Odoo could not be asked, in
+   * which case the save goes ahead without a preview. Read-only.
+   */
+  async previewSalesReferenceChange(id, salesReference) {
+    const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+      body: { action: "preview", opportunityId: id, salesReference: salesReference || null },
+    });
+    if (error || !data?.success) return null;
+    return data.preview || null;
+  },
+
+  /**
    * The one way the S0 changes after registration (#815): set, change or clear (`salesReference`
    * empty). The edge function checks Odoo and calls the database function as the caller. A refusal
    * (format, lock, duplicate, ...) throws an Error carrying the text to show and a `hint` code.
