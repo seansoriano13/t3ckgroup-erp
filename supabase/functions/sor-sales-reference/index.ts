@@ -14,13 +14,68 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { callerEmail } from "../_shared/caller.ts";
-import { corsHeaders, jsonResponse } from "../_shared/odoo.ts";
+import {
+  authenticate,
+  corsHeaders,
+  executeKw,
+  findOrder,
+  isConfigured,
+  isLocalStack,
+  jsonResponse,
+  normalizeReference,
+} from "../_shared/odoo.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 /** The database's refusal, without the function name it may lead with. */
 const refusalText = (message: string) => message.replace(/^[a-z_]+: /, "");
+
+// ---- action "preview" (#818) -------------------------------------------------------------------
+// What saving a different S0 would do to the products, shown before the save. Read-only. Kept apart
+// from the save path below.
+
+/** The Odoo line ids of a quotation, or null when Odoo cannot be reached (then no preview is shown). */
+async function previewOdooLineIds(ref: string): Promise<string[] | null> {
+  if (!isConfigured()) return isLocalStack() ? ["900001", "900002"] : null;
+  try {
+    const uid = await authenticate();
+    const order = await findOrder(uid, ref);
+    if (!order) return null; // the save will refuse an S0 Odoo does not have
+    const lines = await executeKw(
+      uid,
+      "sale.order.line",
+      "search_read",
+      [[["order_id", "=", order.id]], ["id", "display_type"]],
+      {},
+    );
+    return lines.filter((l: { display_type?: unknown }) => !l.display_type).map((l: { id: number }) => String(l.id));
+  } catch (err) {
+    console.error("sor-sales-reference preview Odoo error:", err);
+    return null;
+  }
+}
+
+async function previewChange(req: Request, opportunityId: string, salesReference: string | null) {
+  const authHeader = req.headers.get("Authorization") || "";
+  const asCaller = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") || "", {
+    global: { headers: { Authorization: authHeader } },
+  });
+  let newIds: string[] = [];
+  const ref = salesReference ? normalizeReference(salesReference) : null;
+  if (salesReference) {
+    if (!ref) return jsonResponse({ success: true, preview: null });
+    const found = await previewOdooLineIds(ref);
+    if (found === null) return jsonResponse({ success: true, preview: null });
+    newIds = found;
+  }
+  const { data, error } = await asCaller.rpc("sales_reference_change_preview", {
+    p_opportunity_id: opportunityId,
+    p_new_odoo_line_ids: newIds,
+  });
+  if (error) return jsonResponse({ success: true, preview: null });
+  return jsonResponse({ success: true, preview: data });
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -44,6 +99,10 @@ Deno.serve(async (req) => {
   const email = await callerEmail(req);
   if (!email) {
     return jsonResponse({ success: false, refused: true, message: "Sign in to change the S0." }, 401);
+  }
+
+  if (body.action === "preview") {
+    return await previewChange(req, opportunityId, salesReference);
   }
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);

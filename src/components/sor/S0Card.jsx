@@ -24,6 +24,25 @@ const ODOO_BADGES = {
 const formatReadAt = (iso) =>
   iso ? new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }) : null;
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * The warning shown before a change or clear that would touch products (#818). Words the three
+ * counts, e.g. "12 products will be marked Removed from S0. 5 Requested Items and 3 Tender Lines
+ * stay on them." Returns null when all are zero.
+ */
+export function previewMessage(preview) {
+  const removed = preview?.removed_products || 0;
+  const requested = preview?.requested_items || 0;
+  const tender = preview?.tender_lines || 0;
+  if (removed + requested + tender === 0) return null;
+  const parts = [];
+  if (requested > 0) parts.push(plural(requested, "Requested Item", "Requested Items"));
+  if (tender > 0) parts.push(plural(tender, "Tender Line", "Tender Lines"));
+  const stay = parts.length ? ` ${parts.join(" and ")} ${requested + tender === 1 ? "stays" : "stay"} on ${removed === 1 ? "it" : "them"}.` : "";
+  return `${plural(removed, "product", "products")} will be marked Removed from S0.${stay}`;
+}
+
 /**
  * The S0 input and its save (#815). Shared by the S0 card, and by the registration form (#820) and
  * the Sales Reference Stage Field (#821), so every entry point runs the same checks: it calls the one
@@ -36,6 +55,8 @@ export function S0Input({ opportunityId, value = "", needsReason = false, onSave
   const [draft, setDraft] = useState(value || "");
   const [reason, setReason] = useState("");
   const [error, setError] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [warning, setWarning] = useState(null);
 
   const save = useMutation({
     mutationFn: () => opportunityService.setSalesReference(opportunityId, draft, reason),
@@ -48,15 +69,53 @@ export function S0Input({ opportunityId, value = "", needsReason = false, onSave
   const unchanged = normalizeSalesReference(typed) === (value || "");
   const missingReason = needsReason && !reason.trim();
 
-  const submit = (event) => {
+  // Before a change or clear is saved, ask what it would do to the products. Anything to warn about
+  // waits for a confirm; nothing to warn about (or no answer from Odoo) saves straight away.
+  const submit = async (event) => {
     event?.preventDefault();
     setError(null);
     if (formatBad) {
       setError(SALES_REFERENCE_HINT);
       return;
     }
+    setChecking(true);
+    let message = null;
+    try {
+      message = previewMessage(await opportunityService.previewSalesReferenceChange(opportunityId, draft));
+    } catch {
+      message = null;
+    }
+    setChecking(false);
+    if (message) {
+      setWarning(message);
+      return;
+    }
     save.mutate();
   };
+
+  const busy = save.isPending || checking;
+
+  if (warning) {
+    return (
+      <div role="alertdialog" aria-label="Confirm S0 change" className="flex flex-wrap items-center gap-2">
+        <p className="text-[13px] font-medium text-foreground">{warning}</p>
+        <Button
+          type="button"
+          size="sm"
+          disabled={save.isPending}
+          onClick={() => {
+            setWarning(null);
+            save.mutate();
+          }}
+        >
+          {typed === "" ? "Confirm clear" : "Confirm change"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setWarning(null)}>
+          Cancel
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={submit} className="flex flex-wrap items-start gap-2" aria-label="Edit S0">
@@ -84,11 +143,11 @@ export function S0Input({ opportunityId, value = "", needsReason = false, onSave
           containerClassName="min-w-48 flex-1"
         />
       )}
-      <Button type="submit" size="sm" disabled={save.isPending || unchanged || missingReason}>
-        {save.isPending ? "Saving…" : typed === "" ? "Clear S0" : "Save"}
+      <Button type="submit" size="sm" disabled={busy || unchanged || missingReason}>
+        {busy ? "Saving…" : typed === "" ? "Clear S0" : "Save"}
       </Button>
       {onCancel && (
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={save.isPending}>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
           Cancel
         </Button>
       )}

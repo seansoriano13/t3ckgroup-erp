@@ -41,9 +41,16 @@ export function stubSalesReferenceCard({
  * the #815 behaviour) and records each call. `refuse` is `{ message, hint }` to answer a refusal.
  * Returns the recorded calls.
  */
-export function stubSalesReferenceSave({ refuse = null } = {}) {
+export function stubSalesReferenceSave({ refuse = null, preview = null } = {}) {
   const calls = []
+  const previews = []
+  calls.previews = previews
   stubEdgeFunction("sor-sales-reference", (body) => {
+    // #818: a preview asks what a save would do; it is answered with `preview` and is not a save.
+    if (body.action === "preview") {
+      previews.push(body)
+      return { success: true, preview }
+    }
     calls.push(body)
     if (refuse) return { success: false, refused: true, ...refuse }
     const value = body.salesReference ? String(body.salesReference).trim().toUpperCase() : null

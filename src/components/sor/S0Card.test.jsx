@@ -99,3 +99,76 @@ describe("S0Card", () => {
     expect(calls).toHaveLength(0)
   })
 })
+
+describe("S0Card change preview (#818)", () => {
+  const openEditor = async (user) => {
+    await user.click(await screen.findByRole("button", { name: /edit/i }))
+    await user.clear(screen.getByLabelText("S0"))
+  }
+
+  it("warns before saving when products would be marked Removed, and saves on confirm", async () => {
+    const opportunity = sor({ sales_reference: "S01237" })
+    stubSalesReferenceCard({ lock: "open", canEdit: true })
+    const calls = stubSalesReferenceSave({ preview: { removed_products: 12, requested_items: 5, tender_lines: 3 } })
+    const user = setupUser()
+    renderWithProviders(<S0Card opportunityId={opportunity.id} />)
+
+    await openEditor(user)
+    await user.type(screen.getByLabelText("S0"), "S01300")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(
+      await screen.findByText("12 products will be marked Removed from S0. 5 Requested Items and 3 Tender Lines stay on them."),
+    ).toBeInTheDocument()
+    expect(calls).toHaveLength(0)
+    expect(calls.previews[0]).toMatchObject({ action: "preview", opportunityId: opportunity.id, salesReference: "S01300" })
+
+    await user.click(screen.getByRole("button", { name: "Confirm change" }))
+    await waitFor(() => expect(calls).toHaveLength(1))
+  })
+
+  it("saves nothing when the warning is cancelled", async () => {
+    const opportunity = sor({ sales_reference: "S01237" })
+    stubSalesReferenceCard({ lock: "open", canEdit: true })
+    const calls = stubSalesReferenceSave({ preview: { removed_products: 2, requested_items: 0, tender_lines: 0 } })
+    const user = setupUser()
+    renderWithProviders(<S0Card opportunityId={opportunity.id} />)
+
+    await openEditor(user)
+    await user.click(screen.getByRole("button", { name: "Clear S0" }))
+    expect(await screen.findByText("2 products will be marked Removed from S0.")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(calls).toHaveLength(0)
+    expect(screen.getByLabelText("S0")).toBeInTheDocument()
+  })
+
+  it("saves straight away when every count is zero", async () => {
+    const opportunity = sor({ sales_reference: "S01237" })
+    stubSalesReferenceCard({ lock: "open", canEdit: true })
+    const calls = stubSalesReferenceSave({ preview: { removed_products: 0, requested_items: 0, tender_lines: 0 } })
+    const user = setupUser()
+    renderWithProviders(<S0Card opportunityId={opportunity.id} />)
+
+    await openEditor(user)
+    await user.type(screen.getByLabelText("S0"), "S01300")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(calls).toHaveLength(1))
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  })
+
+  it("saves straight away when there is no preview (Odoo could not be reached)", async () => {
+    const opportunity = sor({ sales_reference: "S01237" })
+    stubSalesReferenceCard({ lock: "open", canEdit: true })
+    const calls = stubSalesReferenceSave({ preview: null })
+    const user = setupUser()
+    renderWithProviders(<S0Card opportunityId={opportunity.id} />)
+
+    await openEditor(user)
+    await user.type(screen.getByLabelText("S0"), "S01300")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(calls).toHaveLength(1))
+  })
+})
