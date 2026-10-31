@@ -3,6 +3,13 @@ import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders, setupUser } from "../../test/support";
 import DeletedOpportunitiesView from "./DeletedOpportunitiesView";
 import { opportunityService } from "../../services/opportunityService";
+import toast from "react-hot-toast";
+
+vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
+// The confirm toast confirms at once, so the test goes straight to the restore call.
+vi.mock("../ui/CustomToast", () => ({
+  confirmActionToast: (_title, _description, _label, _type, onConfirm) => onConfirm(),
+}));
 
 const ROW = {
   id: "opp-1",
@@ -87,5 +94,18 @@ describe("DeletedOpportunitiesView", () => {
     await waitFor(() =>
       expect(opportunityService.purgeOpportunity).toHaveBeenCalledWith("opp-1", "S01234", "admin-1"),
     );
+  });
+
+  it("shows the refusal when the S0 is taken by another SOR (#819)", async () => {
+    const user = setupUser();
+    const refusal = 'S01234 is now on SOR "Rope Rescue" (Acme). One S0 per SOR; change one before restoring.';
+    opportunityService.restoreOpportunity.mockRejectedValueOnce(new Error(refusal));
+    renderWithProviders(<DeletedOpportunitiesView currentUserId="owner-1" isSuperAdmin={false} />);
+
+    await screen.findByText("Acme Corp");
+    await user.click(screen.getByText("Restore"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(refusal));
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

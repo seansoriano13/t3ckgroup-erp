@@ -2823,51 +2823,19 @@ export const opportunityService = {
   /**
    * Restores a deleted SOR — a Super Admin or its own Deal Owner. Clears the
    * flag and its deletion stamp. A Purchase Request is untouched by either
-   * delete or restore.
+   * delete or restore. Goes through `restore_opportunity` (#819), which also
+   * refuses when another SOR now uses this SOR's S0; the refusal text names
+   * that SOR and is thrown as the Error message (`hint` is "duplicate").
+   * `actorId` is unused: the database knows the caller.
    */
+  // eslint-disable-next-line no-unused-vars
   async restoreOpportunity(id, actorId) {
-    const { data: existing, error: readError } = await supabase
-      .from("sales_opportunities")
-      .select("id, client_name, sales_reference, deal_owner_id")
-      .eq("id", id)
-      .single();
-    if (readError) throw readError;
-
-    const { data: actor, error: actorError } = await supabase
-      .from("employees")
-      .select("id, is_super_admin")
-      .eq("id", actorId)
-      .maybeSingle();
-    if (actorError) throw actorError;
-
-    const allowed = actor?.is_super_admin || existing.deal_owner_id === actorId;
-    if (!allowed) {
-      throw new Error("Only a Super Admin or this SOR's Deal Owner can restore it.");
+    const { data, error } = await supabase.rpc("restore_opportunity", { p_opportunity_id: id });
+    if (error) {
+      const refusal = new Error(error.message || "The SOR could not be restored.");
+      refusal.hint = error.hint;
+      throw refusal;
     }
-
-    const { data, error } = await supabase
-      .from("sales_opportunities")
-      .update({ is_deleted: false, deleted_at: null, deleted_by: null })
-      .eq("id", id)
-      .select(PARTICIPANT_SELECT)
-      .single();
-    if (error) throw error;
-
-    await opportunityService.addSystemNote(
-      id,
-      "SOR restored from Deleted.",
-      { event: "OPPORTUNITY_RESTORED", employeeId: actorId },
-      actorId,
-    );
-
-    systemAuditLogService.addSystemEvent(
-      "OPPORTUNITY",
-      id,
-      `${auditLabel(existing)} restored.`,
-      { event: "OPPORTUNITY_RESTORED", employeeId: actorId },
-      actorId,
-    ).catch(console.error);
-
     return data;
   },
 

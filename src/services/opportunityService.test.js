@@ -29,6 +29,7 @@ import { employeeGroupService } from "./employeeGroupService"
 import { waitForNetworkIdle } from "@/test/network"
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { stubActionRunRpcs } from "@/test/stubs/actionRunRpc"
+import { stubRestoreOpportunityRpc } from "@/test/stubs/salesReferenceCard"
 
 /**
  * Sales Opportunity Registration, exercised end to end through the service's
@@ -4277,11 +4278,16 @@ describe("opportunityService", () => {
     })
 
     describe("restoring", () => {
+      const restoreAs = (actor, id) => {
+        stubRestoreOpportunityRpc({ actorId: actor.id })
+        return opportunityService.restoreOpportunity(id, actor.id)
+      }
+
       it("lets a Super Admin restore, clearing the delete stamp", async () => {
         const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
-        const restored = await opportunityService.restoreOpportunity(opportunity.id, superAdmin.id)
+        const restored = await restoreAs(superAdmin, opportunity.id)
 
         expect(restored.is_deleted).toBe(false)
         const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
@@ -4293,7 +4299,7 @@ describe("opportunityService", () => {
         const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
-        const restored = await opportunityService.restoreOpportunity(opportunity.id, owner.id)
+        const restored = await restoreAs(owner, opportunity.id)
 
         expect(restored.is_deleted).toBe(false)
       })
@@ -4303,8 +4309,19 @@ describe("opportunityService", () => {
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
         await expect(
-          opportunityService.restoreOpportunity(opportunity.id, registrar.id),
+          restoreAs(registrar, opportunity.id),
         ).rejects.toThrow(/Super Admin or this SOR's Deal Owner/i)
+
+        const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
+        expect(stored.is_deleted).toBe(true)
+      })
+
+      it("refuses when another SOR now has the S0, naming it, and leaves the SOR deleted", async () => {
+        const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id, sales_reference: "S01300" })
+        await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
+        makeOpportunity({ registered_by: registrar.id, sales_reference: "S01300", project_title: "Rope Rescue", client_name: "Acme" })
+
+        await expect(restoreAs(owner, opportunity.id)).rejects.toThrow(/S01300 is now on SOR "Rope Rescue" \(Acme\)/)
 
         const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
         expect(stored.is_deleted).toBe(true)
@@ -4314,7 +4331,7 @@ describe("opportunityService", () => {
         const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
-        await opportunityService.restoreOpportunity(opportunity.id, owner.id)
+        await restoreAs(owner, opportunity.id)
         await waitForNetworkIdle()
 
         const notes = await opportunityService.getNotes(opportunity.id)

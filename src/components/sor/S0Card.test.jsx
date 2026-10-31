@@ -98,4 +98,25 @@ describe("S0Card", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/Odoo quotation number/)
     expect(calls).toHaveLength(0)
   })
+
+  it("shows a red Duplicate badge with the other SOR named on hover only (#819)", async () => {
+    const opportunity = sor({ sales_reference: "S01237" })
+    stubSalesReferenceCard({ duplicates: [{ id: "other-1", name: "Rope Rescue (Acme)" }] })
+    const user = setupUser()
+    renderWithProviders(<S0Card opportunityId={opportunity.id} />)
+
+    const badge = await screen.findByText("Duplicate")
+    expect(screen.queryByText(/Also on SOR/)).not.toBeInTheDocument()
+    await user.hover(badge)
+    expect(await screen.findByText("Also on SOR Rope Rescue (Acme). One S0 per SOR; change one.")).toBeInTheDocument()
+  })
+
+  it("shows no Duplicate badge when the S0 is unique", async () => {
+    const opportunity = sor({ sales_reference: "S01237" })
+    stubSalesReferenceCard({})
+    renderWithProviders(<S0Card opportunityId={opportunity.id} />)
+
+    await screen.findByText("S01237")
+    expect(screen.queryByText("Duplicate")).not.toBeInTheDocument()
+  })
 })

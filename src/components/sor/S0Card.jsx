@@ -132,6 +132,7 @@ export default function S0Card({ opportunityId }) {
   const locked = card.lock === "locked";
   const badge = card.sales_reference ? ODOO_BADGES[card.odoo_state] : null;
   const readAt = formatReadAt(card.checked_at);
+  const duplicates = card.sales_reference ? card.duplicates ?? [] : [];
 
   return (
     <div
@@ -158,6 +159,15 @@ export default function S0Card({ opportunityId }) {
             <Tooltip content={badge.hover}>
               <span>
                 <StatusBadge label={badge.label} theme={badge.theme} />
+              </span>
+            </Tooltip>
+          )}
+          {duplicates.length > 0 && (
+            <Tooltip
+              content={duplicates.map((other) => `Also on SOR ${other.name}.`).join(" ") + " One S0 per SOR; change one."}
+            >
+              <span>
+                <StatusBadge label="Duplicate" theme="red" />
               </span>
             </Tooltip>
           )}
