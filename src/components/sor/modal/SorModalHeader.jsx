@@ -26,6 +26,7 @@ import SorVersionUpdate from "../SorVersionUpdate";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
+import S0Card from "../S0Card";
 import { sorCodeOf } from "../../../utils/sorCode";
 import { blockedLabels } from "./summary/shared";
 
@@ -198,6 +199,8 @@ export default function SorModalHeader({
 
   return (
     <div className="flex shrink-0 flex-col gap-5 border-b border-border/60 px-5 pt-5 pb-5 sm:gap-6 sm:px-8 sm:pt-7 sm:pb-6">
+      {/* #815: the S0 card, the first thing in the SOR window. */}
+      {!isEditing && opportunity?.id && <S0Card opportunityId={opportunity.id} />}
       <div className="flex items-start justify-between gap-3 sm:gap-6">
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">

@@ -135,4 +135,5 @@ verify_jwt = false
 [functions.odoo-quotation-link]
 [functions.odoo-quotation-manifest]
 [functions.odoo-sor-lookup]
+[functions.sor-sales-reference]
 [functions.odoo-supplier-search]

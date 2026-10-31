@@ -2304,6 +2304,34 @@ export const opportunityService = {
   },
 
   /**
+   * What the S0 card shows (#815): the S0, its lock, the first Stage's name, whether the caller may
+   * change it now, the Odoo state and last read, and the product count.
+   */
+  async getSalesReferenceCard(id) {
+    const { data, error } = await supabase.rpc("sales_reference_card", { p_opportunity_id: id });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * The one way the S0 changes after registration (#815): set, change or clear (`salesReference`
+   * empty). The edge function checks Odoo and calls the database function as the caller. A refusal
+   * (format, lock, duplicate, ...) throws an Error carrying the text to show and a `hint` code.
+   */
+  async setSalesReference(id, salesReference, reason = null) {
+    const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+      body: { opportunityId: id, salesReference: salesReference || null, reason: reason || null },
+    });
+    if (error) throw new Error(error.message || "The S0 could not be saved.");
+    if (!data?.success) {
+      const refusal = new Error(data?.message || "The S0 could not be saved.");
+      refusal.hint = data?.hint;
+      throw refusal;
+    }
+    return data;
+  },
+
+  /**
    * Whether a *Field on record* condition's column can be saved from the
    * Stage Checklist (issue #199). Estimated Value is set only by the Product
    * List, people are what Assignment conditions are for, and the ITB
