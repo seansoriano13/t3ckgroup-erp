@@ -184,6 +184,8 @@ describe("Take", () => {
         const { data, error } = await (await clientFor("outsider")).rpc("purchase_request_take", { p_request_id: requestId })
         expect(error).toBeNull()
         expect(data.buyer_id).toBe(ids.outsider)
+        // #849: the Requester hears who took it; the taker is not told.
+        expect(await notified(requestId)).toEqual({ dealOwner: ["PURCHASE_REQUEST_BUYER_SET"] })
         const { data: events } = await svc()
             .from("purchase_request_messages")
             .select("author_id, metadata")
@@ -315,7 +317,11 @@ describe("setting the Buyer", () => {
         const { data, error } = await setBuyer("outsider", "stageParticipant")
         expect(error).toBeNull()
         expect(data.buyer_id).toBe(ids.stageParticipant)
-        expect(await notified(requestId)).toEqual({ stageParticipant: ["PURCHASE_REQUEST_BUYER"] })
+        // #849: the Requester (Deal Owner) also hears who is now buying.
+        expect(await notified(requestId)).toEqual({
+            stageParticipant: ["PURCHASE_REQUEST_BUYER"],
+            dealOwner: ["PURCHASE_REQUEST_BUYER_SET"],
+        })
     })
 
     it("a Super Admin can clear it, sending it back to the queue", async () => {
