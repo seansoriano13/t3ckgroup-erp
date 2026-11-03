@@ -43,6 +43,32 @@ describe("DeletedOpportunitiesView", () => {
     expect(screen.getByText("Cara Lim")).toBeInTheDocument();
   });
 
+  it("searches by client and sorts the matches together", async () => {
+    const user = setupUser();
+    opportunityService.getDeletedOpportunities.mockResolvedValue([
+      ROW,
+      { ...ROW, id: "opp-2", client_name: "Beta Ltd", project_title: "Alarm", sales_reference: "S09999", deal_owner: { name: "Dana Ruiz" } },
+      { ...ROW, id: "opp-3", client_name: "Acme North", sales_reference: "S05555" },
+    ]);
+    renderWithProviders(<DeletedOpportunitiesView currentUserId="owner-1" isSuperAdmin={false} />);
+    await screen.findByText("Beta Ltd");
+
+    await user.type(screen.getByLabelText("Search register"), "acme");
+    expect(screen.queryByText("Beta Ltd")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/^acme$/i)).toHaveLength(2);
+
+    await user.click(screen.getByText("Company"));
+    const rowsText = screen.getAllByRole("row").slice(1).map((r) => r.textContent);
+    expect(rowsText).toHaveLength(2);
+    expect(rowsText[0]).toContain("Acme Corp");
+    await user.click(screen.getByText("Company"));
+    expect(screen.getAllByRole("row")[1].textContent).toContain("Acme North");
+
+    await user.clear(screen.getByLabelText("Search register"));
+    await user.type(screen.getByLabelText("Search register"), "dana");
+    expect(screen.getByText("Beta Ltd")).toBeInTheDocument();
+  });
+
   it("shows an empty state when there is nothing deleted", async () => {
     opportunityService.getDeletedOpportunities.mockResolvedValue([]);
 
