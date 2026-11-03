@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-11-03",
+        "title": "Contract Date is the day of the client's contract",
+        "version": "1.9.80",
+        "changes": [
+            "The Contract Date now fills in by itself when a deal reaches the Stage that holds the client's PO or contract (CA / PO on the Project flow). It no longer waits for the deal to be won.",
+            "While the Contract Date is blank, you can type it in on the Details tab. Once it is set, only a Super Admin can change it, and every change is written in the deal's history.",
+            "If a deal reaches Won with no Contract Date, the move still goes through and you get a warning to type it in.",
+            "In the flow editor, a Super Admin can pick which Stage holds the contract with the new \"Make it the contract\" button.",
+            "Existing Contract Dates are left as they are."
+        ]
+    },
+    {
         "date": "2026-10-31",
         "title": "One place for the S0",
         "version": "1.9.79",

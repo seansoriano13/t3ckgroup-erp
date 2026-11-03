@@ -57,6 +57,7 @@ export default function StageSettingsPanel({
   isEntry,
   isWon,
   isAward,
+  isContract,
   disabled,
   bracketOptions = [],
   activeTab = "settings",
@@ -73,6 +74,7 @@ export default function StageSettingsPanel({
   onSetEntry,
   onSetWon,
   onSetAward,
+  onSetContract,
   outgoingMoves = [],
   moveTargets = [],
   onAddMove,
@@ -228,6 +230,20 @@ export default function StageSettingsPanel({
                   )}
                 >
                   <Flag size={14} /> {isAward ? "Notice of Award is here" : "Make it the Notice of Award"}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  onClick={onSetContract}
+                  disabled={disabled}
+                  className={cn(
+                    ROLE_BUTTON,
+                    isContract
+                      ? "bg-gold-a3 text-gold-11 outline-gold-a6 hover:bg-gold-a3 hover:text-gold-11"
+                      : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                  )}
+                >
+                  <Flag size={14} /> {isContract ? "The client's contract is here" : "Make it the contract"}
                 </Button>
 
                 <Button

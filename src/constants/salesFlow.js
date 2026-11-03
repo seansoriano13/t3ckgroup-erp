@@ -471,6 +471,7 @@ export function buildDraftSnapshotData({
     access,
     wonStageId: flow?.won_stage_id ?? null,
     awardStageId: flow?.award_stage_id ?? null,
+    contractStageId: flow?.contract_stage_id ?? null,
     saleTypeId: flow?.sale_type_id ?? null,
   }
 }

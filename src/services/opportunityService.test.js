@@ -1906,13 +1906,72 @@ describe("opportunityService", () => {
       expect(looped.flow_stage_id).toBe(qualified.id)
     })
 
-    it("stamps a Contract Date the first time the deal reaches its flow's Won Stage", async () => {
-      const deal = await register()
-      await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+    describe("Contract Date (#745, ADR 0048)", () => {
+      beforeEach(() => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = qualified.id
+      })
 
-      const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+      it("fills a blank Contract Date the first time the deal reaches the flow's contract Stage", async () => {
+        const deal = await register()
+        expect(deal.contract_date).toBeFalsy()
 
-      expect(won.contract_date).toBeTruthy()
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.contract_date).toBeTruthy()
+      })
+
+      it("no longer fills the Contract Date when the deal reaches the Won Stage", async () => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = null
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+        expect(won.contract_date).toBeFalsy()
+      })
+
+      it("never overwrites a Contract Date that was typed in earlier", async () => {
+        const deal = await register()
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).contract_date = "2026-01-15"
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.contract_date).toBe("2026-01-15")
+      })
+
+      it("fills a blank Contract Date on a Return into the contract Stage too", async () => {
+        makeFlowEdge(qualified, lead)
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00998", sale_type_id: saleType.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).contract_date = null
+
+        const back = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
+
+        expect(back.contract_date).toBeTruthy()
+      })
+
+      it("warns, but allows the move, when the deal reaches Won with no Contract Date", async () => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = null
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+        expect(won.flow_stage_id).toBe(awarded.id)
+        expect(won.wonWithoutContractDate).toBe(true)
+      })
+
+      it("does not warn when the deal reaches Won with a Contract Date", async () => {
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+        expect(won.contract_date).toBeTruthy()
+        expect(won.wonWithoutContractDate).toBe(false)
+      })
     })
 
     describe("Date of Award (#744, ADR 0048)", () => {
@@ -1964,6 +2023,7 @@ describe("opportunityService", () => {
     it("keeps the Contract Date when the deal loops back out of the Won Stage", async () => {
       // ADR 0006 — Realized is a fact about the deal, and a later move cannot
       // unsay that it was won. The positional rule needed a special case here.
+      db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = qualified.id
       const deal = await register()
       await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
       const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
@@ -2740,6 +2800,7 @@ describe("opportunityService", () => {
       })
 
       it("keeps an existing SOR's Contract Date and snapshot after the Won Stage moves on a later snapshot", async () => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = qualified.id
         const deal = await register()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
         const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)

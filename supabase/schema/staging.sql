@@ -1303,7 +1303,8 @@ create table if not exists public."sales_flows" (
   "locked_by" uuid,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "award_stage_id" uuid
+  "award_stage_id" uuid,
+  "contract_stage_id" uuid
 );
 
 create table if not exists public."sales_opportunities" (
@@ -2525,6 +2526,7 @@ alter table revenue_activity_logs add constraint "revenue_activity_logs_author_i
 alter table sale_types add constraint "sale_types_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table sales_custom_templates add constraint "sales_custom_templates_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table sales_flows add constraint "sales_flows_award_stage_id_fkey" FOREIGN KEY (award_stage_id) REFERENCES flow_stages(id) ON DELETE SET NULL;
+alter table sales_flows add constraint "sales_flows_contract_stage_id_fkey" FOREIGN KEY (contract_stage_id) REFERENCES flow_stages(id) ON DELETE SET NULL;
 alter table sales_flows add constraint "sales_flows_locked_by_fkey" FOREIGN KEY (locked_by) REFERENCES employees(id);
 alter table sales_flows add constraint "sales_flows_sale_type_id_fkey" FOREIGN KEY (sale_type_id) REFERENCES sale_types(id) ON DELETE CASCADE;
 alter table sales_flows add constraint "sales_flows_won_stage_fkey" FOREIGN KEY (won_stage_id) REFERENCES flow_stages(id) ON DELETE RESTRICT;
@@ -21230,6 +21232,7 @@ declare
   v_target_follow_up_stage_ids uuid[];
   v_won_stage_id uuid;
   v_award_stage_id uuid;
+  v_contract_stage_id uuid;
   v_blockers text[] := array[]::text[];
   v_rec record;
   v_elem jsonb;
@@ -21254,6 +21257,7 @@ begin
   v_data := v_snapshot.snapshot_data;
   v_won_stage_id := nullif(v_data->>'wonStageId', '')::uuid;
   v_award_stage_id := nullif(v_data->>'awardStageId', '')::uuid;
+  v_contract_stage_id := nullif(v_data->>'contractStageId', '')::uuid;
 
   select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
     into v_target_stage_ids
@@ -21295,7 +21299,7 @@ begin
 
   -- From here the draft is reshaped to match the target, keeping ids. Clear
   -- the Won Stage first so a dropped Stage that held it can be deleted.
-  update sales_flows set won_stage_id = null, award_stage_id = null, updated_at = now() where id = p_flow_id;
+  update sales_flows set won_stage_id = null, award_stage_id = null, contract_stage_id = null, updated_at = now() where id = p_flow_id;
 
   -- Two Stages can swap names. The one-name-per-flow index is checked row by
   -- row, so park every surviving Stage on a unique placeholder first.
@@ -21593,6 +21597,7 @@ begin
   update sales_flows
      set won_stage_id = v_won_stage_id,
          award_stage_id = v_award_stage_id,
+         contract_stage_id = v_contract_stage_id,
          updated_at = now()
    where id = p_flow_id
   returning * into v_flow;
@@ -23353,6 +23358,38 @@ AS $function$
   from public.sales_opportunities o
   where o.id = p_opportunity_id
     and public.sor_access_level(p_opportunity_id) in ('full', 'participant', 'locked')
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_lock_contract_date()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_content text;
+  v_meta jsonb;
+begin
+  if OLD.contract_date is null or NEW.contract_date is not distinct from OLD.contract_date then
+    return NEW;
+  end if;
+  if coalesce(current_setting('app.sor_revert', true), '') = 'on' then
+    return NEW;
+  end if;
+  if auth.role() <> 'service_role' and auth.uid() is not null and not coalesce(public.is_super_admin(), false) then
+    raise exception 'Only a Super Admin can change the Contract Date once it is set.' using errcode = '42501';
+  end if;
+
+  v_content := format('Contract Date changed: %s -> %s', OLD.contract_date, coalesce(NEW.contract_date::text, 'blank'));
+  v_meta := jsonb_build_object('event', 'CONTRACT_DATE_CHANGED', 'from', OLD.contract_date,
+                               'to', NEW.contract_date, 'employeeId', v_actor);
+  insert into public.sales_opportunity_logs (opportunity_id, author_id, type, content, metadata)
+  values (OLD.id, v_actor, 'SYSTEM', v_content, v_meta);
+  insert into public.system_audit_logs (author_id, entity_type, entity_id, content, type, metadata)
+  values (v_actor, 'OPPORTUNITY', OLD.id::text, v_content, 'SYSTEM', v_meta);
+  return NEW;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_lock_date_of_award()
@@ -28055,6 +28092,7 @@ CREATE TRIGGER purchase_request_sor_status_notify AFTER UPDATE OF is_deleted, fl
 CREATE TRIGGER sales_opportunities_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_broadcast_change();
 CREATE TRIGGER sor_guard_non_editor_update BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_non_editor_update();
 CREATE TRIGGER sor_guard_stage_move BEFORE UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_stage_move();
+CREATE TRIGGER sor_lock_contract_date BEFORE UPDATE OF contract_date ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_lock_contract_date();
 CREATE TRIGGER sor_lock_date_of_award BEFORE UPDATE OF date_of_award ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_lock_date_of_award();
 CREATE TRIGGER sor_stage_participants_on_stage_change AFTER UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION close_stage_participant_windows();
 CREATE TRIGGER sor_stage_visits_on_insert AFTER INSERT ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION record_stage_visit();

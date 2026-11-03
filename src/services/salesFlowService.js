@@ -170,6 +170,10 @@ async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
     }
   }
 
+  if (snapshotData.contractStageId && stageIdMap[snapshotData.contractStageId]) {
+    await salesFlowService.setContractStage(flow.id, stageIdMap[snapshotData.contractStageId], actorId);
+  }
+
   if (snapshotData.awardStageId && stageIdMap[snapshotData.awardStageId]) {
     await salesFlowService.setAwardStage(flow.id, stageIdMap[snapshotData.awardStageId], actorId);
   }
@@ -1009,6 +1013,45 @@ export const salesFlowService = {
       flowId,
       `Notice of Award Stage set to "${stageName}".`,
       { event: "FLOW_AWARD_STAGE_SET", flowId, stageId, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * Names the flow's contract Stage, the Stage that holds the client's PO or
+   * contract (CA / PO on the Project flow). Its first arrival fills in a blank
+   * Contract Date (ADR 0048). A column on the flow, so a flow names only one.
+   * Null clears it.
+   */
+  async setContractStage(flowId, stageId, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraft(flowId);
+
+    let stageName = "None";
+    if (stageId !== null) {
+      const stages = await stagesOf(flowId);
+      const stage = stages.find((s) => s.id === stageId);
+      if (!stage) {
+        throw new Error("A flow's contract Stage must be one of its own Stages.");
+      }
+      stageName = stage.name;
+    }
+
+    const { data, error } = await supabase
+      .from("sales_flows")
+      .update({ contract_stage_id: stageId, updated_at: new Date().toISOString() })
+      .eq("id", flowId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      flowId,
+      `Contract Stage set to "${stageName}".`,
+      { event: "FLOW_CONTRACT_STAGE_SET", flowId, stageId, employeeId: actorId },
       actorId,
     ).catch(console.error);
 
