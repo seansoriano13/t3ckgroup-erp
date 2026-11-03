@@ -141,7 +141,7 @@ async function autoIpas(admin: ReturnType<typeof createClient>, email: string, i
       console.error("odoo-po-verify auto IPAS error:", error.message);
       return { result: "error", message: refusalText(error.message) };
     }
-    return data as { result: string; message: string; ipas_number?: string | null };
+    return data as { result: string; message: string; ipas_id?: string | null; ipas_number?: string | null };
   } catch (err) {
     console.error("odoo-po-verify auto IPAS error:", err);
     return { result: "error", message: "The IPAS could not be raised. The P0 stays attached; try again." };
@@ -260,7 +260,7 @@ async function attachManyToItems(
   p0: OdooP0,
   order: OrderEarly,
 ) {
-  const results: Array<{ itemId: string; ok: boolean; status?: string; message?: string; code?: string; warning: string | null; ipas?: string; ipasResult?: string }> = [];
+  const results: Array<{ itemId: string; ok: boolean; status?: string; message?: string; code?: string; warning: string | null; ipas?: string; ipasResult?: string; ipasId?: string | null; ipasNumber?: string | null }> = [];
   const attached: string[] = [];
   for (const itemId of itemIds) {
     try {
@@ -288,7 +288,7 @@ async function raiseIpasAfterMany(
   admin: ReturnType<typeof createClient>,
   email: string,
   poNumber: string,
-  results: Array<{ itemId: string; ipas?: string; ipasResult?: string }>,
+  results: Array<{ itemId: string; ipas?: string; ipasResult?: string; ipasId?: string | null; ipasNumber?: string | null }>,
   attached: string[],
 ) {
   if (!attached.length) return results;
@@ -297,6 +297,8 @@ async function raiseIpasAfterMany(
   for (const row of results.filter((r) => attached.includes(r.itemId))) {
     row.ipas = ipas.message;
     row.ipasResult = ipas.result;
+    row.ipasId = ipas.ipas_id ?? null;
+    row.ipasNumber = ipas.ipas_number ?? null;
   }
   return results;
 }

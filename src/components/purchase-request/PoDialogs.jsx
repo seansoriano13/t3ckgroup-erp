@@ -27,6 +27,7 @@ import { refusal, useRefreshRequest } from "./requestHooks";
 import { purchaseRequestKeys } from "./queryKeys";
 import { OVER_REQUEST_MODAL } from "./stacking";
 import { AttachToOthers } from "./AttachToOthers";
+import IpasMessage from "./IpasMessage";
 
 /**
  * Tells the buyer how their PO number was checked (#548): a success toast, or,
@@ -162,10 +163,11 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
       // #730: the IPAS follows the attach; say what happened to it (raised, SOR added, filed, or Odoo silent).
       const ipas = updated?.ipas;
       if (ipas?.message && ipas.result !== "not_project") {
-        if (ipas.result === "created" || ipas.result === "sor_added" || ipas.result === "already_named") toast.success(ipas.message);
+        const named = <IpasMessage message={ipas.message} ipasId={ipas.ipas_id} ipasNumber={ipas.ipas_number} plainAnchor />;
+        if (ipas.result === "created" || ipas.result === "sor_added" || ipas.result === "already_named") toast.success(named);
         else if (ipas.result === "filed") {
           // A37: the P0 is on a Filed IPAS, so this line will not be received into it. Say so plainly, and stay longer.
-          warningToast(`${ipas.message} This line will not be received into that IPAS. Raise a new IPAS if it needs one.`, 15000);
+          warningToast(<>{named} This line will not be received into that IPAS. Raise a new IPAS if it needs one.</>, 15000);
         } else warningToast(ipas.message);
       }
       // #809: the other items this P0 covers are offered before the window closes. #811: so are open
