@@ -9,8 +9,8 @@ import { getFormType } from '../../../../lib/pdf/formTypeRegistry';
 const TRAY_STORAGE_KEY = 'documentCenterTray:v1';
 
 /** Same composite key the rest of this page already uses for a leave/OT record. */
-// #858 prototype: ?quad=1 previews four forms per page. Never stamps records as printed.
-const QUAD_PREVIEW = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('quad') === '1';
+// #858: four forms per page is the print. ?quad=0 falls back to the old two-per-page sheet.
+const QUAD_PREVIEW = !(typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('quad') === '0');
 
 export function recordKey(r) {
   return r.type + '-' + (r.leave_group_id || r.id);
@@ -150,7 +150,7 @@ export function useDocumentCenter({ approvedRecords, allLoadedRecords, hrId, onP
     setIsBusy(true);
     try {
       await printComposedHtml(previewHtml);
-      if (!QUAD_PREVIEW) {
+      if (true) {
         await Promise.all(tray.map((r) => getFormType(r.type).markPrinted(r, hrId)));
         onPrinted?.();
       }

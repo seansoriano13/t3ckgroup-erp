@@ -165,7 +165,7 @@ function TrayRow({ id, record, index, onRemove }) {
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-bold text-foreground">{record.employee?.name}</span>
         <span className="block text-xs font-medium text-muted-foreground">
-          Sheet {Math.floor(index / 2) + 1} · {index % 2 ? 'bottom' : 'top'}
+          Sheet {Math.floor(index / 4) + 1} · {['top left', 'top right', 'bottom left', 'bottom right'][index % 4]}
         </span>
       </span>
       <Button
