@@ -98,6 +98,12 @@ vi.mock("../../context/AuthContext", () => ({
   useAuth: () => ({ user: authUser }),
 }));
 
+// Sale Type is required to register (#856): pick it unless the test does so itself.
+async function chooseSaleType() {
+  fireEvent.click(await screen.findByText("Select sale type\u2026"));
+  fireEvent.click(await screen.findByText("Flow A"));
+}
+
 function renderForm(props = {}) {
   const onSubmit = vi.fn();
   renderWithProviders(
@@ -118,6 +124,7 @@ describe("OpportunityFormModal â€” Sales Director", () => {
 
     // The locked field shows the resolved director once employees load.
     await screen.findByText("101");
+    await chooseSaleType();
 
     const form = document.getElementById("opportunity-form");
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -178,6 +185,7 @@ describe("OpportunityFormModal â€” Project Type Auto-derivation & Strategic Togg
   it("submits with project_type SSP by default", async () => {
     const onSubmit = renderForm();
     await screen.findByText("101");
+    await chooseSaleType();
 
     const form = document.getElementById("opportunity-form");
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -189,6 +197,7 @@ describe("OpportunityFormModal â€” Project Type Auto-derivation & Strategic Togg
   it("toggles to Strategic when Mark as Strategic is clicked", async () => {
     const onSubmit = renderForm();
     await screen.findByText("101");
+    await chooseSaleType();
 
     const toggleButton = screen.getByRole("button", { name: /mark as strategic/i });
     fireEvent.click(toggleButton);
@@ -206,6 +215,7 @@ describe("OpportunityFormModal â€” Project Type Auto-derivation & Strategic Togg
   it("unsets Strategic back to auto-derived SSP when clicked again", async () => {
     renderForm();
     await screen.findByText("101");
+    await chooseSaleType();
 
     const toggleButton = screen.getByRole("button", { name: /mark as strategic/i });
     fireEvent.click(toggleButton);
@@ -224,6 +234,7 @@ describe("OpportunityFormModal â€” Project Type Auto-derivation & Strategic Togg
   it("shows Closing Salesperson selector and Deal Owner / Originator label when Strategic", async () => {
     renderForm();
     await screen.findByText("101");
+    await chooseSaleType();
 
     // Initially no Closing Salesperson field
     expect(screen.queryByText("Closing Salesperson")).not.toBeInTheDocument();
@@ -257,6 +268,7 @@ describe("OpportunityFormModal — the S0 box", () => {
   it("has no Fetch from Odoo button", async () => {
     renderForm();
     await screen.findByText("101");
+    await chooseSaleType();
     expect(screen.queryByRole("button", { name: /fetch/i })).not.toBeInTheDocument();
   });
 
@@ -264,6 +276,7 @@ describe("OpportunityFormModal — the S0 box", () => {
     const confirm = vi.spyOn(window, "confirm");
     const onSubmit = renderForm();
     await screen.findByText("101");
+    await chooseSaleType();
     type(REFERENCE, " so01237 ");
     submit();
 
@@ -276,6 +289,7 @@ describe("OpportunityFormModal — the S0 box", () => {
   it("refuses a number that is not an S0 before registering", async () => {
     const onSubmit = renderForm();
     await screen.findByText("101");
+    await chooseSaleType();
     type(REFERENCE, "not-a-quote");
     submit();
 
@@ -286,6 +300,7 @@ describe("OpportunityFormModal — the S0 box", () => {
   it("lets a blank S0 register (it can be added later)", async () => {
     const onSubmit = renderForm();
     await screen.findByText("101");
+    await chooseSaleType();
     submit();
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));

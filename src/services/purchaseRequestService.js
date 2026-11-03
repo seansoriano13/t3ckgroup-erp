@@ -391,6 +391,32 @@ export const purchaseRequestService = {
     return data;
   },
 
+  /**
+   * #852: moves many lines to one `status` in one call: all or none. Cancelled and Cannot source take
+   * one shared `reason`, as does Available on a short-stock line. The database merges the lines'
+   * notifications into one per recipient. Returns the updated items.
+   */
+  async setItemsStatus(itemIds, status, reason = null) {
+    const { data, error } = await supabase.rpc("purchase_request_bulk_set_item_status", {
+      p_item_ids: itemIds,
+      p_status: status,
+      p_reason: reason,
+    });
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  /**
+   * #852: takes back a whole batch. `changes` is `[{ item_id, changed_at }]`, from the items
+   * `setItemsStatus` returned; the rules of `undoItemStatus` hold for every line, and one refusal
+   * undoes none.
+   */
+  async undoItemsStatus(changes) {
+    const { data, error } = await supabase.rpc("purchase_request_bulk_undo_item_status", { p_changes: changes });
+    if (error) throw error;
+    return data ?? [];
+  },
+
   // ── PO number and P0 lines (#312) ────────────────────────────────────────
 
   /**

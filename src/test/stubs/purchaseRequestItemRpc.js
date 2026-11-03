@@ -214,6 +214,48 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     return poFields ? updateRow("purchase_request_items", item, poFields) : moved
   }
 
+  // #852 (20261120020000_852_bulk_item_status.sql): the batch is the single-line rule for every line,
+  // all or none; Cancelled and Cannot source need one shared reason, posted for each line.
+  stubRpc("purchase_request_bulk_set_item_status", (args) => {
+    const reason = (args.p_reason || "").trim() || null
+    if (["cancelled", "cannot_source"].includes(args.p_status) && !reason) {
+      refuse("purchase_request_bulk_set_item_status: give a reason", "22023")
+    }
+    const before = (args.p_item_ids || []).map((id) => ({ ...findRow("purchase_request_items", id) }))
+    try {
+      return before.map((item) => {
+        const live = findRow("purchase_request_items", item.id)
+        const updated =
+          args.p_status === "available" ? setAvailable(live, reason ? { reason } : {}) : setStatus(live, args.p_status, {}, false)
+        if (reason && args.p_status !== "available") {
+          insertRow("purchase_request_messages", {
+            request_id: item.request_id,
+            author_id: actorId,
+            content: `${item.name}: ${ITEM_STATUS_LABELS[args.p_status]}. Reason: ${reason}`,
+            metadata: { event: "item_status_reason", item_id: item.id, reason },
+          })
+        }
+        return updated
+      })
+    } catch (error) {
+      for (const item of before) updateRow("purchase_request_items", findRow("purchase_request_items", item.id), item)
+      throw error
+    }
+  })
+
+  stubRpc("purchase_request_bulk_undo_item_status", (args) =>
+    args.p_changes.map((change) => {
+      const item = findRow("purchase_request_items", change.item_id)
+      if (!item || item.status_changed_at !== change.changed_at) {
+        refuse("purchase_request_undo_item_status: that item has changed since, so there is nothing to undo", "22023")
+      }
+      const event = rowsOf("purchase_request_messages").find(
+        (m) => m.metadata?.event === "item_status_changed" && m.metadata.item_id === item.id && m.metadata.changed_at === change.changed_at,
+      )
+      return updateRow("purchase_request_items", item, { status: event.metadata.from, status_changed_by: null, status_changed_at: null })
+    }),
+  )
+
   // #548: the `odoo-po-verify` edge function in save mode, with Odoo faked as
   // `odoo` ('found' | 'not_found' | 'unreachable'). Mirrors
   // purchase_request_item_apply_po_check; the verdicts are proven in

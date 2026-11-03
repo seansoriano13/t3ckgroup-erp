@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, CalendarClock, FolderKanban, LayoutDashboard, PackageCheck, Store, Truck, UserRound } from "lucide-react";
 
@@ -24,12 +24,13 @@ import { usePaging } from "@/hooks/usePaging";
 import { useTableSort } from "@/hooks/useTableSort";
 import { deliveryDeadlineService } from "../../../../services/deliveryDeadlineService";
 import { orderMonitoringService } from "../../../../services/orderMonitoringService";
+import { purchaseRequestService } from "../../../../services/purchaseRequestService";
 import { purchasingDashboardService } from "../../../../services/purchasingDashboardService";
 import { IPAS_SOURCE_LABELS } from "../../../../constants/ipas";
 import { formatAmount } from "../../../../utils/ipas";
 import { pluralize } from "../../../../utils/plural";
 import { useRecordParam } from "../../../../hooks/useRecordParam";
-import { NEXT_FILTER, TRACKER_STAGES, buildTracker, sorSummary, stageStates, valueOpenByCurrency } from "../../../../utils/purchasingTracker";
+import { NEXT_FILTER, TRACKER_ORDER, TRACKER_STAGES, buildTracker, sorSummary, stageStates, valueOpenByCurrency } from "../../../../utils/purchasingTracker";
 import SorPanel from "./SorPanel";
 import { TRACKER_COLUMNS, TRACKER_EXPORT_HEADER, TRACKER_SORT, trackerExportRows } from "./trackerList";
 import { Age, DeadlineText, MoveText, StageCircle } from "./trackerParts";
@@ -126,9 +127,17 @@ function useTrackerData() {
     enabled: sorIds.length > 0,
   });
 
+  // Last request change or chat message per request, from the Purchase Requests list's own figure.
+  const activityQuery = useQuery({ queryKey: ["purchasing-dashboard", "activity"], queryFn: () => purchaseRequestService.listQueue() });
+  const activity = useMemo(
+    () => new Map((activityQuery.data ?? []).map((request) => [request.id, request.last_activity_at || request.created_at])),
+    [activityQuery.data],
+  );
+
   return {
     rows,
     orders,
+    activity,
     names,
     awards,
     deadlines,
@@ -139,8 +148,35 @@ function useTrackerData() {
   };
 }
 
+const ORDER_OPTIONS = [
+  { value: TRACKER_ORDER.URGENCY, label: "Sort: Urgency" },
+  { value: TRACKER_ORDER.RECENT, label: "Sort: Recent activity" },
+];
+
+/** Urgency or Recent activity, remembered per employee on this browser; blocked storage just means the default. */
+function useTrackerOrder(userId) {
+  const key = `erp_purchasing_dashboard_order_${userId ?? "anon"}`;
+  const [order, setOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      return saved === TRACKER_ORDER.RECENT ? saved : TRACKER_ORDER.URGENCY;
+    } catch {
+      return TRACKER_ORDER.URGENCY;
+    }
+  });
+  const choose = (next) => {
+    setOrder(next);
+    try {
+      localStorage.setItem(key, next);
+    } catch {
+      /* ignore */
+    }
+  };
+  return [order, choose];
+}
+
 /** The filter bar: search, three inline choices, the rest in Filters. */
-function trackerBar(f, { rows, orders, names }, valueOpen, columns, exportRows) {
+function trackerBar(f, { rows, orders, names }, valueOpen, columns, exportRows, sortBy) {
   const { values, set } = f;
   return {
     search: { value: f.search, onChange: f.setSearch, placeholder: "Search SOR, IPAS or PO" },
@@ -161,6 +197,7 @@ function trackerBar(f, { rows, orders, names }, valueOpen, columns, exportRows) 
     // The same grid of small dropdowns as the IPAS list's Filters.
     filters: (
       <div className="grid gap-2 sm:grid-cols-2">
+        <FilterSelect options={ORDER_OPTIONS} value={sortBy.order} onChange={sortBy.choose} label="Sort" />
         <FilterSelect icon={UserRound} options={personOptions(rows, "canvasser_id", names, "Any Canvasser")} value={values.canvasserId} onChange={set("canvasserId")} label="Canvasser" allValue={ALL} />
         <FilterSelect icon={CalendarClock} options={AGEING} value={values.age} onChange={set("age")} label="Ageing" allValue={ALL} />
         <FilterSelect icon={PackageCheck} options={CANVASS} value={values.canvass} onChange={set("canvass")} label="Canvass" allValue={ALL} />
@@ -216,10 +253,12 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
   const columns = useHiddenColumns(`erp_purchasing_dashboard_columns_${user?.id ?? "anon"}`, { known: TRACKER_COLUMN_KEYS });
   const shown = TRACKER_COLUMNS.filter((column) => column.locked || columns.show(column.key));
 
+  const [order, chooseOrder] = useTrackerOrder(user?.id);
+
   const today = useMemo(() => new Date(), []);
   const tracker = useMemo(
-    () => buildTracker({ rows: data.rows, orders: data.orders, deadlines: data.deadlines, nearDays: data.nearDays, labelOf, filters: f.query, today }),
-    [data.rows, data.orders, data.deadlines, data.nearDays, labelOf, f.query, today],
+    () => buildTracker({ rows: data.rows, orders: data.orders, deadlines: data.deadlines, nearDays: data.nearDays, labelOf, filters: f.query, today, order, activity: data.activity }),
+    [data.rows, data.orders, data.deadlines, data.nearDays, data.activity, labelOf, f.query, today, order],
   );
   const { sorted: visible, sort, toggle } = useTableSort(tracker.sors, TRACKER_SORT);
   const paging = usePaging(visible);
@@ -263,7 +302,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
 
   const toolbar = (
     <FilterBar
-      {...trackerBar(f, data, valueOpen, { list: TRACKER_COLUMNS, hidden: columns.hidden, toggle: columns.toggle }, exportRows)}
+      {...trackerBar(f, data, valueOpen, { list: TRACKER_COLUMNS, hidden: columns.hidden, toggle: columns.toggle }, exportRows, { order, choose: chooseOrder })}
     />
   );
 
@@ -320,6 +359,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
                               reference={word ? undefined : sor.short}
                               word={word}
                               name={sor.noSor ? "Orders with no SOR" : sor.projectTitle}
+                              search={f.search}
                             >
                               <AwardedBadge date={data.awards?.get(sor.key)} className="mt-1" />
                             </IdentityCell>
@@ -375,6 +415,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
           <SorPanel
             sor={sor}
             labelOf={labelOf}
+            search={f.search}
             today={today}
             onOpenRow={handlers.onOpenRow}
             onOpenOrder={handlers.onOpenOrder}

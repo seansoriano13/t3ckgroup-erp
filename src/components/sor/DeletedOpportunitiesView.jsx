@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   SortHead,
   Table,
@@ -11,7 +11,9 @@ import {
 import { useTableSort } from "@/hooks/useTableSort";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Trash2, RotateCcw, AlertTriangle } from "lucide-react";
+import { Trash2, RotateCcw, AlertTriangle, Search } from "lucide-react";
+import HighlightText from "../HighlightText";
+import { sorCodeOf, matchesSorSearch } from "../../utils/sorCode";
 import Spinner from "../ui/Spinner";
 import Avatar from "../Avatar";
 import { opportunityService } from "../../services/opportunityService";
@@ -37,8 +39,10 @@ function formatWhen(iso) {
  * until someone explicitly destroys it.
  */
 const DELETED_SORT = {
+  number: (r) => r.sales_reference,
   company: (r) => r.client_name,
   project: (r) => r.project_title,
+  "deal-owner": (r) => r.deal_owner?.name,
   "expected-value": (r) => Number(r.expected_value),
   "deleted-by": (r) => r.deleted_by_employee?.name,
   "deleted-at": (r) => (r.deleted_at ? new Date(r.deleted_at).getTime() : null),
@@ -54,7 +58,14 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
     queryFn: () => opportunityService.getDeletedOpportunities(currentUserId, { isSuperAdmin }),
     enabled: Boolean(currentUserId),
   });
-  const { sorted: rows, sort, toggle } = useTableSort(unsortedRows, DELETED_SORT);
+  const [search, setSearch] = useState("");
+  // Same fields as the main register's search box.
+  const searched = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return unsortedRows;
+    return unsortedRows.filter((o) => matchesSorSearch(o, q));
+  }, [unsortedRows, search]);
+  const { sorted: rows, sort, toggle } = useTableSort(searched, DELETED_SORT);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["deletedOpportunities"] });
@@ -102,7 +113,7 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
     );
   }
 
-  if (rows.length === 0) {
+  if (unsortedRows.length === 0) {
     return (
       <div className="mt-4 rounded-2xl border border-border bg-card py-16 text-center">
         <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
@@ -119,13 +130,27 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
   }
 
   return (
-    <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
+    <>
+    <div className="mt-4 flex h-9 max-w-[360px] items-center gap-2 rounded-xl border border-border bg-muted/30 px-2.5 focus-within:border-mauve-7 sm:px-3">
+      <Search size={15} className="shrink-0 text-muted-foreground" />
+      <Input
+        value={search}
+        aria-label="Search register"
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search number, client, project, deal owner…"
+        containerClassName="w-full"
+        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm font-medium text-foreground shadow-none outline-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
+      />
+    </div>
+    <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="overflow-x-auto">
         <Table tableId="deleted-opportunities">
           <TableHeader>
             <TableRow>
+              <SortHead id="number" sortKey="number" sort={sort} onSort={toggle}>Number</SortHead>
               <SortHead id="company" sortKey="company" sort={sort} onSort={toggle}>Company</SortHead>
               <SortHead id="project" sortKey="project" sort={sort} onSort={toggle}>Project</SortHead>
+              <SortHead id="deal-owner" sortKey="deal-owner" sort={sort} onSort={toggle}>Deal Owner</SortHead>
               <SortHead id="expected-value" sortKey="expected-value" sort={sort} onSort={toggle} className="text-right">Expected Value</SortHead>
               <SortHead id="deleted-by" sortKey="deleted-by" sort={sort} onSort={toggle}>Deleted By</SortHead>
               <SortHead id="deleted-at" sortKey="deleted-at" sort={sort} onSort={toggle}>Deleted At</SortHead>
@@ -133,12 +158,29 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
             </TableRow>
           </TableHeader>
           <TableBody>
+            {rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                  No deleted SOR matches this search.
+                </TableCell>
+              </TableRow>
+            )}
             {rows.map((row) => {
               const canRestore = isSuperAdmin || row.deal_owner_id === currentUserId;
               return (
                 <TableRow key={row.id} className="border-b border-border/50 last:border-0">
-                  <TableCell className="font-semibold">{row.client_name}</TableCell>
-                  <TableCell className="text-muted-foreground">{row.project_title}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    <HighlightText text={row.sales_reference || sorCodeOf(row)} search={search} />
+                  </TableCell>
+                  <TableCell className="font-semibold">
+                    <HighlightText text={row.client_name} search={search} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    <HighlightText text={row.project_title} search={search} />
+                  </TableCell>
+                  <TableCell className="text-xs font-semibold">
+                    <HighlightText text={row.deal_owner?.name} search={search} />
+                  </TableCell>
                   <TableCell className="text-right font-bold">{formatPHP(row.expected_value)}</TableCell>
                   <TableCell>
                     {row.deleted_by_employee ? (
@@ -242,5 +284,6 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
         </Dialog>
       )}
     </div>
+    </>
   );
 }

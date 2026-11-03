@@ -3,11 +3,15 @@ import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/c
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import toast from 'react-hot-toast';
 import { hydrateRecordsForPrint, buildPrintableDocument, printComposedHtml } from '../../../../lib/pdf/htmlPrinter';
+import { buildQuadDocument } from '../../../../lib/pdf/quadPrototype';
 import { getFormType } from '../../../../lib/pdf/formTypeRegistry';
 
 const TRAY_STORAGE_KEY = 'documentCenterTray:v1';
 
 /** Same composite key the rest of this page already uses for a leave/OT record. */
+// #858: four forms per page is the print. ?quad=0 falls back to the old two-per-page sheet.
+const QUAD_PREVIEW = !(typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('quad') === '0');
+
 export function recordKey(r) {
   return r.type + '-' + (r.leave_group_id || r.id);
 }
@@ -128,7 +132,7 @@ export function useDocumentCenter({ approvedRecords, allLoadedRecords, hrId, onP
     setIsRendering(true);
     hydrateRecordsForPrint(tray)
       .then((mapped) => {
-        if (!cancelled) setPreviewHtml(buildPrintableDocument(mapped));
+        if (!cancelled) setPreviewHtml(QUAD_PREVIEW ? buildQuadDocument(mapped) : buildPrintableDocument(mapped));
       })
       .catch((err) => {
         if (!cancelled) toast.error(err.message || 'Failed to render preview');

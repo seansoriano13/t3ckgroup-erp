@@ -335,22 +335,22 @@ describe('validation date fallback (issue #614)', () => {
   for (const [label, build, type] of cases) {
     it(`${label}: hr_processed_at wins, with date and time`, () => {
       const vm = build({ ...base, type, hr_processed_at: '2026-10-14T07:27:00Z', hr_signature_timestamp: '2026-10-10T01:00:00Z', updated_at: '2026-10-20T00:00:00Z' });
-      expect(stamp(vm)).toBe('Oct 14, 2026 · 3:27 PM');
+      expect(stamp(vm)).toBe('Oct 14, 2026 Â· 3:27 PM');
     });
     it(`${label}: falls back to hr_signature_timestamp, with date and time`, () => {
       const vm = build({ ...base, type, hr_signature_timestamp: '2026-10-14T07:27:00Z', updated_at: '2026-10-20T00:00:00Z' });
-      expect(stamp(vm)).toBe('Oct 14, 2026 · 3:27 PM');
+      expect(stamp(vm)).toBe('Oct 14, 2026 Â· 3:27 PM');
     });
     it(`${label}: last falls back to updated_at, date only`, () => {
       const vm = build({ ...base, type, updated_at: '2026-10-14T07:27:00Z' });
       expect(stamp(vm)).toBe('Oct 14, 2026');
     });
     it(`${label}: shows a dash when nothing is recorded`, () => {
-      expect(stamp(build({ ...base, type }))).toBe('—');
+      expect(stamp(build({ ...base, type }))).toBe('â€”');
     });
   }
 
   it('uses the Manila date near midnight UTC', () => {
-    expect(getValidationStamp({ hr_processed_at: '2026-10-14T17:30:00Z' })).toBe('Oct 15, 2026 · 1:30 AM');
+    expect(getValidationStamp({ hr_processed_at: '2026-10-14T17:30:00Z' })).toBe('Oct 15, 2026 Â· 1:30 AM');
   });
 });

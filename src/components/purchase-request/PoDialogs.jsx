@@ -27,6 +27,7 @@ import { refusal, useRefreshRequest } from "./requestHooks";
 import { purchaseRequestKeys } from "./queryKeys";
 import { OVER_REQUEST_MODAL } from "./stacking";
 import { AttachToOthers } from "./AttachToOthers";
+import IpasMessage from "./IpasMessage";
 
 /**
  * Tells the buyer how their PO number was checked (#548): a success toast, or,
@@ -46,18 +47,19 @@ function outcomeOf(p0, productId) {
   return status === "to_purchase" ? "RFQ: the line stays To purchase" : `The line becomes ${ITEM_STATUS_LABELS[status]}`;
 }
 
-/** A P0's rows, one per line. This item's own product is marked; more than five rows show five and a "Show all" link. */
+/** A P0's rows, one per line. This item's own line goes first and is tinted; other lines keep their order. More than five rows show five and a "Show all" link. */
 const P0_ROWS_SHOWN = 5;
 function P0Lines({ lines, productId }) {
   const [showAll, setShowAll] = useState(false);
-  const shown = showAll ? lines : lines.slice(0, P0_ROWS_SHOWN);
+  const ordered = [...lines.filter((l) => l.product_id === productId), ...lines.filter((l) => l.product_id !== productId)];
+  const shown = showAll ? ordered : ordered.slice(0, P0_ROWS_SHOWN);
   return (
     <div className="space-y-1">
       <ul className="divide-y divide-border">
         {shown.map((line, index) => {
           const mine = line.product_id === productId;
           return (
-            <li key={line.id ?? index} data-testid="p0-line" className="flex items-baseline justify-between gap-3 py-1.5 text-[13px]">
+            <li key={line.id ?? index} data-testid="p0-line" className={`flex items-baseline justify-between gap-3 py-1.5 text-[13px] ${mine ? "-mx-1 rounded bg-primary/10 px-1" : ""}`}>
               <span className={mine ? "font-semibold text-foreground" : "text-foreground"}>
                 {line.product_name || `Product ${line.product_id}`}
                 {mine && <span className="ml-2 text-xs text-muted-foreground">This item</span>}
@@ -161,10 +163,11 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
       // #730: the IPAS follows the attach; say what happened to it (raised, SOR added, filed, or Odoo silent).
       const ipas = updated?.ipas;
       if (ipas?.message && ipas.result !== "not_project") {
-        if (ipas.result === "created" || ipas.result === "sor_added" || ipas.result === "already_named") toast.success(ipas.message);
+        const named = <IpasMessage message={ipas.message} ipasId={ipas.ipas_id} ipasNumber={ipas.ipas_number} plainAnchor />;
+        if (ipas.result === "created" || ipas.result === "sor_added" || ipas.result === "already_named") toast.success(named);
         else if (ipas.result === "filed") {
           // A37: the P0 is on a Filed IPAS, so this line will not be received into it. Say so plainly, and stay longer.
-          warningToast(`${ipas.message} This line will not be received into that IPAS. Raise a new IPAS if it needs one.`, 15000);
+          warningToast(<>{named} This line will not be received into that IPAS. Raise a new IPAS if it needs one.</>, 15000);
         } else warningToast(ipas.message);
       }
       // #809: the other items this P0 covers are offered before the window closes. #811: so are open

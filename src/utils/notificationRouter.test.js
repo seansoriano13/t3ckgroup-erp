@@ -299,6 +299,7 @@ describe("handleNotificationRoute", () => {
     it.each([
       "PURCHASE_REQUEST_OPENED",
       "PURCHASE_REQUEST_BUYER",
+      "PURCHASE_REQUEST_BUYER_SET",
       "PURCHASE_REQUEST_ITEM_STATUS",
       "PURCHASE_REQUEST_ITEM_ADDED",
       "PURCHASE_REQUEST_MESSAGE",
@@ -316,7 +317,7 @@ describe("handleNotificationRoute", () => {
       expect(dispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: "OPEN_ENTITY_DETAILS",
-          detail: { id: "pr-1", type: "PURCHASE_REQUEST", focusChat: type === "PURCHASE_REQUEST_MENTION" },
+          detail: { id: "pr-1", type: "PURCHASE_REQUEST", focusChat: type === "PURCHASE_REQUEST_MENTION", ...(type === "PURCHASE_REQUEST_MESSAGE" || type === "PURCHASE_REQUEST_MENTION" ? { tab: "chat" } : type === "PURCHASE_REQUEST_ITEM_STATUS" ? { tab: "items" } : {}) },
         }),
       )
       dispatch.mockRestore()

@@ -129,6 +129,29 @@ export function byUrgency(a, b) {
   return b.ageDays - a.ageDays;
 }
 
+/** How the tracker orders SORs: worst first (the default), or the newest request change or chat message first. */
+export const TRACKER_ORDER = { URGENCY: "urgency", RECENT: "recent" };
+
+/** Newest activity first; a SOR with no known activity goes last, then falls back to urgency. */
+export function byRecent(a, b) {
+  const ta = a.lastActivity ?? -Infinity;
+  const tb = b.lastActivity ?? -Infinity;
+  if (ta !== tb) return tb - ta;
+  return byUrgency(a, b);
+}
+
+/** The newest change or chat message (ms) across a SOR's requests, or its orders' creation when it has no request news. */
+function lastActivityOf(sor, activity) {
+  const times = [];
+  for (const row of sor.rows) {
+    const at = row.request_id ? activity.get(row.request_id) : null;
+    if (at) times.push(new Date(at).getTime());
+  }
+  for (const order of sor.orders) if (order.createdAt) times.push(new Date(order.createdAt).getTime());
+  const valid = times.filter((t) => Number.isFinite(t));
+  return valid.length ? Math.max(...valid) : null;
+}
+
 /** The pre-tax value still open, per PO currency (never converted), from the open orders. */
 export function valueOpenByCurrency(orders) {
   const byCurrency = new Map();
@@ -167,7 +190,7 @@ export const NEXT_FILTER = { ALL: "ALL", OURS: "ours", WAITING: "waiting", LATE:
  * `stage` narrows them, so the stat row stays whole while you pick one) and
  * `orders` (the open orders shown, for the value total).
  */
-export function buildTracker({ rows = [], orders = [], deadlines = new Map(), nearDays, labelOf, filters = {}, today = new Date() }) {
+export function buildTracker({ rows = [], orders = [], deadlines = new Map(), nearDays, labelOf, filters = {}, today = new Date(), order = TRACKER_ORDER.URGENCY, activity = new Map() }) {
   const {
     search = "",
     stage = null,
@@ -266,6 +289,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
       ageDays: ageDays(sor.oldest, today),
       deadline: dueAt ? deadlineMark({ dueAt, nearDays, today }) : null,
       furthest,
+      lastActivity: lastActivityOf(sor, activity),
       outstanding: STAGE_KEYS.slice(0, LAST_OPEN + 1).reduce((n, key) => n + sor.byStage[key], 0),
       next: nextMoveOf(sor.rows, open, { today, labelOf }),
     };
@@ -292,7 +316,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
     };
   });
 
-  const result = beforeStage.filter((sor) => !stage || sor.byStage[stage] > 0).sort(byUrgency);
+  const result = beforeStage.filter((sor) => !stage || sor.byStage[stage] > 0).sort(order === TRACKER_ORDER.RECENT ? byRecent : byUrgency);
   const shownOrders = [...new Map(result.flatMap((sor) => sor.openOrders).map((order) => [order.id, order])).values()];
   return { sors: result, stages, orders: shownOrders };
 }

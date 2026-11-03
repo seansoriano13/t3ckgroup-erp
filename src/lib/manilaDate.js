@@ -42,9 +42,9 @@ export function formatManilaDate(instant) {
   return format(toManila(instant), 'MMM d, yyyy')
 }
 
-/** An instant as a Manila "Oct 14, 2026 · 3:27 PM" (12-hour clock). */
+/** An instant as a Manila "Oct 14, 2026 Â· 3:27 PM" (12-hour clock). */
 export function formatManilaDateTime(instant) {
-  return `${format(toManila(instant), 'MMM d, yyyy')} · ${format(toManila(instant), 'h:mm a')}`
+  return `${format(toManila(instant), 'MMM d, yyyy')} Â· ${format(toManila(instant), 'h:mm a')}`
 }
 
 /** A `YYYY-MM-DD` as a Manila-midnight date. */

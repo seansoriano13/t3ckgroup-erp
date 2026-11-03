@@ -59,7 +59,7 @@ import { flowStageTone } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
 import HighlightText from "../../components/HighlightText";
-import { sorCodeOf, matchesSorCode } from "../../utils/sorCode";
+import { sorCodeOf, matchesSorSearch } from "../../utils/sorCode";
 import { Building2, Users, Layers, Tag } from "lucide-react";
 import {
   Table,
@@ -416,17 +416,7 @@ export default function OpportunitiesPage() {
       }
       if (blockedOnly && !blockedDeals[o.id]?.length) return false;
       if (!q) return true;
-      if (matchesSorCode(o, q)) return true;
-      return [
-        o.opportunity_no,
-        o.sales_reference,
-        o.client_name,
-        o.project_title,
-        o.deal_owner?.name,
-        o.lead_source_detail,
-      ]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
+      return matchesSorSearch(o, q);
     });
   }, [
     opportunities,

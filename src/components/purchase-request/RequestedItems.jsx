@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QueryError from "@/components/ui/QueryError";
 import { ChevronRight } from "lucide-react";
 
+import { Checkbox } from "@/components/ui/checkbox";
+
 import Reveal from "@/components/record/Reveal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,6 +16,7 @@ import AddRequestedItems from "./AddRequestedItems";
 import LinerList from "@/components/record/LinerList";
 import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
+import BulkStatusBar from "./BulkStatusBar";
 import LineButtons from "./LineButtons";
 import { AskedSub, ColumnHeads, COLUMNS, ForCell, NotesCell, P0Cell, ProductCode, QtyCell, StockCell } from "./ProductLineCells";
 import { YoursBadge } from "./YoursDialog";
@@ -21,7 +24,7 @@ import StatusBadge from "../StatusBadge";
 import { isFromS0, isOpenWithoutOdooProduct, requestedItemStock } from "../../utils/requestedItem";
 import { mergedRequestOf, splitProductName, thumbnailOf } from "../../utils/productLine";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
-import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME, MEMBER_SIDE, isClosedStatus } from "../../constants/purchaseRequest";
+import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME, MEMBER_SIDE, canTickLine, isClosedStatus } from "../../constants/purchaseRequest";
 import { purchaseRequestKeys } from "./queryKeys";
 import { useCostingMatrix } from "../costing/useCostingMatrix";
 import { tierReadsCost } from "../../constants/costing";
@@ -54,7 +57,7 @@ function askedMain(item) {
  * either end of a Buyer's substitute; `mergedFrom` is the request whose P0 moved onto this line.
  * An item for a Component shows it as "1.2 · name" in its details.
  */
-function requestedItemRow({ item, stockSnapshot, side = null, costText = null, status, notes, buttons = null, replaces = null, replacedBy = null, mergedFrom = null }) {
+function requestedItemRow({ item, stockSnapshot, side = null, costText = null, status, notes, buttons = null, replaces = null, replacedBy = null, mergedFrom = null, tick = null }) {
   const stock = requestedItemStock(item, stockSnapshot);
   const asked = !isFromS0(item);
   // #807: an open line with no Odoo product says so under its name.
@@ -75,6 +78,7 @@ function requestedItemRow({ item, stockSnapshot, side = null, costText = null, s
       </>
     ),
     subWrap: asked,
+    leading: tick,
     actions: (
       <div className={cn("grid items-center gap-3", COLUMNS)}>
         <QtyCell item={item} />
@@ -174,6 +178,8 @@ function ItemSection({ section, rowFor, open, onOpenChange, sectionRef }) {
  */
 export default function RequestedItems({ request, renderActions }) {
   const requestId = request?.id;
+  // #852: the ticked lines, for the bulk bar.
+  const [ticked, setTicked] = useState(() => new Set());
   const [openSections, setOpenSections] = useState({ s0: true, other: true });
   const sectionRefs = { s0: useRef(null), other: useRef(null) };
 
@@ -244,6 +250,16 @@ export default function RequestedItems({ request, renderActions }) {
     setOpenSections((prev) => ({ ...prev, [key]: true }));
     sectionRefs[key].current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   };
+  // #852: only a member who may change a line's status sees its tick box.
+  const canTick = !renderActions && !!actor?.side;
+  const tickedItems = items.filter((i) => ticked.has(i.id));
+  const toggleTick = (id, on) =>
+    setTicked((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   const rowFor = (item) => {
     const replacedBy = substituteOf.get(item.id);
     const statusBadge = <StatusBadge label={ITEM_STATUS_LABELS[item.status] || item.status} theme={ITEM_STATUS_THEME[item.status]} />;
@@ -252,6 +268,14 @@ export default function RequestedItems({ request, renderActions }) {
       stockSnapshot,
       side: sideOf.get(item.requested_by) ?? null,
       costText: item.component_id ? costByComponent.get(item.component_id) ?? null : null,
+      tick:
+        canTick && canTickLine(item, actor.side) ? (
+          <Checkbox
+            checked={ticked.has(item.id)}
+            onCheckedChange={(on) => toggleTick(item.id, on === true)}
+            aria-label={`Select ${item.name}`}
+          />
+        ) : null,
       replaces: byId.get(item.substitute_for_item_id),
       replacedBy,
       mergedFrom: mergedRequestOf(item, items),
@@ -308,6 +332,15 @@ export default function RequestedItems({ request, renderActions }) {
         />
       ) : (
         <>
+          {canTick && (
+            <BulkStatusBar
+              requestId={requestId}
+              items={tickedItems}
+              side={actor.side}
+              stockSnapshot={stockSnapshot}
+              onClear={() => setTicked(new Set())}
+            />
+          )}
           {items.length > 0 && (
             <ReadyBar
               summary={summarize(items)}
