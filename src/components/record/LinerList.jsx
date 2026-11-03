@@ -42,6 +42,7 @@ function LinerRow({ row }) {
     <li id={row.domId} data-testid={row.testId}>
       {withActions ? (
         <div className="flex items-center gap-3 pr-4 hover:bg-muted/50">
+          {row.leading != null && <span className="flex shrink-0 items-center pl-4">{row.leading}</span>}
           <Button
             type="button"
             variant="ghost"
@@ -49,7 +50,7 @@ function LinerRow({ row }) {
             aria-controls={panelId}
             aria-label={`${open ? "Close" : "Open"} details of ${row.label ?? row.main}`}
             onClick={() => setOpen((prev) => !prev)}
-            className="h-auto min-w-0 flex-1 justify-start gap-3 rounded-none px-4 py-2.5 text-left font-normal whitespace-normal hover:bg-transparent"
+            className={cn("h-auto min-w-0 flex-1 justify-start gap-3 rounded-none px-4 py-2.5 text-left font-normal whitespace-normal hover:bg-transparent", row.leading != null && "pl-0")}
           >
             {text}
           </Button>
@@ -85,7 +86,7 @@ function LinerRow({ row }) {
  * row with `children` opens in place (the `.reveal` pattern: its content stays
  * mounted) and several can be open at once.
  *
- * `rows`: `[{ key, main, sub?, quantity?, badge?: { label, theme? }, actions?, label?, testId?, domId?, children?, defaultOpen?, subWrap? }]`.
+ * `rows`: `[{ key, main, sub?, quantity?, badge?: { label, theme? }, actions?, leading?, label?, testId?, domId?, children?, defaultOpen?, subWrap? }]`.
  * `domId` sets the row's element id, so a caller can scroll to it.
  * `subWrap` lets a long sub line wrap instead of cutting it short.
  * `actions` is a node (a status menu) shown in place of the badge; the row's toggle then holds only its text.
