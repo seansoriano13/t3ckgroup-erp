@@ -242,3 +242,13 @@ describe("value open", () => {
     ]);
   });
 });
+
+describe("byRecent (#848)", () => {
+  it("puts the newest activity first and unknown last, ties by urgency", async () => {
+    const { byRecent } = await import("./purchasingTracker");
+    const a = { lastActivity: 100, lateCount: 0, ageDays: 1 };
+    const b = { lastActivity: 200, lateCount: 0, ageDays: 1 };
+    const c = { lastActivity: null, lateCount: 0, ageDays: 1 };
+    expect([a, c, b].sort(byRecent)).toEqual([b, a, c]);
+  });
+});
