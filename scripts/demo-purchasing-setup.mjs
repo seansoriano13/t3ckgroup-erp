@@ -429,6 +429,7 @@ async function main() {
   const prodUrl = env.PROD_DB_URL ?? process.env.PROD_DB_URL
   if (!stagingUrl || !prodUrl) throw new Error("STAGING_DB_URL and PROD_DB_URL must be set (.env.local or the environment).")
   if (stagingUrl === prodUrl) throw new Error("STAGING_DB_URL and PROD_DB_URL are the same database.")
+  if (stagingUrl.includes("epqmberwewztzbrkhhss")) throw new Error("STAGING_DB_URL points at the production project. This script only writes to staging.")
 
   const prod = await connect(prodUrl)
   const c = await connect(stagingUrl)

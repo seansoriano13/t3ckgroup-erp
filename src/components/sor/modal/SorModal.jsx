@@ -73,6 +73,8 @@ export default function SorModal({
   const { user } = useAuth();
   const id = rawOpportunity?.id || opportunityId;
 
+  // The parent's row can go stale after a save; this refetch shares the ["opportunity", id] key, so an
+  // invalidate from anywhere (e.g. SorVersionUpdate) refreshes it. Read the SOR through activeOpportunity.
   const { data: liveOpportunity } = useQuery({
     queryKey: ["opportunity", id],
     queryFn: () => opportunityService.getOpportunityById(id),
