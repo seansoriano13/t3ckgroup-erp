@@ -16,6 +16,7 @@ import { TablePager } from "../../components/ui/TablePager";
 import { useTableSort } from "../../hooks/useTableSort";
 import { usePaging } from "../../hooks/usePaging";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
+import HighlightText from "@/components/HighlightText";
 import { IdentityCell } from "../../components/purchasing/list/IdentityCell";
 import { AwardedBadge } from "../../components/purchasing/AwardedBadge";
 import { sorAwardService } from "../../services/sorAwardService";
@@ -93,11 +94,13 @@ const matches = (row, term) =>
  * The SOR's Stage as the SOR list shows it: a flow Stage in its tone (looked up
  * by name, the only part of it the row carries), a legacy status by its code.
  */
-function StageCell({ row, tones }) {
+function StageCell({ row, tones, search }) {
   const label = requestStageLabel(row);
   if (!label) return <span className="text-xs text-muted-foreground">—</span>;
-  if (row.stage_name) return <StatusBadge label={label} theme={tones.get(row.stage_name) || "mauve"} title={label} />;
-  return <StatusBadge label={label} status={row.sor_status} title={label} />;
+  // A match is wrapped, so the badge takes children only while a search is typed.
+  const text = search?.trim() ? <HighlightText text={label} search={search} /> : undefined;
+  if (row.stage_name) return <StatusBadge label={label} theme={tones.get(row.stage_name) || "mauve"} title={label}>{text}</StatusBadge>;
+  return <StatusBadge label={label} status={row.sor_status} title={label}>{text}</StatusBadge>;
 }
 
 // Stage, Progress, Last activity and Age hide below md so Request, Buyer and Status stay in view; the row sheet has the rest.
@@ -162,7 +165,7 @@ function TakeButton({ requestId }) {
   );
 }
 
-function QueueRow({ row, selected, onOpen, canTake, stageTones, awardedOn }) {
+function QueueRow({ row, selected, onOpen, canTake, stageTones, awardedOn, search }) {
   const { reference, title } = requestIdentity(row);
   const direct = requestKind(row) === REQUEST_KIND.DIRECT;
   return (
@@ -185,11 +188,14 @@ function QueueRow({ row, selected, onOpen, canTake, stageTones, awardedOn }) {
         reference={direct ? undefined : reference}
         word={direct ? reference : undefined}
         name={title}
+        search={search}
       >
-        {row.pr_number ? <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">{row.pr_number}</span> : null}
+        {row.pr_number ? <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
+            <HighlightText text={row.pr_number} search={search} />
+          </span> : null}
       </IdentityCell>
       <TableCell className="hidden md:table-cell">
-        <StageCell row={row} tones={stageTones} />
+        <StageCell row={row} tones={stageTones} search={search} />
         <AwardedBadge date={awardedOn} className="mt-1" />
       </TableCell>
       <TableCell className="hidden md:table-cell">
@@ -199,7 +205,9 @@ function QueueRow({ row, selected, onOpen, canTake, stageTones, awardedOn }) {
         {row.buyer_id ? (
           <div className="flex items-center gap-2">
             <Avatar src={row.buyer_avatar_path} name={row.buyer_name} size="xs" />
-            <span className="truncate text-xs font-medium text-foreground">{row.buyer_name}</span>
+            <span className="truncate text-xs font-medium text-foreground">
+              <HighlightText text={row.buyer_name} search={search} />
+            </span>
           </div>
         ) : canTake ? (
           <TakeButton requestId={row.id} />
@@ -411,6 +419,7 @@ function PurchaseRequests() {
                       canTake={purchaser}
                       stageTones={stageTones}
                       awardedOn={awards?.get(row.opportunity_id)}
+                      search={search}
                     />
                   ))}
                 </TableBody>

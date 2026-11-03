@@ -2,6 +2,7 @@ import { Check, Pencil } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import HighlightText from "@/components/HighlightText";
 import { DEADLINE_MARK } from "../../../../utils/deliveryDeadline";
 import { formatDateWith } from "../../../../utils/formatDate";
 import { pluralize } from "../../../../utils/plural";
@@ -133,16 +134,25 @@ function RecordLine({ row, today, onOpen }) {
 }
 
 /** An order as one line: IPAS number, supplier and item, its track, the next thing and who owes it. */
-function OrderLine({ order, labelOf, onOpen }) {
+function OrderLine({ order, labelOf, onOpen, search }) {
   const move = orderMove(order, labelOf);
   return (
     <LineButton
       onClick={() => onOpen(order)}
       className={cn("flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-2 text-sm", order.late && "bg-destructive/5 hover:bg-destructive/10")}
     >
-      <span className="shrink-0 font-mono text-xs font-semibold">{order.number}</span>
+      <span className="shrink-0 font-mono text-xs font-semibold">
+        <HighlightText text={order.number} search={search} />
+      </span>
+      {order.poNumber ? (
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">
+          <HighlightText text={order.poNumber} search={search} />
+        </span>
+      ) : null}
       <span className="min-w-0 flex-1 basis-40 truncate">
-        <span className="font-medium">{order.supplier ?? "—"}</span>
+        <span className="font-medium">
+          <HighlightText text={order.supplier ?? "—"} search={search} />
+        </span>
         <span className="text-muted-foreground"> · {order.item?.name}</span>
       </span>
       <OrderTrack order={order} />
@@ -160,7 +170,7 @@ function OrderLine({ order, labelOf, onOpen }) {
  * One SOR's whole purchase as a stage-by-stage checklist, each record under
  * the stage it is in. Records are one-line liners, never a table inside a row.
  */
-export function StageChecklist({ sor, labelOf, today, onOpenRow, onOpenOrder }) {
+export function StageChecklist({ sor, labelOf, today, search, onOpenRow, onOpenOrder }) {
   const states = stageStates(sor);
   const projectRows = sor.rows.filter((row) => row.target_kind !== "ipas");
   const ordersIn = (key) => {
@@ -192,7 +202,7 @@ export function StageChecklist({ sor, labelOf, today, onOpenRow, onOpenOrder }) 
                     <RecordLine key={`${row.target_kind}-${row.target_id}`} row={row} today={today} onOpen={onOpenRow} />
                   ))}
                   {orders.map((order) => (
-                    <OrderLine key={order.id} order={order} labelOf={labelOf} onOpen={onOpenOrder} />
+                    <OrderLine key={order.id} order={order} labelOf={labelOf} onOpen={onOpenOrder} search={search} />
                   ))}
                 </div>
               )}

@@ -320,6 +320,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
                               reference={word ? undefined : sor.short}
                               word={word}
                               name={sor.noSor ? "Orders with no SOR" : sor.projectTitle}
+                              search={f.search}
                             >
                               <AwardedBadge date={data.awards?.get(sor.key)} className="mt-1" />
                             </IdentityCell>
@@ -375,6 +376,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
           <SorPanel
             sor={sor}
             labelOf={labelOf}
+            search={f.search}
             today={today}
             onOpenRow={handlers.onOpenRow}
             onOpenOrder={handlers.onOpenOrder}
