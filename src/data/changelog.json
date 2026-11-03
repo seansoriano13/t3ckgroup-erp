@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-11-03",
+        "title": "Filter Task Approvals by step",
+        "version": "1.9.84",
+        "changes": [
+            "Task Approvals: if you can both grade and verify tasks, a new Step filter shows only the tasks at Head grade or only the ones at HR verification.",
+            "Task Approvals: click the Stage column to sort by how far along each task is, like the other columns."
+        ]
+    },
+    {
+        "date": "2026-11-03",
         "title": "Task Approvals and HR Verifications are one page",
         "version": "1.9.83",
         "changes": [

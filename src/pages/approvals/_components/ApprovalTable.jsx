@@ -21,6 +21,11 @@ const APPROVAL_SORT = {
   submitted: (i) => new Date(i.submittedAt).getTime(),
   waiting: (i) => (i.done ? null : new Date(i.clockAt).getTime()),
   status: (i) => statusOf(i),
+  // How far along its chain the request is; a finished one sorts last.
+  stage: (i) => {
+    const at = i.chain.findIndex((s) => s.state === "current");
+    return at >= 0 ? at : i.chain.length;
+  },
 };
 
 const HEAD = `${CAPTION_BASE} tracking-wider`;
@@ -120,7 +125,7 @@ export function ApprovalTable({
             <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>{personLabel}</SortHead>
             <SortHead id="submitted" sortKey="submitted" sort={sort} onSort={toggle} className={`${HEAD} hidden lg:table-cell`}>Submitted</SortHead>
             <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>Waiting</SortHead>
-            <TableHead id="stage" className={`${HEAD} hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>Stage</TableHead>
+            <SortHead id="stage" sortKey="stage" sort={sort} onSort={toggle} className={`${HEAD} hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>Stage</SortHead>
             <SortHead id="status" sortKey="status" sort={sort} onSort={toggle} className={HEAD}>Status</SortHead>
             <TableHead className="w-12 md:w-24">
               <span className="sr-only">Actions</span>
