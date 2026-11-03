@@ -14,12 +14,8 @@ export default function ApprovalsRedirect() {
   const isIpasApprover = !!(user?.is_ipas_approver || user?.isIpasApprover);
   const isFinalAcquire = !!(user?.is_final_acquire || user?.isFinalAcquire);
 
-  if (isSuperAdmin || isHead) {
+  if (isSuperAdmin || isHead || isHr) {
     return <Navigate to="/approvals/tasks" replace />;
-  }
-
-  if (isHr) {
-    return <Navigate to="/approvals/hr-verification" replace />;
   }
 
   // Someone whose only queue is IPAS goes straight to it (#247).

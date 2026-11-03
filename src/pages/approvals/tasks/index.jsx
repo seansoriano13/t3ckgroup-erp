@@ -2,9 +2,9 @@ import PageLoading from "@/components/ui/PageLoading";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
-import { Link, useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Clock, History, Layers } from "lucide-react";
+import { AlertTriangle, Check, Clock, History, Layers, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import { taskService } from "../../../services/taskService.js";
 import { taskQueryService } from "../../../services/tasks/taskQueryService.js";
@@ -12,12 +12,13 @@ import { TASK_STATUS } from "../../../constants/status.js";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/Tooltip";
 import TabGroup from "../../../components/ui/TabGroup";
 import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import TaskDetails from "../../../components/TaskDetails.jsx";
 import TaskFilters from "../../../components/TaskFilters.jsx";
 import GradeSelector from "../../../components/GradeSelector.jsx";
-import { filterAndSortTasks, partitionByStaleness, summariseQueueEmployees } from "../../../utils/approvalQueue.js";
+import { filterAndSortTasks, summariseQueueEmployees } from "../../../utils/approvalQueue.js";
 import { taskToItem } from "../../../utils/approvalItems.js";
 import { sameDepartment } from "../../../utils/compareDepartment.js";
 import { useRecordParam } from "../../../hooks/useRecordParam";
@@ -29,13 +30,26 @@ import { ApprovalSheet } from "../_components/ApprovalSheet";
 import { TaskReview } from "../_components/TaskReview";
 import { APPROVE_CLASS } from "@/components/ui/approveClass";
 import BulkDeclineModal from "../_components/BulkDeclineModal";
+import BulkVerifyModal from "../_components/BulkVerifyModal";
+import GroupTaskApprovalSection from "../_components/GroupTaskApprovalSection.jsx";
 
 const QUEUE = APPROVAL_QUEUES.find((q) => q.key === "tasks");
+const queueOf = (key) => APPROVAL_QUEUES.find((q) => q.key === key) ?? QUEUE;
+
+/** Each task once, tagged with the step it sits at: "tasks" (Head grade) or "hr" (HR verification). */
+function tagSteps(groups) {
+  const step = new Map();
+  for (const [key, tasks] of groups) for (const t of tasks) step.set(t.id, key);
+  const seen = new Set();
+  const tasks = groups.flatMap(([, list]) => list).filter((t) => !seen.has(t.id) && seen.add(t.id));
+  return { tasks, step };
+}
 
 /**
- * Task Approvals — the head's grading queue in the Approval Center.
- * One table of work waiting on the reviewer's grade; a row opens the review
- * sheet, where the grade and remarks are written.
+ * Task Approvals — the Approval Center queue for both steps of a task's chain:
+ * Head grade, then HR verification. A head sees the tasks waiting on their
+ * grade, HR the graded tasks waiting on their sign-off, a Super Admin both.
+ * Each row names its step, and its action and review sheet follow that step.
  */
 export default function TaskApprovalsPage() {
   return (
@@ -53,6 +67,8 @@ function TaskApprovalsQueue() {
   const [reportedToMeOnly, setReportedToMeOnly] = useState(true);
   const q = useApprovalQueues({ reportedToMeOnly });
   const { user, isSuperAdmin, isHead, isHr } = q.roles;
+  const canGrade = isSuperAdmin || isHead;
+  const canVerify = isSuperAdmin || isHr;
 
   const [view, setView] = useState("ALL");
   const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
@@ -60,6 +76,7 @@ function TaskApprovalsQueue() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkGrade, setBulkGrade] = useState(null);
   const [isBulkDeclineOpen, setIsBulkDeclineOpen] = useState(false);
+  const [isBulkVerifyOpen, setIsBulkVerifyOpen] = useState(false);
   const [isBulkPending, setIsBulkPending] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -86,7 +103,7 @@ function TaskApprovalsQueue() {
       const [employees, categories] = await Promise.all([employeeService.getAllEmployees(), employeeService.getAllCategories()]);
       return { employees: employees || [], categories: categories || [] };
     },
-    enabled: isHead || isSuperAdmin,
+    enabled: canGrade || canVerify,
   });
   const allEmployees = useMemo(() => directory?.employees || [], [directory]);
   const allCategories = useMemo(() => directory?.categories || [], [directory]);
@@ -97,17 +114,36 @@ function TaskApprovalsQueue() {
     return [...new Set(cats.map((c) => c.subDepartment).filter(Boolean))].sort();
   }, [allCategories, deptFilter]);
   const uniqueEmployees = useMemo(() => {
-    let pool = allEmployees.filter((e) => !e.is_super_admin);
+    let pool = allEmployees.filter((e) => !(e.is_super_admin || e.isSuperAdmin));
     if (deptFilter !== "ALL") pool = pool.filter((e) => sameDepartment(e.department, deptFilter));
     if (subDeptFilter !== "ALL") pool = pool.filter((e) => sameDepartment(e.subDepartment, subDeptFilter));
     return pool.sort((a, b) => a.name.localeCompare(b.name));
   }, [allEmployees, deptFilter, subDeptFilter]);
 
-  const { managerPending: pending, managerDecided: decided } = q;
-  const { active, stale } = useMemo(() => partitionByStaleness(pending), [pending]);
-  const source = view === "VERIFIED" ? decided : view === "ACTIVE" ? active : view === "STALE" ? stale : pending;
+  const { managerPending, managerDecided, hrPending, hrVerified } = q;
+  const pending = useMemo(
+    () => tagSteps([["tasks", canGrade ? managerPending : []], ["hr", canVerify ? hrPending : []]]),
+    [canGrade, canVerify, managerPending, hrPending],
+  );
+  // Verified wins over graded: a task a Super Admin graded and then verified is listed once, as verified.
+  const done = useMemo(
+    () => tagSteps([["hr", canVerify ? hrVerified : []], ["tasks", canGrade ? managerDecided : []]]),
+    [canGrade, canVerify, managerDecided, hrVerified],
+  );
 
-  const pendingIds = useMemo(() => pending.map((t) => t.id), [pending]);
+  // Each step runs its own clock (a head's from logging, HR's from the grade),
+  // so staleness is read off the item rather than the task.
+  const staleIds = useMemo(
+    () => new Set(pending.tasks.filter((t) => taskToItem(t, pending.step.get(t.id)).isStale).map((t) => t.id)),
+    [pending],
+  );
+  const active = useMemo(() => pending.tasks.filter((t) => !staleIds.has(t.id)), [pending, staleIds]);
+  const stale = useMemo(() => pending.tasks.filter((t) => staleIds.has(t.id)), [pending, staleIds]);
+  const isDoneView = view === "DONE";
+  const source = isDoneView ? done.tasks : view === "ACTIVE" ? active : view === "STALE" ? stale : pending.tasks;
+  const stepOf = isDoneView ? done.step : pending.step;
+
+  const pendingIds = useMemo(() => pending.tasks.map((t) => t.id), [pending]);
   const { data: repliedIds } = useQuery({
     queryKey: ["managerReplies", user?.id, pendingIds],
     queryFn: () => taskQueryService.getManagerRepliesForTasks(pendingIds, user.id),
@@ -121,7 +157,7 @@ function TaskApprovalsQueue() {
       filterAndSortTasks(source, {
         searchQuery,
         priorityFilter,
-        statusFilter: view === "VERIFIED" ? TASK_STATUS.COMPLETE : statusFilter,
+        statusFilter: isDoneView ? TASK_STATUS.COMPLETE : statusFilter,
         timeframe,
         selectedDateFilter,
         deptFilter,
@@ -129,14 +165,14 @@ function TaskApprovalsQueue() {
         employeeFilter,
         sortBy,
         employees: allEmployees,
-      }).map((t) => taskToItem(t, "tasks")),
-    [source, searchQuery, priorityFilter, statusFilter, view, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
+      }).map((t) => taskToItem(t, stepOf.get(t.id))),
+    [source, stepOf, searchQuery, priorityFilter, statusFilter, isDoneView, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
   );
 
   const clearFilters = () => {
     setSearchQuery("");
     setPriorityFilter("ALL");
-    setStatusFilter(view === "VERIFIED" ? TASK_STATUS.COMPLETE : "ALL");
+    setStatusFilter(isDoneView ? TASK_STATUS.COMPLETE : "ALL");
     setSelectedDateFilter("");
     setDeptFilter("ALL");
     setSubDeptFilter("ALL");
@@ -152,9 +188,9 @@ function TaskApprovalsQueue() {
   useEffect(() => {
     const openTaskId = location.state?.openTaskId;
     if (!openTaskId || !q.rawTasks.length) return;
-    navigate(location.pathname, { replace: true, state: {} });
+    navigate(location.pathname + location.search, { replace: true, state: {} });
     queueMicrotask(() => {
-      if (pending.some((t) => t.id === openTaskId) || decided.some((t) => t.id === openTaskId)) {
+      if (pending.step.has(openTaskId) || done.step.has(openTaskId)) {
         openRecord(openTaskId);
         return;
       }
@@ -166,7 +202,7 @@ function TaskApprovalsQueue() {
           .then((task) => task && setViewTask(task))
           .catch((err) => toast.error(err.message || "Could not open that task."));
     });
-  }, [location.state, location.pathname, q.rawTasks, pending, decided, navigate, openRecord]);
+  }, [location.state, location.pathname, location.search, q.rawTasks, pending, done, navigate, openRecord]);
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
@@ -184,6 +220,8 @@ function TaskApprovalsQueue() {
   });
 
   const selected = items.filter((i) => selectedIds.includes(i.id));
+  const toGrade = selected.filter((i) => i.queue === "tasks");
+  const toVerify = selected.filter((i) => i.queue === "hr");
 
   const undoBulk = async (ids) => {
     try {
@@ -195,14 +233,32 @@ function TaskApprovalsQueue() {
     }
   };
 
+  const unverify = async (ids) => {
+    try {
+      await taskService.bulkUnverifyTasks(ids, user.id);
+      invalidate();
+      toast.success("Verification undone.");
+    } catch (err) {
+      toast.error(err.message || "Could not undo the verification.");
+    }
+  };
+
+  const undoSelected = async () => {
+    const graded = toGrade.map((i) => i.id);
+    const verified = toVerify.map((i) => i.id);
+    if (graded.length) await undoBulk(graded);
+    if (verified.length) await unverify(verified);
+    setSelectedIds([]);
+  };
+
   const bulkApprove = async () => {
     if (isBulkPending) return;
-    const ids = selected.map((i) => i.id);
+    const ids = toGrade.map((i) => i.id);
     setIsBulkPending(true);
     try {
       await taskService.bulkApproveTasks(ids, user.id, bulkGrade, "");
       invalidate();
-      setSelectedIds([]);
+      setSelectedIds((s) => s.filter((id) => !ids.includes(id)));
       setBulkGrade(null);
       undoableSuccessToast(`${pluralize(ids.length, "task")} approved.`, "Undo", () => undoBulk(ids), 6000);
     } catch (err) {
@@ -214,16 +270,31 @@ function TaskApprovalsQueue() {
 
   const bulkReturn = async ({ remarks }) => {
     if (isBulkPending) return;
-    const ids = selected.map((i) => i.id);
+    const ids = toGrade.map((i) => i.id);
     setIsBulkDeclineOpen(false);
     setIsBulkPending(true);
     try {
       await taskService.bulkDeclineTasks(ids, user.id, remarks);
       invalidate();
-      setSelectedIds([]);
+      setSelectedIds((s) => s.filter((id) => !ids.includes(id)));
       undoableSuccessToast(`${pluralize(ids.length, "task")} returned.`, "Undo", () => undoBulk(ids), 6000);
     } catch (err) {
       toast.error(err.message || "Bulk return failed.");
+    } finally {
+      setIsBulkPending(false);
+    }
+  };
+
+  const verify = async (ids, notes = "") => {
+    if (isBulkPending) return;
+    setIsBulkPending(true);
+    try {
+      await taskService.bulkVerifyTasks(ids, user.id, notes);
+      invalidate();
+      setSelectedIds((s) => s.filter((id) => !ids.includes(id)));
+      undoableSuccessToast(`${pluralize(ids.length, "task")} verified.`, "Undo", () => unverify(ids), 6000);
+    } catch (err) {
+      toast.error(err.message || "Verification failed.");
     } finally {
       setIsBulkPending(false);
     }
@@ -239,29 +310,21 @@ function TaskApprovalsQueue() {
     );
   }
 
-  // HR-only reviewers have their own queue.
-  if (isHr && !isHead && !isSuperAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 text-center">
-        <p className="text-xl font-bold text-foreground">Manager Queue</p>
-        <p className="mt-2 text-muted-foreground">
-          Looking for HR verification? Go to{" "}
-          <Link to="/approvals/hr-verification" className="font-semibold underline">
-            HR Verification
-          </Link>
-        </p>
-      </div>
-    );
-  }
-
   const bulkEnabled = !!q.appSettings?.enable_bulk_approval;
-  const isDecidedView = view === "VERIFIED";
+  const isGroupView = view === "GROUP";
+
+  // The 48-hour clock starts at logging for a head and at the grade for HR;
+  // the hover note says which one this reviewer is looking at.
+  const clock = canGrade && canVerify ? "at its current step" : canVerify ? "since graded" : "";
+  const activeHint = canVerify && !canGrade ? "Graded less than 48 hours ago" : `Waiting less than 48 hours${clock ? ` ${clock}` : ""}`;
+  const staleHint = canVerify && !canGrade ? "Graded 48 hours or more ago" : `Waiting 48 hours or more${clock ? ` ${clock}` : ""}`;
+  const doneLabel = canGrade && canVerify ? "Recently Done" : canVerify ? "Recently Verified" : "Recently Approved";
 
   return (
     <>
       <ApprovalCenterLayout
         headerActions={
-          (isSuperAdmin || isHead) && (
+          canGrade && (
             <TabGroup
               size="sm"
               tabs={[
@@ -276,118 +339,148 @@ function TaskApprovalsQueue() {
       toolbar={
         <ApprovalToolbar
           views={[
-            { value: "ALL", label: "All Pending", icon: Layers, badge: pending.length || undefined },
-            { value: "ACTIVE", label: "Active (<48h)", icon: Clock, badge: active.length || undefined },
-            { value: "STALE", label: "Stale Backlog (≥48h)", icon: AlertTriangle, badge: stale.length || undefined },
-            { value: "VERIFIED", label: "Recently Approved", icon: History, badge: decided.length || undefined },
+            { value: "ALL", label: "All Pending", icon: Layers, badge: pending.tasks.length || undefined },
+            { value: "ACTIVE", label: "Active", hint: activeHint, icon: Clock, badge: active.length || undefined },
+            { value: "STALE", label: "Overdue", hint: staleHint, icon: AlertTriangle, badge: stale.length || undefined },
+            { value: "DONE", label: doneLabel, icon: History, badge: done.tasks.length || undefined },
+            ...(canVerify ? [{ value: "GROUP", label: "Group Tasks", icon: Users }] : []),
           ]}
           view={view}
           onViewChange={narrowing((v) => {
             setView(v);
             setEmployeeFilter("ALL");
-            setStatusFilter(v === "VERIFIED" ? TASK_STATUS.COMPLETE : "ALL");
+            setStatusFilter(v === "DONE" ? TASK_STATUS.COMPLETE : "ALL");
           })}
-          people={people}
+          people={isGroupView ? [] : people}
           person={employeeFilter}
           onPersonChange={narrowing(setEmployeeFilter)}
           search={searchQuery}
           onSearchChange={narrowing(setSearchQuery)}
           advancedOpen={showAdvanced}
-          onAdvancedToggle={() => setShowAdvanced((s) => !s)}
+          onAdvancedToggle={isGroupView ? undefined : () => setShowAdvanced((s) => !s)}
         />}
       >
 
-        {showAdvanced && (
-          <div className="rounded-xl border border-border bg-card p-3">
-            <TaskFilters
-              searchTerm={searchQuery}
-              setSearchTerm={narrowing(setSearchQuery)}
-              statusFilter={statusFilter}
-              setStatusFilter={narrowing(setStatusFilter)}
-              priorityFilter={priorityFilter}
-              setPriorityFilter={narrowing(setPriorityFilter)}
-              timeframe={timeframe}
-              setTimeframe={narrowing(setTimeframe)}
-              selectedDateFilter={selectedDateFilter}
-              setSelectedDateFilter={narrowing(setSelectedDateFilter)}
-              deptFilter={deptFilter}
-              setDeptFilter={narrowing(setDeptFilter)}
-              subDeptFilter={subDeptFilter}
-              setSubDeptFilter={narrowing(setSubDeptFilter)}
-              employeeFilter={employeeFilter}
-              setEmployeeFilter={narrowing(setEmployeeFilter)}
-              isManagement
-              isHr={false}
-              hrViewMode="ALL"
-              disableDeptFilter={false}
-              uniqueDepts={uniqueDepts}
-              uniqueSubDepts={uniqueSubDepts}
-              uniqueEmployees={uniqueEmployees}
-              showStatusFilter
-              disableStatusFilter={isDecidedView}
-              sortBy={sortBy}
-              setSortBy={setSortBy}
-            />
-          </div>
-        )}
+        {isGroupView ? (
+          <GroupTaskApprovalSection searchTerm={searchQuery} onClearSearch={() => setSearchQuery("")} />
+        ) : (
+          <>
+            {showAdvanced && (
+              <div className="rounded-xl border border-border bg-card p-3">
+                <TaskFilters
+                  searchTerm={searchQuery}
+                  setSearchTerm={narrowing(setSearchQuery)}
+                  statusFilter={statusFilter}
+                  setStatusFilter={narrowing(setStatusFilter)}
+                  priorityFilter={priorityFilter}
+                  setPriorityFilter={narrowing(setPriorityFilter)}
+                  timeframe={timeframe}
+                  setTimeframe={narrowing(setTimeframe)}
+                  selectedDateFilter={selectedDateFilter}
+                  setSelectedDateFilter={narrowing(setSelectedDateFilter)}
+                  deptFilter={deptFilter}
+                  setDeptFilter={narrowing(setDeptFilter)}
+                  subDeptFilter={subDeptFilter}
+                  setSubDeptFilter={narrowing(setSubDeptFilter)}
+                  employeeFilter={employeeFilter}
+                  setEmployeeFilter={narrowing(setEmployeeFilter)}
+                  isManagement
+                  isHr={false}
+                  hrViewMode="ALL"
+                  disableDeptFilter={false}
+                  uniqueDepts={uniqueDepts}
+                  uniqueSubDepts={uniqueSubDepts}
+                  uniqueEmployees={uniqueEmployees}
+                  showStatusFilter
+                  disableStatusFilter={isDoneView}
+                  sortBy={sortBy}
+                  setSortBy={setSortBy}
+                />
+              </div>
+            )}
 
-        <ApprovalTable
-          items={items}
-          queueIcon={QUEUE.icon}
-          onOpen={(item) => openRecord(item.id)}
-          selectable={bulkEnabled}
-          selectedIds={selectedIds}
-          onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
-          onToggleAll={(on, pageItems) => setSelectedIds(on ? pageItems.map((i) => i.id) : [])}
-          paginate
-          filtered={source.length > 0}
-          onClearFilters={clearFilters}
-          repliedIds={repliedIds}
-          searchTerm={searchQuery}
-          keyboard={!open && !viewTask}
-          renderRowAction={(item) =>
-            !item.done && (
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openRecord(item.id)}>
-                Grade
-              </Button>
-            )
-          }
-          empty={
-            view === "STALE"
-              ? { title: "No stale backlog", description: "Every task older than 48 hours has been graded." }
-              : isDecidedView
-                ? { title: "No approved tasks", description: "Tasks you grade will appear here." }
-                : { title: "Queue is clear", description: "You’re all caught up on approvals." }
-          }
-        />
+            <ApprovalTable
+              items={items}
+              queueIcon={QUEUE.icon}
+              onOpen={(item) => openRecord(item.id)}
+              selectable={bulkEnabled}
+              selectedIds={selectedIds}
+              onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
+              onToggleAll={(on, pageItems) => setSelectedIds(on ? pageItems.map((i) => i.id) : [])}
+              paginate
+              showStage
+              filtered={source.length > 0}
+              onClearFilters={clearFilters}
+              repliedIds={repliedIds}
+              searchTerm={searchQuery}
+              keyboard={!open && !viewTask}
+              renderRowAction={(item) =>
+                item.done ? null : item.queue === "hr" ? (
+                  <Tooltip content="Verify & sign">
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={`Verify ${item.title}`}
+                      className="hover:border-green-7 hover:bg-green-3 hover:text-green-11"
+                      onClick={() => verify([item.id])}
+                    >
+                      <Check size={14} />
+                    </Button>
+                  </Tooltip>
+                ) : (
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openRecord(item.id)}>
+                    Grade
+                  </Button>
+                )
+              }
+              empty={
+                view === "STALE"
+                  ? { title: "Nothing overdue", description: "Every task waiting 48 hours or more has been handled." }
+                  : isDoneView
+                    ? { title: "Nothing decided yet", description: "Tasks you grade or verify will appear here." }
+                    : { title: "Queue is clear", description: "You’re all caught up on task approvals." }
+              }
+            />
+          </>
+        )}
       </ApprovalCenterLayout>
 
       <SelectionBar count={selected.length} onClear={() => setSelectedIds([])}>
-        {isDecidedView ? (
-          <Button variant="outline" size="sm" onClick={() => undoBulk(selected.map((i) => i.id)).then(() => setSelectedIds([]))}>
-            Undo approval
+        {isDoneView ? (
+          <Button variant="outline" size="sm" onClick={undoSelected}>
+            Undo
           </Button>
         ) : (
           <>
-            <div className="w-52">
-              <GradeSelector grade={bulkGrade} onSelect={setBulkGrade} canEvaluate compact />
-            </div>
-            <Button variant="destructive" size="sm" disabled={isBulkPending} onClick={() => setIsBulkDeclineOpen(true)}>
-              {isBulkPending && <Spinner size="sm" className="mr-1" />}
-              Return {selected.length}
-            </Button>
-            <Button size="sm" className={APPROVE_CLASS} disabled={!bulkGrade || isBulkPending} onClick={bulkApprove}>
-              {isBulkPending && <Spinner size="sm" className="mr-1" />}
-              Approve {selected.length}
-            </Button>
+            {toGrade.length > 0 && (
+              <>
+                <div className="w-52">
+                  <GradeSelector grade={bulkGrade} onSelect={setBulkGrade} canEvaluate compact />
+                </div>
+                <Button variant="destructive" size="sm" disabled={isBulkPending} onClick={() => setIsBulkDeclineOpen(true)}>
+                  {isBulkPending && <Spinner size="sm" className="mr-1" />}
+                  Return {toGrade.length}
+                </Button>
+                <Button size="sm" className={APPROVE_CLASS} disabled={!bulkGrade || isBulkPending} onClick={bulkApprove}>
+                  {isBulkPending && <Spinner size="sm" className="mr-1" />}
+                  Approve {toGrade.length}
+                </Button>
+              </>
+            )}
+            {toVerify.length > 0 && (
+              <Button size="sm" className={APPROVE_CLASS} disabled={isBulkPending} onClick={() => setIsBulkVerifyOpen(true)}>
+                {isBulkPending && <Spinner size="sm" className="mr-1" />}
+                Verify {toVerify.length}
+              </Button>
+            )}
           </>
         )}
       </SelectionBar>
 
       <ApprovalSheet
         item={open}
-        queueLabel={QUEUE.label}
-        queueIcon={QUEUE.icon}
+        queueLabel={queueOf(open?.queue).label}
+        queueIcon={queueOf(open?.queue).icon}
         index={index}
         total={items.length}
         onStep={(d) => { const to = items[index + d]; if (to) stepRecord(to.id); }}
@@ -419,7 +512,18 @@ function TaskApprovalsQueue() {
         onDeleteTask={(payload) => deleteTask.mutateAsync(payload)}
       />
 
-      <BulkDeclineModal isOpen={isBulkDeclineOpen} onClose={() => setIsBulkDeclineOpen(false)} selectedCount={selected.length} onConfirm={bulkReturn} isSubmitting={isBulkPending} />
+      <BulkDeclineModal isOpen={isBulkDeclineOpen} onClose={() => setIsBulkDeclineOpen(false)} selectedCount={toGrade.length} onConfirm={bulkReturn} isSubmitting={isBulkPending} />
+
+      <BulkVerifyModal
+        isOpen={isBulkVerifyOpen}
+        onClose={() => setIsBulkVerifyOpen(false)}
+        selectedCount={toVerify.length}
+        onConfirm={({ notes }) => {
+          setIsBulkVerifyOpen(false);
+          verify(toVerify.map((i) => i.id), notes);
+        }}
+        isSubmitting={isBulkPending}
+      />
     </>
   );
 }

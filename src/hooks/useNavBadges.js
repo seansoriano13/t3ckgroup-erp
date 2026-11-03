@@ -40,10 +40,9 @@ export function useNavBadges(user) {
     }).length;
   }
 
-  // Compute HR Verifications count
-  let hrVerifications = 0;
+  // HR verification shares the Task Approvals page, so its count joins that badge.
   if (canSeeHr) {
-    hrVerifications = allTasks.filter((t) => {
+    taskApprovals += allTasks.filter((t) => {
       const isPendingVerification =
         t.status === "VERIFICATION_PENDING" ||
         (t.status === "COMPLETED" && !t.hr_verified && !t.hrVerified);
@@ -92,7 +91,6 @@ export function useNavBadges(user) {
 
   return {
     taskApprovals,
-    hrVerifications,
     leaveApprovals,
     meetingApprovals,
     ipasSignoffs,

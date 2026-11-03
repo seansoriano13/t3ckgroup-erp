@@ -259,23 +259,15 @@ export const NAV_MODULES = {
         link: "/approvals/tasks",
         icon: ShieldCheck,
         badgeKey: "taskApprovals",
+        // Both steps of a task: the head's grade and HR verification.
         isPermitted: (ctx) => {
-          if (ctx.isSuperAdmin) return true;
+          if (ctx.isSuperAdmin || ctx.isHr) return true;
           if (ctx.isHead) {
             const isMasterHead = !ctx.subDepartment;
             return isMasterHead || ctx.hasTaskFlow;
           }
           return false;
         },
-        exactMatch: true,
-      },
-      {
-        key: "approvals.hrVerifications",
-        label: "HR Verifications",
-        link: "/approvals/hr-verification",
-        icon: ShieldCheck,
-        badgeKey: "hrVerifications",
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
         exactMatch: true,
       },
       {

@@ -88,8 +88,8 @@ const rowOf = (taskId) => db.rows("tasks").find((t) => t.id === taskId)
 const loadTasksPage = async () =>
     (await import("@/pages/approvals/tasks/index.jsx")).default
 
-const loadHrPage = async () =>
-    (await import("@/pages/approvals/hr-verification/index.jsx")).default
+// HR verification is a step on Task Approvals, not a page of its own.
+const loadHrPage = loadTasksPage
 
 describe("approval journeys", () => {
     it("a manager grades a task from their queue and it leaves the queue", { timeout: 20000 }, async () => {
@@ -221,7 +221,7 @@ describe("approval journeys", () => {
             expect(screen.getAllByText("Archive the 2025 tickets").length).toBeGreaterThan(0)
         })
 
-        await user.click(screen.getByRole("tab", { name: /stale backlog/i }))
+        await user.click(screen.getByRole("tab", { name: /^overdue/i }))
 
         await waitFor(() => {
             expect(screen.queryAllByText("Patch the firewall")).toHaveLength(0)
@@ -292,22 +292,56 @@ describe("approval journeys", () => {
             expect(rowOf(task.id).status).toBe(TASK_STATUS.NOT_APPROVED),
         )
         await waitFor(() => {
-            expect(screen.getByText(/hr queue is clear/i)).toBeInTheDocument()
+            expect(screen.getByText(/queue is clear/i)).toBeInTheDocument()
         })
     })
 
-    it("an HR-only user landing on the manager queue is pointed at their own", async () => {
+    it("an HR-only user sees graded work to verify, never work still waiting on a head", async () => {
         const hr = makeHrEmployee({ name: "Hera Dela Cruz" })
+        pendingTask({ task_description: "Still with the head" })
+        makeTask({
+            logged_by: author.id,
+            category_id: category.category_id,
+            task_description: "Graded and waiting on HR",
+            status: TASK_STATUS.COMPLETE,
+            grade: 4,
+            evaluated_by: reviewer.id,
+            hr_verified: false,
+            created_at: ago(6),
+        })
         const TaskApprovals = await loadTasksPage()
 
         await renderPage(TaskApprovals, hr)
 
-        await waitFor(() => {
-            expect(screen.getByText(/manager queue/i)).toBeInTheDocument()
+        expect(await screen.findByText("Graded and waiting on HR")).toBeInTheDocument()
+        expect(screen.queryByText("Still with the head")).not.toBeInTheDocument()
+        expect(screen.getByRole("button", { name: "Verify Graded and waiting on HR" })).toBeInTheDocument()
+        await waitForNetworkIdle()
+    })
+
+    it("a Super Admin works both steps from one queue, each row naming its step", async () => {
+        const admin = makeSuperAdmin({ name: "Bruce Admin" })
+        pendingTask({ task_description: "Needs a grade", reported_to: admin.id })
+        makeTask({
+            logged_by: author.id,
+            category_id: category.category_id,
+            task_description: "Needs a sign-off",
+            status: TASK_STATUS.COMPLETE,
+            grade: 5,
+            evaluated_by: reviewer.id,
+            hr_verified: false,
+            created_at: ago(6),
         })
-        expect(
-            screen.getByRole("link", { name: "HR Verification" }),
-        ).toHaveAttribute("href", "/approvals/hr-verification")
+        const TaskApprovals = await loadTasksPage()
+
+        await renderPage(TaskApprovals, admin)
+
+        expect(await screen.findByText("Needs a grade")).toBeInTheDocument()
+        expect(screen.getByText("Needs a sign-off")).toBeInTheDocument()
+        expect(screen.getByText("2/3 · Head grade")).toBeInTheDocument()
+        expect(screen.getByText("3/3 · HR verification")).toBeInTheDocument()
+        expect(screen.getByRole("button", { name: "Grade" })).toBeInTheDocument()
+        expect(screen.getByRole("button", { name: "Verify Needs a sign-off" })).toBeInTheDocument()
         await waitForNetworkIdle()
     })
 
@@ -392,10 +426,8 @@ describe("approval journeys", () => {
         await waitForNetworkIdle()
 
         // 1. Check Tabs (measures staleness from evaluated_at)
-        expect(screen.getByRole("tab", { name: /Active.*graded.*2/i })).toBeInTheDocument()
-        
-        // Using .* for >= to avoid encoding issues when editing files via shell/API
-        expect(screen.getByRole("tab", { name: /Stale Backlog \(.*48h graded\)/i })).toBeInTheDocument()
+        expect(screen.getByRole("tab", { name: /^active.*2/i })).toHaveAttribute("title", "Graded less than 48 hours ago")
+        expect(screen.getByRole("tab", { name: /^overdue/i })).toHaveAttribute("title", "Graded 48 hours or more ago")
 
         // 2. Bruce Admin has a pending task, so it is in the table and the
         // "Logged by" filter offers him.
