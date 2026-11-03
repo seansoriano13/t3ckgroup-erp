@@ -54,9 +54,42 @@ export async function makeSor({
     return data.id
 }
 
+let liveSaleType = null
+let liveFlowId = null
+
+/** A Sale Type, flow and stage a signed-in caller may register a new SOR under
+ *  (#856 refuses a blank Sale Type and the Legacy Pipeline; the flow pairing
+ *  check wants a stage with it). Call dropLiveSaleType() when done. */
+export async function liveSaleTypeFields() {
+    if (liveSaleType) return liveSaleType
+    const svc = serviceClient()
+    const one = async (table, row) => {
+        const { data, error } = await svc.from(table).insert(row).select("id").single()
+        if (error) throw new Error(`could not seed ${table}: ${error.message}`)
+        return data.id
+    }
+    const saleTypeId = await one("sale_types", { name: `${MARKER} Live Sale Type` })
+    const flowId = await one("sales_flows", { sale_type_id: saleTypeId })
+    const stageId = await one("flow_stages", { flow_id: flowId, name: `${MARKER} Enquiry`, sort_order: 10 })
+    liveFlowId = flowId
+    liveSaleType = { sale_type_id: saleTypeId, flow_stage_id: stageId }
+    return liveSaleType
+}
+
+export async function dropLiveSaleType() {
+    if (!liveSaleType) return
+    const svc = serviceClient()
+    await svc.from("flow_stages").delete().eq("flow_id", liveFlowId)
+    await svc.from("sales_flows").delete().eq("id", liveFlowId)
+    await svc.from("sale_types").delete().eq("id", liveSaleType.sale_type_id)
+    liveSaleType = null
+}
+
 /** The field set a caller needs to register an SOR in somebody's name. */
-export function sorPayload(registeredBy, companyName = `${MARKER} Self Registered`) {
+export function sorPayload(registeredBy, companyName = `${MARKER} Self Registered`, saleType = {}) {
     return {
+        sale_type_id: saleType.sale_type_id,
+        flow_stage_id: saleType.flow_stage_id,
         registered_by: registeredBy,
         lead_source: "REFERRAL",
         client_name: companyName,
