@@ -31,6 +31,8 @@ const HEAD = `${CAPTION_BASE} tracking-wider`;
  * Rows are ApprovalItems. Clicking a row (or Enter on the keyboard cursor)
  * opens it; J / K move the cursor while `keyboard` is on — the page turns it
  * off while the review sheet is open, so the sheet owns the keys then.
+ * `showStage` brings the Stage column down from the widest screens, for a
+ * queue whose rows sit at different steps of their chain.
  */
 export function ApprovalTable({
   items: unsortedItems,
@@ -46,6 +48,7 @@ export function ApprovalTable({
   searchTerm = "",
   keyboard = true,
   paginate = false,
+  showStage = false,
   empty,
   filtered = false,
   onClearFilters,
@@ -117,7 +120,7 @@ export function ApprovalTable({
             <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>{personLabel}</SortHead>
             <SortHead id="submitted" sortKey="submitted" sort={sort} onSort={toggle} className={`${HEAD} hidden lg:table-cell`}>Submitted</SortHead>
             <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>Waiting</SortHead>
-            <TableHead id="stage" className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
+            <TableHead id="stage" className={`${HEAD} hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>Stage</TableHead>
             <SortHead id="status" sortKey="status" sort={sort} onSort={toggle} className={HEAD}>Status</SortHead>
             <TableHead className="w-12 md:w-24">
               <span className="sr-only">Actions</span>
@@ -186,7 +189,7 @@ export function ApprovalTable({
                 <TableCell className={`hidden font-mono text-xs tabular-nums md:table-cell ${item.isStale ? "font-bold text-amber-11" : "text-muted-foreground"}`}>
                   {item.done ? "—" : shortAge(item.clockAt)}
                 </TableCell>
-                <TableCell className="hidden 2xl:table-cell">
+                <TableCell className={`hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>
                   <StageMeter chain={item.chain} />
                 </TableCell>
                 <TableCell>

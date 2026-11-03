@@ -126,7 +126,7 @@ describe("navigation registry", () => {
       ]);
     });
 
-    it("returns Workspace, Approvals (HR Verifications), and Human Resources for HR users", () => {
+    it("returns Workspace, Approvals (Task Approvals), and Human Resources for HR users", () => {
       const hrUser = {
         id: "hr-1",
         isHr: true,
@@ -147,7 +147,7 @@ describe("navigation registry", () => {
 
       const approvalsGroup = groups.find((g) => g.key === "approvals");
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
-        "HR Verifications",
+        "Task Approvals",
         "Time Off & Overtime",
         "Meeting Requests",
       ]);
@@ -332,7 +332,7 @@ describe("navigation registry", () => {
           ?.links.map((l) => l.label) ?? [];
 
       expect(links({ isIpasApprover: true })).toEqual(["IPAS Sign-offs"]);
-      expect(links({ isIpasApprover: true, isHr: true })).toEqual(["HR Verifications", "Time Off & Overtime", "Meeting Requests", "IPAS Sign-offs"]);
+      expect(links({ isIpasApprover: true, isHr: true })).toEqual(["Task Approvals", "Time Off & Overtime", "Meeting Requests", "IPAS Sign-offs"]);
       expect(links({ isIpasApprover: true, isHead: true })).toContain("IPAS Sign-offs");
       expect(links({ isSuperAdmin: true })).not.toContain("IPAS Sign-offs");
       expect(links({ isIpasSigner: true })).not.toContain("IPAS Sign-offs");

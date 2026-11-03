@@ -29,8 +29,9 @@ export const APPROVAL_QUEUES = [
     can: (r) => r.isSuperAdmin || r.isHead,
   },
   {
+    // HR's step of a task, shown on Task Approvals; no page of its own.
     key: "hr",
-    path: "/approvals/hr-verification",
+    path: "/approvals/tasks",
     label: "HR Verifications",
     icon: ShieldCheck,
     can: (r) => r.isSuperAdmin || r.isHr,

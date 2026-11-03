@@ -115,16 +115,9 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
   } else if (notif.type.includes("TASK")) {
     const { isHr: isHrUser, isHead: isHeadUser, isSuperAdmin: isSA } = getPermissionContext(user);
 
-    if (notif.type === "TASK_APPROVED_BY_HEAD" && isHrUser) {
-      navigate("/approvals/hr-verification", {
-        state: { openTaskId: notif.reference_id },
-      });
-    } else if (isHeadUser || isSA) {
+    // Both steps of a task, head grade and HR verification, share one queue.
+    if (isHeadUser || isSA || isHrUser) {
       navigate("/approvals/tasks", {
-        state: { openTaskId: notif.reference_id },
-      });
-    } else if (isHrUser) {
-      navigate("/approvals/hr-verification", {
         state: { openTaskId: notif.reference_id },
       });
     } else {

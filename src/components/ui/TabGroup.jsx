@@ -2,7 +2,8 @@
  * TabGroup — Unified reusable tab bar component.
  *
  * Props:
- *  tabs       - array of strings OR { value, label, icon?, badge? } objects
+ *  tabs       - array of strings OR { value, label, icon?, badge?, hint? } objects.
+ *               `hint` is shown on hover only, for detail too long for the label.
  *  activeTab  - currently active value (string)
  *  onChange   - (value: string) => void
  *  variant    - "pill" | "primary" | "underline"  (default: "pill")
@@ -188,6 +189,7 @@ export default function TabGroup({
           icon: Icon,
           badge,
           activeClass,
+          hint,
           variant: tabVariant,
         }) => {
           const isActive = activeTab === value;
@@ -198,6 +200,7 @@ export default function TabGroup({
               type="button"
               role="tab"
               aria-selected={isActive}
+              title={hint}
               // Only when a caller hides the label: a display:none label leaves
               // the accessibility tree, not just the screen, so the tab would
               // lose its name. Left alone otherwise, because the computed name
