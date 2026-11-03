@@ -924,9 +924,22 @@ describe("opportunityService", () => {
       it("does not block a Return on the conditions of the Stage being left", async () => {
         const deal = dealOnLead()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Sign-off", config: {} })
+        const condition = makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Sign-off", config: {} })
+        const snap = db.internal.rowsOf("flow_snapshots").find((s) => s.id === deal.flow_snapshot_id)
+        snap.snapshot_data.conditions.push(condition)
         const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
         expect(moved.flow_stage_id).toBe(lead.id)
+      })
+
+      it("refuses a forward move to a visited Stage when current stage gates are unmet (#831)", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        const condition = makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Sign-off", config: {} })
+        const snap = db.internal.rowsOf("flow_snapshots").find((s) => s.id === deal.flow_snapshot_id)
+        snap.snapshot_data.conditions.push(condition)
+        const attempt = opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
+        await expect(attempt).rejects.toThrow(/Cannot leave Lead — missing: Sign-off/)
       })
     })
 
