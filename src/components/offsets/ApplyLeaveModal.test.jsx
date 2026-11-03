@@ -327,6 +327,59 @@ describe("ApplyLeaveModal", () => {
       expect(timeFields[1]).toHaveValue("18:30")
     })
 
+    // A range used to list every calendar day at a flat 8 hours, weekends
+    // included, and a weekend inside it made the whole submission fail.
+    describe("over a date range", () => {
+      const fillRange = async (from, to) => {
+        const user = await goToSil()
+        await user.click(screen.getByRole("tab", { name: "Date range" }))
+        const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
+        const [fromField, toField] = form.querySelectorAll('input[type="date"]')
+        await user.type(fromField, from)
+        await user.type(toField, to)
+        await chooseOption(
+          user,
+          within(form).queryAllByRole("combobox").find((c) => c.textContent.startsWith("Select category...")),
+          defaultCategory.label,
+        )
+        await user.type(form.querySelector("textarea"), "Out of town")
+        return user
+      }
+
+      it("skips weekends and starts each day at its scheduled shift", async () => {
+        open()
+        const user = await fillRange("2026-03-13", "2026-03-16") // Friday to Monday
+
+        expect(screen.getByText(/Skipped \(not a working day\): Sat, Mar 14, Sun, Mar 15/)).toBeInTheDocument()
+        // 07:30–18:00 is 10.5 hrs, minus the 1-hour lunch.
+        expect(screen.getByLabelText("Hours for Fri, Mar 13")).toHaveValue(10.5)
+
+        await submit(user)
+        await waitFor(() => expect(db.rows("sil_leaves")).toHaveLength(2))
+        expect(db.rows("sil_leaves").map((r) => [r.date, r.hours])).toEqual([
+          ["2026-03-13", 9.5],
+          ["2026-03-16", 9.5],
+        ])
+      })
+
+      it("lets the employee remove a day and change another day's hours", async () => {
+        open()
+        const user = await fillRange("2026-03-10", "2026-03-12") // Tuesday to Thursday
+
+        await user.click(screen.getByRole("button", { name: "Remove Wed, Mar 11" }))
+        const tuesday = screen.getByLabelText("Hours for Tue, Mar 10")
+        await user.clear(tuesday)
+        await user.type(tuesday, "4")
+
+        await submit(user)
+        await waitFor(() => expect(db.rows("sil_leaves")).toHaveLength(2))
+        expect(db.rows("sil_leaves").map((r) => [r.date, r.hours])).toEqual([
+          ["2026-03-10", 4],
+          ["2026-03-12", 9.5],
+        ])
+      })
+    })
+
     it("pre-fills the ordinary finish time for a non-Wednesday weekday", async () => {
       const user = setupUser()
       open()
