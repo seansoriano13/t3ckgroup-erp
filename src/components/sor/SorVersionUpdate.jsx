@@ -50,7 +50,7 @@ export default function SorVersionUpdate({ opportunity }) {
 
     const update = useMutation({
         mutationFn: (snapshotId) =>
-            opportunityService.updateSorVersions([opportunity.id], snapshotId, { queryClient }),
+            opportunityService.updateSorVersions([opportunity.id], snapshotId, { queryClient, actorId: user?.id }),
         onSuccess: ({ failed }) => {
             if (failed.length > 0) {
                 toast.error(failed[0].reason)
@@ -65,6 +65,11 @@ export default function SorVersionUpdate({ opportunity }) {
     })
 
     const latest = snapshots[0] ?? null
+    const { data: preview } = useQuery({
+        queryKey: ["versionUpdatePreview", opportunity?.id, latest?.id],
+        queryFn: () => opportunityService.previewVersionUpdate([opportunity.id], latest.id),
+        enabled: Boolean(opportunity?.id && latest?.id && opportunity.flow_snapshot_id !== latest.id),
+    })
     if (!opportunity?.id || !latest) return null
 
     const allowed = canUpdateSorVersion({ actor: user, sor: opportunity, batchSize: 1 })
@@ -79,6 +84,11 @@ export default function SorVersionUpdate({ opportunity }) {
             {showPrompt && (
                 <>
                     <span>{`A newer version, ${formatSnapshotVersion(latest)}, is available for this SOR.`}</span>
+                    {(preview?.lines ?? []).map((line) => (
+                        <span key={line.id} className="w-full text-right text-mauve-11">
+                            {`Updating will run: ${line.text.replace(/^1 deal will get: /, "")}`}
+                        </span>
+                    ))}
                     <Button size="sm" disabled={update.isPending} onClick={() => update.mutate(latest.id)}>
                         {`Update to ${formatSnapshotVersion(latest)}`}
                     </Button>

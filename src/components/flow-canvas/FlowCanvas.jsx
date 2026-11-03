@@ -234,6 +234,12 @@ function FlowCanvasInner() {
   const [moveOffer, setMoveOffer] = useState(null);
   const [offerMode, setOfferMode] = useState(UPDATE_MODE.ALL);
   const [offerPicked, setOfferPicked] = useState([]);
+  const offerIds = idsForUpdateMode(offerMode, (moveOffer?.sors ?? []).map((o) => o.id), offerPicked);
+  const { data: offerPreview } = useQuery({
+    queryKey: ["versionUpdatePreview", moveOffer?.targetSnapshotId, offerIds],
+    queryFn: () => opportunityService.previewVersionUpdate(offerIds, moveOffer.targetSnapshotId),
+    enabled: Boolean(moveOffer?.targetSnapshotId && offerIds.length > 0),
+  });
   const [moveResult, setMoveResult] = useState(null);
   // { done, total, targetLabel } while a move is running, else null. Drives
   // the progress dialog that cannot be dismissed (issue #190 follow-up).
@@ -669,6 +675,7 @@ function FlowCanvasInner() {
     mutationFn: ({ targetSnapshotId, targetLabel, ids }) =>
       opportunityService.updateSorVersions(ids, targetSnapshotId, {
         queryClient,
+        actorId: user?.id,
         onProgress: ({ done, total }) => setMoveProgress({ done, total, targetLabel }),
       }),
     onSuccess: (result) => {
@@ -2015,6 +2022,13 @@ function FlowCanvasInner() {
             }
           >
             <div className="space-y-3 text-sm">
+              {(offerPreview?.lines ?? []).length > 0 && (
+                <ul aria-label="What the update will run" className="list-disc space-y-1 pl-5">
+                  {offerPreview.lines.map((line) => (
+                    <li key={line.id}>{line.text}</li>
+                  ))}
+                </ul>
+              )}
               <div role="group" aria-label="Which SORs" className="flex flex-wrap gap-2">
                 {modes.map(([value, label]) => (
                   <Button
