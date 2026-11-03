@@ -766,27 +766,27 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
 
 <section id="scenF">
   <div class="part-head"><span class="part-no">F</span><h2>One IPAS for two projects</h2><span class="mins">about 8 min, on its own</span></div>
-  <p class="intro">Real case: <b class="mono">P02674</b> (USD 150, magnetic roof mounts, Shenzhen Xingshuo Guanglian) names both <b>S04081</b> and <b>S04602</b>, and has not arrived. One S0 per SOR (#819): staging had SOR-73 on S04602, so the reset script soft-deletes it. If registering S04602 says "already on SOR", run the reset script again.</p>
+  <p class="intro">Real case: <b class="mono">P02674</b> (USD 150, magnetic roof mounts, Shenzhen Xingshuo Guanglian) names both <b>S04081</b> and <b>S04602</b>, and has not arrived. One S0 per SOR (#819): the reset script moves existing <b>SOR-73</b> (on S04602) onto Project [FOR DEMO], while S04081 is newly registered.</p>
   <ol class="steps">
     <li data-k="F.1" data-opt><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">F.1</span><span class="seat s-sales">Sales</span></div>
-      <div class="row do"><b>Do</b><div>Register <b>S04081</b> and <b>S04602</b> on Project [FOR DEMO], one SOR each. Press Create on each one's Purchase Request card. Move both past NTP using the moves table, or use Order early in F.2.</div></div>
+      <div class="row do"><b>Do</b><div>Register <b>S04081</b> on Project [FOR DEMO] (PR_0175). For <b>S04602</b>, use the existing <b>SOR-73</b> which the reset script put on Project [FOR DEMO]. Press <b>Create</b> on each one's Purchase Request card. Move both past NTP using the moves table, or use Order early in F.2 and F.3.</div></div>
     </li>
     <li data-k="F.2" data-opt><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">F.2</span><span class="seat s-buy">Purchasing</span></div>
-      <div class="row do"><b>Do</b><div>S04081's request → ask for a product "Magnetic roof mount" ×4, for the client → Attach P0 → type <b class="mono">P02674</b>.</div></div>
+      <div class="row do"><b>Do</b><div>S04081's request → ask for a product "Magnetic roof mount" ×4, for the client → Attach P0 → type <b class="mono">P02674</b> (Order early if before NTP).</div></div>
       <div class="row see"><b>See</b><div>Purchased, not received yet. A message says the IPAS for P02674 was raised.</div></div>
     </li>
     <li data-k="F.3" data-opt><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">F.3</span><span class="seat s-buy">Purchasing</span></div>
-      <div class="row do"><b>Do</b><div>Same on S04602: "Magnetic roof mount" ×1, attach P02674.</div></div>
-      <div class="row see"><b>See</b><div>A message says this SOR was added to the existing IPAS. One IPAS, both SORs. Each SOR's PMS tab lists it.</div></div>
+      <div class="row do"><b>Do</b><div>Same on SOR-73 (S04602): "Magnetic roof mount" ×1, attach <b class="mono">P02674</b> (Order early if before NTP).</div></div>
+      <div class="row see"><b>See</b><div>A message says this SOR was added to the existing IPAS. One IPAS, both SORs (SOR-73 and the new S04081 SOR). Each SOR's PMS tab lists it.</div></div>
       <div class="row say"><b>Say</b><div>No second IPAS for the same P0. The new project joins the one already there.</div></div>
     </li>
     <li data-k="F.4" data-opt><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">F.4</span><span class="seat s-buy">Purchasing</span></div>
-      <div class="row do"><b>Do</b><div>On each roof-mount line → status menu → <b>Pick PO line…</b>: S04081 takes the line of 4, S04602 the line of 1.</div></div>
-      <div class="row see"><b>See</b><div>"0 of 4" and "0 of 1" instead of "0 of 5" on both.</div></div>
+      <div class="row do"><b>Do</b><div>Open the IPAS for P02674 (it shows both SORs). On each roof-mount line → status menu → <b>Pick PO line…</b>: S04081 takes the line of 4, SOR-73 the line of 1.</div></div>
+      <div class="row see"><b>See</b><div>The IPAS shows both SORs. The roof-mount lines show "0 of 4" and "0 of 1" instead of "0 of 5" on both.</div></div>
     </li>
   </ol>
 </section>
