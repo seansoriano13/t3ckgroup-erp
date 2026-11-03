@@ -3,7 +3,6 @@ import {
   MOVE_BAND,
   NEXT_FILTER,
   buildTracker,
-  isReceived,
   nextMoveOf,
   stageStates,
   valueOpenByCurrency,
@@ -100,7 +99,6 @@ describe("stages", () => {
     const { sors } = buildTracker({ rows: [], orders: [received, openOrder], today: TODAY });
     expect(sors[0].byStage.purchased).toBe(1);
     expect(sors[0].openOrders.map((o) => o.id)).toEqual(["ip-open"]);
-    expect(sors[0].receivedOrders.map((o) => o.id)).toEqual(["ip-rec"]);
   });
 
   it("does not count or display a Received line under Purchased (not received)", () => {
@@ -114,18 +112,6 @@ describe("stages", () => {
     });
     expect(sors[0].byStage.purchased).toBe(0);
     expect(sors[0].openOrders).toHaveLength(0);
-    expect(sors[0].rows.filter((r) => r.grp === "purchased")).toHaveLength(0);
-  });
-
-  it("does not count a line with received status under Purchased (not received)", () => {
-    const openRow = row({ grp: "to_purchase", item_count: 1 });
-    const receivedRow = row({ grp: "purchased", status: "received", item_count: 1 });
-    const { sors } = buildTracker({
-      rows: [openRow, receivedRow],
-      orders: [],
-      today: TODAY,
-    });
-    expect(sors[0].byStage.purchased).toBe(0);
     expect(sors[0].rows.filter((r) => r.grp === "purchased")).toHaveLength(0);
   });
 
@@ -254,18 +240,5 @@ describe("value open", () => {
       { currency: "PHP", total: 900 },
       { currency: "USD", total: 150 },
     ]);
-  });
-});
-
-describe("isReceived", () => {
-  it("detects received across buyerTrack, direct flag, deadline, and signoffs", () => {
-    expect(isReceived(order({ buyerTrack: [{ key: "received_in_odoo", ticked: true }] }))).toBe(true);
-    expect(isReceived(order({ buyerTrack: [{ key: "received_in_odoo", ticked: false }] }))).toBe(false);
-    expect(isReceived(order({ received: true }))).toBe(true);
-    expect(isReceived(order({ receivedInOdoo: true }))).toBe(true);
-    expect(isReceived(order({ deadline: { receivedInOdoo: true } }))).toBe(true);
-    expect(isReceived(order({ status: "received" }))).toBe(true);
-    expect(isReceived(order({ signoffs: [{ role: "received", signed: true }] }))).toBe(true);
-    expect(isReceived(order())).toBe(false);
   });
 });

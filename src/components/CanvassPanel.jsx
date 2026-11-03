@@ -130,7 +130,7 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending, inlin
 
   const hasPrice =
     !canReadMoney || (unitPrice !== "" && String(unitPrice).trim() !== "" && !isNaN(Number(unitPrice)) && Number(unitPrice) >= 0);
-  const canSubmit = Boolean(supplierName.trim() && hasPrice);
+  const canSubmit = Boolean((supplierName.trim() || brand.trim() || description.trim()) && hasPrice);
 
   const submit = async (e) => {
     e.preventDefault();

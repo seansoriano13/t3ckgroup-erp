@@ -39,15 +39,7 @@ export const MOVE_BAND = { NOW: "now", WAITING: "waiting", CLEAR: "clear" };
 const NO_SOR = "no-sor";
 
 /** An order whose goods are Received in Odoo is no longer "Purchased (not received)". */
-export const isReceived = (order) =>
-  Boolean(
-    order?.received ||
-    order?.receivedInOdoo ||
-    order?.deadline?.receivedInOdoo ||
-    order?.status === "received" ||
-    order?.buyerTrack?.find((step) => step.key === "received_in_odoo")?.ticked ||
-    order?.signoffs?.some?.((s) => (s.role === "received" || s.step === "received") && (s.signed || s.ticked || s.signed_at))
-  );
+const isReceived = (order) => Boolean(order.buyerTrack?.find((step) => step.key === "received_in_odoo")?.ticked);
 
 /** What the person on a project record has to do next, by the kind of record and the group it sits in. */
 function rowAction(row) {
@@ -259,7 +251,6 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
 
   const shaped = [...sors.values()].map((sor) => {
     const open = sor.orders.filter((order) => order.group !== ORDER_GROUP.FILED && !isReceived(order));
-    const receivedOrders = sor.orders.filter((order) => order.group !== ORDER_GROUP.FILED && isReceived(order));
     const dueAt = deadlines.get(sor.oppId)?.dueAt ?? null;
     const furthest = Math.max(-1, ...STAGE_KEYS.slice(0, LAST_OPEN + 1).map((key, i) => (sor.byStage[key] > 0 ? i : -1)));
     const noSor = sor.key === NO_SOR;
@@ -271,7 +262,6 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
       short: direct ? "Direct request" : noSor ? "No SOR" : (sor.salesReference ?? "No S number"),
       name: noSor ? "Orders with no SOR" : direct ? "Direct request" : `${sor.salesReference ?? "No S number"} — ${sor.projectTitle ?? ""}`,
       openOrders: open,
-      receivedOrders,
       lateCount: open.filter((order) => order.late).length,
       ageDays: ageDays(sor.oldest, today),
       deadline: dueAt ? deadlineMark({ dueAt, nearDays, today }) : null,
