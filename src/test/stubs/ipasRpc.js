@@ -1560,7 +1560,7 @@ export function stubIpasRpcs({
       const live = liveSignoffs(ipas.id)
       const has = (sec, r) => live.some((s) => s.section === sec && s.role === r)
       if (!has(1, "approved") || !has(3, "approved") || !has(6, "approved") || !has(8, "approved")) {
-        refuse("55000", "ipas_sign: section 4 opens once sections 1, 2 and 3 are approved")
+        refuse("22023", "ipas_sign: section 4 opens once sections 1, 2, 3 and Logistics are signed")
       }
       if (["noted", "checked"].includes(role) && !has(7, "received")) {
         refuse("55000", `ipas_sign: Received comes first; ${role[0].toUpperCase()}${role.slice(1)} can only be given after it`)
