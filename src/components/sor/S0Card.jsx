@@ -193,13 +193,17 @@ export default function S0Card({ opportunityId }) {
   const readAt = formatReadAt(card.checked_at);
   const duplicates = card.sales_reference ? card.duplicates ?? [] : [];
 
-  return (
-    <div
-      data-testid="s0-card"
-      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border/60 bg-card px-3 py-2"
-    >
-      <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">S0</span>
-      {editing ? (
+  // What the S0 brought in, on hover of the number: product count and when Odoo was last read.
+  const facts = [
+    card.product_count > 0 && plural(card.product_count, "product", "products"),
+    readAt && `Read ${readAt}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (editing) {
+    return (
+      <div data-testid="s0-card" className="basis-full pt-1">
         <S0Input
           opportunityId={opportunityId}
           value={card.sales_reference || ""}
@@ -207,51 +211,58 @@ export default function S0Card({ opportunityId }) {
           onSaved={saved}
           onCancel={() => setEditing(false)}
         />
+      </div>
+    );
+  }
+
+  // Inline in the SOR window's identity line (beside the SOR number and stage), not a box of its own.
+  return (
+    <span data-testid="s0-card" className="inline-flex items-center gap-1.5">
+      <span aria-hidden className="mr-1 h-3.5 w-px bg-border" />
+      {card.sales_reference ? (
+        <Tooltip content={facts || "Odoo sale order"}>
+          <span className="font-mono text-[13px] font-bold text-muted-foreground" aria-label={`S0 ${card.sales_reference}${facts ? `, ${facts}` : ""}`}>
+            {card.sales_reference}
+          </span>
+        </Tooltip>
       ) : (
-        <>
-          {card.sales_reference ? (
-            <span className="font-mono text-sm font-bold text-foreground">{card.sales_reference}</span>
-          ) : (
-            <span className="text-sm font-medium text-muted-foreground">Not set</span>
-          )}
-          {badge && (
-            <Tooltip content={typeof badge.hover === "function" ? badge.hover(card.sales_reference) : badge.hover}>
-              <span>
-                <StatusBadge label={badge.label} theme={badge.theme} />
-              </span>
-            </Tooltip>
-          )}
-          {duplicates.length > 0 && (
-            <Tooltip
-              content={duplicates.map((other) => `Also on SOR ${other.name}.`).join(" ") + " One S0 per SOR; change one."}
-            >
-              <span>
-                <StatusBadge label="Duplicate" theme="red" />
-              </span>
-            </Tooltip>
-          )}
-          {card.sales_reference && (readAt || card.product_count > 0) && (
-            <span className="text-[12px] text-muted-foreground">
-              {card.product_count > 0 && `${card.product_count} ${card.product_count === 1 ? "product" : "products"}`}
-              {card.product_count > 0 && readAt && " · "}
-              {readAt && `Read ${readAt}`}
-            </span>
-          )}
-          {locked && (
-            <Tooltip content={`Locked after ${card.first_stage_name}`}>
-              <span aria-label="Locked" role="img" className="text-muted-foreground">
-                <Lock size={14} aria-hidden />
-              </span>
-            </Tooltip>
-          )}
-          {card.can_edit && (
-            <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={() => setEditing(true)}>
-              <Pencil data-icon="inline-start" aria-hidden />
-              Edit
-            </Button>
-          )}
-        </>
+        <span className="text-[13px] font-medium text-muted-foreground">No S0</span>
       )}
-    </div>
+      {badge && (
+        <Tooltip content={typeof badge.hover === "function" ? badge.hover(card.sales_reference) : badge.hover}>
+          <span>
+            <StatusBadge label={badge.label} theme={badge.theme} />
+          </span>
+        </Tooltip>
+      )}
+      {duplicates.length > 0 && (
+        <Tooltip content={duplicates.map((other) => `Also on SOR ${other.name}.`).join(" ") + " One S0 per SOR; change one."}>
+          <span>
+            <StatusBadge label="Duplicate" theme="red" />
+          </span>
+        </Tooltip>
+      )}
+      {locked && (
+        <Tooltip content={`Locked after ${card.first_stage_name}`}>
+          <span aria-label="Locked" role="img" className="text-muted-foreground/70">
+            <Lock size={12} aria-hidden />
+          </span>
+        </Tooltip>
+      )}
+      {card.can_edit && (
+        <Tooltip content={card.sales_reference ? "Change the S0" : "Add the S0"}>
+          <Button
+            type="button"
+            size="icon-xs"
+            variant="ghost"
+            aria-label={card.sales_reference ? "Edit S0" : "Add S0"}
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setEditing(true)}
+          >
+            <Pencil aria-hidden />
+          </Button>
+        </Tooltip>
+      )}
+    </span>
   );
 }
