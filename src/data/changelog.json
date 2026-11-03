@@ -1,6 +1,25 @@
 [
     {
         "date": "2026-11-03",
+        "title": "Purchasing and SOR window polish",
+        "version": "1.9.85",
+        "changes": [
+            "Purchase Requests: tick several product lines and change their status in one go, with one Undo. The bar only offers statuses that are valid for every ticked line.",
+            "Several status changes on one request now arrive as one notification, like \"3 products changed\", instead of one each.",
+            "When a purchaser takes a request, or someone is named as the buyer, the people who asked for the products are told who is now buying.",
+            "Clicking a request notification opens the right tab (Chat for messages and mentions, the product lines for status changes), and reuses the window if that request is already open.",
+            "Purchasing Dashboard: the Projects and Register tabs have a new Recent activity sort, remembered for you. Urgency stays the default.",
+            "Purchase Requests and the Purchasing Dashboard now highlight what matched your search.",
+            "Attach P0: the item's own line comes first and is tinted. The IPAS number shown after an attach now opens that IPAS in the app.",
+            "The Legacy Pipeline is closed to new deals, and Sale Type is now required when registering a SOR. Existing legacy SORs keep working, and the Flow Canvas shows the Legacy Pipeline flow as view only.",
+            "Deleted SORs now has a search box, with highlighting, like the main register.",
+            "When you update an Outdated SOR to a newer version, you now see what will happen first, such as which Group Tasks start and who is notified. A bulk update shows one line per Action.",
+            "SOR window: the S0 card moved into the SOR's edit form, under Details. The header shows the S0 number as plain text again.",
+            "Flow Canvas: hover a Stage condition that is also checked at another Stage to see \"Also checked at Stage X\"."
+        ]
+    },
+    {
+        "date": "2026-11-03",
         "title": "Filter Task Approvals by step",
         "version": "1.9.84",
         "changes": [

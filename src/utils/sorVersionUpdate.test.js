@@ -41,3 +41,38 @@ describe("outdated and revert", () => {
     expect(revertTargets(snaps, { flow_snapshot_id: "cur", flow_stage_id: "st" }).map((s) => s.id)).toEqual(["a"]);
   });
 });
+
+import { describe as d2, it as it2, expect as ex2 } from "vitest"
+import { addedActionsForStage, describeAction, summariseAddedActions, isForwardUpdate } from "./sorVersionUpdate"
+
+d2("version update Stage Actions (#846)", () => {
+  const snap = (version, actions) => ({ version, version_minor: 0, snapshot_data: { actions } })
+  const a = (id, stage_id) => ({ id, stage_id, kind: "create_group_task" })
+  it2("runs only actions added to the current Stage", () => {
+    const source = snap(1, [a("1", "s1")])
+    const target = snap(2, [a("1", "s1"), a("2", "s1"), a("3", "s0")])
+    ex2(addedActionsForStage({ source, target, stageId: "s1" }).map((x) => x.id)).toEqual(["2"])
+  })
+  it2("runs nothing going back", () => {
+    const source = snap(2, [])
+    const target = snap(1, [a("2", "s1")])
+    ex2(isForwardUpdate(source, target)).toBe(false)
+    ex2(addedActionsForStage({ source, target, stageId: "s1" })).toEqual([])
+  })
+  it2("summarises one line per action", () => {
+    const x = a("2", "s1")
+    ex2(summariseAddedActions([{ action: x, name: "Site" }, { action: x, name: "Site" }])[0].text).toBe("2 deals will get: Site")
+  })
+})
+
+d2("describeAction (#846)", () => {
+  it2("names a task by its own title", () => {
+    ex2(describeAction({ kind: "create_group_task", config: { title: "Site survey" } })).toBe("Group Task 'Site survey'")
+  })
+  it2("says who a purchasing Action notifies", () => {
+    ex2(describeAction({ kind: "open_purchase_request", config: {} })).toBe("Open Purchase Request; notify Purchasing")
+  })
+  it2("says a confirm Action only asks", () => {
+    ex2(describeAction({ kind: "create_group_task", config: { title: "X", confirmMode: "confirm" } })).toContain("asks its Decider")
+  })
+})

@@ -293,3 +293,20 @@ export function fieldDetail(field) {
       : fieldMeta(field).label
   return field?.is_required ? `${kind} · blocks leaving` : kind
 }
+
+/**
+ * Hover note for a Stage Condition or Action whose kind also sits on other
+ * Stages of the same flow (#845). Allowed, never blocked: each Stage checks the
+ * whole SOR again, so the canvas only says where the other copies are.
+ *
+ * `itemsByStage` is the canvas's `{ [stageId]: items[] }` read. Returns null
+ * when the kind sits on this Stage only.
+ */
+export function alsoCheckedNote(item, stageId, itemsByStage, stages, { prefix = "Also checked at" } = {}) {
+  const others = stages.filter(
+    (s) => s.id !== stageId && (itemsByStage[s.id] ?? []).some((x) => x.kind === item.kind),
+  );
+  if (others.length === 0) return null;
+  const names = others.map((s) => s.name).join(", ");
+  return `${prefix} ${others.length === 1 ? "Stage" : "Stages"} ${names}`;
+}

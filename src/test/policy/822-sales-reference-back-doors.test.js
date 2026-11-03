@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded, castEmail } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
-import { makeSor } from "./support/rows.js"
+import { makeSor, liveSaleTypeFields, dropLiveSaleType } from "./support/rows.js"
 
 const svc = () => serviceClient()
 const sorIds = []
@@ -60,9 +60,10 @@ afterAll(async () => {
     await s.from("sales_opportunity_logs").delete().in("opportunity_id", sorIds)
     await s.from("sales_opportunities").delete().in("id", sorIds)
     await s.from("crm_pipeline_stages").delete().eq("code", NEXT_CODE)
+    await dropLiveSaleType()
 })
 
-const directInsert = (client, extra = {}) =>
+const directInsert = async (client, extra = {}) =>
     client
         .from("sales_opportunities")
         .insert({
@@ -73,6 +74,7 @@ const directInsert = (client, extra = {}) =>
             project_title: "[policy-tier] 822 direct insert",
             expected_value: 1,
             status: "LEAD",
+            ...(await liveSaleTypeFields()),
             ...extra,
         })
         .select("id")

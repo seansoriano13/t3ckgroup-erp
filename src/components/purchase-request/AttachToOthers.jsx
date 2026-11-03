@@ -9,6 +9,7 @@ import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { ITEM_STATUS_LABELS } from "../../constants/purchaseRequest";
 import { refusal, useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
+import IpasMessage from "./IpasMessage";
 
 /** Said beside an item that shares its Odoo product with another open item. It can be ticked, but no P0 line is picked for it. */
 const SHARED_NOTE = "Same product is on another line of this request. Its P0 line is not picked.";
@@ -89,7 +90,7 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
                   {result.warning}
                 </span>
               )}
-              {result.ok && result.ipas && <span className="block text-xs text-muted-foreground">{result.ipas}</span>}
+              {result.ok && result.ipas && <span className="block text-xs text-muted-foreground"><IpasMessage message={result.ipas} ipasId={result.ipasId} ipasNumber={result.ipasNumber} /></span>}
             </li>
           ))}
         </ul>

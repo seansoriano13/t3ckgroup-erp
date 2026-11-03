@@ -106,7 +106,33 @@ export async function authenticate() {
   return uid;
 }
 
+// Odoo methods that only read. Anything else counts as a write.
+const ODOO_READ_METHODS = new Set([
+  "search",
+  "search_read",
+  "search_count",
+  "read",
+  "read_group",
+  "name_search",
+  "name_get",
+  "fields_get",
+  "check_access_rights",
+]);
+
+// The local stack's Odoo login points at the LIVE Odoo (there is no test Odoo),
+// so on the local stack every write is refused unless ODOO_ALLOW_LOCAL_WRITES
+// is "true". Staging and prod are never affected.
+export function assertOdooWriteAllowed(method) {
+  if (ODOO_READ_METHODS.has(method)) return;
+  if (!isLocalStack()) return;
+  if (Deno.env.get("ODOO_ALLOW_LOCAL_WRITES") === "true") return;
+  throw new Error(
+    `Odoo write "${method}" refused on the local stack because it would change the live Odoo. Set ODOO_ALLOW_LOCAL_WRITES=true in supabase/functions/.env and restart pnpm local:start to allow it.`,
+  );
+}
+
 export function executeKw(uid, model, method, args, kwargs = {}) {
+  assertOdooWriteAllowed(method);
   return odooCall("object", "execute_kw", [
     ODOO_DB,
     uid,

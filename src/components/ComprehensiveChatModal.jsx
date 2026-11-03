@@ -1240,6 +1240,8 @@ export default function ComprehensiveChatModal({
                           detail: {
                             id: selectedChat.entity_id,
                             type: canonicalEntityType(selectedChat.entity_type),
+                            // A request's chat row opens the request on its Chat tab (#850).
+                            ...(canonicalEntityType(selectedChat.entity_type) === "PURCHASE_REQUEST" ? { tab: "chat" } : {}),
                           },
                         }),
                       );

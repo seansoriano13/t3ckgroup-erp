@@ -88,9 +88,18 @@ Odoo secrets in `supabase/functions/.env` (gitignored: `ODOO_URL`, `ODOO_DB`,
 `ODOO_USERNAME`, `ODOO_API_KEY`, `ODOO_ADMIN_TOKEN`) and serve with them:
 
 ```
-npx supabase functions serve --env-file supabase/functions/.env   # leave running
+pnpm local:start    # starts the stack AND serves the functions with that file; leave running
 ```
 
-The secrets are read-only use: nothing local writes to Odoo. Run any browser story
-that touches a PO with the function server up. If a PO lookup shows sample data or
-fails, check the function server first.
+`pnpm local:start` does both in one go (`supabase start`, then `functions serve
+--env-file supabase/functions/.env`), so no second command is needed. Odoo reads
+(S0 lookup, P0 suggest) then work straight away.
+
+**Odoo writes are refused locally.** The local Odoo login points at the live Odoo
+(there is no test Odoo). So on the local stack any function that writes to Odoo
+fails with a message naming `ODOO_ALLOW_LOCAL_WRITES`. Reads stay free. To let a
+write through on purpose, add `ODOO_ALLOW_LOCAL_WRITES=true` to
+`supabase/functions/.env` and restart `pnpm local:start`. Staging and prod
+functions ignore the flag and are unaffected. Run any browser story that touches
+a P0 with the function server up. If a P0 lookup shows sample data or fails,
+check the function server first.

@@ -11,6 +11,7 @@ import {
     hasDeclinedUpdatePrompt,
     isOutdatedSor,
     revertTargets,
+    actionFailureMessage,
 } from "../../utils/sorVersionUpdate"
 import { useAuth } from "../../context/AuthContext"
 import { ChevronDown, Undo2 } from "lucide-react"
@@ -50,13 +51,15 @@ export default function SorVersionUpdate({ opportunity }) {
 
     const update = useMutation({
         mutationFn: (snapshotId) =>
-            opportunityService.updateSorVersions([opportunity.id], snapshotId, { queryClient }),
-        onSuccess: ({ failed }) => {
+            opportunityService.updateSorVersions([opportunity.id], snapshotId, { queryClient, actorId: user?.id }),
+        onSuccess: ({ failed, actionFailures }) => {
             if (failed.length > 0) {
                 toast.error(failed[0].reason)
                 return
             }
             toast.success("Version updated.")
+            const warning = actionFailureMessage(actionFailures)
+            if (warning) toast(warning, { duration: 8000 })
             queryClient.invalidateQueries({ queryKey: ["opportunity", opportunity.id] })
             queryClient.invalidateQueries({ queryKey: ["globalOpportunity", opportunity.id] })
             queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunity.id] })
@@ -65,6 +68,11 @@ export default function SorVersionUpdate({ opportunity }) {
     })
 
     const latest = snapshots[0] ?? null
+    const { data: preview } = useQuery({
+        queryKey: ["versionUpdatePreview", opportunity?.id, latest?.id],
+        queryFn: () => opportunityService.previewVersionUpdate([opportunity.id], latest.id),
+        enabled: Boolean(opportunity?.id && latest?.id && opportunity.flow_snapshot_id !== latest.id),
+    })
     if (!opportunity?.id || !latest) return null
 
     const allowed = canUpdateSorVersion({ actor: user, sor: opportunity, batchSize: 1 })
@@ -79,6 +87,11 @@ export default function SorVersionUpdate({ opportunity }) {
             {showPrompt && (
                 <>
                     <span>{`A newer version, ${formatSnapshotVersion(latest)}, is available for this SOR.`}</span>
+                    {(preview?.lines ?? []).map((line) => (
+                        <span key={line.id} className="w-full text-right text-mauve-11">
+                            {`Updating will run: ${line.text.replace(/^1 deal will get: /, "")}`}
+                        </span>
+                    ))}
                     <Button size="sm" disabled={update.isPending} onClick={() => update.mutate(latest.id)}>
                         {`Update to ${formatSnapshotVersion(latest)}`}
                     </Button>

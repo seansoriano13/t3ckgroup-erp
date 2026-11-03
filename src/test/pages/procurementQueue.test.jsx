@@ -5,6 +5,7 @@
  * Take on an unassigned row. Who may read and take is the policy tier's
  * (44-procurement-queue, 41-purchase-request-chat-and-buyer).
  */
+import GlobalDetailManager from "@/components/GlobalDetailManager"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router"
@@ -19,7 +20,7 @@ import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc
 let authUser
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }))
 
-let me, colleague, salesperson, unassigned, taken, done
+let me, colleague, salesperson, unassigned, done
 
 function request({ ref, title, buyer = null, items = [] }) {
   const sor = makeOpportunity({
@@ -49,6 +50,7 @@ const Where = () => <output data-testid="where">{useLocation().search}</output>
 function renderAt(entry = "/purchasing") {
   return renderWithProviders(
     <MemoryRouter initialEntries={[entry]}>
+      <GlobalDetailManager />
       <ProcurementQueuePage />
       <Where />
     </MemoryRouter>,
@@ -70,7 +72,7 @@ beforeEach(() => {
   authUser = { id: me.id, name: me.name, has_purchasing_flow: true }
 
   unassigned = request({ ref: "S01001", title: "Harbour lights", items: [["Floodlight", "not_checked"]] })
-  taken = request({ ref: "S01002", title: "Bridge rails", buyer: colleague.id, items: [["Rail", "purchased"]] })
+  request({ ref: "S01002", title: "Bridge rails", buyer: colleague.id, items: [["Rail", "purchased"]] })
   done = request({ ref: "S01003", title: "Old depot", buyer: colleague.id, items: [["Bolt", "received"]] })
 
   stubProcurementQueueRpcs({ actorId: me.id })
@@ -134,7 +136,7 @@ describe("Procurement Queue", () => {
     await user.click(await rowFor("S01002"))
 
     const sheet = await screen.findByRole("dialog")
-    expect(screen.getByTestId("where")).toHaveTextContent(`?request=${taken.id}`)
+    expect(screen.getByTestId("where")).not.toHaveTextContent("request=") // handed to the global window (#850)
     expect(sheet.dataset.modalShell).toBe("record")
     expect(await within(sheet).findByRole("heading", { name: /Bridge rails/ })).toBeInTheDocument()
     expect(await within(sheet).findByText("Rail")).toBeInTheDocument()

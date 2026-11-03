@@ -1,4 +1,5 @@
 import { screen, within } from "@testing-library/react";
+import GlobalDetailManager from "@/components/GlobalDetailManager"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import OrderMonitoringRedirect from "@/pages/purchasing/order-monitoring/index";
@@ -91,6 +92,7 @@ function Where() {
 const renderPage = (entry = "/purchasing/dashboard") =>
   renderWithProviders(
     <MemoryRouter initialEntries={[entry]}>
+      <GlobalDetailManager />
       <Routes>
         <Route path="/purchasing/order-monitoring" element={<OrderMonitoringRedirect />} />
         <Route path="/purchasing/dashboard" element={<PurchasingDashboardPage />} />
@@ -187,7 +189,7 @@ describe("Purchasing Dashboard page", () => {
     await setupUser().click(await within(panel).findByRole("button", { name: /Ambulance kit/ }));
 
     expect(await screen.findByText("Request body pr-1")).toBeInTheDocument();
-    expect(screen.getByTestId("where")).toHaveTextContent("request=pr-1");
+    expect(screen.getByTestId("where")).not.toHaveTextContent("request="); // handed to the global window (#850)
   });
 
   it("opens the SOR Register from the panel's footer", async () => {
@@ -249,7 +251,7 @@ describe("Purchasing Dashboard page", () => {
     await setupUser().click(await screen.findByRole("row", { name: /Direct request, open/ }));
     const panel = await screen.findByRole("dialog");
     await setupUser().click(await within(panel).findByRole("button", { name: "Open the request" }));
-    expect(screen.getByTestId("where")).toHaveTextContent("request=pr-9");
+    expect(screen.getByTestId("where")).not.toHaveTextContent("request="); // handed to the global window (#850)
   });
 
   it("narrows to a stage from the totals, and by search", async () => {

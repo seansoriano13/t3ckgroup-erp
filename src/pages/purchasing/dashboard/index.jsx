@@ -1,7 +1,7 @@
+import { useRequestInGlobalWindow } from "@/hooks/useRequestInGlobalWindow";
 import { Navigate, useNavigate } from "react-router";
 
 import PageLoading from "../../../components/ui/PageLoading";
-import PurchaseRequestModal from "../../../components/purchase-request/PurchaseRequestModal";
 import { useAuth } from "../../../context/AuthContext";
 import { useRecordParam } from "../../../hooks/useRecordParam";
 import { getPermissionContext } from "../../../utils/permissions";
@@ -22,6 +22,7 @@ function PurchasingDashboard() {
   const navigate = useNavigate();
   const filters = useTrackerFilters();
   const { recordId, open, close } = useRecordParam("request");
+  useRequestInGlobalWindow(recordId, close);
 
   const openRow = (row) => {
     if (row.target_kind === "purchase_request") {
@@ -43,8 +44,6 @@ function PurchasingDashboard() {
   return (
     <>
       <Tracker filters={filters} handlers={{ onOpenRow: openRow, onOpenOrder: openOrder, onOpenSor: openSor }} suspended={Boolean(recordId)} />
-
-      {recordId && <PurchaseRequestModal requestId={recordId} onClose={close} />}
     </>
   );
 }

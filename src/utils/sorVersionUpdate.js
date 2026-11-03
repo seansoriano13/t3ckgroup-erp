@@ -4,6 +4,9 @@
  * mirrors it so the screen only offers what will be accepted.
  */
 
+import { snapshotRows } from "../constants/salesFlow";
+import { ACTION_KIND_META, actionTitle } from "../components/flow-canvas/flowStageKinds";
+
 export const UPDATE_MODE = { ALL: "all", ONLY: "only", ALL_BUT: "allBut" };
 
 /** The ids a bulk update acts on for a mode, given the ids the person ticked. */
@@ -56,4 +59,67 @@ export function revertTargets(snapshots, sor) {
   return (snapshots || []).filter(
     (s) => s.id !== sor.flow_snapshot_id && (s.snapshot_data?.stages || []).some((st) => st.id === sor.flow_stage_id),
   );
+}
+
+/** True when `target` is a later version than `source` (major, then minor). */
+export function isForwardUpdate(source, target) {
+  if (!source || !target) return false;
+  const a = [source.version ?? 0, source.version_minor ?? 0];
+  const b = [target.version ?? 0, target.version_minor ?? 0];
+  return b[0] > a[0] || (b[0] === a[0] && b[1] > a[1]);
+}
+
+/**
+ * The Stage Actions an update adds for the Stage the SOR sits at (#846): those
+ * in the target version's Stage that the SOR's current version lacks. Only an
+ * update forward runs anything; going back, or Stages already passed, never do.
+ */
+export function addedActionsForStage({ source, target, stageId }) {
+  if (!isForwardUpdate(source, target) || !stageId) return [];
+  const rows = (snap) => snapshotRows(snap?.snapshot_data?.actions);
+  const had = new Set(rows(source).filter((a) => a.stage_id === stageId).map((a) => a.id));
+  return rows(target).filter((a) => a.stage_id === stageId && !had.has(a.id));
+}
+
+const NOTIFIES = {
+  open_purchase_request: "notify Purchasing",
+  open_costing_matrix: "notify Purchasing",
+  evaluate_specification: "notify Purchasing",
+  request_packing_list: "notify the Warehouse",
+};
+
+/**
+ * What an added Action does, by its own name: "Group Task 'Site survey'; notify
+ * Purchasing". A "When confirmed" Action only asks its Decider.
+ */
+export function describeAction(action) {
+  const meta = ACTION_KIND_META[action?.kind];
+  const label = meta?.label ?? "Action";
+  const title = actionTitle(action);
+  const parts = [meta?.titled === false || title === label ? label : `${label} '${title}'`];
+  if (NOTIFIES[action?.kind]) parts.push(NOTIFIES[action.kind]);
+  if (action?.config?.confirmMode === "confirm") parts.push("asks its Decider to create or skip");
+  return parts.join("; ");
+}
+
+/** One summary line per Action: "12 deals will get: Group task". */
+export function summariseAddedActions(entries) {
+  const byAction = new Map();
+  for (const { action, name } of entries) {
+    const hit = byAction.get(action.id) || { name, count: 0 };
+    hit.count += 1;
+    byAction.set(action.id, hit);
+  }
+  return [...byAction.entries()].map(([id, { name, count }]) => ({
+    id,
+    count,
+    text: `${count} ${count === 1 ? "deal" : "deals"} will get: ${name}`,
+  }));
+}
+
+/** The warning for Stage Actions that failed to start after an update, or null. */
+export function actionFailureMessage(actionFailures) {
+  const names = [...new Set((actionFailures || []).map((f) => f.name))];
+  if (names.length === 0) return null;
+  return `Updated, but these automations failed. Create them by hand: ${names.join(", ")}.`;
 }

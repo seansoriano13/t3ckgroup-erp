@@ -171,7 +171,8 @@ describe("Purchasing", () => {
         }
         const client = await clientFor("ordinary")
         const { data } = await client.from("notifications").select("type").eq("reference_id", id).eq("type", "PURCHASE_REQUEST_ITEM_STATUS")
-        expect(data).toHaveLength(3)
+        // #851: the three changes merge into the Requester's one unread status notification.
+        expect(data).toHaveLength(1)
     })
 
     it("a Requester with Purchasing access may take and buy their own", async () => {

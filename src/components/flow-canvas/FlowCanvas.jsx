@@ -62,7 +62,7 @@ import { Input } from "@/components/ui/input";
 import { FileInput } from "@/components/ui/FileInput";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { UPDATE_MODE, idsForUpdateMode } from "@/utils/sorVersionUpdate";
+import { UPDATE_MODE, idsForUpdateMode, actionFailureMessage } from "@/utils/sorVersionUpdate";
 import {
   Dialog,
   DialogContent,
@@ -85,13 +85,14 @@ import { actionTitle } from "./flowStageKinds";
 
 import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
-import { endsAsLost, entryStage, flowLockBlockers, flowPublishWarnings } from "../../constants/salesFlow";
+import { endsAsLost, entryStage, flowLockBlockers, flowPublishWarnings, isLegacyPipelineSaleType } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
 import FlowCanvasNode, { HANDLE_IN, HANDLE_OUT } from "./FlowCanvasNode";
 import FlowSatelliteNode from "./FlowSatelliteNode";
 import FlowBracketNode from "./FlowBracketNode";
 import FlowMoveEdge from "./FlowMoveEdge";
 import StageSettingsPanel from "./StageSettingsPanel";
+import { alsoCheckedNote } from "./flowStageKinds";
 import SorFormBuilder from "./SorFormBuilder";
 import FlowAccessSettings from "./FlowAccessSettings";
 import FlowAccessPanel from "./FlowAccessPanel";
@@ -234,6 +235,12 @@ function FlowCanvasInner() {
   const [moveOffer, setMoveOffer] = useState(null);
   const [offerMode, setOfferMode] = useState(UPDATE_MODE.ALL);
   const [offerPicked, setOfferPicked] = useState([]);
+  const offerIds = idsForUpdateMode(offerMode, (moveOffer?.sors ?? []).map((o) => o.id), offerPicked);
+  const { data: offerPreview } = useQuery({
+    queryKey: ["versionUpdatePreview", moveOffer?.targetSnapshotId, offerIds],
+    queryFn: () => opportunityService.previewVersionUpdate(offerIds, moveOffer.targetSnapshotId),
+    enabled: Boolean(moveOffer?.targetSnapshotId && offerIds.length > 0),
+  });
   const [moveResult, setMoveResult] = useState(null);
   // { done, total, targetLabel } while a move is running, else null. Drives
   // the progress dialog that cannot be dismissed (issue #190 follow-up).
@@ -284,7 +291,9 @@ function FlowCanvasInner() {
   const edges = useMemo(() => canvas?.edges ?? [], [canvas?.edges]);
   const flow = canvas?.flow ?? null;
   const entry = entryStage(stages);
-  const isLocked = flow?.state === "locked";
+  // The Legacy Pipeline (#856) opens view only: no edit, no Publish. Other archived Sale Types stay editable.
+  const isLegacyPipeline = isLegacyPipelineSaleType(canvas?.saleType);
+  const isLocked = flow?.state === "locked" || isLegacyPipeline;
   const lockBlockers = useMemo(
     () => (flow && !isLocked ? flowLockBlockers({ stages, edges, wonStageId: flow.won_stage_id }) : []),
     [flow, isLocked, stages, edges],
@@ -669,9 +678,12 @@ function FlowCanvasInner() {
     mutationFn: ({ targetSnapshotId, targetLabel, ids }) =>
       opportunityService.updateSorVersions(ids, targetSnapshotId, {
         queryClient,
+        actorId: user?.id,
         onProgress: ({ done, total }) => setMoveProgress({ done, total, targetLabel }),
       }),
     onSuccess: (result) => {
+      const warning = actionFailureMessage(result.actionFailures);
+      if (warning) toast(warning, { duration: 8000 });
       setMoveResult(result);
       setMoveOffer(null);
     },
@@ -898,6 +910,15 @@ function FlowCanvasInner() {
             // Issue #411 — actionSummary names a single-employee Decider by
             // looking them up here, rather than always saying "the assignee".
             ...(variant === "action" ? { employees: allEmployees } : {}),
+            // #845 — hover-only note when the same kind sits on other Stages.
+            note:
+              variant === "condition"
+                ? alsoCheckedNote(item, stage.id, conditionsByStage, stages)
+                : variant === "action" && item.kind === "open_purchase_request"
+                  ? alsoCheckedNote(item, stage.id, actionsByStage, stages, {
+                      prefix: "Also raised at",
+                    })
+                  : null,
           });
         });
 
@@ -1701,7 +1722,7 @@ function FlowCanvasInner() {
 
                 <div className="mx-1 h-4 w-px bg-border" />
 
-                {isLocked ? (
+                {isLegacyPipeline ? null : isLocked ? (
                   <Button
                     variant="outline"
                     size="lg"
@@ -2015,6 +2036,13 @@ function FlowCanvasInner() {
             }
           >
             <div className="space-y-3 text-sm">
+              {(offerPreview?.lines ?? []).length > 0 && (
+                <ul aria-label="What the update will run" className="list-disc space-y-1 pl-5">
+                  {offerPreview.lines.map((line) => (
+                    <li key={line.id}>{line.text}</li>
+                  ))}
+                </ul>
+              )}
               <div role="group" aria-label="Which SORs" className="flex flex-wrap gap-2">
                 {modes.map(([value, label]) => (
                   <Button

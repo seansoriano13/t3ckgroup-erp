@@ -165,7 +165,7 @@ export function getValidationStamp(record) {
   if (record.hr_processed_at) return formatManilaDateTime(record.hr_processed_at);
   if (record.hr_signature_timestamp) return formatManilaDateTime(record.hr_signature_timestamp);
   if (record.updated_at) return formatManilaDate(record.updated_at);
-  return '—';
+  return 'â€”';
 }
 
 /** Fields common to both templates' right-rail "HRD validation" block. */

@@ -6666,6 +6666,7 @@ declare
   v_requesters uuid[];
   v_item public.purchase_request_items;
   v_buyer uuid;
+  v_buyer_name text;
 begin
   select * into v_req from public.purchase_requests where id = new.request_id;
   if v_req.id is null then
@@ -6725,16 +6726,34 @@ begin
         'You''re the Buyer',
         v_label || ': ' || coalesce(v_author, 'Someone') || ' made you its Buyer.'
       );
+
+      -- #849: the Requesters hear who is now buying. The creator counts only
+      -- as a Direct request's Requester. The sender (the actor) is skipped.
+      select name into v_buyer_name from public.employees where id = v_buyer;
+      select array_agg(distinct x) into v_requesters
+      from (
+        select v_req.created_by as x where v_req.opportunity_id is null
+        union
+        select i.requested_by from public.purchase_request_items i where i.request_id = v_req.id
+      ) q
+      where x is not null and x is distinct from v_buyer;
+
+      perform public._purchase_request_notify(
+        v_req.id, coalesce(v_requesters, '{}'::uuid[]), new.author_id,
+        'PURCHASE_REQUEST_BUYER_SET',
+        'Buyer assigned',
+        coalesce(v_buyer_name, 'Someone') || ' is now buying ' || coalesce(v_req.pr_number, v_label)
+      );
     end if;
 
   elsif v_event = 'item_status_changed' then
     select * into v_item from public.purchase_request_items
     where id = nullif(new.metadata->>'item_id', '')::uuid;
-    perform public._purchase_request_notify(
+    perform public._purchase_request_notify_status_merge(
       v_req.id, array[v_req.buyer_id, v_item.requested_by], new.author_id,
-      'PURCHASE_REQUEST_ITEM_STATUS',
-      'Requested Item updated',
-      v_label || ': ' || new.content
+      'Requested Item updated', v_label, new.content,
+      coalesce(v_item.name, 'A product') || ' → '
+        || coalesce(public._purchase_request_item_status_label(new.metadata->>'to'), new.metadata->>'to', '?')
     );
 
   elsif v_event = 'item_added' then
@@ -6791,6 +6810,70 @@ begin
         where m.request_id = p_request_id and m.employee_id = e.id
       )
     );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_notify_status_merge(p_request_id uuid, p_recipients uuid[], p_sender uuid, p_title text, p_label text, p_content text, p_detail text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  r record;
+  v_old public.notifications;
+  v_rest text;
+  v_count int;
+  v_details text;
+  v_prefix text := p_label || ': ';
+begin
+  for r in
+    select distinct e.id
+    from unnest(coalesce(p_recipients, '{}'::uuid[])) as x(id)
+    join public.employees e on e.id = x.id
+    where not coalesce(e.is_deleted, false)
+      and e.id is distinct from p_sender
+      and exists (
+        select 1 from public.purchase_request_members m
+        where m.request_id = p_request_id and m.employee_id = e.id
+      )
+  loop
+    v_old := null;
+    select * into v_old
+    from public.notifications n
+    where n.recipient_id = r.id
+      and n.type = 'PURCHASE_REQUEST_ITEM_STATUS'
+      and n.reference_id = p_request_id::text
+      and not coalesce(n.is_read, false)
+      and n.created_at > now() - interval '10 minutes'
+    order by n.created_at desc
+    limit 1
+    for update;
+
+    if v_old.id is null then
+      insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+      values (r.id, p_sender, 'PURCHASE_REQUEST_ITEM_STATUS', p_title,
+              left(v_prefix || p_content, 280), p_request_id::text);
+    else
+      v_rest := case when left(v_old.message, length(v_prefix)) = v_prefix
+                     then substr(v_old.message, length(v_prefix) + 1) else v_old.message end;
+      if v_rest ~ '^[0-9]+ products changed: ' then
+        v_count := (substring(v_rest from '^([0-9]+) products changed: '))::int + 1;
+        v_details := regexp_replace(v_rest, '^[0-9]+ products changed: ', '') || ', ' || p_detail;
+      else
+        v_count := 2;
+        -- "Name: From → To (extra)" becomes "Name → To (extra)"
+        v_details := regexp_replace(v_rest, '^(.*?): .*? → (.*)$', E'\\1 → \\2') || ', ' || p_detail;
+      end if;
+      update public.notifications
+         set title = 'Requested Items updated',
+             message = left(v_prefix || v_count || ' products changed: ' || v_details, 280),
+             sender_id = p_sender,
+             is_read = false,
+             created_at = now()
+       where id = v_old.id;
+    end if;
+  end loop;
 end;
 $function$
 ;
@@ -19318,6 +19401,75 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_bulk_set_item_status(p_item_ids uuid[], p_status text, p_reason text DEFAULT NULL::text)
+ RETURNS SETOF purchase_request_items
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_id uuid;
+  v_reason text := nullif(btrim(p_reason), '');
+  v_item public.purchase_request_items;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_bulk_set_item_status: not signed in' using errcode = '42501';
+  end if;
+  if p_item_ids is null or cardinality(p_item_ids) = 0 or cardinality(p_item_ids) > 100 then
+    raise exception 'purchase_request_bulk_set_item_status: pick between 1 and 100 lines' using errcode = '22023';
+  end if;
+  if p_status not in ('available', 'to_purchase', 'still_canvassing', 'cancelled', 'cannot_source') then
+    raise exception 'purchase_request_bulk_set_item_status: % can''t be set on many lines at once', p_status
+      using errcode = '22023';
+  end if;
+  if p_status in ('cancelled', 'cannot_source') and v_reason is null then
+    raise exception 'purchase_request_bulk_set_item_status: give a reason' using errcode = '22023';
+  end if;
+
+  -- Lock in one order so two batches can't wait on each other.
+  for v_id in select distinct x from unnest(p_item_ids) x order by x loop
+    if p_status = 'available' then
+      v_item := public.purchase_request_set_item_status(
+        v_id, p_status, case when v_reason is null then '{}'::jsonb else jsonb_build_object('reason', v_reason) end);
+    else
+      v_item := public.purchase_request_set_item_status(v_id, p_status, '{}'::jsonb);
+    end if;
+
+    if p_status in ('cancelled', 'cannot_source') then
+      perform public._purchase_request_post_event(
+        v_item.request_id, v_actor,
+        format('%s: %s. Reason: %s', v_item.name, public._purchase_request_item_status_label(p_status), v_reason),
+        jsonb_build_object('event', 'item_status_reason', 'item_id', v_item.id, 'reason', v_reason)
+      );
+    end if;
+    return next v_item;
+  end loop;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_bulk_undo_item_status(p_changes jsonb)
+ RETURNS SETOF purchase_request_items
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_change jsonb;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'purchase_request_bulk_undo_item_status: not signed in' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_changes) <> 'array' or jsonb_array_length(p_changes) = 0 then
+    raise exception 'purchase_request_bulk_undo_item_status: nothing to undo' using errcode = '22023';
+  end if;
+  for v_change in select x from jsonb_array_elements(p_changes) x loop
+    return next public.purchase_request_undo_item_status(
+      (v_change->>'item_id')::uuid, (v_change->>'changed_at')::timestamptz);
+  end loop;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchase_request_can_add_items(p_request_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -20495,6 +20647,12 @@ declare
   v_label text;
   v_content text;
   v_read uuid[];
+  v_seg text;
+  v_prefix text;
+  v_m record;
+  v_count int;
+  v_details text;
+  v_pos int;
 begin
   if v_actor is null then
     raise exception 'purchase_request_undo_item_status: not signed in' using errcode = '42501';
@@ -20619,6 +20777,48 @@ begin
   select coalesce(array_agg(distinct sent.recipient_id) filter (where sent.is_read), '{}')
     into v_read
   from sent;
+
+  -- #852: a change that #851 merged into a "N products changed: ..." notification. Take this line's
+  -- part out of it (an unread row), or tell a recipient who already read it.
+  v_seg := coalesce(v_item.name, 'A product') || ' → ' || coalesce(public._purchase_request_item_status_label(v_to), v_to, '?');
+  v_prefix := v_label || ': ';
+  for v_m in
+    select n.id, n.recipient_id, coalesce(n.is_read, false) as is_read, n.message
+    from public.notifications n
+    where n.type = 'PURCHASE_REQUEST_ITEM_STATUS'
+      and n.reference_id = v_item.request_id::text
+      and n.sender_id = v_actor
+      and left(n.message, length(v_prefix)) = v_prefix
+      and substr(n.message, length(v_prefix) + 1) ~ '^[0-9]+ products changed: '
+      and position(v_seg in n.message) > 0
+    for update
+  loop
+    if v_m.is_read then
+      v_read := array_append(coalesce(v_read, '{}'::uuid[]), v_m.recipient_id);
+      continue;
+    end if;
+    v_count := (substring(substr(v_m.message, length(v_prefix) + 1) from '^([0-9]+) products changed: '))::int;
+    v_details := regexp_replace(substr(v_m.message, length(v_prefix) + 1), '^[0-9]+ products changed: ', '');
+    v_pos := position(', ' || v_seg in v_details);
+    if v_pos > 0 then
+      v_details := overlay(v_details placing '' from v_pos for length(', ' || v_seg));
+    elsif left(v_details, length(v_seg) + 2) = v_seg || ', ' then
+      v_details := substr(v_details, length(v_seg) + 3);
+    elsif v_details = v_seg then
+      v_details := null;
+    else
+      continue;
+    end if;
+    if v_count <= 1 or v_details is null then
+      delete from public.notifications where id = v_m.id;
+    else
+      update public.notifications
+         set message = left(v_prefix || case when v_count - 1 = 1 then v_details
+                                             else (v_count - 1) || ' products changed: ' || v_details end, 280),
+             title = case when v_count - 1 = 1 then 'Requested Item updated' else title end
+       where id = v_m.id;
+    end if;
+  end loop;
 
   perform public._purchase_request_notify(
     v_item.request_id, v_read, v_actor,
@@ -24956,6 +25156,36 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.sor_require_live_sale_type()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is null or coalesce(NEW.is_retail, false) then
+    return NEW;
+  end if;
+
+  if TG_OP = 'UPDATE' and NEW.sale_type_id is not distinct from OLD.sale_type_id then
+    return NEW;
+  end if;
+
+  if NEW.sale_type_id is null then
+    raise exception 'Choose a Sale Type for this SOR.';
+  end if;
+
+  if exists (
+    select 1 from public.sale_types st
+    where st.id = NEW.sale_type_id and lower(btrim(st.name)) = 'legacy pipeline'
+  ) then
+    raise exception 'The Legacy Pipeline is closed to new deals. Choose another Sale Type.';
+  end if;
+
+  return NEW;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.sor_resume_stage_work(p_opportunity_id uuid)
  RETURNS sor_stage_visits
  LANGUAGE plpgsql
@@ -28709,6 +28939,7 @@ CREATE TRIGGER sor_stage_visits_on_stage_change AFTER UPDATE OF flow_stage_id ON
 CREATE TRIGGER trg_sales_opportunities_guard BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_guard();
 CREATE TRIGGER trg_sales_opportunities_require_sales_ref BEFORE INSERT OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_require_sales_ref();
 CREATE TRIGGER trg_sales_opportunities_s0_guard BEFORE INSERT OR UPDATE OF sales_reference, sales_reference_odoo_state, sales_reference_checked_at, is_deleted ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_sales_reference();
+CREATE TRIGGER trg_sor_require_live_sale_type BEFORE INSERT OR UPDATE OF sale_type_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_require_live_sale_type();
 CREATE TRIGGER trg_sales_opportunity_items_touch BEFORE UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sales_opportunity_items_touch();
 CREATE TRIGGER trg_sor_items_recalc AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sor_recalc_expected_value();
 CREATE TRIGGER trg_sor_line_sync_request_item AFTER INSERT OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION trg_sor_line_sync_request_item();

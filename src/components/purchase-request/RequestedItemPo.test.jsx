@@ -135,9 +135,10 @@ describe("Attach P0", () => {
     const lines = await within(dialog).findAllByTestId("p0-line")
 
     expect(lines).toHaveLength(2)
-    expect(lines[0]).toHaveTextContent("Safety Net")
-    expect(within(lines[0]).queryByText("This item")).not.toBeInTheDocument()
-    expect(within(lines[1]).getByText("This item")).toBeInTheDocument()
+    expect(lines[0]).toHaveTextContent("Full Body Harness")
+    expect(within(lines[0]).getByText("This item")).toBeInTheDocument()
+    expect(lines[1]).toHaveTextContent("Safety Net")
+    expect(within(lines[1]).queryByText("This item")).not.toBeInTheDocument()
     expect(within(dialog).queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument()
   })
 
@@ -161,6 +162,24 @@ describe("Attach P0", () => {
     expect(within(dialog).getAllByTestId("p0-line")).toHaveLength(7)
     expect(within(dialog).getByText("Part 7")).toBeInTheDocument()
     expect(within(dialog).queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument()
+  })
+
+  it("keeps this item's line in view when it is past the fifth row, collapsed", async () => {
+    const lines = Array.from({ length: 7 }, (_, i) => ({ id: 100 + i, product_id: i === 6 ? 7 : 20 + i, product_name: i === 6 ? "Mine" : `Part ${i + 1}`, quantity: i + 1, received: 0 }))
+    stubEdgeFunction("odoo-po-suggest", () => ({
+      success: true,
+      suggested: [{ id: 1, name: "P01111", state: "purchase", supplier: "Acme", lines }],
+      others: [],
+    }))
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found" })
+    seedItem({ status: "to_purchase", odoo_product_id: 7 })
+    mount()
+    const { dialog } = await openAttachDialog(setupUser())
+    const rows = await within(dialog).findAllByTestId("p0-line")
+
+    expect(rows).toHaveLength(5)
+    expect(rows[0]).toHaveTextContent("Mine")
+    expect(rows[1]).toHaveTextContent("Part 1")
   })
 
   it("attaches a confirmed P0 with one confirmation: Purchased, and says what was bought", async () => {

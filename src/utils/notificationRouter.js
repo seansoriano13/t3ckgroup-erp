@@ -49,12 +49,15 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     // by `?request=`.
     // #309: a modal over the current page, no navigation.
     // A mention lands the cursor in the request's Chat, where it was made.
+    const isChat = notif.type === "PURCHASE_REQUEST_MESSAGE" || notif.type === "PURCHASE_REQUEST_MENTION";
     window.dispatchEvent(
       new CustomEvent("OPEN_ENTITY_DETAILS", {
         detail: {
           id: notif.reference_id,
           type: "PURCHASE_REQUEST",
           focusChat: notif.type === "PURCHASE_REQUEST_MENTION",
+          // #850: chat notifications open the Chat tab, item status ones the product lines.
+          ...(isChat ? { tab: "chat" } : notif.type === "PURCHASE_REQUEST_ITEM_STATUS" ? { tab: "items" } : {}),
         },
       }),
     );

@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, rlsStatus } from "./support/stack.js"
-import { makeSor, makeTask, makeGroupTask, sorPayload, MARKER } from "./support/rows.js"
+import { makeSor, makeTask, makeGroupTask, sorPayload, liveSaleTypeFields, dropLiveSaleType, MARKER } from "./support/rows.js"
 import { canRead, tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
 
 /** Everyone the fixture signs in. */
@@ -335,9 +335,11 @@ describe("reading an SOR's items through an embedded select", () => {
 })
 
 describe("registering an SOR", () => {
+    afterAll(dropLiveSaleType)
+
     it.each(EVERYONE)("%s can register an SOR in their own name", async (key) => {
         const client = await clientFor(key)
-        const result = await tryInsert(client, "sales_opportunities", sorPayload(ids[key]))
+        const result = await tryInsert(client, "sales_opportunities", sorPayload(ids[key], undefined, await liveSaleTypeFields()))
         expect(result.ok, `${key} was refused: ${result.message}`).toBe(true)
         await serviceClient().from("sales_opportunities").delete().eq("id", result.id)
     })
@@ -345,7 +347,7 @@ describe("registering an SOR", () => {
     it.each(EVERYONE)("%s cannot register an SOR in somebody else's name", async (key) => {
         const impersonated = key === "superAdmin" ? ids.ordinary : ids.superAdmin
         const client = await clientFor(key)
-        const result = await tryInsert(client, "sales_opportunities", sorPayload(impersonated))
+        const result = await tryInsert(client, "sales_opportunities", sorPayload(impersonated, undefined, await liveSaleTypeFields()))
         expect(result.ok, `${key} was allowed to register in another name`).toBe(false)
         expect(result.code).toBe(RLS_VIOLATION)
     })
@@ -354,7 +356,7 @@ describe("registering an SOR", () => {
         const result = await tryInsert(
             anonymousClient(),
             "sales_opportunities",
-            sorPayload(ids.ordinary),
+            sorPayload(ids.ordinary, undefined, await liveSaleTypeFields()),
         )
         expect(result.ok).toBe(false)
     })
