@@ -80,12 +80,12 @@ begin
     raise exception 'purchase_request_undo_item_status: you can no longer change this item' using errcode = '42501';
   end if;
 
-  if v_to = 'canvassing' and exists (
+  if v_to = 'still_canvassing' and exists (
     select 1 from public.sor_canvasses c
     where c.requested_item_id = v_item.id
        or (v_item.component_id is not null and c.component_id = v_item.component_id)
   ) then
-    raise exception 'purchase_request_undo_item_status: % has a Canvass, so it stays Canvassing', v_item.name
+    raise exception 'purchase_request_undo_item_status: % has a Canvass, so it stays Still canvassing', v_item.name
       using errcode = '22023';
   end if;
 
@@ -114,9 +114,9 @@ begin
      set status = v_from,
          status_changed_by = v_prev_by,
          status_changed_at = v_prev_at,
-         po_number = case when v_to = 'ordered' then null else po_number end,
-         po_verification = case when v_to = 'ordered' then 'UNVERIFIED' else po_verification end,
-         odoo_po_line_ids = case when v_to = 'ordered' then '{}'::int4[] else odoo_po_line_ids end
+         po_number = case when v_to = 'purchased' then null else po_number end,
+         po_verification = case when v_to = 'purchased' then 'UNVERIFIED' else po_verification end,
+         odoo_po_line_ids = case when v_to = 'purchased' then '{}'::int4[] else odoo_po_line_ids end
    where id = v_item.id
   returning * into v_item;
 
