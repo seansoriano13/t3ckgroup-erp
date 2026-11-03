@@ -143,7 +143,7 @@ describe("ipasService: section 7 and Filing", () => {
     it("doesn't open until sections 1, 2 and 3 are all approved", async () => {
       const ipas = await raise()
       as(receiver)
-      await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({ code: "55000" })
+      await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({ code: "22023" })
 
       as(buyer)
       await ipasService.sign(ipas.id, 1, "prepared")
@@ -151,8 +151,8 @@ describe("ipasService: section 7 and Filing", () => {
       await ipasService.sign(ipas.id, 1, "approved")
       as(receiver)
       await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({
-        code: "55000",
-        message: expect.stringMatching(/sections 1, 2 and 3/),
+        code: "22023",
+        message: expect.stringMatching(/sections 1, 2, 3 and Logistics/),
       })
 
       as(buyer)
@@ -162,8 +162,8 @@ describe("ipasService: section 7 and Filing", () => {
       // Sections 1 and 2 are not enough: section 3 (the Landed Cost check) is still to be approved.
       as(receiver)
       await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({
-        code: "55000",
-        message: expect.stringMatching(/sections 1, 2 and 3/),
+        code: "22023",
+        message: expect.stringMatching(/sections 1, 2, 3 and Logistics/),
       })
 
       await costsComplete(ipas)
@@ -173,7 +173,7 @@ describe("ipasService: section 7 and Filing", () => {
       await ipasService.sign(ipas.id, 6, "approved")
       // Logistics (#713) is the fourth thing Filing waits for, and only its list signs it.
       as(receiver)
-      await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({ code: "55000" })
+      await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({ code: "22023" })
       await expect(ipasService.sign(ipas.id, 8, "approved")).rejects.toMatchObject({ code: "42501" })
       as(approver)
       await ipasService.sign(ipas.id, 8, "approved")
@@ -195,8 +195,8 @@ describe("ipasService: section 7 and Filing", () => {
 
       as(approver)
       await expect(ipasService.sign(ipas.id, 7, "approved")).rejects.toMatchObject({
-        code: "55000",
-        message: expect.stringMatching(/sections 1, 2 and 3/),
+        code: "22023",
+        message: expect.stringMatching(/sections 1, 2, 3 and Logistics/),
       })
       expect(live(ipas.id).filter((k) => k.startsWith("7/"))).toEqual(["7/checked", "7/noted", "7/received"])
 

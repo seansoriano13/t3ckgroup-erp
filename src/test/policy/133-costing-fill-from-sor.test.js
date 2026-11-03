@@ -91,7 +91,8 @@ describe("costing_fill_from_sor", () => {
             const { error } = await fill(who)
             expect(error?.code, who).toBe(RLS_VIOLATION)
         }
-        expect(await lines()).toEqual([])
+        // Opening the matrix already filled it from the SOR (#834); a refused fill adds nothing more.
+        expect(await lines()).toHaveLength(2)
     })
 
     it("refuses an SOR that has no S0 Evaluation", async () => {
@@ -99,13 +100,14 @@ describe("costing_fill_from_sor", () => {
         expect(error?.code).toBe("22023")
     })
 
-    it("makes a Tender Line and one Component, the product, for each SOR product, in the SOR's order", async () => {
+    it("opens with a Tender Line and one Component, the product, for each SOR product, in the SOR's order (#834)", async () => {
         const { data, error } = await fill("dealOwner")
         expect(error).toBeNull()
-        expect(data.added).toBe(2)
+        // costing_open_matrix filled the lines already, so this fill has nothing left to add.
+        expect(data.added).toBe(0)
 
         const [hose, tripod] = await lines()
-        expect(hose).toMatchObject({ position: 1, source: "sor_line", sor_item_id: hoseId, odoo_product_id: 8123, tender_specification: "Fire hose, 65 mm", unit: "pc", created_by: ids.dealOwner })
+        expect(hose).toMatchObject({ position: 1, source: "sor_line", sor_item_id: hoseId, odoo_product_id: 8123, tender_specification: "Fire hose, 65 mm", unit: "pc", created_by: null })
         expect(Number(hose.quantity)).toBe(4)
         expect(hose.sor_line_snapshot).toEqual({ name: "Fire hose, 65 mm", quantity: 4, unit: "pc" })
         // A blank unit stays blank; a zero quantity becomes one.

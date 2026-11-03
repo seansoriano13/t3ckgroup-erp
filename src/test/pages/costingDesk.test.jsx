@@ -181,7 +181,7 @@ describe("the Costing Desk", () => {
   });
 
   it("updates the screen at once when Refresh from the SOR is pressed (#834)", async () => {
-    const matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
+    db.seed("costing_matrices", { opportunity_id: deal.id });
     stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
     let costsStubbed = false;
     stubEdgeFunction("odoo-costing-costs", () => {
