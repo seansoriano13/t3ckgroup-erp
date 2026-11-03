@@ -43,7 +43,7 @@ import {
   snapshotRows,
 } from "../constants/salesFlow";
 import { formatSnapshotVersion } from "../constants/flowVersion";
-import { addedActionsForStage, summariseAddedActions } from "../utils/sorVersionUpdate";
+import { addedActionsForStage, describeAction, summariseAddedActions } from "../utils/sorVersionUpdate";
 import { renderTemplate } from "../constants/taskTemplates";
 import { nextFollowUpDue } from "../constants/followUp";
 import {
@@ -2859,23 +2859,23 @@ export const opportunityService = {
   },
 
   /**
-   * Updates the given SORs to `targetSnapshotId` (newer or older) through
-   * `update_sor_versions` (#743). The database checks who may update which
-   * SOR and refuses a version that lacks an SOR's Stage; refusals come back in
-   * `failed` with a reason. Works in batches like moveOpportunitiesToVersion.
-   * Clears the Stage checklist caches of the SORs it updated (#742).
-   */
-  /**
    * What updating `ids` to `targetSnapshotId` would run (#846): the Stage
    * Actions the target added to the Stage each SOR sits at. One summary line
    * per Action, so the person sees it before confirming.
    */
   async previewVersionUpdate(ids, targetSnapshotId) {
     const plan = await planVersionUpdate(ids, targetSnapshotId);
-    const entries = plan.items.flatMap((item) => item.added.map((action) => ({ action, name: stageActionName(action) })));
+    const entries = plan.items.flatMap((item) => item.added.map((action) => ({ action, name: describeAction(action) })));
     return { lines: summariseAddedActions(entries) };
   },
 
+  /**
+   * Updates the given SORs to `targetSnapshotId` (newer or older) through
+   * `update_sor_versions` (#743). The database checks who may update which
+   * SOR and refuses a version that lacks an SOR's Stage; refusals come back in
+   * `failed` with a reason. Works in batches like moveOpportunitiesToVersion.
+   * Clears the Stage checklist caches of the SORs it updated (#742).
+   */
   async updateSorVersions(
     ids,
     targetSnapshotId,

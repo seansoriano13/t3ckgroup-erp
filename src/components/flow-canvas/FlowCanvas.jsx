@@ -62,7 +62,7 @@ import { Input } from "@/components/ui/input";
 import { FileInput } from "@/components/ui/FileInput";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { UPDATE_MODE, idsForUpdateMode } from "@/utils/sorVersionUpdate";
+import { UPDATE_MODE, idsForUpdateMode, actionFailureMessage } from "@/utils/sorVersionUpdate";
 import {
   Dialog,
   DialogContent,
@@ -85,7 +85,7 @@ import { actionTitle } from "./flowStageKinds";
 
 import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
-import { endsAsLost, entryStage, flowLockBlockers, flowPublishWarnings } from "../../constants/salesFlow";
+import { endsAsLost, entryStage, flowLockBlockers, flowPublishWarnings, isLegacyPipelineSaleType } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
 import FlowCanvasNode, { HANDLE_IN, HANDLE_OUT } from "./FlowCanvasNode";
 import FlowSatelliteNode from "./FlowSatelliteNode";
@@ -291,9 +291,9 @@ function FlowCanvasInner() {
   const edges = useMemo(() => canvas?.edges ?? [], [canvas?.edges]);
   const flow = canvas?.flow ?? null;
   const entry = entryStage(stages);
-  // An archived Sale Type (the Legacy Pipeline, #856) opens view only: no edit, no Publish.
-  const isArchivedType = Boolean(canvas?.saleType?.archived_at);
-  const isLocked = flow?.state === "locked" || isArchivedType;
+  // The Legacy Pipeline (#856) opens view only: no edit, no Publish. Other archived Sale Types stay editable.
+  const isLegacyPipeline = isLegacyPipelineSaleType(canvas?.saleType);
+  const isLocked = flow?.state === "locked" || isLegacyPipeline;
   const lockBlockers = useMemo(
     () => (flow && !isLocked ? flowLockBlockers({ stages, edges, wonStageId: flow.won_stage_id }) : []),
     [flow, isLocked, stages, edges],
@@ -682,6 +682,8 @@ function FlowCanvasInner() {
         onProgress: ({ done, total }) => setMoveProgress({ done, total, targetLabel }),
       }),
     onSuccess: (result) => {
+      const warning = actionFailureMessage(result.actionFailures);
+      if (warning) toast(warning, { duration: 8000 });
       setMoveResult(result);
       setMoveOffer(null);
     },
@@ -1720,7 +1722,7 @@ function FlowCanvasInner() {
 
                 <div className="mx-1 h-4 w-px bg-border" />
 
-                {isArchivedType ? null : isLocked ? (
+                {isLegacyPipeline ? null : isLocked ? (
                   <Button
                     variant="outline"
                     size="lg"

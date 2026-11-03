@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Trash2, RotateCcw, AlertTriangle, Search } from "lucide-react";
 import HighlightText from "../HighlightText";
-import { sorCodeOf, matchesSorCode } from "../../utils/sorCode";
+import { sorCodeOf, matchesSorSearch } from "../../utils/sorCode";
 import Spinner from "../ui/Spinner";
 import Avatar from "../Avatar";
 import { opportunityService } from "../../services/opportunityService";
@@ -63,13 +63,7 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return unsortedRows;
-    return unsortedRows.filter(
-      (o) =>
-        matchesSorCode(o, q) ||
-        [o.opportunity_no, o.sales_reference, o.client_name, o.project_title, o.deal_owner?.name].some((v) =>
-          String(v ?? "").toLowerCase().includes(q),
-        ),
-    );
+    return unsortedRows.filter((o) => matchesSorSearch(o, q));
   }, [unsortedRows, search]);
   const { sorted: rows, sort, toggle } = useTableSort(searched, DELETED_SORT);
 

@@ -23,3 +23,22 @@ export function matchesSorCode(opportunity, query) {
   if (!q || !code) return false;
   return squash(code).includes(q);
 }
+
+/**
+ * The Register's search: a SOR matches when the lowercase query `q` points at
+ * its code, or sits inside its number, S0, client, project, Deal Owner or lead
+ * source detail. The main register and the Deleted tab both filter with this.
+ */
+export function matchesSorSearch(opportunity, q) {
+  if (matchesSorCode(opportunity, q)) return true;
+  return [
+    opportunity.opportunity_no,
+    opportunity.sales_reference,
+    opportunity.client_name,
+    opportunity.project_title,
+    opportunity.deal_owner?.name,
+    opportunity.lead_source_detail,
+  ]
+    .filter(Boolean)
+    .some((v) => String(v).toLowerCase().includes(q));
+}

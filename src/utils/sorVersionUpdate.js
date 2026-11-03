@@ -5,6 +5,7 @@
  */
 
 import { snapshotRows } from "../constants/salesFlow";
+import { ACTION_KIND_META, actionTitle } from "../components/flow-canvas/flowStageKinds";
 
 export const UPDATE_MODE = { ALL: "all", ONLY: "only", ALL_BUT: "allBut" };
 
@@ -80,6 +81,27 @@ export function addedActionsForStage({ source, target, stageId }) {
   return rows(target).filter((a) => a.stage_id === stageId && !had.has(a.id));
 }
 
+const NOTIFIES = {
+  open_purchase_request: "notify Purchasing",
+  open_costing_matrix: "notify Purchasing",
+  evaluate_specification: "notify Purchasing",
+  request_packing_list: "notify the Warehouse",
+};
+
+/**
+ * What an added Action does, by its own name: "Group Task 'Site survey'; notify
+ * Purchasing". A "When confirmed" Action only asks its Decider.
+ */
+export function describeAction(action) {
+  const meta = ACTION_KIND_META[action?.kind];
+  const label = meta?.label ?? "Action";
+  const title = actionTitle(action);
+  const parts = [meta?.titled === false || title === label ? label : `${label} '${title}'`];
+  if (NOTIFIES[action?.kind]) parts.push(NOTIFIES[action.kind]);
+  if (action?.config?.confirmMode === "confirm") parts.push("asks its Decider to create or skip");
+  return parts.join("; ");
+}
+
 /** One summary line per Action: "12 deals will get: Group task". */
 export function summariseAddedActions(entries) {
   const byAction = new Map();
@@ -93,4 +115,11 @@ export function summariseAddedActions(entries) {
     count,
     text: `${count} ${count === 1 ? "deal" : "deals"} will get: ${name}`,
   }));
+}
+
+/** The warning for Stage Actions that failed to start after an update, or null. */
+export function actionFailureMessage(actionFailures) {
+  const names = [...new Set((actionFailures || []).map((f) => f.name))];
+  if (names.length === 0) return null;
+  return `Updated, but these automations failed. Create them by hand: ${names.join(", ")}.`;
 }

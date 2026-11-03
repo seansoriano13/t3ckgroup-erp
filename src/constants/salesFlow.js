@@ -598,3 +598,10 @@ export function countFlowSnapshotChanges(diffResult) {
     (diffResult.wonStageChanged ? 1 : 0)
   )
 }
+
+/**
+ * The Legacy Pipeline Sale Type (#856). Sale Types carry no key or code column,
+ * so it is known by its name, the same match the database trigger makes.
+ */
+export const isLegacyPipelineSaleType = (saleType) =>
+  String(saleType?.name ?? "").trim().toLowerCase() === "legacy pipeline";

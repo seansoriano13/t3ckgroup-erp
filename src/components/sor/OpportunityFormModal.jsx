@@ -109,8 +109,8 @@ export default function OpportunityFormModal({
 
   // Issue #36 — the Sale Type a deal is registered against decides which
   // Sales Flow it runs. The list is whatever the Operations Manager has drawn
-  // on the Flow Canvas, and is empty until she has drawn one; the field hides
-  // itself in that case rather than offering an empty picker.
+  // on the Flow Canvas. The field is required (#856), so it always shows, even
+  // while the list is loading or empty; Save then says why it cannot go on.
   const { data: saleTypes = [] } = useQuery({
     queryKey: ["saleTypes"],
     queryFn: () => salesFlowService.getSaleTypes(),
@@ -314,10 +314,10 @@ export default function OpportunityFormModal({
             builder decides which fields appear below, their labels and their
             order. Left mid-form, the page visibly grew under the cursor of
             someone who had already started filling it in. */}
-        {!isEdit && saleTypes.length > 0 && (
+        {!isEdit && (
           <SelectField
             label="Sale Type *"
-            placeholder="Select sale type…"
+            placeholder={saleTypes.length > 0 ? "Select sale type…" : "No Sale Types yet"}
             options={saleTypeOptions}
             value={form.sale_type_id}
             onChange={set("sale_type_id")}
