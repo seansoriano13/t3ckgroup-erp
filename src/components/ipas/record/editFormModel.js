@@ -321,14 +321,31 @@ export function sectionProgress(form) {
   const all = requiredFields(form);
   return FORM_SECTIONS.map((section) => {
     const mine = all.filter((f) => f.section === section.key);
-    const left = mine.filter((f) => !f.filled).length;
+    let left = mine.filter((f) => !f.filled).length;
+    const blankCharges =
+      section.key === "finance"
+        ? (form.charges ?? []).filter(
+            (c) =>
+              c.amountPhp === "" ||
+              c.amountPhp === null ||
+              c.amountPhp === undefined ||
+              String(c.amountPhp).trim() === "",
+          ).length
+        : 0;
+    const hasBlankCharges = blankCharges > 0;
+    if (hasBlankCharges && left === 0) {
+      left = blankCharges;
+    }
+    const complete = mine.length > 0 && left === 0 && !hasBlankCharges;
     return {
       key: section.key,
       title: section.title,
       total: mine.length,
       left,
-      done: mine.length - left,
+      done: Math.max(0, mine.length - left),
       filled: mine.length === 0 && sectionFilled(form, section.key),
+      hasBlankCharges,
+      complete,
     };
   });
 }

@@ -17061,7 +17061,7 @@ begin
     -- Approved waits for section 3 too, and so does a Noted or Checked not yet given
     -- (#590); the ones already given stay.
     if not public._ipas_filing_open(v_ipas.id) then
-      raise exception 'ipas_sign: section % opens once sections %, %, % and % are signed', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6), public._ipas_section_no(8) using errcode = '22023';
+      raise exception 'ipas_sign: section % opens once sections %, %, % and Logistics are signed', public._ipas_section_no(7), public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6) using errcode = '22023';
     end if;
 
     -- Received first; Noted and Checked after it, in any order.

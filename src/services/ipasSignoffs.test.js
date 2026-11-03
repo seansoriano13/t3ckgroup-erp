@@ -150,6 +150,17 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       expect(out.signoff).toMatchObject({ signatureDeclined: true, signatureVersion: null })
     })
 
+    it("refuses section 7 sign-off until sections 1, 2, 3 and Logistics are signed", async () => {
+      const receiver = makeEmployee({ name: "Rita Receiver" })
+      addToList("s7_received", receiver)
+      const ipas = await raise()
+      as(receiver)
+      await expect(ipasService.sign(ipas.id, 7, "received")).rejects.toMatchObject({
+        code: "22023",
+        message: expect.stringMatching(/section 4 opens once sections 1, 2, 3 and Logistics are signed/),
+      })
+    })
+
     it("only takes the sections and roles of the sheet, before asking the database", async () => {
       const ipas = await raise()
       for (const [section, role] of [[2, "prepared"], [7, "prepared"], [1, "received"], [3, "noted"], [1, undefined], [7, undefined]]) {

@@ -419,7 +419,7 @@ export default function EditForm({
         {failure}
         <ol className="flex gap-1 overflow-x-auto scrollbar-minimal pb-1">
           {progress.map((p) => {
-            const complete = p.total > 0 && p.left === 0;
+            const complete = p.complete ?? (p.total > 0 && p.left === 0);
             const green = complete || p.filled;
             const no = p.title.match(NUMBERED)?.[1];
             return (
@@ -455,7 +455,7 @@ export default function EditForm({
 
       {FORM_SECTIONS.map((section) => {
         const p = progress.find((x) => x.key === section.key);
-        const complete = p.total > 0 && p.left === 0;
+        const complete = p.complete ?? (p.total > 0 && p.left === 0);
         const open = isOpen(p);
         const bodyId = `edit-body-${section.key}`;
         return (
