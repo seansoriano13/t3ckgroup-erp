@@ -1812,6 +1812,7 @@ function FlowCanvasInner() {
           isEntry={entry?.id === selectedStage.id}
           isWon={flow.won_stage_id === selectedStage.id}
           isAward={flow.award_stage_id === selectedStage.id}
+          isContract={flow.contract_stage_id === selectedStage.id}
           disabled={isLocked}
           bracketOptions={bracketOptions}
           activeTab={selection.tab}
@@ -1860,6 +1861,15 @@ function FlowCanvasInner() {
               salesFlowService.setAwardStage(
                 flow.id,
                 flow.award_stage_id === selectedStage.id ? null : selectedStage.id,
+                user?.id
+              )
+            )
+          }
+          onSetContract={() =>
+            run(() =>
+              salesFlowService.setContractStage(
+                flow.id,
+                flow.contract_stage_id === selectedStage.id ? null : selectedStage.id,
                 user?.id
               )
             )

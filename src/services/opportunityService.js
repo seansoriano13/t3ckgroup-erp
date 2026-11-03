@@ -102,6 +102,8 @@ const RECORD_FIELD_WRITERS = {
   po_date: (v) => v || null,
   // Manila dates (ADR 0039). Open to the Deal Team while blank; a set Date of
   // Award is locked to Super Admin by the database.
+  // The Contract Date (ADR 0048) follows the same rule as the Date of Award.
+  contract_date: (v) => v || null,
   date_of_award: (v) => v || null,
   date_of_pdi: (v) => v || null,
   date_of_delivery: (v) => v || null,
@@ -661,6 +663,7 @@ async function snapshotContextFor(opportunity) {
     stageFields: d.stageFields || [],
     wonStageId: d.wonStageId ?? null,
     awardStageId: d.awardStageId ?? null,
+    contractStageId: d.contractStageId ?? null,
   };
 }
 
@@ -748,6 +751,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     edges,
     wonStageId,
     awardStageId,
+    contractStageId,
     conditions: snapshotConditions,
     actions: snapshotActions,
     stageFields: snapshotStageFields,
@@ -803,7 +807,10 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   // reads `flow_stage_id` against the loaded flow, not `status`.
   const patch = { flow_stage_id: to.id };
 
-  const stampsContractDate = wonStageId === to.id && !existing.contract_date;
+  // ADR 0048 — the flow's contract Stage (CA / PO on the Project flow) fills
+  // in a blank Contract Date. The Won Stage no longer does. A date the Deal
+  // Team typed in earlier is never overwritten.
+  const stampsContractDate = contractStageId === to.id && !existing.contract_date;
   if (stampsContractDate) {
     patch.contract_date = getCurrentLocalDate();
   }
@@ -928,7 +935,10 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   // created-or-failed) or the whole call never happened (nothing began, so
   // the fire-once gate still lets a retry pick it all up).
   const failedStageActions = await runStageActionsOnEntry({ existing, to, snapshotActions, actorId });
-  return { ...data, failedStageActions };
+  // ADR 0048 — reaching the Won Stage with no Contract Date is allowed, but the
+  // Deal Team is warned: no commission rate is fixed until it is typed in.
+  const wonWithoutContractDate = wonStageId === to.id && !existing.contract_date && !patch.contract_date;
+  return { ...data, failedStageActions, wonWithoutContractDate };
 }
 
 /**
@@ -2194,6 +2204,7 @@ export const opportunityService = {
 
     checkField('expected_award_date', 'Expected Award Date');
     checkField('po_date', 'PO Date');
+    checkField('contract_date', 'Contract Date');
     checkField('date_of_award', 'Date of Award');
     checkField('date_of_pdi', 'Date of PDI');
     checkField('date_of_delivery', 'Date of Delivery');

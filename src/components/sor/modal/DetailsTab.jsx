@@ -597,6 +597,17 @@ export default function DetailsTab({ ctx }) {
                 {formatLongDate(opportunity.expected_award_date)}
               </Detail>
 
+              {/* The Contract Date (the client's PO or contract) follows the same rule:
+                  the Deal Team may type it while blank; once set, only a Super Admin. */}
+              <DateDetail
+                label="Contract Date"
+                field="contract_date"
+                isEditing={isEditing && (!opportunity.contract_date || isSuperAdmin)}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                readValue={formatLongDate(opportunity.contract_date)}
+              />
+
               {/* Once the Date of Award is set, only a Super Admin changes it (the
                   database enforces it too). PDI and Delivery stay open to the Deal Team. */}
               <DateDetail

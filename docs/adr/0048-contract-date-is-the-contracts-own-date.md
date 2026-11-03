@@ -2,11 +2,10 @@
 
 ## Status
 
-Proposed 2026-10-28, from the October 2026 backlog grilling (spec #735).
-**Waiting on sign-off from whoever handles commission.** Once accepted, it
-replaces the part of ADR 0006 that says the Contract Date is "stamped the first
-time it reaches the Won Stage". It also widens ADR 0026: a Revert now clears
-the Date of Award as well.
+Accepted 2026-11-03 (proposed 2026-10-28, from the October 2026 backlog
+grilling, spec #735; ticket #745). It replaces the part of ADR 0006 that says
+the Contract Date is "stamped the first time it reaches the Won Stage". It also
+widens ADR 0026: a Revert now clears the Date of Award as well.
 
 ## Context
 
@@ -58,6 +57,11 @@ Existing Contract Dates are left as they are.
   Realized is worked out, deals count as booked money from CA / PO onwards.
   The ticket must check how Realized is computed today, and keep it tied to
   the Won Stage unless commission's owner agrees otherwise.
+- No backfill. An SOR already past the contract's Stage with a blank Contract
+  Date stays blank until the Deal Team types it in.
+- An SOR may reach the Won Stage with a blank Contract Date (it skipped the
+  contract's Stage, or came back through a Return). The move is allowed, with
+  a warning, and the Deal Team may type the date.
 - Because Sales can now type the field, it is no longer "never manually
   editable". The Super Admin lock and the audit trail take the place of that
   guarantee.

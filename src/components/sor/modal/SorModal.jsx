@@ -463,6 +463,9 @@ export default function SorModal({
       setSalesRef("");
       invalidate();
       toast.success("Stage updated.");
+      if (data?.wonWithoutContractDate) {
+        toast("Moved to Won, but this SOR has no Contract Date yet. Type it in on the Details tab so the right commission rate is used.", { icon: "⚠️", duration: 8000 });
+      }
       if (data?.failedStageActions?.length > 0) {
         toast(`Moved, but these automations failed — create them by hand: ${data.failedStageActions.join(", ")}.`, { icon: "⚠️", duration: 8000 });
       }
@@ -730,6 +733,7 @@ export default function SorModal({
       registration_date: opportunity.registration_date || "",
       expected_award_date: opportunity.expected_award_date || "",
       po_date: opportunity.po_date || "",
+      contract_date: opportunity.contract_date || "",
       date_of_award: opportunity.date_of_award || "",
       date_of_pdi: opportunity.date_of_pdi || "",
       date_of_delivery: opportunity.date_of_delivery || "",
