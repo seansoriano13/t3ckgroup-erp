@@ -31,6 +31,7 @@ import { screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router"
 
 import PackingListDetailPage from "@/pages/purchasing/packing-lists/[id]"
+import GlobalDetailManager from "@/components/GlobalDetailManager"
 import PurchaseRequestsPage from "@/pages/purchasing/index.jsx"
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]"
 import TransmittalDetailPage from "@/pages/purchasing/transmittals/[id]"
@@ -339,6 +340,8 @@ function stubWide() {
 function renderRecord({ Page, route, path }) {
   return renderWithProviders(
     <MemoryRouter initialEntries={[path]}>
+      {/* A Purchase Request opens in the one global window (#850); it mounts first, as in the app, so it hears the page. */}
+      <GlobalDetailManager />
       <Routes>
         <Route path={route} element={<Page />} />
       </Routes>
