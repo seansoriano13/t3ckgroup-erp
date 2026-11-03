@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-11-03",
+        "title": "Date-Range Leave Follows Your Work Schedule",
+        "version": "1.9.81",
+        "changes": [
+            "Leaves & Overtime: a date range now skips weekends and other non-working days, so a Friday-to-Monday leave can be filed in one go.",
+            "Leaves & Overtime: each day in a range starts at that day's scheduled hours (for example 07:30 to 18:00) instead of a flat 8, and you can still change the hours.",
+            "Leaves & Overtime: you can remove a day from a range, such as a holiday, and add it back."
+        ]
+    },
+    {
+        "date": "2026-11-03",
         "title": "Contract Date is the day of the client's contract",
         "version": "1.9.80",
         "changes": [

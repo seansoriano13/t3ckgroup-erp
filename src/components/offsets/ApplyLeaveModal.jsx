@@ -18,7 +18,7 @@ import { safeDeriveHours } from '../../utils/time';
 import { applyLunchDeduction, previewLeaveHours, computeAvailableHours, deriveUndertimeHours, assertNotWeekend } from '../../services/leaveRules';
 import { enumerateDateRange } from '../../utils/dateUtils';
 import { dayShiftService } from '../../services/dayShiftService';
-import { DEFAULT_DAY_SHIFT_CONFIG, getShiftForDate } from '../../services/dayShift';
+import { DEFAULT_DAY_SHIFT_CONFIG, getShiftForDate, isWorkingDay } from '../../services/dayShift';
 import HeadSelectField from './HeadSelectField';
 import { Input } from "@/components/ui/input";
 
@@ -28,13 +28,45 @@ import { SelectField } from "@/components/ui/SelectField";
 const DEFAULT_DAY_HOURS = 8;
 
 /**
+ * A range day's starting hours: the length of that weekday's shift from the
+ * day-shift config (before the lunch deduction, which the editor shows as
+ * "net"), falling back to 8 only when the shift has no times set.
+ */
+function defaultDayHours(date, dayShiftConfig) {
+  const shift = getShiftForDate(date, dayShiftConfig);
+  const hours = shift.isWorkingDay ? safeDeriveHours(shift.startTime, shift.endTime) : 0;
+  return hours > 0 ? hours : DEFAULT_DAY_HOURS;
+}
+
+/**
+ * The dates a range actually files: working days only (a weekend inside the
+ * range used to make the whole submission fail), minus any day the employee
+ * removed. A removed day is stored as `null` in `dayHours`.
+ */
+function rangeFiledDays(startDate, endDate, dayShiftConfig, dayHours) {
+  return enumerateDateRange(startDate, endDate)
+    .filter((date) => isWorkingDay(date, dayShiftConfig) && dayHours[date] !== null);
+}
+
+function rangeDayHours(date, dayShiftConfig, dayHours) {
+  return parseFloat(dayHours[date] ?? defaultDayHours(date, dayShiftConfig)) || 0;
+}
+
+const formatRangeDay = (date) =>
+  new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+/**
  * Lets an employee cover several consecutive days in one submission (ticket
- * #63) instead of applying day by day. Each day defaults to 8 hours and is
- * individually editable, so a half-day inside the range stays expressible;
+ * #63) instead of applying day by day. Non-working days are left out, each
+ * day starts at its scheduled shift length and is individually editable or
+ * removable, so a half-day or a holiday inside the range stays expressible;
  * the actual grouping into one `leave_group_id` happens server-side.
  */
-function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange, dayHours, onDayHoursChange }) {
-  const days = enumerateDateRange(startDate, endDate);
+function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange, dayHours, onDayHoursChange, dayShiftConfig }) {
+  const allDays = enumerateDateRange(startDate, endDate);
+  const days = rangeFiledDays(startDate, endDate, dayShiftConfig, dayHours);
+  const nonWorkingDays = allDays.filter((date) => !isWorkingDay(date, dayShiftConfig));
+  const removedDays = allDays.filter((date) => isWorkingDay(date, dayShiftConfig) && dayHours[date] === null);
 
   return (
     <div className="space-y-3">
@@ -62,36 +94,71 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
         </div>
       </div>
 
-      {days.length > 0 && (
+      {allDays.length > 0 && (
         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
           {days.map((date) => {
-            const rawHours = parseFloat(dayHours[date] ?? DEFAULT_DAY_HOURS) || 0;
+            const rawHours = rangeDayHours(date, dayShiftConfig, dayHours);
             const netHours = applyLunchDeduction(rawHours);
             return (
               <div key={date} className="flex items-center justify-between gap-3 bg-muted/60 border border-border rounded-lg px-3 py-2">
                 <span className="text-xs font-bold text-foreground">
-                  {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {formatRangeDay(date)}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <Input
                     type="number"
                     min="0.5"
                     step="0.5"
-                    value={dayHours[date] ?? DEFAULT_DAY_HOURS}
+                    value={dayHours[date] ?? defaultDayHours(date, dayShiftConfig)}
                     onChange={(e) => onDayHoursChange(date, e.target.value)}
                     containerClassName="w-16 shrink-0"
                     className="h-auto px-2 py-1 rounded-md text-xs font-bold text-right"
+                    aria-label={`Hours for ${formatRangeDay(date)}`}
                   />
                   <span className="text-label font-semibold text-muted-foreground uppercase">hrs</span>
                   {netHours !== rawHours && (
                     <span className="text-[10px] font-semibold text-muted-foreground">→ {netHours} net</span>
                   )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => onDayHoursChange(date, null)}
+                    className="text-muted-foreground"
+                    aria-label={`Remove ${formatRangeDay(date)}`}
+                    title="Remove this day"
+                  >
+                    <X />
+                  </Button>
                 </div>
               </div>
             );
           })}
+          {removedDays.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 px-1 pt-0.5">
+              <span className="text-[10px] font-semibold text-muted-foreground">Removed:</span>
+              {removedDays.map((date) => (
+                <Button
+                  key={date}
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => onDayHoursChange(date, undefined)}
+                  className="text-[10px] font-semibold text-muted-foreground"
+                  title="Add this day back"
+                >
+                  + {formatRangeDay(date)}
+                </Button>
+              ))}
+            </div>
+          )}
+          {nonWorkingDays.length > 0 && (
+            <p className="text-[10px] font-semibold text-muted-foreground px-1">
+              Skipped (not a working day): {nonWorkingDays.map(formatRangeDay).join(', ')}
+            </p>
+          )}
           <p className="text-[10px] font-semibold text-muted-foreground px-1 pt-0.5">
-            {days.length} day{days.length > 1 ? 's' : ''} · {days.reduce((sum, d) => sum + applyLunchDeduction(parseFloat(dayHours[d] ?? DEFAULT_DAY_HOURS) || 0), 0)} hrs total (1 hr lunch deducted per day of 5+ hrs)
+            {days.length} day{days.length !== 1 ? 's' : ''} · {days.reduce((sum, d) => sum + applyLunchDeduction(rangeDayHours(d, dayShiftConfig, dayHours)), 0)} hrs total (1 hr lunch deducted per day of 5+ hrs)
           </p>
         </div>
       )}
@@ -297,7 +364,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     }
 
     if (offsetApplyMode === 'range') {
-      const days = enumerateDateRange(offsetRangeStart, offsetRangeEnd);
+      const days = rangeFiledDays(offsetRangeStart, offsetRangeEnd, dayShiftConfig, offsetDayHours);
       if (days.length === 0 || !offsetReason) {
         toast.error('Please fill in all fields.');
         return;
@@ -308,7 +375,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         const attachments = await offsetFiles.upload();
         await offsetService.applyOffsetLeaveRange({
           employeeId,
-          days: days.map((date) => ({ date, hours: parseFloat(offsetDayHours[date] ?? DEFAULT_DAY_HOURS) })),
+          days: days.map((date) => ({ date, hours: rangeDayHours(date, dayShiftConfig, offsetDayHours) })),
           reason: offsetReason,
           employeeName,
           attachments,
@@ -390,7 +457,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     const applyLeave = withRecording(filedOne);
 
     if (silApplyMode === 'range') {
-      const days = enumerateDateRange(silRangeStart, silRangeEnd);
+      const days = rangeFiledDays(silRangeStart, silRangeEnd, dayShiftConfig, silDayHours);
       if (days.length === 0 || !silReason || !silCategoryId) {
         toast.error('Please fill in all fields.');
         return;
@@ -401,7 +468,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         const attachments = await silFiles.upload();
         await applyLeaveRange({
           employeeId,
-          days: days.map((date) => ({ date, hours: parseFloat(silDayHours[date] ?? DEFAULT_DAY_HOURS) })),
+          days: days.map((date) => ({ date, hours: rangeDayHours(date, dayShiftConfig, silDayHours) })),
           reason: silReason,
           categoryId: silCategoryId,
           employeeName,
@@ -673,6 +740,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   onEndDateChange={setOffsetRangeEnd}
                   dayHours={offsetDayHours}
                   onDayHoursChange={(date, hours) => setOffsetDayHours((prev) => ({ ...prev, [date]: hours }))}
+                  dayShiftConfig={dayShiftConfig}
                 />
               ) : (
                 <>
@@ -805,6 +873,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   onEndDateChange={setSilRangeEnd}
                   dayHours={silDayHours}
                   onDayHoursChange={(date, hours) => setSilDayHours((prev) => ({ ...prev, [date]: hours }))}
+                  dayShiftConfig={dayShiftConfig}
                 />
               ) : (
                 <>
