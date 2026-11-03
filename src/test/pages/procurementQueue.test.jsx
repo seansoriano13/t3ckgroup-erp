@@ -5,6 +5,7 @@
  * Take on an unassigned row. Who may read and take is the policy tier's
  * (44-procurement-queue, 41-purchase-request-chat-and-buyer).
  */
+import GlobalDetailManager from "@/components/GlobalDetailManager"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router"
@@ -49,6 +50,7 @@ const Where = () => <output data-testid="where">{useLocation().search}</output>
 function renderAt(entry = "/purchasing") {
   return renderWithProviders(
     <MemoryRouter initialEntries={[entry]}>
+      <GlobalDetailManager />
       <ProcurementQueuePage />
       <Where />
     </MemoryRouter>,
@@ -134,7 +136,7 @@ describe("Procurement Queue", () => {
     await user.click(await rowFor("S01002"))
 
     const sheet = await screen.findByRole("dialog")
-    expect(screen.getByTestId("where")).toHaveTextContent(`?request=${taken.id}`)
+    expect(screen.getByTestId("where")).not.toHaveTextContent("request=") // handed to the global window (#850)
     expect(sheet.dataset.modalShell).toBe("record")
     expect(await within(sheet).findByRole("heading", { name: /Bridge rails/ })).toBeInTheDocument()
     expect(await within(sheet).findByText("Rail")).toBeInTheDocument()
