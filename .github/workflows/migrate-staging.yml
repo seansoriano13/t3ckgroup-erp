@@ -51,4 +51,6 @@ jobs:
         # do that. Applying out-of-order arrivals is safe here because
         # migration-gate.yml has already proven the set builds the right schema
         # from empty, in filename order, on every PR that touches migrations.
-        run: supabase db push --include-all --project-ref fpjxdyowngpnovotbzqi
+        # --yes: the CLI began asking "Apply N migrations?" on 2026-11-03 and
+        # a CI job cannot answer, so it exited without applying anything.
+        run: supabase db push --include-all --yes --project-ref fpjxdyowngpnovotbzqi
