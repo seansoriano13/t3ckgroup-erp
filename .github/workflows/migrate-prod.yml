@@ -67,4 +67,6 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
-        run: supabase db push ${{ inputs.include_all && '--include-all' || '' }} --project-ref epqmberwewztzbrkhhss
+        # --yes: the CLI began asking "Apply N migrations?" on 2026-11-03 and a CI job cannot
+        # answer. The ledger check and the review step above are the human gate, not this prompt.
+        run: supabase db push ${{ inputs.include_all && '--include-all' || '' }} --yes --project-ref epqmberwewztzbrkhhss
