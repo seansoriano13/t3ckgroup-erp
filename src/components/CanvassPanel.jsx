@@ -127,7 +127,9 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending, inlin
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new rate or currency re-suggests
   }, [referenceRate, referenceChecked, currency, foreign, canReadMoney]);
 
-  const canSubmit = supplierName.trim() || brand.trim() || description.trim();
+  const hasPrice =
+    !canReadMoney || (unitPrice !== "" && String(unitPrice).trim() !== "" && !isNaN(Number(unitPrice)) && Number(unitPrice) >= 0);
+  const canSubmit = Boolean(supplierName.trim() && hasPrice);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -169,6 +171,11 @@ function OfferForm({ initial, canReadMoney, onSubmit, onCancel, isPending, inlin
           onPicked={(supplier) => {
             setSupplierName(supplier.name);
             setOdooSupplierId(supplier.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !hasPrice) {
+              e.preventDefault();
+            }
           }}
         />
         <Input

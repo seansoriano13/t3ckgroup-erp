@@ -205,6 +205,32 @@ describe("the Canvasses page", () => {
     expect(screen.getByTestId("offers-grid")).toHaveClass("md:grid-cols-3");
   });
 
+  it("does not save an offer on Enter without a price, but saves normally once price is provided", async () => {
+    const user = setupUser();
+    renderPage();
+    await showAll(user);
+    await user.click(await screen.findByText("CNV_0002"));
+    expect(await screen.findByRole("heading", { name: /^CNV_0002\s*·/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Add offer/i }));
+    const supplierInput = screen.getByRole("combobox", { name: "Supplier" });
+    const saveButton = screen.getByRole("button", { name: /Save offer/i });
+
+    // Typing supplier without price keeps Save disabled and Enter does not submit
+    await user.type(supplierInput, "Fast Prints{enter}");
+    expect(saveButton).toBeDisabled();
+    expect(screen.queryByText("Fast Prints")).not.toBeInTheDocument();
+    expect(db.rows("sor_canvass_offers").find((o) => o.supplier_name === "Fast Prints")).toBeUndefined();
+
+    // Adding price enables Save offer and submitting with Enter saves the offer normally
+    await user.type(screen.getByLabelText("Unit price in PHP"), "350");
+    expect(saveButton).toBeEnabled();
+    await user.type(supplierInput, "{enter}");
+
+    await waitFor(() => expect(screen.getByText("Fast Prints")).toBeInTheDocument());
+    expect(db.rows("sor_canvass_offers").find((o) => o.supplier_name === "Fast Prints")).toBeDefined();
+  });
+
   it("locks a Canvass once a Purchase Request was made from it: no winner change, no new offer", async () => {
     const locked = db.seed("sor_canvasses", {
       product_name: "Printer paper",

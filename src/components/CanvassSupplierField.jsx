@@ -13,7 +13,14 @@ export const canvassFieldClass =
  * Picking one records its Odoo id beside the name; typing again afterwards drops the id, since the
  * name no longer says which Odoo supplier it was. A supplier Odoo doesn't know is simply typed.
  */
-export default function CanvassSupplierField({ value, onTyped, onPicked, label = "Supplier", autoFocus = true }) {
+export default function CanvassSupplierField({
+  value,
+  onTyped,
+  onPicked,
+  label = "Supplier",
+  autoFocus = true,
+  onKeyDown,
+}) {
   const [open, setOpen] = useState(false);
   const [debounced, setDebounced] = useState(value.trim());
 
@@ -50,6 +57,7 @@ export default function CanvassSupplierField({ value, onTyped, onPicked, label =
             e.stopPropagation();
             setOpen(false);
           }
+          onKeyDown?.(e);
         }}
         placeholder="Supplier"
         containerClassName="min-w-0"
