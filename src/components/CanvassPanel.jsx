@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import ModalShell from "./ui/ModalShell";
+import { cn } from "@/lib/utils";
 import CanvassOffersGrid from "./CanvassOffersGrid";
 import CanvassSlots from "./CanvassSlots";
 import CanvassUnlockDialog from "./CanvassUnlockDialog";
@@ -536,7 +537,7 @@ function OfferRow({ offer, projection, index, count, canEdit, canReadMoney, canP
   );
 }
 
-export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel, userId, canEdit, opportunityId, canvasserName: canvasserNameProp = null, onStarted }) {
+export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel, userId, canEdit, opportunityId, canvasserName: canvasserNameProp = null, onStarted, className }) {
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   // A new Canvass with no subject is known by its id once its first Offer has started it.
@@ -907,6 +908,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
       open={open}
       onOpenChange={onOpenChange}
       size="record"
+      className={cn("z-[80]", className)}
       crumbs={["Canvass", canvass?.number].filter(Boolean)}
       headerActions={<RecordMoreMenu items={menuItems} />}
     >
@@ -1156,6 +1158,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         description={`${removing?.supplier_name || removing?.brand || "This offer"} comes off the comparison.`}
         confirmLabel="Remove offer"
         tone="destructive"
+        className="z-[90]"
         onConfirm={() => {
           removeMutation.mutate(removing.id);
           setRemoving(null);
@@ -1167,6 +1170,7 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
         title="Clear the winner?"
         description="It leaves no winner until you pick one again."
         confirmLabel="Clear winner"
+        className="z-[90]"
         onConfirm={() => {
           clearWinnerMutation.mutate();
           setClearing(false);
@@ -1175,10 +1179,10 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     </ModalShell>
 
       {unlocking && canvass && (
-        <CanvassUnlockDialog open={unlocking} onOpenChange={setUnlocking} canvass={canvass} onUnlocked={invalidate} />
+        <CanvassUnlockDialog open={unlocking} onOpenChange={setUnlocking} canvass={canvass} onUnlocked={invalidate} className="z-[90]" />
       )}
 
-      {viewingRequest && <PurchaseRequestModal requestId={viewingRequest} onClose={() => setViewingRequest(null)} />}
+      {viewingRequest && <PurchaseRequestModal requestId={viewingRequest} className="z-[90]" onClose={() => setViewingRequest(null)} />}
     </>
   );
 }

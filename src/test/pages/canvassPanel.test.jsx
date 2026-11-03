@@ -52,6 +52,12 @@ describe("the Canvass panel on a Component", () => {
     return canvass;
   };
 
+  it("renders at layer z-[80] so it stacks on top of the open line slide-over (#835)", async () => {
+    mount();
+    const modal = await screen.findByRole("dialog");
+    expect(modal).toHaveClass("z-[80]");
+  });
+
   it("shows a draft on opening and leaves nothing behind when closed without an Offer (ADR 0034)", async () => {
     const user = mount();
 

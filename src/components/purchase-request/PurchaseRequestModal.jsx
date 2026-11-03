@@ -41,7 +41,7 @@ function headerLine(request) {
  * header button. It sits on the record layer; every dialog the view opens (add
  * items, PO, confirmations) uses OVER_REQUEST_MODAL to show above it.
  */
-export default function PurchaseRequestModal({ requestId, focusChat = false, openCount = 0, onClose }) {
+export default function PurchaseRequestModal({ requestId, focusChat = false, openCount = 0, onClose, className }) {
   const { data: request } = usePurchaseRequest(requestId);
   useEffect(clearOldOpenAsChoice, []);
   const { reference, title } = requestIdentity(request);
@@ -54,6 +54,7 @@ export default function PurchaseRequestModal({ requestId, focusChat = false, ope
       size="record"
       crumbs={["Purchase Request", request ? reference : null].filter(Boolean)}
       headerActions={<><NewOdooPoLink /><OpenSorButton request={request} onBeforeOpen={onClose} /></>}
+      className={className}
     >
       {request && (
         <RecordHeader
