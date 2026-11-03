@@ -55,9 +55,9 @@ const shell = (column, selected) =>
     selected && "outline-2 outline-primary",
   );
 
-function SatelliteBody({ column, icon: Icon, title, detail, badge, selected }) {
+function SatelliteBody({ column, icon: Icon, title, detail, badge, selected, note }) {
   return (
-    <div className={shell(column, selected)}>
+    <div className={shell(column, selected)} title={note || undefined}>
       <div
         className={cn(
           "flex size-7 shrink-0 items-center justify-center rounded-lg",
@@ -100,6 +100,7 @@ function FlowSatelliteNode({ data, selected }) {
           detail={
             detail ? `${meta?.label ?? data.condition.kind} · ${detail}` : meta?.label
           }
+          note={data.note}
           badge={
             !data.condition.is_required && (
               <span className="shrink-0 rounded bg-mauve-a3 px-1 py-px text-[9px] font-black uppercase tracking-[0.1em] text-mauve-11">
@@ -123,6 +124,7 @@ function FlowSatelliteNode({ data, selected }) {
           icon={meta?.icon ?? MoreHorizontal}
           title={actionTitle(data.action)}
           detail={actionSummary(data.action, { employees: data.employees })}
+          note={data.note}
           badge={
             data.action.config?.confirmMode === "confirm" && (
               <span className="shrink-0 rounded bg-violet-a4 px-1 py-px text-[9px] font-black uppercase tracking-[0.1em] text-violet-11">

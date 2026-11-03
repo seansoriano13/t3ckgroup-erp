@@ -92,6 +92,7 @@ import FlowSatelliteNode from "./FlowSatelliteNode";
 import FlowBracketNode from "./FlowBracketNode";
 import FlowMoveEdge from "./FlowMoveEdge";
 import StageSettingsPanel from "./StageSettingsPanel";
+import { alsoCheckedNote } from "./flowStageKinds";
 import SorFormBuilder from "./SorFormBuilder";
 import FlowAccessSettings from "./FlowAccessSettings";
 import FlowAccessPanel from "./FlowAccessPanel";
@@ -905,6 +906,15 @@ function FlowCanvasInner() {
             // Issue #411 — actionSummary names a single-employee Decider by
             // looking them up here, rather than always saying "the assignee".
             ...(variant === "action" ? { employees: allEmployees } : {}),
+            // #845 — hover-only note when the same kind sits on other Stages.
+            note:
+              variant === "condition"
+                ? alsoCheckedNote(item, stage.id, conditionsByStage, stages)
+                : variant === "action" && item.kind === "open_purchase_request"
+                  ? alsoCheckedNote(item, stage.id, actionsByStage, stages, {
+                      prefix: "Also raised at",
+                    })
+                  : null,
           });
         });
 
