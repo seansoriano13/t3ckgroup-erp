@@ -150,7 +150,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
   <span class="eyebrow">STAGING · t3ckgroup-erp-staging.vercel.app · SALE TYPE "PROJECT [FOR DEMO]" · S0 S03204</span>
   <h1>Purchasing Demo Run Sheet</h1>
   <p class="lede">One real government deal, from Lead to a filed IPAS, told from Purchasing's side. The deal is Odoo sale order <b class="mono">S03204</b>: Marikina City Government, fire-fighting equipment, 12 product lines, ₱1,370,535.74. It is bought on four real P0s. Part 0 is setup, done alone. Parts 1 to 9 are the one-hour demo. Parts A to F are side scenarios. Tick each step as you go. Ticks and the numbers you write down stay in this browser only.</p>
-  <p class="note"><b>Rewritten 2026-10-29, second pass.</b> Every button name, field and gate below was checked against the code on <code>staging</code> and against the staging database that day. It has not been rehearsed in the app yet. The fixes from the first version: the setup now says every field to fill, each stage move lists what it asks for, the gates are explained by where they really bite, and the Transmittal and Canvass steps follow the real screens.</p>
+  <p class="note"><b>Rehearsed 2026-11-03</b> end to end on a local copy of staging (bug log: <code>docs/demos/purchasing-demo-run-bug-log-2026-11-03.txt</code>). This version follows what the app really did that day: the new S0 card at registration, the new Canvass and Transmittal buttons, and the workarounds for the bugs still open (marked "Until fixed").</p>
 </header>
 
 <section id="howto">
@@ -234,10 +234,10 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
         <tr><td>Qualified → For Bidding</td><td>Field <b>Bidder</b>: TG Global. Field <b>Representative</b>: "Dani demo". Field <b>Mode of Pre Bid</b>: Online. (BIDDING DOCS upload is optional.)</td><td class="num">5.7</td></tr>
         <tr><td>For Bidding → Bid Submitted</td><td>Upload <b>PRICE SCHEDULE / PRICE OFFER</b>. Field <b>Purchasing Involved</b>: "Cjay demo". Field <b>Logistics Representative</b>: "Aldrin demo". <span class="tag gate">gate</span> Costing settled.</td><td class="num">5.7</td></tr>
         <tr><td>Bid Submitted → PQ</td><td>Field <b>Remarks</b>: Lowest Calculated Responsive Bidder.</td><td class="num">5.7</td></tr>
-        <tr><td>PQ → Negotiation</td><td>Field <b>Product Demo</b>: No. (On arriving at PQ, a "Preparation of PQ" card asks Create or Skip: press <b>Skip</b>.)</td><td class="num">5.7</td></tr>
+        <tr><td>PQ → Negotiation</td><td>Field <b>Product Demo</b>: No. (If a "Preparation of PQ" card asks Create or Skip, press <b>Skip</b>.)</td><td class="num">5.7</td></tr>
         <tr><td>Negotiation → NOA</td><td>Nothing.</td><td class="num">5.7</td></tr>
         <tr><td>NOA → PB</td><td>Upload <b>NOA</b>. Field <b>NOA Amount</b>: 1370535.74.</td><td class="num">6.2</td></tr>
-        <tr><td>PB → NTP</td><td>Tick <b>Submit PB</b>.</td><td class="num">6.2</td></tr>
+        <tr><td>PB → NTP</td><td>Tick <b>Submit PB</b>, then press <b>Certify</b> in the small notice.</td><td class="num">6.2</td></tr>
         <tr><td>NTP → CA/PO</td><td>Upload <b>NTP</b>. (The Delivery Deadline only warns.)</td><td class="num">7.1</td></tr>
         <tr><td>CA/PO → Project Delivery</td><td>Nothing required. Contract and PO uploads are optional.</td><td class="num">7.1</td></tr>
         <tr><td>Project Delivery → Collection</td><td>Upload <b>Sales Invoice with date</b> and <b>Inspection &amp; Acceptance Report</b> (PDF). <span class="tag gate">gate</span> Purchasing settled and Goods checked.</td><td class="num">8.5</td></tr>
@@ -260,7 +260,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="0.2"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">0.2</span><span class="seat s-sign">101</span></div>
       <div class="row where"><b>Where</b><div>Flow Canvas (/super-admin/flow-canvas) → Sale Type "Project [FOR DEMO]" → click the <b>Lead</b> stage → Add Action</div></div>
-      <div class="row do"><b>Do</b><div>Pick <b>Open Purchase Request</b>, then fill it like this and Save:<ul><li>Default Buyer: <b>None — wait in the queue for a Take</b>.</li><li>Switch <b>Require confirmation before running</b> <b>on</b>. A <b>Decider</b> box then appears under it. Leave it empty: the label says "Decider (defaults to the Deal Owner)", so the Deal Owner decides. With this on, the request does not open by itself; the Deal Owner presses Create (step 2.2).</li><li>Access window: <b>This Stage, through Collection</b>.</li><li>Leave the other fields as they are.</li></ul></div></div>
+      <div class="row do"><b>Do</b><div>Pick <b>Open Purchase Request</b>, then fill it like this and Save:<ul><li>Default Buyer: <b>None — wait in the queue for a Take</b>.</li><li>Switch <b>Require confirmation before running</b> <b>on</b>. A <b>Decider</b> box then appears under it. Leave it empty: the label says "Decider (defaults to the Deal Owner)", so the Deal Owner decides. With this on, the request does not open by itself; the Deal Owner presses Create (step 2.2).</li><li>"Who can request items" lists the Deal Team roles; leave it as it is.</li><li>Leave the other fields as they are.</li></ul></div></div>
     </li>
     <li data-k="0.3"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">0.3</span><span class="seat s-sign">101</span></div>
@@ -275,7 +275,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="0.5"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">0.5</span><span class="seat s-sign">101</span></div>
       <div class="row where"><b>Where</b><div>Flow Canvas → NTP - Notice to Proceed, then Project Delivery</div></div>
-      <div class="row do"><b>Do</b><div><ol><li>On <b>NTP</b>, press <b>Buying opens here?</b> so it reads "Buying opens here" with a tick.</li><li>On <b>Project Delivery</b>, Add Action → <b>Request Packing List</b>, keep the defaults, Save.</li></ol></div></div>
+      <div class="row do"><b>Do</b><div><ol><li>On <b>NTP</b>, press <b>Buying opens here?</b> so it reads "Buying opens here" with a tick.</li><li>On <b>Project Delivery</b>, Add Action → <b>Request Packing List</b>, keep the defaults, Save.</li><li>Check that <b>NOA - Notice of Award</b> reads "Notice of Award is here" under Role in the flow (the reset script sets it). If not, press <b>Make it the Notice of Award</b>. Without it the Date of Award does not fill and Purchasing gets no "SOR Awarded".</li><li>Check that <b>CA/PO</b> reads "The client's contract is here" under Role in the flow (the reset script sets it too). If not, press <b>Make it the contract</b>. It fills the Contract Date when the deal reaches CA/PO.</li></ol></div></div>
     </li>
     <li data-k="0.6"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">0.6</span><span class="seat s-sign">101</span></div>
@@ -318,15 +318,15 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="2.1"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">2.1</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>Sales → SORs → Register</div></div>
-      <div class="row do"><b>Do</b><div><ol><li>Sale Type: <b>Project [FOR DEMO]</b>.</li><li>Sales Reference: <b>S03204</b> → <b>Fetch from Odoo</b>.</li><li>Title: "Fire Fighting Equipment".</li><li>Under Ownership, set <b>Deal Owner</b> (required, no default) to <b>Dani demo</b>. The Sales Director may stay empty: that only shows an advisory.</li><li>Register. Write the SOR number down.</li></ol></div></div>
-      <div class="row see"><b>See</b><div>Company "Marikina City Government" and 12 product lines: fire suit ×10, gloves ×10, goggles ×10, safety belt ×10, boots ×10, hood ×10, hose 1.5" ×10, hose 2.5" ×10, nozzle 1.5" ×2, nozzle 2.5" ×2, helmet yellow ×8, helmet white ×2. The SOR is on Lead.</div></div>
+      <div class="row do"><b>Do</b><div><ol><li>Sale Type: <b>Project [FOR DEMO]</b>.</li><li>Sales Reference: <b>S03204</b>. There is no Fetch button: Odoo is checked when you press Register.</li><li>Lead Source: <b>LGU</b>. Company: "Marikina City Government". Contact Person: any name. Project: "Fire Fighting Equipment".</li><li>Under Ownership, set <b>Deal Owner</b> (required, no default) to <b>Dani demo</b>. The Sales Director may stay empty: that only shows an advisory.</li><li>Register. Write the SOR number down.</li></ol></div></div>
+      <div class="row see"><b>See</b><div>The S0 card at the top of the SOR: "S03204 · In Odoo · 12 products", value ₱1,370,535.74, and 12 product lines: fire suit ×10, gloves ×10, goggles ×10, safety belt ×10, boots ×10, hood ×10, hose 1.5" ×10, hose 2.5" ×10, nozzle 1.5" ×2, nozzle 2.5" ×2, helmet yellow ×8, helmet white ×2. The SOR is on Lead.</div></div>
       <div class="row say"><b>Say</b><div>Nobody types the products. Each line keeps its Odoo line id, so the request, the S0 Evaluation and the S0 always mean the same line.</div></div>
     </li>
     <li data-k="2.2"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">2.2</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>the SOR → the "Open Purchase Request" card</div></div>
-      <div class="row do"><b>Do</b><div>Press <b>Create</b>.</div></div>
-      <div class="row see"><b>See</b><div>"Created." The SOR's PMS tab shows the Purchase Request and the S0 Evaluation (the S0 Evaluation opened by itself at registration).</div></div>
+      <div class="row do"><b>Do</b><div>Open the SOR's <b>This stage</b> tab and press <b>Create</b> on the card.</div></div>
+      <div class="row see"><b>See</b><div>The card goes away. The SOR's PMS tab shows the Purchase Request and the S0 Evaluation (the S0 Evaluation opened by itself at registration).</div></div>
       <div class="row say"><b>Say</b><div>Sales decides if a deal needs buying at all. One request per deal, used until the end.</div></div>
     </li>
   </ol>
@@ -370,7 +370,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="4.1"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">4.1</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>the SOR → move stage, then PMS tab → S0 Evaluation</div></div>
-      <div class="row do"><b>Do</b><div>Move <b>Lead → SO Evaluation</b> (it asks nothing). Open the <b>S0 Evaluation</b>.</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>Lead → SO Evaluation</b> (it asks nothing). Open the <b>S0 Evaluation</b>. Until fixed: if it says "Lines 0", press <b>Refresh from the SOR</b>, then reload the page. That also fills the costs from Odoo.</div></div>
       <div class="row see"><b>See</b><div>A sheet shaped like the Google sheet: one row per S0 line, with bands "Sales · the client's ask", "Purchasing · cost", "Markup" and "Technical". The facts strip shows the S0 and client, S0 lines 12, Judged 0 of 12, ABC total and Final Offer total. Under the sheet is "Line details · open a line for its parts and costs".</div></div>
       <div class="row say"><b>Say</b><div>The stage is called SO Evaluation; the sheet is the S0 Evaluation. Each team writes only its own band.</div></div>
     </li>
@@ -394,7 +394,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     </li>
     <li data-k="4.3"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">4.3</span><span class="seat s-buy">Purchasing</span></div>
-      <div class="row where"><b>Where</b><div>S0 Evaluation → Line details → open line 1 (fire suit) → <b>Canvass</b> button</div></div>
+      <div class="row where"><b>Where</b><div>S0 Evaluation → open line 1 (fire suit) → <b>Canvass</b>. Until fixed, the Canvass window opens behind the line panel: close the panel and open the Canvass from <b>Purchasing → Canvasses</b> instead.</div></div>
       <div class="row do"><b>Do</b><div><ol><li>Start the Canvass, then <b>Add offer</b>: Jiujang Fire Fighting Equipment, <b>USD 208</b>. A dollar offer needs a <b>Comparison rate</b>: keep the Reference Rate it fills. <b>Save offer</b>.</li><li>Hover <b>Pick winner</b> on that offer.</li></ol></div></div>
       <div class="row see"><b>See</b><div>Pick winner is greyed out: "Fill or explain all three supplier slots first". The strip says "1 of 3 supplier slots filled or explained. A winner needs all 3."</div></div>
       <div class="row say"><b>Say</b><div>One quote is not enough anymore, unless we write down why.</div></div>
@@ -409,7 +409,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="4.5"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">4.5</span><span class="seat s-buy">Purchasing</span></div>
       <div class="row where"><b>Where</b><div>S0 Evaluation → sheet → Price column</div></div>
-      <div class="row do"><b>Do</b><div>The costs are already filled from Odoo when the sheet opens: the note above the sheet says how many ("… costs filled from Odoo"), and the fire suit row already shows "Canvass" from step 4.4. Check every Price cell. Only where a row is still blank ("Type a cost"), type a peso price, for example goggles ₱1,386. The box takes pesos; a price in dollars comes from Odoo, a P0 or a Canvass and is read-only.</div></div>
+      <div class="row do"><b>Do</b><div>The costs are filled from Odoo when the sheet first fills or when someone presses Refresh from the SOR: the note says how many ("12 costs filled from Odoo"), and the fire suit row already shows "Canvass" from step 4.4. Check every Price cell. Only where a row is still blank ("Type a cost"), type a peso price, for example goggles ₱1,386. The box takes pesos; a price in dollars comes from Odoo, a P0 or a Canvass and is read-only.</div></div>
       <div class="row see"><b>See</b><div>A filled price shows its source badge (Odoo, P0, Canvass); a price you typed shows <b>Typed</b>. "Our cost (Acquire)" in the numbers strip stops saying "Some costs are blank".</div></div>
       <div class="row say"><b>Say</b><div>Every row needs a cost, or "Costing priced" holds the deal later.</div></div>
     </li>
@@ -468,7 +468,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="5.7"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">5.7</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>the SOR → move stage, several times</div></div>
-      <div class="row do"><b>Do</b><div>Proposal Submitted → Qualified → For Bidding → Bid Submitted → PQ → Negotiation → NOA. Fill each move from the moves table. At PQ, press <b>Skip</b> on "Preparation of PQ".</div></div>
+      <div class="row do"><b>Do</b><div>Proposal Submitted → Qualified → For Bidding → Bid Submitted → PQ → Negotiation → NOA. Fill each move from the moves table. If a "Preparation of PQ" card shows at PQ, press <b>Skip</b> (on 2026-11-03 none showed). Until fixed, the header can stay "Blocked" after you save a field: reload the SOR before the next move.</div></div>
       <div class="row see"><b>See</b><div>For Bidding → Bid Submitted goes through, because Costing settled is met. On reaching NOA the Date of Award fills by itself, Purchasing gets an "SOR Awarded" notice, and the request shows a green "Awarded · <i>today's date</i>" badge.</div></div>
       <div class="row say"><b>Say</b><div>Second gate: we cannot submit a bid until the S0 Evaluation is finished, within the ABC, approved, and decided Go.</div></div>
     </li>
@@ -490,7 +490,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="6.2"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">6.2</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
-      <div class="row do"><b>Do</b><div>Move <b>NOA → PB</b> (upload NOA, NOA Amount 1370535.74), then <b>PB → NTP</b> (tick Submit PB).</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>NOA → PB</b> (upload NOA, NOA Amount 1370535.74), then <b>PB → NTP</b> (tick Submit PB and press <b>Certify</b> in the notice that pops up).</div></div>
       <div class="row see"><b>See</b><div>The SOR is on NTP.</div></div>
     </li>
     <li data-k="6.3"><input type="checkbox" aria-label="Done">
@@ -549,12 +549,12 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="7.1"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">7.1</span><span class="seat s-sales">Sales</span></div>
       <div class="row where"><b>Where</b><div>the SOR → move stage</div></div>
-      <div class="row do"><b>Do</b><div>Move <b>NTP → CA/PO</b> (upload NTP), then <b>CA/PO → Project Delivery</b>. The move asks "Move back to Project Delivery?" with <b>Resume previous work</b> or <b>Start fresh</b>. Choose <b>Start fresh</b>.</div></div>
-      <div class="row see"><b>See</b><div>With Start fresh, a draft Packing List is started and the Warehouse is told to pack.</div></div>
+      <div class="row do"><b>Do</b><div>Move <b>NTP → CA/PO</b> (upload NTP), then <b>CA/PO → Project Delivery</b>. On a first visit nothing is asked. (Only a deal coming back asks "Resume previous work" or "Start fresh"; choose Start fresh.)</div></div>
+      <div class="row see"><b>See</b><div>A draft Packing List is started by itself and the Warehouse is told to pack.</div></div>
     </li>
     <li data-k="7.2"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">7.2</span><span class="seat s-buy">Purchasing</span></div>
-      <div class="row where"><b>Where</b><div>Purchasing → Transmittals → New Transmittal</div></div>
+      <div class="row where"><b>Where</b><div>Purchasing → Transmittals → Raise Transmittal</div></div>
       <div class="row do"><b>Do</b><div><ol><li>Type the P01046 IPAS number (from your notes) in "Fill from an IPAS number" → <b>Fill lines</b>.</li><li>Set the pills: Origin <b>Purchasing</b>, Priority <b>Medium</b> (High, Medium or Low; it starts empty and Submit stays off until you pick one), Company (it follows the first line; check it), Location <b>Marikina Warehouse</b>.</li><li>Checking: leave only <b>Warehouse</b> ticked. TCA Technical is off by default; do not tick it, so there is no Technical step in this run.</li><li><b>Submit</b>. Write the TG03 number down.</li></ol></div></div>
       <div class="row see"><b>See</b><div>The seven P01046 lines are on the slip. Before Submit, the strip lists anything still missing ("One thing left before Submit").</div></div>
       <div class="row say"><b>Say</b><div>No more typing the goods. Remove what did not arrive, or change a quantity for a part delivery.</div></div>
@@ -601,7 +601,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="8.2"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">8.2</span><span class="seat s-wh">aldrin</span></div>
       <div class="row where"><b>Where</b><div>the P01046 IPAS → Logistics</div></div>
-      <div class="row do"><b>Do</b><div>Item Location: Marikina Warehouse (the Transmittal already says it; pick it to keep it). Set the <b>Arrived in Whs.</b> date. Sign <b>Logistics</b>.</div></div>
+      <div class="row do"><b>Do</b><div>Item Location: Marikina Warehouse (the Transmittal already says it; pick it to keep it). Cjay sets the <b>Arrived in Whs.</b> date (on 2026-11-03 only Purchasing could). Aldrin signs <b>Logistics</b>.</div></div>
       <div class="row say"><b>Say</b><div>Filing waits for Logistics. Logistics needs a location, a Transmittal, and the arrival date.</div></div>
     </li>
     <li data-k="8.3"><input type="checkbox" aria-label="Done">
@@ -613,7 +613,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="8.4"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">8.4</span><span class="seat s-buy">Purchasing</span></div>
       <div class="row where"><b>Where</b><div>Purchasing → Packing Lists → the draft for the SOR</div></div>
-      <div class="row do"><b>Do</b><div><b>Add a box</b>. Contents: pick the fire suit ×10 and both helmets from the Product List. The picker only lists items already received (or from stock), so the items must have arrived first (section 6). Save. <b>Sign Packed by</b>. Cjay signs it: a draft list can be edited and signed only by someone with Purchasing access, a Super Admin, or whoever started the list, so Aldrin (Warehouse) cannot. Say that the Warehouse packs the boxes and Purchasing signs the list.</div></div>
+      <div class="row do"><b>Do</b><div><b>Add a box</b>. Contents: pick the fire suit ×10 and both helmets from the Product List. Pick only what arrived: on 2026-11-03 the picker listed every line at full quantity, arrived or not. Save. <b>Sign Packed by</b>. Cjay signs it. Say that the Warehouse packs the boxes and Purchasing signs the list.</div></div>
       <div class="row see"><b>See</b><div>"Packed. Nothing left to do."</div></div>
     </li>
     <li data-k="8.5"><input type="checkbox" aria-label="Done">
@@ -644,7 +644,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
     <li data-k="9.3"><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">9.3</span><span class="seat s-buy">Purchasing</span></div>
       <div class="row where"><b>Where</b><div>Settings → Purchasing → Ageing rules</div></div>
-      <div class="row do"><b>Do</b><div>Set "With P.O.P" to 3 days and save.</div></div>
+      <div class="row do"><b>Do</b><div>Ageing rules tab: set "With P.O.P" to 3 days and press <b>Save ageing rules</b> at the bottom.</div></div>
       <div class="row say"><b>Say</b><div>Every ageing rule starts blank, so nothing is late until you set one.</div></div>
     </li>
   </ol>
@@ -716,7 +716,7 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
   <ol class="steps">
     <li data-k="D.1" data-opt><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">D.1</span><span class="seat s-buy">Purchasing</span></div>
-      <div class="row do"><b>Do</b><div>On the P01047 IPAS, submit section 1 with its blank charges still there.</div></div>
+      <div class="row do"><b>Do</b><div>On the P01047 IPAS, submit section 2 with its blank charges still there. (Section 1 refuses first for the missing Proforma Invoice.)</div></div>
       <div class="row see"><b>See</b><div>Refused: the charges are blank. Fill each one in or remove it first.</div></div>
     </li>
     <li data-k="D.2" data-opt><input type="checkbox" aria-label="Done">
@@ -766,11 +766,11 @@ ol.steps input[type=checkbox] { width: 20px; height: 20px; margin: 2px 0 0; acce
 
 <section id="scenF">
   <div class="part-head"><span class="part-no">F</span><h2>One IPAS for two projects</h2><span class="mins">about 8 min, on its own</span></div>
-  <p class="intro">Real case: <b class="mono">P02674</b> (USD 150, magnetic roof mounts, Shenzhen Xingshuo Guanglian) names both <b>S04081</b> and <b>S04602</b>, and has not arrived. Staging already has an SOR-73 for S04602 on no Sale Type. Ignore it and register a new one on the demo Sale Type.</p>
+  <p class="intro">Real case: <b class="mono">P02674</b> (USD 150, magnetic roof mounts, Shenzhen Xingshuo Guanglian) names both <b>S04081</b> and <b>S04602</b>, and has not arrived. One S0 per SOR (#819): staging had SOR-73 on S04602, so the reset script soft-deletes it. If registering S04602 says "already on SOR", run the reset script again.</p>
   <ol class="steps">
     <li data-k="F.1" data-opt><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">F.1</span><span class="seat s-sales">Sales</span></div>
-      <div class="row do"><b>Do</b><div>Register two SORs on Project [FOR DEMO] with Fetch from Odoo: <b>S04081</b> and <b>S04602</b>. Press Create on each one's Purchase Request card. Move both past NTP using the moves table, or use Order early in F.2.</div></div>
+      <div class="row do"><b>Do</b><div>Register <b>S04081</b> and <b>S04602</b> on Project [FOR DEMO], one SOR each. Press Create on each one's Purchase Request card. Move both past NTP using the moves table, or use Order early in F.2.</div></div>
     </li>
     <li data-k="F.2" data-opt><input type="checkbox" aria-label="Done">
       <div class="head"><span class="k">F.2</span><span class="seat s-buy">Purchasing</span></div>

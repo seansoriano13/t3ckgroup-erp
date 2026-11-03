@@ -18,7 +18,8 @@
  *      its latest Flow Snapshot under NEW ids (staging already has the real
  *      Project under the same ids), left as a draft so the demo can add the
  *      purchasing Stage Actions and Conditions and Publish it. A copy from an
- *      earlier run is renamed, archived, and its SORs soft-deleted.
+ *      earlier run is renamed, archived, and its SORs soft-deleted. Any other SOR on
+ *      Scenario F's two S0s (S04081, S04602) is soft-deleted too, so both can be registered.
  *
  * Without --apply it rolls back at the end, so the default run is a rehearsal.
  *
@@ -232,6 +233,21 @@ async function retireOldCopies(c) {
   }
 }
 
+// Scenario F registers both S0s that P02674 names. One S0 per SOR (#819), so any other SOR on them
+// (SOR-73 on S04602) is soft-deleted; the rule skips deleted SORs, and Restore brings one back.
+const SCENARIO_F_S0S = ["S04081", "S04602"]
+
+async function freeScenarioFS0s(c) {
+  const { rows } = await c.query(
+    `update public.sales_opportunities o set is_deleted = true
+      where o.sales_reference = any($1::text[]) and o.is_deleted is not true
+        and not exists (select 1 from public.sale_types t where t.id = o.sale_type_id and t.name = $2)
+      returning o.sor_code, o.sales_reference`,
+    [SCENARIO_F_S0S, DEMO_SALE_TYPE],
+  )
+  for (const row of rows) console.log(`  soft-deleted ${row.sor_code} so Scenario F can register ${row.sales_reference}`)
+}
+
 /**
  * #678: the demo's Requested Items in the new shape. Items on the Purchase Requests of the demo
  * SORs (any copy of the demo Sale Type, old ones included) are cleared, then one Not checked
@@ -290,6 +306,24 @@ async function copyProjectFlow(prod, c) {
     [snapshotId, flowId, snapshot.version, snapshot.version_minor, JSON.stringify(data), `Copied from production "${PROD_SALE_TYPE}" v${snapshot.version}.${snapshot.version_minor} for the Purchasing demo`],
   )
   await c.query("select public.restore_flow_snapshot($1, $2)", [flowId, snapshotId])
+  // Prod's flow predates the Notice of Award and contract Stage roles, so the copy has neither.
+  // The demo needs both: NOA fills the Date of Award and tells Purchasing, CA / PO fills the Contract Date.
+  // The contract Stage (#745) is skipped on a database that does not have it yet.
+  const { rows: [{ has_contract: hasContract }] } = await c.query(
+    "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'sales_flows' and column_name = 'contract_stage_id') as has_contract",
+  )
+  const stageNamed = (pattern) => `(select s.id from public.flow_stages s where s.flow_id = f.id and s.name ilike '${pattern}' limit 1)`
+  const { rows: [roles] } = await c.query(
+    `update public.sales_flows f
+        set award_stage_id = coalesce(f.award_stage_id, ${stageNamed("NOA%")})
+            ${hasContract ? `, contract_stage_id = coalesce(f.contract_stage_id, ${stageNamed("CA%PO%")})` : ""}
+      where f.id = $1
+      returning award_stage_id is not null as award ${hasContract ? ", contract_stage_id is not null as contract" : ""}`,
+    [flowId],
+  )
+  if (!roles?.award) console.log("  note: no NOA Stage found, so the demo flow has no Notice of Award Stage")
+  if (!hasContract) console.log("  note: this database has no contract Stage yet (#745), so none was set")
+  else if (!roles?.contract) console.log("  note: no CA / PO Stage found, so the demo flow has no contract Stage")
   const { rows: [counts] } = await c.query(
     `select (select count(*) from public.flow_stages where flow_id = $1) stages,
             (select count(*) from public.flow_edges where flow_id = $1) edges,
@@ -319,6 +353,7 @@ async function main() {
     await resetSettings(c)
     console.log(`3. ${DEMO_SALE_TYPE}`)
     await retireOldCopies(c)
+    await freeScenarioFS0s(c)
     await copyProjectFlow(prod, c)
     console.log("4. Demo Requested Items (one per S0 line)")
     await resetDemoItems(c)
