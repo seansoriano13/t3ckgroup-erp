@@ -17,7 +17,7 @@ export function useCostingWrites(opportunityId) {
   const [busy, setBusy] = useState(false);
 
   // Resolves once the active queries have refetched, so a caller can drop a value it showed early after it.
-  const refresh = useCallback(() => queryClient.invalidateQueries({ queryKey: costingKeys.all(opportunityId) }), [queryClient, opportunityId]);
+  const refresh = useCallback(() => queryClient.refetchQueries({ queryKey: costingKeys.all(opportunityId) }), [queryClient, opportunityId]);
 
   const run = useCallback(
     async (work) => {

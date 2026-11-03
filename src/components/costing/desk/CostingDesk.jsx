@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ListTree, Plus, RefreshCw, Sparkles } from "lucide-react";
 
 import { Button } from "../../ui/button";
@@ -60,6 +60,7 @@ function withVerdicts(matrix, verdicts) {
  * the products' costs. Nothing a person typed is ever overwritten.
  */
 function useFill(matrix, opportunityId, writes) {
+  const queryClient = useQueryClient();
   const [odooNote, setOdooNote] = useState(null);
   const tried = useRef(false);
   const canFill = Boolean(matrix) && inAnyBand(matrix.bands, [COSTING_BAND.SALES, COSTING_BAND.PURCHASING]);
@@ -68,6 +69,7 @@ function useFill(matrix, opportunityId, writes) {
     writes.run(async () => {
       const { added, leftOut } = await costingMatrixService.fillFromSor(opportunityId);
       const odoo = await costingMatrixService.fillOdooCosts(opportunityId);
+      await queryClient.refetchQueries({ queryKey: costingKeys.all(opportunityId) });
       // A Go locks the sheet, so S0 lines that match no row are not added; say which ones.
       const shown = leftOut.slice(0, 3).map((l) => l.name || "an unnamed line").join(", ");
       const left = leftOut.length
@@ -79,10 +81,16 @@ function useFill(matrix, opportunityId, writes) {
     });
 
   useEffect(() => {
-    if (!matrix || tried.current || !canFill || matrix.tenderLines.length > 0) return;
+    if (!matrix || tried.current || !canFill) return;
+    const needsFill =
+      matrix.tenderLines.length === 0 ||
+      matrix.tenderLines.some((line) =>
+        line.components?.some((c) => c.odoo_product_id && (c.odoo_unit == null || c.acquire_unit == null)),
+      );
+    if (!needsFill) return;
     tried.current = true;
     fill();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening, when the matrix is empty
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening
   }, [matrix, canFill]);
 
   return { canFill, fill, odooNote };
