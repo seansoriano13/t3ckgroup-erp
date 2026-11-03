@@ -80,10 +80,48 @@ function applyWindow(query, { from, to, createdFrom, createdTo }) {
   return query;
 }
 
+// The database caps one response at 1000 rows, so an unpaged read silently
+// drops the oldest tasks once there are more than that.
+const PAGE_SIZE = 1000;
+
+/**
+ * Every row a tasks query matches. A caller that asks for a row range gets just
+ * that. Otherwise the first page also reports the total, and the remaining pages
+ * load side by side so the wait stays about one request long.
+ */
+async function fetchRows(buildQuery, window) {
+  const narrowed = () =>
+    applyWindow(buildQuery().order("id", { ascending: true }), window);
+  if (Number.isInteger(window.from) && Number.isInteger(window.to)) {
+    const { data, error } = await narrowed();
+    if (error) throw error;
+    return data;
+  }
+  const { data: first, error, count } = await applyWindow(
+    buildQuery({ count: "exact" }).order("id", { ascending: true }),
+    { ...window, from: 0, to: PAGE_SIZE - 1 },
+  );
+  if (error) throw error;
+  if (!count || count <= PAGE_SIZE) return first;
+  const pageCount = Math.ceil(count / PAGE_SIZE);
+  const rest = await Promise.all(
+    Array.from({ length: pageCount - 1 }, async (_, i) => {
+      const start = (i + 1) * PAGE_SIZE;
+      const { data, error: pageError } = await applyWindow(
+        buildQuery().order("id", { ascending: true }),
+        { ...window, from: start, to: start + PAGE_SIZE - 1 },
+      );
+      if (pageError) throw pageError;
+      return data;
+    }),
+  );
+  return first.concat(...rest);
+}
+
 export const taskQueryService = {
   // 1. HR/HEAD VIEW: Get everything
   async getAllTasks({ from = null, to = null, createdFrom = null, createdTo = null } = {}) {
-    let query = supabase
+    const buildQuery = (opts) => supabase
       .from("tasks")
       .select(
         `
@@ -95,15 +133,12 @@ export const taskQueryService = {
         opportunity:sales_opportunities(client_name, sales_reference),
         categories(description)
       `,
+        opts,
       )
       .not("status", "in", HIDDEN_TASK_STATUS_FILTER)
       .order("created_at", { ascending: false });
 
-    query = applyWindow(query, { from, to, createdFrom, createdTo });
-
-    const { data, error } = await query;
-
-    if (error) throw error;
+    const data = await fetchRows(buildQuery, { from, to, createdFrom, createdTo });
 
     return data.map((task) => ({
       id: task.id,
@@ -148,7 +183,7 @@ export const taskQueryService = {
 
   // 2. EMPLOYEE VIEW: Get only tasks logged by the current user
   async getMyTasks(userId, { from = null, to = null, createdFrom = null, createdTo = null } = {}) {
-    let query = supabase
+    const buildQuery = (opts) => supabase
       .from("tasks")
       .select(
         `
@@ -160,16 +195,13 @@ export const taskQueryService = {
         opportunity:sales_opportunities(client_name, sales_reference),
         categories(description)
       `,
+        opts,
       )
       .eq("logged_by", userId)
       .not("status", "in", HIDDEN_TASK_STATUS_FILTER)
       .order("created_at", { ascending: false });
 
-    query = applyWindow(query, { from, to, createdFrom, createdTo });
-
-    const { data, error } = await query;
-
-    if (error) throw error;
+    const data = await fetchRows(buildQuery, { from, to, createdFrom, createdTo });
 
     return data.map((task) => ({
       id: task.id,

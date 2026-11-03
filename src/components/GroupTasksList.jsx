@@ -14,6 +14,7 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import GroupTaskCard from "../pages/group-tasks/_components/GroupTaskCard";
 import SectionHeader from "./ui/SectionHeader";
+import GroupTaskStats from "./GroupTaskStats";
 import { Input } from "@/components/ui/input";
 
 export default function GroupTasksList({ selectedRange }) {
@@ -125,6 +126,8 @@ export default function GroupTasksList({ selectedRange }) {
           </Button>
         </div>
       </SectionHeader>
+
+      <GroupTaskStats groupTasks={groupTasks} selectedRange={selectedRange} />
 
       {/* DYNAMIC GRID CONTAINER */}
       {activeTasks.length > 0 ? (
