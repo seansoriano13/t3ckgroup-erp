@@ -132,8 +132,9 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
                     const classes = TONE_CLASSES[tone] || TONE_CLASSES.mauve;
 
                     const isDestination = destinations.some((d) => d.id === s.id);
-                    // A Return is never blocked by the Stage being left (#390).
-                    const isBlockedDestination = isDestination && isBlocked && !returnStageIds.includes(s.id);
+                    // A move skips gates only when going backward (#390, #831).
+                    const isBackwardReturn = returnStageIds.includes(s.id) && current && s.sort_order < current.sort_order;
+                    const isBlockedDestination = isDestination && isBlocked && !isBackwardReturn;
                     const isClickable = isDestination && !isBlockedDestination && !disabled;
 
                     return (
