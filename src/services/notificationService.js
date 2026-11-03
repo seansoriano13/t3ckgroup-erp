@@ -80,6 +80,14 @@ export const notificationService = {
           onNotification(payload.new);
         }
       )
+      // #851: a merged status notification is an UPDATE (moved to top, unread again).
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${userId}` },
+        (payload) => {
+          onNotification(payload.new, 'UPDATE');
+        }
+      )
       .subscribe();
   },
 
