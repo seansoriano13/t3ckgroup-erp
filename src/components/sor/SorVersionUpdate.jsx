@@ -13,8 +13,11 @@ import {
     revertTargets,
 } from "../../utils/sorVersionUpdate"
 import { useAuth } from "../../context/AuthContext"
+import { ChevronDown, Undo2 } from "lucide-react"
+import { cn } from "../../lib/utils"
 import { Button } from "../ui/button"
-import { SelectField } from "../ui/SelectField"
+import Dropdown from "../ui/Dropdown"
+import { FilterOptionList } from "../ui/FilterDropdown"
 
 /**
  * Outdated SORs (#743), on the SOR itself.
@@ -29,8 +32,6 @@ export default function SorVersionUpdate({ opportunity }) {
     const { user } = useAuth()
     const queryClient = useQueryClient()
     const [, rerender] = useState(0)
-    const [picking, setPicking] = useState(false)
-    const [target, setTarget] = useState("")
 
     const saleTypeId = opportunity?.sale_type_id ?? null
     const { isSuperAdmin } = getPermissionContext(user)
@@ -56,7 +57,6 @@ export default function SorVersionUpdate({ opportunity }) {
                 return
             }
             toast.success("Version updated.")
-            setPicking(false)
             queryClient.invalidateQueries({ queryKey: ["opportunity", opportunity.id] })
             queryClient.invalidateQueries({ queryKey: ["globalOpportunity", opportunity.id] })
             queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunity.id] })
@@ -95,30 +95,41 @@ export default function SorVersionUpdate({ opportunity }) {
                 </>
             )}
             {olderTargets.length > 0 && (
-                <>
-                    {!picking ? (
-                        <Button size="sm" variant="ghost" onClick={() => setPicking(true)}>
-                            Put back on an older version
-                        </Button>
-                    ) : (
-                        <>
-                            <SelectField
-                                aria-label="Older version"
-                                size="sm"
-                                placeholder="Choose a version"
-                                value={target}
-                                onChange={setTarget}
-                                options={olderTargets.map((s) => ({ value: s.id, label: formatSnapshotVersion(s) }))}
+                <Dropdown
+                    usePortal
+                    placement="bottom-end"
+                    matchTriggerWidth={false}
+                    disabled={update.isPending}
+                    trigger={({ isOpen }) => (
+                        <Button
+                            size="xs"
+                            variant="ghost"
+                            aria-haspopup="menu"
+                            aria-expanded={isOpen}
+                            title="Put this SOR back on an older version of its Sales Flow."
+                            className="text-[11px] text-mauve-11"
+                        >
+                            <Undo2 aria-hidden="true" />
+                            Older version
+                            <ChevronDown
+                                className={cn("transition-transform", isOpen && "rotate-180")}
+                                aria-hidden="true"
                             />
-                            <Button size="sm" disabled={!target || update.isPending} onClick={() => update.mutate(target)}>
-                                Put back
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => setPicking(false)}>
-                                Cancel
-                            </Button>
-                        </>
+                        </Button>
                     )}
-                </>
+                >
+                    {({ close }) => (
+                        <div aria-label="Put back on an older version">
+                            <p className="px-3 pt-2 text-[11px] font-medium text-mauve-10">Put back on</p>
+                            <FilterOptionList
+                                options={olderTargets.map((s) => ({ value: s.id, label: formatSnapshotVersion(s) }))}
+                                value={null}
+                                onChange={(snapshotId) => update.mutate(snapshotId)}
+                                close={close}
+                            />
+                        </div>
+                    )}
+                </Dropdown>
             )}
         </div>
     )

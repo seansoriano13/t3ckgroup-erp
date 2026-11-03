@@ -407,7 +407,7 @@ export default function SorModalHeader({
             </span>
           </p>
           {isFlowDeal && (
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <FlowVersionBadge
                 opportunity={opportunity}
                 onOpenVersion={(snapshotId) => {
@@ -416,9 +416,9 @@ export default function SorModalHeader({
                   window.open(`/flow-versions/${snapshotId}${query}`, "_blank", "noopener");
                 }}
               />
+              <SorVersionUpdate opportunity={opportunity} />
             </div>
           )}
-          {isFlowDeal && <SorVersionUpdate opportunity={opportunity} />}
         </div>
         {isFlowDeal ? (
           <FlowStageControl

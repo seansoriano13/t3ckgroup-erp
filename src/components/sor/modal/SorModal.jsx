@@ -395,6 +395,8 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["revertVisits", id] });
     queryClient.invalidateQueries({ queryKey: ["stageVisitId", id] });
     queryClient.invalidateQueries({ queryKey: ["currentStageVisit", id] });
+    queryClient.invalidateQueries({ queryKey: ["sorCurrentVisitId", id] });
+    queryClient.invalidateQueries({ queryKey: ["sorVisitAudience", id] });
     queryClient.invalidateQueries({ queryKey: ["followUpStatus", id] });
     // #310: the Now card, Items statuses and Journey read the Purchase Request.
     queryClient.invalidateQueries({ queryKey: ["sor-purchase-request", id] });
