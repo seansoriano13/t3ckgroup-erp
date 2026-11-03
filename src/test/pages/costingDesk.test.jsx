@@ -3,7 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 
 import { db } from "@/test/db/store";
 import { pgrstError } from "@/test/db/schema";
-import { stubRpc } from "@/test/msw/server";
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "@/test/factories";
 import { closeLine, openLines, renderCostingDesk } from "@/test/support/costingDesk";
@@ -138,6 +138,82 @@ describe("the Costing Desk", () => {
     // Refresh finds nothing new on the SOR.
     await user.click(screen.getByRole("button", { name: /Refresh from the SOR/ }));
     expect(await screen.findByText("Everything on the SOR is already here.")).toBeInTheDocument();
+  });
+
+  it("opens with products and automatically fills Odoo costs without requiring Refresh or reload (#834)", async () => {
+    const matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
+    const line = db.seed("costing_tender_lines", {
+      matrix_id: matrix.id,
+      position: 1,
+      source: "sor_line",
+      tender_specification: "Fire Hose",
+      unit: "pc",
+      quantity: 4,
+      odoo_product_id: 55,
+      sor_line_snapshot: { name: "Fire Hose", quantity: 4, unit: "pc" },
+    });
+    const component = db.seed("costing_components", {
+      tender_line_id: line.id,
+      position: 1,
+      name: "Fire Hose",
+      quantity: 4,
+      unit: "pc",
+      odoo_product_id: 55,
+    });
+    stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
+    stubEdgeFunction("odoo-costing-costs", () => {
+      db.seed("costing_component_costs", {
+        component_id: component.id,
+        odoo_unit: 850,
+        acquire_unit: 850,
+      });
+      return { success: true, filled: 1, unpriced: 0 };
+    });
+
+    openDesk(deal);
+
+    // Shows the filled cost automatically without manual refresh or reload
+    await waitFor(() => {
+      expect(screen.getAllByText("₱850.00").length).toBeGreaterThan(0);
+    });
+    expect(await screen.findByText(/1 cost filled from Odoo/)).toBeInTheDocument();
+  });
+
+  it("updates the screen at once when Refresh from the SOR is pressed (#834)", async () => {
+    const matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
+    stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
+    let costsStubbed = false;
+    stubEdgeFunction("odoo-costing-costs", () => {
+      if (costsStubbed) {
+        const components = db.rows("costing_components");
+        for (const c of components) {
+          if (c.odoo_product_id && !db.rows("costing_component_costs").some((cc) => cc.component_id === c.id)) {
+            db.seed("costing_component_costs", {
+              component_id: c.id,
+              odoo_unit: 950,
+              acquire_unit: 950,
+            });
+          }
+        }
+        return { success: true, filled: 1, unpriced: 0 };
+      }
+      return { success: true, filled: 0, unpriced: 0 };
+    });
+
+    const user = openDesk(deal);
+
+    // Initial fill from empty matrix creates lines, but no cost yet
+    await waitFor(() => expect(screen.getAllByTestId("sheet-row")).toHaveLength(1));
+
+    // Now Odoo has a cost available
+    costsStubbed = true;
+    await user.click(screen.getByRole("button", { name: /Refresh from the SOR/ }));
+
+    // Screen updates at once with the cost
+    await waitFor(() => {
+      expect(screen.getAllByText("₱950.00").length).toBeGreaterThan(0);
+    });
+    expect(await screen.findByText(/1 cost filled from Odoo/)).toBeInTheDocument();
   });
 
   it("shows what the SOR line now says when the Product List changed", async () => {
