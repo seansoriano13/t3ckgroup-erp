@@ -192,12 +192,12 @@ function trackerBar(f, { rows, orders, names }, valueOpen, columns, exportRows, 
         />
         <FilterSelect options={NEXT_OPTIONS} value={values.next} onChange={set("next")} label="Next move" className={CHIP} wrapperClassName={CHIP_WRAPPER} />
         <FilterSelect options={personOptions(rows, "buyer_id", names, "Any Buyer")} value={values.buyerId} onChange={set("buyerId")} label="Buyer" className={CHIP} wrapperClassName={CHIP_WRAPPER} />
-        <FilterSelect options={ORDER_OPTIONS} value={sortBy.order} onChange={sortBy.choose} label="Sort" className={CHIP} wrapperClassName={CHIP_WRAPPER} />
       </>
     ),
     // The same grid of small dropdowns as the IPAS list's Filters.
     filters: (
       <div className="grid gap-2 sm:grid-cols-2">
+        <FilterSelect options={ORDER_OPTIONS} value={sortBy.order} onChange={sortBy.choose} label="Sort" />
         <FilterSelect icon={UserRound} options={personOptions(rows, "canvasser_id", names, "Any Canvasser")} value={values.canvasserId} onChange={set("canvasserId")} label="Canvasser" allValue={ALL} />
         <FilterSelect icon={CalendarClock} options={AGEING} value={values.age} onChange={set("age")} label="Ageing" allValue={ALL} />
         <FilterSelect icon={PackageCheck} options={CANVASS} value={values.canvass} onChange={set("canvass")} label="Canvass" allValue={ALL} />
