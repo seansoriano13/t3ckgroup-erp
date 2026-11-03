@@ -150,10 +150,8 @@ export function useDocumentCenter({ approvedRecords, allLoadedRecords, hrId, onP
     setIsBusy(true);
     try {
       await printComposedHtml(previewHtml);
-      if (true) {
-        await Promise.all(tray.map((r) => getFormType(r.type).markPrinted(r, hrId)));
-        onPrinted?.();
-      }
+      await Promise.all(tray.map((r) => getFormType(r.type).markPrinted(r, hrId)));
+      onPrinted?.();
     } catch (err) {
       toast.error(err.message || 'Failed to print');
     } finally {
