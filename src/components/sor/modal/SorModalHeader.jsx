@@ -26,7 +26,6 @@ import SorVersionUpdate from "../SorVersionUpdate";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
-import S0Card from "../S0Card";
 import { sorCodeOf } from "../../../utils/sorCode";
 import { blockedLabels } from "./summary/shared";
 
@@ -208,18 +207,19 @@ export default function SorModalHeader({
             {sorCodeOf(opportunity) && (
               <span className="font-mono text-[13px] font-bold text-primary">{sorCodeOf(opportunity)}</span>
             )}
+            {opportunity.sales_reference ? (
+              <span className="font-mono text-[13px] font-bold text-muted-foreground">
+                {opportunity.sales_reference}
+              </span>
+            ) : (
+              <span className="truncate text-[13px] font-bold text-muted-foreground">
+                {opportunity.client_name}
+              </span>
+            )}
             {isFlowDeal ? (
               currentFlowStage && <StatusBadge label={currentFlowStage.name} theme={currentFlowStageTone} />
             ) : (
               <StatusBadge status={opportunity.status} />
-            )}
-            {/* #815: the S0 (Odoo state, lock, edit) sits in the identity line, after the stage. */}
-            {!isEditing && opportunity?.id ? (
-              <S0Card opportunityId={opportunity.id} />
-            ) : (
-              opportunity.sales_reference && (
-                <span className="font-mono text-[13px] font-bold text-muted-foreground">{opportunity.sales_reference}</span>
-              )
             )}
           </div>
           {isEditing ? (

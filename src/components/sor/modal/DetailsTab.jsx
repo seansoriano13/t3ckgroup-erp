@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import S0Card from "../S0Card";
 import DatePicker from "react-datepicker";
 import { ExternalLink, FileDown, Link2 } from "lucide-react";
 import Spinner from "../../ui/Spinner";
@@ -653,7 +654,9 @@ export default function DetailsTab({ ctx }) {
               </Detail>
 
               <Detail label="Sales Reference">
-                {opportunity.sales_reference ? (
+                {isEditing && opportunity.id ? (
+                  <S0Card opportunityId={opportunity.id} />
+                ) : opportunity.sales_reference ? (
                   <span className="font-mono text-primary font-bold">{opportunity.sales_reference}</span>
                 ) : opportunity.status === "LEAD" ? (
                   <span className="text-xs font-medium text-amber-11">Required to qualify</span>
