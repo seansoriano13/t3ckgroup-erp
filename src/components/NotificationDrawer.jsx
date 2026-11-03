@@ -169,7 +169,28 @@ export default function NotificationDrawer({ isOpen, onClose }) {
     if (!user?.id) return;
     const subscription = notificationService.subscribeToNotifications(
       user.id,
-      (newNotif) => {
+      (newNotif, eventType) => {
+        if (eventType === "UPDATE") {
+          // Read/unread flips patch in place; a merge (#851) moves it to the top and pops.
+          let movedToTop = false;
+          queryClient.setQueryData(["notifications", user.id], (old = []) => {
+            const prev = old.find((n) => n.id === newNotif.id);
+            movedToTop =
+              !newNotif.is_read && (!prev || prev.created_at !== newNotif.created_at);
+            if (!movedToTop) {
+              return old.map((n) => (n.id === newNotif.id ? { ...n, ...newNotif } : n));
+            }
+            return [
+              { ...(prev || {}), ...newNotif },
+              ...old.filter((n) => n.id !== newNotif.id),
+            ];
+          });
+          if (movedToTop) {
+            const url = avatarMap.get(newNotif.sender_id || newNotif.sender?.id);
+            showNotificationPopup(newNotif, navigate, userRef.current, url);
+          }
+          return;
+        }
         queryClient.setQueryData(["notifications", user.id], (old = []) => [
           newNotif,
           ...old,
