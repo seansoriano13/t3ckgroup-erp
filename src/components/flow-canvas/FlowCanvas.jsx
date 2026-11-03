@@ -284,7 +284,9 @@ function FlowCanvasInner() {
   const edges = useMemo(() => canvas?.edges ?? [], [canvas?.edges]);
   const flow = canvas?.flow ?? null;
   const entry = entryStage(stages);
-  const isLocked = flow?.state === "locked";
+  // An archived Sale Type (the Legacy Pipeline, #856) opens view only: no edit, no Publish.
+  const isArchivedType = Boolean(canvas?.saleType?.archived_at);
+  const isLocked = flow?.state === "locked" || isArchivedType;
   const lockBlockers = useMemo(
     () => (flow && !isLocked ? flowLockBlockers({ stages, edges, wonStageId: flow.won_stage_id }) : []),
     [flow, isLocked, stages, edges],
@@ -1701,7 +1703,7 @@ function FlowCanvasInner() {
 
                 <div className="mx-1 h-4 w-px bg-border" />
 
-                {isLocked ? (
+                {isArchivedType ? null : isLocked ? (
                   <Button
                     variant="outline"
                     size="lg"

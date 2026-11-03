@@ -250,6 +250,10 @@ export default function OpportunityFormModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isEdit && !form.sale_type_id) {
+      toast.error("Choose a Sale Type before saving.");
+      return;
+    }
     const sales_reference = normalizeSalesReference(form.sales_reference);
     if (sales_reference && !isValidSalesReference(sales_reference)) {
       toast.error(SALES_REFERENCE_HINT);
@@ -312,7 +316,7 @@ export default function OpportunityFormModal({
             someone who had already started filling it in. */}
         {!isEdit && saleTypes.length > 0 && (
           <SelectField
-            label="Sale Type"
+            label="Sale Type *"
             placeholder="Select sale type…"
             options={saleTypeOptions}
             value={form.sale_type_id}
