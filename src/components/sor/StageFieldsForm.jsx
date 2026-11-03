@@ -59,7 +59,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
         actorId,
       ),
     onSuccess: (_data, { field }) => {
-      queryClient.invalidateQueries({ queryKey: ["stageFieldValues", currentVisitId] });
+      queryClient.invalidateQueries({ queryKey: ["stageFieldValues"] });
       onChanged?.();
       toast.success(`${field.label} saved.`);
     },
@@ -78,6 +78,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
         await onSaveField(field.sor_field, value);
         setDraft((p) => ({ ...p, [field.id]: "" }));
         toast.success(`${field.label} saved.`);
+        onChanged?.();
       } catch (err) {
         toast.error(err.message);
       } finally {
