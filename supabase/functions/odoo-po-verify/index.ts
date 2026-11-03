@@ -178,7 +178,7 @@ async function attachP0ToItem(
 ): Promise<AttachResult> {
   const { data: target } = await admin
     .from("purchase_request_items")
-    .select("request_id, quantity")
+    .select("request_id, quantity, status")
     .eq("id", itemId)
     .maybeSingle();
   if (!target) return { ok: false, refused: true, message: "This line was not found." };
@@ -190,6 +190,10 @@ async function attachP0ToItem(
   const items: OfferItem[] = ((siblings ?? []) as OfferItem[]).map((i) => (i.id === itemId ? { ...i, po_number: null } : i));
   const self = items.find((i) => i.id === itemId);
   if (!self) return { ok: false, refused: true, message: "This line was not found." };
+  // #833: a Received line cannot take another P0.
+  if (self.status === "received" || target.status === "received") {
+    return { ok: false, refused: true, message: "This line is already received, so it can't take another P0." };
+  }
 
   const picked = pickedLineIds(p0, self, items);
   const facts = p0Facts(p0, self.odoo_product_id, picked, target.quantity ?? null);

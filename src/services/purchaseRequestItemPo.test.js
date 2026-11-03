@@ -82,6 +82,19 @@ describe("purchaseRequestService — PO on Ordered", () => {
     expect(await purchaseRequestService.attachP0(itemId, "P01234")).toMatchObject({ status: "received" })
   })
 
+  it("refuses to attach a P0 to a line that is already Received (#833)", async () => {
+    stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found", p0s: { P01234: { ordered: 10, received: 10 }, P05678: { ordered: 10, received: 0 } } })
+    await purchaseRequestService.attachP0(itemId, "P01234")
+    expect(item().status).toBe("received")
+    expect(item().po_number).toBe("P01234")
+
+    await expect(purchaseRequestService.attachP0(itemId, "P05678")).rejects.toThrow(
+      "This line is already received, so it can't take another P0.",
+    )
+    expect(item().status).toBe("received")
+    expect(item().po_number).toBe("P01234")
+  })
+
   it("refuses a P0 Odoo doesn't have, naming it, and saves nothing", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "not_found" })
     await expect(purchaseRequestService.attachP0(itemId, "P01234")).rejects.toThrow(/P01234/)
