@@ -43,6 +43,7 @@ import {
   snapshotRows,
 } from "../constants/salesFlow";
 import { formatSnapshotVersion } from "../constants/flowVersion";
+import { addedActionsForStage, summariseAddedActions } from "../utils/sorVersionUpdate";
 import { renderTemplate } from "../constants/taskTemplates";
 import { nextFollowUpDue } from "../constants/followUp";
 import {
@@ -1636,6 +1637,43 @@ function stageActionName(action) {
   return action?.kind === "create_group_task" ? "Group task" : "Individual task";
 }
 
+/**
+ * For an update of `ids` to `targetSnapshotId`: each SOR with the Stage it sits
+ * at and the Actions the target added there (#846). Empty `added` for a move
+ * back, or for a Stage with nothing new.
+ */
+async function planVersionUpdate(ids, targetSnapshotId) {
+  if (!ids?.length) return { items: [] };
+  const { data: target, error: targetError } = await supabase
+    .from("flow_snapshots")
+    .select("id, version, version_minor, snapshot_data")
+    .eq("id", targetSnapshotId)
+    .single();
+  if (targetError) throw targetError;
+  const { data: sors, error: sorError } = await supabase
+    .from("sales_opportunities")
+    .select("id, sales_reference, project_title, client_name, sale_type, deal_owner_id, flow_stage_id, flow_snapshot_id")
+    .in("id", ids);
+  if (sorError) throw sorError;
+  const sourceIds = [...new Set((sors || []).map((o) => o.flow_snapshot_id).filter(Boolean))];
+  const { data: sources, error: sourceError } = sourceIds.length
+    ? await supabase.from("flow_snapshots").select("id, version, version_minor, snapshot_data").in("id", sourceIds)
+    : { data: [], error: null };
+  if (sourceError) throw sourceError;
+  const sourceById = new Map((sources || []).map((s) => [s.id, s]));
+  const targetStages = target.snapshot_data?.stages || [];
+  const items = (sors || []).map((sor) => ({
+    sor,
+    stage: targetStages.find((st) => st.id === sor.flow_stage_id) || { id: sor.flow_stage_id, name: "" },
+    added: addedActionsForStage({
+      source: sourceById.get(sor.flow_snapshot_id),
+      target,
+      stageId: sor.flow_stage_id,
+    }),
+  }));
+  return { items };
+}
+
 function currentStageId(opportunity) {
   return opportunity?.flow_stage_id || opportunity?.status;
 }
@@ -2827,13 +2865,31 @@ export const opportunityService = {
    * `failed` with a reason. Works in batches like moveOpportunitiesToVersion.
    * Clears the Stage checklist caches of the SORs it updated (#742).
    */
+  /**
+   * What updating `ids` to `targetSnapshotId` would run (#846): the Stage
+   * Actions the target added to the Stage each SOR sits at. One summary line
+   * per Action, so the person sees it before confirming.
+   */
+  async previewVersionUpdate(ids, targetSnapshotId) {
+    const plan = await planVersionUpdate(ids, targetSnapshotId);
+    const entries = plan.items.flatMap((item) => item.added.map((action) => ({ action, name: stageActionName(action) })));
+    return { lines: summariseAddedActions(entries) };
+  },
+
   async updateSorVersions(
     ids,
     targetSnapshotId,
-    { onProgress, chunkSize = VERSION_MOVE_BATCH_SIZE, queryClient = null } = {},
+    { onProgress, chunkSize = VERSION_MOVE_BATCH_SIZE, queryClient = null, actorId = null } = {},
   ) {
     const succeeded = [];
     const failed = [];
+    // Read before the move: afterwards the old version is no longer on the row.
+    let plan = { items: [] };
+    try {
+      plan = await planVersionUpdate(ids, targetSnapshotId);
+    } catch (err) {
+      console.error("Could not work out the Stage Actions for this update:", err);
+    }
     onProgress?.({ done: 0, total: ids.length });
     for (let i = 0; i < ids.length; i += chunkSize) {
       const batch = ids.slice(i, i + chunkSize);
@@ -2849,6 +2905,20 @@ export const opportunityService = {
       }
       onProgress?.({ done: Math.min(i + chunkSize, ids.length), total: ids.length });
     }
+    // Run what the new version added to each SOR's current Stage. The
+    // once-per-(SOR, Stage, Action) record in sor_run_stage_actions stops doubles.
+    const movedIds = new Set(succeeded.map((m) => m.id));
+    const actionFailures = [];
+    for (const item of plan.items) {
+      if (!movedIds.has(item.sor.id) || item.added.length === 0) continue;
+      const names = await runStageActionsOnEntry({
+        existing: item.sor,
+        to: item.stage,
+        snapshotActions: item.added,
+        actorId,
+      });
+      names.forEach((name) => actionFailures.push({ id: item.sor.id, name }));
+    }
     if (queryClient) {
       for (const { id } of succeeded) {
         queryClient.invalidateQueries({ queryKey: ["quickViewChecklist", id] });
@@ -2856,7 +2926,7 @@ export const opportunityService = {
       }
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     }
-    return { succeeded, failed };
+    return { succeeded, failed, actionFailures };
   },
 
   async deleteOpportunity(id, actorId) {
