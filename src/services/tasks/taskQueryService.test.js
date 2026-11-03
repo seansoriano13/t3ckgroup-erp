@@ -26,6 +26,17 @@ describe("taskQueryService", () => {
   })
 
   describe("getAllTasks", () => {
+    it("returns every task when there are more than one page of them", async () => {
+      for (let i = 0; i < 2300; i++) {
+        makeTask({ logged_by: author.id, category_id: category.category_id, status: "INCOMPLETE" })
+      }
+
+      const tasks = await taskQueryService.getAllTasks()
+
+      expect(tasks).toHaveLength(2300)
+      expect(new Set(tasks.map((t) => t.id)).size).toBe(2300)
+    })
+
     it("maps a row onto the shape the UI expects", async () => {
       makeTask({
         logged_by: author.id,
