@@ -101,11 +101,11 @@ begin
   elsif v_event = 'item_status_changed' then
     select * into v_item from public.purchase_request_items
     where id = nullif(new.metadata->>'item_id', '')::uuid;
-    perform public._purchase_request_notify(
+    perform public._purchase_request_notify_status_merge(
       v_req.id, array[v_req.buyer_id, v_item.requested_by], new.author_id,
-      'PURCHASE_REQUEST_ITEM_STATUS',
-      'Requested Item updated',
-      v_label || ': ' || new.content
+      'Requested Item updated', v_label, new.content,
+      coalesce(v_item.name, 'A product') || ' → '
+        || coalesce(public._purchase_request_item_status_label(new.metadata->>'to'), new.metadata->>'to', '?')
     );
 
   elsif v_event = 'item_added' then
