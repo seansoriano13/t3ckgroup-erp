@@ -29,6 +29,18 @@
         "node_modules/vite/bin/vite.js"
       ],
       "port": 5173
+    },
+    {
+      "name": "item-road",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "D:/Sean/t3ckgroup-erp-item-road/node_modules/vite/bin/vite.js",
+        "D:/Sean/t3ckgroup-erp-item-road",
+        "--port",
+        "5181",
+        "--strictPort"
+      ],
+      "port": 5181
     }
   ]
 }
