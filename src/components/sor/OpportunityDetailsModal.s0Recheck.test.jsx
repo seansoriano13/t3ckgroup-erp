@@ -1,6 +1,6 @@
 /**
  * #817 — opening a SOR re-checks a Found or Not checked S0 once, in the background, then refreshes
- * the S0 card. When Odoo no longer has the S0 the card shows a red "Gone from Odoo" badge whose
+ * the S0 card (which now lives in the edit form, #859). When Odoo no longer has the S0 the card shows a red "Gone from Odoo" badge whose
  * reason ("Odoo no longer has S01237") is hover text only. The database function is covered by
  * src/test/policy/817-sales-reference-recheck.test.js; here the edge function and the card read are
  * stubbed.
@@ -50,6 +50,11 @@ function renderModal() {
   return opportunity
 }
 
+/** The S0 card sits in the edit form's Details section (#859), so open the edit form to see it. */
+async function openEditForm(user) {
+  await user.click(await screen.findByRole("button", { name: "Edit opportunity" }))
+}
+
 describe("OpportunityDetailsModal — S0 re-check on open (#817)", () => {
   beforeEach(() => {
     stubRpc("sor_can_edit_opportunity", () => true)
@@ -59,7 +64,9 @@ describe("OpportunityDetailsModal — S0 re-check on open (#817)", () => {
   it("re-checks a Not checked S0 once and refreshes the card", async () => {
     const card = stubCard("not_checked")
     const calls = stubRecheck(card, "found")
+    const user = setupUser()
     const opportunity = renderModal()
+    await openEditForm(user)
 
     await waitFor(() => expect(calls).toHaveLength(1))
     expect(calls[0]).toEqual({ action: "recheck", opportunityId: opportunity.id })
@@ -72,6 +79,7 @@ describe("OpportunityDetailsModal — S0 re-check on open (#817)", () => {
     const calls = stubRecheck(card, "gone")
     const user = setupUser()
     renderModal()
+    await openEditForm(user)
 
     const badge = await screen.findByText("Gone from Odoo")
     expect(calls).toHaveLength(1)
@@ -83,7 +91,9 @@ describe("OpportunityDetailsModal — S0 re-check on open (#817)", () => {
   it("does not re-check an S0 already marked Gone", async () => {
     const card = stubCard("gone")
     const calls = stubRecheck(card, "gone")
+    const user = setupUser()
     renderModal()
+    await openEditForm(user)
 
     expect(await screen.findByText("Gone from Odoo")).toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve, 100))
