@@ -171,6 +171,35 @@ export function allowedTransitions(status, side) {
   return byHand;
 }
 
+/** #852: the statuses the bulk bar can offer, in the order it shows them. Purchased stays with Attach P0. */
+export const BULK_STATUSES = [
+  ITEM_STATUS.AVAILABLE,
+  ITEM_STATUS.TO_PURCHASE,
+  ITEM_STATUS.STILL_CANVASSING,
+  ITEM_STATUS.CANNOT_SOURCE,
+  ITEM_STATUS.CANCELLED,
+];
+
+/**
+ * #852: whether a member on `side` may change this line's status by hand, so it gets a tick box.
+ */
+export const canTickLine = (item, side) => allowedTransitions(item.status, side).some((to) => BULK_STATUSES.includes(to));
+
+/**
+ * #852: the bulk statuses valid for every one of `items` (each line's own `allowedTransitions`),
+ * leaving out a status a line already has, except Available on a line carrying a stock warning.
+ */
+export function bulkStatuses(items, side) {
+  if (!items.length) return [];
+  return BULK_STATUSES.filter((status) =>
+    items.every(
+      (item) =>
+        allowedTransitions(item.status, side).includes(status) &&
+        (item.status !== status || (status === ITEM_STATUS.AVAILABLE && !!stockWarning(item))),
+    ),
+  );
+}
+
 /**
  * #681 — the line's "Now x free of y" warning, or null. A fresh stock check found fewer free than
  * an Available line needs; any status choice clears it.
