@@ -30,10 +30,10 @@ beforeAll(async () => {
     stageA = await stage("A", 10)
     stageB = await stage("B", 20)
     actionId = (await svc().from("flow_stage_actions").insert({ stage_id: stageA, kind: "create_individual_task" }).select("id").single()).data.id
-    const cond = await svc().from("stage_conditions").insert({ stage_id: stageA, kind: "tickbox", label: `${MARKER} ok` }).select("id").single()
+    const cond = await svc().from("stage_conditions").insert({ stage_id: stageA, kind: "tickbox", label: `${MARKER} ok`, is_required: false }).select("id").single()
     if (cond.error) throw new Error(cond.error.message)
     conditionId = cond.data.id
-    const f = await svc().from("flow_stage_fields").insert({ stage_id: stageA, label: `${MARKER} f`, source: "custom", field_type: "text" }).select("id").single()
+    const f = await svc().from("flow_stage_fields").insert({ stage_id: stageA, label: `${MARKER} f`, source: "custom", field_type: "text", is_required: false }).select("id").single()
     if (f.error) throw new Error(f.error.message)
     fieldId = f.data.id
 })

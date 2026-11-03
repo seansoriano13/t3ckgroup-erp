@@ -37,12 +37,22 @@ function Stat({ label, value, sub, tone }) {
 
 export function StatusLine({ p, dg }) {
   const m = dg.moves;
+  const unmetGateCount = Math.max(
+    dg.blocked?.length || 0,
+    (p.checklist || []).filter(
+      ({ condition, status }) =>
+        condition?.is_required !== false &&
+        status !== "satisfied" &&
+        status !== "not_applicable",
+    ).length,
+  );
+  const isBlocked = unmetGateCount > 0;
   const nextLine = m.isTerminal
     ? "Deals stop here."
     : p.moveDisabled
       ? p.moveDisabledReason
-      : dg.blocked.length
-        ? `Can't move on until ${dg.blocked.length === 1 ? "one thing is" : `${dg.blocked.length} things are`} done.`
+      : isBlocked
+        ? `Can't move on until ${unmetGateCount === 1 ? "one thing is" : `${unmetGateCount} things are`} done.`
         : m.isFlow && m.destinations.length
           ? `Ready to move to ${m.destinations.map((d) => d.label).join(" or ")}.`
           : "Ready to move on.";
@@ -52,7 +62,7 @@ export function StatusLine({ p, dg }) {
         In {m.currentLabel}
         {dg.days != null && <span className="text-muted-foreground"> · {dg.days === 0 ? "since today" : `${dg.days} day${dg.days === 1 ? "" : "s"}`}</span>}
       </p>
-      <p className={cn("mt-1 text-sm", dg.blocked.length && !m.isTerminal ? "font-semibold text-amber-11" : "text-muted-foreground")}>{nextLine}</p>
+      <p className={cn("mt-1 text-sm", isBlocked && !m.isTerminal ? "font-semibold text-amber-11" : "text-muted-foreground")}>{nextLine}</p>
     </section>
   );
 }

@@ -124,9 +124,16 @@ export function TeamList({ opportunity, compact = false }) {
 
 // One list for every "blocked" count (#791): unsatisfied required Conditions
 // plus required, empty Stage Fields, the same two things the move refuses on.
-export function blockedLabels(checklist, missingFields = []) {
+export function blockedLabels(checklist = [], missingFields = []) {
   return [
-    ...checklist.filter(({ condition, status }) => condition?.is_required && status === "unsatisfied").map(({ condition }) => condition.label),
+    ...(checklist || [])
+      .filter(
+        ({ condition, status }) =>
+          condition?.is_required !== false &&
+          status !== "satisfied" &&
+          status !== "not_applicable",
+      )
+      .map(({ condition }) => condition.label),
     ...(missingFields || []).map((field) => field.label),
   ];
 }

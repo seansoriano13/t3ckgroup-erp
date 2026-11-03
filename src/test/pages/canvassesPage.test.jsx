@@ -131,7 +131,7 @@ describe("the Canvasses page", () => {
     return request;
   };
 
-  it("says in the Request column what each Canvass needs, or which request it became", async () => {
+  it("shows one status badge a row: the Request column is the request's name, the State column its live status", async () => {
     seedRequested();
     const user = setupUser();
     renderPage();
@@ -139,13 +139,17 @@ describe("the Canvasses page", () => {
     const rows = await screen.findAllByTestId("canvass-row");
     const rowOf = (number) => rows.find((row) => within(row).queryByText(number));
 
-    expect(rowOf("CNV_0003")).toHaveTextContent("Needs winner");
-    expect(rowOf("CNV_0002")).toHaveTextContent("Ready to request");
-    expect(rowOf("CNV_0001")).not.toHaveTextContent(/needs winner|ready to request|request/i);
+    // Before a request, the Request column is empty: the old "Needs winner" / "Ready to request" badge is gone.
+    for (const number of ["CNV_0001", "CNV_0002", "CNV_0003"]) {
+      expect(rowOf(number)).not.toHaveTextContent(/needs winner|ready to request/i);
+      expect(rowOf(number)).toHaveTextContent("—");
+    }
 
-    // The badge is a status, not a link: it says only "Cancelled", and the request's name is its tooltip.
+    // After one: the name is plain text, not a link or badge, and State is the item's status.
     const row = rowOf("CNV_0004");
-    expect(within(row).getByText("Cancelled")).toHaveAttribute("title", "Office buy · Cancelled");
+    expect(within(row).getByText("Office buy")).not.toHaveAttribute("title");
+    expect(within(row).getByText("Cancelled")).toBeInTheDocument();
+    expect(within(row).queryByText("Requested")).not.toBeInTheDocument();
     expect(within(row).queryByRole("link")).not.toBeInTheDocument();
   });
 
@@ -203,6 +207,32 @@ describe("the Canvasses page", () => {
     expect(await screen.findAllByTestId("offer")).toHaveLength(1);
     // Offers sit side by side in three columns, the same as the New Canvass form.
     expect(screen.getByTestId("offers-grid")).toHaveClass("md:grid-cols-3");
+  });
+
+  it("does not save an offer on Enter without a price, but saves normally once price is provided", async () => {
+    const user = setupUser();
+    renderPage();
+    await showAll(user);
+    await user.click(await screen.findByText("CNV_0002"));
+    expect(await screen.findByRole("heading", { name: /^CNV_0002\s*·/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Add offer/i }));
+    const supplierInput = screen.getByRole("combobox", { name: "Supplier" });
+    const saveButton = screen.getByRole("button", { name: /Save offer/i });
+
+    // Typing supplier without price keeps Save disabled and Enter does not submit
+    await user.type(supplierInput, "Fast Prints{enter}");
+    expect(saveButton).toBeDisabled();
+    expect(screen.queryByText("Fast Prints")).not.toBeInTheDocument();
+    expect(db.rows("sor_canvass_offers").find((o) => o.supplier_name === "Fast Prints")).toBeUndefined();
+
+    // Adding price enables Save offer and submitting with Enter saves the offer normally
+    await user.type(screen.getByLabelText("Unit price in PHP"), "350");
+    expect(saveButton).toBeEnabled();
+    await user.type(supplierInput, "{enter}");
+
+    await waitFor(() => expect(screen.getByText("Fast Prints")).toBeInTheDocument());
+    expect(db.rows("sor_canvass_offers").find((o) => o.supplier_name === "Fast Prints")).toBeDefined();
   });
 
   it("locks a Canvass once a Purchase Request was made from it: no winner change, no new offer", async () => {

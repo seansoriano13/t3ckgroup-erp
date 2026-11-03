@@ -73,6 +73,16 @@ export default function SorModal({
   const { user } = useAuth();
   const id = rawOpportunity?.id || opportunityId;
 
+  // The parent's row can go stale after a save; this refetch shares the ["opportunity", id] key, so an
+  // invalidate from anywhere (e.g. SorVersionUpdate) refreshes it. Read the SOR through activeOpportunity.
+  const { data: liveOpportunity } = useQuery({
+    queryKey: ["opportunity", id],
+    queryFn: () => opportunityService.getOpportunityById(id),
+    enabled: !!id && isOpen,
+    initialData: rawOpportunity,
+  });
+  const activeOpportunity = liveOpportunity || rawOpportunity;
+
   // ADR 0021 / #297: full | participant | locked | none. The register and
   // Board already pass a full-access-only opportunity (RLS filters them out
   // there), so a caller that already knows the level (GlobalDetailManager)
@@ -145,8 +155,8 @@ export default function SorModal({
   );
   const { stages: allStages } = usePipelineStages({ includeInactive: true });
   const pipelineStages = useMemo(
-    () => allStages.filter((s) => s.is_active || s.code === rawOpportunity?.status),
-    [allStages, rawOpportunity?.status],
+    () => allStages.filter((s) => s.is_active || s.code === activeOpportunity?.status),
+    [allStages, activeOpportunity?.status],
   );
   const stageLabel = useCallback(
     (code) => pipelineStages.find((s) => s.code === code)?.label || code,
@@ -251,17 +261,17 @@ export default function SorModal({
   });
 
   const { data: checklist = [] } = useQuery({
-    queryKey: ["stageChecklist", id, rawOpportunity?.flow_stage_id || rawOpportunity?.status, rawOpportunity?.flow_snapshot_id ?? null],
-    queryFn: () => opportunityService.getStageChecklist(id, rawOpportunity),
+    queryKey: ["stageChecklist", id, activeOpportunity?.flow_stage_id || activeOpportunity?.status, activeOpportunity?.flow_snapshot_id ?? null],
+    queryFn: () => opportunityService.getStageChecklist(id, activeOpportunity),
     enabled: !!id && isOpen && accessLevel !== "locked",
   });
 
   const { data: flowCanvas } = useQuery({
-    queryKey: ["salesFlow", rawOpportunity?.sale_type_id],
-    queryFn: () => salesFlowService.getFlow(rawOpportunity.sale_type_id),
-    enabled: !!rawOpportunity?.sale_type_id && isOpen,
+    queryKey: ["salesFlow", activeOpportunity?.sale_type_id],
+    queryFn: () => salesFlowService.getFlow(activeOpportunity.sale_type_id),
+    enabled: !!activeOpportunity?.sale_type_id && isOpen,
   });
-  const currentFlowStage = flowCanvas?.stages?.find((s) => s.id === rawOpportunity?.flow_stage_id) || null;
+  const currentFlowStage = flowCanvas?.stages?.find((s) => s.id === activeOpportunity?.flow_stage_id) || null;
   const currentFlowStageTone = flowCanvas ? flowStageTone(currentFlowStage, flowCanvas.flow, flowCanvas.stages) : "mauve";
 
   const { data: employees = [] } = useQuery({
@@ -277,19 +287,19 @@ export default function SorModal({
   // Resolved from `employees`, which every signed-in caller can already read
   // regardless of SOR access.
   const opportunity = useMemo(() => {
-    if (!rawOpportunity) return rawOpportunity;
-    if (accessLevel !== "participant") return rawOpportunity;
+    if (!activeOpportunity) return activeOpportunity;
+    if (accessLevel !== "participant") return activeOpportunity;
     const byId = (empId) => employees.find((e) => e.id === empId) || null;
     return {
-      ...rawOpportunity,
-      registrar: byId(rawOpportunity.registered_by),
-      deal_owner: byId(rawOpportunity.deal_owner_id),
-      closing_sales: byId(rawOpportunity.closing_sales_id),
-      support_1: byId(rawOpportunity.support_sales_1_id),
-      support_2: byId(rawOpportunity.support_sales_2_id),
-      sales_director: byId(rawOpportunity.sales_director_id),
+      ...activeOpportunity,
+      registrar: byId(activeOpportunity.registered_by),
+      deal_owner: byId(activeOpportunity.deal_owner_id),
+      closing_sales: byId(activeOpportunity.closing_sales_id),
+      support_1: byId(activeOpportunity.support_sales_1_id),
+      support_2: byId(activeOpportunity.support_sales_2_id),
+      sales_director: byId(activeOpportunity.sales_director_id),
     };
-  }, [rawOpportunity, accessLevel, employees]);
+  }, [activeOpportunity, accessLevel, employees]);
 
   // A mention is an invitation (it grants read-only access to the record), so
   // the SOR chat's roster offers every employee, on any SOR.
@@ -310,7 +320,7 @@ export default function SorModal({
 
   // A Legacy Pipeline deal with no version on record (#414) moves by stage
   // code, as SORs always did: its live flow Stage's gate never applies to it.
-  const runsFlow = Boolean(rawOpportunity) && !isJudgedByStageCode(rawOpportunity);
+  const runsFlow = Boolean(activeOpportunity) && !isJudgedByStageCode(activeOpportunity);
 
   // Issue #407 — the header's "Clear to move"/"Blocked" badge (and the
   // "Can't move on yet" message under the ribbon) used to be judged on
@@ -320,9 +330,9 @@ export default function SorModal({
   // the move itself came back refused. Fetched here, not just inside Now's
   // Stage Fields form, so the header can name it before the click.
   const { data: stageFields = [] } = useQuery({
-    queryKey: ["stageFields", rawOpportunity?.flow_stage_id],
-    queryFn: () => stageFieldService.getForStage(rawOpportunity.flow_stage_id),
-    enabled: runsFlow && !!rawOpportunity?.flow_stage_id && isOpen,
+    queryKey: ["stageFields", activeOpportunity?.flow_stage_id],
+    queryFn: () => stageFieldService.getForStage(activeOpportunity.flow_stage_id),
+    enabled: runsFlow && !!activeOpportunity?.flow_stage_id && isOpen,
   });
 
   const { data: currentVisitFieldValues = {} } = useQuery({
@@ -334,10 +344,10 @@ export default function SorModal({
   const missingRequiredStageFields = useMemo(
     () =>
       missingStageFields(runsFlow ? stageFields : [], {
-        opportunity: rawOpportunity || {},
+        opportunity: activeOpportunity || {},
         visitValues: currentVisitFieldValues,
       }),
-    [runsFlow, stageFields, rawOpportunity, currentVisitFieldValues],
+    [runsFlow, stageFields, activeOpportunity, currentVisitFieldValues],
   );
 
   // Only Details shows or edits a Lead Source (#302), so it waits for Details.
@@ -387,6 +397,8 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["revertVisits", id] });
     queryClient.invalidateQueries({ queryKey: ["stageVisitId", id] });
     queryClient.invalidateQueries({ queryKey: ["currentStageVisit", id] });
+    queryClient.invalidateQueries({ queryKey: ["sorCurrentVisitId", id] });
+    queryClient.invalidateQueries({ queryKey: ["sorVisitAudience", id] });
     queryClient.invalidateQueries({ queryKey: ["followUpStatus", id] });
     // #310: the Now card, Items statuses and Journey read the Purchase Request.
     queryClient.invalidateQueries({ queryKey: ["sor-purchase-request", id] });
@@ -487,7 +499,7 @@ export default function SorModal({
   // Issue #390 — every stage control in the modal (the header, and the staging
   // layouts) moves through this, so a Return always reaches the prompt.
   const returnPrompt = useReturnPrompt({
-    opportunity: rawOpportunity,
+    opportunity: activeOpportunity,
     stages: flowCanvas?.stages,
     enabled: runsFlow,
     move: stageMutation.mutate,
@@ -495,7 +507,7 @@ export default function SorModal({
   const stageMover = { ...stageMutation, mutate: returnPrompt.request };
   // A Return is never blocked by the Stage being left, so a stage control
   // leaves these destinations open even while the current Stage is blocked.
-  const returnStageIds = useReturnStageIds(rawOpportunity, runsFlow && isOpen);
+  const returnStageIds = useReturnStageIds(activeOpportunity, runsFlow && isOpen);
 
   const deleteMutation = useMutation({
     mutationFn: () => opportunityService.deleteOpportunity(id, user?.id),

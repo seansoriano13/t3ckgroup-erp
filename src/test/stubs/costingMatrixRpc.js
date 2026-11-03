@@ -511,4 +511,19 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
       .slice(0, args.p_limit ?? 100)
       .map((e) => ({ id: e.id, at: e.created_at, actor_id: e.actor_id, kind: e.kind, detail: e.detail }))
   })
+
+  // #836: the narrow SOR header fields for the Costing Desk.
+  stubRpc("costing_matrix_header", (args) => {
+    if (!tier) return null
+    const opp = rowsOf("sales_opportunities").find((o) => o.id === args.p_opportunity_id)
+    if (!opp) return null
+    return {
+      id: opp.id,
+      sor_code: opp.sor_code ?? null,
+      client_name: opp.client_name ?? null,
+      project_title: opp.project_title ?? null,
+      sales_reference: opp.sales_reference ?? null,
+      deal_owner_id: opp.deal_owner_id ?? null,
+    }
+  })
 }

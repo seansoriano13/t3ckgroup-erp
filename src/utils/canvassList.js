@@ -31,6 +31,11 @@ export function canvassRequestState({ kind, winner, requestId, requestLabel, req
     : { key: "needs_winner", label: "Needs winner", requestId: null, theme: STATUS_THEME.MAUVE };
 }
 
+/** The Request column: the request's reference once one was made, nothing before (the State column says the rest). */
+export function canvassRequestRef(row) {
+  return row.requestId ? row.requestLabel || "Purchase Request" : null;
+}
+
 /** What the row says it is for: "S07983 · 1.2 Stretcher", "Gloves (PR-12)", or the product alone. */
 export function canvassSubjectLabel(row) {
   if (row.kind === CANVASS_KIND.COMPONENT) {
@@ -51,18 +56,27 @@ export const CANVASS_STATE = { OPEN: "open", WON: "won", SIGNED: "signed", ALL: 
 /** A Canvass's own state for the State badge: Signed off (old history), Requested (a Purchase Request was made), Winner picked, or Open. */
 export const CANVASS_ROW_STATE = { OPEN: "open", WON: "won", REQUESTED: "requested", SIGNED: "signed" };
 
-/** State -> StatusBadge tone, the one place this list maps them. */
+/** State -> StatusBadge tone, the one place this list maps them. A made request shows its item's status, so those tones ride along. */
 export const CANVASS_STATE_TONES = {
+  ...ITEM_STATUS_THEME,
   [CANVASS_ROW_STATE.OPEN]: "amber",
   [CANVASS_ROW_STATE.REQUESTED]: "blue",
   [CANVASS_ROW_STATE.WON]: "green",
   [CANVASS_ROW_STATE.SIGNED]: "mauve",
 };
 
-/** `{ state, label }` for a StateCell. Open means no winner yet. */
+/**
+ * `{ state, label }` for a StateCell. Open means no winner yet. Once a request was made it is the
+ * live status of the request's item ("Still canvassing", "Purchased", "Cancelled"); "Requested" is
+ * only the fallback when that status is not known.
+ */
 export function canvassStateOf(row) {
   if (row.signedOffAt) return { state: CANVASS_ROW_STATE.SIGNED, label: "Signed off" };
-  if (row.requestId) return { state: CANVASS_ROW_STATE.REQUESTED, label: "Requested" };
+  if (row.requestId) {
+    const label = ITEM_STATUS_LABELS[row.requestItemStatus];
+    if (label) return { state: row.requestItemStatus, label };
+    return { state: CANVASS_ROW_STATE.REQUESTED, label: "Requested" };
+  }
   if (row.winner) return { state: CANVASS_ROW_STATE.WON, label: "Winner picked" };
   return { state: CANVASS_ROW_STATE.OPEN, label: "Open" };
 }
@@ -83,7 +97,7 @@ export function canvassExportRows(rows) {
     row.canvasserName ?? null,
     canvassWinnerLabel(row),
     row.offerCount ?? 0,
-    canvassRequestState(row)?.label ?? null,
+    canvassRequestRef(row),
     row.signerName ?? null,
     canvassStateOf(row).label,
   ]);

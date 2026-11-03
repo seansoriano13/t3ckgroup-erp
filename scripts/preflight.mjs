@@ -5,8 +5,8 @@
  * database and deploys the staging site, so the point of this is that nothing
  * about the push is a surprise.
  *
- * It runs the mechanical gates locally, in the same order CI will, and stops at
- * the first failure. Then it prints the checklist CI can't cover — a real smoke
+ * It runs the mechanical gates locally, in the same order CI will. It runs every
+ * gate even when one fails, so all problems show up in one pass. Then it prints the checklist CI can't cover — a real smoke
  * test on seeded data, and the `[auth]` config in supabase/config.toml that
  * only drives the local stack and has a hand-maintained twin in the staging
  * dashboard.

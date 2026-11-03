@@ -479,7 +479,9 @@ deal must fill in is a Stage Field, never a condition. An attachment condition
 is met only by a file given through that condition, not by any matching file on
 the SOR. A deadline never blocks; it warns on approach and marks the deal
 overdue on breach. Conditions guard moving on, never going back: a Revert or a
-Return is not blocked by them, nor by a required Stage Field.
+Return is not blocked by them, nor by a required Stage Field. The same kind
+may sit on several Stages of one Sales Flow; each checks the whole SOR again,
+and the Flow Canvas warns that it is also checked at the other Stage.
 _Avoid_: Gate, Requirement, Rule
 
 **Goods checked**:
@@ -671,7 +673,9 @@ The Sale Type that holds every SOR registered before Sales Flows existed. It
 gives those SORs a Sales Flow to belong to, not a new process. They keep their
 Stages and behave as they always did, and they have no link to Government or
 Outright. Its Always sees and Always edits are both Everyone, as before Sales
-Flows existed; only the Government and Outright flows are private.
+Flows existed; only the Government and Outright flows are private. Closed to
+new SORs: every new SOR names a Sale Type with a Sales Flow, so the Legacy
+Pipeline only ever holds the SORs it was made for.
 _Avoid_: Standard Pipeline (its old name), Default flow
 
 **Flow Snapshot**:
@@ -691,6 +695,9 @@ latest published one. It keeps working on its own version until it is
 updated — in bulk (all, chosen ones, or all but chosen ones) or one at a time
 when someone opens it and is offered the update. An SOR may also be put back
 on an older version, but never on one that lacks the Stage it sits at.
+Updating runs the Stage Actions the newer version added to the Stage the SOR
+sits at — never those of Stages it already passed — and the update names them
+before it is confirmed, since a notification cannot be taken back.
 Changing an SOR's version is an update, never a "move": moving is going
 between Stages.
 _Avoid_: Stale SOR, Old-version SOR, Move (when meaning a version change)
@@ -726,7 +733,7 @@ Whoever opened a Purchase Request or added a Requested Item to it. Status change
 _Avoid_: Sales side (when the person is not on a Deal Team), Owner
 
 **Buyer**:
-The one purchaser who owns a Purchase Request — named by the Stage Action that opens a Project request, or taken from the Purchase Requests list by anyone with Purchasing access. Once there is a Buyer, the request's status changes and chat notify only the Buyer and the Requesters.
+The one purchaser who owns a Purchase Request — named by the Stage Action that opens a Project request, or taken from the Purchase Requests list by anyone with Purchasing access. Once there is a Buyer, the request's status changes and chat notify only the Buyer and the Requesters. Setting or changing the Buyer, by taking the request or by naming someone, tells the Requesters who is now buying.
 _Avoid_: Assignee, Purchaser (when meaning this role)
 
 **Requested Item**:
@@ -805,7 +812,7 @@ A Canvass is locked once a Purchase Request was made from it, whether the reques
 _Avoid_: Frozen, Closed Canvass
 
 **Canvasses** (the page):
-The Purchasing page listing every Canvass, project ones and Direct request ones included, and old free-standing ones. It starts nothing: a Canvass is started from the product line (the project's line, or a line of a Direct request), and there is no "New Canvass", no "Create Purchase Request" from picked Canvasses and no "Add a Canvass" on a request (ADR 0047). Each Canvass on the page and in its panel says whether a request is still to be made: "Needs winner", "Ready to request", or the status of its Requested Item once a request exists ("Requested", "Cancelled"). The badge is a status only, never a link; the Canvass panel names the request and opens it in place, over the Canvass. A Canvass on a Component shows nothing there. A "Request" filter narrows to Canvasses not requested yet or with a request created.
+The Purchasing page listing every Canvass, project ones and Direct request ones included, and old free-standing ones. It starts nothing: a Canvass is started from the product line (the project's line, or a line of a Direct request), and there is no "New Canvass", no "Create Purchase Request" from picked Canvasses and no "Add a Canvass" on a request (ADR 0047). A list row carries one status badge, in its State column: "Open" or "Winner picked" until a request exists, then the live status of its Requested Item ("Still canvassing", "Purchased", "Cancelled"); "Signed off" (old history) comes first. The Request column is the request's name as plain text, a dash until one exists and on a Component Canvass. The Canvass panel's strip still says whether a request is still to be made: "Needs winner", "Ready to request", or the Requested Item's status; it is a status only, never a link, and the panel names the request and opens it in place, over the Canvass. A "Request" filter narrows to Canvasses not requested yet or with a request created.
 _Avoid_: Canvass tool, Sourcing page
 
 **Offer**:

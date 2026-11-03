@@ -53,14 +53,12 @@ beforeAll(async () => {
     const opened = await svc().rpc("costing_open_matrix", { p_opportunity_id: sorId })
     if (opened.error) throw new Error(`costing_open_matrix: ${opened.error.message}`)
     matrixId = opened.data
+    // Opening the matrix already made the line and its Component from the SOR product (#834).
     tenderLineId = (
-        await asSvc(
-            svc().from("costing_tender_lines").insert({ matrix_id: matrixId, position: 1, tender_specification: "Stretcher", quantity: 2, sor_item_id: lineId }).select("id").single(),
-            "Tender Line",
-        )
+        await asSvc(svc().from("costing_tender_lines").select("id").eq("matrix_id", matrixId).eq("sor_item_id", lineId).single(), "Tender Line")
     ).id
     componentId = (
-        await asSvc(svc().from("costing_components").insert({ tender_line_id: tenderLineId, position: 1, name: "Component 1", quantity: 1 }).select("id").single(), "Component")
+        await asSvc(svc().from("costing_components").select("id").eq("tender_line_id", tenderLineId).single(), "Component")
     ).id
 
     requestId = (await asSvc(svc().from("purchase_requests").insert({ opportunity_id: sorId, created_by: ids.dealOwner }).select("id").single(), "request")).id

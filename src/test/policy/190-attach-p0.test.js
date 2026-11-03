@@ -56,6 +56,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.stageParticipant)
+    await svc().from("ipas").delete().eq("po_number", "P04804")
     if (requestId) await svc().from("purchase_requests").delete().eq("id", requestId)
     if (sorId) await svc().from("sales_opportunities").delete().eq("id", sorId)
 })
@@ -94,16 +95,15 @@ describe("attaching a P0", () => {
         expect(data).toMatchObject({ status: "received" })
     })
 
-    it("a Received line takes a different P0: status comes from the facts and lines picked on the old P0 are cleared", async () => {
+    it("refuses a Received line (#833)", async () => {
         const id = await seedItem()
         const first = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 10 }, "P01234")
         expect(first.data).toMatchObject({ status: "received", po_number: "P01234" })
-        const picked = await svc().from("purchase_request_items").update({ odoo_po_line_ids: [111, 222] }).eq("id", id)
-        expect(picked.error).toBeNull()
 
-        const { data, error } = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 4 }, "P05678")
-        expect(error).toBeNull()
-        expect(data).toMatchObject({ status: "purchased", po_number: "P05678", po_received: 4, odoo_po_line_ids: [] })
+        const { error } = await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 4 }, "P05678")
+        expect(error).not.toBeNull()
+        expect(error.code).toBe("22023")
+        expect(error.message).toMatch(/is Received/)
     })
 
     it("#804: stores the P0 line ids it is given, and a re-attach of the same P0 keeps the lines already picked", async () => {
@@ -142,6 +142,7 @@ describe("attaching a P0", () => {
 
     it("#804: the Pick P0 line rows read name and quantity from the live IPAS copy", async () => {
         const id = await seedItem()
+        await svc().from("ipas").delete().eq("po_number", "P04804")
         await attach("stageParticipant", id, { state: "confirmed", ordered: 10, received: 0 }, "P04804")
         const { error: ipasError } = await svc().from("ipas").insert({
             po_number: "P04804",

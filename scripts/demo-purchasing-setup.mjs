@@ -18,7 +18,8 @@
  *      its latest Flow Snapshot under NEW ids (staging already has the real
  *      Project under the same ids), left as a draft so the demo can add the
  *      purchasing Stage Actions and Conditions and Publish it. A copy from an
- *      earlier run is renamed, archived, and its SORs soft-deleted.
+ *      earlier run is renamed, archived, and its SORs soft-deleted. Any other SOR on
+ *      Scenario F's two S0s (S04081, S04602) is soft-deleted too, so both can be registered.
  *
  * Without --apply it rolls back at the end, so the default run is a rehearsal.
  *
@@ -184,20 +185,7 @@ function ownedIds(snapshot, saleTypeId, flowId) {
   return ids
 }
 
-/**
- * Frees the demo's Odoo POs for the next rehearsal: every IPAS naming an SOR of
- * the old copy is reopened (if filed) by 101 (the demo Super Admin) and cancelled by
- * Cjay (the demo Purchaser), through the same functions the screen uses. One live
- * IPAS per PO is the rule.
- */
-async function freeDemoPos(c, saleTypeId) {
-  const { rows: ipas } = await c.query(
-    `select distinct i.id, i.number, i.po_number, i.state from public.ipas i
-       join public.ipas_sors s on s.ipas_id = i.id
-       join public.sales_opportunities o on o.id = s.opportunity_id
-      where o.sale_type_id = $1 and i.state <> 'cancelled'`,
-    [saleTypeId],
-  )
+async function cancelIpasRows(c, ipas, reason) {
   if (ipas.length === 0) return
   const actAs = async (key) => {
     const email = `${key}@${DEMO_DOMAIN}`
@@ -212,13 +200,30 @@ async function freeDemoPos(c, saleTypeId) {
       await c.query("select public.ipas_reopen($1, $2)", [row.id, "Demo reset"])
     }
     await actAs("cjay")
-    await c.query("select public.ipas_cancel($1, $2)", [row.id, "Demo reset: frees the PO for the next rehearsal"])
+    await c.query("select public.ipas_cancel($1, $2)", [row.id, reason])
     console.log(`  cancelled ${row.number} (${row.po_number} is free again)`)
   }
   await c.query("reset role")
   // The claims outlive the role for the rest of the transaction; left set, auth.uid() stays Cjay and
   // the SOR guard refuses the soft-delete that follows.
   await c.query("select set_config('request.jwt.claims', '', true)")
+}
+
+/**
+ * Frees the demo's Odoo POs for the next rehearsal: every IPAS naming an SOR of
+ * the old copy is reopened (if filed) by 101 (the demo Super Admin) and cancelled by
+ * Cjay (the demo Purchaser), through the same functions the screen uses. One live
+ * IPAS per PO is the rule.
+ */
+async function freeDemoPos(c, saleTypeId) {
+  const { rows: ipas } = await c.query(
+    `select distinct i.id, i.number, i.po_number, i.state from public.ipas i
+       join public.ipas_sors s on s.ipas_id = i.id
+       join public.sales_opportunities o on o.id = s.opportunity_id
+      where o.sale_type_id = $1 and i.state <> 'cancelled'`,
+    [saleTypeId],
+  )
+  await cancelIpasRows(c, ipas, "Demo reset: frees the PO for the next rehearsal")
 }
 
 async function retireOldCopies(c) {
@@ -230,6 +235,104 @@ async function retireOldCopies(c) {
     await c.query("update public.sale_types set name = $2, archived_at = now() where id = $1", [old.id, `${DEMO_SALE_TYPE} (old ${stamp})`])
     console.log(`  retired the earlier copy (${sors.rowCount} SORs soft-deleted)`)
   }
+}
+
+// Scenario F tests one PO (P02674) shared by two SORs. One S0 per SOR (#819):
+// S04081 is registered fresh (as SOR-257), so any stray SOR on S04081 is soft-deleted.
+// For S04602, the existing SOR-73 on staging is moved onto Project [FOR DEMO] at the
+// entry stage, so the demo uses it without tripping the duplicate S0 check.
+async function freeScenarioFS0s(c, demoFlow) {
+  // Free P02674 if it still has an open or filed IPAS from an earlier run
+  const { rows: p02674Ipas } = await c.query(
+    "select id, number, po_number, state from public.ipas where po_number = 'P02674' and state <> 'cancelled'",
+  )
+  await cancelIpasRows(c, p02674Ipas, "Demo reset: frees P02674 for Scenario F")
+
+  // Soft-delete any stray SOR on S04081 so Scenario F can register it fresh
+  const { rows: strayS04081 } = await c.query(
+    `update public.sales_opportunities o set is_deleted = true
+      where o.sales_reference = 'S04081' and o.is_deleted is not true
+      returning o.sor_code, o.sales_reference`,
+  )
+  for (const row of strayS04081) console.log(`  soft-deleted ${row.sor_code} so Scenario F can register ${row.sales_reference}`)
+
+  // Soft-delete any stray SOR on S04602 that is not SOR-73
+  const { rows: strayS04602 } = await c.query(
+    `update public.sales_opportunities o set is_deleted = true
+      where o.sales_reference = 'S04602' and o.sor_code <> 'SOR-73' and o.is_deleted is not true
+      returning o.sor_code, o.sales_reference`,
+  )
+  for (const row of strayS04602) console.log(`  soft-deleted stray ${row.sor_code} on ${row.sales_reference}`)
+
+  let saleTypeId = demoFlow?.saleTypeId
+  if (!saleTypeId) {
+    const { rows: [found] } = await c.query(
+      "select id from public.sale_types where name = $1 and archived_at is null order by created_at desc limit 1",
+      [DEMO_SALE_TYPE],
+    )
+    saleTypeId = found?.id
+  }
+  if (!saleTypeId) throw new Error(`Active Sale Type "${DEMO_SALE_TYPE}" not found.`)
+
+  const { rows: [entryStage] } = await c.query(
+    `select s.id, s.flow_id from public.flow_stages s
+      where s.flow_id = (select f.id from public.sales_flows f where f.sale_type_id = $1 limit 1)
+      order by s.sort_order, s.name limit 1`,
+    [saleTypeId],
+  )
+  if (!entryStage) throw new Error(`No entry stage found for demo sale type ${saleTypeId}`)
+
+  let snapshotId = demoFlow?.snapshotId
+  if (!snapshotId) {
+    const { rows: [snap] } = await c.query(
+      "select id from public.flow_snapshots where flow_id = $1 order by version desc, version_minor desc limit 1",
+      [entryStage.flow_id],
+    )
+    snapshotId = snap?.id
+  }
+
+  const { rows: [dani] } = await c.query("select id from public.employees where email = $1", [`dani@${DEMO_DOMAIN}`])
+
+  // Move SOR-73 onto Project [FOR DEMO] at the entry stage and un-delete it
+  const { rows: sor73Rows } = await c.query(
+    `update public.sales_opportunities o
+        set is_deleted = false,
+            sales_reference = 'S04602',
+            sale_type_id = $1,
+            flow_stage_id = $2,
+            flow_snapshot_id = coalesce($3, o.flow_snapshot_id),
+            deal_owner_id = coalesce($4, o.deal_owner_id),
+            status = 'LEAD'
+      where (o.sor_code = 'SOR-73' or (o.sales_reference = 'S04602' and not exists (select 1 from public.sales_opportunities where sor_code = 'SOR-73')))
+      returning o.id, o.sor_code, o.sales_reference`,
+    [saleTypeId, entryStage.id, snapshotId ?? null, dani?.id ?? null],
+  )
+  if (sor73Rows.length === 0) {
+    console.log("  note: SOR-73 / S04602 not found on staging")
+    return
+  }
+  const sor73 = sor73Rows[0]
+
+  // Clean up any earlier rehearsal request and action runs so Scenario F can press Create cleanly
+  await c.query("delete from public.purchase_requests where opportunity_id = $1", [sor73.id])
+  await c.query("delete from public.sor_action_runs where opportunity_id = $1", [sor73.id])
+
+  const { rows: [prAction] } = await c.query(
+    "select id, config from public.flow_stage_actions where stage_id = $1 and kind = 'open_purchase_request' limit 1",
+    [entryStage.id],
+  )
+  if (prAction) {
+    const decider = prAction.config?.decider?.length
+      ? prAction.config.decider
+      : [{ type: "role", role: "deal_owner" }]
+    await c.query(
+      `insert into public.sor_action_runs (opportunity_id, stage_id, action_id, outcome, decider)
+       values ($1, $2, $3, 'pending', $4)`,
+      [sor73.id, entryStage.id, prAction.id, JSON.stringify(decider)],
+    )
+  }
+
+  console.log(`  moved ${sor73.sor_code} (${sor73.sales_reference || 'S04602'}) to "${DEMO_SALE_TYPE}" entry stage`)
 }
 
 /**
@@ -290,6 +393,24 @@ async function copyProjectFlow(prod, c) {
     [snapshotId, flowId, snapshot.version, snapshot.version_minor, JSON.stringify(data), `Copied from production "${PROD_SALE_TYPE}" v${snapshot.version}.${snapshot.version_minor} for the Purchasing demo`],
   )
   await c.query("select public.restore_flow_snapshot($1, $2)", [flowId, snapshotId])
+  // Prod's flow predates the Notice of Award and contract Stage roles, so the copy has neither.
+  // The demo needs both: NOA fills the Date of Award and tells Purchasing, CA / PO fills the Contract Date.
+  // The contract Stage (#745) is skipped on a database that does not have it yet.
+  const { rows: [{ has_contract: hasContract }] } = await c.query(
+    "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'sales_flows' and column_name = 'contract_stage_id') as has_contract",
+  )
+  const stageNamed = (pattern) => `(select s.id from public.flow_stages s where s.flow_id = f.id and s.name ilike '${pattern}' limit 1)`
+  const { rows: [roles] } = await c.query(
+    `update public.sales_flows f
+        set award_stage_id = coalesce(f.award_stage_id, ${stageNamed("NOA%")})
+            ${hasContract ? `, contract_stage_id = coalesce(f.contract_stage_id, ${stageNamed("CA%PO%")})` : ""}
+      where f.id = $1
+      returning award_stage_id is not null as award ${hasContract ? ", contract_stage_id is not null as contract" : ""}`,
+    [flowId],
+  )
+  if (!roles?.award) console.log("  note: no NOA Stage found, so the demo flow has no Notice of Award Stage")
+  if (!hasContract) console.log("  note: this database has no contract Stage yet (#745), so none was set")
+  else if (!roles?.contract) console.log("  note: no CA / PO Stage found, so the demo flow has no contract Stage")
   const { rows: [counts] } = await c.query(
     `select (select count(*) from public.flow_stages where flow_id = $1) stages,
             (select count(*) from public.flow_edges where flow_id = $1) edges,
@@ -298,6 +419,7 @@ async function copyProjectFlow(prod, c) {
     [flowId],
   )
   console.log(`  ✔ "${DEMO_SALE_TYPE}" from prod v${snapshot.version}.${snapshot.version_minor}: ${counts.stages} Stages, ${counts.edges} moves, ${counts.actions} actions, ${counts.conditions} conditions (draft)`)
+  return { saleTypeId, flowId, snapshotId }
 }
 
 async function main() {
@@ -307,6 +429,7 @@ async function main() {
   const prodUrl = env.PROD_DB_URL ?? process.env.PROD_DB_URL
   if (!stagingUrl || !prodUrl) throw new Error("STAGING_DB_URL and PROD_DB_URL must be set (.env.local or the environment).")
   if (stagingUrl === prodUrl) throw new Error("STAGING_DB_URL and PROD_DB_URL are the same database.")
+  if (stagingUrl.includes("epqmberwewztzbrkhhss")) throw new Error("STAGING_DB_URL points at the production project. This script only writes to staging.")
 
   const prod = await connect(prodUrl)
   const c = await connect(stagingUrl)
@@ -319,7 +442,8 @@ async function main() {
     await resetSettings(c)
     console.log(`3. ${DEMO_SALE_TYPE}`)
     await retireOldCopies(c)
-    await copyProjectFlow(prod, c)
+    const demoFlow = await copyProjectFlow(prod, c)
+    await freeScenarioFS0s(c, demoFlow)
     console.log("4. Demo Requested Items (one per S0 line)")
     await resetDemoItems(c)
     await c.query(apply ? "commit" : "rollback")

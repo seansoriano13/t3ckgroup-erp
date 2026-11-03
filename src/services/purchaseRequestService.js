@@ -263,7 +263,8 @@ export const purchaseRequestService = {
       .from("purchase_request_items")
       .select(ITEM_SELECT)
       .eq("request_id", requestId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
     if (items.error) throw items.error;
 
     // An item bought for a Costing Matrix Component carries its number and name ("1.2 · name") (#273).

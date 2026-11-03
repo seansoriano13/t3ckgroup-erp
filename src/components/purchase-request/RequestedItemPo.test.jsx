@@ -289,14 +289,14 @@ describe("Attach P0", () => {
     expect(within(row).getByRole("button", { name: "Attach P0" })).toBeDisabled()
   })
 
-  it("re-attaching a different P0 to a Received line sets the status from Odoo", async () => {
+  it("refuses a different P0 on a Received line and leaves the line as it was (#833)", async () => {
     stubPurchaseRequestItemRpcs({ actorId: buyer.id, odoo: "found", p0s: { P01111: { ordered: 10, received: 0 } } })
     seedItem({ status: "received", po_number: "P01234", po_verification: "VERIFIED", po_received: 10, po_ordered: 10 })
     mount()
     await showDoneLines()
     await attach(setupUser(), "P01111")
 
-    await waitFor(() => expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "purchased", po_number: "P01111" }))
+    await waitFor(() => expect(db.rows("purchase_request_items")[0]).toMatchObject({ status: "received", po_number: "P01234" }))
   })
 
   it("can't choose Purchased by hand", async () => {

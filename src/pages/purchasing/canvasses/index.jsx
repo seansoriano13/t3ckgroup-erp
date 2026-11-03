@@ -36,7 +36,6 @@ import {
 } from "../../../components/purchasing/list/StateCell";
 import ExportButton from "../../../components/purchasing/list/ExportButton";
 import CanvassPanel from "../../../components/CanvassPanel";
-import CanvassRequestBadge from "../../../components/CanvassRequestBadge";
 import { useAuth } from "../../../context/AuthContext";
 import { canvassService } from "../../../services/canvassService";
 import { CANVASS_LIST_KEY } from "../../../constants/canvass";
@@ -49,7 +48,7 @@ import {
   REQUEST_FILTER,
   WINNER_FILTER,
   canvassExportRows,
-  canvassRequestState,
+  canvassRequestRef,
   canvassStateOf,
   canvassSubjectLabel,
   canvassWinnerLabel,
@@ -96,7 +95,7 @@ const CANVASS_SORT = {
   canvass: (r) => r.number,
   canvasser: (r) => r.canvasserName,
   winner: (r) => (r.winner ? canvassWinnerLabel(r) : null),
-  request: (r) => canvassRequestState(r)?.label,
+  request: (r) => canvassRequestRef(r),
   state: (r) => canvassStateOf(r).label,
 };
 
@@ -374,7 +373,7 @@ function CanvassesPage({ userId, canEdit }) {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <CanvassRequestBadge source={row} />
+                      {canvassRequestRef(row) ?? "—"}
                     </TableCell>
                     <StateCell
                       {...canvassStateOf(row)}

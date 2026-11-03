@@ -209,7 +209,7 @@ describe("section 7: the order", () => {
         }
         const none = await sign("finance", ipas.id, 7, "received")
         expect(none.error?.code).toBe("22023")
-        expect(none.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and 6 are signed/)
+        expect(none.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and Logistics are signed/)
 
         await approvedThrough(ipas, [1])
         const onlyOne = await sign("finance", ipas.id, 7, "received")
@@ -219,7 +219,7 @@ describe("section 7: the order", () => {
         await approvedThrough(ipas, [3])
         const withoutThree = await sign("finance", ipas.id, 7, "received")
         expect(withoutThree.error?.code).toBe("22023")
-        expect(withoutThree.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and 6 are signed/)
+        expect(withoutThree.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and Logistics are signed/)
 
         // Section 3 is submitted at LC Odoo Done; submitted alone does not open section 4 either.
         expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
@@ -256,7 +256,7 @@ describe("section 7: the order", () => {
         expect((await liveKeys(ipas.id)).filter((k) => k.startsWith("7/"))).toEqual(["7/checked", "7/noted", "7/received"])
         const held = await sign("ipasSigner", ipas.id, 7, "approved")
         expect(held.error?.code).toBe("22023")
-        expect(held.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and 6 are signed/)
+        expect(held.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and Logistics are signed/)
         expect((await rowOf(ipas.id)).state).toBe("open")
 
         // Section 3 approved again: the same sign-offs file it.
@@ -331,7 +331,7 @@ describe("section 7: the order", () => {
 
         const noted = await sign("ordinary", ipas.id, 7, "noted")
         expect(noted.error?.code).toBe("22023")
-        expect(noted.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and 6 are signed/)
+        expect(noted.error?.message).toMatch(/section 4 opens once sections 1, 2, 3 and Logistics are signed/)
     })
 
     it("belongs to each step's list: a purchaser, a Super Admin off the list and a stranger are refused", async () => {

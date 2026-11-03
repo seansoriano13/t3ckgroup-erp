@@ -6,6 +6,7 @@ import { LockOpen } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import ModalShell from "./ui/ModalShell";
+import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { canvassService } from "../services/canvassService";
 
@@ -13,7 +14,7 @@ import { canvassService } from "../services/canvassService";
  * Unlocking a Canvass: a Super Admin lets its Offers, winner and reason change again. The reason is
  * required and goes into the Canvass history, so the next reader can see who unlocked it and why.
  */
-export default function CanvassUnlockDialog({ open, onOpenChange, canvass, onUnlocked }) {
+export default function CanvassUnlockDialog({ open, onOpenChange, canvass, onUnlocked, className }) {
   const [reason, setReason] = useState("");
 
   const unlock = useMutation({
@@ -32,6 +33,7 @@ export default function CanvassUnlockDialog({ open, onOpenChange, canvass, onUnl
       onOpenChange={onOpenChange}
       crumbs={["Canvass", canvass?.number, "Unlock"].filter(Boolean)}
       title={`Unlock Canvass ${canvass?.number ?? ""}`.trim()}
+      className={cn("z-[90]", className)}
       actions={
         <Button type="button" size="lg" disabled={!reason.trim() || unlock.isPending} onClick={() => unlock.mutate()}>
           {unlock.isPending ? "Unlocking…" : "Unlock"}

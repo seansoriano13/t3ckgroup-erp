@@ -778,14 +778,17 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     throw new Error(`${from?.name || "This stage"} cannot move straight to ${to.name}.`);
   }
 
-  // Issue #390 — a Return must say what happens to the Stage's earlier work,
-  // and is never blocked by the Stage being left. Only a Return asks.
+  // Issue #390 — a Return must say what happens to the Stage's earlier work.
+  // Issue #831 — a move skips gates only when it goes backward, not when it
+  // follows a forward edge to a stage visited earlier. Only a Return asks.
   const isReturn = (await opportunityService.getReturnStageIds(existing.id)).includes(to.id);
   if (isReturn) assertReturnChoice(to, returnChoice);
 
+  const isBackward = Boolean(from && to && to.sort_order < from.sort_order);
+
   const currentVisit = await currentVisitFor(existing.id);
   let leavesThroughCostingSettled = false;
-  if (!isReturn) {
+  if (!isBackward) {
     ({ leavesThroughCostingSettled } = await assertCanLeaveStage({
       existing,
       from,

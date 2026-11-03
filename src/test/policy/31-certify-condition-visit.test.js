@@ -33,7 +33,7 @@ beforeAll(async () => {
     flowId = (await svc().from("sales_flows").insert({ sale_type_id: saleTypeId }).select("id").single()).data.id
     stageA = await stage("A", 10)
     stageB = await stage("B", 20)
-    const cond = await svc().from("stage_conditions").insert({ stage_id: stageA, kind: "tickbox", label: `${MARKER} ok` }).select("id").single()
+    const cond = await svc().from("stage_conditions").insert({ stage_id: stageA, kind: "tickbox", label: `${MARKER} ok`, is_required: false }).select("id").single()
     if (cond.error) throw new Error(cond.error.message)
     conditionA = cond.data.id
     conditionIds.push(conditionA)

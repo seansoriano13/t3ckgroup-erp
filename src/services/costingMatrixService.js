@@ -589,6 +589,17 @@ export const costingMatrixService = {
   },
 
   /**
+   * The SOR's header fields for the Costing Desk (#836): `{ id, sor_code, client_name, project_title, sales_reference, deal_owner_id }`,
+   * or null when the caller has no tier on the matrix.
+   */
+  async getHeader(opportunityId) {
+    if (!opportunityId) return null;
+    const { data, error } = await supabase.rpc("costing_matrix_header", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data ?? null;
+  },
+
+  /**
    * The SOR's Costing Matrix as the caller's tier may read it, or null when the
    * caller has no tier or the SOR has no matrix yet. See `shapeMatrix`.
    */

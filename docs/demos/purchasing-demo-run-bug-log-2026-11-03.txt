@@ -1,0 +1,172 @@
+PURCHASING DEMO RUN - BUG LOG
+Date: 2026-11-03
+Run sheet: docs/demos/purchasing-demo-run-sheet.html (S03204, Project [FOR DEMO])
+SOR used: SOR-256 (local). Purchase Request PR_0174. IPAS TGIPAS_067 (P01046, filed),
+  TGIPAS_068 (P01421), TGIPAS_069 (P01423), TGIPAS_070 (P01047). Transmittal TG03-2.
+  Packing List PKL_002. Canvass CNV_0149.
+
+Where it ran: LOCAL app (localhost:5173; Cjay on cjay.localhost:5173) + local Supabase.
+  Staging reset first with: node scripts/demo-purchasing-setup.mjs --apply
+  Local DB rebuilt from a fresh staging copy (pnpm db:refresh), then the tables the
+  copy skips or cuts short were copied in full. Local = staging: 136/136 tables,
+  296/296 policies, 133/136 row counts (the 3 differences are the local dev login,
+  push subscriptions and login rate limits). Demo logins set to password "demo" locally.
+  Odoo functions served locally with supabase/.env.local.
+  Docker hung at about 08:51 (Odoo unreachable from the functions); Docker Desktop was
+  restarted and the run went on. No data was lost.
+
+HOW EACH PART WAS RUN
+  In the app (clicked): 0.2-0.7, 2.1-2.2, 3.1-3.4, 4.1-4.6, 5.1, 5.5, 5.6, 5.7 (all moves,
+    uploads, fields), 6.1, A.1-A.2, 6.2, 7.1 (moves), 7.2 (form up to the pills).
+  Through the app's own server calls, signed in as each demo person (same database
+    rules, no screen): 5.2 teams, 5.3 verdicts, 5.4 approval, B.1-B.3, 6.4-6.6 attaches,
+    E.1-E.4, 6.7-6.9, D.1-D.4, 7.2 submit, 7.3-7.7, 8.1-8.4, C.2, C.3.
+    Reason: the grid pickers close when the page scrolls, and the in-app browser was
+    disconnected late in the session.
+  Later in Chrome: 8.5 on the screen, 9.1-9.3, F.1-F.2.
+  NOT run: C.1 (after 5.2, too late), F.3-F.4 (blocked, see Part 9 and F below).
+
+Steps that passed as written (allowing for C below): 0.3-0.7, 2.2, 3.1-3.4, 4.2-4.6,
+  5.1-5.7, 6.1-6.6, A, B, C.2, C.3, D.2, D.3, E.1, E.2, E.4, 6.7-6.9, 7.2-7.7, 8.1, 8.3, 8.4.
+
+======================================================================
+A. BUGS IN THE APP
+======================================================================
+[A1] A new SOR's S0 Evaluation opens empty.
+  Where: Register SOR-256 on S03204 > PMS tab > Open S0 Evaluation.
+  What: "Lines 0", "No S0 lines yet", though the SOR has 12 products from Odoo.
+        It opens at registration, before the S0 save step (#815/#816) pulls the
+        products. "Refresh from the SOR" adds them (costing_fill_from_sor returned
+        added: 12) but the screen shows 0 until a reload. The Odoo costs only fill on
+        that first fill or a later Refresh, so after a reload the costs stay blank
+        until someone presses Refresh again.
+
+[A2] The Canvass window opens behind the line panel.
+  Where: S0 Evaluation > open line 1 > Canvass.
+  What: The record window is at layer 70 (src/components/ui/ModalShell.jsx:109), the
+        line panel at layer 75 (src/components/ui/SlideOver.jsx:62, overModal). The
+        Canvass cannot be clicked. Workaround: Purchasing > Canvasses.
+
+[A3] Purchasing sees a broken header on the S0 Evaluation.
+  Where: same sheet, as Cjay.
+  What: Title "SOR · S0 Evaluation" with no SOR number, client "-", Sales Incharge
+        "Former team member" instead of "Dani demo". Dani sees all three correctly.
+
+[A4] A Canvass offer saves with no price.
+  Where: Canvass > Add offer > type a supplier > press Enter.
+  What: Enter submits at once: supplier name only, no currency, no price.
+
+[A5] The server lets a Received line take another P0.
+  Where: odoo-po-verify, action "attach", on the fire suit (Received on P01046).
+  What: Attaching P01421 (the goggles P0) was accepted: the line became "P01421,
+        bought as goggles", linked to TGIPAS_068. Re-attaching P01046 fixed the P0
+        but left the line on TGIPAS_068 (fixed by hand in the local DB). The screen
+        hides Attach P0 on a Received line, but the server does not refuse it.
+
+[A6] Stage gates are only checked in the browser.
+  Where: SOR-256 on Project Delivery, as Dani.
+  What: A direct update of flow_stage_id to Collection was accepted, with "Purchasing
+        settled" unmet and both required uploads missing. sor_guard_stage_move only
+        checks access and restricted stages; every condition (purchasing gates,
+        uploads, fields) is enforced only by opportunityService.assertCanLeaveStage.
+        Anyone with the app's client can skip a gate. (Moved back locally.)
+
+[A7] The section 4 refusal names an internal number.
+  Where: ipas_sign, Grace "Received" before Logistics.
+  What: "section 4 opens once sections 1, 2, 3 and 6 are signed". "6" is the stored
+        number; users know sections 1-4 and Logistics.
+
+[A8] Section 2 says "Complete" while charges wait.
+  Where: IPAS TGIPAS_067 > Edit > section 2.
+  What: The summary says "All 2 required fields filled. Complete" while both blank
+        charges say "Fill the amount or remove this charge. Sections 2 and 3 wait".
+
+[A9] The SOR header stays stale after saving stage fields (still there from 2026-10-29).
+  What: After saving Bidder, Representative and Mode of Pre Bid, the header kept
+        "Blocked: 3 - missing ..." and clicking the next stage did nothing until a
+        reload. Same on SO Evaluation ("Blocked: 2" vs "Nothing blocks this stage").
+        At Project Delivery it said "Ready to move to Collection" with gates unmet.
+
+[A10] (small) A request line jumps to the bottom after its status changes.
+
+[A11] A forward move to a Stage the deal visited before counts as a "move back", and a
+  move back skips the gates.
+  Where: SOR-256 on Project Delivery, after A6's test had put it on Collection once.
+  What: Clicking Collection opened "Move back to Collection? Resume / Start fresh",
+        and getReturnStageIds makes assertCanLeaveStage skip the gates. So a deal that
+        once reached a later Stage (by a revert, or A6) can go forward again past
+        Purchasing settled and the required uploads. Cancelled; not confirmed.
+
+PART 9 AND SCENARIO F (done later in Chrome, plus server calls)
+  9.1 passed: the PMS tab shows the S0 Evaluation (Go), the request (2 open), IPAS
+      067 Filed and 068-070 Open, TG03-2 and PKL_002 Packed.
+  9.2 passed: the Tracker says "2 purchased (not received)". Small oddity: TGIPAS_068
+      (goggles, already Received) is listed under "Purchased (not received)".
+  9.3 passed, but the sheet must say to press "Save ageing rules" at the bottom;
+      typing 3 alone saves nothing.
+  F.1 S04081 registered as SOR-257 (PR_0175). S04602 is REFUSED: "S04602 is already
+      on SOR "Rescue Vehicle" (Alvin Belga). One S0 per SOR." (#819). The sheet's
+      "ignore SOR-73 and register a new one" no longer works.
+  F.2 passed: P02674 on SOR-257 is refused before NTP, then Order early attaches it:
+      Purchased, IPAS TGIPAS_071 raised.
+  F.3 NOT shown: a Direct request "for" SOR-73 attaches P02674 but answers
+      "not_project", so the IPAS keeps one SOR. A project request on S04602 would need
+      SOR-73 itself on the demo flow. F.4 not run (depends on F.3).
+  Fix idea for the sheet: run F on a P0 that names two S0s with no SOR yet, or move
+      SOR-73 to Project [FOR DEMO] in the reset script.
+
+STEP 8.5 ON THE SCREEN (done later in Chrome)
+  The SOR reads "Can't move on yet - missing: Sales Invoice with date, Inspection &
+  Acceptance Report, Purchasing settled." Goods checked is met (TG03-2 Closed). That
+  matches the sheet. The click itself could not be tested cleanly because of A11.
+
+======================================================================
+B. RULES THAT DIFFER FROM THE SHEET (decide: fix the sheet or the app)
+======================================================================
+[B1] Aldrin (Warehouse) cannot set "Arrived in Whs." on the IPAS ("only Purchasing
+     changes an IPAS"), so he cannot finish Logistics alone. The sheet has him do it.
+[B2] Aldrin (Warehouse) CAN add a box to the draft Packing List. The sheet says only
+     Purchasing, a Super Admin or the list's starter can.
+[B3] The Packing List picker lists all 12 SOR lines at full quantity, including the
+     2.5" hose (2 of 10 arrived) and 2.5" nozzle (0 of 4). The sheet says it lists only
+     items already received.
+
+======================================================================
+C. RUN SHEET CHANGES NEEDED
+======================================================================
+[C1] 0.2: no "Access window" field. New "Who can request items" list; leave it.
+[C2] 0.5: also mark NOA as "Make it the Notice of Award" (and CA / PO as "Make it the
+     contract" once #745 is on staging). Prod's flow has neither, so the copy had none,
+     and on NOA the Date of Award did not fill and Purchasing got no "SOR Awarded".
+     FIXED in scripts/demo-purchasing-setup.mjs (sets both after the copy; skips the
+     contract Stage where the column is missing). Rehearsed on staging, rolled back.
+[C3] 2.1: no "Fetch from Odoo". Type the Sales Reference, pick Lead Source (LGU), type
+     Company, Contact Person and Project. Odoo is checked on Register; the S0 card then
+     reads "S03204 · In Odoo · 12 products" and the value P1,370,535.74.
+[C4] 2.2: the card is under the SOR's "This stage" tab; no "Created." message shows.
+[C5] 4.1: until A1 is fixed, press "Refresh from the SOR", then reload.
+[C6] 4.3: until A2 is fixed, open the Canvass from Purchasing > Canvasses.
+[C7] 4.5: costs come from Odoo only on the first fill or Refresh ("12 costs filled
+     from Odoo"); no typing was needed.
+[C8] 5.7: no "Preparation of PQ" card appeared on PQ; there was nothing to Skip.
+[C9] 6.2: "Submit PB" is a tick that asks "Certify?" in a small notice; press Certify.
+[C10] 7.1: no "Resume / Start fresh" question on a first visit to Project Delivery;
+     the draft Packing List starts by itself.
+[C11] 7.2: the button is "Raise Transmittal", not "New Transmittal".
+[C12] D.1: blank charges block section 2, not section 1. Section 1 refuses first for
+     the missing Proforma Invoice.
+[C13] 8.2: see B1 (who sets the arrival date).
+[C14] Numbers this run: IPAS 067/068/069/070, TG03-2, PKL_002. Landed cost of the
+     fire suit: P12,621.89 each (USD 208 at 58.20 plus freight share), final.
+
+======================================================================
+D. NOTES
+======================================================================
+[D1] Uploads go to the company Cloudinary account even from the local app. This run
+     added 4 tiny blank PDFs named demo-document.pdf (ITB, price schedule, NOA, NTP).
+     The IPAS and charge files reuse one of those links.
+[D2] Live updates are off locally (realtime container stopped), so lists don't refresh
+     by themselves.
+[D3] Staging's database lacks #745 (Contract Date stage): the automatic migration
+     failed today because "supabase db push" now needs --yes in
+     .github/workflows/migrate-staging.yml.

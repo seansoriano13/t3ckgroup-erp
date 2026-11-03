@@ -21,6 +21,18 @@
     },
     {
         "date": "2026-11-03",
+        "title": "Purchasing and Costing Flow Improvements",
+        "version": "1.9.82",
+        "changes": [
+            "Costing & Evaluation: Opening a new S0 Evaluation automatically brings in the deal's products along with their latest costs from Odoo. Purchasing staff can now view the full deal header (client, Deal Owner, dates) on the Costing Matrix screen.",
+            "Canvasses: Pressing Enter in a supplier offer no longer saves accidentally if a price has not been typed. Canvass windows now always display on top of line details.",
+            "Stage Gates: Stage moves and forward returns now reliably check that required fields and uploads are complete before moving forward, both on screen and on the server. The deal header immediately reflects saved stage fields.",
+            "Purchasing & Orders: The Purchasing Tracker omits received lines from items waiting to be purchased, and attaching a PO to an already-received line is safely refused.",
+            "IPAS: Status messages and notes now clearly name the Logistics team, and Section 2 ensures required charges are reviewed."
+        ]
+    },
+    {
+        "date": "2026-11-03",
         "title": "Date-Range Leave Follows Your Work Schedule",
         "version": "1.9.81",
         "changes": [

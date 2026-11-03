@@ -199,8 +199,6 @@ export default function SorModalHeader({
 
   return (
     <div className="flex shrink-0 flex-col gap-5 border-b border-border/60 px-5 pt-5 pb-5 sm:gap-6 sm:px-8 sm:pt-7 sm:pb-6">
-      {/* #815: the S0 card, the first thing in the SOR window. */}
-      {!isEditing && opportunity?.id && <S0Card opportunityId={opportunity.id} />}
       <div className="flex items-start justify-between gap-3 sm:gap-6">
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
@@ -210,19 +208,18 @@ export default function SorModalHeader({
             {sorCodeOf(opportunity) && (
               <span className="font-mono text-[13px] font-bold text-primary">{sorCodeOf(opportunity)}</span>
             )}
-            {opportunity.sales_reference ? (
-              <span className="font-mono text-[13px] font-bold text-muted-foreground">
-                {opportunity.sales_reference}
-              </span>
-            ) : (
-              <span className="truncate text-[13px] font-bold text-muted-foreground">
-                {opportunity.client_name}
-              </span>
-            )}
             {isFlowDeal ? (
               currentFlowStage && <StatusBadge label={currentFlowStage.name} theme={currentFlowStageTone} />
             ) : (
               <StatusBadge status={opportunity.status} />
+            )}
+            {/* #815: the S0 (Odoo state, lock, edit) sits in the identity line, after the stage. */}
+            {!isEditing && opportunity?.id ? (
+              <S0Card opportunityId={opportunity.id} />
+            ) : (
+              opportunity.sales_reference && (
+                <span className="font-mono text-[13px] font-bold text-muted-foreground">{opportunity.sales_reference}</span>
+              )
             )}
           </div>
           {isEditing ? (
@@ -410,7 +407,7 @@ export default function SorModalHeader({
             </span>
           </p>
           {isFlowDeal && (
-            <div className="flex justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <FlowVersionBadge
                 opportunity={opportunity}
                 onOpenVersion={(snapshotId) => {
@@ -419,9 +416,9 @@ export default function SorModalHeader({
                   window.open(`/flow-versions/${snapshotId}${query}`, "_blank", "noopener");
                 }}
               />
+              <SorVersionUpdate opportunity={opportunity} />
             </div>
           )}
-          {isFlowDeal && <SorVersionUpdate opportunity={opportunity} />}
         </div>
         {isFlowDeal ? (
           <FlowStageControl

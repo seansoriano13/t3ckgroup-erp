@@ -93,6 +93,28 @@ describe("stages", () => {
     expect(sors).toHaveLength(0);
   });
 
+  it("does not count or list a Received order under Purchased (not received)", () => {
+    const received = order({ id: "ip-rec", buyerTrack: [{ key: "received_in_odoo", ticked: true }] });
+    const openOrder = order({ id: "ip-open" });
+    const { sors } = buildTracker({ rows: [], orders: [received, openOrder], today: TODAY });
+    expect(sors[0].byStage.purchased).toBe(1);
+    expect(sors[0].openOrders.map((o) => o.id)).toEqual(["ip-open"]);
+  });
+
+  it("does not count or display a Received line under Purchased (not received)", () => {
+    const receivedOrder = order({ id: "ip-1", buyerTrack: [{ key: "received_in_odoo", ticked: true }] });
+    const openRow = row({ grp: "to_purchase", item_count: 2 });
+    const receivedLine = ipasRow({ target_id: "ip-1" });
+    const { sors } = buildTracker({
+      rows: [openRow, receivedLine],
+      orders: [receivedOrder],
+      today: TODAY,
+    });
+    expect(sors[0].byStage.purchased).toBe(0);
+    expect(sors[0].openOrders).toHaveLength(0);
+    expect(sors[0].rows.filter((r) => r.grp === "purchased")).toHaveLength(0);
+  });
+
   it("keeps an order with no SOR together on one row", () => {
     const { sors } = buildTracker({ rows: [], orders: [order({ sors: [] }), order({ id: "ip-2", sors: [] })], today: TODAY });
     expect(sors).toHaveLength(1);

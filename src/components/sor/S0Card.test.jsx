@@ -22,7 +22,7 @@ describe("S0Card", () => {
 
     expect(await screen.findByText("S01237")).toBeInTheDocument()
     expect(screen.getByText("In Odoo")).toBeInTheDocument()
-    expect(screen.getByText(/3 products/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/3 products/)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /edit/i })).toBeInTheDocument()
     expect(screen.queryByLabelText("Locked")).not.toBeInTheDocument()
   })
@@ -76,8 +76,8 @@ describe("S0Card", () => {
     const user = setupUser()
     renderWithProviders(<S0Card opportunityId={opportunity.id} />)
 
-    expect(await screen.findByText("Not set")).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: /edit/i }))
+    expect(await screen.findByText("No S0")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /add s0/i }))
     await user.type(screen.getByLabelText("S0"), "S01237")
     await user.click(screen.getByRole("button", { name: "Save" }))
 
@@ -91,7 +91,7 @@ describe("S0Card", () => {
     const user = setupUser()
     renderWithProviders(<S0Card opportunityId={opportunity.id} />)
 
-    await user.click(await screen.findByRole("button", { name: /edit/i }))
+    await user.click(await screen.findByRole("button", { name: /add s0/i }))
     await user.type(screen.getByLabelText("S0"), "ABC12")
     await user.click(screen.getByRole("button", { name: "Save" }))
 

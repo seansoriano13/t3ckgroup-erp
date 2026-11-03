@@ -177,6 +177,30 @@ describe("IPAS edit form model", () => {
       );
       expect(planSave({ ...base, charges: [newChargeDraft()] }, base).error).toBe("Charge 1: Pick the kind of charge.");
     });
+
+    it("section 2 is not complete when a charge has a blank amount", () => {
+      const form = formFromIpas(
+        ipas({
+          charges: [{ id: "c-1", kind_id: "k-1", charged_on: "2026-10-02", amount_php: null }],
+        }),
+      );
+      const progress = sectionProgress(form);
+      const finance = progress.find((p) => p.key === "finance");
+      expect(finance.complete).toBe(false);
+      expect(finance.left).toBeGreaterThan(0);
+    });
+
+    it("section 2 is complete when all required fields and charges have amounts", () => {
+      const form = formFromIpas(
+        ipas({
+          charges: [{ id: "c-1", kind_id: "k-1", charged_on: "2026-10-02", amount_php: 500 }],
+        }),
+      );
+      const progress = sectionProgress(form);
+      const finance = progress.find((p) => p.key === "finance");
+      expect(finance.complete).toBe(true);
+      expect(finance.left).toBe(0);
+    });
   });
 });
 
