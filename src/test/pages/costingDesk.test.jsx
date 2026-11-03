@@ -7,6 +7,7 @@ import { stubRpc } from "@/test/msw/server";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "@/test/factories";
 import { closeLine, openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { costingMatrixService } from "@/services/costingMatrixService";
 
 /**
  * The Costing Desk, the Costing Matrix's record window (#267, layout A of 2026-10-22): its Tender
@@ -445,6 +446,47 @@ describe("the Costing Desk", () => {
       expect(await screen.findByLabelText("Sales incharge")).toHaveTextContent("Sandy Sales");
       expect(screen.getByLabelText("Sales incharge").tagName).toBe("SPAN");
       expect(screen.getByLabelText("Purchasing incharge").tagName).not.toBe("SPAN");
+    });
+
+    it("Purchasing sees the full header and resolves Sales incharge with narrow header data (#836)", async () => {
+      const sales = makeEmployee({ name: "Dani demo" });
+      const buyer = makeEmployee({ name: "Cjay Buyer", has_purchasing_flow: true });
+      deal = makeOpportunity({
+        status: "QUALIFIED",
+        sor_code: "SOR-256",
+        project_title: "Project [FOR DEMO]",
+        client_name: "Acme Client",
+        sales_reference: "S03204",
+        deal_owner_id: sales.id,
+      });
+      matrix = db.seed("costing_matrices", { opportunity_id: deal.id, purchasing_incharge_id: buyer.id });
+      stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
+
+      // getHeader returns the narrow header row
+      const header = await costingMatrixService.getHeader(deal.id);
+      expect(header).toEqual({
+        id: deal.id,
+        sor_code: "SOR-256",
+        client_name: "Acme Client",
+        project_title: "Project [FOR DEMO]",
+        sales_reference: "S03204",
+        deal_owner_id: sales.id,
+      });
+
+      // When the caller has no tier, getHeader returns null
+      stubCostingMatrixRpcs({ tier: null, bands: [] });
+      expect(await costingMatrixService.getHeader(deal.id)).toBeNull();
+
+      // Passing header (as Purchasing receives from fallback) displays the SOR code, title, client, and resolves Sales incharge
+      stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
+      openDesk(header);
+      await openLines();
+
+      expect(screen.getByText("SOR-256")).toBeInTheDocument();
+      expect(screen.getByText("Project [FOR DEMO]")).toBeInTheDocument();
+      expect(screen.getByText("SO S03204 · Acme Client")).toBeInTheDocument();
+      expect(await screen.findByLabelText("Sales incharge")).toHaveTextContent("Dani demo");
+      expect(screen.queryByText("Former team member")).not.toBeInTheDocument();
     });
 
     describe("Requested Items on a Component (#273)", () => {

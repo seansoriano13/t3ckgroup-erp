@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/button";
 import CostingDesk from "../../components/costing/desk/CostingDesk";
 import PrintButton from "../../components/costing/desk/PrintButton";
 import { opportunityService } from "../../services/opportunityService";
+import { costingMatrixService } from "../../services/costingMatrixService";
 import { useAuth } from "../../context/AuthContext";
 import { getPermissionContext } from "../../utils/permissions";
 import { CostingMatrixList } from "./index";
@@ -25,10 +26,18 @@ function CostingMatrixWindow() {
   const location = useLocation();
   const returnTo = location.state?.returnTo ?? null;
 
-  // The SOR's name and numbers for the header; someone who can read the matrix but not the SOR row gets none.
+  // The SOR's name and numbers for the header; falls back to the narrow header read when the full SOR cannot be read (#836).
   const { data: opportunity } = useQuery({
     queryKey: ["costingDeskOpportunity", id],
-    queryFn: () => opportunityService.getOpportunityById(id),
+    queryFn: async () => {
+      try {
+        const full = await opportunityService.getOpportunityById(id);
+        if (full) return full;
+      } catch {
+        // Fall back to the narrow header read when the caller cannot read the full SOR row (#836).
+      }
+      return costingMatrixService.getHeader(id);
+    },
     enabled: Boolean(id),
     retry: false,
   });
