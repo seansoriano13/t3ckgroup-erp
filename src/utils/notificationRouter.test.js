@@ -299,6 +299,7 @@ describe("handleNotificationRoute", () => {
     it.each([
       "PURCHASE_REQUEST_OPENED",
       "PURCHASE_REQUEST_BUYER",
+      "PURCHASE_REQUEST_BUYER_SET",
       "PURCHASE_REQUEST_ITEM_STATUS",
       "PURCHASE_REQUEST_ITEM_ADDED",
       "PURCHASE_REQUEST_MESSAGE",
