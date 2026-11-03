@@ -133,7 +133,6 @@ describe("SideNav Component", () => {
 
     vi.spyOn(useNavBadgesModule, "useNavBadges").mockReturnValue({
       taskApprovals: 5,
-      hrVerifications: 0,
       leaveApprovals: 0,
     });
 

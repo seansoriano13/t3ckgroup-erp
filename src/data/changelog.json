@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-11-03",
+        "title": "Task Approvals and HR Verifications are one page",
+        "version": "1.9.83",
+        "changes": [
+            "Approval Center: Task Approvals now holds both steps of a task, the head's grade and HR's verification. The separate HR Verifications page is gone, and its old links open Task Approvals.",
+            "A head sees tasks waiting for their grade, HR sees graded tasks waiting for verification, and a Super Admin sees both. The sidebar count adds up everything waiting on you.",
+            "Each row shows its step in the Stage column, and its button follows that step: Grade for a head, the check mark to verify for HR.",
+            "The 48-hour tabs are now called Active and Overdue on every approval page. Hover over a tab to see the 48-hour rule."
+        ]
+    },
+    {
+        "date": "2026-11-03",
         "title": "Purchasing and Costing Flow Improvements",
         "version": "1.9.82",
         "changes": [

@@ -66,7 +66,7 @@ describe("handleNotificationRoute", () => {
       })
     })
 
-    it("sends HR to verification", () => {
+    it("sends HR to Task Approvals, where verification lives", () => {
       handleNotificationRoute(
         { type: "TASK_SUBMITTED", reference_id: "task-4" },
         hr,
@@ -74,14 +74,14 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/hr-verification", {
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
         state: { openTaskId: "task-4" },
       })
     })
 
-    it("routes an HR user who is also a head to verification for a head-approved task", () => {
-      // The head branch would otherwise swallow it and leave the task
-      // unverified in HR's queue.
+    it("routes an HR user who is also a head to the one queue holding both steps", () => {
+      // Head grade and HR verification share Task Approvals, so a head-approved
+      // task opens there, at its HR step.
       handleNotificationRoute(
         { type: "TASK_APPROVED_BY_HEAD", reference_id: "task-5" },
         { isHr: true, isHead: true },
@@ -89,7 +89,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/hr-verification", {
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
         state: { openTaskId: "task-5" },
       })
     })

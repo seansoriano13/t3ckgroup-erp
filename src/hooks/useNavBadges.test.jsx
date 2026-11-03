@@ -47,7 +47,6 @@ describe("useNavBadges", () => {
     // — so it is present for a standard employee and zero until one is.
     expect(result.current).toEqual({
       taskApprovals: 0,
-      hrVerifications: 0,
       leaveApprovals: 0,
       meetingApprovals: 0,
       ipasSignoffs: 0,

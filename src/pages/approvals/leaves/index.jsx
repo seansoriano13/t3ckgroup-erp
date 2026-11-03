@@ -107,8 +107,8 @@ function LeaveApprovalsQueue() {
         <ApprovalToolbar
           views={[
             { value: "ALL", label: "All Pending", icon: Layers, badge: all.length || undefined },
-            { value: "ACTIVE", label: "Active (<48h)", icon: Clock, badge: active.length || undefined },
-            { value: "STALE", label: "Stale Backlog (≥48h)", icon: AlertTriangle, badge: stale.length || undefined },
+            { value: "ACTIVE", label: "Active", hint: "Waiting less than 48 hours", icon: Clock, badge: active.length || undefined },
+            { value: "STALE", label: "Overdue", hint: "Waiting 48 hours or more", icon: AlertTriangle, badge: stale.length || undefined },
           ]}
           view={view}
           onViewChange={(v) => {
