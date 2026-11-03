@@ -46,18 +46,19 @@ function outcomeOf(p0, productId) {
   return status === "to_purchase" ? "RFQ: the line stays To purchase" : `The line becomes ${ITEM_STATUS_LABELS[status]}`;
 }
 
-/** A P0's rows, one per line. This item's own product is marked; more than five rows show five and a "Show all" link. */
+/** A P0's rows, one per line. This item's own line goes first and is tinted; other lines keep their order. More than five rows show five and a "Show all" link. */
 const P0_ROWS_SHOWN = 5;
 function P0Lines({ lines, productId }) {
   const [showAll, setShowAll] = useState(false);
-  const shown = showAll ? lines : lines.slice(0, P0_ROWS_SHOWN);
+  const ordered = [...lines.filter((l) => l.product_id === productId), ...lines.filter((l) => l.product_id !== productId)];
+  const shown = showAll ? ordered : ordered.slice(0, P0_ROWS_SHOWN);
   return (
     <div className="space-y-1">
       <ul className="divide-y divide-border">
         {shown.map((line, index) => {
           const mine = line.product_id === productId;
           return (
-            <li key={line.id ?? index} data-testid="p0-line" className="flex items-baseline justify-between gap-3 py-1.5 text-[13px]">
+            <li key={line.id ?? index} data-testid="p0-line" className={`flex items-baseline justify-between gap-3 py-1.5 text-[13px] ${mine ? "-mx-1 rounded bg-primary/10 px-1" : ""}`}>
               <span className={mine ? "font-semibold text-foreground" : "text-foreground"}>
                 {line.product_name || `Product ${line.product_id}`}
                 {mine && <span className="ml-2 text-xs text-muted-foreground">This item</span>}
