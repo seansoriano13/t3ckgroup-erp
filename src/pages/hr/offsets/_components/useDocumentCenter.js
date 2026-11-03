@@ -3,11 +3,15 @@ import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/c
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import toast from 'react-hot-toast';
 import { hydrateRecordsForPrint, buildPrintableDocument, printComposedHtml } from '../../../../lib/pdf/htmlPrinter';
+import { buildQuadDocument } from '../../../../lib/pdf/quadPrototype';
 import { getFormType } from '../../../../lib/pdf/formTypeRegistry';
 
 const TRAY_STORAGE_KEY = 'documentCenterTray:v1';
 
 /** Same composite key the rest of this page already uses for a leave/OT record. */
+// #858 prototype: ?quad=1 previews four forms per page. Never stamps records as printed.
+const QUAD_PREVIEW = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('quad') === '1';
+
 export function recordKey(r) {
   return r.type + '-' + (r.leave_group_id || r.id);
 }
@@ -128,7 +132,7 @@ export function useDocumentCenter({ approvedRecords, allLoadedRecords, hrId, onP
     setIsRendering(true);
     hydrateRecordsForPrint(tray)
       .then((mapped) => {
-        if (!cancelled) setPreviewHtml(buildPrintableDocument(mapped));
+        if (!cancelled) setPreviewHtml(QUAD_PREVIEW ? buildQuadDocument(mapped) : buildPrintableDocument(mapped));
       })
       .catch((err) => {
         if (!cancelled) toast.error(err.message || 'Failed to render preview');
@@ -146,8 +150,10 @@ export function useDocumentCenter({ approvedRecords, allLoadedRecords, hrId, onP
     setIsBusy(true);
     try {
       await printComposedHtml(previewHtml);
-      await Promise.all(tray.map((r) => getFormType(r.type).markPrinted(r, hrId)));
-      onPrinted?.();
+      if (!QUAD_PREVIEW) {
+        await Promise.all(tray.map((r) => getFormType(r.type).markPrinted(r, hrId)));
+        onPrinted?.();
+      }
     } catch (err) {
       toast.error(err.message || 'Failed to print');
     } finally {
