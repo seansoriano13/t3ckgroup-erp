@@ -25,14 +25,16 @@ const SIDE_PANELS = [
  * part refreshes itself. `openCount` changes on every open from outside, so a
  * mention clicked while the request is already open opens the Chat again.
  */
-export default function PurchaseRequestView({ requestId, focusChat = false, openCount = 0, className = "" }) {
+export default function PurchaseRequestView({ requestId, focusChat = false, tab = null, openCount = 0, className = "" }) {
   const { data: request, isLoading, isError, refetch } = usePurchaseRequest(requestId);
-  const [panel, setPanel] = useState(focusChat ? "chat" : null);
+  const [panel, setPanel] = useState(focusChat || tab === "chat" ? "chat" : null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- an open from outside (a mention) picks the panel
-    if (focusChat) setPanel("chat");
-  }, [focusChat, openCount]);
+    if (focusChat || tab === "chat") setPanel("chat");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the product lines are always shown; close the side panel
+    else if (tab === "items") setPanel(null);
+  }, [focusChat, tab, openCount]);
 
   if (isLoading) {
     return (

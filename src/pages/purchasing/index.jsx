@@ -1,3 +1,4 @@
+import { useRequestInGlobalWindow } from "@/hooks/useRequestInGlobalWindow";
 import { useMemo, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useQuery } from "@tanstack/react-query";
@@ -26,7 +27,6 @@ import { listAge, listAgeDays, listDate } from "../../utils/listDates";
 import { QUEUE_EXPORT_HEADER, REQUEST_STATE, REQUEST_STATE_TONES, queueExportRows, requestStateOf } from "../../components/purchase-request/queueList";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
-import PurchaseRequestModal from "../../components/purchase-request/PurchaseRequestModal";
 import NewPurchaseRequestDialog from "../../components/purchase-request/NewPurchaseRequestDialog";
 import { useTakeRequest } from "../../components/purchase-request/requestHooks";
 import { procurementQueueKey } from "../../components/purchase-request/queryKeys";
@@ -231,6 +231,7 @@ function PurchaseRequests() {
   const { isSuperAdmin, hasPurchasingFlow } = getPermissionContext(user);
   const purchaser = isSuperAdmin || hasPurchasingFlow;
   const { recordId, open, close } = useRecordParam("request");
+  useRequestInGlobalWindow(recordId, close);
 
   const { initial, hasSavedDefault, saveDefault, clearDefault, isDirty } = useSavedFilters(
     "purchase_requests",
@@ -429,8 +430,6 @@ function PurchaseRequests() {
           </div>
         )}
       </PageShell>
-
-      {recordId && <PurchaseRequestModal requestId={recordId} onClose={close} />}
 
       <NewPurchaseRequestDialog open={creating} onOpenChange={setCreating} onOpened={open} />
     </>
