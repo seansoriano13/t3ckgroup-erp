@@ -941,6 +941,37 @@ describe("opportunityService", () => {
         const attempt = opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
         await expect(attempt).rejects.toThrow(/Cannot leave Lead — missing: Sign-off/)
       })
+
+      it("still asks Resume or Start fresh when a forward move revisits a Stage (#831)", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        const attempt = opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await expect(attempt).rejects.toThrow(/Resume previous work or Start fresh/)
+        await expect(attempt).rejects.toMatchObject({ needsReturnChoice: true })
+        const unchanged = await opportunityService.getOpportunityById(deal.id)
+        expect(unchanged.flow_stage_id).toBe(lead.id)
+      })
+
+      it("a forward revisit with Start fresh moves and records the choice (#831)", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, { returnChoice: "start_fresh" })
+        expect(moved.flow_stage_id).toBe(qualified.id)
+        const current = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id && v.left_at == null)
+        expect(current.return_choice).toBe("start_fresh")
+      })
+
+      it("a forward revisit with Resume moves and records the choice (#831)", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
+        expect(moved.flow_stage_id).toBe(qualified.id)
+        const current = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id && v.left_at == null)
+        expect(current.return_choice).toBe("resume")
+      })
     })
 
     describe("Return: Start fresh (#391)", () => {
