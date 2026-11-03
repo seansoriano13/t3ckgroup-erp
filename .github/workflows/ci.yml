@@ -16,7 +16,7 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Lint, build and the two test shards run as parallel jobs. This repo is
+# Lint, build and the three test shards run as parallel jobs. This repo is
 # private, so each job gets a 2-vCPU runner, where Vitest's default worker
 # count (CPUs - 1) is 1: run as one job, the ~10 minute suite ran serially.
 jobs:
@@ -92,7 +92,7 @@ jobs:
         run: pnpm build
 
   test:
-    name: Test (shard ${{ matrix.shard }}/2)
+    name: Test (shard ${{ matrix.shard }}/3)
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -100,7 +100,7 @@ jobs:
       # One failing shard should not hide failures in the others.
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
 
     steps:
       - uses: actions/checkout@v4
@@ -120,4 +120,4 @@ jobs:
       # Two workers on two vCPUs: the main process mostly idles, and pinned to
       # two cores locally this ran a shard 1.5x faster than one worker.
       - name: Test
-        run: pnpm exec vitest run --shard=${{ matrix.shard }}/2 --maxWorkers=2
+        run: pnpm exec vitest run --shard=${{ matrix.shard }}/3 --maxWorkers=2
