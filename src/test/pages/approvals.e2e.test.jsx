@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -342,6 +342,54 @@ describe("approval journeys", () => {
         expect(screen.getByText("3/3 · HR verification")).toBeInTheDocument()
         expect(screen.getByRole("button", { name: "Grade" })).toBeInTheDocument()
         expect(screen.getByRole("button", { name: "Verify Needs a sign-off" })).toBeInTheDocument()
+        await waitForNetworkIdle()
+    })
+
+    it("a Super Admin narrows the one queue to a single step, and sorts by Stage", async () => {
+        const user = setupUser()
+        const admin = makeSuperAdmin({ name: "Bruce Admin" })
+        pendingTask({ task_description: "Needs a grade", reported_to: admin.id })
+        makeTask({
+            logged_by: author.id,
+            category_id: category.category_id,
+            task_description: "Needs a sign-off",
+            status: TASK_STATUS.COMPLETE,
+            grade: 5,
+            evaluated_by: reviewer.id,
+            hr_verified: false,
+            created_at: ago(6),
+        })
+        const TaskApprovals = await loadTasksPage()
+
+        await renderPage(TaskApprovals, admin)
+        expect(await screen.findByText("Needs a grade")).toBeInTheDocument()
+
+        await user.click(screen.getByRole("button", { name: /^step$/i }))
+        await user.click(await screen.findByRole("button", { name: "HR verification" }))
+
+        await waitFor(() => expect(screen.queryByText("Needs a grade")).not.toBeInTheDocument())
+        expect(screen.getByText("Needs a sign-off")).toBeInTheDocument()
+
+        await user.click(screen.getByRole("button", { name: /^step: hr verification$/i }))
+        await user.click(await screen.findByRole("button", { name: "Any step" }))
+        expect(await screen.findByText("Needs a grade")).toBeInTheDocument()
+
+        // The Stage header sorts like the others: Head grade (2/3) before HR verification (3/3).
+        const stage = screen.getByRole("columnheader", { name: /stage/i })
+        await user.click(within(stage).getByRole("button"))
+        expect(stage).toHaveAttribute("aria-sort", "ascending")
+        const rows = screen.getAllByText(/Needs a (grade|sign-off)/).map((e) => e.textContent)
+        expect(rows).toEqual(["Needs a grade", "Needs a sign-off"])
+        await waitForNetworkIdle()
+    })
+
+    it("an HR-only user has no Step filter, since they only have the one step", async () => {
+        const hr = makeHrEmployee({ name: "Hera Dela Cruz" })
+        const TaskApprovals = await loadTasksPage()
+
+        await renderPage(TaskApprovals, hr)
+
+        expect(screen.queryByRole("button", { name: /^step$/i })).not.toBeInTheDocument()
         await waitForNetworkIdle()
     })
 

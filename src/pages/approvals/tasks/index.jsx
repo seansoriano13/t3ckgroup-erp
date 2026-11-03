@@ -4,7 +4,7 @@ import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
 import { useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, Clock, History, Layers, Users } from "lucide-react";
+import { AlertTriangle, Check, Clock, History, Layers, ListOrdered, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import { taskService } from "../../../services/taskService.js";
 import { taskQueryService } from "../../../services/tasks/taskQueryService.js";
@@ -24,7 +24,7 @@ import { sameDepartment } from "../../../utils/compareDepartment.js";
 import { useRecordParam } from "../../../hooks/useRecordParam";
 import { APPROVAL_QUEUES, useApprovalQueues } from "../_components/useApprovalQueues";
 import { ApprovalCenterLayout } from "../_components/ApprovalCenterLayout";
-import { ApprovalToolbar, SelectionBar } from "../_components/ApprovalToolbar";
+import { ApprovalToolbar, PillFilter, SelectionBar } from "../_components/ApprovalToolbar";
 import { ApprovalTable } from "../_components/ApprovalTable";
 import { ApprovalSheet } from "../_components/ApprovalSheet";
 import { TaskReview } from "../_components/TaskReview";
@@ -89,6 +89,8 @@ function TaskApprovalsQueue() {
   const [deptFilter, setDeptFilter] = useState("ALL");
   const [subDeptFilter, setSubDeptFilter] = useState("ALL");
   const [employeeFilter, setEmployeeFilter] = useState("ALL");
+  // Which step of the chain to show: "ALL", "tasks" (Head grade) or "hr" (HR verification).
+  const [stepFilter, setStepFilter] = useState("ALL");
 
   // Anything that changes what the table shows drops the bulk selection.
   const narrowing = (set) => (v) => {
@@ -151,10 +153,14 @@ function TaskApprovalsQueue() {
     staleTime: 30_000,
   });
 
-  const people = useMemo(() => summariseQueueEmployees(source), [source]);
+  const atStep = useMemo(
+    () => (stepFilter === "ALL" ? source : source.filter((t) => stepOf.get(t.id) === stepFilter)),
+    [source, stepOf, stepFilter],
+  );
+  const people = useMemo(() => summariseQueueEmployees(atStep), [atStep]);
   const items = useMemo(
     () =>
-      filterAndSortTasks(source, {
+      filterAndSortTasks(atStep, {
         searchQuery,
         priorityFilter,
         statusFilter: isDoneView ? TASK_STATUS.COMPLETE : statusFilter,
@@ -166,7 +172,7 @@ function TaskApprovalsQueue() {
         sortBy,
         employees: allEmployees,
       }).map((t) => taskToItem(t, stepOf.get(t.id))),
-    [source, stepOf, searchQuery, priorityFilter, statusFilter, isDoneView, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
+    [atStep, stepOf, searchQuery, priorityFilter, statusFilter, isDoneView, timeframe, selectedDateFilter, deptFilter, subDeptFilter, employeeFilter, sortBy, allEmployees],
   );
 
   const clearFilters = () => {
@@ -177,6 +183,7 @@ function TaskApprovalsQueue() {
     setDeptFilter("ALL");
     setSubDeptFilter("ALL");
     setEmployeeFilter("ALL");
+    setStepFilter("ALL");
     setSelectedIds([]);
   };
 
@@ -351,6 +358,21 @@ function TaskApprovalsQueue() {
             setEmployeeFilter("ALL");
             setStatusFilter(v === "DONE" ? TASK_STATUS.COMPLETE : "ALL");
           })}
+          extraFilters={
+            canGrade && canVerify && !isGroupView ? (
+              <PillFilter
+                label="Step"
+                icon={<ListOrdered size={13} className="text-muted-foreground" />}
+                value={stepFilter}
+                options={[
+                  { value: "ALL", label: "Any step" },
+                  { value: "tasks", label: "Head grade" },
+                  { value: "hr", label: "HR verification" },
+                ]}
+                onChange={narrowing(setStepFilter)}
+              />
+            ) : null
+          }
           people={isGroupView ? [] : people}
           person={employeeFilter}
           onPersonChange={narrowing(setEmployeeFilter)}
