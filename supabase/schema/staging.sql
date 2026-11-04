@@ -1283,7 +1283,8 @@ create table if not exists public."sale_types" (
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "archived_at" timestamp with time zone
+  "archived_at" timestamp with time zone,
+  "system_key" text
 );
 
 create table if not exists public."sales_custom_templates" (
@@ -2794,6 +2795,7 @@ CREATE INDEX purchase_requests_unassigned_idx ON public.purchase_requests USING 
 CREATE INDEX push_subscriptions_employee_id_idx ON public.push_subscriptions USING btree (employee_id);
 CREATE INDEX retail_orders_ordered_at_idx ON public.retail_orders USING btree (ordered_at DESC);
 CREATE UNIQUE INDEX sale_types_live_name_key ON public.sale_types USING btree (lower(btrim(name))) WHERE (archived_at IS NULL);
+CREATE UNIQUE INDEX sale_types_system_key_key ON public.sale_types USING btree (system_key) WHERE (system_key IS NOT NULL);
 CREATE INDEX sales_opportunities_active_idx ON public.sales_opportunities USING btree (is_deleted, status);
 CREATE INDEX sales_opportunities_closing_sales_idx ON public.sales_opportunities USING btree (closing_sales_id);
 CREATE INDEX sales_opportunities_deal_owner_idx ON public.sales_opportunities USING btree (deal_owner_id);
@@ -25177,7 +25179,7 @@ begin
 
   if exists (
     select 1 from public.sale_types st
-    where st.id = NEW.sale_type_id and lower(btrim(st.name)) = 'legacy pipeline'
+    where st.id = NEW.sale_type_id and st.system_key = 'legacy_pipeline'
   ) then
     raise exception 'The Legacy Pipeline is closed to new deals. Choose another Sale Type.';
   end if;

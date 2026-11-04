@@ -76,6 +76,13 @@ begin
    where id = v_sale_type_id
      and name is distinct from 'Legacy Pipeline';
 
+  -- #856: the fixed key the no-new-deals block reads, so a later rename doesn't lift it.
+  update public.sale_types
+     set system_key = 'legacy_pipeline'
+   where id = v_sale_type_id
+     and system_key is distinct from 'legacy_pipeline'
+     and not exists (select 1 from public.sale_types where system_key = 'legacy_pipeline' and id <> v_sale_type_id);
+
   update public.sales_opportunities o
      set sale_type_id = v_sale_type_id,
          flow_stage_id = s.id
