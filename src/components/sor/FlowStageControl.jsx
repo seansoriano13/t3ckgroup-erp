@@ -25,7 +25,11 @@ import StageRibbonScroller from "./StageRibbonScroller";
  * it may move to next. Those are the outgoing edges she drew, and nothing
  * else is offered, because a path that was never drawn never happens.
  */
-export default function FlowStageControl({ opportunity, onMove, isMoving, blockedBy = [], returnStageIds = [], disabled = false }) {
+/**
+ * `leading` is drawn on the left of the top line, with the Revert / Mark as Lost /
+ * Reopen buttons on its right, so the SOR header spends one line on both.
+ */
+export default function FlowStageControl({ opportunity, onMove, isMoving, blockedBy = [], returnStageIds = [], disabled = false, leading = null, trailing = null, showMarkLost = true }) {
   const { data: canvas } = useQuery({
     queryKey: ["salesFlow", opportunity.sale_type_id],
     queryFn: () => salesFlowService.getFlow(opportunity.sale_type_id),
@@ -97,8 +101,32 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
 
   let globalIndex = -1;
 
+  const actions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <RevertStageButton opportunity={opportunity} stageName={current?.name} />
+      {showMarkLost && current && !current.is_terminal && (
+        <MarkLostButton
+          opportunity={opportunity}
+          lostStages={lostStagesOfFlow(stages, flow?.won_stage_id)}
+        />
+      )}
+      {current && isLostFlowStage(current, flow?.won_stage_id ?? null) && (
+        <ReopenButton opportunity={opportunity} />
+      )}
+    </div>
+  );
+
   return (
-    <div className="w-full space-y-3">
+    <div className="w-full space-y-2">
+      {leading ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          {leading}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {trailing}
+            {actions}
+          </div>
+        </div>
+      ) : null}
       <StageRibbonScroller className="w-full">
         <div className="flex w-max min-w-full items-end gap-[2px]">
             {runs.map((run) => (
@@ -118,7 +146,7 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
 
                 <ul
                   className={cn(
-                    "flex h-12 gap-[2px]",
+                    "flex h-9 gap-[2px]",
                     run.label && "border-t-2 border-violet-8 pt-1",
                   )}
                 >
@@ -196,18 +224,7 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <RevertStageButton opportunity={opportunity} stageName={current?.name} />
-        {current && !current.is_terminal && (
-          <MarkLostButton
-            opportunity={opportunity}
-            lostStages={lostStagesOfFlow(stages, flow?.won_stage_id)}
-          />
-        )}
-        {current && isLostFlowStage(current, flow?.won_stage_id ?? null) && (
-          <ReopenButton opportunity={opportunity} />
-        )}
-      </div>
+      {!leading && actions}
 
       {current?.is_terminal && (
         <div className="flex flex-wrap items-center gap-2">
