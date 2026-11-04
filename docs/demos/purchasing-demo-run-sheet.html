@@ -180,7 +180,7 @@ ol.steps input[type=checkbox] {
   <span class="eyebrow">STAGING · t3ckgroup-erp-staging.vercel.app · SALE TYPE "PROJECT [FOR DEMO]" · S0 S03204</span>
   <h1>Purchasing Demo Run Sheet</h1>
   <p class="lede">One real government deal, from Lead to a filed IPAS, demonstrating the Purchasing subsystem. Deal is Odoo sale order <b class="mono">S03204</b>: Marikina City Government, fire-fighting equipment, 12 product lines, ₱1,370,535.74, procured across four real P0s. Part 0 is setup. Parts 1 to 9 are the live run. Parts A to F are targeted side scenarios. Tick each step as completed.</p>
-  <p class="note"><b>Branch state:</b> Updated for PR #867 / v1.9.85 (bulk line status triage with unified Undo, search highlighting across Purchasing lists, recent activity sort on Dashboard, tinted top line for Attach P0, clickable IPAS links in attach notifications, and S0 card in Details edit form). Action-only: Who, Where, Do, See.</p>
+  <p class="note"><b>Branch state:</b> Updated for v1.9.86 (#877: a Technical page for the RRD and IOE teams; #875: Fetch from Odoo is back on the registration form; #876: compact SOR header). Earlier, PR #867 / v1.9.85 (bulk line status triage with unified Undo, search highlighting across Purchasing lists, recent activity sort on Dashboard, tinted top line for Attach P0, clickable IPAS links in attach notifications, and S0 card in Details edit form). Action-only: Who, Where, Do, See.</p>
 </header>
 
 <section id="howto">
@@ -229,7 +229,7 @@ ol.steps input[type=checkbox] {
         <tr><td><button class="copy" type="button">201@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>General Manager: markup management, Go unlock authority, signs IPAS Section 4 Checked and Approved.</td></tr>
         <tr><td><button class="copy" type="button">101@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Sales Director / Super Admin: Flow Canvas setup (Part 0), approves IPAS Section 1 &amp; Section 2, signs IPAS Section 4 Noted.</td></tr>
         <tr><td><button class="copy" type="button">aldrin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Warehouse Staff: signs Transmittal Warehouse Checking &amp; Releasing, signs Received in Odoo, signs IPAS Logistics, packs Packing List.</td></tr>
-        <tr><td><button class="copy" type="button">sherwin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Technician / RRD: marks technical compliance on S0 Evaluation, signs Transmittal Technical Inspection.</td></tr>
+        <tr><td><button class="copy" type="button">sherwin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Technician / RRD: marks technical compliance on the Technical page (Sales → Technical, #877), signs Transmittal Technical Inspection.</td></tr>
       </tbody>
     </table>
   </div>
@@ -377,7 +377,7 @@ ol.steps input[type=checkbox] {
       <div class="step-body">
         <div class="head"><span class="k">2.1</span><span class="seat s-sales">Sales</span></div>
         <div class="row where"><b>Where</b><div>Sales → SORs → Register form</div></div>
-        <div class="row do"><b>Do</b><div><ol><li>Sale Type: Select <b>Project [FOR DEMO]</b> (Sale Type is mandatory; Legacy Pipeline is closed to new deals per #856).</li><li>Sales Reference: Enter <b class="mono">S03204</b>.</li><li>Lead Source: Select <b>LGU</b>.</li><li>Company Name: Enter <b>Marikina City Government</b>.</li><li>Contact Person: Enter <b>Engr. Santos</b>.</li><li>Project Title: Enter <b>Fire Fighting Equipment</b>.</li><li>Under Ownership, set Deal Owner to <b>Dani demo</b>.</li><li>Click <b>Register</b>. Record the generated SOR number in Session Identifiers.</li></ol></div></div>
+        <div class="row do"><b>Do</b><div><ol><li>Sale Type: Select <b>Project [FOR DEMO]</b> (Sale Type is mandatory; Legacy Pipeline is closed to new deals per #856).</li><li>Sales Reference: Enter <b class="mono">S03204</b>, then click <b>Fetch from Odoo</b> (#875): it fills Company Name, Contact Person and the Product List from the quotation.</li><li>Lead Source: Select <b>LGU</b>.</li><li>Company Name: Confirm <b>Marikina City Government</b> (typed if Fetch did not fill it).</li><li>Contact Person: Enter <b>Engr. Santos</b> if the quotation has none.</li><li>Project Title: Enter <b>Fire Fighting Equipment</b>.</li><li>Under Ownership, set Deal Owner to <b>Dani demo</b>.</li><li>Click <b>Register</b>. Record the generated SOR number in Session Identifiers.</li></ol></div></div>
         <div class="row see"><b>See</b><div>SOR detail view opens. Header identity line displays <b class="mono">SOR-256</b> and <b class="mono">S03204</b> in plain text (#859) beside stage badge <b>Lead</b>. Total value displays ₱1,370,535.74. All 12 product lines loaded directly from Odoo. <i>(Note: The interactive S0 Card with Odoo status lives inside the edit form under Details → Sales Reference).</i></div></div>
       </div>
     </li>

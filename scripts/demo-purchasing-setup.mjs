@@ -293,6 +293,11 @@ async function freeScenarioFS0s(c, demoFlow) {
 
   const { rows: [dani] } = await c.query("select id from public.employees where email = $1", [`dani@${DEMO_DOMAIN}`])
 
+  // sor_guard_stage_move refuses a stage move unless the caller reads 'full' on the SOR. This
+  // connection has no JWT (cancelIpasRows also blanks the claims above), so run the move as
+  // service_role, which the guard exempts. Same approach as seed-stage-access-demo.mjs.
+  await c.query("select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', true)")
+
   // Move SOR-73 onto Project [FOR DEMO] at the entry stage and un-delete it
   const { rows: sor73Rows } = await c.query(
     `update public.sales_opportunities o
