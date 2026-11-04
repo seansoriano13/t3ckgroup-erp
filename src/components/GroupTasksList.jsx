@@ -34,12 +34,11 @@ export default function GroupTasksList({ selectedRange }) {
   });
 
   const activeTasks = useMemo(() => {
+    // Group tasks still in progress. HR_PENDING and later are done and only counted.
     const tasks = groupTasks.filter(
       (t) =>
         t.status === "ACTIVE" ||
-        t.status === "AWAITING_EVALUATION" ||
-        t.status === "PENDING" ||
-        t.status === "COMPLETED",
+        t.status === "AWAITING_EVALUATION",
     );
 
     if (!searchTerm.trim()) return tasks;
