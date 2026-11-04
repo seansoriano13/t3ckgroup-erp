@@ -119,7 +119,7 @@ describe("telling the team its rows are waiting", () => {
         expect(await notices("ipasSigner")).toHaveLength(1)
         const [rrd] = await notices("ordinary")
         expect(rrd.title).toBe("Rows waiting for RRD")
-        expect(rrd.message).toMatch(/rows are waiting for RRD to judge/)
+        expect(rrd.message).toMatch(/rows are waiting for RRD to check/)
     })
 
     it("does not repeat an unread notice when another row is given to the same team", async () => {

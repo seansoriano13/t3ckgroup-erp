@@ -1,0 +1,235 @@
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { ClipboardCheck, Users } from "lucide-react";
+
+import PageShell from "../ui/PageShell";
+import EmptyState from "../ui/EmptyState";
+import QueryError from "../ui/QueryError";
+import PageLoading from "../ui/PageLoading";
+import TabGroup from "../ui/TabGroup";
+import FilterBar from "../ui/FilterBar";
+import { FilterSelect } from "../ui/FilterDropdown";
+import StatusBadge from "../StatusBadge";
+import HighlightText from "../HighlightText";
+import { IdentityCell } from "../purchasing/list/IdentityCell";
+import { StateCell, STATE_HEAD_CLASS } from "../purchasing/list/StateCell";
+import { SortHead, Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
+import { TablePager } from "../ui/TablePager";
+import { useTableSort } from "../../hooks/useTableSort";
+import { usePaging } from "../../hooks/usePaging";
+import { costingMatrixService } from "../../services/costingMatrixService";
+import { salesFlowService } from "../../services/salesFlowService";
+import { flowStageTonesByName } from "../../constants/salesFlow";
+import { TECHNICAL_TAB, checkedLabel, filterTechnical, technicalKeys, technicalState } from "../../utils/technicalList";
+
+/**
+ * The Technical list (#877), built like the Purchasing lists: To check / Done / All pills, a search, sortable
+ * columns, a pager, and a row that opens its sheet in a record window over the list (`selectedId` is the row whose
+ * window is open). SOR names and counts only, never money.
+ */
+
+const HEAD = "text-label font-bold uppercase tracking-wider";
+const CHIP = "h-9 w-auto gap-2 px-2.5";
+const CHIP_WRAPPER = "w-auto shrink-0";
+const ALL = "__all__";
+const STATE_TONES = { to_check: "amber", checked: "blue", approved: "green" };
+const NARROW_HIDDEN = new Set(["Stage", "Team"]);
+
+const SORT = {
+  sor: (r) => r.sorNumber,
+  stage: (r) => r.stage,
+  team: (r) => r.team,
+  progress: (r) => (r.rowsTotal ? r.rowsJudged / r.rowsTotal : null),
+  state: (r) => technicalState(r).label,
+};
+const COLUMNS = [
+  ["SOR", "sor"],
+  ["Stage", "stage"],
+  ["Team", "team"],
+  ["Progress", "progress"],
+  ["State", "state"],
+];
+
+// One segment per row; a checked row is filled, an open one is not (the same bar as the Purchase Requests list).
+function ProgressCell({ row }) {
+  if (!row.rowsTotal) return <span className="text-xs text-muted-foreground">No rows yet</span>;
+  return (
+    <div className="w-full min-w-[8rem]">
+      <div className="flex gap-0.5" aria-hidden="true">
+        {Array.from({ length: row.rowsTotal }, (_, i) => (
+          <span key={i} className={`h-1 flex-1 rounded-full ${i < row.rowsJudged ? "bg-green-9" : "bg-mauve-5"}`} />
+        ))}
+      </div>
+      <p className="mt-1 text-xs tabular-nums text-muted-foreground" data-testid="technical-progress">
+        {checkedLabel(row)}
+      </p>
+    </div>
+  );
+}
+
+function TechnicalRow({ row, selected, onOpen, search, stageTones }) {
+  const state = technicalState(row);
+  return (
+    <TableRow
+      tabIndex={0}
+      aria-selected={selected}
+      data-testid="technical-row"
+      onClick={() => onOpen(row.opportunityId)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target === e.currentTarget) {
+          e.preventDefault();
+          onOpen(row.opportunityId);
+        }
+      }}
+      className="group cursor-pointer outline-none focus-visible:bg-muted aria-selected:bg-muted/60"
+    >
+      <IdentityCell reference={row.sorNumber} name={row.projectTitle} search={search}>
+        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+          {row.soNumber ? (
+            <span className="font-mono">
+              <HighlightText text={row.soNumber} search={search} />
+            </span>
+          ) : null}
+          {row.soNumber && row.clientName ? " · " : null}
+          <HighlightText text={row.clientName} search={search} />
+        </span>
+      </IdentityCell>
+      <TableCell className="hidden md:table-cell">
+        {row.stage ? <StatusBadge label={row.stage} theme={stageTones.get(row.stage) || "mauve"} title={row.stage} /> : <span className="text-xs text-muted-foreground">—</span>}
+      </TableCell>
+      <TableCell className="hidden text-xs text-foreground md:table-cell">{row.team}</TableCell>
+      <TableCell>
+        <ProgressCell row={row} />
+      </TableCell>
+      <StateCell state={state.key} tones={STATE_TONES} label={state.label} />
+    </TableRow>
+  );
+}
+
+export default function TechnicalList({ selectedId = null }) {
+  const navigate = useNavigate();
+  const [tab, setTab] = useState(TECHNICAL_TAB.TO_CHECK);
+  const [team, setTeam] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: technicalKeys.list,
+    queryFn: () => costingMatrixService.technicalList(),
+    retry: false,
+  });
+  const rows = useMemo(() => data ?? [], [data]);
+  // Every flow's Stages, shared with the SOR list's cache, to colour the Stage column like the Purchasing lists do.
+  const { data: flowStagesIndex } = useQuery({ queryKey: ["allFlowStagesIndex"], queryFn: () => salesFlowService.getAllStagesIndex() });
+  const stageTones = useMemo(() => flowStageTonesByName(flowStagesIndex), [flowStagesIndex]);
+
+  const teams = useMemo(() => [...new Set(rows.map((r) => r.team))].sort(), [rows]);
+  const teamOptions = useMemo(() => [{ value: ALL, label: "Any team" }, ...teams.map((t) => ({ value: t, label: t }))], [teams]);
+
+  // Team and search narrow first; the pills count within that.
+  const narrowed = useMemo(() => filterTechnical(rows, { team, search }), [rows, team, search]);
+  const counts = useMemo(
+    () => ({
+      [TECHNICAL_TAB.TO_CHECK]: filterTechnical(narrowed, { tab: TECHNICAL_TAB.TO_CHECK }).length,
+      [TECHNICAL_TAB.DONE]: filterTechnical(narrowed, { tab: TECHNICAL_TAB.DONE }).length,
+      [TECHNICAL_TAB.ALL]: narrowed.length,
+    }),
+    [narrowed],
+  );
+  const filtered = useMemo(() => filterTechnical(narrowed, { tab }), [narrowed, tab]);
+  const { sorted: visible, sort, toggle } = useTableSort(filtered, SORT);
+  const paging = usePaging(visible);
+
+  const hasActiveFilters = search !== "" || team !== null || tab !== TECHNICAL_TAB.TO_CHECK;
+  const open = (id) => navigate(`/technical/${id}`);
+
+  const toolbar = (
+    <>
+      <TabGroup
+        variant="pill"
+        size="sm"
+        activeTab={tab}
+        onChange={setTab}
+        tabs={[
+          { value: TECHNICAL_TAB.TO_CHECK, label: "To check", badge: counts[TECHNICAL_TAB.TO_CHECK] },
+          { value: TECHNICAL_TAB.DONE, label: "Done", badge: counts[TECHNICAL_TAB.DONE] },
+          { value: TECHNICAL_TAB.ALL, label: "All", badge: counts[TECHNICAL_TAB.ALL] },
+        ]}
+      />
+      <FilterBar
+        search={{ value: search, onChange: setSearch, placeholder: "Search SO number, SOR number, project or client" }}
+        chips={
+          teams.length > 1 ? (
+            <FilterSelect
+              icon={Users}
+              label="Team"
+              options={teamOptions}
+              value={team ?? ALL}
+              onChange={(v) => setTeam(v === ALL ? null : v)}
+              allValue={ALL}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
+          ) : null
+        }
+        hasActiveFilters={hasActiveFilters}
+        onClearAll={() => {
+          setSearch("");
+          setTeam(null);
+          setTab(TECHNICAL_TAB.TO_CHECK);
+        }}
+      />
+    </>
+  );
+
+  return (
+    <PageShell title="Technical" description="The S0 Evaluation rows given to your team. Open one to mark each row Complies or Deviates." toolbar={toolbar}>
+      {isLoading && <PageLoading label="Technical" />}
+
+      {isError && <QueryError title="The Technical list could not be loaded." onRetry={refetch} />}
+
+      {!isLoading && !isError && visible.length === 0 && (
+        <EmptyState
+          icon={ClipboardCheck}
+          title={rows.length === 0 ? "Nothing to check yet" : "No matching SOR"}
+          description={
+            rows.length === 0
+              ? "Rows appear here once Sales or Purchasing gives them to your team."
+              : "Nothing matches. Try another tab or search, or clear the filters."
+          }
+        />
+      )}
+
+      {!isLoading && !isError && visible.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="overflow-x-auto">
+            <Table tableId="technical" className="md:min-w-[44rem]">
+              <TableHeader>
+                <TableRow className="bg-muted/40 hover:bg-muted/40">
+                  {COLUMNS.map(([heading, key]) => (
+                    <SortHead
+                      key={key}
+                      id={`technical-${key}`}
+                      sortKey={key}
+                      sort={sort}
+                      onSort={toggle}
+                      className={`${HEAD} ${key === "state" ? STATE_HEAD_CLASS : ""} ${NARROW_HIDDEN.has(heading) ? "hidden md:table-cell" : ""}`}
+                    >
+                      {heading}
+                    </SortHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paging.rows.map((row) => (
+                  <TechnicalRow key={`${row.opportunityId}-${row.team}`} row={row} selected={row.opportunityId === selectedId} onOpen={open} search={search} stageTones={stageTones} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <TablePager {...paging} noun="SORs" />
+        </div>
+      )}
+    </PageShell>
+  );
+}

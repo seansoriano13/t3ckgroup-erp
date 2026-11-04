@@ -4905,7 +4905,7 @@ begin
   end if;
 
   v_message := coalesce(v_sor, 'An SOR') || ' · ' || coalesce(v_project, '') || ': rows are waiting for ' ||
-               new.evaluating_team || ' to judge.';
+               new.evaluating_team || ' to check.';
 
   for r in
     select l.employee_id

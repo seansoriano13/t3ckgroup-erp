@@ -511,15 +511,15 @@ ol.steps input[type=checkbox] {
         <div class="head"><span class="k">5.2</span><span class="seat s-sales">Sales</span></div>
         <div class="row where"><b>Where</b><div>S0 Evaluation sheet → Technical band → <b>Compliance</b> column</div></div>
         <div class="row do"><b>Do</b><div>On all 12 rows, change the evaluating team selector from "No team" to <b>RRD</b>.</div></div>
-        <div class="row see"><b>See</b><div>All rows display "RRD · NOT JUDGED". Evaluating team is assigned. Sherwin (RRD team) gets one notification: "SOR-… rows are waiting for RRD to judge."</div></div>
+        <div class="row see"><b>See</b><div>All rows display "RRD · NOT JUDGED". Evaluating team is assigned. Sherwin (RRD team) gets one notification: "SOR-… rows are waiting for RRD to check."</div></div>
       </div>
     </li>
     <li data-k="5.3"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">5.3</span><span class="seat s-wh">sherwin</span></div>
-        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) → sidebar → Sales → <b>Technical</b> (or click the notification) → open the SOR row → Technical sheet</div></div>
+        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) → sidebar → Sales → <b>Technical</b> (or click the notification) → click the SOR row: the Technical sheet opens in a window over the list</div></div>
         <div class="row do"><b>Do</b><div>On all 12 rows, select <b>Complies</b> from the <b>Your verdict</b> dropdown. The Technical sheet shows no prices; the main S0 Evaluation page stays with the Closed Book.</div></div>
-        <div class="row see"><b>See</b><div>All 12 rows show green "Complies". Facts strip displays <b>Judged 12 of 12</b>.</div></div>
+        <div class="row see"><b>See</b><div>All 12 rows show green "Complies". The sheet says <b>All 12 checked</b>, and the Technical list row moves to the <b>Done</b> tab. (In Dani's S0 Evaluation, the facts strip displays <b>Judged 12 of 12</b>.)</div></div>
       </div>
     </li>
     <li data-k="5.4"><input type="checkbox" aria-label="Done">
@@ -923,7 +923,7 @@ ol.steps input[type=checkbox] {
         <div class="head"><span class="k">C.1</span><span class="seat s-wh">sherwin</span></div>
         <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) → Sales → Technical, before step 5.2 assigns the RRD team</div></div>
         <div class="row do"><b>Do</b><div>Open the Technical list while no row is given to RRD.</div></div>
-        <div class="row see"><b>See</b><div>"Nothing to judge yet". Rows with no team never reach the Technical list; lines cannot be evaluated without team assignment.</div></div>
+        <div class="row see"><b>See</b><div>"Nothing to check yet". Rows with no team never reach the Technical list; lines cannot be evaluated without team assignment.</div></div>
       </div>
     </li>
     <li data-k="C.2" data-opt><input type="checkbox" aria-label="Done">

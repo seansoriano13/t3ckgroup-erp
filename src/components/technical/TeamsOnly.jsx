@@ -1,7 +1,7 @@
 import { Navigate } from "react-router";
 
-import { useAuth } from "../../../context/AuthContext";
-import { getPermissionContext } from "../../../utils/permissions";
+import { useAuth } from "../../context/AuthContext";
+import { getPermissionContext } from "../../utils/permissions";
 
 /**
  * Every employee can type the Technical address; only the evaluation teams and Super Admins get past this,
