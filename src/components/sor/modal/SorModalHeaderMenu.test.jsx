@@ -44,10 +44,9 @@ describe("SOR window More-actions menu (#814)", () => {
 
     await openMenu(user)
     expect(screen.getByRole("button", { name: /delete opportunity/i })).toBeInTheDocument()
-    // The old-pipeline header button is the first; the menu item is the second.
-    const before = screen.getAllByRole("button", { name: /^mark as lost$/i }).length
-    expect(before).toBe(2)
-    await user.click(screen.getAllByRole("button", { name: /^mark as lost$/i }).at(-1))
+    // Mark as Lost lives only in the menu now; the header no longer has its own button.
+    expect(screen.getAllByRole("button", { name: /^mark as lost$/i })).toHaveLength(1)
+    await user.click(screen.getByRole("button", { name: /^mark as lost$/i }))
 
     expect(await screen.findByRole("radiogroup", { name: "Why was the deal lost?" })).toBeInTheDocument()
   })
