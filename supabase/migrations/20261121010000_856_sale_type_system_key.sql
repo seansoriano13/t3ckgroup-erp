@@ -6,9 +6,12 @@
 -- never ran) it matched nothing. sale_types.system_key is a fixed key the app and
 -- the database both read; a name change no longer touches it.
 --
--- The key goes on production's Legacy Pipeline by id (the same id the cutover
--- backfill targets, supabase/scripts/cutover/legacy_pipeline_backfill.sql) and on
--- any row still named Legacy Pipeline, so local stacks and test fixtures get it too.
+-- The names differ by database: production's row is called "Legacy Pipeline (do
+-- not use)", so the name match never fired there; staging's is "Legacy Pipeline".
+-- So the key goes on production's row by id first (the same id the cutover
+-- backfill targets, supabase/scripts/cutover/legacy_pipeline_backfill.sql), and
+-- only where that id is absent on the oldest row named exactly Legacy Pipeline
+-- (staging, local stacks, test fixtures). The name is read once, here, and never again.
 
 alter table public.sale_types add column if not exists system_key text;
 
