@@ -265,11 +265,11 @@ describe("OpportunityFormModal — the S0 box", () => {
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   };
 
-  it("has no Fetch from Odoo button", async () => {
+  it("has a Fetch from Odoo button", async () => {
     renderForm();
     await screen.findByText("101");
     await chooseSaleType();
-    expect(screen.queryByRole("button", { name: /fetch/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /fetch from odoo/i })).toBeInTheDocument();
   });
 
   it("hands a typed S0 to registration, normalised, and never asks to go ahead anyway", async () => {
