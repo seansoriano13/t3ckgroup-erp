@@ -85,7 +85,7 @@ export default function DocumentCenterTab(props) {
         </ul>
       </Step>
 
-      <Step n={2} title="Set the order" hint="Two slips share a sheet, top then bottom">
+      <Step n={2} title="Set the order" hint="Four slips share a sheet, left to right, top then bottom">
         <p className="text-xs font-bold tabular-nums text-foreground">
           {tray.length} {tray.length === 1 ? 'form' : 'forms'} queued
         </p>

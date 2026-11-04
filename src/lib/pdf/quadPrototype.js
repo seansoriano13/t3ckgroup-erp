@@ -17,7 +17,8 @@ const QUAD_CSS = `
   .quad .head { flex-wrap: wrap; gap: 10px; padding: 10px 0; }
   .quad .head .who { font-size: 21px; }
   .quad .head .r { text-align: left; }
-  .quad .cols { flex-direction: column; gap: 10px; padding-top: 10px; }
+  .quad .cols { flex-direction: column; gap: 10px; padding-top: 10px; overflow: hidden; }
+  .quad .cL { flex: 1 1 0; min-height: 0; }
   .quad .cR { flex: 0 0 auto; padding-left: 0; border-left: 0; border-top: 1px solid var(--f-hair); padding-top: 8px; gap: 10px; }
   .quad .grid { gap: 9px 14px; }
   .quad .rem { min-height: 0; flex: 1 1 auto; overflow: hidden; }
