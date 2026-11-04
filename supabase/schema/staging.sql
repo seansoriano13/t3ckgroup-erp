@@ -974,7 +974,8 @@ create table if not exists public."notifications" (
   "message" text not null,
   "is_read" boolean default false,
   "reference_id" text,
-  "created_at" timestamp with time zone not null default timezone('utc'::text, now())
+  "created_at" timestamp with time zone not null default timezone('utc'::text, now()),
+  "parts" jsonb
 );
 
 create table if not exists public."odoo_retail_queue" (
@@ -1283,7 +1284,8 @@ create table if not exists public."sale_types" (
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "archived_at" timestamp with time zone
+  "archived_at" timestamp with time zone,
+  "system_key" text
 );
 
 create table if not exists public."sales_custom_templates" (
@@ -2794,6 +2796,7 @@ CREATE INDEX purchase_requests_unassigned_idx ON public.purchase_requests USING 
 CREATE INDEX push_subscriptions_employee_id_idx ON public.push_subscriptions USING btree (employee_id);
 CREATE INDEX retail_orders_ordered_at_idx ON public.retail_orders USING btree (ordered_at DESC);
 CREATE UNIQUE INDEX sale_types_live_name_key ON public.sale_types USING btree (lower(btrim(name))) WHERE (archived_at IS NULL);
+CREATE UNIQUE INDEX sale_types_system_key_key ON public.sale_types USING btree (system_key) WHERE (system_key IS NOT NULL);
 CREATE INDEX sales_opportunities_active_idx ON public.sales_opportunities USING btree (is_deleted, status);
 CREATE INDEX sales_opportunities_closing_sales_idx ON public.sales_opportunities USING btree (closing_sales_id);
 CREATE INDEX sales_opportunities_deal_owner_idx ON public.sales_opportunities USING btree (deal_owner_id);
@@ -6822,10 +6825,9 @@ AS $function$
 declare
   r record;
   v_old public.notifications;
-  v_rest text;
-  v_count int;
-  v_details text;
   v_prefix text := p_label || ': ';
+  v_part jsonb := jsonb_build_object('content', p_content, 'detail', p_detail);
+  v_parts jsonb;
 begin
   for r in
     select distinct e.id
@@ -6844,6 +6846,7 @@ begin
     where n.recipient_id = r.id
       and n.type = 'PURCHASE_REQUEST_ITEM_STATUS'
       and n.reference_id = p_request_id::text
+      and n.parts is not null
       and not coalesce(n.is_read, false)
       and n.created_at > now() - interval '10 minutes'
     order by n.created_at desc
@@ -6851,23 +6854,16 @@ begin
     for update;
 
     if v_old.id is null then
-      insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+      v_parts := jsonb_build_array(v_part);
+      insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id, parts)
       values (r.id, p_sender, 'PURCHASE_REQUEST_ITEM_STATUS', p_title,
-              left(v_prefix || p_content, 280), p_request_id::text);
+              public._purchase_request_status_parts_message(v_prefix, v_parts), p_request_id::text, v_parts);
     else
-      v_rest := case when left(v_old.message, length(v_prefix)) = v_prefix
-                     then substr(v_old.message, length(v_prefix) + 1) else v_old.message end;
-      if v_rest ~ '^[0-9]+ products changed: ' then
-        v_count := (substring(v_rest from '^([0-9]+) products changed: '))::int + 1;
-        v_details := regexp_replace(v_rest, '^[0-9]+ products changed: ', '') || ', ' || p_detail;
-      else
-        v_count := 2;
-        -- "Name: From → To (extra)" becomes "Name → To (extra)"
-        v_details := regexp_replace(v_rest, '^(.*?): .*? → (.*)$', E'\\1 → \\2') || ', ' || p_detail;
-      end if;
+      v_parts := v_old.parts || jsonb_build_array(v_part);
       update public.notifications
          set title = 'Requested Items updated',
-             message = left(v_prefix || v_count || ' products changed: ' || v_details, 280),
+             message = public._purchase_request_status_parts_message(v_prefix, v_parts),
+             parts = v_parts,
              sender_id = p_sender,
              is_read = false,
              created_at = now()
@@ -7154,6 +7150,19 @@ begin
   );
   return null;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_status_parts_message(p_prefix text, p_parts jsonb)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select left(p_prefix || case
+           when jsonb_array_length(p_parts) = 1 then p_parts->0->>'content'
+           else jsonb_array_length(p_parts) || ' products changed: '
+                || (select string_agg(x->>'detail', ', ' order by i) from jsonb_array_elements(p_parts) with ordinality as t(x, i))
+         end, 280)
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._purchase_request_sync_sor_items(p_request_id uuid)
@@ -20647,12 +20656,10 @@ declare
   v_label text;
   v_content text;
   v_read uuid[];
-  v_seg text;
   v_prefix text;
   v_m record;
-  v_count int;
-  v_details text;
   v_pos int;
+  v_parts jsonb;
 begin
   if v_actor is null then
     raise exception 'purchase_request_undo_item_status: not signed in' using errcode = '42501';
@@ -20757,16 +20764,50 @@ begin
     )
   );
 
-  -- The change's notifications (_purchase_request_message_notify): withdraw the
-  -- unread ones, tell whoever already read theirs.
+  -- The change's notifications: take its part out of each unread one (withdrawing
+  -- a row left with none), and tell whoever already read theirs.
   v_label := public._purchase_request_label(v_item.request_id);
+  v_prefix := v_label || ': ';
+  v_read := '{}';
+  for v_m in
+    select n.id, n.recipient_id, coalesce(n.is_read, false) as is_read, n.parts
+    from public.notifications n
+    where n.type = 'PURCHASE_REQUEST_ITEM_STATUS'
+      and n.reference_id = v_item.request_id::text
+      and n.parts is not null
+      and exists (select 1 from jsonb_array_elements(n.parts) x where x->>'content' = v_event.content)
+    for update
+  loop
+    if v_m.is_read then
+      v_read := array_append(v_read, v_m.recipient_id);
+      continue;
+    end if;
+    select t.i into v_pos
+    from jsonb_array_elements(v_m.parts) with ordinality as t(x, i)
+    where t.x->>'content' = v_event.content
+    order by t.i desc
+    limit 1;
+    v_parts := v_m.parts - (v_pos - 1)::int;
+    if jsonb_array_length(v_parts) = 0 then
+      delete from public.notifications where id = v_m.id;
+    else
+      update public.notifications
+         set parts = v_parts,
+             message = public._purchase_request_status_parts_message(v_prefix, v_parts),
+             title = case when jsonb_array_length(v_parts) = 1 then 'Requested Item updated' else title end
+       where id = v_m.id;
+    end if;
+  end loop;
+
+  -- A notification written before notifications.parts: its single-change message, as before.
   with sent as (
     select n.id, n.recipient_id, coalesce(n.is_read, false) as is_read
     from public.notifications n
     where n.type = 'PURCHASE_REQUEST_ITEM_STATUS'
       and n.reference_id = v_item.request_id::text
       and n.sender_id = v_actor
-      and n.message = left(v_label || ': ' || v_event.content, 280)
+      and n.parts is null
+      and n.message = left(v_prefix || v_event.content, 280)
   ),
   withdrawn as (
     delete from public.notifications n
@@ -20774,51 +20815,9 @@ begin
     where n.id = sent.id and not sent.is_read
     returning n.id
   )
-  select coalesce(array_agg(distinct sent.recipient_id) filter (where sent.is_read), '{}')
+  select v_read || coalesce(array_agg(distinct sent.recipient_id) filter (where sent.is_read), '{}')
     into v_read
   from sent;
-
-  -- #852: a change that #851 merged into a "N products changed: ..." notification. Take this line's
-  -- part out of it (an unread row), or tell a recipient who already read it.
-  v_seg := coalesce(v_item.name, 'A product') || ' → ' || coalesce(public._purchase_request_item_status_label(v_to), v_to, '?');
-  v_prefix := v_label || ': ';
-  for v_m in
-    select n.id, n.recipient_id, coalesce(n.is_read, false) as is_read, n.message
-    from public.notifications n
-    where n.type = 'PURCHASE_REQUEST_ITEM_STATUS'
-      and n.reference_id = v_item.request_id::text
-      and n.sender_id = v_actor
-      and left(n.message, length(v_prefix)) = v_prefix
-      and substr(n.message, length(v_prefix) + 1) ~ '^[0-9]+ products changed: '
-      and position(v_seg in n.message) > 0
-    for update
-  loop
-    if v_m.is_read then
-      v_read := array_append(coalesce(v_read, '{}'::uuid[]), v_m.recipient_id);
-      continue;
-    end if;
-    v_count := (substring(substr(v_m.message, length(v_prefix) + 1) from '^([0-9]+) products changed: '))::int;
-    v_details := regexp_replace(substr(v_m.message, length(v_prefix) + 1), '^[0-9]+ products changed: ', '');
-    v_pos := position(', ' || v_seg in v_details);
-    if v_pos > 0 then
-      v_details := overlay(v_details placing '' from v_pos for length(', ' || v_seg));
-    elsif left(v_details, length(v_seg) + 2) = v_seg || ', ' then
-      v_details := substr(v_details, length(v_seg) + 3);
-    elsif v_details = v_seg then
-      v_details := null;
-    else
-      continue;
-    end if;
-    if v_count <= 1 or v_details is null then
-      delete from public.notifications where id = v_m.id;
-    else
-      update public.notifications
-         set message = left(v_prefix || case when v_count - 1 = 1 then v_details
-                                             else (v_count - 1) || ' products changed: ' || v_details end, 280),
-             title = case when v_count - 1 = 1 then 'Requested Item updated' else title end
-       where id = v_m.id;
-    end if;
-  end loop;
 
   perform public._purchase_request_notify(
     v_item.request_id, v_read, v_actor,
@@ -25177,7 +25176,7 @@ begin
 
   if exists (
     select 1 from public.sale_types st
-    where st.id = NEW.sale_type_id and lower(btrim(st.name)) = 'legacy pipeline'
+    where st.id = NEW.sale_type_id and st.system_key = 'legacy_pipeline'
   ) then
     raise exception 'The Legacy Pipeline is closed to new deals. Choose another Sale Type.';
   end if;

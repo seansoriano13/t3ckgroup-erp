@@ -10,6 +10,7 @@ import {
   diffFlowSnapshots,
   entryStage,
   flowLockBlockers,
+  isLegacyPipelineSaleType,
   flowPublishWarnings,
   flowStageTone,
   flowStageTonesByName,
@@ -810,5 +811,13 @@ describe("flowPublishWarnings (#463)", () => {
 
   it("does not warn about a Stage no path reaches (that is a lock blocker)", () => {
     expect(flowPublishWarnings({ stages, edges: [edge("a", "b")], conditionsByStage: { d: condition("costing_settled") } })).toEqual([])
+  })
+})
+
+describe("isLegacyPipelineSaleType", () => {
+  it("knows the Legacy Pipeline by its fixed key, not its name", () => {
+    expect(isLegacyPipelineSaleType({ name: "Renamed", system_key: "legacy_pipeline" })).toBe(true)
+    expect(isLegacyPipelineSaleType({ name: "Legacy Pipeline", system_key: null })).toBe(false)
+    expect(isLegacyPipelineSaleType(null)).toBe(false)
   })
 })
