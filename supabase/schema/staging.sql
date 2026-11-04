@@ -4876,6 +4876,63 @@ AS $function$
   where pri.component_id is null
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._costing_notify_evaluation_team()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_opp uuid;
+  v_sor text;
+  v_project text;
+  v_message text;
+  r record;
+begin
+  if new.evaluating_team is null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and new.evaluating_team is not distinct from old.evaluating_team then
+    return new;
+  end if;
+
+  select o.id, o.sor_code, o.project_title into v_opp, v_sor, v_project
+    from public.costing_matrices m
+    join public.sales_opportunities o on o.id = m.opportunity_id
+   where m.id = new.matrix_id;
+  if v_opp is null then
+    return new;
+  end if;
+
+  v_message := coalesce(v_sor, 'An SOR') || ' · ' || coalesce(v_project, '') || ': rows are waiting for ' ||
+               new.evaluating_team || ' to judge.';
+
+  for r in
+    select l.employee_id
+      from public.costing_signer_lists l
+      join public.employees e on e.id = l.employee_id
+     where l.list_key = 'team_' || lower(new.evaluating_team)
+       and not coalesce(e.is_deleted, false)
+       and l.employee_id is distinct from public.get_employee_id()
+  loop
+    if not exists (
+      select 1 from public.notifications n
+       where n.recipient_id = r.employee_id
+         and n.type = 'COSTING_EVALUATION_ASSIGNED'
+         and n.reference_id = v_opp::text
+         and n.title = 'Rows waiting for ' || new.evaluating_team
+         and coalesce(n.is_read, false) = false
+    ) then
+      insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+      values (r.employee_id, public.get_employee_id(), 'COSTING_EVALUATION_ASSIGNED',
+              'Rows waiting for ' || new.evaluating_team, v_message, v_opp::text);
+    end if;
+  end loop;
+
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._employee_has_purchasing_access(p_employee_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -11984,6 +12041,67 @@ AS $function$
   from public.costing_tender_lines l
   left join public.sales_opportunity_items sl on sl.id = public.costing_matching_sor_line(l.id)
   where l.id = p_tender_line_id
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_technical_list()
+ RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, client_name text, stage text, team text, rows_total integer, rows_judged integer, approved boolean, is_mine boolean)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_me uuid := public.get_employee_id();
+  v_all boolean := coalesce(public.is_super_admin(), false);
+begin
+  if v_me is null then
+    raise exception 'costing_technical_list: not signed in' using errcode = '42501';
+  end if;
+  if not (v_all or exists (
+    select 1 from public.costing_signer_lists l
+    join public.employees e on e.id = l.employee_id
+    where l.employee_id = v_me and l.list_key in ('team_rrd', 'team_ioe') and not coalesce(e.is_deleted, false)
+  )) then
+    raise exception 'costing_technical_list: only the RRD and IOE teams and Super Admins read the Technical list'
+      using errcode = '42501';
+  end if;
+
+  return query
+  select
+    o.id,
+    o.sor_code,
+    o.sales_reference,
+    o.project_title,
+    o.client_name,
+    fs.name,
+    t.evaluating_team,
+    count(c.id)::integer,
+    (count(c.id) filter (where c.compliance is not null))::integer,
+    exists (
+      select 1 from public.costing_signoffs s
+      where s.matrix_id = m.id and s.role = 'evaluation_approved' and s.cleared_at is null
+    ),
+    -- Whether the caller is on this row's team: a Super Admin reads every team's rows but judges only their own.
+    exists (
+      select 1 from public.costing_signer_lists l
+      where l.employee_id = v_me and l.list_key = 'team_' || lower(t.evaluating_team)
+    )
+  from public.costing_matrices m
+  join public.sales_opportunities o on o.id = m.opportunity_id
+  join public.costing_tender_lines t on t.matrix_id = m.id and t.evaluating_team is not null
+  left join public.costing_components c on c.tender_line_id = t.id
+  left join public.flow_stages fs on fs.id = o.flow_stage_id
+  where not coalesce(o.is_deleted, false)
+    and not coalesce(o.is_scratch, false)
+    and (
+      v_all
+      or exists (
+        select 1 from public.costing_signer_lists l
+        where l.employee_id = v_me and l.list_key = 'team_' || lower(t.evaluating_team)
+      )
+    )
+  group by o.id, o.sor_code, o.sales_reference, o.project_title, o.client_name, o.serial_no, fs.name, t.evaluating_team, m.id
+  order by o.serial_no desc, t.evaluating_team;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_tender_line_delete_guard()
@@ -28858,6 +28976,7 @@ CREATE TRIGGER costing_tender_line_delete_guard BEFORE DELETE ON public.costing_
 CREATE TRIGGER costing_tender_line_product_guard BEFORE UPDATE OF odoo_product_id ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_product_guard();
 CREATE TRIGGER costing_tender_line_removal_guard BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_removal_guard();
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
+CREATE TRIGGER costing_tender_lines_notify_team AFTER INSERT OR UPDATE OF evaluating_team ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION _costing_notify_evaluation_team();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();

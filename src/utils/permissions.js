@@ -42,6 +42,8 @@ export function getPermissionContext(user) {
   const isFinalAcquire = !!(user?.is_final_acquire ?? user?.isFinalAcquire);
   // Sees the money side of at least one Costing Matrix (Purchasing, or on a Deal Team); derived by employeeService.
   const isCostingOpen = !!(user?.is_costing_open ?? user?.isCostingOpen);
+  // On the RRD or IOE evaluation team list: judges its rows on the Technical sheet; derived by employeeService.
+  const isEvaluationTeam = !!(user?.is_evaluation_team ?? user?.isEvaluationTeam);
   const isBidDecider = isSuperAdmin || isFinalAcquire || isCostingOpen;
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
@@ -69,6 +71,7 @@ export function getPermissionContext(user) {
     isFinalAcquire,
     isCostingOpen,
     isBidDecider,
+    isEvaluationTeam,
     hasRetailAccess,
     hasBugReportAccess,
     isRoleSimulator,

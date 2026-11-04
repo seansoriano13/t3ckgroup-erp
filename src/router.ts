@@ -59,6 +59,8 @@ export type Path =
   | `/super-admin/flow-canvas`
   | `/super-admin/lead-sources`
   | `/tasks`
+  | `/technical`
+  | `/technical/:id`
   | `/verify/:token`
 
 export type Params = {
@@ -67,6 +69,7 @@ export type Params = {
   '/purchasing/ipas/:id': { id: string }
   '/purchasing/packing-lists/:id': { id: string }
   '/purchasing/transmittals/:id': { id: string }
+  '/technical/:id': { id: string }
   '/verify/:token': { token: string }
 }
 

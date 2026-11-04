@@ -64,6 +64,23 @@ describe("navigation registry", () => {
       expect(groups[3].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
     });
 
+    it("offers Technical to the evaluation teams and Super Admins only (#706)", () => {
+      const technical = (user) =>
+        getFilteredNavigationGroups(user)
+          .flatMap((g) => g.links)
+          .some((l) => l.label === "Technical");
+
+      expect(technical({ id: "sa", isSuperAdmin: true })).toBe(true);
+      expect(technical({ id: "team", is_evaluation_team: true })).toBe(true);
+
+      // Not Purchasing, the Deal Team (sales flow), the Closed Book's list, a Head, or a standard employee.
+      expect(technical({ id: "pu", has_purchasing_flow: true })).toBe(false);
+      expect(technical({ id: "sa-flow", has_sales_flow: true })).toBe(false);
+      expect(technical({ id: "fa", is_final_acquire: true })).toBe(false);
+      expect(technical({ id: "hd", isHead: true })).toBe(false);
+      expect(technical({ id: "emp" })).toBe(false);
+    });
+
     it("offers the S0 Evaluation page to the Closed Book only (#606)", () => {
       const costingMatrix = (user) =>
         getFilteredNavigationGroups(user)

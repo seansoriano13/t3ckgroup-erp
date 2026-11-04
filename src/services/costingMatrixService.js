@@ -6,6 +6,7 @@ import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 import { canvassService } from "./canvassService";
+import { shapeTechnicalList } from "../utils/technicalList";
 import { brandProposal, supplierMismatch } from "../utils/canvassMath";
 
 /**
@@ -1219,6 +1220,17 @@ export const costingMatrixService = {
       abcTotal: row.abc_total === null || row.abc_total === undefined ? null : Number(row.abc_total),
       waitingSince: row.waiting_since,
     }));
+  },
+
+  /**
+   * The Technical list: the SORs with rows given to a team the caller is on (RRD or IOE), each with how many
+   * rows are judged. SOR names and counts only, no money (`costing_technical_list`). Refused for anyone
+   * not on a team and not a Super Admin.
+   */
+  async technicalList() {
+    const { data, error } = await supabase.rpc("costing_technical_list");
+    if (error) fail(error);
+    return shapeTechnicalList(data);
   },
 
   /**

@@ -61,6 +61,9 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
         },
       }),
     );
+  } else if (notif.type === "COSTING_EVALUATION_ASSIGNED") {
+    // #706: rows were given to the caller's team; reference_id is the SOR. Opens the Technical sheet.
+    navigate(`/technical/${encodeURIComponent(notif.reference_id)}`);
   } else if (notif.type.startsWith("IPAS_")) {
     // IPAS notifications (#243): reference_id is the IPAS. The page itself
     // decides what the reader may see (the database returns nothing to someone

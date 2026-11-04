@@ -1,5 +1,14 @@
 [
     {
+        "date": "2026-11-04",
+        "title": "Technical page for the RRD and IOE teams",
+        "version": "1.9.86",
+        "changes": [
+            "RRD and IOE team members get a Technical entry in the menu. It lists the SORs with S0 Evaluation rows given to their team, and opens a sheet to mark each row Complies or Deviates. It shows no prices.",
+            "The team is notified when rows are given to it."
+        ]
+    },
+    {
         "date": "2026-11-03",
         "title": "Purchasing and SOR window polish",
         "version": "1.9.85",

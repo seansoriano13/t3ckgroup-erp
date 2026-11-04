@@ -511,14 +511,14 @@ ol.steps input[type=checkbox] {
         <div class="head"><span class="k">5.2</span><span class="seat s-sales">Sales</span></div>
         <div class="row where"><b>Where</b><div>S0 Evaluation sheet → Technical band → <b>Compliance</b> column</div></div>
         <div class="row do"><b>Do</b><div>On all 12 rows, change the evaluating team selector from "No team" to <b>RRD</b>.</div></div>
-        <div class="row see"><b>See</b><div>All rows display "RRD · NOT JUDGED". Evaluating team is assigned.</div></div>
+        <div class="row see"><b>See</b><div>All rows display "RRD · NOT JUDGED". Evaluating team is assigned. Sherwin (RRD team) gets one notification: "SOR-… rows are waiting for RRD to judge."</div></div>
       </div>
     </li>
     <li data-k="5.3"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">5.3</span><span class="seat s-wh">sherwin</span></div>
-        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) → S0 Evaluation sheet → Compliance column</div></div>
-        <div class="row do"><b>Do</b><div>On all 12 rows, select <b>Complies</b> from the verdict dropdown.</div></div>
+        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) → sidebar → Sales → <b>Technical</b> (or click the notification) → open the SOR row → Technical sheet</div></div>
+        <div class="row do"><b>Do</b><div>On all 12 rows, select <b>Complies</b> from the <b>Your verdict</b> dropdown. The Technical sheet shows no prices; the main S0 Evaluation page stays with the Closed Book.</div></div>
         <div class="row see"><b>See</b><div>All 12 rows show green "Complies". Facts strip displays <b>Judged 12 of 12</b>.</div></div>
       </div>
     </li>
@@ -921,9 +921,9 @@ ol.steps input[type=checkbox] {
     <li data-k="C.1" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">C.1</span><span class="seat s-wh">sherwin</span></div>
-        <div class="row where"><b>Where</b><div>S0 Evaluation sheet → Row with evaluating team set to "No team"</div></div>
-        <div class="row do"><b>Do</b><div>Inspect the Compliance column before an evaluating team is assigned.</div></div>
-        <div class="row see"><b>See</b><div>Chips display "NO TEAM" and "NOT JUDGED". No dropdown or input control renders; lines cannot be evaluated without team assignment.</div></div>
+        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) → Sales → Technical, before step 5.2 assigns the RRD team</div></div>
+        <div class="row do"><b>Do</b><div>Open the Technical list while no row is given to RRD.</div></div>
+        <div class="row see"><b>See</b><div>"Nothing to judge yet". Rows with no team never reach the Technical list; lines cannot be evaluated without team assignment.</div></div>
       </div>
     </li>
     <li data-k="C.2" data-opt><input type="checkbox" aria-label="Done">

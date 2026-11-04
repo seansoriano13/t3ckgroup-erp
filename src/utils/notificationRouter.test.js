@@ -429,6 +429,18 @@ describe("handleNotificationRoute", () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it("opens the Technical sheet of the SOR a rows-waiting notification names (#706)", () => {
+    handleNotificationRoute(
+      { type: "COSTING_EVALUATION_ASSIGNED", reference_id: "sor-1" },
+      employee,
+      navigate,
+      onClose,
+    )
+
+    expect(navigate).toHaveBeenCalledWith("/technical/sor-1")
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it("closes the drawer after every successful route", () => {
     handleNotificationRoute(
       { type: "TASK_SUBMITTED", reference_id: "task-9" },

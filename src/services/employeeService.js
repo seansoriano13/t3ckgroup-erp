@@ -108,6 +108,23 @@ async function onFinalAcquireList(employee) {
 }
 
 /**
+ * Is the employee on the RRD or IOE evaluation team list (#706)? They get the Technical entry in the menu.
+ * A failure reads as "no": this is a convenience for the navigation, never the gate (the database is).
+ */
+async function onEvaluationTeamList(employee) {
+  try {
+    const { data, error } = await supabase
+      .from("costing_signer_lists")
+      .select("list_key")
+      .eq("employee_id", employee.id)
+      .in("list_key", ["team_rrd", "team_ioe"]);
+    return !error && (data || []).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Does the signed-in caller see the money side of at least one Costing Matrix (a Super Admin, Purchasing,
  * or on any SOR's Deal Team)? They then get the Bid Decisions queue and the Costing Matrix page, which list
  * only their own SORs. A failure reads as "no": the database is the gate.
@@ -145,6 +162,7 @@ export const employeeService = {
     const ipasLists = await ipasListMembership(data);
     const isFinalAcquire = await onFinalAcquireList(data);
     const isCostingOpen = await costingOpenAnywhere();
+    const isEvaluationTeam = await onEvaluationTeamList(data);
     return {
       id: data.id,
       email: data.email,
@@ -171,6 +189,8 @@ export const employeeService = {
       isFinalAcquire,
       // Sees the money side of at least one Costing Matrix: Bid Decisions and the Costing Matrix page.
       isCostingOpen,
+      // On the RRD or IOE team list: the nav shows Technical.
+      isEvaluationTeam,
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,

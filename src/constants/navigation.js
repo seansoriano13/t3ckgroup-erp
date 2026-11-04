@@ -25,6 +25,7 @@ import {
   Scale,
   LayoutDashboard,
   Calculator,
+  ClipboardCheck,
 } from "lucide-react";
 import { canManageGroupTasks, getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -122,6 +123,15 @@ export const NAV_MODULES = {
         icon: Calculator,
         isPermitted: (ctx) => ctx.isBidDecider,
         exactMatch: true,
+      },
+      // The Technical list (#706): the SORs with rows given to the caller's evaluation team (RRD or IOE), to
+      // judge them. No money on it. For the teams' members and Super Admins; the database refuses anyone else.
+      {
+        key: "sales.technical",
+        label: "Technical",
+        link: "/technical",
+        icon: ClipboardCheck,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isEvaluationTeam,
       },
       // ADR 0021 keeps a Stage Participant out of `sales_opportunities`, so a
       // deal someone was called into can never appear in the SORS register.
