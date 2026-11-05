@@ -56,4 +56,40 @@ describe("lineSheetMarkup", () => {
   it("is blank while the multiplier is unknown", () => {
     expect(lineSheetMarkup(line(), [], undefined, landedOf).suggested).toBeNull();
   });
+
+  it("takes the margin on the Final Offer once one exists (#879)", () => {
+    // Suggested would be 1300 here; the bid is capped at 1000 and the cost is 1100, so the line loses money.
+    const row = line({ final_offer_unit: 1000 });
+    const out = lineSheetMarkup(row, [], 1.3, () => 1100);
+    expect(out.suggested).toBe(1300);
+    expect(out.offer).toBe(1000);
+    expect(out.margin).toBe(-100);
+    expect(out.percent).toBe(-10);
+    expect(out.basis).toBe("offer");
+  });
+
+  it("shows a loss of the size of an offer capped at the ABC below cost (#879)", () => {
+    // Acquire 13,214.03 per unit against a Final Offer of 2,000: margin -11,214.03 (-560.7%).
+    const row = line({ final_offer_unit: 2000, components: [part({ markup_factor: 1.3, acquire_unit: 13214.03 })] });
+    const out = lineSheetMarkup(row, [], 1.3, () => 13214.03);
+    expect(out.margin).toBe(-11214.03);
+    expect(out.percent).toBe(-560.7);
+    expect(out.basis).toBe("offer");
+  });
+
+  it("falls back to Suggested, and says so, while there is no Final Offer (#879)", () => {
+    const out = lineSheetMarkup(line(), [], 1.3, () => 1100);
+    expect(out.offer).toBeNull();
+    expect(out.margin).toBe(200);
+    expect(out.basis).toBe("suggested");
+  });
+
+  it("falls back to Suggested while an included item has no Final Offer (#879)", () => {
+    const tower = line({ quantity: 1, final_offer_unit: 2000 });
+    const kid = line({ quantity: 1, components: [part({ acquire_unit: 50 })] });
+    const out = lineSheetMarkup(tower, [kid], 1.5, landedOf);
+    // The tower's offer is not complete without the kid's, so the margin falls back to Suggested.
+    expect(out.offer).toBeNull();
+    expect(out.basis).toBe("suggested");
+  });
 });

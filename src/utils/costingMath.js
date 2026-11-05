@@ -842,14 +842,19 @@ export function lineMultiplier(line, defaultFactor) {
 const toCentavos = (value) => (blank(value) || !Number.isFinite(Number(value)) ? null : Math.round(Number(value) * 100));
 
 /**
- * One S0 line's markup figures, per unit of the line (spec #699, ticket #703):
+ * One S0 line's markup figures, per unit of the line (spec #699, ticket #703, ticket #879):
  *
  *   suggested   the bare peso price x the multiplier (not x the landed cost), to the centavo. A tower's
  *               price carries what comes with it: the bare peso price of every included item, spread over
  *               the line's quantity, goes in before the multiplier ("with N included")
+ *   offer       the Final Offer per unit, with the included items' offers spread the same way. Null while
+ *               the line (or any included item) has no Final Offer
  *   cost        what the line really costs per unit: its own landed cost plus the landed cost of every item
  *               included in it (a tower's parts), spread over the line's quantity
- *   margin      suggested - cost, and `percent` of the suggested price
+ *   margin      offer - cost once a Final Offer exists, else suggested - cost. `percent` is of the price the
+ *               margin is taken on
+ *   basis       "offer" when the margin is on the Final Offer, "suggested" when there is none yet (so the
+ *               sheet can say so), null while the margin is blank
  *   included    how many items come with the line
  *
  * `landedOf(line)` gives a line's landed cost per unit in pesos (null when unknown); `kids` are the lines
@@ -870,6 +875,15 @@ export function lineSheetMarkup(line, kids, defaultFactor, landedOf) {
     groupPesos += Math.round((kidCentavos * Number(kid.quantity)) / quantity);
   }
   const suggestedCentavos = groupPesos !== null && factor !== null ? toCentavos(markupPriceUnit(groupPesos / 100, factor)) : null;
+  let offerCentavos = toCentavos(line?.final_offer_unit);
+  for (const kid of kids ?? []) {
+    const kidOffer = toCentavos(kid?.final_offer_unit);
+    if (offerCentavos === null || kidOffer === null || !(quantity > 0)) {
+      offerCentavos = null;
+      break;
+    }
+    offerCentavos += Math.round((kidOffer * Number(kid.quantity)) / quantity);
+  }
   let costCentavos = toCentavos(landedOf(line));
   for (const kid of kids ?? []) {
     const kidLanded = toCentavos(landedOf(kid));
@@ -879,14 +893,19 @@ export function lineSheetMarkup(line, kids, defaultFactor, landedOf) {
     }
     costCentavos += Math.round((kidLanded * Number(kid.quantity)) / quantity);
   }
-  const marginCentavos = suggestedCentavos === null || costCentavos === null ? null : suggestedCentavos - costCentavos;
+  // A Final Offer, once typed, is what we bid, so the margin is taken on it. Suggested is the fallback.
+  const onOffer = offerCentavos !== null;
+  const basisCentavos = onOffer ? offerCentavos : suggestedCentavos;
+  const marginCentavos = basisCentavos === null || costCentavos === null ? null : basisCentavos - costCentavos;
   return {
     factor,
     own,
     suggested: suggestedCentavos === null ? null : suggestedCentavos / 100,
+    offer: offerCentavos === null ? null : offerCentavos / 100,
     cost: costCentavos === null ? null : costCentavos / 100,
     margin: marginCentavos === null ? null : marginCentavos / 100,
-    percent: marginCentavos === null || !suggestedCentavos ? null : Math.round((marginCentavos / suggestedCentavos) * 1000) / 10,
+    percent: marginCentavos === null || !basisCentavos ? null : Math.round((marginCentavos / basisCentavos) * 1000) / 10,
+    basis: marginCentavos === null ? null : onOffer ? "offer" : "suggested",
     included: (kids ?? []).length,
   };
 }
