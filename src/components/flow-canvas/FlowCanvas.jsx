@@ -626,6 +626,16 @@ function FlowCanvasInner() {
 
   const run = useCallback((fn, message) => doRun({ run: fn, message }), [doRun]);
 
+  // The Buying flag gets its own mutation so its button can show the value being saved while the write runs (#904).
+  const buyingOpens = useMutation({
+    mutationFn: ({ stageId, value }) => salesFlowService.setStageBuyingOpens(stageId, value, user?.id),
+    onSuccess: (_data, { value }) => {
+      refresh();
+      toast.success(value ? "Buying opens here." : "Buying no longer opens here.");
+    },
+    onError: (err) => toast.error(flowErrorMessage(err)),
+  });
+
   // Publish gets its own mutation, rather than running through `run` above,
   // because the post-publish "move deals up" offer (issue #190) needs the
   // published snapshot's version numbers — `run`'s success handler only
@@ -1879,10 +1889,10 @@ function FlowCanvasInner() {
             run(() => salesFlowService.setStageAutoMove(selectedStage.id, !selectedStage.auto_move, user?.id))
           }
           onToggleBuyingOpens={() =>
-            run(
-              () => salesFlowService.setStageBuyingOpens(selectedStage.id, !selectedStage.buying_opens_here, user?.id),
-              selectedStage.buying_opens_here ? "Buying no longer opens here." : "Buying opens here.",
-            )
+            buyingOpens.mutate({ stageId: selectedStage.id, value: !selectedStage.buying_opens_here })
+          }
+          buyingOpensPending={
+            buyingOpens.isPending && buyingOpens.variables?.stageId === selectedStage.id ? buyingOpens.variables.value : null
           }
           onSetTerminalOutcome={(outcome) =>
             run(() => salesFlowService.setStageTerminalOutcome(selectedStage.id, outcome, user?.id))

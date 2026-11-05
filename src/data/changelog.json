@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-11-05",
+        "title": "Purchasing screens respond faster",
+        "version": "1.9.90",
+        "changes": [
+            "The SOR window shows its frame straight away while the deal loads, instead of a blank panel.",
+            "Raise a Transmittal shows its form outline straight away while the checks load.",
+            "Applying a markup to the Final Offers shows that it is saving.",
+            "The Buying opens here button on a Stage shows the new setting at once, and is greyed out while it saves."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "Purchasing pages fit a 1440 px screen",
         "version": "1.9.89",
         "changes": [

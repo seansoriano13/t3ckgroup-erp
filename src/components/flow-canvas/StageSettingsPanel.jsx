@@ -71,6 +71,8 @@ export default function StageSettingsPanel({
   onToggleAutoMove,
   onSetTerminalOutcome,
   onToggleBuyingOpens,
+  // The value a Buying toggle is saving (true or false), while its write is in flight (#904).
+  buyingOpensPending = null,
   onSetEntry,
   onSetWon,
   onSetAward,
@@ -94,6 +96,8 @@ export default function StageSettingsPanel({
   const isEditingName = draft?.stageId === stage.id;
   const isEditingBracket = bracketDraft?.stageId === stage.id;
   const bracketValue = isEditingBracket ? bracketDraft.value : stage.bracket_label || "";
+  // While the Buying write is in flight, the button already shows the value it is saving (#904).
+  const buyingShown = buyingOpensPending ?? Boolean(stage.buying_opens_here);
 
   const handleSaveName = () => {
     const next = (draft?.value ?? "").trim();
@@ -265,17 +269,18 @@ export default function StageSettingsPanel({
                   <Button
                     variant="ghost"
                     onClick={onToggleBuyingOpens}
-                    disabled={disabled}
-                    aria-pressed={Boolean(stage.buying_opens_here)}
+                    disabled={disabled || buyingOpensPending !== null}
+                    aria-busy={buyingOpensPending !== null || undefined}
+                    aria-pressed={buyingShown}
                     className={cn(
                       ROLE_BUTTON,
-                      stage.buying_opens_here
+                      buyingShown
                         ? "bg-blue-a3 text-blue-11 outline-blue-a6 hover:bg-blue-a3 hover:text-blue-11"
                         : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
                     )}
                   >
-                    {stage.buying_opens_here ? <Check size={14} /> : <ShoppingCart size={14} />}
-                    {stage.buying_opens_here ? "Buying opens here" : "Buying opens here?"}
+                    {buyingShown ? <Check size={14} /> : <ShoppingCart size={14} />}
+                    {buyingShown ? "Buying opens here" : "Buying opens here?"}
                   </Button>
                 )}
 

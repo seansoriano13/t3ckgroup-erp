@@ -28,6 +28,7 @@ import {
 import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
+import SorWindowSkeleton from "./SorWindowSkeleton";
 import LockedSorSlideOver from "../LockedSorSlideOver";
 import NoAccessSorSlideOver from "../NoAccessSorSlideOver";
 import { hiddenVisits } from "../../../utils/sorHiddenVisits";
@@ -780,7 +781,8 @@ export default function SorModal({
     return <LockedSorSlideOver isOpen={isOpen} onClose={onClose} lockedSummary={lockedSummary} myVisits={myVisits} />;
   }
 
-  if (!opportunity) return null;
+  // The record is still on the way: show the window's frame at once, not a blank panel (#904).
+  if (!opportunity) return <SorWindowSkeleton isOpen={isOpen} onClose={onClose} />;
 
   // ADR 0021 / #297: only a full-access caller may move the Stage — a
   // Participant never could (`sor_guard_stage_move` requires 'full'), and a
