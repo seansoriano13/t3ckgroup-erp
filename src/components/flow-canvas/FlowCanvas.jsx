@@ -2144,6 +2144,7 @@ function FlowCanvasInner() {
         }}
         title="SORs updated"
         confirmLabel="Done"
+        hideCancel
         onConfirm={() => setMoveResult(null)}
       >
         <div className="space-y-2 text-sm">

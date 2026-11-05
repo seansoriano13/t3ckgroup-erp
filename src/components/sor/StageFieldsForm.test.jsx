@@ -120,3 +120,35 @@ describe("StageChecklistRow Sales Reference condition (#821)", () => {
     expect(screen.queryByLabelText("S0")).not.toBeInTheDocument()
   })
 })
+
+// Issue #900 — a single-line Stage Field saves when Enter is pressed, the same as its Save button.
+describe("a single-line Stage Field saves on Enter (#900)", () => {
+  const contact = { id: "f-contact", label: "Contact Person", source: "sor", sor_field: "contact_person", is_required: false }
+
+  it("saves the typed value on Enter", async () => {
+    const opportunity = makeOpportunity({ registered_by: makeEmployee().id })
+    const onSaveField = vi.fn(async () => {})
+    renderWithProviders(
+      <StageFieldsForm opportunity={opportunity} fields={[contact]} currentVisitId={null} actorId="a" onSaveField={onSaveField} />,
+    )
+    const user = setupUser()
+
+    await user.type(await screen.findByLabelText("Contact Person"), "Ana Reyes{Enter}")
+
+    await waitFor(() => expect(onSaveField).toHaveBeenCalledWith("contact_person", "Ana Reyes"))
+  })
+
+  it("does nothing on Enter while the field is empty", async () => {
+    const opportunity = makeOpportunity({ registered_by: makeEmployee().id })
+    const onSaveField = vi.fn(async () => {})
+    renderWithProviders(
+      <StageFieldsForm opportunity={opportunity} fields={[contact]} currentVisitId={null} actorId="a" onSaveField={onSaveField} />,
+    )
+    const user = setupUser()
+
+    await user.click(await screen.findByLabelText("Contact Person"))
+    await user.keyboard("{Enter}")
+
+    expect(onSaveField).not.toHaveBeenCalled()
+  })
+})

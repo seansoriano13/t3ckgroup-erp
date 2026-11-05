@@ -133,6 +133,7 @@ export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialD
                     setPurchasingIncharge({ type: SELECTOR_TYPES.EMPLOYEE, id: last?.id ?? null });
                   }}
                   types={[SELECTOR_TYPES.EMPLOYEE]}
+                  single
                   placeholder="Choose the Purchasing Incharge"
                 />
               </div>

@@ -12,6 +12,18 @@
     },
     {
         "date": "2026-11-05",
+        "title": "Clearer messages and easier stage fields",
+        "version": "1.9.90",
+        "changes": [
+            "A negative amount now says it must be zero or more, and a zero where a number is needed says it must be more than zero.",
+            "Pressing Enter in a single-line stage field now saves it, the same as pressing its Save button.",
+            "An optional item on a stage now says it is optional and not needed to move on, instead of saying it is not yet satisfied.",
+            "Only one Purchasing Incharge can be picked on Open S0 Evaluation. Once one is chosen, the add button goes away until you remove them.",
+            "The SORs updated message now shows only Done, with no Cancel button."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "Registering an SOR shows its number",
         "version": "1.9.88",
         "changes": [

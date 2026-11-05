@@ -191,6 +191,11 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                         }
                         value={value}
                         onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter" || isSaving || !value) return;
+                          e.preventDefault();
+                          handleSave(field);
+                        }}
                         placeholder={`Enter ${field.label.toLowerCase()}`}
                         containerClassName="flex w-full" className="h-8 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
                       />

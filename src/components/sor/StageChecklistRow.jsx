@@ -177,7 +177,11 @@ export default function StageChecklistRow({
                   : "text-[11px] text-muted-foreground"
               }
             >
-              {isTickable ? "Not yet certified — tap to certify." : "Not yet satisfied."}
+              {isTickable
+                ? "Not yet certified — tap to certify."
+                : condition.is_required
+                  ? "Not yet satisfied."
+                  : "Optional. Not needed to move on."}
             </p>
 
             {detail?.messages?.length > 0 && (
@@ -211,6 +215,11 @@ export default function StageChecklistRow({
                   value={fieldValue || ""}
                   disabled={isPreview}
                   onChange={(e) => onFieldChange?.(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" || isPreview || savingField || !(fieldValue || "").trim()) return;
+                    e.preventDefault();
+                    onSaveField?.();
+                  }}
                   placeholder={`Enter ${condition.config?.column || "value"}`}
                   containerClassName="flex w-full" className="h-7 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 />

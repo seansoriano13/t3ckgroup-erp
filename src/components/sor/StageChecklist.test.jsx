@@ -157,6 +157,55 @@ describe("what's outstanding", () => {
 
     expect(await screen.findByText("Optional")).toBeInTheDocument()
   })
+
+  it("does not say an optional item is not yet satisfied (#900)", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({ condition: { ...item().condition, is_required: false } }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect(await screen.findByText("Optional. Not needed to move on.")).toBeInTheDocument()
+    expect(screen.queryByText(/not yet satisfied/i)).not.toBeInTheDocument()
+  })
+})
+
+// Issue #900 — a single-line field on the record saves when Enter is pressed, as the Canvass offers do.
+describe("a single-line field on the record saves on Enter", () => {
+  const fieldCondition = {
+    id: "f-1",
+    kind: "field",
+    label: "Contact person",
+    is_required: true,
+    sort_order: 0,
+    config: { column: "contact_person" },
+  }
+
+  it("saves the typed value on Enter", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([item({ condition: fieldCondition })])
+    const onSaveField = vi.fn(async () => {})
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" onSaveField={onSaveField} />,
+    )
+    const user = setupUser()
+
+    await user.type(await screen.findByLabelText("Contact person"), "Ana Reyes{Enter}")
+
+    await waitFor(() => expect(onSaveField).toHaveBeenCalledWith("contact_person", "Ana Reyes"))
+  })
+
+  it("does nothing on Enter while the field is empty", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([item({ condition: fieldCondition })])
+    const onSaveField = vi.fn(async () => {})
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" onSaveField={onSaveField} />,
+    )
+    const user = setupUser()
+
+    await user.click(await screen.findByLabelText("Contact person"))
+    await user.keyboard("{Enter}")
+
+    expect(onSaveField).not.toHaveBeenCalled()
+  })
 })
 
 describe("what the stage owes count (A22)", () => {

@@ -28,10 +28,13 @@ export default function PeoplePicker({
   allowDepartments = false,
   types = [SELECTOR_TYPES.GROUP, SELECTOR_TYPES.TEAM, SELECTOR_TYPES.EMPLOYEE],
   disabled = false,
+  // One selector at most: once one is chosen, the add button is hidden (remove it to choose another).
+  single = false,
   placeholder = "Add people",
   className,
 }) {
   const [search, setSearch] = useState("");
+  const full = single && value.length > 0;
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
@@ -164,7 +167,7 @@ export default function PeoplePicker({
         );
       })}
 
-      {!disabled && (
+      {!disabled && !full && (
         <Dropdown
           usePortal
           placement="bottom-start"
