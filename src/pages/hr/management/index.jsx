@@ -640,6 +640,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
         rawEmployees={employees}
         rawCompanies={companies}
         canGrantLeaveManagement={!!user?.isSuperAdmin}
+        canGrantFlowEditor={!!user?.isSuperAdmin}
       />
     </HRFormModal>
   );

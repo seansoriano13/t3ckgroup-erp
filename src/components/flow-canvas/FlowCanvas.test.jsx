@@ -298,6 +298,8 @@ describe("FlowCanvas", () => {
     await user.click(screen.getByRole("button", { name: /^Update \d+ SORs?$/ }))
     expect(await screen.findByText("SORs updated")).toBeInTheDocument()
     expect(screen.getByText("1 updated successfully.")).toBeInTheDocument()
+    // Issue #900 — a result to acknowledge offers Done only, no Cancel.
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Done" }))
     expect(screen.queryByText("SORs updated")).not.toBeInTheDocument()
   })

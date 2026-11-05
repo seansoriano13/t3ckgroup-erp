@@ -254,3 +254,32 @@ describe("the S0 Evaluation page filters", () => {
     expect(screen.getByTestId("costing-matrix-totals")).toHaveTextContent("Total of 1 SOR shown");
   });
 });
+
+describe("the S0 Evaluation page with a loss-making SOR (#892)", () => {
+  beforeEach(() => {
+    authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
+    db.seed("costing_settings", { id: 1 });
+    // SOR-257's figures: an offer of 8,550 against 29,928.06 of cost, under the ITR allowance.
+    stubRpc("costing_matrix_page", [
+      {
+        ...rows[0],
+        opportunity_id: "aaaaaaaa-0000-4000-8000-000000000257",
+        sor_code: "SOR-257",
+        final_offer_total: "8550.00",
+        final_acquire_total: "29928.06",
+        items_total: 3,
+      },
+    ]);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("shows a negative Planned Revenue as a loss, the same figure the sheet shows", async () => {
+    renderPage();
+
+    const row = await rowFor("SOR-257");
+    expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("-₱21,378.06");
+    expect(within(row).getByTestId("costing-matrix-planned")).not.toHaveTextContent("—");
+    expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("-₱21,378.06");
+  });
+});

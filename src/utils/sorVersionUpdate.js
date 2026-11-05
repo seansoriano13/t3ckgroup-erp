@@ -117,9 +117,27 @@ export function summariseAddedActions(entries) {
   }));
 }
 
+/**
+ * Names each failed Stage Action once, with its reason when the database gave
+ * one (#896): "DELCOM - Kickoff (member no longer exists), Bid pack".
+ * `failures` is a list of { name, reason? }.
+ */
+export function formatActionFailures(failures) {
+  const byName = new Map();
+  for (const { name, reason } of failures || []) {
+    if (!byName.has(name) || (!byName.get(name) && reason)) byName.set(name, reason || null);
+  }
+  return [...byName].map(([name, reason]) => (reason ? `${name} (${reason})` : name)).join(", ");
+}
+
+/** The warning when the Stage Actions could not be worked out before an update, or null (#882). */
+export function planFailureMessage(planError) {
+  if (!planError) return null;
+  return `Updated, but the new Stage Actions could not be worked out, so none were started: ${planError}`;
+}
+
 /** The warning for Stage Actions that failed to start after an update, or null. */
 export function actionFailureMessage(actionFailures) {
-  const names = [...new Set((actionFailures || []).map((f) => f.name))];
-  if (names.length === 0) return null;
-  return `Updated, but these automations failed. Create them by hand: ${names.join(", ")}.`;
+  if (!actionFailures || actionFailures.length === 0) return null;
+  return `Updated, but these automations failed. Create them by hand: ${formatActionFailures(actionFailures)}.`;
 }

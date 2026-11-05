@@ -365,7 +365,12 @@ create table if not exists public."costing_matrices" (
   "bid_submitted_at" timestamp with time zone,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "import_addon_percent" numeric(7,2)
+  "import_addon_percent" numeric(7,2),
+  "technical_incharge_id" uuid,
+  "compliance" text,
+  "compliance_note" text,
+  "compliance_by" uuid,
+  "compliance_at" timestamp with time zone
 );
 
 create table if not exists public."costing_matrix_money" (
@@ -439,7 +444,6 @@ create table if not exists public."costing_tender_lines" (
   "sor_line_snapshot" jsonb,
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
-  "evaluating_team" text,
   "odoo_line_id" bigint
 );
 
@@ -634,7 +638,8 @@ create table if not exists public."flow_stage_fields" (
   "sort_order" integer not null default 0,
   "archived_at" timestamp with time zone,
   "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
+  "updated_at" timestamp with time zone not null default now(),
+  "show_when" jsonb
 );
 
 create table if not exists public."flow_stage_follow_ups" (
@@ -1448,7 +1453,8 @@ create table if not exists public."sor_action_runs" (
   "held_at" timestamp with time zone,
   "purchase_request_id" uuid,
   "costing_matrix_id" uuid,
-  "packing_list_id" uuid
+  "packing_list_id" uuid,
+  "failure_reason" text
 );
 
 create table if not exists public."sor_canvass_no_other_supplier" (
@@ -2142,6 +2148,8 @@ alter table costing_landed_defaults add constraint "costing_landed_defaults_impo
 alter table costing_landed_defaults add constraint "costing_landed_defaults_local_chk" CHECK ((local_addon_percent >= (0)::numeric));
 alter table costing_landed_defaults add constraint "costing_landed_defaults_one_row_chk" CHECK ((id = true));
 alter table costing_markup_presets add constraint "costing_markup_presets_factor_chk" CHECK ((factor > (0)::numeric));
+alter table costing_matrices add constraint "costing_matrices_compliance_chk" CHECK (((compliance IS NULL) OR (compliance = ANY (ARRAY['complies'::text, 'deviates'::text]))));
+alter table costing_matrices add constraint "costing_matrices_deviation_note_chk" CHECK (((compliance IS DISTINCT FROM 'deviates'::text) OR (NULLIF(btrim(compliance_note), ''::text) IS NOT NULL)));
 alter table costing_matrices add constraint "costing_matrices_import_addon_chk" CHECK (((import_addon_percent IS NULL) OR (import_addon_percent >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_factor_chk" CHECK (((default_factor IS NULL) OR (default_factor > (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_marketing_chk" CHECK (((marketing IS NULL) OR (marketing >= (0)::numeric)));
@@ -2153,14 +2161,13 @@ alter table costing_settings add constraint "costing_settings_retention_chk" CHE
 alter table costing_settings add constraint "costing_settings_single_chk" CHECK ((id = 1));
 alter table costing_settings add constraint "costing_settings_tax_chk" CHECK (((tax_rate >= (0)::numeric) AND (tax_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_vat_chk" CHECK ((vat_divisor >= (1)::numeric));
-alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text, 'team_rrd'::text, 'team_ioe'::text, 'markup'::text])));
+alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text, 'markup'::text])));
 alter table costing_signoffs add constraint "costing_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL)) OR ((cleared_at IS NOT NULL) AND (NULLIF(btrim(cleared_reason), ''::text) IS NOT NULL))));
 alter table costing_signoffs add constraint "costing_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'costed'::text, 'evaluation_approved'::text, 'final_approved'::text])));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_abc_chk" CHECK (((abc_unit IS NULL) OR (abc_unit >= (0)::numeric)));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_offer_chk" CHECK (((final_offer_unit IS NULL) OR (final_offer_unit >= (0)::numeric)));
 alter table costing_tender_lines add constraint "costing_tender_lines_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table costing_tender_lines add constraint "costing_tender_lines_source_chk" CHECK ((source = ANY (ARRAY['typed'::text, 'sor_line'::text])));
-alter table costing_tender_lines add constraint "costing_tender_lines_team_chk" CHECK (((evaluating_team IS NULL) OR (evaluating_team = ANY (ARRAY['RRD'::text, 'IOE'::text]))));
 alter table currency_rate_currencies add constraint "currency_rate_currencies_currency_check" CHECK (((currency ~ '^[A-Z]{3}$'::text) AND (currency <> 'PHP'::text)));
 alter table currency_rate_currencies add constraint "currency_rate_currencies_divergence_pct_check" CHECK ((divergence_pct > (0)::numeric));
 alter table currency_rates add constraint "currency_rates_php_per_unit_check" CHECK ((php_per_unit > (0)::numeric));
@@ -2173,9 +2180,10 @@ alter table flow_form_fields add constraint "flow_form_fields_source_chk" CHECK 
 alter table flow_form_fields add constraint "flow_form_fields_type_chk" CHECK (((field_type IS NULL) OR (field_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'choice'::text]))));
 alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text, 'open_purchase_request'::text, 'open_costing_matrix'::text, 'request_packing_list'::text, 'evaluate_specification'::text])));
 alter table flow_stage_fields add constraint "flow_stage_fields_label_not_blank" CHECK ((btrim(label) <> ''::text));
+alter table flow_stage_fields add constraint "flow_stage_fields_show_when_chk" CHECK (((show_when IS NULL) OR ((jsonb_typeof(show_when) = 'object'::text) AND (show_when ? 'field_id'::text) AND (show_when ? 'value'::text))));
 alter table flow_stage_fields add constraint "flow_stage_fields_sor_field_chk" CHECK ((((source = 'sor'::text) AND (sor_field IS NOT NULL)) OR ((source = 'custom'::text) AND (sor_field IS NULL))));
 alter table flow_stage_fields add constraint "flow_stage_fields_source_chk" CHECK ((source = ANY (ARRAY['sor'::text, 'custom'::text])));
-alter table flow_stage_fields add constraint "flow_stage_fields_type_chk" CHECK ((field_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'choice'::text])));
+alter table flow_stage_fields add constraint "flow_stage_fields_type_chk" CHECK ((field_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'choice'::text, 'currency'::text, 'employee'::text])));
 alter table flow_stage_follow_ups add constraint "flow_stage_follow_ups_days_when_enabled" CHECK (((NOT enabled) OR (every_days IS NOT NULL)));
 alter table flow_stage_follow_ups add constraint "flow_stage_follow_ups_every_days_check" CHECK (((every_days IS NULL) OR (every_days > 0)));
 alter table flow_stages add constraint "flow_stages_color_check" CHECK (((color IS NULL) OR (color = ANY (ARRAY['tomato'::text, 'red'::text, 'crimson'::text, 'pink'::text, 'plum'::text, 'violet'::text, 'indigo'::text, 'blue'::text, 'sky'::text, 'cyan'::text, 'teal'::text, 'jade'::text, 'green'::text, 'lime'::text, 'yellow'::text, 'amber'::text, 'orange'::text, 'gold'::text, 'brown'::text, 'mauve'::text]))));
@@ -2392,9 +2400,11 @@ alter table costing_events add constraint "costing_events_actor_id_fkey" FOREIGN
 alter table costing_events add constraint "costing_events_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_inclusions add constraint "costing_inclusions_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
 alter table costing_landed_defaults add constraint "costing_landed_defaults_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_matrices add constraint "costing_matrices_compliance_by_fkey" FOREIGN KEY (compliance_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table costing_matrices add constraint "costing_matrices_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_matrices add constraint "costing_matrices_technical_incharge_id_fkey" FOREIGN KEY (technical_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrix_money add constraint "costing_matrix_money_default_preset_id_fkey" FOREIGN KEY (default_preset_id) REFERENCES costing_markup_presets(id);
 alter table costing_matrix_money add constraint "costing_matrix_money_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_settings add constraint "costing_settings_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
@@ -3632,8 +3642,8 @@ create policy "flow_access_settings_write" on public."flow_access_settings"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "flow_edges_read" on public."flow_edges"
   as permissive
   for select
@@ -3643,8 +3653,8 @@ create policy "flow_edges_write" on public."flow_edges"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "flow_form_fields_read" on public."flow_form_fields"
   as permissive
   for select
@@ -3654,8 +3664,8 @@ create policy "flow_form_fields_write" on public."flow_form_fields"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "flow_snapshots_read" on public."flow_snapshots"
   as permissive
   for select
@@ -3665,7 +3675,7 @@ create policy "flow_snapshots_write" on public."flow_snapshots"
   as permissive
   for insert
   to authenticated
-  with check ((created_by = get_employee_id()));
+  with check (((created_by = get_employee_id()) AND (is_super_admin() OR can_edit_sales_flows())));
 create policy "flow_stage_access_read" on public."flow_stage_access"
   as permissive
   for select
@@ -3675,8 +3685,8 @@ create policy "flow_stage_access_write" on public."flow_stage_access"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "flow_stage_actions_read" on public."flow_stage_actions"
   as permissive
   for select
@@ -3686,8 +3696,8 @@ create policy "flow_stage_actions_write" on public."flow_stage_actions"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "flow_stage_fields_read" on public."flow_stage_fields"
   as permissive
   for select
@@ -3697,8 +3707,8 @@ create policy "flow_stage_fields_write" on public."flow_stage_fields"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "flow_stage_follow_ups_read" on public."flow_stage_follow_ups"
   as permissive
   for select
@@ -3708,8 +3718,8 @@ create policy "flow_stage_follow_ups_write" on public."flow_stage_follow_ups"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "flow_stages_read" on public."flow_stages"
   as permissive
   for select
@@ -3719,8 +3729,8 @@ create policy "flow_stages_write" on public."flow_stages"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "group_task_template_members_delete" on public."group_task_template_members"
   as permissive
   for delete
@@ -4196,8 +4206,8 @@ create policy "sale_types_write" on public."sale_types"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "Users can delete their own templates" on public."sales_custom_templates"
   as permissive
   for delete
@@ -4235,8 +4245,8 @@ create policy "sales_flows_write" on public."sales_flows"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "sor_insert" on public."sales_opportunities"
   as permissive
   for insert
@@ -4519,8 +4529,8 @@ create policy "stage_conditions_write" on public."stage_conditions"
   as permissive
   for all
   to authenticated
-  using ((get_employee_id() IS NOT NULL))
-  with check ((get_employee_id() IS NOT NULL));
+  using ((is_super_admin() OR can_edit_sales_flows()))
+  with check ((is_super_admin() OR can_edit_sales_flows()));
 create policy "authenticated_insert_system_audit_logs" on public."system_audit_logs"
   as permissive
   for insert
@@ -4874,63 +4884,6 @@ AS $function$
   join public.purchase_requests r on r.id = pri.request_id and r.opportunity_id = p_opportunity_id
   join sole on sole.sor_item_id = pri.sor_item_id
   where pri.component_id is null
-$function$
-;
-CREATE OR REPLACE FUNCTION public._costing_notify_evaluation_team()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_opp uuid;
-  v_sor text;
-  v_project text;
-  v_message text;
-  r record;
-begin
-  if new.evaluating_team is null then
-    return new;
-  end if;
-  if tg_op = 'UPDATE' and new.evaluating_team is not distinct from old.evaluating_team then
-    return new;
-  end if;
-
-  select o.id, o.sor_code, o.project_title into v_opp, v_sor, v_project
-    from public.costing_matrices m
-    join public.sales_opportunities o on o.id = m.opportunity_id
-   where m.id = new.matrix_id;
-  if v_opp is null then
-    return new;
-  end if;
-
-  v_message := coalesce(v_sor, 'An SOR') || ' · ' || coalesce(v_project, '') || ': rows are waiting for ' ||
-               new.evaluating_team || ' to check.';
-
-  for r in
-    select l.employee_id
-      from public.costing_signer_lists l
-      join public.employees e on e.id = l.employee_id
-     where l.list_key = 'team_' || lower(new.evaluating_team)
-       and not coalesce(e.is_deleted, false)
-       and l.employee_id is distinct from public.get_employee_id()
-  loop
-    if not exists (
-      select 1 from public.notifications n
-       where n.recipient_id = r.employee_id
-         and n.type = 'COSTING_EVALUATION_ASSIGNED'
-         and n.reference_id = v_opp::text
-         and n.title = 'Rows waiting for ' || new.evaluating_team
-         and coalesce(n.is_read, false) = false
-    ) then
-      insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
-      values (r.employee_id, public.get_employee_id(), 'COSTING_EVALUATION_ASSIGNED',
-              'Rows waiting for ' || new.evaluating_team, v_message, v_opp::text);
-    end if;
-  end loop;
-
-  return new;
-end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._employee_has_purchasing_access(p_employee_id uuid)
@@ -6421,6 +6374,34 @@ CREATE OR REPLACE FUNCTION public._purchase_request_amount(p_quantity numeric, p
  IMMUTABLE
 AS $function$
   select trim_scale(p_quantity)::text || coalesce(' ' || nullif(btrim(p_unit), ''), '');
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_buyer_access(p_opportunity_id uuid, p_employee_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select p_employee_id is not null
+    and p_opportunity_id is not null
+    and exists (
+      select 1
+      from public.purchase_requests r
+      where r.opportunity_id = p_opportunity_id
+        and (
+          r.buyer_id = p_employee_id
+          or exists (
+            select 1 from public.costing_matrices m
+            where m.opportunity_id = r.opportunity_id
+              and m.purchasing_incharge_id = p_employee_id
+          )
+        )
+        and exists (
+          select 1 from public.purchase_request_items i
+          where i.request_id = r.id
+            and i.status not in ('available', 'received', 'cannot_source', 'cancelled')
+        )
+    );
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._purchase_request_buying_closed_stage(p_request_id uuid)
@@ -9555,6 +9536,16 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_can_decide_loss()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.is_super_admin(), false)
+    or public.costing_on_list('final_acquire')
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_can_manage_markup()
  RETURNS boolean
  LANGUAGE sql
@@ -9630,6 +9621,32 @@ begin
      and (tg_op = 'INSERT' or new.purchasing_incharge_id is distinct from old.purchasing_incharge_id)
      and not public._employee_has_purchasing_access(new.purchasing_incharge_id) then
     raise exception 'costing_incharge: the Purchasing incharge must have Purchasing access'
+      using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_check_technical_incharge()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.technical_incharge_id is null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and new.technical_incharge_id is not distinct from old.technical_incharge_id then
+    return new;
+  end if;
+  if not exists (
+    select 1 from public.employees e
+    where e.id = new.technical_incharge_id
+      and not coalesce(e.is_deleted, false)
+      and lower(btrim(e.sub_department)) = 'technical'
+  ) then
+    raise exception 'costing_technical: the Technical in-charge must be an employee in the Technical sub-department'
       using errcode = '22023';
   end if;
   return new;
@@ -9768,41 +9785,6 @@ exception when others then
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.costing_compliance_team_guard()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_team  text;
-  v_actor uuid := public.get_employee_id();
-begin
-  if (new.compliance is not distinct from old.compliance)
-     and (new.compliance_note is not distinct from old.compliance_note)
-     and (new.recommended_alternative is not distinct from old.recommended_alternative) then
-    return new;
-  end if;
-  if auth.uid() is null
-     or coalesce(auth.role(), '') = 'service_role'
-     or coalesce(current_setting('costing.bypass', true), '') = 'on' then
-    return new;
-  end if;
-
-  select l.evaluating_team into v_team from public.costing_tender_lines l where l.id = new.tender_line_id;
-  if v_team is null then
-    raise exception 'costing_team: name the team (RRD or IOE) that judges this row first' using errcode = '42501';
-  end if;
-  if not public.costing_on_list('team_' || lower(v_team)) then
-    raise exception 'costing_team: only the % team can mark this row', v_team using errcode = '42501';
-  end if;
-  if new.compliance is distinct from old.compliance or new.compliance_note is distinct from old.compliance_note then
-    new.complied_by := v_actor;
-  end if;
-  return new;
-end;
-$function$
-;
 CREATE OR REPLACE FUNCTION public.costing_component_delete_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -9913,6 +9895,28 @@ begin
     from public._costing_item_components(p_opportunity_id) ic
     join public.purchase_request_items i on i.id = ic.item_id
   );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_component_verdict_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if (new.compliance is not distinct from old.compliance)
+     and (new.compliance_note is not distinct from old.compliance_note)
+     and (new.recommended_alternative is not distinct from old.recommended_alternative) then
+    return new;
+  end if;
+  if auth.uid() is null
+     or coalesce(auth.role(), '') = 'service_role'
+     or coalesce(current_setting('costing.bypass', true), '') = 'on' then
+    return new;
+  end if;
+  raise exception 'costing_compliance: a Component''s verdict is read-only history; the Technical verdict is on the S0 Evaluation'
+    using errcode = '42501';
 end;
 $function$
 ;
@@ -10153,6 +10157,10 @@ declare
   v_title  text;
   v_label  text;
   v_member record;
+  v_cost     numeric;
+  v_rate     numeric;
+  v_allow    numeric;
+  v_revenue  numeric;
 begin
   if v_actor is null then
     raise exception 'costing_bid: sign in first' using errcode = '42501';
@@ -10180,6 +10188,29 @@ begin
   select * into v_totals from public.costing_bid_totals(p_matrix_id);
   if v_totals.line_count = 0 or v_totals.missing_offer > 0 then
     raise exception 'costing_bid: every Tender Line needs a Final Offer before the bid can be decided' using errcode = '22023';
+  end if;
+
+  -- #881: a Go waits for the Evaluation of Specification to be approved (No-go and Revise do not).
+  if p_verdict = 'go' and not exists (
+    select 1 from public.costing_signoffs s
+     where s.matrix_id = p_matrix_id and s.role = 'evaluation_approved' and s.cleared_at is null) then
+    raise exception 'costing_bid: approve the Evaluation of Specification first' using errcode = '22023';
+  end if;
+
+  -- #880: a Go on a loss (planned revenue below zero) is the Super Admin's or the decider list's to take.
+  if p_verdict = 'go' then
+    v_cost := public.costing_planned_cost_total(p_matrix_id);
+    if v_cost is not null then
+      select coalesce(s.itr_rate, 0.08), coalesce(s.itr_allowance, 250000)
+        into v_rate, v_allow
+        from (select 1) one
+        left join public.costing_settings s on s.id = 1;
+      v_revenue := (v_totals.final_offer_total - v_cost)
+                   - round(greatest(v_totals.final_offer_total - v_allow, 0) * v_rate, 2);
+      if v_revenue < 0 and not public.costing_can_decide_loss() then
+        raise exception 'costing_bid: a Go on a loss needs a Super Admin or the decider list' using errcode = '42501';
+      end if;
+    end if;
   end if;
 
   update public.costing_bid_decisions
@@ -10604,8 +10635,11 @@ CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
  SET search_path TO 'public'
 AS $function$
   select public.has_purchasing_access()
-    or public.costing_on_list('team_rrd')
-    or public.costing_on_list('team_ioe')
+    or exists (
+      select 1 from public.costing_matrices m
+      where m.opportunity_id = p_opportunity_id
+        and m.technical_incharge_id = public.get_employee_id()
+    )
     or exists (
       select 1
       from public.committee_tasks t
@@ -11188,13 +11222,13 @@ begin
     select case when count(*) > 0 and bool_and(x.fa is not null)
                 then sum(round(x.fa * x.q, 2)) end as total
     from (
-      select cc.final_acquire_unit as fa, c.quantity as q
+      select coalesce(cc.final_acquire_unit, cc.acquire_unit) as fa, c.quantity as q
       from public.costing_components c
       join public.costing_tender_lines t on t.id = c.tender_line_id
       left join public.costing_component_costs cc on cc.component_id = c.id
       where t.matrix_id = m.id
       union all
-      select r.final_acquire_unit, r.quantity
+      select coalesce(r.final_acquire_unit, r.acquire_unit), r.quantity
       from public.costing_cost_rows r
       where r.matrix_id = m.id
     ) x
@@ -11207,8 +11241,8 @@ begin
                     where pi.component_id = c.id and pi.status in ('purchased', 'received'))))::integer as bought,
       -- Each Component's Landed Cost is rounded to the centavo before it is added, as the SOR summary does.
       coalesce(sum(round(l.total_php, 2)) filter (where l.total_php is not null), 0) as landed,
-      case when coalesce(bool_and(l.total_php is null or cc.final_acquire_unit is not null), true)
-           then coalesce(sum(round(cc.final_acquire_unit * c.quantity, 2)) filter (where l.total_php is not null), 0)
+      case when coalesce(bool_and(l.total_php is null or coalesce(cc.final_acquire_unit, cc.acquire_unit) is not null), true)
+           then coalesce(sum(round(coalesce(cc.final_acquire_unit, cc.acquire_unit) * c.quantity, 2)) filter (where l.total_php is not null), 0)
       end as bought_acquire,
       coalesce(bool_or(l.total_php is not null and l.mark is distinct from 'final'), false) as provisional
     from public.costing_components c
@@ -11301,6 +11335,39 @@ begin
    where public.costing_in_band(p_opportunity_id, b);
 
   return jsonb_build_object('tier', v_tier, 'matrix_id', v_matrix, 'bands', to_jsonb(v_bands), 'tables', v_tables);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_matrix_verdict_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+begin
+  if (new.compliance is not distinct from old.compliance)
+     and (new.compliance_note is not distinct from old.compliance_note) then
+    -- Not a verdict change. The stamp belongs to the verdict, so a plain write cannot move it.
+    new.compliance_by := old.compliance_by;
+    new.compliance_at := old.compliance_at;
+    return new;
+  end if;
+  if auth.uid() is null
+     or coalesce(auth.role(), '') = 'service_role'
+     or coalesce(current_setting('costing.bypass', true), '') = 'on' then
+    return new;
+  end if;
+  if old.technical_incharge_id is null then
+    raise exception 'costing_technical: name the Technical in-charge first' using errcode = '42501';
+  end if;
+  if v_actor is distinct from old.technical_incharge_id then
+    raise exception 'costing_technical: only the Technical in-charge can give the Compliance verdict' using errcode = '42501';
+  end if;
+  new.compliance_by := v_actor;
+  new.compliance_at := now();
+  return new;
 end;
 $function$
 ;
@@ -11563,13 +11630,13 @@ CREATE OR REPLACE FUNCTION public.costing_planned_cost_total(p_matrix_id uuid)
 AS $function$
   select case when count(*) > 0 and bool_and(x.fa is not null) then sum(round(x.fa * x.q, 2)) end
   from (
-    select cc.final_acquire_unit as fa, c.quantity as q
+    select coalesce(cc.final_acquire_unit, cc.acquire_unit) as fa, c.quantity as q
     from public.costing_components c
     join public.costing_tender_lines t on t.id = c.tender_line_id
     left join public.costing_component_costs cc on cc.component_id = c.id
     where t.matrix_id = p_matrix_id
     union all
-    select r.final_acquire_unit, r.quantity
+    select coalesce(r.final_acquire_unit, r.acquire_unit), r.quantity
     from public.costing_cost_rows r
     where r.matrix_id = p_matrix_id
   ) x
@@ -11944,7 +12011,6 @@ AS $function$
 declare
   v_actor     uuid := public.get_employee_id();
   v_opp       uuid;
-  v_missing   integer;
   v_signature text;
   v_row       public.costing_signoffs;
 begin
@@ -11976,22 +12042,11 @@ begin
     raise exception 'costing_sign: the evaluation is already approved' using errcode = '22023';
   end if;
 
-  if exists (
-    select 1
-    from public.costing_components c
-    join public.costing_tender_lines l on l.id = c.tender_line_id
-    where l.matrix_id = p_matrix_id and c.complied_by = v_actor
-  ) then
-    raise exception 'costing_sign: you marked some of these rows, so someone else has to approve the evaluation' using errcode = '42501';
+  if exists (select 1 from public.costing_matrices m where m.id = p_matrix_id and m.technical_incharge_id = v_actor) then
+    raise exception 'costing_sign: the Technical in-charge cannot approve the evaluation, so someone else has to' using errcode = '42501';
   end if;
-  select count(*) into v_missing
-  from public.costing_components c
-  join public.costing_tender_lines l on l.id = c.tender_line_id
-  where l.matrix_id = p_matrix_id and c.compliance is null;
-  if v_missing > 0 then
-    raise exception 'costing_sign: % Component% no verdict yet',
-      v_missing, case when v_missing = 1 then ' has' else 's have' end
-      using errcode = '22023';
+  if not exists (select 1 from public.costing_matrices m where m.id = p_matrix_id and m.compliance is not null) then
+    raise exception 'costing_sign: the Technical verdict is not given yet' using errcode = '22023';
   end if;
 
   if not coalesce(p_decline_signature, false) then
@@ -12056,14 +12111,6 @@ begin
   if v_me is null then
     raise exception 'costing_technical_list: not signed in' using errcode = '42501';
   end if;
-  if not (v_all or exists (
-    select 1 from public.costing_signer_lists l
-    join public.employees e on e.id = l.employee_id
-    where l.employee_id = v_me and l.list_key in ('team_rrd', 'team_ioe') and not coalesce(e.is_deleted, false)
-  )) then
-    raise exception 'costing_technical_list: only the RRD and IOE teams and Super Admins read the Technical list'
-      using errcode = '42501';
-  end if;
 
   return query
   select
@@ -12073,34 +12120,24 @@ begin
     o.project_title,
     o.client_name,
     fs.name,
-    t.evaluating_team,
-    count(c.id)::integer,
-    (count(c.id) filter (where c.compliance is not null))::integer,
+    'Technical'::text,
+    (select count(*)::integer from public.costing_tender_lines l where l.matrix_id = m.id),
+    case when m.compliance is null then 0
+         else (select count(*)::integer from public.costing_tender_lines l where l.matrix_id = m.id)
+    end,
     exists (
       select 1 from public.costing_signoffs s
       where s.matrix_id = m.id and s.role = 'evaluation_approved' and s.cleared_at is null
     ),
-    -- Whether the caller is on this row's team: a Super Admin reads every team's rows but judges only their own.
-    exists (
-      select 1 from public.costing_signer_lists l
-      where l.employee_id = v_me and l.list_key = 'team_' || lower(t.evaluating_team)
-    )
+    m.technical_incharge_id = v_me
   from public.costing_matrices m
   join public.sales_opportunities o on o.id = m.opportunity_id
-  join public.costing_tender_lines t on t.matrix_id = m.id and t.evaluating_team is not null
-  left join public.costing_components c on c.tender_line_id = t.id
   left join public.flow_stages fs on fs.id = o.flow_stage_id
-  where not coalesce(o.is_deleted, false)
+  where m.technical_incharge_id is not null
+    and not coalesce(o.is_deleted, false)
     and not coalesce(o.is_scratch, false)
-    and (
-      v_all
-      or exists (
-        select 1 from public.costing_signer_lists l
-        where l.employee_id = v_me and l.list_key = 'team_' || lower(t.evaluating_team)
-      )
-    )
-  group by o.id, o.sor_code, o.sales_reference, o.project_title, o.client_name, o.serial_no, fs.name, t.evaluating_team, m.id
-  order by o.serial_no desc, t.evaluating_team;
+    and (v_all or m.technical_incharge_id = v_me)
+  order by o.serial_no desc;
 end;
 $function$
 ;
@@ -12235,9 +12272,14 @@ AS $function$
         and p.employee_id = public.get_employee_id()
         and p.closed_at is null
     ) then 'participant'
-    when (public.costing_on_list('evaluation') or public.costing_on_list('team_rrd') or public.costing_on_list('team_ioe'))
-      and exists (select 1 from public.costing_matrices m where m.opportunity_id = p_opportunity_id)
-    then 'participant'
+    when exists (
+      select 1 from public.costing_matrices m
+      where m.opportunity_id = p_opportunity_id
+        and (
+          m.technical_incharge_id = public.get_employee_id()
+          or public.costing_on_list('evaluation')
+        )
+    ) then 'participant'
     else null
   end
 $function$
@@ -18168,6 +18210,15 @@ declare
   v_snapshot record;
   v_latest_data jsonb;
 begin
+  -- #884: a signed-in employee must be a Super Admin or a Flow editor. RLS would
+  -- refuse the writes below anyway; this says so plainly, before anything changes.
+  -- With no signed-in user (the service role, or a direct database connection
+  -- such as scripts/transfer-sales-flows.mjs) auth.role() is not
+  -- 'authenticated', so operator tooling is not gated here.
+  if auth.role() = 'authenticated' and not (is_super_admin() or can_edit_sales_flows()) then
+    raise exception 'Only a Super Admin or a Flow editor can publish a Sales Flow.'
+      using errcode = '42501';
+  end if;
   select * into v_flow from sales_flows where id = p_flow_id for update;
   if not found then
     raise exception 'Sales Flow not found.';
@@ -19208,6 +19259,62 @@ CREATE OR REPLACE FUNCTION public.pr_take(p_request_id uuid)
  SET search_path TO 'public'
 AS $function$
   select * from public.purchase_request_take(p_request_id);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.prevent_privileged_flags_on_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_caller_id                UUID;
+  v_caller_is_super_admin    BOOLEAN;
+  v_caller_is_role_simulator BOOLEAN;
+BEGIN
+  IF NEW.is_super_admin IS NOT TRUE
+     AND NEW.can_manage_leaves IS NOT TRUE
+     AND NEW.can_edit_sales_flows IS NOT TRUE
+  THEN
+    RETURN NEW;
+  END IF;
+
+  v_caller_id := public.get_employee_id();
+
+  -- No employee row: the service role or a migration. Trusted.
+  IF v_caller_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT is_super_admin, is_role_simulator
+  INTO   v_caller_is_super_admin, v_caller_is_role_simulator
+  FROM   public.employees
+  WHERE  id = v_caller_id;
+
+  IF v_caller_is_role_simulator IS TRUE OR v_caller_is_super_admin IS TRUE THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.is_super_admin IS TRUE THEN
+    RAISE EXCEPTION
+      'Insufficient privileges: only a super-admin can create a super-admin.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF NEW.can_manage_leaves IS TRUE THEN
+    RAISE EXCEPTION
+      'Insufficient privileges: only a super-admin can set leave-management access.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF NEW.can_edit_sales_flows IS TRUE THEN
+    RAISE EXCEPTION
+      'Insufficient privileges: only a super-admin can give Flow editor access.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.prevent_role_escalation()
@@ -21068,8 +21175,7 @@ AS $function$
   union all
   -- Still canvassing: Components with no Acquire yet, plus the matrix when it still needs a Bid Decision
   select m.opportunity_id, 'still_canvassing', 'costing_matrix', m.opportunity_id, null,
-         ((select count(*) from comps c where c.matrix_id = m.id and c.acquire_unit is null)
-           + case when m.verdict is null or m.verdict = 'revise' then 1 else 0 end)::int,
+         (select count(*) from comps c where c.matrix_id = m.id and c.acquire_unit is null)::int,
          0, null, m.purchasing_incharge_id, m.created_at, null,
          null::text
     from matrices m
@@ -21120,7 +21226,8 @@ AS $function$
   select r.opportunity_id, s.sales_reference, coalesce(s.project_title, case when r.opportunity_id is null then 'Direct request' end), r.grp, r.target_kind, r.target_id, r.target_label,
          r.item_count, r.no_canvass_count, r.buyer_id, r.canvasser_id, r.since, r.request_id, r.delivery_note
     from r left join sors s on s.id = r.opportunity_id
-   where r.item_count > 0
+   -- A matrix row with no count is kept on purpose: it is the pending Bid Decision, shown as its own move.
+   where r.item_count > 0 or r.target_kind = 'costing_matrix'
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.recheck_sales_reference(p_actor_email text, p_opportunity_id uuid, p_odoo text)
@@ -21602,6 +21709,15 @@ declare
   v_rec record;
   v_elem jsonb;
 begin
+  -- #884: a signed-in employee must be a Super Admin or a Flow editor. RLS would
+  -- refuse the writes below anyway; this says so plainly, before anything changes.
+  -- With no signed-in user (the service role, or a direct database connection
+  -- such as scripts/transfer-sales-flows.mjs) auth.role() is not
+  -- 'authenticated', so operator tooling is not gated here.
+  if auth.role() = 'authenticated' and not (is_super_admin() or can_edit_sales_flows()) then
+    raise exception 'Only a Super Admin or a Flow editor can restore a Sales Flow.'
+      using errcode = '42501';
+  end if;
   -- Lock the Sales Flow row first (ADR 0013 / lock_sales_flow).
   select * into v_flow from sales_flows where id = p_flow_id for update;
   if not found then
@@ -21816,7 +21932,7 @@ begin
   for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stageFields', '[]'::jsonb)) as e
   loop
     insert into flow_stage_fields (
-      id, stage_id, label, help, source, sor_field, field_type, options, is_required, sort_order, archived_at, created_at, updated_at
+      id, stage_id, label, help, source, sor_field, field_type, options, is_required, sort_order, archived_at, created_at, updated_at, show_when
     )
     values (
       (v_elem->>'id')::uuid,
@@ -21831,7 +21947,8 @@ begin
       coalesce((v_elem->>'sort_order')::int, 0),
       nullif(v_elem->>'archived_at', '')::timestamptz,
       coalesce((v_elem->>'created_at')::timestamptz, now()),
-      now()
+      now(),
+      case when jsonb_typeof(v_elem->'show_when') = 'object' then v_elem->'show_when' end
     )
     on conflict (id) do update set
       stage_id = excluded.stage_id,
@@ -21844,6 +21961,7 @@ begin
       is_required = excluded.is_required,
       sort_order = excluded.sort_order,
       archived_at = excluded.archived_at,
+      show_when = excluded.show_when,
       updated_at = now();
   end loop;
 
@@ -22641,6 +22759,8 @@ AS $function$
         and p.employee_id = public.get_employee_id()
         and p.closed_at is null
     ) then 'participant'
+    -- #883: the Buyer and the SOR's Purchasing Incharge, while a Purchase Request has an open line.
+    when public._purchase_request_buyer_access(p_opportunity_id, public.get_employee_id()) then 'participant'
     -- An open Mention Window, or the header grant on an SOR that still has no visit.
     when exists (
       select 1 from public.sor_mention_viewers m
@@ -22743,6 +22863,61 @@ AS $function$
    where o.id = any(p_opportunity_ids)
      and o.date_of_award is not null
      and (coalesce(public.has_purchasing_access(), false) or coalesce(public.is_super_admin(), false));
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_award_notice_recipients(p_opportunity_id uuid)
+ RETURNS uuid[]
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_buyers uuid[];
+  v_people uuid[];
+  v_heads uuid[];
+begin
+  if public.get_employee_id() is null then
+    raise exception 'sor_award_notice_recipients: not signed in' using errcode = '42501';
+  end if;
+
+  select coalesce(array_agg(distinct r.buyer_id), '{}'::uuid[])
+    into v_buyers
+  from public.purchase_requests r
+  join public.employees e on e.id = r.buyer_id
+  where r.opportunity_id = p_opportunity_id
+    and e.is_deleted is not true;
+
+  if cardinality(v_buyers) = 0 then
+    select coalesce(array_agg(e.id), '{}'::uuid[])
+      into v_heads
+    from public.employees e
+    where e.is_head
+      and e.has_purchasing_flow
+      and e.is_deleted is not true;
+    return v_heads;
+  end if;
+
+  select coalesce(array_agg(distinct p.id), '{}'::uuid[])
+    into v_people
+  from (
+    select unnest(v_buyers) as id
+    union
+    select m.purchasing_incharge_id
+    from public.costing_matrices m
+    where m.opportunity_id = p_opportunity_id
+      and m.purchasing_incharge_id is not null
+    union
+    select pm.employee_id
+    from public.purchase_request_members pm
+    join public.purchase_requests r on r.id = pm.request_id
+    where r.opportunity_id = p_opportunity_id
+      and pm.side = 'purchasing'
+  ) p
+  join public.employees e on e.id = p.id
+  where e.is_deleted is not true;
+
+  return v_people;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_begin_action_run(p_opportunity_id uuid, p_stage_id uuid, p_action_id uuid, p_stage_visit_id uuid DEFAULT NULL::uuid, p_decider jsonb DEFAULT NULL::jsonb)
@@ -23719,13 +23894,17 @@ begin
       select (f->>'id')::uuid as id,
              f->>'label' as label,
              f->>'source' as source,
-             f->>'sor_field' as sor_field
+             f->>'sor_field' as sor_field,
+             f->'show_when' as show_when
         from jsonb_array_elements(v_snapshot_data->'stageFields') f
        where (f->>'stage_id')::uuid = OLD.flow_stage_id
          and coalesce((f->>'is_required')::boolean, false) = true
          and f->>'archived_at' is null
        order by coalesce((f->>'sort_order')::integer, 0)
     loop
+      if not stage_field_shown(v_field.show_when, to_jsonb(NEW), v_current_visit_id) then
+        continue;
+      end if;
       if v_field.source = 'sor' then
         v_field_val := to_jsonb(NEW) ->> v_field.sor_field;
         if v_field_val is null or btrim(v_field_val) = '' then
@@ -23751,13 +23930,16 @@ begin
     end loop;
   else
     for v_field in
-      select id, label, source, sor_field
+      select id, label, source, sor_field, show_when
         from public.flow_stage_fields
        where stage_id = OLD.flow_stage_id
          and is_required = true
          and archived_at is null
        order by sort_order, created_at
     loop
+      if not stage_field_shown(v_field.show_when, to_jsonb(NEW), v_current_visit_id) then
+        continue;
+      end if;
       if v_field.source = 'sor' then
         v_field_val := to_jsonb(NEW) ->> v_field.sor_field;
         if v_field_val is null or btrim(v_field_val) = '' then
@@ -24628,6 +24810,7 @@ declare
   v_created boolean;
   v_buyer_set boolean := false;
   v_requesters jsonb;
+  v_reraise public.purchase_requests;
 begin
   if v_actor is null then
     raise exception 'sor_open_purchase_request: not signed in' using errcode = '42501';
@@ -24747,6 +24930,22 @@ begin
       format('%s was set as Buyer.', coalesce((select name from public.employees where id = v_req.buyer_id), 'Someone')),
       jsonb_build_object('event', 'buyer_set', 'buyer_id', v_req.buyer_id, 'previous_buyer_id', null)
     );
+  end if;
+
+  -- #883: a run that reuses the request raises the window again for its purchasing
+  -- members, on this run's visit and with this action's rule. Without it a window that
+  -- closed at an earlier Stage (Lead only) never reopens at the buying Stage.
+  if not v_created and v_run.stage_visit_id is not null then
+    v_reraise := v_req;
+    v_reraise.opened_visit_id := v_run.stage_visit_id;
+    v_reraise.access_until := v_until;
+    v_reraise.access_until_stage_id := v_until_stage;
+    for v_emp in
+      select m.employee_id from public.purchase_request_members m
+      where m.request_id = v_req.id and m.side = 'purchasing'
+    loop
+      perform public._purchase_request_open_window(v_reraise, v_emp);
+    end loop;
   end if;
 
   if v_created then
@@ -25921,6 +26120,8 @@ declare
   v_run public.sor_action_runs;
   v_decider_id text;
   v_failed text[] := '{}';
+  v_failed_reasons jsonb[] := '{}';
+  v_reason text;
   v_created jsonb[] := '{}';
   v_project_title text;
 begin
@@ -25990,6 +26191,16 @@ begin
           'task_id', (select task_id from public.sor_action_runs where id = v_run.id)
         );
       elsif v_action->>'kind' = 'create_group_task' then
+        -- #896: a member who was deleted from employees fails the action with a
+        -- plain reason, not a foreign-key error from inside the group task insert.
+        if exists (
+          select 1
+            from jsonb_array_elements(coalesce(v_action->'members', '[]'::jsonb)) m
+           where nullif(m->>'employee_id', '') is not null
+             and not exists (select 1 from public.employees e where e.id = (m->>'employee_id')::uuid)
+        ) then
+          raise exception 'member no longer exists' using errcode = 'P0001';
+        end if;
         perform public.sor_create_stage_group_task_action(
           v_run.id,
           v_action->>'group_title',
@@ -26032,12 +26243,23 @@ begin
         raise exception 'sor_run_stage_actions: no builder for kind %', v_action->>'kind';
       end if;
     exception when others then
+      v_reason := left(coalesce(nullif(sqlerrm, ''), 'unknown error'), 300);
+      update public.sor_action_runs set failure_reason = v_reason where id = v_run.id;
       perform public.sor_finish_action_run(v_run.id, 'failed');
       v_failed := array_append(v_failed, coalesce(v_action->>'name', 'Stage Action'));
+      v_failed_reasons := v_failed_reasons || jsonb_build_object(
+        'action_id', v_action->>'action_id',
+        'name', coalesce(v_action->>'name', 'Stage Action'),
+        'reason', v_reason
+      );
     end;
   end loop;
 
-  return jsonb_build_object('failed', to_jsonb(v_failed), 'created', to_jsonb(v_created));
+  return jsonb_build_object(
+    'failed', to_jsonb(v_failed),
+    'created', to_jsonb(v_created),
+    'failed_reasons', to_jsonb(v_failed_reasons)
+  );
 end;
 $function$
 ;
@@ -26229,6 +26451,18 @@ AS $function$
 
   union
 
+  -- #883: the Buyer and the SOR's Purchasing Incharge, while a Purchase Request has an open line,
+  -- see the Stage Visit the SOR is in now (and nothing before it).
+  select v.id
+  from public.sor_stage_visits v
+  where v.opportunity_id = p_opportunity_id
+    and v.undone_at is null
+    and v.left_at is null
+    and not public.is_super_admin()
+    and public._purchase_request_buyer_access(p_opportunity_id, public.get_employee_id())
+
+  union
+
   -- Mention Windows: exactly the visit each Mention was made on, open or since
   -- left (a left one is the locked view's read-only look).
   select v.id
@@ -26324,6 +26558,45 @@ AS $function$
     where s.id = p_snapshot_id and a.value->>'id' = p_action_id::text
     limit 1
   ), false);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.stage_field_shown(p_show_when jsonb, p_opportunity jsonb, p_visit_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ref_source text;
+  v_ref_sor_field text;
+  v_value text;
+begin
+  if p_show_when is null or jsonb_typeof(p_show_when) <> 'object' then
+    return true;
+  end if;
+
+  select source, sor_field into v_ref_source, v_ref_sor_field
+    from public.flow_stage_fields
+   where id = (p_show_when->>'field_id')::uuid;
+  if not found then
+    return true;
+  end if;
+
+  if v_ref_source = 'sor' then
+    v_value := p_opportunity ->> v_ref_sor_field;
+  else
+    select case
+             when value is null or jsonb_typeof(value) = 'null' then null
+             when jsonb_typeof(value) = 'string' then value #>> '{}'
+             else value::text
+           end into v_value
+      from public.sor_stage_field_values
+     where stage_visit_id = p_visit_id
+       and field_id = (p_show_when->>'field_id')::uuid;
+  end if;
+
+  return coalesce(v_value, '') = coalesce(p_show_when->>'value', '');
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.submit_bug_report(p_description text, p_attachments jsonb DEFAULT '[]'::jsonb, p_page_url text DEFAULT NULL::text, p_user_agent text DEFAULT NULL::text, p_app_version text DEFAULT NULL::text, p_environment text DEFAULT NULL::text)
@@ -28924,8 +29197,8 @@ CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing
 CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_bundle_keeps_inclusions();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_clear_evaluation_components AFTER INSERT OR DELETE OR UPDATE OF offer_specification, compliance, compliance_note ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
-CREATE TRIGGER costing_compliance_team_guard BEFORE UPDATE OF compliance, compliance_note, recommended_alternative ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_compliance_team_guard();
 CREATE TRIGGER costing_component_delete_guard BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_component_delete_guard();
+CREATE TRIGGER costing_component_verdict_guard BEFORE UPDATE OF compliance, compliance_note, recommended_alternative ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_component_verdict_guard();
 CREATE TRIGGER costing_components_cleanup BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_components_cleanup();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
@@ -28949,8 +29222,11 @@ CREATE TRIGGER costing_landed_defaults_stamp BEFORE INSERT OR UPDATE ON public.c
 CREATE TRIGGER costing_markup_presets_touch BEFORE UPDATE ON public.costing_markup_presets FOR EACH ROW EXECUTE FUNCTION costing_markup_presets_touch();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
+CREATE TRIGGER costing_check_technical_incharge BEFORE INSERT OR UPDATE OF technical_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_technical_incharge();
+CREATE TRIGGER costing_clear_evaluation_matrix AFTER UPDATE OF compliance, compliance_note ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_matrices_touch BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
+CREATE TRIGGER costing_matrix_verdict_guard BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_matrix_verdict_guard();
 CREATE TRIGGER trg_zz_costing_matrices_default_addon BEFORE INSERT ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_matrices_default_addon();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_write_events();
@@ -28976,9 +29252,9 @@ CREATE TRIGGER costing_tender_line_delete_guard BEFORE DELETE ON public.costing_
 CREATE TRIGGER costing_tender_line_product_guard BEFORE UPDATE OF odoo_product_id ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_product_guard();
 CREATE TRIGGER costing_tender_line_removal_guard BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_removal_guard();
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
-CREATE TRIGGER costing_tender_lines_notify_team AFTER INSERT OR UPDATE OF evaluating_team ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION _costing_notify_evaluation_team();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
+CREATE TRIGGER trg_prevent_privileged_flags_on_insert BEFORE INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_privileged_flags_on_insert();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
 CREATE TRIGGER ipas_actual_checking_hand_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_actual_checking_hand_guard();

@@ -9,7 +9,7 @@ import { askedByText, lineNotes, p0Cell, purposeLabel, splitProductName, stockCe
 import { formatAmount } from "../../utils/requestedItem";
 
 /** Column widths, shared by the header row and every line so they line up. */
-export const COLUMNS = "grid-cols-[3.5rem_8rem_10.5rem_4.75rem_14rem]";
+export const COLUMNS = "grid-cols-[5.5rem_8rem_10.5rem_4.75rem_14rem]";
 
 const STOCK_DOT = { enough: "bg-green-9", some: "bg-amber-9", "none-left": "bg-red-9", none: "bg-mauve-7" };
 
@@ -31,9 +31,9 @@ export function ColumnHeads({ first, third }) {
   );
 }
 
-/** "×2" in mono, right-aligned. */
+/** "×2" in mono, right-aligned. Never wraps: "×2.5 meter" stays on one line. */
 export const QtyCell = ({ item }) => (
-  <span className="text-right font-mono text-xs text-foreground">×{formatAmount(item.quantity, item.unit)}</span>
+  <span className="whitespace-nowrap text-right font-mono text-xs text-foreground">×{formatAmount(item.quantity, item.unit)}</span>
 );
 
 /** The Stock column of a line from the S0: a colour dot and the figure in words. */

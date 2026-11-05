@@ -1,7 +1,8 @@
 import { useLocation, useNavigate, useParams } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
+import { costingKeys } from "../../components/costing/costingKeys";
 import ModalShell from "../../components/ui/ModalShell";
 import { Button } from "../../components/ui/button";
 import CostingDesk from "../../components/costing/desk/CostingDesk";
@@ -24,6 +25,7 @@ function CostingMatrixWindow() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const returnTo = location.state?.returnTo ?? null;
 
   // The SOR's name and numbers for the header; falls back to the narrow header read when the full SOR cannot be read (#836).
@@ -43,6 +45,8 @@ function CostingMatrixWindow() {
   });
 
   const close = () => {
+    // The list behind the window shows this SOR's figures; closing the sheet brings them up to date (#892).
+    queryClient.invalidateQueries({ queryKey: costingKeys.matrixPage });
     if (returnTo?.path) {
       navigate(returnTo.path);
       if (returnTo.sorId) {

@@ -362,6 +362,7 @@ export function stubActionRunRpcs() {
    */
   stubRpc("sor_run_stage_actions", (args) => {
     const failed = []
+    const failedReasons = []
     const created = []
 
     for (const action of args.p_actions || []) {
@@ -430,6 +431,11 @@ export function stubActionRunRpcs() {
           updateRow("sor_action_runs", run, { outcome: "created", task_id: task.id })
           created.push({ action_id: action.action_id, kind: "create_individual_task", task_id: task.id })
         } else if (action.kind === "create_group_task") {
+          // #896: as the migration does, a member who is no longer an employee fails the action.
+          const employeeIds = rowsOf("employees").map((e) => e.id)
+          if ((action.members || []).some((m) => m.employee_id && !employeeIds.includes(m.employee_id))) {
+            throw new Error("member no longer exists")
+          }
           const groupTask = insertRow("committee_tasks", {
             title: action.group_title,
             description: action.group_description ?? "",
@@ -467,12 +473,14 @@ export function stubActionRunRpcs() {
         } else {
           throw new Error(`sor_run_stage_actions: no builder for kind ${action.kind}`)
         }
-      } catch {
-        updateRow("sor_action_runs", run, { outcome: "failed" })
+      } catch (err) {
+        const reason = String(err?.message || "unknown error").slice(0, 300)
+        updateRow("sor_action_runs", run, { outcome: "failed", failure_reason: reason })
         failed.push(action.name || "Stage Action")
+        failedReasons.push({ action_id: action.action_id, name: action.name || "Stage Action", reason })
       }
     }
 
-    return { failed, created }
+    return { failed, created, failed_reasons: failedReasons }
   })
 }

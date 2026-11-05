@@ -108,16 +108,13 @@ async function onFinalAcquireList(employee) {
 }
 
 /**
- * Is the employee on the RRD or IOE evaluation team list (#706)? They get the Technical entry in the menu.
- * A failure reads as "no": this is a convenience for the navigation, never the gate (the database is).
+ * Is the employee the Technical in-charge of at least one S0 Evaluation (#908, spec #907 decision 10)? They get the
+ * Technical entry in the menu. The RRD and IOE team lists are retired. A failure reads as "no": this is a convenience
+ * for the navigation, never the gate (the database is).
  */
-async function onEvaluationTeamList(employee) {
+async function onTechnicalInchargeSomewhere(employee) {
   try {
-    const { data, error } = await supabase
-      .from("costing_signer_lists")
-      .select("list_key")
-      .eq("employee_id", employee.id)
-      .in("list_key", ["team_rrd", "team_ioe"]);
+    const { data, error } = await supabase.from("costing_matrices").select("id").eq("technical_incharge_id", employee.id).limit(1);
     return !error && (data || []).length > 0;
   } catch {
     return false;
@@ -162,7 +159,7 @@ export const employeeService = {
     const ipasLists = await ipasListMembership(data);
     const isFinalAcquire = await onFinalAcquireList(data);
     const isCostingOpen = await costingOpenAnywhere();
-    const isEvaluationTeam = await onEvaluationTeamList(data);
+    const isEvaluationTeam = await onTechnicalInchargeSomewhere(data);
     return {
       id: data.id,
       email: data.email,
@@ -194,6 +191,7 @@ export const employeeService = {
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,
+      canEditSalesFlows: !!data.can_edit_sales_flows,
       signaturePath: data.signature_path || null,
       avatarPath: data.avatar_path || null,
       dashboardBannerPath: data.dashboard_banner_path || null,
@@ -236,6 +234,7 @@ export const employeeService = {
       isIssuedPassword: !!employee.is_issued_password,
       hiddenNavKeys: employee.hidden_nav_keys || [],
       canManageLeaves: employee.can_manage_leaves,
+      canEditSalesFlows: !!employee.can_edit_sales_flows,
       signaturePath: employee.signature_path || null,
       avatarPath: employee.avatar_path || null,
       dashboardBannerPath: employee.dashboard_banner_path || null,
@@ -360,6 +359,8 @@ export const employeeService = {
           is_hr: employeeData.isHr,
           is_super_admin: employeeData.isSuperAdmin,
           can_manage_leaves: employeeData.canManageLeaves,
+          // Only a Super Admin may set this; the database refuses anyone else.
+          can_edit_sales_flows: !!employeeData.canEditSalesFlows,
           has_sales_flow: employeeData.has_sales_flow,
           has_task_flow: employeeData.has_task_flow,
           has_purchasing_flow: employeeData.has_purchasing_flow,
@@ -418,6 +419,9 @@ export const employeeService = {
         is_hr: employeeData.isHr,
         is_super_admin: employeeData.isSuperAdmin,
         can_manage_leaves: employeeData.canManageLeaves,
+        // Only touched when the caller says so. The database refuses a change
+        // from anyone but a Super Admin.
+        can_edit_sales_flows: employeeData.canEditSalesFlows !== undefined ? !!employeeData.canEditSalesFlows : undefined,
         has_sales_flow: employeeData.has_sales_flow,
         has_task_flow: employeeData.has_task_flow,
         has_purchasing_flow: employeeData.has_purchasing_flow,

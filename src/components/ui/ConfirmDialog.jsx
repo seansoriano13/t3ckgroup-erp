@@ -37,6 +37,8 @@ export default function ConfirmDialog({
   tone = "default",
   onConfirm,
   confirmDisabled = false,
+  // A message with nothing to back out of (a result to acknowledge) drops the Cancel button.
+  hideCancel = false,
   className,
   footerClassName,
   children,
@@ -56,9 +58,11 @@ export default function ConfirmDialog({
         {children}
 
         <DialogFooter className={footerClassName}>
-          <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>
-            {cancelLabel}
-          </Button>
+          {!hideCancel && (
+            <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>
+              {cancelLabel}
+            </Button>
+          )}
           <Button
             size="lg"
             variant={tone === "destructive" ? "destructive" : "default"}

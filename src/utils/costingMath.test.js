@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { summaryLineShown } from "../constants/costing";
-import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
+import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -387,6 +387,43 @@ describe("finalAcquireTotal", () => {
     expect(finalAcquireTotal([{ quantity: 2, final_acquire_unit: 100 }, { quantity: 1 }])).toBeNull();
     expect(finalAcquireTotal([])).toBeNull();
     expect(finalAcquireTotal(undefined)).toBeNull();
+  });
+});
+
+describe("offersNotEntered (#906)", () => {
+  it("lists each Component whose We offer is blank, in line order, with its number and name", () => {
+    const tenderLines = [
+      {
+        tender_specification: "Rescue tripod",
+        components: [
+          { id: "c1", number: "1.1", name: "Tripod", offer_specification: "Tripod 3 m" },
+          { id: "c2", number: "1.2", name: "Bag", offer_specification: null },
+        ],
+      },
+      { tender_specification: "Stretcher", components: [{ id: "c3", number: "2.1", name: "", offer_specification: "Stretcher 200 kg" }, { id: "c4", number: "2.2", name: "", offer_specification: "" }] },
+    ];
+    expect(offersNotEntered(tenderLines)).toEqual([
+      { id: "c2", number: "1.2", label: "Bag" },
+      { id: "c4", number: "2.2", label: "Stretcher" },
+    ]);
+  });
+
+  it("counts spaces only as not entered", () => {
+    const tenderLines = [{ tender_specification: "Harness", components: [{ id: "c1", number: "1.1", name: "Harness", offer_specification: "   \n " }] }];
+    expect(offersNotEntered(tenderLines)).toEqual([{ id: "c1", number: "1.1", label: "Harness" }]);
+  });
+
+  it("lists nothing when every Component has a We offer", () => {
+    expect(offersNotEntered([{ components: [{ id: "c1", number: "1.1", offer_specification: "Full body" }] }])).toEqual([]);
+  });
+
+  it("does not list a line that has no Components", () => {
+    expect(offersNotEntered([{ tender_specification: "Empty line", components: [] }])).toEqual([]);
+  });
+
+  it("is empty for no lines", () => {
+    expect(offersNotEntered([])).toEqual([]);
+    expect(offersNotEntered(undefined)).toEqual([]);
   });
 });
 

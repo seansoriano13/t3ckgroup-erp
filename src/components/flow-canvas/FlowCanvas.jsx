@@ -62,7 +62,7 @@ import { Input } from "@/components/ui/input";
 import { FileInput } from "@/components/ui/FileInput";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { UPDATE_MODE, idsForUpdateMode, actionFailureMessage } from "@/utils/sorVersionUpdate";
+import { UPDATE_MODE, idsForUpdateMode, actionFailureMessage, planFailureMessage } from "@/utils/sorVersionUpdate";
 import {
   Dialog,
   DialogContent,
@@ -76,6 +76,7 @@ import PeoplePicker from "@/components/ui/PeoplePicker";
 import { supabase } from "../../lib/supabase";
 import { opportunityService } from "../../services/opportunityService";
 import { employeeService } from "../../services/employeeService";
+import { getPermissionContext } from "../../utils/permissions";
 import { employeeGroupService } from "../../services/employeeGroupService";
 import { flowAccessService } from "../../services/flowAccessService";
 import { formatVersionNumber, formatSnapshotVersion } from "../../constants/flowVersion";
@@ -236,7 +237,7 @@ function FlowCanvasInner() {
   const [offerMode, setOfferMode] = useState(UPDATE_MODE.ALL);
   const [offerPicked, setOfferPicked] = useState([]);
   const offerIds = idsForUpdateMode(offerMode, (moveOffer?.sors ?? []).map((o) => o.id), offerPicked);
-  const { data: offerPreview } = useQuery({
+  const { data: offerPreview, error: offerPreviewError } = useQuery({
     queryKey: ["versionUpdatePreview", moveOffer?.targetSnapshotId, offerIds],
     queryFn: () => opportunityService.previewVersionUpdate(offerIds, moveOffer.targetSnapshotId),
     enabled: Boolean(moveOffer?.targetSnapshotId && offerIds.length > 0),
@@ -294,6 +295,12 @@ function FlowCanvasInner() {
   // The Legacy Pipeline (#856) opens view only: no edit, no Publish. Other archived Sale Types stay editable.
   const isLegacyPipeline = isLegacyPipelineSaleType(canvas?.saleType);
   const isLocked = flow?.state === "locked" || isLegacyPipeline;
+  // Only Super Admins and Flow editors may change or publish the canvas (#884).
+  // Everyone else sees it read-only: RLS and lock_sales_flow refuse the writes
+  // anyway, this keeps the controls honest about it.
+  const { isSuperAdmin, canEditSalesFlows } = getPermissionContext(user);
+  const canEditFlow = isSuperAdmin || canEditSalesFlows;
+  const readOnly = isLocked || !canEditFlow;
   const lockBlockers = useMemo(
     () => (flow && !isLocked ? flowLockBlockers({ stages, edges, wonStageId: flow.won_stage_id }) : []),
     [flow, isLocked, stages, edges],
@@ -619,6 +626,16 @@ function FlowCanvasInner() {
 
   const run = useCallback((fn, message) => doRun({ run: fn, message }), [doRun]);
 
+  // The Buying flag gets its own mutation so its button can show the value being saved while the write runs (#904).
+  const buyingOpens = useMutation({
+    mutationFn: ({ stageId, value }) => salesFlowService.setStageBuyingOpens(stageId, value, user?.id),
+    onSuccess: (_data, { value }) => {
+      refresh();
+      toast.success(value ? "Buying opens here." : "Buying no longer opens here.");
+    },
+    onError: (err) => toast.error(flowErrorMessage(err)),
+  });
+
   // Publish gets its own mutation, rather than running through `run` above,
   // because the post-publish "move deals up" offer (issue #190) needs the
   // published snapshot's version numbers — `run`'s success handler only
@@ -832,12 +849,12 @@ function FlowCanvasInner() {
           stage,
           isEntry: entry?.id === stage.id,
           isWon: flow?.won_stage_id === stage.id,
-          disabled: isLocked,
+          disabled: readOnly,
           conditionCount: (conditionsByStage[stage.id] ?? []).length,
           actionCount: (actionsByStage[stage.id] ?? []).length,
           fieldCount: (fieldsByStage[stage.id] ?? []).length,
           hasOutgoing: edges.some((e) => e.from_stage_id === stage.id),
-          canAddStage: !isLocked,
+          canAddStage: !readOnly,
           onAddStage: (name) => addStageAfter(stage, name),
           // Issue #294: a condition or action calling in from this Stage had
           // its access window's chosen end Stage deleted and fell back to
@@ -855,7 +872,7 @@ function FlowCanvasInner() {
           onOpenAccess: () =>
             setSelection({ nodeId: stage.id, stageId: stage.id, tab: "access" }),
         },
-        draggable: !isLocked,
+        draggable: !readOnly,
       });
     });
 
@@ -931,7 +948,7 @@ function FlowCanvasInner() {
 
         // The empty slot is an affordance, not decoration — so it appears only
         // on the Stage being worked on, and never on a locked flow.
-        if (isSelected && overflow === 0 && !isLocked) {
+        if (isSelected && overflow === 0 && !readOnly) {
           addSatellite(stage, column, items.length, `sat:${stage.id}:${column}:add`, {
             variant: "add",
             addLabel,
@@ -951,14 +968,14 @@ function FlowCanvasInner() {
       // underneath it — and the move draws from the wrong side of the Stage.
       sourceHandle: HANDLE_OUT,
       targetHandle: HANDLE_IN,
-      deletable: !isLocked,
-      reconnectable: !isLocked,
+      deletable: !readOnly,
+      reconnectable: !readOnly,
       data: {
-        disabled: isLocked,
+        disabled: readOnly,
         fromName: stageName[e.from_stage_id],
         toName: stageName[e.to_stage_id],
         onDelete: (edgeId) => handleRemoveEdge(edgeId),
-        canInsertStage: !isLocked && !viewingSnapshot,
+        canInsertStage: !readOnly && !viewingSnapshot,
         onInsertStage: (name) => insertStageOnEdge(e, name),
       },
     }));
@@ -979,7 +996,7 @@ function FlowCanvasInner() {
     viewAsSelector,
     viewAsLabel,
     selection,
-    isLocked,
+    readOnly,
     viewingSnapshot,
     addStageAfter,
     insertStageOnEdge,
@@ -991,15 +1008,15 @@ function FlowCanvasInner() {
 
   const onNodeDrag = useCallback(
     (_event, node) => {
-      if (isLocked || node.type !== "stage") return;
+      if (readOnly || node.type !== "stage") return;
       publishNodeDrag(node.id, node.position);
     },
-    [isLocked, publishNodeDrag]
+    [readOnly, publishNodeDrag]
   );
 
   const onNodeDragStop = useCallback(
     (_event, node) => {
-      if (isLocked || node.type !== "stage") return;
+      if (readOnly || node.type !== "stage") return;
       salesFlowService
         .updateStagePosition(node.id, node.position.x, node.position.y, user?.id)
         .catch((err) => {
@@ -1007,25 +1024,25 @@ function FlowCanvasInner() {
           toast.error("That Stage's new position could not be saved. Move it again to retry.");
         });
     },
-    [isLocked, user?.id]
+    [readOnly, user?.id]
   );
 
   const stageIdSet = useMemo(() => new Set(stageIds), [stageIds]);
 
   const onConnect = useCallback(
     (params) => {
-      if (isLocked) return;
+      if (readOnly) return;
       // Only Stage-to-Stage is a move. A satellite is a property of its Stage,
       // and the schema has nowhere to put an edge that ends on one.
       if (!stageIdSet.has(params.source) || !stageIdSet.has(params.target)) return;
       run(() => salesFlowService.addEdge(flow.id, params.source, params.target, user?.id));
     },
-    [isLocked, flow, user?.id, run, stageIdSet]
+    [readOnly, flow, user?.id, run, stageIdSet]
   );
 
   const onEdgesDelete = useCallback(
     (edgesToDelete) => {
-      if (isLocked) return;
+      if (readOnly) return;
       // Backspace deletes instantly, so every removal offers an Undo that re-adds the move.
       edgesToDelete
         .filter((edge) => !edge.id.startsWith("satedge:"))
@@ -1054,7 +1071,7 @@ function FlowCanvasInner() {
           }),
         );
     },
-    [isLocked, flow, user?.id, run]
+    [readOnly, flow, user?.id, run]
   );
 
   /**
@@ -1067,7 +1084,7 @@ function FlowCanvasInner() {
    */
   const onReconnect = useCallback(
     (oldEdge, connection) => {
-      if (isLocked) return;
+      if (readOnly) return;
       if (!stageIdSet.has(connection.source) || !stageIdSet.has(connection.target)) return;
       if (connection.source === connection.target) {
         toast.error("A Stage cannot move to itself.");
@@ -1085,7 +1102,7 @@ function FlowCanvasInner() {
         await salesFlowService.removeEdge(oldEdge.id, user?.id);
       }, "Move rerouted.");
     },
-    [isLocked, stageIdSet, flow, user?.id, run]
+    [readOnly, stageIdSet, flow, user?.id, run]
   );
 
   const onNodeClick = useCallback((_event, node) => {
@@ -1189,9 +1206,9 @@ function FlowCanvasInner() {
           edgeTypes={edgeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           connectionRadius={28}
-          edgesReconnectable={!isLocked}
-          nodesConnectable={!isLocked}
-          nodesDraggable={!isLocked}
+          edgesReconnectable={!readOnly}
+          nodesConnectable={!readOnly}
+          nodesDraggable={!readOnly}
           elementsSelectable={true}
           fitView
           fitViewOptions={{ padding: 0.24, maxZoom: 1 }}
@@ -1285,7 +1302,7 @@ function FlowCanvasInner() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={isLocked}
+                  disabled={readOnly}
                   onClick={() => setRestoreConfirmOpen(true)}
                   aria-label="Revert to this version"
                   className="gap-1.5 text-muted-foreground hover:text-foreground"
@@ -1445,7 +1462,7 @@ function FlowCanvasInner() {
                   </span>
                 )}
 
-                {selectedSaleType && (
+                {canEditFlow && selectedSaleType && (
                   <>
                     <Tooltip content="Rename inline">
                       <Button
@@ -1541,6 +1558,8 @@ function FlowCanvasInner() {
                   </>
                 )}
 
+                {canEditFlow && (
+                <>
                 <div className="mx-1 h-4 w-px bg-border" />
 
                 <Dropdown
@@ -1619,6 +1638,8 @@ function FlowCanvasInner() {
                     </Tooltip>
                   </>
                 )}
+                </>
+                )}
               </>
             )}
           </div>
@@ -1667,12 +1688,12 @@ function FlowCanvasInner() {
                   variant="ghost"
                   size="lg"
                   onClick={handleAutoLayout}
-                  disabled={stages.length === 0 || isLocked}
+                  disabled={stages.length === 0 || readOnly}
                 >
                   <LayoutGrid /> Tidy layout
                 </Button>
 
-                <SorFormBuilder flow={flow} />
+                {canEditFlow && <SorFormBuilder flow={flow} />}
 
                 <FlowAccessSettings open={accessOpen} onToggle={() => setAccessOpen((o) => !o)} />
 
@@ -1722,7 +1743,7 @@ function FlowCanvasInner() {
 
                 <div className="mx-1 h-4 w-px bg-border" />
 
-                {isLegacyPipeline ? null : isLocked ? (
+                {canEditFlow && !isLegacyPipeline && (isLocked ? (
                   <Button
                     variant="outline"
                     size="lg"
@@ -1748,7 +1769,7 @@ function FlowCanvasInner() {
                   >
                     <Lock /> {publishLabel}
                   </Button>
-                )}
+                ))}
               </>
             )}
           </div>
@@ -1766,13 +1787,13 @@ function FlowCanvasInner() {
           stageAccess={stageAccessByStage}
           lens={accessLens}
           viewing={Boolean(viewAsSelector)}
-          disabled={isLocked}
+          disabled={readOnly}
           onClose={() => setAccessOpen(false)}
         />
       )}
 
       {/* ── Lock blockers ───────────────────────────────────────────────── */}
-      {flow && !isLocked && !viewingSnapshot && lockBlockers.length > 0 && (
+      {flow && !readOnly && !viewingSnapshot && lockBlockers.length > 0 && (
         <div className="pointer-events-none absolute left-1/2 top-16 z-20 -translate-x-1/2">
           <ul className="pointer-events-auto space-y-0.5 rounded-2xl bg-card/90 px-3.5 py-2.5 text-xs text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
             {lockBlockers.map((blocker) => (
@@ -1804,7 +1825,7 @@ function FlowCanvasInner() {
       )}
 
       {/* ── Add-Stage plus (issue #195) ───────────────────────────────── */}
-      {flow && !isLocked && !viewingSnapshot && !accessOpen && (
+      {flow && !readOnly && !viewingSnapshot && !accessOpen && (
         <div className="absolute bottom-4 left-4 z-20">
           <Dropdown
             usePortal
@@ -1834,7 +1855,7 @@ function FlowCanvasInner() {
           isWon={flow.won_stage_id === selectedStage.id}
           isAward={flow.award_stage_id === selectedStage.id}
           isContract={flow.contract_stage_id === selectedStage.id}
-          disabled={isLocked}
+          disabled={readOnly}
           bracketOptions={bracketOptions}
           activeTab={selection.tab}
           onTabChange={(tab) => setSelection((prev) => ({ ...prev, tab }))}
@@ -1868,10 +1889,10 @@ function FlowCanvasInner() {
             run(() => salesFlowService.setStageAutoMove(selectedStage.id, !selectedStage.auto_move, user?.id))
           }
           onToggleBuyingOpens={() =>
-            run(
-              () => salesFlowService.setStageBuyingOpens(selectedStage.id, !selectedStage.buying_opens_here, user?.id),
-              selectedStage.buying_opens_here ? "Buying no longer opens here." : "Buying opens here.",
-            )
+            buyingOpens.mutate({ stageId: selectedStage.id, value: !selectedStage.buying_opens_here })
+          }
+          buyingOpensPending={
+            buyingOpens.isPending && buyingOpens.variables?.stageId === selectedStage.id ? buyingOpens.variables.value : null
           }
           onSetTerminalOutcome={(outcome) =>
             run(() => salesFlowService.setStageTerminalOutcome(selectedStage.id, outcome, user?.id))
@@ -2043,6 +2064,11 @@ function FlowCanvasInner() {
                   ))}
                 </ul>
               )}
+              {offerPreviewError && (
+                <p role="alert" className="text-destructive">
+                  {planFailureMessage(offerPreviewError.message)}
+                </p>
+              )}
               <div role="group" aria-label="Which SORs" className="flex flex-wrap gap-2">
                 {modes.map(([value, label]) => (
                   <Button
@@ -2128,10 +2154,12 @@ function FlowCanvasInner() {
         }}
         title="SORs updated"
         confirmLabel="Done"
+        hideCancel
         onConfirm={() => setMoveResult(null)}
       >
         <div className="space-y-2 text-sm">
           <p>{moveResult?.succeeded?.length ?? 0} updated successfully.</p>
+          {moveResult?.planError && <p className="text-destructive">{planFailureMessage(moveResult.planError)}</p>}
           {moveResult?.failed?.length > 0 && (
             <div className="space-y-1">
               <p className="font-semibold text-destructive">{moveResult.failed.length} failed:</p>

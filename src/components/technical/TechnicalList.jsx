@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardCheck, Users } from "lucide-react";
+import { ClipboardCheck } from "lucide-react";
 
 import PageShell from "../ui/PageShell";
 import EmptyState from "../ui/EmptyState";
@@ -9,7 +9,6 @@ import QueryError from "../ui/QueryError";
 import PageLoading from "../ui/PageLoading";
 import TabGroup from "../ui/TabGroup";
 import FilterBar from "../ui/FilterBar";
-import { FilterSelect } from "../ui/FilterDropdown";
 import StatusBadge from "../StatusBadge";
 import HighlightText from "../HighlightText";
 import { IdentityCell } from "../purchasing/list/IdentityCell";
@@ -30,23 +29,18 @@ import { TECHNICAL_TAB, checkedLabel, filterTechnical, technicalKeys, technicalS
  */
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
-const CHIP = "h-9 w-auto gap-2 px-2.5";
-const CHIP_WRAPPER = "w-auto shrink-0";
-const ALL = "__all__";
 const STATE_TONES = { to_check: "amber", checked: "blue", approved: "green" };
-const NARROW_HIDDEN = new Set(["Stage", "Team"]);
+const NARROW_HIDDEN = new Set(["Stage"]);
 
 const SORT = {
   sor: (r) => r.sorNumber,
   stage: (r) => r.stage,
-  team: (r) => r.team,
   progress: (r) => (r.rowsTotal ? r.rowsJudged / r.rowsTotal : null),
   state: (r) => technicalState(r).label,
 };
 const COLUMNS = [
   ["SOR", "sor"],
   ["Stage", "stage"],
-  ["Team", "team"],
   ["Progress", "progress"],
   ["State", "state"],
 ];
@@ -98,7 +92,6 @@ function TechnicalRow({ row, selected, onOpen, search, stageTones }) {
       <TableCell className="hidden md:table-cell">
         {row.stage ? <StatusBadge label={row.stage} theme={stageTones.get(row.stage) || "mauve"} title={row.stage} /> : <span className="text-xs text-muted-foreground">—</span>}
       </TableCell>
-      <TableCell className="hidden text-xs text-foreground md:table-cell">{row.team}</TableCell>
       <TableCell>
         <ProgressCell row={row} />
       </TableCell>
@@ -110,7 +103,6 @@ function TechnicalRow({ row, selected, onOpen, search, stageTones }) {
 export default function TechnicalList({ selectedId = null }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState(TECHNICAL_TAB.TO_CHECK);
-  const [team, setTeam] = useState(null);
   const [search, setSearch] = useState("");
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -123,11 +115,8 @@ export default function TechnicalList({ selectedId = null }) {
   const { data: flowStagesIndex } = useQuery({ queryKey: ["allFlowStagesIndex"], queryFn: () => salesFlowService.getAllStagesIndex() });
   const stageTones = useMemo(() => flowStageTonesByName(flowStagesIndex), [flowStagesIndex]);
 
-  const teams = useMemo(() => [...new Set(rows.map((r) => r.team))].sort(), [rows]);
-  const teamOptions = useMemo(() => [{ value: ALL, label: "Any team" }, ...teams.map((t) => ({ value: t, label: t }))], [teams]);
-
-  // Team and search narrow first; the pills count within that.
-  const narrowed = useMemo(() => filterTechnical(rows, { team, search }), [rows, team, search]);
+  // Search narrows first; the pills count within that.
+  const narrowed = useMemo(() => filterTechnical(rows, { search }), [rows, search]);
   const counts = useMemo(
     () => ({
       [TECHNICAL_TAB.TO_CHECK]: filterTechnical(narrowed, { tab: TECHNICAL_TAB.TO_CHECK }).length,
@@ -140,7 +129,7 @@ export default function TechnicalList({ selectedId = null }) {
   const { sorted: visible, sort, toggle } = useTableSort(filtered, SORT);
   const paging = usePaging(visible);
 
-  const hasActiveFilters = search !== "" || team !== null || tab !== TECHNICAL_TAB.TO_CHECK;
+  const hasActiveFilters = search !== "" || tab !== TECHNICAL_TAB.TO_CHECK;
   const open = (id) => navigate(`/technical/${id}`);
 
   const toolbar = (
@@ -158,24 +147,9 @@ export default function TechnicalList({ selectedId = null }) {
       />
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: "Search SO number, SOR number, project or client" }}
-        chips={
-          teams.length > 1 ? (
-            <FilterSelect
-              icon={Users}
-              label="Team"
-              options={teamOptions}
-              value={team ?? ALL}
-              onChange={(v) => setTeam(v === ALL ? null : v)}
-              allValue={ALL}
-              className={CHIP}
-              wrapperClassName={CHIP_WRAPPER}
-            />
-          ) : null
-        }
         hasActiveFilters={hasActiveFilters}
         onClearAll={() => {
           setSearch("");
-          setTeam(null);
           setTab(TECHNICAL_TAB.TO_CHECK);
         }}
       />
@@ -183,7 +157,7 @@ export default function TechnicalList({ selectedId = null }) {
   );
 
   return (
-    <PageShell title="Technical" description="The S0 Evaluation rows given to your team. Open one to mark each row Complies or Deviates." toolbar={toolbar}>
+    <PageShell title="Technical" description="The S0 Evaluations you are the Technical in-charge for. Open one to give its Complies or Deviates verdict." toolbar={toolbar}>
       {isLoading && <PageLoading label="Technical" />}
 
       {isError && <QueryError title="The Technical list could not be loaded." onRetry={refetch} />}
@@ -194,7 +168,7 @@ export default function TechnicalList({ selectedId = null }) {
           title={rows.length === 0 ? "Nothing to check yet" : "No matching SOR"}
           description={
             rows.length === 0
-              ? "Rows appear here once Sales or Purchasing gives them to your team."
+              ? "S0 Evaluations appear here once Sales or Purchasing names you as their Technical in-charge."
               : "Nothing matches. Try another tab or search, or clear the filters."
           }
         />
@@ -222,7 +196,7 @@ export default function TechnicalList({ selectedId = null }) {
               </TableHeader>
               <TableBody>
                 {paging.rows.map((row) => (
-                  <TechnicalRow key={`${row.opportunityId}-${row.team}`} row={row} selected={row.opportunityId === selectedId} onOpen={open} search={search} stageTones={stageTones} />
+                  <TechnicalRow key={row.opportunityId} row={row} selected={row.opportunityId === selectedId} onOpen={open} search={search} stageTones={stageTones} />
                 ))}
               </TableBody>
             </Table>

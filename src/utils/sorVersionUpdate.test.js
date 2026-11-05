@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { idsForUpdateMode, canUpdateSorVersion, isOutdatedSor, revertTargets, UPDATE_MODE } from "./sorVersionUpdate";
+import { idsForUpdateMode, canUpdateSorVersion, isOutdatedSor, revertTargets, UPDATE_MODE, planFailureMessage } from "./sorVersionUpdate";
 
 describe("idsForUpdateMode", () => {
   const all = ["a", "b", "c"];
@@ -43,7 +43,7 @@ describe("outdated and revert", () => {
 });
 
 import { describe as d2, it as it2, expect as ex2 } from "vitest"
-import { addedActionsForStage, describeAction, summariseAddedActions, isForwardUpdate } from "./sorVersionUpdate"
+import { addedActionsForStage, describeAction, summariseAddedActions, isForwardUpdate, formatActionFailures, actionFailureMessage } from "./sorVersionUpdate"
 
 d2("version update Stage Actions (#846)", () => {
   const snap = (version, actions) => ({ version, version_minor: 0, snapshot_data: { actions } })
@@ -74,5 +74,43 @@ d2("describeAction (#846)", () => {
   })
   it2("says a confirm Action only asks", () => {
     ex2(describeAction({ kind: "create_group_task", config: { title: "X", confirmMode: "confirm" } })).toContain("asks its Decider")
+  })
+})
+
+describe("action failure messages (#896)", () => {
+  it("names each failed Action once, with its reason when there is one", () => {
+    expect(
+      formatActionFailures([
+        { name: "DELCOM - Kickoff", reason: "member no longer exists" },
+        { name: "DELCOM - Kickoff", reason: null },
+        { name: "Bid pack", reason: null },
+      ]),
+    ).toBe("DELCOM - Kickoff (member no longer exists), Bid pack")
+  })
+
+  it("keeps a reason that arrives on a later repeat of the same name", () => {
+    expect(formatActionFailures([{ name: "Bid pack" }, { name: "Bid pack", reason: "boom" }])).toBe("Bid pack (boom)")
+  })
+
+  it("puts the reason into the version update warning", () => {
+    expect(actionFailureMessage([{ id: "s1", name: "DELCOM", reason: "member no longer exists" }])).toBe(
+      "Updated, but these automations failed. Create them by hand: DELCOM (member no longer exists).",
+    )
+  })
+
+  it("returns no warning when nothing failed", () => {
+    expect(actionFailureMessage([])).toBeNull()
+    expect(actionFailureMessage(undefined)).toBeNull()
+  })
+})
+
+describe("planFailureMessage (#882)", () => {
+  it("says nothing when the Stage Actions were worked out", () => {
+    expect(planFailureMessage(null)).toBeNull();
+  })
+  it("says the new Stage Actions did not start, and why", () => {
+    expect(planFailureMessage("column sales_opportunities.sale_type does not exist")).toMatch(
+      /could not be worked out.*column sales_opportunities\.sale_type does not exist/,
+    );
   })
 })

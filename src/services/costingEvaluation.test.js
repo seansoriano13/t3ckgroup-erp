@@ -135,17 +135,15 @@ describe("the Evaluation of Specification", () => {
       expect((await read()).evaluation).toEqual({ approved: false, signoff: null, cleared: null });
     });
 
-    it("is refused while a Component has no verdict, and says how many", async () => {
+    it("is refused until the Technical verdict is given, whatever the Components say (#908)", async () => {
       await evaluate(compA, "complies");
       const refused = await costingMatrixService.sign(matrix.id, "evaluation_approved").catch((e) => e);
-      expect(refused.message).toBe("costing_sign: 2 Components have no verdict yet");
+      expect(refused.message).toBe("costing_sign: the Technical verdict is not given yet");
       expect(db.rows("costing_signoffs")).toEqual([]);
     });
 
-    it("is signed once every Component has a verdict, a deviation included", async () => {
-      await evaluate(compA, "complies");
-      await evaluate(compB, "deviates", "Short");
-      await evaluate(compC, "complies");
+    it("is signed once the Technical verdict is given, a deviation included", async () => {
+      await costingMatrixService.setTechnicalVerdict(matrix.id, { verdict: "deviates", note: "Short" });
 
       const signoff = await costingMatrixService.sign(matrix.id, "evaluation_approved");
       expect(signoff).toMatchObject({ role: "evaluation_approved", signed_by: reviewer.id, cleared_at: null });
@@ -157,7 +155,7 @@ describe("the Evaluation of Specification", () => {
     });
 
     it("cannot be signed twice, by anyone off the list, or for another role's sign-off", async () => {
-      for (const id of [compA, compB, compC]) await evaluate(id, "complies");
+      await costingMatrixService.setTechnicalVerdict(matrix.id, { verdict: "complies" });
       await costingMatrixService.sign(matrix.id);
       expect((await costingMatrixService.sign(matrix.id).catch((e) => e)).message).toMatch(/already approved/);
 
@@ -174,8 +172,8 @@ describe("the Evaluation of Specification", () => {
 
   describe("what clears it", () => {
     const approve = async () => {
-      for (const component of db.rows("costing_components")) {
-        if (!component.compliance) await costingMatrixService.setCompliance(component.id, { verdict: "complies" });
+      if (!db.rows("costing_matrices").find((m) => m.id === matrix.id).compliance) {
+        await costingMatrixService.setTechnicalVerdict(matrix.id, { verdict: "complies" });
       }
       await costingMatrixService.sign(matrix.id);
       expect((await read()).evaluation.approved).toBe(true);
@@ -236,8 +234,8 @@ describe("the Evaluation of Specification", () => {
       await costingMatrixService.setCompliance(compA, { alternative: "Another model" });
       await costingMatrixService.updateComponent(compA, { quantity: 3, brand: "Petzl", acquireUnit: 9500 });
       await costingMatrixService.updateTenderLine(lineId, { quantity: 4, finalOfferUnit: 17000 });
-      // Writing a verdict it already has changes nothing.
-      await costingMatrixService.setCompliance(compA, { verdict: "complies" });
+      // Writing the verdict it already has changes nothing.
+      await costingMatrixService.setTechnicalVerdict(matrix.id, { verdict: "complies" });
       expect((await read()).evaluation.approved).toBe(true);
     });
 

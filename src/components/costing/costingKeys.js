@@ -12,6 +12,8 @@ export const costingKeys = {
   s0Suggestions: (opportunityId) => ["costing", opportunityId, "s0Suggestions"],
   sorLines: (opportunityId) => ["costing", opportunityId, "sorLines"],
   /** The rates and the signer lists (#270) belong to no SOR; the "costing" prefix still refreshes them with the rest. */
+  /** The S0 Evaluation list's rows (#606). Not per SOR, so a sheet write refreshes it by name (#892). */
+  matrixPage: ["costing", "matrixPage"],
   settings: ["costing", "settings"],
   signerLists: ["costing", "signer-lists"],
   // The markup presets (#269) belong to no SOR: they are the business's named factors.

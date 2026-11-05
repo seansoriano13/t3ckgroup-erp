@@ -34,11 +34,11 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(standardUser);
-      // Three entries are deliberately visible to everyone, so a standard
-      // employee sees four groups rather than one:
+      // Two entries are deliberately visible to everyone, so a standard
+      // employee sees three groups rather than one. Flow Canvas (issue #36)
+      // is not among them: editing and publishing are for Super Admins and
+      // Flow editors (#884).
       //
-      // - Flow Canvas (issue #36) — its tables are writable by every signed-in
-      //   employee (see the policy tier).
       // - My SORs (ADR 0021) — anyone can be called into a deal, and the
       //   people ADR 0021 names (a purchaser, an engineer, a finance officer)
       //   are exactly the ones who may hold no sales flow. Gating it on
@@ -46,7 +46,7 @@ describe("navigation registry", () => {
       //   already have enforced access to. The page shows an empty state.
       // - Purchase Requests (#179) — anyone asks Purchasing to buy something
       //   and follows their own requests; the database limits what they read.
-      expect(groups).toHaveLength(4);
+      expect(groups).toHaveLength(3);
       expect(groups[0].key).toBe("workspace");
       expect(groups[0].label).toBe("Workspace");
       expect(groups[0].links.map((l) => l.label)).toEqual([
@@ -60,8 +60,7 @@ describe("navigation registry", () => {
       expect(groups[1].links.map((l) => l.label)).toEqual(["My SORs"]);
       expect(groups[2].key).toBe("purchasing");
       expect(groups[2].links.map((l) => l.label)).toEqual(["Purchase Requests"]);
-      expect(groups[3].key).toBe("administration");
-      expect(groups[3].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
+      expect(groups.find((g) => g.key === "administration")).toBeUndefined();
     });
 
     it("offers Technical to the evaluation teams and Super Admins only (#706)", () => {
@@ -173,7 +172,7 @@ describe("navigation registry", () => {
       // reaches the log through its own module, not a second sidebar entry
       // pointing at the same route.
       const adminGroup = groups.find((g) => g.key === "administration");
-      expect(adminGroup.links.map((l) => l.label)).not.toContain("Activity Log");
+      expect(adminGroup?.links.map((l) => l.label) ?? []).not.toContain("Activity Log");
     });
 
     it("opens Time Off & Overtime for a leave-management capability holder without full HR access", () => {
@@ -259,6 +258,15 @@ describe("navigation registry", () => {
       expect(permitted({ id: "a", isSuperAdmin: true })).toBe(true);
     });
 
+    it("shows Flow Canvas only to a Super Admin or a Flow editor (#884)", () => {
+      const entry = NAV_MODULES.administration.links.find((l) => l.key === "admin.flowCanvas");
+      expect(entry).toBeDefined();
+      const permitted = (user) => entry.isPermitted(buildUserPermissionContext(user));
+      expect(permitted({ id: "e", has_sales_flow: true, is_hr: true })).toBe(false);
+      expect(permitted({ id: "h", is_head: true })).toBe(false);
+      expect(permitted({ id: "f", can_edit_sales_flows: true })).toBe(true);
+      expect(permitted({ id: "a", isSuperAdmin: true })).toBe(true);
+    });
     it("returns all 7 modules for Super Admin", () => {
       const superAdminUser = {
         id: "admin-1",

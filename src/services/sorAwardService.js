@@ -20,24 +20,24 @@ export const sorAwardService = {
   },
 
   /**
-   * Tells every Purchasing holder the SOR is Awarded. Call it once, when the
-   * Date of Award goes from blank to filled. Best effort: it never fails the save.
+   * Tells the SOR's Buyers (or, with no Buyer yet, the Purchasing heads) the SOR
+   * is Awarded (#890). Recipients come from sor_award_notice_recipients, not a
+   * broadcast. Call it once, when the Date of Award goes from blank to filled.
+   * Best effort: it never fails the save.
    */
   async notifyPurchasing(opportunity, actorId = null) {
     try {
       if (!opportunity?.id || !opportunity.date_of_award) return;
-      const { data: holders, error } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("has_purchasing_flow", true)
-        .neq("is_deleted", true);
+      const { data: recipientIds, error } = await supabase.rpc("sor_award_notice_recipients", {
+        p_opportunity_id: opportunity.id,
+      });
       if (error) throw error;
       const label = opportunity.sales_reference || opportunity.project_title || "An SOR";
       const on = formatDateWith(opportunity.date_of_award, { month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Manila" });
       await Promise.all(
-        (holders ?? []).map((holder) =>
+        (recipientIds ?? []).map((recipientId) =>
           notificationService.createNotification({
-            recipient_id: holder.id,
+            recipient_id: recipientId,
             sender_id: actorId,
             type: "SOR_AWARDED",
             title: "SOR Awarded",

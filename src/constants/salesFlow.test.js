@@ -530,6 +530,76 @@ describe("comparing two Flow Snapshots", () => {
     expect(diff.wonStageChanged).toBe(true)
     expect(diff.hasChanges).toBe(true)
   })
+
+  // Issue #887 — the Notice of Award and contract Stages are role pointers on
+  // the flow, so naming one must count, list and publish like the Won Stage.
+  it("reports the Notice of Award Stage changing, alone, as a counted change", () => {
+    const next = { ...base, awardStageId: "s-qualified" }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.awardStageChanged).toBe(true)
+    expect(diff.contractStageChanged).toBe(false)
+    expect(diff.wonStageChanged).toBe(false)
+    expect(diff.hasChanges).toBe(true)
+    expect(countFlowSnapshotChanges(diff)).toBe(1)
+  })
+
+  it("reports the contract Stage changing, alone, as a counted change", () => {
+    const next = { ...base, contractStageId: null }
+    const withContract = { ...base, contractStageId: "s-qualified" }
+
+    expect(diffFlowSnapshots(base, next).hasChanges).toBe(false)
+
+    const diff = diffFlowSnapshots(base, withContract)
+    expect(diff.contractStageChanged).toBe(true)
+    expect(diff.awardStageChanged).toBe(false)
+    expect(diff.hasChanges).toBe(true)
+    expect(countFlowSnapshotChanges(diff)).toBe(1)
+  })
+
+  it("treats a null and an absent Notice of Award or contract Stage as the same", () => {
+    const absent = { ...base }
+    const explicitNull = { ...base, awardStageId: null, contractStageId: null }
+
+    expect(diffFlowSnapshots(absent, explicitNull).hasChanges).toBe(false)
+  })
+
+  // Issue #887 — a Snapshot saved before a Stage flag existed has no key for
+  // it, while the live row carries `false`. Restoring that Snapshot must not
+  // show every Stage as changed.
+  it("does not count a default-false Stage flag that the older Snapshot never recorded", () => {
+    // The older Snapshot predates all three flags, so its rows carry no key for them.
+    const withoutFlags = (s) => Object.fromEntries(Object.entries(s).filter(([key]) => key !== "is_terminal"))
+    const olderStages = [stage("s-lead", "Lead", 10), stage("s-qualified", "Qualified", 20)].map(withoutFlags)
+    const liveStages = olderStages.map((s) => ({ ...s, buying_opens_here: false, auto_move: false, is_terminal: false }))
+    const older = { ...base, stages: olderStages }
+    const live = { ...base, stages: liveStages }
+
+    const diff = diffFlowSnapshots(older, live)
+    expect(diff.stages).toEqual({ added: [], removed: [], changed: [] })
+    expect(diff.hasChanges).toBe(false)
+    expect(countFlowSnapshotChanges(diff)).toBe(0)
+  })
+
+  it("still counts a default-false Stage flag that is switched on", () => {
+    const next = {
+      ...base,
+      stages: base.stages.map((s) => (s.id === "s-qualified" ? { ...s, auto_move: true } : s)),
+    }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.stages.changed.map((c) => c.id)).toEqual(["s-qualified"])
+    expect(diff.hasChanges).toBe(true)
+  })
+
+  it("still counts a default-false Stage flag switched off from true", () => {
+    const on = {
+      ...base,
+      stages: base.stages.map((s) => (s.id === "s-lead" ? { ...s, buying_opens_here: true } : s)),
+    }
+
+    expect(diffFlowSnapshots(on, base).stages.changed.map((c) => c.id)).toEqual(["s-lead"])
+  })
 })
 
 // Issue #191 — reading a Stage's rules out of a Flow Snapshot for the

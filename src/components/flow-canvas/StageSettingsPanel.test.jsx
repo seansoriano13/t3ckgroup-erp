@@ -69,6 +69,19 @@ describe("StageSettingsPanel", () => {
     expect(screen.getByRole("button", { name: "Buying opens here" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("shows the Buying value being saved at once, and holds the button while it saves (#904)", () => {
+    const onToggleBuyingOpens = vi.fn();
+    const { rerender } = render(
+      <StageSettingsPanel {...defaultProps} onToggleBuyingOpens={onToggleBuyingOpens} buyingOpensPending={true} />,
+    );
+    const button = screen.getByRole("button", { name: "Buying opens here" });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(button).toBeDisabled();
+
+    rerender(<StageSettingsPanel {...defaultProps} onToggleBuyingOpens={onToggleBuyingOpens} buyingOpensPending={null} />);
+    expect(screen.getByRole("button", { name: "Buying opens here?" })).toBeEnabled();
+  });
+
   it("doesn't ask on a Stage that isn't terminal, or on the Won Stage", () => {
     const props = { ...defaultProps, onSetTerminalOutcome: vi.fn() };
     const { rerender } = render(<StageSettingsPanel {...props} />);

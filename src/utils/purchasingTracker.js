@@ -41,10 +41,19 @@ const NO_SOR = "no-sor";
 /** An order whose goods are Received in Odoo is no longer "Purchased (not received)". */
 const isReceived = (order) => Boolean(order.buyerTrack?.find((step) => step.key === "received_in_odoo")?.ticked);
 
+/**
+ * A Costing Matrix row with no item count is a Bid Decision still pending (#891): a move of its own,
+ * never an item, so the SOR stays in Still canvassing with nothing counted for it.
+ */
+const isBidPendingRow = (row) => row.target_kind === "costing_matrix" && row.item_count === 0;
+
 /** What the person on a project record has to do next, by the kind of record and the group it sits in. */
 function rowAction(row) {
   if (row.grp === "to_purchase") return "Place the P0";
-  if (row.grp === "still_canvassing") return row.target_kind === "costing_matrix" ? "Finish the Bid Decision" : "Pick a Canvass winner";
+  if (row.grp === "still_canvassing") {
+    if (row.target_kind !== "costing_matrix") return "Pick a Canvass winner";
+    return isBidPendingRow(row) ? "Bid Decision pending" : "Finish the Bid Decision";
+  }
   if (row.grp === "purchased") return "Follow the delivery";
   return "Check the Requested Items";
 }
@@ -104,7 +113,7 @@ export function stageStates(sor) {
   return STAGE_KEYS.map((key, index) => {
     const n = sor.byStage[key];
     if (key === TRACKER_STAGE.FILED) return { key, n, tone: n > 0 ? "done" : "none" };
-    if (n > 0) {
+    if (holdsStage(sor, key)) {
       const late = key === TRACKER_STAGE.PURCHASED && sor.lateCount > 0;
       return { key, n, tone: late ? "late" : "open" };
     }
@@ -112,12 +121,18 @@ export function stageStates(sor) {
   });
 }
 
+/** A stage holds work when it counts items, or (Still canvassing) when a Bid Decision is pending (#891). */
+function holdsStage(sor, key) {
+  return sor.byStage[key] > 0 || (key === TRACKER_STAGE.STILL_CANVASSING && Boolean(sor.bidPending));
+}
+
 /** What a SOR has outstanding, in words: "4 not checked, 2 purchased (not received)". */
 export function sorSummary(sor) {
-  return TRACKER_STAGES.slice(0, LAST_OPEN + 1)
+  const parts = TRACKER_STAGES.slice(0, LAST_OPEN + 1)
     .map((stage) => (sor.byStage[stage.key] > 0 ? `${sor.byStage[stage.key]} ${stage.label.toLowerCase()}` : null))
-    .filter(Boolean)
-    .join(", ");
+    .filter(Boolean);
+  if (sor.bidPending) parts.push("Bid Decision pending");
+  return parts.join(", ");
 }
 
 /** Worst first: late, then the nearest client deadline, then the oldest. */
@@ -241,6 +256,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
         rows: [],
         orders: [],
         byStage: Object.fromEntries(STAGE_KEYS.map((k) => [k, 0])),
+        bidPending: false,
         oldest: null,
       });
     }
@@ -255,6 +271,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
     const sor = sorOf(ownerKey(row), row);
     sor.rows.push(row);
     sor.byStage[row.grp] += row.item_count;
+    if (isBidPendingRow(row)) sor.bidPending = true;
     touch(sor, row.since);
   }
   for (const order of keptOrders) {
@@ -275,7 +292,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
   const shaped = [...sors.values()].map((sor) => {
     const open = sor.orders.filter((order) => order.group !== ORDER_GROUP.FILED && !isReceived(order));
     const dueAt = deadlines.get(sor.oppId)?.dueAt ?? null;
-    const furthest = Math.max(-1, ...STAGE_KEYS.slice(0, LAST_OPEN + 1).map((key, i) => (sor.byStage[key] > 0 ? i : -1)));
+    const furthest = Math.max(-1, ...STAGE_KEYS.slice(0, LAST_OPEN + 1).map((key, i) => (holdsStage(sor, key) ? i : -1)));
     const noSor = sor.key === NO_SOR;
     const direct = !sor.oppId && !noSor;
     return {
@@ -297,7 +314,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
 
   const needle = String(search ?? "").trim().toLowerCase();
   const beforeStage = shaped
-    .filter((sor) => showFiled || sor.outstanding > 0)
+    .filter((sor) => showFiled || sor.outstanding > 0 || sor.bidPending)
     .filter((sor) => !needle || matchesSearch(sor, needle))
     .filter((sor) => {
       if (next === NEXT_FILTER.OURS) return sor.next.band === MOVE_BAND.NOW;
@@ -307,7 +324,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
     });
 
   const stages = TRACKER_STAGES.map((definition) => {
-    const holders = beforeStage.filter((sor) => sor.byStage[definition.key] > 0);
+    const holders = beforeStage.filter((sor) => holdsStage(sor, definition.key));
     return {
       ...definition,
       count: holders.reduce((n, sor) => n + sor.byStage[definition.key], 0),
@@ -316,7 +333,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
     };
   });
 
-  const result = beforeStage.filter((sor) => !stage || sor.byStage[stage] > 0).sort(order === TRACKER_ORDER.RECENT ? byRecent : byUrgency);
+  const result = beforeStage.filter((sor) => !stage || holdsStage(sor, stage)).sort(order === TRACKER_ORDER.RECENT ? byRecent : byUrgency);
   const shownOrders = [...new Map(result.flatMap((sor) => sor.openOrders).map((order) => [order.id, order])).values()];
   return { sors: result, stages, orders: shownOrders };
 }

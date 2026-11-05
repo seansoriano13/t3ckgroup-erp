@@ -279,11 +279,27 @@ export function evaluateCondition(condition, {
 }
 
 /**
+ * Does a Stage Field show right now? A field with no `show_when` always shows (#900). One with
+ * `{ field_id, value }` shows only while that other field of the same Stage holds that value. The value is read
+ * the way the stage gate reads it: an `sor` field from the opportunity, a custom field from `visitValues`. A
+ * reference to a field that is not in `stageFields` hides nothing. This mirrors `stage_field_shown` in the database.
+ */
+export function stageFieldShown(field, { stageFields = [], opportunity = {}, visitValues = {} } = {}) {
+  const rule = field?.show_when
+  if (!rule || typeof rule !== "object" || !rule.field_id) return true
+  const ref = (stageFields || []).find((f) => f.id === rule.field_id)
+  if (!ref) return true
+  const raw = ref.source === "sor" ? opportunity[ref.sor_field] : visitValues[ref.id]
+  return String(raw ?? "") === String(rule.value ?? "")
+}
+
+/**
  * Stage Fields (issue #203) that block leaving: required fields with no
  * value, in `flow_stage_fields` sort order. `visitValues` maps a custom
  * field's id to the current visit's saved value; an `sor`-source field reads
  * `opportunity[sorField]` directly, since it writes straight through
- * (#199's single-field write) rather than through a visit row. Pure and
+ * (#199's single-field write) rather than through a visit row. A field that
+ * is hidden by its `show_when` (#900) is not required. Pure and
  * synchronous, same shape as `blockingConditions` — the caller decides what
  * to do with a non-empty result (`moveAlongFlow`'s "Fill in: …").
  */
@@ -291,6 +307,7 @@ export function missingStageFields(stageFields = [], { opportunity = {}, visitVa
   return (stageFields || []).filter((field) => {
     if (field.archived_at) return false
     if (!field.is_required) return false
+    if (!stageFieldShown(field, { stageFields, opportunity, visitValues })) return false
     const value =
       field.source === "sor" ? opportunity[field.sor_field] : visitValues[field.id]
     return !isNonEmpty(value)

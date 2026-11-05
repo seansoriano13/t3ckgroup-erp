@@ -18,9 +18,10 @@ export const REQUEST_STATE_TONES = {
 
 /** A request's own state: Closed, its SOR's closed reason, or Open; `{ state, label }` for a StateCell. */
 export function requestStateOf(row) {
-  if (isRequestClosed(row)) return { state: REQUEST_STATE.CLOSED, label: "Closed" };
+  // The SOR's reason comes first: a request on a deleted or lost SOR is also "closed", but says why.
   const sorClosed = sorClosedLabel(row.sor_closed);
   if (sorClosed) return { state: REQUEST_STATE.SOR_CLOSED, label: sorClosed };
+  if (isRequestClosed(row)) return { state: REQUEST_STATE.CLOSED, label: "Closed" };
   return { state: REQUEST_STATE.OPEN, label: "Open" };
 }
 

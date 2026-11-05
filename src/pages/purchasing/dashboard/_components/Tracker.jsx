@@ -383,7 +383,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
                           );
                         }
                         return (
-                          <TableCell key={column.key}>
+                          <TableCell key={column.key} className="min-w-[11rem]">
                             <div className="flex flex-col gap-0.5">
                               <DeadlineText deadline={sor.deadline} />
                               <Age days={sor.ageDays} late={sor.lateCount > 0} />

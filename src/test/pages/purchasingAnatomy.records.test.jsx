@@ -291,7 +291,8 @@ const RECORDS = [
     pills: ["Canvasser", "Subject", "Winner"],
     hasMore: true,
     yourMove: {
-      status: "Next: say why this supplier",
+      // Two offers and no explained slot, so the supplier slots come before the reason (#898).
+      status: "Next: fill or explain the other supplier slots",
       steps: ["Offers in", "Winner picked", "Purchase Request"],
     },
   },

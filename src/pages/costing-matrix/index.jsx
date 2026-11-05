@@ -18,6 +18,7 @@ import { usePaging } from "../../hooks/usePaging";
 import { useTableSort } from "../../hooks/useTableSort";
 import { useAuth } from "../../context/AuthContext";
 import { costingMatrixService } from "../../services/costingMatrixService";
+import { costingKeys } from "../../components/costing/costingKeys";
 import { getPermissionContext } from "../../utils/permissions";
 import { filterMatrixPage, matrixPageTotals } from "../../utils/costingMatrixPage";
 
@@ -183,7 +184,7 @@ export function CostingMatrixList() {
   const [search, setSearch] = useState("");
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["costingMatrixPage"],
+    queryKey: costingKeys.matrixPage,
     queryFn: () => costingMatrixService.matrixPage(),
   });
 

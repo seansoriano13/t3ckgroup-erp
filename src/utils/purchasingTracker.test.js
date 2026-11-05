@@ -4,6 +4,7 @@ import {
   NEXT_FILTER,
   buildTracker,
   nextMoveOf,
+  sorSummary,
   stageStates,
   valueOpenByCurrency,
 } from "./purchasingTracker";
@@ -67,6 +68,24 @@ describe("stages", () => {
       ["purchased", 1, "open"],
       ["filed", 0, "none"],
     ]);
+  });
+
+  it("counts only the lines in Still canvassing, and shows a pending Bid Decision as its own move (#891)", () => {
+    const matrix = row({ grp: "still_canvassing", target_kind: "costing_matrix", target_id: "sor-1", target_label: null, item_count: 2, request_id: null });
+    const { sors, stages } = buildTracker({ rows: [matrix], orders: [], today: TODAY });
+    expect(stageStates(sors[0]).find((s) => s.key === "still_canvassing")).toMatchObject({ n: 2, tone: "open" });
+    expect(stages.find((s) => s.key === "still_canvassing").count).toBe(2);
+    expect(sorSummary(sors[0])).toBe("2 still canvassing");
+  });
+
+  it("keeps a SOR in Still canvassing with a count of 0 when only its Bid Decision is pending (#891)", () => {
+    const pending = row({ grp: "still_canvassing", target_kind: "costing_matrix", target_id: "sor-1", target_label: null, item_count: 0, request_id: null });
+    const { sors, stages } = buildTracker({ rows: [pending], orders: [], today: TODAY });
+    expect(sors).toHaveLength(1);
+    expect(stageStates(sors[0]).find((s) => s.key === "still_canvassing")).toMatchObject({ n: 0, tone: "open" });
+    expect(stages.find((s) => s.key === "still_canvassing")).toMatchObject({ count: 0, sorCount: 1 });
+    expect(sorSummary(sors[0])).toBe("Bid Decision pending");
+    expect(nextMoveOf(sors[0].rows, [], { today: TODAY }).move.label).toBe("Bid Decision pending");
   });
 
   it("marks Purchased late when one of the SOR's orders is late", () => {

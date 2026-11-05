@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import HRFormModal from "../hr/HRFormModal";
-import { TextField, SelectField } from "./SorField";
+import { TextField, SelectField, DateField } from "./SorField";
+import { useAuth } from "../../context/AuthContext";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import { employeeService } from "../../services/employeeService";
 import { opportunityService } from "../../services/opportunityService";
@@ -201,6 +202,18 @@ export default function OpportunityFormModal({
     employees.find((e) => /sales\s*director/i.test(e.role || ""))?.id || "";
   const effectiveSalesDirectorId = form.sales_director_id || salesDirectorId;
 
+  // The registrant is the usual Deal Owner, so a new registration starts with
+  // them picked when they are on the employee list (the people who can own a
+  // deal). Seeded once per open form, and only while Deal Owner is still empty,
+  // so a choice the salesperson makes, or clears, is never overwritten.
+  const { user } = useAuth();
+  const registrantCanOwn = !!user?.id && employees.some((e) => e.id === user.id);
+  const [ownerSeedKey, setOwnerSeedKey] = useState("");
+  if (!isEdit && isOpen && registrantCanOwn && ownerSeedKey !== currentKey) {
+    setOwnerSeedKey(currentKey);
+    setForm((prev) => (prev.deal_owner_id ? prev : { ...prev, deal_owner_id: user.id }));
+  }
+
   const [fetchingOdoo, setFetchingOdoo] = useState(false);
 
   // Which fields the last fetch actually changed, so only those wear the
@@ -381,6 +394,15 @@ export default function OpportunityFormModal({
       toast.error("Choose a Sale Type before saving.");
       return;
     }
+    // A date field is no longer a native input, so the browser cannot stop a
+    // blank required one. Check it here instead.
+    const blankDate = customFields.find(
+      (f) => f.isRequired && f.inputType === "date" && !customValues[f.id],
+    );
+    if (blankDate) {
+      toast.error(`${blankDate.label} is required.`);
+      return;
+    }
     const sales_reference = normalizeSalesReference(form.sales_reference);
     if (sales_reference && !isValidSalesReference(sales_reference)) {
       toast.error(SALES_REFERENCE_HINT);
@@ -461,13 +483,11 @@ export default function OpportunityFormModal({
         )}
 
         {!isEdit && (
-          <TextField
+          <DateField
             label="Registration Date"
-            type="date"
             required
             disabled
             value={form.registration_date}
-            onChange={set("registration_date")}
           />
         )}
 

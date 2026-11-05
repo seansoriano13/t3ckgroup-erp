@@ -73,4 +73,25 @@ describe("OpenCostingMatrixActionModal", () => {
     expect(await screen.findByRole("option", { name: "Government · ×1.35" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Retired/ })).not.toBeInTheDocument();
   });
+
+  // Issue #900 — a Purchasing Incharge is one person, so the picker offers no second one once a person is chosen.
+  it("offers no second Purchasing Incharge once one is chosen, and offers the choice again after removal", async () => {
+    const user = setupUser();
+    const buyer = makeEmployee({ name: "Rey Santos" });
+    renderWithProviders(
+      <OpenCostingMatrixActionModal
+        isOpen
+        onClose={() => {}}
+        onSubmit={() => {}}
+        initialData={{ purchasingIncharge: { type: "employee", id: buyer.id } }}
+      />,
+    );
+
+    expect(await screen.findByText("Rey Santos")).toBeInTheDocument();
+    expect(screen.queryByText("Choose the Purchasing Incharge")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Remove Rey Santos" }));
+
+    expect(await screen.findByText("Choose the Purchasing Incharge")).toBeInTheDocument();
+  });
 });

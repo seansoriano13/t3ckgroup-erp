@@ -28,10 +28,12 @@ import {
 import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
+import SorWindowSkeleton from "./SorWindowSkeleton";
 import LockedSorSlideOver from "../LockedSorSlideOver";
 import NoAccessSorSlideOver from "../NoAccessSorSlideOver";
 import { hiddenVisits } from "../../../utils/sorHiddenVisits";
 import { liveMentionIds, mentionWindowHint } from "../../../utils/mentionWindowHint";
+import { formatActionFailures } from "../../../utils/sorVersionUpdate";
 import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
@@ -260,7 +262,9 @@ export default function SorModal({
     enabled: !!id && isOpen && accessLevel !== "locked" && (hasOpened("items") || isEditing),
   });
 
-  const { data: checklist = [] } = useQuery({
+  // Issue #885 — `isLoading` (not `isPending`): a query that is switched off
+  // stays pending forever, and must not read as "still checking".
+  const { data: checklist = [], isLoading: checklistLoading } = useQuery({
     queryKey: ["stageChecklist", id, activeOpportunity?.flow_stage_id || activeOpportunity?.status, activeOpportunity?.flow_snapshot_id ?? null],
     queryFn: () => opportunityService.getStageChecklist(id, activeOpportunity),
     enabled: !!id && isOpen && accessLevel !== "locked",
@@ -329,7 +333,7 @@ export default function SorModal({
   // either), so a required, empty Stage Field read as "clear" right up until
   // the move itself came back refused. Fetched here, not just inside Now's
   // Stage Fields form, so the header can name it before the click.
-  const { data: stageFields = [] } = useQuery({
+  const { data: stageFields = [], isLoading: stageFieldsLoading } = useQuery({
     queryKey: ["stageFields", activeOpportunity?.flow_stage_id],
     queryFn: () => stageFieldService.getForStage(activeOpportunity.flow_stage_id),
     enabled: runsFlow && !!activeOpportunity?.flow_stage_id && isOpen,
@@ -349,6 +353,11 @@ export default function SorModal({
       }),
     [runsFlow, stageFields, activeOpportunity, currentVisitFieldValues],
   );
+
+  // Issue #885 — while the conditions or the Stage Fields are still loading,
+  // nothing may say "Clear to move" or "Nothing blocks": the header shows a
+  // checking state and the Stage box waits too.
+  const blockersPending = checklistLoading || stageFieldsLoading;
 
   // Only Details shows or edits a Lead Source (#302), so it waits for Details.
   const { data: activeLeadSources = [] } = useQuery({
@@ -479,7 +488,8 @@ export default function SorModal({
         toast("Moved to Won, but this SOR has no Contract Date yet. Type it in on the Details tab so the right commission rate is used.", { icon: "⚠️", duration: 8000 });
       }
       if (data?.failedStageActions?.length > 0) {
-        toast(`Moved, but these automations failed — create them by hand: ${data.failedStageActions.join(", ")}.`, { icon: "⚠️", duration: 8000 });
+        const failures = data.failedStageActions.map((name) => ({ name, reason: data.failedStageActionReasons?.find((r) => r.name === name)?.reason }));
+        toast(`Moved, but these automations failed — create them by hand: ${formatActionFailures(failures)}.`, { icon: "⚠️", duration: 8000 });
       }
       const isLeavingLead = opportunity?.status === "LEAD" && variables?.next !== "LEAD";
       if (isLeavingLead) {
@@ -771,7 +781,8 @@ export default function SorModal({
     return <LockedSorSlideOver isOpen={isOpen} onClose={onClose} lockedSummary={lockedSummary} myVisits={myVisits} />;
   }
 
-  if (!opportunity) return null;
+  // The record is still on the way: show the window's frame at once, not a blank panel (#904).
+  if (!opportunity) return <SorWindowSkeleton isOpen={isOpen} onClose={onClose} />;
 
   // ADR 0021 / #297: only a full-access caller may move the Stage — a
   // Participant never could (`sor_guard_stage_move` requires 'full'), and a
@@ -833,6 +844,8 @@ export default function SorModal({
     employees,
     activeLeadSources,
     checklist,
+    missingRequiredStageFields,
+    blockersPending,
     automationTasks,
     invalidate,
     handleSaveField,
@@ -881,6 +894,7 @@ export default function SorModal({
     handleStageChange,
     checklist,
     missingRequiredStageFields,
+    blockersPending,
     isOpen,
     hasPrev,
     hasNext,
@@ -1005,7 +1019,9 @@ export default function SorModal({
     >
       <RecordModalContent
         showCloseButton={false}
-        className="flex flex-col shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)]"
+        // z-[70] is the record layer (ModalShell's record window, e.g. the S0 Evaluation).
+        // The SOR is a record too, so opened over one it stacks on top of it (#886).
+        className="z-[70] flex flex-col shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)]"
       >
         {PrototypeShell ? (
           <Suspense fallback={null}>

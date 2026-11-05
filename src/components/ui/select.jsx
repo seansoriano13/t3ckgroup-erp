@@ -4,7 +4,13 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+// Non-modal by default (#904): a modal Select locks page scroll and lays an
+// inert layer over the page on open, which repaints the whole page — about
+// 1 s per open on the S0 Evaluation and Canvass windows, against ~30 ms for
+// our own Dropdown. Pass `modal` to opt back in.
+function Select({ modal = false, ...props }) {
+  return <SelectPrimitive.Root modal={modal} {...props} />;
+}
 
 function SelectGroup({
   className,

@@ -31,6 +31,7 @@ import { randomUUID } from "crypto"
 import { fileURLToPath } from "url"
 import { dirname, join } from "path"
 import { loadDotEnvLocal } from "./lib/seedShared.mjs"
+import { prepareDemoActions, DEMO_LISTS } from "./lib/demoActions.mjs"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..")
 
@@ -62,21 +63,6 @@ async function renameLogin(c, id, email) {
   await c.query("update public.employees set email = $2 where id = $1", [id, email])
 }
 
-// Who sits on each list after a reset. IPAS s1 = section 1, s3 = section 2, s6 = section 3,
-// s7_* = section 4. The Markup list is 201 (101 is a Super Admin); Final Acquire is kept only
-// because it is the list that may unlock a Go.
-export const DEMO_LISTS = {
-  ipas_signer_lists: {
-    s1_approved: ["101"], s3_approved: ["101"], s6_approved: ["jelai"],
-    s7_received: ["grace"], s7_noted: ["101"], s7_checked: ["201"], s7_approved: ["201"],
-    logistics_signed: ["aldrin"],
-    transmittal_warehouse: ["aldrin"], transmittal_technical: ["sherwin"], transmittal_logistics: ["aldrin"],
-    transmittal_check_by: ["jen", "grace"],
-  },
-  costing_signer_lists: {
-    markup: ["201"], final_acquire: ["201"], evaluation: ["grace"], team_rrd: ["sherwin"], team_ioe: ["sherwin"],
-  },
-}
 export const DEMO_PRESET = { label: "Government", factor: 1.3 }
 
 const FLAGS = ["is_head", "is_hr", "is_super_admin", "can_manage_leaves", "can_edit_sales_flows", "has_sales_flow", "has_task_flow", "has_purchasing_flow", "has_finance_flow", "has_retail_access"]
@@ -385,8 +371,15 @@ async function copyProjectFlow(prod, c) {
     const { rows } = await c.query(`select id from public.${table} where id = any($1::uuid[])`, [refs])
     rows.forEach((r) => known.add(r.id))
   }
-  const missing = refs.filter((id) => !known.has(id))
-  if (missing.length) console.log(`  note: ${missing.length} id(s) in the copy are not on staging (left as they are): ${missing.join(", ")}`)
+  // #896: a Group Task member staging does not have would fail its action at the demo (the
+  // DELCOM action did). Those members are dropped from the copy, and a title with a literal
+  // "(Sales Order Number)"-style label gets its template token. The copy is changed here,
+  // not in production; production's Project flow keeps its own text.
+  const { droppedMembers, retitled } = prepareDemoActions(data.actions ?? [], known)
+  for (const { action, employeeId } of droppedMembers) console.log(`  dropped ${employeeId} from "${action}" (not on staging)`)
+  for (const { action, from, to } of retitled) console.log(`  retitled "${action}": "${from}" → "${to}"`)
+  const stillMissing = refs.filter((id) => !known.has(id) && JSON.stringify(data).includes(id))
+  if (stillMissing.length) console.log(`  note: ${stillMissing.length} id(s) in the copy are not on staging (left as they are): ${stillMissing.join(", ")}`)
 
   const saleTypeId = map.get(saleType.id)
   const flowId = map.get(flow.id)

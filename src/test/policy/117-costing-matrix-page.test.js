@@ -225,6 +225,28 @@ describe("Purchasing and the Deal Team (since 20261102170000)", () => {
     })
 })
 
+describe("a cost with only an Acquire (#892)", () => {
+    it("counts it at Acquire where no Final Acquire is typed, as the sheet's summary and Planned Revenue do", async () => {
+        const sorD = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageId })
+        sorIds.push(sorD)
+        const matrixD = (await svc().rpc("costing_open_matrix", { p_opportunity_id: sorD })).data
+        const line = (await asSvc(
+            svc().from("costing_tender_lines").insert({ matrix_id: matrixD, position: 1, tender_specification: "Line D", quantity: 1, created_by: ids.dealOwner }).select("id").single(),
+            "line D",
+        )).id
+        await setMoney("dealOwner", "costing_tender_line_prices", line, { final_offer_unit: 8550 })
+        const pump = (await asSvc(svc().from("costing_components").insert({ tender_line_id: line, position: 1, name: "Pump", quantity: 1 }).select("id").single(), "pump")).id
+        // Acquire typed, Final Acquire left blank: the sheet counts the Pump at 29,928.06.
+        await asSvc(svc().from("costing_component_costs").insert({ component_id: pump, acquire_unit: 29928.06 }), "pump acquire")
+
+        const row = rowOf((await page("ipasSigner")).data, sorD)
+        expect(row).toBeDefined()
+        expect(Number(row.final_offer_total)).toBe(8550)
+        expect(Number(row.final_acquire_total)).toBe(29928.06)
+        expect(Number(row.bought_final_acquire_total)).toBe(0)
+    })
+})
+
 describe("everyone else is refused", () => {
     it.each(["finance", "ordinary"])("%s gets no rows", async (who) => {
         const { data, error } = await page(who)
