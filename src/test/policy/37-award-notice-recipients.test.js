@@ -12,9 +12,11 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { makeSor } from "./support/rows.js"
+import { purgeCostingForSors } from "./support/costing.js"
 
 let sorBuyerAndMembers, sorHeadsOnly, sorDeletedBuyer
-const touched = [ids.stageParticipant, ids.head, ids.subHead, ids.deleted, ids.ordinary]
+// Filled in beforeAll: `ids` is empty until the cast is loaded.
+let touched = []
 const originalFlags = {}
 
 const recipients = async (client, opportunityId) =>
@@ -38,7 +40,12 @@ async function addRequest(opportunityId, buyerId) {
 
 beforeAll(async () => {
     await ensureCastLoaded()
-    const { data } = await serviceClient().from("employees").select("id, has_purchasing_flow").in("id", touched)
+    touched = [ids.stageParticipant, ids.head, ids.subHead, ids.deleted, ids.ordinary]
+    const { data, error: readError } = await serviceClient()
+        .from("employees")
+        .select("id, has_purchasing_flow")
+        .in("id", touched)
+    if (readError) throw new Error(`Reading employee flags: ${readError.message}`)
     for (const row of data) originalFlags[row.id] = row.has_purchasing_flow
 
     // The buyer, the head and the deleted person have the Purchasing flow; the
@@ -60,10 +67,15 @@ beforeAll(async () => {
         side: "purchasing",
     })
     if (memberError) throw new Error(`Seeding a request member: ${memberError.message}`)
+    // A Purchasing Incharge must have Purchasing access to be named (costing_incharge
+    // check). The sub-head gets the flag only for this insert, then loses it again so
+    // the heads fallback still treats them as a head without the Purchasing flow.
+    await setFlags(ids.subHead, { has_purchasing_flow: true })
     const { error: matrixError } = await serviceClient().from("costing_matrices").insert({
         opportunity_id: sorBuyerAndMembers,
         purchasing_incharge_id: ids.subHead,
     })
+    await setFlags(ids.subHead, { has_purchasing_flow: false })
     if (matrixError) throw new Error(`Seeding a costing matrix: ${matrixError.message}`)
 
     await addRequest(sorDeletedBuyer, ids.deleted)
@@ -72,7 +84,8 @@ beforeAll(async () => {
 afterAll(async () => {
     const svc = serviceClient()
     const sors = [sorBuyerAndMembers, sorHeadsOnly, sorDeletedBuyer]
-    await svc.from("costing_matrices").delete().in("opportunity_id", sors)
+    // Costing history is append-only, so a plain delete of the matrix is refused.
+    await purgeCostingForSors(sors)
     await svc.from("purchase_requests").delete().in("opportunity_id", sors)
     await svc.from("sales_opportunities").delete().in("id", sors)
     for (const id of touched) {

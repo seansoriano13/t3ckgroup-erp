@@ -19,6 +19,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
+import { purgeCostingForSors } from "./support/costing.js"
 
 const svc = () => serviceClient()
 const DECOY = { buyer_id: null, extra_member_ids: [], left_out_roles: ["deal_owner"], access_until: "terminal" }
@@ -51,18 +52,30 @@ beforeAll(async () => {
     buyingActionId = await one(svc().from("flow_stage_actions").insert({ stage_id: buyingId, kind: "open_purchase_request" }), "NTP action")
 })
 
+/**
+ * Every step is checked. A step that fails quietly leaves its parent row behind,
+ * and the next run then trips over the leftover sale type's unique name.
+ */
 afterAll(async () => {
-    await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.stageParticipant)
-    await svc().from("costing_matrices").delete().in("opportunity_id", sorIds)
-    await svc().from("purchase_requests").delete().in("opportunity_id", sorIds)
-    await svc().from("sor_stage_participants").delete().in("opportunity_id", sorIds)
-    await svc().from("sor_action_runs").delete().in("opportunity_id", sorIds)
-    await svc().from("sales_opportunities").delete().in("id", sorIds)
-    await svc().from("flow_snapshots").delete().eq("flow_id", flowId)
-    await svc().from("flow_stage_actions").delete().in("id", [leadActionId, buyingActionId])
-    await svc().from("flow_stages").delete().eq("flow_id", flowId)
-    await svc().from("sales_flows").delete().eq("id", flowId)
-    await svc().from("sale_types").delete().eq("id", saleTypeId)
+    const steps = [
+        ["restore the Buyer's flag", () => svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.stageParticipant)],
+        ["costing matrices", () => purgeCostingForSors(sorIds).then(() => ({ error: null }), (error) => ({ error }))],
+        ["purchase requests", () => svc().from("purchase_requests").delete().in("opportunity_id", sorIds)],
+        ["stage participants", () => svc().from("sor_stage_participants").delete().in("opportunity_id", sorIds)],
+        ["action runs", () => svc().from("sor_action_runs").delete().in("opportunity_id", sorIds)],
+        ["SORs", () => svc().from("sales_opportunities").delete().in("id", sorIds)],
+        ["flow snapshots", () => svc().from("flow_snapshots").delete().eq("flow_id", flowId)],
+        ["stage actions", () => svc().from("flow_stage_actions").delete().in("id", [leadActionId, buyingActionId])],
+        ["flow stages", () => svc().from("flow_stages").delete().eq("flow_id", flowId)],
+        ["sales flow", () => svc().from("sales_flows").delete().eq("id", flowId)],
+        ["sale type", () => svc().from("sale_types").delete().eq("id", saleTypeId)],
+    ]
+    const failures = []
+    for (const [what, step] of steps) {
+        const { error } = await step()
+        if (error) failures.push(`${what}: ${error.message}`)
+    }
+    if (failures.length) throw new Error(`Cleaning up the Buyer access fixtures:\n${failures.join("\n")}`)
 })
 
 /**
@@ -195,7 +208,10 @@ describe("Lead-only window, then the NTP re-raise", () => {
         const { data, error } = await rpc("stageParticipant", "sor_visible_visit_ids", { p_opportunity_id: sorId })
         expect(error).toBeNull()
         expect(data).toContain(buyingVisitId)
-        expect(data).not.toContain(leadVisitId)
+        // The Lead window closed on the move, so it still reads the Lead visit it
+        // covered (a closed window keeps its history, as 13-sor-visit-scoped-reads
+        // checks). The NTP visit is what the re-raised window adds.
+        expect(data).toContain(leadVisitId)
     })
 
     it("a second NTP run opens nothing new", async () => {
@@ -212,6 +228,11 @@ describe("while the request has an open line", () => {
         const visitId = await currentVisitOf(sorId)
         await run(sorId, { stageId: leadId, actionId: leadActionId, visitId })
         requestId = (await requestOf(sorId))[0].id
+
+        // Move to NTP without running its action, so the Lead window closes. Otherwise
+        // the Buyer's open window alone gives the header and these checks prove nothing.
+        const moved = await svc().from("sales_opportunities").update({ flow_stage_id: buyingId }).eq("id", sorId)
+        if (moved.error) throw new Error(moved.error.message)
     })
 
     // Every line below belongs to the request opened above.
@@ -239,8 +260,25 @@ describe("while the request has an open line", () => {
         expect((await rpc("warehouse", "sor_access_level", { p_opportunity_id: sorId })).data).toBe("none")
 
         const matrix = await one(svc().from("costing_matrices").insert({ opportunity_id: sorId }), "costing matrix")
-        await svc().from("costing_matrices").update({ purchasing_incharge_id: ids.warehouse }).eq("id", matrix)
-        await addOpenLine(requestId, "to_purchase")
-        expect((await rpc("warehouse", "sor_access_level", { p_opportunity_id: sorId })).data).toBe("participant")
+
+        // A Purchasing Incharge must have Purchasing access (costing_incharge check), so
+        // give the warehouse employee the flag for this naming, then put it back.
+        const before = await svc().from("employees").select("has_purchasing_flow").eq("id", ids.warehouse).single()
+        if (before.error) throw new Error(before.error.message)
+        await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.warehouse)
+        try {
+            const named = await svc()
+                .from("costing_matrices")
+                .update({ purchasing_incharge_id: ids.warehouse })
+                .eq("id", matrix)
+            if (named.error) throw new Error(`Naming the Incharge: ${named.error.message}`)
+            await addOpenLine(requestId, "to_purchase")
+            expect((await rpc("warehouse", "sor_access_level", { p_opportunity_id: sorId })).data).toBe("participant")
+        } finally {
+            await svc()
+                .from("employees")
+                .update({ has_purchasing_flow: before.data.has_purchasing_flow })
+                .eq("id", ids.warehouse)
+        }
     })
 })
