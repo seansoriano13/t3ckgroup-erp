@@ -109,7 +109,7 @@ export const stageFieldService = {
 
   /** Adds a field to a Stage, appended after its current fields. */
   async add(
-    { stageId, label, help = null, source, sorField = null, fieldType = null, options = [], isRequired = true },
+    { stageId, label, help = null, source, sorField = null, fieldType = null, options = [], isRequired = true, showWhen = null },
     actorId,
   ) {
     await requireSuperAdmin(actorId);
@@ -128,6 +128,7 @@ export const stageFieldService = {
         field_type: source === "sor" ? "text" : fieldType,
         options: options || [],
         is_required: Boolean(isRequired),
+        show_when: showWhen || null,
         sort_order: siblings.length,
       })
       .select()
@@ -152,7 +153,7 @@ export const stageFieldService = {
    * condition's kind, for the same reason: a value already recorded under
    * one type/source shouldn't be silently reinterpreted.
    */
-  async update(id, { label, help, isRequired, options } = {}, actorId) {
+  async update(id, { label, help, isRequired, options, showWhen } = {}, actorId) {
     await requireSuperAdmin(actorId);
 
     const { data: existing, error: fetchError } = await supabase
@@ -170,6 +171,8 @@ export const stageFieldService = {
     }
     if (help !== undefined) patch.help = help;
     if (isRequired !== undefined) patch.is_required = Boolean(isRequired);
+    // "Show only when" (#900): null clears it; the database checks the shape.
+    if (showWhen !== undefined) patch.show_when = showWhen || null;
     if (options !== undefined) {
       if (existing.source !== "custom" || existing.field_type !== "choice") {
         throw new Error("Only a custom choice field has options to edit.");

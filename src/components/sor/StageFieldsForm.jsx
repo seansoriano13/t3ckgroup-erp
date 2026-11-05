@@ -6,6 +6,7 @@ import { opportunityService } from "../../services/opportunityService";
 import { stageFieldService } from "../../services/stageFieldService";
 import { employeeService } from "../../services/employeeService";
 import { SOR_STAGE_FIELDS, formatStageFieldValue } from "../../constants/stageFields";
+import { stageFieldShown } from "../../constants/stageGate";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
@@ -77,7 +78,9 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
     onError: (err) => toast.error(err.message),
   });
 
-  if (!fields || fields.length === 0) return null;
+  // A field hidden by its "Show only when" rule (#900) is not asked for, and is not required.
+  const shownFields = (fields || []).filter((f) => stageFieldShown(f, { stageFields: fields, opportunity, visitValues: currentValues }));
+  if (shownFields.length === 0) return null;
 
   const handleSave = async (field) => {
     const value = draft[field.id];
@@ -107,7 +110,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
         <ListTodo size={11} className="mr-1 inline" /> This Stage's fields
       </p>
       <div className="space-y-3">
-        {fields.map((field) => {
+        {shownFields.map((field) => {
           const isSor = field.source === "sor";
           const savedThisVisit = isSor ? null : currentValues[field.id];
           const previousValue = isSor ? null : previousValues[field.id];

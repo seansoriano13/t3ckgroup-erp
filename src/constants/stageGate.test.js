@@ -6,6 +6,7 @@ import {
   evaluateCrossing,
   evaluateCondition,
   missingStageFields,
+  stageFieldShown,
   CONDITION_STATUS,
   NEW_CONDITION_KINDS,
   stagesCrossed,
@@ -270,6 +271,39 @@ describe("missingStageFields", () => {
   it("drops an archived field", () => {
     const field = makeField({ id: "f-4", archived_at: "2026-01-01T00:00:00.000Z" })
     expect(missingStageFields([field], { visitValues: {} })).toEqual([])
+  })
+
+  // #900: a "Show only when" field counts as required only while its rule holds.
+  it("does not require a field whose Show only when rule is not met", () => {
+    const demo = makeField({ id: "demo", label: "Product Demo", field_type: "choice", options: ["Yes", "No"] })
+    const ifYes = makeField({ id: "if-yes", label: "If yes", show_when: { field_id: "demo", value: "Yes" } })
+    const stageFields = [demo, ifYes]
+    // Product Demo is answered "No": "If yes" is hidden, so nothing is missing.
+    expect(missingStageFields(stageFields, { visitValues: { demo: "No" } })).toEqual([])
+    expect(missingStageFields(stageFields, { visitValues: { demo: "Yes" } })).toEqual([ifYes])
+  })
+})
+
+describe("stageFieldShown", () => {
+  const makeField = (overrides = {}) => ({ id: "field-1", source: "custom", sor_field: null, is_required: true, archived_at: null, ...overrides })
+
+  it("shows a field with no rule, and one whose referenced field is missing", () => {
+    expect(stageFieldShown({ id: "a" }, { stageFields: [] })).toBe(true)
+    expect(stageFieldShown({ id: "a", show_when: { field_id: "gone", value: "Yes" } }, { stageFields: [] })).toBe(true)
+  })
+
+  it("shows only while a custom field holds the value", () => {
+    const demo = makeField({ id: "demo" })
+    const ifYes = makeField({ id: "if-yes", show_when: { field_id: "demo", value: "Yes" } })
+    expect(stageFieldShown(ifYes, { stageFields: [demo, ifYes], visitValues: { demo: "Yes" } })).toBe(true)
+    expect(stageFieldShown(ifYes, { stageFields: [demo, ifYes], visitValues: { demo: "No" } })).toBe(false)
+    expect(stageFieldShown(ifYes, { stageFields: [demo, ifYes], visitValues: {} })).toBe(false)
+  })
+
+  it("reads an SOR column from the opportunity", () => {
+    const sorField = makeField({ id: "s", source: "sor", sor_field: "po_date" })
+    const dependent = makeField({ id: "d", show_when: { field_id: "s", value: "2026-11-05" } })
+    expect(stageFieldShown(dependent, { stageFields: [sorField, dependent], opportunity: { po_date: "2026-11-05" } })).toBe(true)
   })
 })
 
