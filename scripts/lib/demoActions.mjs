@@ -80,3 +80,21 @@ export function prepareDemoActions(actions, knownIds) {
 
   return { droppedMembers, retitled }
 }
+
+// Who sits on each list after a reset. IPAS s1 = section 1, s3 = section 2, s6 = section 3,
+// s7_* = section 4. The Markup list is 201 (101 is a Super Admin); Final Acquire is kept only
+// because it is the list that may unlock a Go.
+export const DEMO_LISTS = {
+  ipas_signer_lists: {
+    s1_approved: ["101"], s3_approved: ["101"], s6_approved: ["jelai"],
+    s7_received: ["grace"], s7_noted: ["101"], s7_checked: ["201"], s7_approved: ["201"],
+    logistics_signed: ["aldrin"],
+    transmittal_warehouse: ["aldrin"], transmittal_technical: ["sherwin"], transmittal_logistics: ["aldrin"],
+    transmittal_check_by: ["jen", "grace"],
+  },
+  costing_signer_lists: {
+    // RRD/IOE team lists are retired (#908): Sherwin (Technical sub-department) is picked as
+    // the Technical in-charge on each S0 Evaluation instead.
+    markup: ["201"], final_acquire: ["201"], evaluation: ["grace"],
+  },
+}
