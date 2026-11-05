@@ -17,7 +17,15 @@ export function useCostingWrites(opportunityId) {
   const [busy, setBusy] = useState(false);
 
   // Resolves once the active queries have refetched, so a caller can drop a value it showed early after it.
-  const refresh = useCallback(() => queryClient.refetchQueries({ queryKey: costingKeys.all(opportunityId) }), [queryClient, opportunityId]);
+  // The S0 Evaluation list sits behind the sheet and shows the same figures, so it refreshes with it (#892).
+  const refresh = useCallback(
+    () =>
+      Promise.all([
+        queryClient.refetchQueries({ queryKey: costingKeys.all(opportunityId) }),
+        queryClient.invalidateQueries({ queryKey: costingKeys.matrixPage }),
+      ]),
+    [queryClient, opportunityId],
+  );
 
   const run = useCallback(
     async (work) => {
