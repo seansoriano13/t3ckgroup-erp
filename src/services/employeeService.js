@@ -234,6 +234,7 @@ export const employeeService = {
       isIssuedPassword: !!employee.is_issued_password,
       hiddenNavKeys: employee.hidden_nav_keys || [],
       canManageLeaves: employee.can_manage_leaves,
+      canEditSalesFlows: !!employee.can_edit_sales_flows,
       signaturePath: employee.signature_path || null,
       avatarPath: employee.avatar_path || null,
       dashboardBannerPath: employee.dashboard_banner_path || null,
@@ -358,6 +359,8 @@ export const employeeService = {
           is_hr: employeeData.isHr,
           is_super_admin: employeeData.isSuperAdmin,
           can_manage_leaves: employeeData.canManageLeaves,
+          // Only a Super Admin may set this; the database refuses anyone else.
+          can_edit_sales_flows: !!employeeData.canEditSalesFlows,
           has_sales_flow: employeeData.has_sales_flow,
           has_task_flow: employeeData.has_task_flow,
           has_purchasing_flow: employeeData.has_purchasing_flow,
@@ -416,6 +419,9 @@ export const employeeService = {
         is_hr: employeeData.isHr,
         is_super_admin: employeeData.isSuperAdmin,
         can_manage_leaves: employeeData.canManageLeaves,
+        // Only touched when the caller says so. The database refuses a change
+        // from anyone but a Super Admin.
+        can_edit_sales_flows: employeeData.canEditSalesFlows !== undefined ? !!employeeData.canEditSalesFlows : undefined,
         has_sales_flow: employeeData.has_sales_flow,
         has_task_flow: employeeData.has_task_flow,
         has_purchasing_flow: employeeData.has_purchasing_flow,

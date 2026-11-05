@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, Bug, Landmark, ChevronDown, Clock, EyeOff, X } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, Bug, Landmark, ChevronDown, Clock, EyeOff, X, Workflow } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ export default function EmployeeForm({
   rawEmployees = [],
   rawCompanies = [],
   canGrantLeaveManagement = false,
+  canGrantFlowEditor = false,
 }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -28,6 +29,7 @@ export default function EmployeeForm({
     isHr: false,
     isSuperAdmin: false,
     canManageLeaves: false,
+    canEditSalesFlows: false,
     has_sales_flow: false,
     has_task_flow: true,
     has_purchasing_flow: false,
@@ -58,6 +60,7 @@ export default function EmployeeForm({
       isHr: false,
       isSuperAdmin: false,
       canManageLeaves: false,
+      canEditSalesFlows: false,
       has_sales_flow: false,
       has_task_flow: true,
       has_purchasing_flow: false,
@@ -428,6 +431,23 @@ export default function EmployeeForm({
               }
               activeColor="bg-orange-3 text-orange-10"
               hoverColor="group-hover:bg-orange-2"
+            />
+          )}
+
+          {/* Flow editor (#884) — Super Admin only; the database refuses this
+              change from anyone else regardless, and hiding it here keeps
+              other editors from seeing a switch they cannot use. */}
+          {canGrantFlowEditor && (
+            <AccessSwitch
+              label="Flow editor"
+              description="Edit and publish the Flow Canvas"
+              icon={Workflow}
+              checked={formData.canEditSalesFlows}
+              onChange={(val) =>
+                setFormData((prev) => ({ ...prev, canEditSalesFlows: val }))
+              }
+              activeColor="bg-violet-3 text-violet-10"
+              hoverColor="group-hover:bg-violet-2"
             />
           )}
 

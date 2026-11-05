@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-11-05",
+        "title": "Flow editor switch for employees",
+        "version": "1.9.96",
+        "changes": [
+            "Super Admins can turn the Flow editor on or off for an employee in the employee form.",
+            "Only a Super Admin can give someone Flow editor access, and the database refuses anyone else, including when a new employee is added."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "Technical verdict shows what is still missing",
         "version": "1.9.91",
         "changes": [
