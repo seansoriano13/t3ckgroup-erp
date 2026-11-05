@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { CostingBandError, CostingRuleError, costingMatrixService, toBandError, toRuleError } from "./costingMatrixService"
 import { opportunityService } from "./opportunityService"
-import { db } from "@/test/db/store"
+import { db, deleteRows } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc"
 import { stubRpc } from "@/test/msw/server"
@@ -794,6 +794,21 @@ describe("costingMatrixService", () => {
       // Quantity 2.5 at 1001.15 is 2502.875, rounded half-up to 2502.88; 3 x 480 is 1440.
       lineId = await costingMatrixService.addTenderLine(matrix.id, { tenderSpecification: "Rescue tripod", quantity: 2.5, abcUnit: 1100.1, finalOfferUnit: 1001.15 });
       await costingMatrixService.addTenderLine(matrix.id, { tenderSpecification: "Harness set", quantity: 3, abcUnit: 500, finalOfferUnit: 480 });
+      // #881: a Go waits for the Evaluation of Specification to be approved.
+      db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: salesperson.id });
+    });
+
+    it("refuses a Go until the Evaluation of Specification is approved, and still takes a Revise", async () => {
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: [] });
+      deleteRows("costing_signoffs", [...db.internal.rowsOf("costing_signoffs")]);
+
+      const refused = await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Go" }).catch((e) => e);
+      expect(refused).toBeInstanceOf(CostingRuleError);
+      expect(refused.message).toBe("Approve the Evaluation of Specification first.");
+      expect((await read()).bidDecision).toBeNull();
+
+      await costingMatrixService.decideBid(matrix.id, { verdict: "revise", reason: "Reprice first" });
+      expect((await read()).bidDecision).toMatchObject({ verdict: "revise", reason: "Reprice first" });
     });
 
     it("takes a decision as Closed Book, stamped with the totals computed the way costingMath works them", async () => {

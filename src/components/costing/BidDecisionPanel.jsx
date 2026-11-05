@@ -78,12 +78,15 @@ export default function BidDecisionPanel({
     bidDecisionHistory = [],
     totals,
     tenderLines,
+    evaluation,
   } = matrix;
   const [reason, setReason] = useState("");
   if (!tierReadsBidDecision(tier)) return null;
 
   const canDecide = tierDecidesBid(tier);
   const ready = tenderLines.length > 0 && totals.missingOffer === 0;
+  // #881: a Go waits for the Evaluation of Specification to be approved. No-go and Revise do not.
+  const evaluated = Boolean(evaluation?.approved);
   const trimmed = reason.trim();
   const earlier = bidDecisionHistory[0] ?? null;
   const locked = bidDecision?.verdict === BID_VERDICT.GO;
@@ -245,6 +248,14 @@ export default function BidDecisionPanel({
             </Button>
           ) : (
             <div className="grid gap-2">
+              {!evaluated && (
+                <p
+                  className="text-sm font-semibold text-foreground"
+                  data-testid="bid-decision-needs-evaluation"
+                >
+                  Approve the Evaluation of Specification first. A Go waits for it.
+                </p>
+              )}
               {CHOICES.map(
                 ({ verdict, icon: Icon, words, className, variant }) => (
                   <Button
@@ -252,7 +263,12 @@ export default function BidDecisionPanel({
                     size="lg"
                     variant={variant}
                     className={`h-14 justify-start gap-3 px-4 text-left ${className ?? ""}`}
-                    disabled={!ready || trimmed === "" || writes.busy}
+                    disabled={
+                      !ready ||
+                      trimmed === "" ||
+                      writes.busy ||
+                      (verdict === BID_VERDICT.GO && !evaluated)
+                    }
                     onClick={() => decide(verdict)}
                     aria-label={BID_VERDICT_LABEL[verdict]}
                   >

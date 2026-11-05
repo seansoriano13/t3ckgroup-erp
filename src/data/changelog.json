@@ -9,6 +9,15 @@
         ]
     },
     {
+        "date": "2026-11-05",
+        "title": "Go waits for the evaluation",
+        "version": "1.9.88",
+        "changes": [
+            "A Go on the Bid Decision needs the Evaluation of Specification approved first. Until it is, the Go button is off and the card says to approve the evaluation first.",
+            "Revise and No-go are still available at any time."
+        ]
+    },
+    {
         "date": "2026-11-04",
         "title": "Technical page for the RRD and IOE teams",
         "version": "1.9.86",

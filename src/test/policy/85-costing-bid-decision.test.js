@@ -55,6 +55,12 @@ const decide = async (who, verdict, reason = "Reason for the decision") => {
 const unlock = async (who, reason = "Unlocking for the test") =>
     (await (await clientFor(who)).rpc("costing_unlock_bid", { p_matrix_id: matrixId, p_reason: reason })).error
 
+/** Approves the Evaluation of Specification (#881: a Go waits for it). Does nothing when it is approved already. */
+const approveEvaluation = async () => {
+    const approved = await asSvc(svc().from("costing_signoffs").select("id").eq("matrix_id", matrixId).eq("role", "evaluation_approved").is("cleared_at", null), "approval")
+    if (approved.length === 0) await asSvc(svc().from("costing_signoffs").insert({ matrix_id: matrixId, role: "evaluation_approved", signed_by: ids.ipasSigner }), "evaluation approval")
+}
+
 const setMoney = async (who, table, row, patch) =>
     (await (await clientFor(who)).rpc("costing_set_money", { p_table: table, p_row: row, p_patch: patch })).error
 
@@ -150,6 +156,14 @@ describe("before there is anything to judge", () => {
             const pending = await (await clientFor(who)).rpc("costing_pending_bid_decisions")
             expect((pending.data ?? []).filter((p) => p.matrix_id === matrixId), who).toHaveLength(0)
         }
+    })
+
+    it("refuses a Go until the Evaluation of Specification is approved (#881), and writes nothing", async () => {
+        const { id, error } = await decide("ipasSigner", "go", "Go before the approval")
+        expect(error?.code).toBe("22023")
+        expect(error?.message).toBe("costing_bid: approve the Evaluation of Specification first")
+        expect(id).toBeNull()
+        expect(await rows()).toHaveLength(0)
     })
 })
 
@@ -446,6 +460,7 @@ describe("what a No-go or a Revise does", () => {
 
     it("tells nobody on a Go", async () => {
         await asSvc(svc().from("notifications").delete().eq("reference_id", sorId), "clear notifications")
+        await approveEvaluation()
         const { error } = await decide("ipasSigner", "go", "Go ahead")
         expect(error).toBeNull()
         expect(await bidNotices()).toHaveLength(0)
@@ -472,6 +487,7 @@ describe("what a No-go or a Revise does", () => {
 describe("a Go locks the sheet", () => {
     it("stamps the planned cost with the Go, the way the Costing Matrix page adds it", async () => {
         // The Component at 950 x 2 and the cost-only row at 2500 x 1.
+        await approveEvaluation()
         const { id, error } = await decide("ipasSigner", "go", "Locking the sheet")
         expect(error).toBeNull()
         const [decision] = await live()

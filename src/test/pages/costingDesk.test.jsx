@@ -761,12 +761,14 @@ describe("the Costing Desk", () => {
     let decider;
 
     // One Tender Line at a Final Offer of 2,980,000 against an ABC of 3,200,000.
-    function seedPriced({ offer = 2980000 } = {}) {
+    // The Evaluation of Specification is approved unless `approved` is false (#881: a Go waits for it).
+    function seedPriced({ offer = 2980000, approved = true } = {}) {
       matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
       db.seed("costing_settings", { id: 1 });
       const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Rescue vehicle", unit: "unit", quantity: 1 });
       db.seed("costing_tender_line_prices", { tender_line_id: line.id, abc_unit: 3200000, final_offer_unit: offer });
       decider = makeEmployee({ name: "Boss Person" });
+      if (approved) db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: decider.id });
     }
 
     const seedDecision = (fields = {}) =>
@@ -831,6 +833,19 @@ describe("the Costing Desk", () => {
       expect(screen.getByTestId("bid-decision-figures")).toHaveTextContent("₱2,980,000.00");
       const [row] = db.rows("costing_bid_decisions");
       expect(row).toMatchObject({ verdict: "go", reason: "Price fits and margin is fine", final_offer_total: 2980000, abc_total: 3200000 });
+    });
+
+    it("keeps Go off until the Evaluation of Specification is approved, and says why; Revise stays on (#881)", async () => {
+      seedPriced({ approved: false });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-needs-evaluation")).toHaveTextContent("Approve the Evaluation of Specification first");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Reprice first");
+      expect(within(panel).getByRole("button", { name: "Go" })).toBeDisabled();
+      expect(within(panel).getByRole("button", { name: "Revise" })).toBeEnabled();
+      expect(within(panel).getByRole("button", { name: "No-go" })).toBeEnabled();
     });
 
     it("keeps the controls off while a Tender Line has no Final Offer", async () => {

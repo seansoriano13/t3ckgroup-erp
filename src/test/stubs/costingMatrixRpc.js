@@ -267,6 +267,10 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     if (lines.length === 0 || totals.missingOffer > 0) {
       refuse("23514", "every Tender Line needs a Final Offer before the bid can be decided", 400)
     }
+    // #881: a Go waits for the Evaluation of Specification to be approved.
+    if (args.p_verdict === "go" && !rowsOf("costing_signoffs").some((s) => s.matrix_id === args.p_matrix_id && s.role === "evaluation_approved" && !s.cleared_at)) {
+      refuse("22023", "approve the Evaluation of Specification first", 400)
+    }
     if (rowsOf("costing_bid_decisions").some((d) => d.matrix_id === args.p_matrix_id && d.cleared_at == null && d.verdict === "go")) {
       refuse("22023", "the sheet is locked by a Go. Unlock it first", 400)
     }
