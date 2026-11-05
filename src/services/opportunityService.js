@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { functionErrorMessage } from "../lib/functionErrors";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { itemsForVisit, shapeSorOverview } from "../utils/sorPurchaseRequest";
 import { notificationService } from "./notificationService";
@@ -2447,7 +2448,15 @@ export const opportunityService = {
     const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
       body: { action: "check", salesReference: salesReference || null },
     });
-    if (error) throw new Error(error.message || "The S0 could not be checked.");
+    if (error) {
+      // #889: say which step failed, and what to do, rather than the raw transport text.
+      throw new Error(
+        await functionErrorMessage(
+          error,
+          `Couldn't check ${salesReference} against Odoo. Try again, or register without a Sales Reference.`,
+        ),
+      );
+    }
     if (!data?.success) {
       const refusal = new Error(data?.message || "The S0 could not be checked.");
       refusal.hint = data?.hint;
@@ -2465,7 +2474,9 @@ export const opportunityService = {
     const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
       body: { opportunityId: id, salesReference: salesReference || null, reason: reason || null },
     });
-    if (error) throw new Error(error.message || "The S0 could not be saved.");
+    if (error) {
+      throw new Error(await functionErrorMessage(error, "The S0 could not be saved. Try again."));
+    }
     if (!data?.success) {
       const refusal = new Error(data?.message || "The S0 could not be saved.");
       refusal.hint = data?.hint;

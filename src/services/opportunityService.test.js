@@ -258,6 +258,31 @@ describe("opportunityService", () => {
         expect(created).toBeTruthy()
       })
 
+      // #889: an edge function that is missing or down used to surface as the raw
+      // "Edge Function returned a non-2xx status code". It now names the step.
+      it("says which step failed when the S0 check cannot reach the function, and registers nothing (#889)", async () => {
+        stubEdgeFunction("sor-sales-reference", () => new Response("Function not found", { status: 404 }))
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toThrow("Couldn't check S01237 against Odoo. Try again, or register without a Sales Reference.")
+        expect(sorCount()).toBe(before)
+      })
+
+      it("shows the function's own message when it answers with one (#889)", async () => {
+        stubEdgeFunction(
+          "sor-sales-reference",
+          () => new Response(JSON.stringify({ message: "Odoo is paused for maintenance." }), { status: 503 }),
+        )
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toThrow("Odoo is paused for maintenance.")
+        expect(sorCount()).toBe(before)
+      })
+
       it("makes no S0 call at all when the form has none", async () => {
         const calls = stubSalesReferenceSave()
 
