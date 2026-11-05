@@ -946,8 +946,24 @@ ol.steps input[type=checkbox] {
       <div class="step-body">
         <div class="head"><span class="k">C.4</span><span class="seat s-wh">sherwin</span></div>
         <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) &rarr; Technical &rarr; the SOR, after step 5.3</div></div>
-        <div class="row do"><b>Do</b><div>Try to click <b>Approve the evaluation</b> as the Technical in-charge.</div></div>
-        <div class="row see"><b>See</b><div>Approval is refused. The Technical in-charge cannot approve the Evaluation. Someone else on the approval list must do it (#911).</div></div>
+        <div class="row do"><b>Do</b><div>Look for the <b>Approve the evaluation</b> button as the Technical in-charge.</div></div>
+        <div class="row see"><b>See</b><div>There is no button. Sherwin is not on the Evaluation list, so he cannot approve. Even a list member who is the in-charge of an SOR gets no button there: the bar says someone else approves it (#911).</div></div>
+      </div>
+    </li>
+    <li data-k="C.5" data-opt><input type="checkbox" aria-label="Done">
+      <div class="step-body">
+        <div class="head"><span class="k">C.5</span><span class="seat s-sign">grace</span></div>
+        <div class="row where"><b>Where</b><div>Signers window (grace@demo) &rarr; Technical, after step 5.3 and before 5.4</div></div>
+        <div class="row do"><b>Do</b><div>Open Technical. It opens on the <b>Waiting for approval</b> tab. Approve the evaluation as in 5.4, then look at the tab again.</div></div>
+        <div class="row see"><b>See</b><div>Before 5.4 the SOR is listed with the state "Checked". After 5.4 it leaves the tab and shows under <b>Done</b>. Grace needs no Sales, Purchasing or Super Admin access: being on the Evaluation list is enough.</div></div>
+      </div>
+    </li>
+    <li data-k="C.6" data-opt><input type="checkbox" aria-label="Done">
+      <div class="step-body">
+        <div class="head"><span class="k">C.6</span><span class="seat s-sales">Sales</span></div>
+        <div class="row where"><b>Where</b><div>Sales window (dani@demo) &rarr; sidebar</div></div>
+        <div class="row do"><b>Do</b><div>Look for <b>Technical</b> under Sales.</div></div>
+        <div class="row see"><b>See</b><div>It is not there for Dani. Technical shows only for a Technical in-charge, someone on the Evaluation list, and Super Admins.</div></div>
       </div>
     </li>
   </ol>
