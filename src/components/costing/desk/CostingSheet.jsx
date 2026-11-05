@@ -54,9 +54,9 @@ const SUB = "mt-1 text-xs text-muted-foreground";
 
 const firstLine = (text) => (text ?? "").split("\n")[0].trim();
 
-function Fact({ label, children, sub }) {
+function Fact({ label, children, sub, title }) {
   return (
-    <div className="min-w-0 px-4 py-3">
+    <div className="min-w-0 px-4 py-3" title={title}>
       <div className="text-label font-bold uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm font-semibold leading-snug tabular-nums">{children}</div>
       {sub && <div className="text-xs font-normal text-muted-foreground">{sub}</div>}
@@ -298,7 +298,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           </Fact>
         )}
         {showLanded && (
-          <Fact label="Import add-on" sub="on the peso price, until the IPAS has the real one">
+          <Fact label="Import add-on" sub="on the peso price" title="On the peso price, until the IPAS has the real one">
             <Cell
               label="Import add-on percent"
               noun="The Import add-on"

@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-11-05",
+        "title": "Purchasing pages fit a 1440 px screen",
+        "version": "1.9.89",
+        "changes": [
+            "The SOR Register shows its Status column without scrolling sideways.",
+            "Product List totals and the Import add-on line no longer cut off money or wrap into a tall box.",
+            "The Purchase Request item tables keep their full width when Chat or Members is open.",
+            "Every Purchasing page title ends in the red accent word, including Canvasses, IPAS and Transmittals."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "Registering an SOR shows its number",
         "version": "1.9.88",
         "changes": [

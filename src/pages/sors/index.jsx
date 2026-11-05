@@ -1051,25 +1051,25 @@ export default function OpportunitiesPage() {
         ) : (
           <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <Table tableId="sor-register" className="table-fixed min-w-[1290px]">
+              <Table tableId="sor-register" className="table-fixed min-w-[1120px]">
                 <TableHeader>
                   {/* Sortable headers. The interaction styling is
                       TaskTableView's — cursor-pointer hover:text-foreground
                       transition-colors — but the padding stays at this
-                      table's own px-2.5/py-2.5: ten columns already overflow
-                      the fixed layout, and px-4 gutters would push Status out
-                      of view. */}
+                      table's own px-2.5/py-2.5: ten columns fill the 1120px the
+                      content gets at 1440 px, and px-4 gutters would push Status
+                      out of view. */}
                   <TableRow>
-                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[80px]">SOR</SortableTh>
-                    <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">Sales Ref.</SortableTh>
+                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">SOR</SortableTh>
+                    <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[72px]">Sales Ref.</SortableTh>
                     <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
-                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Lead Source</SortableTh>
-                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[200px]">Company</SortableTh>
-                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[220px]">Project</SortableTh>
-                    <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[114px]">Expected Value</SortableTh>
+                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[112px]">Lead Source</SortableTh>
+                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[168px]">Company</SortableTh>
+                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[176px]">Project</SortableTh>
+                    <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[128px]">Expected Value</SortableTh>
                     <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
-                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Deal Owner</SortableTh>
-                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[192px]">Status</SortableTh>
+                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[120px]">Deal Owner</SortableTh>
+                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Status</SortableTh>
                     {showLostReason && <TableHead className="w-[220px] px-2.5 py-2.5">Reason</TableHead>}
                   </TableRow>
                 </TableHeader>
