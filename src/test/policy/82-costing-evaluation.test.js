@@ -3,7 +3,7 @@
  * verdict and its note on the matrix, who may give it, the "Evaluation approved" sign-off and what clears it.
  *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
- *   technical         the Technical in-charge (named by Sales or Purchasing)   -> participant tier, gives the verdict
+ *   technical         the Technical in-charge (named by Sales or Purchasing)   -> participant tier, gives the verdict, cannot approve
  *   stageParticipant  open window, not the in-charge                           -> participant tier, no verdict
  *   dealOwner, support Deal Team                                               -> closed_book tier, Sales band
  *   outsider          Purchasing access, and on the evaluation list            -> closed_book tier, approves
@@ -25,6 +25,7 @@ const svc = () => serviceClient()
 const CHECK_VIOLATION = "23514"
 const WRONG_STATE = "22023"
 const MIGRATION = readFileSync("supabase/migrations/20261121050000_908_technical_incharge.sql", "utf8")
+const APPROVAL_MIGRATION = readFileSync("supabase/migrations/20261121200000_911_approval_excludes_incharge.sql", "utf8")
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId
@@ -376,12 +377,26 @@ describe("Evaluation approved", () => {
         expect(await liveSignoff()).toBeNull()
     })
 
-    it("is refused to the one who gave the verdict, even on the list, so someone else approves it", async () => {
+    it("is refused to the Technical in-charge, even on the list, so someone else approves it", async () => {
         await onList("evaluation", "technical")
         try {
             const { error } = await sign("technical")
             expect(error?.code).toBe(RLS_VIOLATION)
-            expect(error?.message).toBe("costing_sign: you gave the Technical verdict, so someone else has to approve the evaluation")
+            expect(error?.message).toBe("costing_sign: the Technical in-charge cannot approve the evaluation, so someone else has to")
+        } finally {
+            await offList("evaluation", "technical")
+        }
+        expect(await liveSignoff()).toBeNull()
+    })
+
+    it("refuses the in-charge by the seat, not by who stamped the verdict", async () => {
+        // The verdict was stamped by someone else (an earlier in-charge): the in-charge still cannot approve.
+        await asSvc(svc().from("costing_matrices").update({ compliance_by: ids.outsider }).eq("id", matrixId), "stamp")
+        await onList("evaluation", "technical")
+        try {
+            const { error } = await sign("technical")
+            expect(error?.code).toBe(RLS_VIOLATION)
+            expect(error?.message).toBe("costing_sign: the Technical in-charge cannot approve the evaluation, so someone else has to")
         } finally {
             await offList("evaluation", "technical")
         }
@@ -614,7 +629,9 @@ describe("the registries and settings", () => {
     it("runs again without harm, and keeps the in-charge and the verdict", async () => {
         await setVerdict("technical", { compliance: "complies" })
         await sql().query(MIGRATION)
+        await sql().query(APPROVAL_MIGRATION)
         await sql().query(MIGRATION)
+        await sql().query(APPROVAL_MIGRATION)
         expect(await matrixRow()).toMatchObject({ technical_incharge_id: ids.technical, compliance: "complies", compliance_by: ids.technical })
         expect(await canRead(await clientFor("outsider"), "costing_components", compA)).toBe(true)
     })
