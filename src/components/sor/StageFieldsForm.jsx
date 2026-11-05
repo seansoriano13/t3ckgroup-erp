@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
 import SalesReferenceStageField, { SALES_REFERENCE_COLUMN } from "./SalesReferenceStageField";
+import { DateField } from "./SorField";
 
 /**
  * A Stage's own small form, under its checklist — never checklist rows
@@ -177,6 +178,13 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                           containerClassName="flex w-full" className="h-8 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
                         />
                       </div>
+                    ) : (isSor ? SOR_STAGE_FIELDS[field.sor_field]?.inputType : field.field_type) === "date" ? (
+                      // Dates read "Nov 5, 2026" through the same picker as the registration form (#905).
+                      <DateField
+                        label={field.label}
+                        value={value}
+                        onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
+                      />
                     ) : (
                       <Input
                         aria-label={field.label}
@@ -185,9 +193,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                             ? SOR_STAGE_FIELDS[field.sor_field]?.inputType || "text"
                             : field.field_type === "number"
                               ? "number"
-                              : field.field_type === "date"
-                                ? "date"
-                                : "text"
+                              : "text"
                         }
                         value={value}
                         onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
