@@ -101,30 +101,8 @@ describe("the Evaluation of Specification on the grid", () => {
     expect(screen.queryByTestId("verdict-needs-note")).not.toBeInTheDocument();
   });
 
-  it("lists the Components with no We offer beside the verdict, and still lets the in-charge give it (#906)", async () => {
-    // The fixture's "Bag" has no Offer Specification, so it is the one listed.
-    const user = mount();
-    const warning = await screen.findByTestId("verdict-offers-missing");
-    expect(within(warning).getByText("One Component has no We offer yet.")).toBeInTheDocument();
-    expect(within(warning).getByText("1.3 · Bag")).toBeInTheDocument();
-
-    // Nothing is blocked: the verdict control stays enabled and saves.
-    const choice = screen.getByLabelText(VERDICT_CHOICE);
-    expect(choice).toBeEnabled();
-    await chooseOption(user, choice, "Complies");
-    await waitFor(() => expect(storedMatrix()).toMatchObject({ compliance: "complies" }));
-  });
-
-  it("counts every Component still missing a We offer, and shows nothing once all are entered (#906)", async () => {
-    db.internal.rowsOf("costing_components").find((c) => c.name === "Head").offer_specification = null;
-    mount();
-    expect(await screen.findByText("2 Components have no We offer yet.")).toBeInTheDocument();
-    expect(screen.getByText("1.2 · Head")).toBeInTheDocument();
-    expect(screen.getByText("1.3 · Bag")).toBeInTheDocument();
-  });
-
-  it("shows no warning when every Component has a We offer (#906)", async () => {
-    db.internal.rowsOf("costing_components").find((c) => c.name === "Bag").offer_specification = "Canvas bag";
+  it("lists no missing We offers beside the verdict", async () => {
+    // The fixture's "Bag" has no Offer Specification; the verdict card no longer warns about it.
     mount();
     expect(await screen.findByTestId("technical-verdict")).toBeInTheDocument();
     expect(screen.queryByTestId("verdict-offers-missing")).not.toBeInTheDocument();
