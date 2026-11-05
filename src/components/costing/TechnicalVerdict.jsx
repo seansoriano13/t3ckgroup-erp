@@ -5,6 +5,7 @@ import StatusBadge from "../StatusBadge";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import { COMPLIANCE_LABEL, COMPLIANCE_THEME } from "../../constants/costing";
 import { formatDate } from "../../utils/formatDate";
+import { offersNotEntered } from "../../utils/costingMath";
 import { Cell } from "./GridCell";
 import { refusalMessage } from "./gridFormat";
 
@@ -21,6 +22,9 @@ const OPTIONS = [
  * named on the matrix can give it; everyone else reads it, with who gave it and when. It is allowed at
  * any time and blocks no figure. Choosing Deviates waits for a note, since the database refuses a
  * deviation without one. `nameOf` turns an employee id into a name.
+ *
+ * Components with no "We offer" (#906) are listed under the card as a warning. Nothing is blocked: the verdict
+ * can be given at any time.
  */
 export default function TechnicalVerdict({ matrix, actorId, nameOf, writes }) {
   const row = matrix.matrix ?? {};
@@ -29,6 +33,7 @@ export default function TechnicalVerdict({ matrix, actorId, nameOf, writes }) {
   const isInCharge = Boolean(actorId) && actorId === inCharge;
   const saved = row.compliance ?? null;
   const note = row.compliance_note ?? "";
+  const notEntered = offersNotEntered(matrix.tenderLines);
 
   // "Deviates" chosen but not saved yet: it waits for its note.
   const [pending, setPending] = useState(false);
@@ -64,6 +69,23 @@ export default function TechnicalVerdict({ matrix, actorId, nameOf, writes }) {
         <h3 className="text-sm font-bold text-foreground">Technical verdict</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">One verdict for the whole S0 Evaluation, given by the Technical in-charge.</p>
       </div>
+
+      {notEntered.length > 0 && (
+        <div className="space-y-1 rounded-lg border border-border bg-muted/40 p-3" data-testid="verdict-offers-missing">
+          <p className="text-sm font-medium text-foreground">
+            {notEntered.length === 1 ? "One Component has no We offer yet." : `${notEntered.length} Components have no We offer yet.`}
+          </p>
+          <p className="text-xs text-muted-foreground">You can still give the verdict. Enter what we offer to judge these fully.</p>
+          <ul className="list-disc pl-5 text-xs text-foreground">
+            {notEntered.map((component) => (
+              <li key={component.id}>
+                {component.number ? `${component.number} · ` : ""}
+                {component.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {!inCharge && (
         <p className="text-sm text-muted-foreground" data-testid="technical-no-incharge">

@@ -612,6 +612,27 @@ export function describeComplianceRollup(rollup) {
   return parts.join(" · ");
 }
 
+/**
+ * The Components with no "We offer" yet (#906): their Offer Specification is blank (or only spaces). The
+ * winning offer's description lands in the same field, so it counts too. The Technical verdict is allowed
+ * anyway; these are listed beside it as a warning. Each is `{ id, number, label }`, with the Component's
+ * name, or its Tender Specification when it has none. A line with no Components has nothing to offer and is not listed.
+ */
+export function offersNotEntered(tenderLines) {
+  const missing = [];
+  for (const line of tenderLines ?? []) {
+    for (const component of line?.components ?? []) {
+      if (String(component?.offer_specification ?? "").trim()) continue;
+      missing.push({
+        id: component.id,
+        number: component.number ?? "",
+        label: component.name || line.tender_specification || "Unnamed Component",
+      });
+    }
+  }
+  return missing;
+}
+
 // ---------------------------------------------------------------------------
 // Costing settled (#272)
 // ---------------------------------------------------------------------------
