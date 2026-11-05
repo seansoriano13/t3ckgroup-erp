@@ -1399,6 +1399,17 @@ function dealTeamIds(opportunity) {
  * preview of what Create will build) so the two can never drift apart —
  * spec: "Create makes exactly what the automatic action would."
  */
+/**
+ * #901: the title the decision-due notice was written with (the same template
+ * the payload uses in sor_run_stage_actions), so the decided notice can be found.
+ */
+function decisionNoticeTitle(action, templateContext) {
+  return (
+    renderActionTitle(action, templateContext) ||
+    stageActionTaskTitle({ salesReference: templateContext.salesReference, projectTitle: templateContext.projectTitle })
+  );
+}
+
 function renderActionTitle(action, templateContext) {
   const config = action.config || {};
   const dealTitle = stageActionTaskTitle({
@@ -3443,6 +3454,15 @@ export const opportunityService = {
       .single();
     if (stageError) throw stageError;
 
+    const templateContext = {
+      salesReference: existing.sales_reference,
+      projectTitle: existing.project_title,
+      company: existing.client_name,
+      stageName: stage.name,
+      dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
+      saleType: existing.sale_type || null,
+    };
+
     if (retrying) {
       // Back to the decided-and-created state the create functions accept, then run the step again.
       const { error: reopenError } = await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "created" });
@@ -3454,6 +3474,10 @@ export const opportunityService = {
         p_actor_id: actorId,
       });
       if (decideError) throw decideError;
+      // #901: the decision notice in this Decider's inbox is resolved once the run is decided.
+      await notificationService
+        .resolveDecisionNotices(existing.id, actorId, decisionNoticeTitle(action, templateContext))
+        .catch(() => {});
     }
 
     if (decision === "skip") {
@@ -3466,14 +3490,6 @@ export const opportunityService = {
       return { outcome: "skipped" };
     }
 
-    const templateContext = {
-      salesReference: existing.sales_reference,
-      projectTitle: existing.project_title,
-      company: existing.client_name,
-      stageName: stage.name,
-      dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
-      saleType: existing.sale_type || null,
-    };
     if (action.kind === "open_purchase_request") {
       const { data: requestId, error: openError } = await supabase.rpc("sor_open_purchase_request", {
         p_run_id: runId,

@@ -24,6 +24,15 @@
     },
     {
         "date": "2026-11-05",
+        "title": "Pending Stage Actions show under Needs attention",
+        "version": "1.9.91",
+        "changes": [
+            "A Stage Action waiting for your Create or Skip now shows under Needs attention on the SOR summary, with a Go link to the decision.",
+            "Once you Create or Skip it, the matching notification is marked as read."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "Registering an SOR shows its number",
         "version": "1.9.88",
         "changes": [

@@ -2324,6 +2324,28 @@ describe("opportunityService", () => {
         expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(1)
       })
 
+      it("deciding resolves the Decider's decision notice (#901)", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register({ sales_reference: "S09913" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        const noticeOf = () =>
+          db.internal
+            .rowsOf("notifications")
+            .find((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE" && n.recipient_id === decider.id)
+        expect(noticeOf().is_read).toBeFalsy()
+
+        await opportunityService.decideAction(run.id, "skip", decider.id)
+
+        expect(noticeOf().is_read).toBe(true)
+      })
+
       it("Skip creates nothing and logs the skip", async () => {
         const decider = makeEmployee({ name: "Decider Dana" })
         makeStageAction({

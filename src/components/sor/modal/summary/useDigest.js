@@ -17,9 +17,34 @@ export function daysSince(iso) {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / DAY));
 }
 
+/**
+ * #901: each Stage Action waiting on this viewer's Create or Skip becomes a
+ * Needs attention row, so the Summary no longer says "Nothing needs attention"
+ * while the decision card sits on the Now tab. Failed runs also wait here.
+ */
+export function pendingDecisionAttention(runs = []) {
+  return runs.map((run) => {
+    const title = run.title || "A Stage Action";
+    return {
+      key: `decision-${run.runId}`,
+      tone: "amber",
+      text: run.failed ? `${title} failed. Press Create to try again.` : `${title} is waiting for your Create or Skip.`,
+      go: "now",
+    };
+  });
+}
+
 export function useDigest(p) {
   const { opportunity, id, ctx } = p;
   const stageCode = opportunity?.flow_stage_id || opportunity?.status;
+  const actorId = ctx?.user?.id;
+
+  // Same key as PendingActionDecisions, so the Now tab's card and this row refresh together.
+  const { data: pendingDecisions = [] } = useQuery({
+    queryKey: ["pendingActionDecisions", opportunity?.id, actorId],
+    queryFn: () => opportunityService.getPendingActionsForActor(opportunity.id, actorId),
+    enabled: !!opportunity?.id && !!actorId,
+  });
 
   const { data: currentVisit = null } = useQuery({
     queryKey: ["currentStageVisit", id, stageCode],
@@ -47,6 +72,7 @@ export function useDigest(p) {
   if (ctx.pendingStage) attention.push({ key: "pending", tone: "amber", text: `A move to ${ctx.stageLabel(ctx.pendingStage)} is waiting for your confirmation.`, go: "now" });
   if (p.isRestricted) attention.push({ key: "restricted", tone: "amber", text: "This stage is restricted — the deal can't be moved from here." });
   blocked.forEach((label) => attention.push({ key: `b-${label}`, tone: "amber", text: `Before moving: ${label}`, go: "now" }));
+  attention.push(...pendingDecisionAttention(pendingDecisions));
   if (followUpOverdue) attention.push({ key: "followup", tone: "red", text: "Follow-up is overdue.", go: "now" });
   if (overdueTasks.length) attention.push({ key: "overdue", tone: "red", text: `${overdueTasks.length} task${overdueTasks.length === 1 ? " is" : "s are"} past due.`, go: "now" });
   if (!opportunity.sales_reference && opportunity.status === "LEAD" && !p.isFlowDeal) attention.push({ key: "ref", tone: "amber", text: "No Sales Reference yet — needed to qualify.", go: "details" });
