@@ -36,11 +36,11 @@ import {
 } from "@/constants/ipas";
 import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "@/utils/attachments";
 import { formatAmount } from "@/utils/ipas";
-import { kindsToAdd } from "@/utils/ipasDocuments";
+import { SECTION_DOCUMENT_KINDS, kindsToAdd } from "@/utils/ipasDocuments";
 import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateDay, formatRateNumber, rateDivergence } from "@/utils/referenceRate";
-import { Field, GroupTitle, PickField, ReadValue } from "./FormFields";
+import { Field, GroupTitle, PickField, ReadValue, RequiredMark } from "./FormFields";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
 import { BY_HAND, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
 
@@ -536,11 +536,14 @@ function AttachmentField({ document, row, disabled, onPatch }) {
   );
 }
 
-function SavedDocumentRow({ document, row, canChange, canTickFinance, onPatch, onRemove }) {
+function SavedDocumentRow({ document, row, required, canChange, canTickFinance, onPatch, onRemove }) {
   return (
     <div role="group" aria-label={document.label} data-testid="ipas-document-row" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-muted/20 px-4 py-3">
       <div className="min-w-[10rem] flex-1">
-        <span className="text-sm font-medium text-foreground">{document.label}</span>
+        <span className="text-sm font-medium text-foreground">
+          {document.label}
+          {required && <RequiredMark />}
+        </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
           {document.byHand ? (
             <span className="text-xs text-muted-foreground">Added by hand</span>
@@ -612,6 +615,11 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
   const savedById = new Map((ipas.documents ?? []).map((document) => [document.id, document]));
   const suggested = ipas.suggestedDocuments ?? [];
   const hasKinds = kindsToAdd(ipas.options ?? [], ipas.documents ?? []).length > 0;
+  // The kinds a sign-off waits on for this Source (#711), matched by label like missingDocumentsByPart.
+  const requiredLabels = new Set(
+    Object.values(SECTION_DOCUMENT_KINDS).flatMap((part) => part[ipas.source] ?? []).map((label) => label.toLowerCase()),
+  );
+  const isRequired = (document) => !document.byHand && requiredLabels.has(String(document.kind?.label ?? document.label ?? "").trim().toLowerCase());
   return (
     <div data-testid="ipas-documents">
       <Titled
@@ -639,6 +647,7 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
                 key={row.key}
                 document={document}
                 row={row}
+                required={isRequired(document)}
                 canChange={canChange}
                 canTickFinance={canTickFinance}
                 onPatch={(patch) => rows.patch("documents", row.key, patch)}

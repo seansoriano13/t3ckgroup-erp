@@ -27,15 +27,20 @@ export function OdooTag() {
   );
 }
 
+/** The red asterisk on a required field's label. */
+export function RequiredMark() {
+  return (
+    <span className="text-red-11" aria-hidden="true">
+      *
+    </span>
+  );
+}
+
 function caption(label, required, needed) {
   return (
     <>
       {label}
-      {required && !needed && (
-        <span className="text-muted-foreground/60" aria-hidden="true">
-          *
-        </span>
-      )}
+      {required && <RequiredMark />}
       {needed && <NeededTag />}
     </>
   );
