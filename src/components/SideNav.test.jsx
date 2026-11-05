@@ -192,4 +192,23 @@ describe("SideNav Component", () => {
 
     expect(screen.getByTitle("Expand sidebar")).toBeInTheDocument();
   });
+
+  it("signs out from the user menu at the top of the sidebar", () => {
+    const logout = vi.fn();
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user: { id: "signout-user", name: "Sign Out Tester" },
+      isAuthLoading: false,
+      logout,
+    });
+    renderWithProviders(
+      <MemoryRouter>
+        <SideNav />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByText("Sign Out Tester"));
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(logout).toHaveBeenCalledTimes(1);
+  });
 });

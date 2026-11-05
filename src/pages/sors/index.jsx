@@ -4,7 +4,7 @@ import { TablePager } from "@/components/ui/TablePager";
 import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "../../utils/formatDate";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -161,9 +161,27 @@ export default function OpportunitiesPage() {
   // record's id, so the deep link has to actually open it — otherwise clicking
   // a stage-change or procurement notification lands on an unfiltered list and
   // the user has to find the deal by hand.
+  // `?record=<id>` opens that SOR, so a link to one can be shared or reloaded.
+  // The open SOR is written back to the URL, so the address always matches what
+  // is on screen.
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState(
-    () => location.state?.openOpportunityId || null,
+    () => location.state?.openOpportunityId || searchParams.get("record") || null,
   );
+
+  useEffect(() => {
+    const inUrl = searchParams.get("record") || null;
+    if (inUrl === (selectedId || null)) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (selectedId) next.set("record", selectedId);
+        else next.delete("record");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [selectedId, searchParams, setSearchParams]);
 
   // Synchronise deep-link nav state whenever location.state updates (e.g. from
   // notification drawer, toast popup, or overview clicks), and clear nav state

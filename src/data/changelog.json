@@ -44,6 +44,17 @@
     },
     {
         "date": "2026-11-05",
+        "title": "Easier SOR registration and sign-out",
+        "version": "1.9.92",
+        "changes": [
+            "When you register an SOR, you are the Deal Owner by default. Change it if the deal belongs to someone else.",
+            "Dates on the SOR forms now read like Nov 5, 2026, the same as the lists.",
+            "A link to an SOR, such as /sors?record=..., now opens that SOR. The address updates as you open and close one.",
+            "You can sign out from the menu at the top of the sidebar."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "Registering an SOR shows its number",
         "version": "1.9.88",
         "changes": [
