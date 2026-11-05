@@ -109,6 +109,18 @@ describe("SorModalHeader — Clear to move accounts for Stage Fields (#407)", ()
     await waitFor(() => expect(screen.getByText("Clear to move")).toBeInTheDocument())
     expect(screen.queryByText(/Can't move on yet/)).not.toBeInTheDocument()
   })
+
+  // Issue #885 — the badge used to read "Clear to move" right after a move,
+  // while the conditions were still on their way. It must wait.
+  it("shows a checking state, never Clear to move, while the conditions are still loading", async () => {
+    const pending = vi.spyOn(opportunityService, "getStageChecklist").mockReturnValue(new Promise(() => {}))
+    renderWithProviders(<LiveModal id={deal.id} />)
+
+    expect(await screen.findByText("Checking…")).toBeInTheDocument()
+    expect(screen.queryByText("Clear to move")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Nothing blocks this stage/)).not.toBeInTheDocument()
+    pending.mockRestore()
+  })
 })
 
 describe("Ticket #838 — SOR header updates right after stage fields are saved", () => {

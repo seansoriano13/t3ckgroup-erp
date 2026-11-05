@@ -72,6 +72,65 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+// Issue #885 — the box must never claim "clear" before the conditions (and the
+// Stage Fields the header counts) have loaded, and must agree with the header.
+describe("while the Stage's conditions are still loading", () => {
+  it("renders no clear wording, only a checking state", async () => {
+    opportunityService.getStageChecklist.mockReturnValue(new Promise(() => {}))
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect(await screen.findByText("Checking what this stage owes…")).toBeInTheDocument()
+    expect(screen.queryByText("Nothing blocks this stage.")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Stage requirements met/)).not.toBeInTheDocument()
+  })
+
+  it("waits for the Stage Fields before claiming nothing blocks", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" blockersPending />,
+    )
+
+    expect(await screen.findByText("Checking what this stage owes…")).toBeInTheDocument()
+    expect(screen.queryByText("Nothing blocks this stage.")).not.toBeInTheDocument()
+  })
+})
+
+describe("a required Stage Field that is still empty", () => {
+  it("is named as blocking, so the box does not say nothing blocks", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    renderWithProviders(
+      <StageChecklist
+        opportunity={OPPORTUNITY}
+        employees={EMPLOYEES}
+        actorId="emp-1"
+        missingRequiredStageFields={[{ label: "Brochure From Client" }, { label: "Project GS" }]}
+      />,
+    )
+
+    expect(
+      await screen.findByText("Still needed before this stage can move: Brochure From Client, Project GS."),
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Nothing blocks this stage.")).not.toBeInTheDocument()
+  })
+
+  it("keeps the all-met message off while a field is still missing", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({ status: CONDITION_STATUS.SATISFIED, satisfiedBy: null, satisfiedAt: null }),
+    ])
+    renderWithProviders(
+      <StageChecklist
+        opportunity={OPPORTUNITY}
+        employees={EMPLOYEES}
+        actorId="emp-1"
+        missingRequiredStageFields={[{ label: "Expected Award Date" }]}
+      />,
+    )
+
+    await screen.findByText("Satisfied.")
+    expect(screen.queryByText(/Stage requirements met/)).not.toBeInTheDocument()
+  })
+})
+
 describe("nothing configured", () => {
   it("says nothing blocks the stage when the current Stage has no conditions", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([])

@@ -38,7 +38,20 @@ import { Button } from "../ui/button";
  * (conditions, fields, actions, tasks, follow-up), and a component that
  * decided its own neighbours' order could not be put in that order.
  */
-export default function StageChecklist({ opportunity, employees = [], actorId, onChanged, onSaveField }) {
+export default function StageChecklist({
+  opportunity,
+  employees = [],
+  actorId,
+  onChanged,
+  onSaveField,
+  // Issue #885 — the Stage Fields the header counts as blocking (required and
+  // empty). Shown here too, so this box never says "Nothing blocks" while the
+  // header says Blocked.
+  missingRequiredStageFields = [],
+  // Issue #885 — true while the Stage Fields behind `missingRequiredStageFields`
+  // are still loading. Until then nothing about what blocks may be shown.
+  blockersPending = false,
+}) {
   const [fieldValues, setFieldValues] = useState({});
   const [savingField, setSavingField] = useState(null);
   const [assignmentId, setAssignmentId] = useState({});
@@ -53,7 +66,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   // changes its Conditions, so a cached list must not outlive the version.
   const snapshotId = opportunity?.flow_snapshot_id ?? null;
 
-  const { data: checklist = [] } = useQuery({
+  const { data: checklist = [], isLoading: checklistLoading } = useQuery({
     queryKey: ["stageChecklist", opportunityId, stageCode, snapshotId],
     // Read fresh, not from the prop: right after a Save or a move the prop can
     // still be the copy from before it.
@@ -216,12 +229,38 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   const allSatisfied = applicable.length > 0 && satisfiedCount === applicable.length;
 
   const showChecklist = checklist.length > 0;
+  // Issue #885 — the "clear" wording is only true once both halves are known.
+  const checking = checklistLoading || blockersPending;
+  const hasMissingFields = missingRequiredStageFields.length > 0;
+  const conditionsDone = allSatisfied && !hasMissingFields;
+
+  if (checking) {
+    // Same rough height as the real list, so the box does not jump when the
+    // conditions arrive. Says nothing about what blocks, because it does not know yet.
+    return (
+      <div
+        role="status"
+        aria-busy="true"
+        className="min-h-[88px] space-y-2 rounded-xl border border-border/70 bg-card/50 px-4 py-3"
+      >
+        <p className="text-sm text-muted-foreground">Checking what this stage owes…</p>
+        <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {!showChecklist && (
+      {!showChecklist && !hasMissingFields && (
         <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground">
           Nothing blocks this stage.
+        </p>
+      )}
+
+      {hasMissingFields && (
+        <p className="rounded-xl border border-amber-9/30 bg-amber-a2 px-4 py-3 text-sm font-semibold text-foreground">
+          Still needed before this stage can move: {missingRequiredStageFields.map((field) => field.label).join(", ")}.
         </p>
       )}
 
@@ -229,7 +268,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
         <div
           className={cn(
             "rounded-xl border p-4",
-            allSatisfied ? "border-green-9/40 bg-green-a2" : "border-border/70 bg-card/50",
+            conditionsDone ? "border-green-9/40 bg-green-a2" : "border-border/70 bg-card/50",
           )}
         >
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -240,7 +279,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
               <span
                 className={cn(
                   "shrink-0 rounded-md px-2 py-0.5 text-label font-black uppercase tracking-wider tabular-nums",
-                  allSatisfied
+                  conditionsDone
                     ? "bg-green-9/15 text-green-11"
                     : "bg-amber-9/15 text-amber-11",
                 )}
@@ -250,7 +289,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
             )}
           </div>
 
-          {allSatisfied && (
+          {conditionsDone && (
             <p className="mb-3 flex items-center gap-1.5 text-xs font-bold text-green-11">
               <CheckCircle2 size={14} className="shrink-0" />
               Stage requirements met — this Stage no longer blocks the move.

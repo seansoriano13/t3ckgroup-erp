@@ -63,6 +63,8 @@ export default function SorModalHeader({
   handleStageChange,
   checklist,
   missingRequiredStageFields = [],
+  // Issue #885 — true while the conditions or Stage Fields are still loading.
+  blockersPending = false,
   isOpen,
   hasPrev,
   hasNext,
@@ -212,13 +214,19 @@ export default function SorModalHeader({
                 )}
               </>
             )}
+            {/* Issue #885 — no verdict until the conditions and Stage Fields are in. */}
             <span
+              aria-live="polite"
               className={cn(
                 "rounded-full px-2 py-0.5",
-                blockedCount > 0 ? "bg-red-9/15 text-red-11" : "bg-green-9/15 text-green-11",
+                blockersPending
+                  ? "bg-muted text-muted-foreground"
+                  : blockedCount > 0
+                    ? "bg-red-9/15 text-red-11"
+                    : "bg-green-9/15 text-green-11",
               )}
             >
-              {blockedCount > 0 ? `Blocked: ${blockedCount}` : "Clear to move"}
+              {blockersPending ? "Checking…" : blockedCount > 0 ? `Blocked: ${blockedCount}` : "Clear to move"}
             </span>
           </p>
         </div>

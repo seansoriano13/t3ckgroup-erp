@@ -65,6 +65,8 @@ export default function NowTab({ ctx }) {
     cancelPendingStage,
     stageMutation,
     isRestricted,
+    missingRequiredStageFields,
+    blockersPending,
   } = ctx;
 
   // A flow SOR's `status` never changes (it stays LEAD), so anything keyed
@@ -182,6 +184,8 @@ export default function NowTab({ ctx }) {
           actorId={user?.id}
           onChanged={invalidate}
           onSaveField={handleSaveField}
+          missingRequiredStageFields={missingRequiredStageFields}
+          blockersPending={blockersPending}
         />
       </Section>
 

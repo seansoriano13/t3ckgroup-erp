@@ -261,7 +261,9 @@ export default function SorModal({
     enabled: !!id && isOpen && accessLevel !== "locked" && (hasOpened("items") || isEditing),
   });
 
-  const { data: checklist = [] } = useQuery({
+  // Issue #885 — `isLoading` (not `isPending`): a query that is switched off
+  // stays pending forever, and must not read as "still checking".
+  const { data: checklist = [], isLoading: checklistLoading } = useQuery({
     queryKey: ["stageChecklist", id, activeOpportunity?.flow_stage_id || activeOpportunity?.status, activeOpportunity?.flow_snapshot_id ?? null],
     queryFn: () => opportunityService.getStageChecklist(id, activeOpportunity),
     enabled: !!id && isOpen && accessLevel !== "locked",
@@ -330,7 +332,7 @@ export default function SorModal({
   // either), so a required, empty Stage Field read as "clear" right up until
   // the move itself came back refused. Fetched here, not just inside Now's
   // Stage Fields form, so the header can name it before the click.
-  const { data: stageFields = [] } = useQuery({
+  const { data: stageFields = [], isLoading: stageFieldsLoading } = useQuery({
     queryKey: ["stageFields", activeOpportunity?.flow_stage_id],
     queryFn: () => stageFieldService.getForStage(activeOpportunity.flow_stage_id),
     enabled: runsFlow && !!activeOpportunity?.flow_stage_id && isOpen,
@@ -350,6 +352,11 @@ export default function SorModal({
       }),
     [runsFlow, stageFields, activeOpportunity, currentVisitFieldValues],
   );
+
+  // Issue #885 — while the conditions or the Stage Fields are still loading,
+  // nothing may say "Clear to move" or "Nothing blocks": the header shows a
+  // checking state and the Stage box waits too.
+  const blockersPending = checklistLoading || stageFieldsLoading;
 
   // Only Details shows or edits a Lead Source (#302), so it waits for Details.
   const { data: activeLeadSources = [] } = useQuery({
@@ -835,6 +842,8 @@ export default function SorModal({
     employees,
     activeLeadSources,
     checklist,
+    missingRequiredStageFields,
+    blockersPending,
     automationTasks,
     invalidate,
     handleSaveField,
@@ -883,6 +892,7 @@ export default function SorModal({
     handleStageChange,
     checklist,
     missingRequiredStageFields,
+    blockersPending,
     isOpen,
     hasPrev,
     hasNext,
