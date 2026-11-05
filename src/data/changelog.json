@@ -1,5 +1,14 @@
 [
     {
+        "date": "2026-11-05",
+        "title": "SOR Awarded goes to the people buying",
+        "version": "1.9.87",
+        "changes": [
+            "When an SOR gets a Date of Award, the SOR Awarded notice now goes only to the buyers of its purchase requests, not to every Purchasing employee.",
+            "If no purchase request has a buyer yet, the notice goes to the Purchasing heads instead."
+        ]
+    },
+    {
         "date": "2026-11-04",
         "title": "Technical page for the RRD and IOE teams",
         "version": "1.9.86",
