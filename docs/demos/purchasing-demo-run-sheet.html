@@ -199,7 +199,7 @@ ol.steps input[type=checkbox] {
     <table>
       <thead><tr><th>P0</th><th>Supplier</th><th>Amount</th><th>S03204 Lines Covered</th><th>Arrived in Odoo</th></tr></thead>
       <tbody>
-        <tr><td class="mono">P01046</td><td>Jiujang Fire Fighting</td><td class="num">USD 3,223</td><td>fire suit, gloves, safety belt, boots, hood, helmet yellow, helmet white (7 lines)</td><td><span class="tag ok">all 7 lines</span></td></tr>
+        <tr><td class="mono">P01046</td><td>Jiujang Fire Fighting</td><td class="num">PHP 3,223</td><td>fire suit, gloves, safety belt, boots, hood, helmet yellow, helmet white (7 lines)</td><td><span class="tag ok">all 7 lines</span></td></tr>
         <tr><td class="mono">P01421</td><td>TG Enterprise</td><td class="num">₱13,860</td><td>goggles</td><td><span class="tag ok">all 10 units</span></td></tr>
         <tr><td class="mono">P01047</td><td>Taizhou Sanjiang</td><td class="num">USD 1,380</td><td>hose 1.5" (10 of 10), nozzle 2.5"</td><td>hose 1.5" <span class="tag ok">all 10</span> · nozzle 2.5" <span class="tag short">0 of 4</span></td></tr>
         <tr><td class="mono">P01423</td><td>TG Global Trade</td><td class="num">₱21,840</td><td>hose 2.5", nozzle 1.5" ×2</td><td>nozzle 1.5" <span class="tag ok">all 2</span> · hose 2.5" <span class="tag short">2 of 10</span></td></tr>
@@ -649,11 +649,10 @@ ol.steps input[type=checkbox] {
         <div class="row where"><b>Where</b><div>Signers window (jelai@demo) → Purchasing → IPAS → P01046 IPAS → Click <b>Edit</b></div></div>
         <div class="row do"><b>Do</b><div><ol>
           <li>In Section 1 (Purchasing), locate Payments. Click <b>Add payment</b>.</li>
-          <li>Kind: <b>Payment</b>, Amount: <b>3223</b> (USD), Method: <b>BDO</b>, Proof: Attach demo PDF.</li>
-          <li>Forex Rate: Pre-populates with today's Reference Rate. Set to <code>58.20</code>.</li>
+          <li>Kind: <b>Payment</b>, Amount: <b>3223</b> (PHP), Method: <b>BDO</b>, Proof: Attach demo PDF.</li>
           <li>Click <b>Save all</b>.</li>
         </ol></div></div>
-        <div class="row see"><b>See</b><div>Payment saved. "In pesos" calculates as $3,223 × 58.20 = ₱187,578.60.</div></div>
+        <div class="row see"><b>See</b><div>Payment saved. P01046 is a PHP order, so there is no Forex Rate and "In pesos" shows ₱3,223.00.</div></div>
       </div>
     </li>
     <li data-k="6.9"><input type="checkbox" aria-label="Done">
