@@ -44,6 +44,8 @@ export function summarize(items) {
   return {
     total: live.length,
     ready: ready.length,
+    // #902: the bar fills by ready lines only, so it measures what the headline counts.
+    readyPercent: live.length ? Math.round((ready.length / live.length) * 100) : 0,
     segments: [
       { key: "ready", label: "Available or Received", count: ready.length, bar: "bg-green-9" },
       { key: "purchased", label: "Purchased, not received yet", count: purchased.length, bar: "bg-blue-9" },
