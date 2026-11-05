@@ -8,6 +8,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { opportunityService } from "../../../../services/opportunityService";
 import { currentVisitTaskRows } from "../../../../constants/sorTasks";
+import { COSTING_BAND } from "../../../../constants/costing";
+import { useCostingMatrix } from "../../../costing/useCostingMatrix";
 import { blockedLabels, formatPHP, itemsTotal, stageMoves, teamRows } from "./shared";
 
 const DAY = 86400000;
@@ -34,6 +36,20 @@ export function pendingDecisionAttention(runs = []) {
   });
 }
 
+/**
+ * The "Name a Technical in-charge" attention item (#910). Shown only when the SOR has an S0 Evaluation
+ * with no Technical in-charge, and only to a caller who can name one (the Sales or Purchasing band).
+ * `matrix` is the shaped Costing Matrix (`costingMatrixService.get`), or null when the caller has no
+ * tier or the SOR has no matrix yet.
+ */
+export function technicalInchargeAttention(matrix) {
+  if (!matrix?.matrix) return null;
+  if (matrix.matrix.technical_incharge_id) return null;
+  const canName = (matrix.bands ?? []).some((band) => band === COSTING_BAND.SALES || band === COSTING_BAND.PURCHASING);
+  if (!canName) return null;
+  return { key: "technical", tone: "amber", text: "Name a Technical in-charge for the S0 Evaluation.", go: "pms" };
+}
+
 export function useDigest(p) {
   const { opportunity, id, ctx } = p;
   const stageCode = opportunity?.flow_stage_id || opportunity?.status;
@@ -45,6 +61,8 @@ export function useDigest(p) {
     queryFn: () => opportunityService.getPendingActionsForActor(opportunity.id, actorId),
     enabled: !!opportunity?.id && !!actorId,
   });
+  // Shared with the PMS tab (same key), so the Costing Matrix is not fetched twice.
+  const { data: costingMatrix = null } = useCostingMatrix(id);
 
   const { data: currentVisit = null } = useQuery({
     queryKey: ["currentStageVisit", id, stageCode],
@@ -73,6 +91,8 @@ export function useDigest(p) {
   if (p.isRestricted) attention.push({ key: "restricted", tone: "amber", text: "This stage is restricted — the deal can't be moved from here." });
   blocked.forEach((label) => attention.push({ key: `b-${label}`, tone: "amber", text: `Before moving: ${label}`, go: "now" }));
   attention.push(...pendingDecisionAttention(pendingDecisions));
+  const inchargeItem = technicalInchargeAttention(costingMatrix);
+  if (inchargeItem) attention.push(inchargeItem);
   if (followUpOverdue) attention.push({ key: "followup", tone: "red", text: "Follow-up is overdue.", go: "now" });
   if (overdueTasks.length) attention.push({ key: "overdue", tone: "red", text: `${overdueTasks.length} task${overdueTasks.length === 1 ? " is" : "s are"} past due.`, go: "now" });
   if (!opportunity.sales_reference && opportunity.status === "LEAD" && !p.isFlowDeal) attention.push({ key: "ref", tone: "amber", text: "No Sales Reference yet — needed to qualify.", go: "details" });
