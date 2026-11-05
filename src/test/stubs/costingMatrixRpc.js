@@ -494,10 +494,12 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     if (rowsOf("costing_signoffs").some((s) => s.matrix_id === matrix.id && s.role === role && !s.cleared_at)) {
       throw pgrstError("55000", "costing_sign: the evaluation is already approved", { status: 409 })
     }
-    const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
-    const missing = rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id) && !c.compliance).length
-    if (missing > 0) {
-      throw pgrstError("55000", `costing_sign: ${missing} Component${missing === 1 ? " has" : "s have"} no verdict yet`, { status: 409 })
+    // #908: one Technical verdict for the whole S0 Evaluation, given by the in-charge; the giver cannot approve it.
+    if (matrix.compliance_by != null && matrix.compliance_by === actorId) {
+      throw pgrstError("42501", "costing_sign: you gave the Technical verdict, so someone else has to approve the evaluation", { status: 403 })
+    }
+    if (!matrix.compliance) {
+      throw pgrstError("22023", "costing_sign: the Technical verdict is not given yet", { status: 400 })
     }
     const signoff = insertRow("costing_signoffs", { matrix_id: matrix.id, role, signed_by: actorId })
     return { signoff }

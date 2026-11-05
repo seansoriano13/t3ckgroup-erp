@@ -10,9 +10,6 @@ import { costingMatrixService } from "../../../services/costingMatrixService";
 import { COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
 import { factorLabel, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
-import { useAuth } from "../../../context/AuthContext";
-import ComplianceColumn from "./ComplianceColumn";
-import { useMyEvaluationTeams } from "./evaluationTeams";
 import { ROAD_THEMES, lineRoad } from "../../../utils/itemRoad";
 
 /** Where the line is on its way from plan to warehouse (utils/itemRoad), as one badge; a stuck part says so. */
@@ -37,11 +34,12 @@ const SOURCE_BADGE = {
 
 /**
  * The Costing Matrix as one flat grid, one row per line of the SOR's S0 (layout A "Sheet", spec #699,
- * ticket #700). A header strip of facts, two header rows (the team that owns each column, then the
+ * ticket #700). A header strip of facts, two header rows (the group each column sits under, then the
  * column), and the Item column frozen while the money scrolls sideways. A box you can type in is a
- * `Cell`; everything else is plain text. The item opens the line's slide-over (CostingDesk). This ticket draws Item, Qty, Client asks for, ABC / unit and
- * Final Offer / unit; later tickets add the cost, markup and compliance columns after them. A column
- * the viewer's tier is not sent is left out, not blanked.
+ * `Cell`; everything else is plain text. The item opens the line's slide-over (CostingDesk). The grid
+ * draws Item, Qty, Client asks for, the money and markup columns. A column the viewer's tier is not sent
+ * is left out, not blanked. The Technical verdict is one verdict for the whole S0 Evaluation (#909), on
+ * its own card above the sheet, so the sheet has no per-line Compliance column.
  */
 
 const CELL = "border-b border-r border-border px-3 py-2.5 align-top text-[13px] leading-snug";
@@ -204,9 +202,7 @@ function MarkupCells({ line, kid, figures, tier, canMarkup, onSaveFactor }) {
   );
 }
 
-export default function CostingSheet({ matrix, opportunity, writes, canWrite, onOpenLine, onVerdict, onVerdictSettled }) {
-  const { user } = useAuth();
-  const myTeams = useMyEvaluationTeams(user?.id ?? null);
+export default function CostingSheet({ matrix, opportunity, writes, canWrite, onOpenLine }) {
   const lines = matrix.tenderLines;
   const { totals } = matrix;
   const showAbc = tierReads(matrix.tier, "abc_unit");
@@ -231,7 +227,6 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const kidsOf = new Map();
   for (const line of lines) if (line.included && line.includedIn) kidsOf.set(line.includedIn, [...(kidsOf.get(line.includedIn) ?? []), line]);
   const priced = lines.filter((line) => !line.included);
-  const judged = matrix.compliance.total - matrix.compliance.notEvaluated;
 
   const save = (line, fields) => async (value) => {
     await costingMatrixService.updateTenderLine(line.id, fields(value));
@@ -266,9 +261,6 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
         </Fact>
         <Fact label="S0 lines" sub={lines.length === priced.length ? undefined : `${lines.length - priced.length} included`}>
           {lines.length}
-        </Fact>
-        <Fact label="Judged">
-          {judged} of {matrix.compliance.total}
         </Fact>
         {closed && (
           <Fact label="Default multiplier" sub={canMarkup ? "rows can override it" : "set by the Markup list"}>
@@ -332,11 +324,10 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                 </th>
               )}
               {markupCols > 0 && (
-                <th colSpan={markupCols} className={GROUP}>
+                <th colSpan={markupCols} className={cn(GROUP, "border-r-0")}>
                   {closed ? "Markup" : "Price"}
                 </th>
               )}
-              <th className={cn(GROUP, "border-r-0")}>Technical</th>
             </TableRow>
             <TableRow>
               <th className={cn(HEAD, FROZEN)}>Item</th>
@@ -349,14 +340,13 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
               {showLanded && <th className={cn(HEAD, "text-right")}>Landed / unit</th>}
               {closed && <th className={cn(HEAD, "text-right")}>Multiplier</th>}
               {showSuggested && <th className={cn(HEAD, "text-right")}>Suggested / unit</th>}
-              {closed && <th className={cn(HEAD, "text-right")}>Margin / unit</th>}
-              <th className={cn(HEAD, "border-r-0")}>Compliance</th>
+              {closed && <th className={cn(HEAD, "text-right border-r-0")}>Margin / unit</th>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {lines.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={4 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
+                <TableCell colSpan={3 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
                   No S0 lines yet.
                 </TableCell>
               </TableRow>
@@ -464,9 +454,6 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                   {showCost && <CostCells line={line} canCost={canCost} onSave={saveCost(line)} />}
                   {showLanded && <LandedCell line={line} addons={addons} />}
                   {showSuggested && <MarkupCells line={line} kid={kid} figures={figures} tier={matrix.tier} canMarkup={canMarkup} onSaveFactor={saveFactor(line)} />}
-                  <TableCell className={cn(CELL, "min-w-[12rem] max-w-[16rem] border-r-0")}>
-                    <ComplianceColumn line={line} myTeams={myTeams} canSetTeam={canWrite} onChanged={writes.refresh} onVerdict={onVerdict} onVerdictSettled={onVerdictSettled} />
-                  </TableCell>
                 </TableRow>
               );
             })}

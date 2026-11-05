@@ -11,7 +11,6 @@ import { costingMatrixService, requestsByComponent } from "../../../services/cos
 import { canvassService } from "../../../services/canvassService";
 import { opportunityService } from "../../../services/opportunityService";
 import { COMPONENT_BANDS, COSTING_BAND, inAnyBand, tierReads, tierReadsBidDecision, tierReadsCost } from "../../../constants/costing";
-import { complianceRollup } from "../../../utils/costingMath";
 import { matrixPlay } from "../../../utils/costingPlayground";
 import { useAuth } from "../../../context/AuthContext";
 import { useCostingMatrix } from "../useCostingMatrix";
@@ -24,6 +23,7 @@ import CostGuide from "./CostGuide";
 import CostingSummary from "../CostingSummary";
 import EvaluationBar from "../EvaluationBar";
 import InchargeSelects from "../InchargeSelects";
+import TechnicalVerdict from "../TechnicalVerdict";
 import SignoffBar from "../SignoffBar";
 import { LandedCostRollup } from "../LandedCost";
 import LineDetail from "./LineDetail";
@@ -41,17 +41,6 @@ function lineBadge(line, { showAbc, showOffer, showCost }) {
   if (showOffer && line.final_offer_unit == null) return { label: "No offer", theme: "amber" };
   if (showOffer && line.totals.overAbc) return { label: "Over ABC", theme: "red" };
   return null;
-}
-
-/** The matrix with the verdicts in `verdicts` (component id to verdict, null for none) laid over its Components, and the compliance roll-up recounted. */
-function withVerdicts(matrix, verdicts) {
-  if (!matrix || Object.keys(verdicts).length === 0) return matrix;
-  const tenderLines = matrix.tenderLines.map((line) =>
-    line.components?.some((part) => part.id in verdicts)
-      ? { ...line, components: line.components.map((part) => (part.id in verdicts ? { ...part, compliance: verdicts[part.id] } : part)) }
-      : line,
-  );
-  return { ...matrix, tenderLines, compliance: complianceRollup(tenderLines.flatMap((line) => line.components ?? [])) };
 }
 
 /**
@@ -107,17 +96,7 @@ function useFill(matrix, opportunityId, writes) {
 export default function CostingDesk({ opportunityId, opportunity }) {
   const { user } = useAuth();
   const actorId = user?.id ?? null;
-  const { data: fetched, isLoading, isError, error } = useCostingMatrix(opportunityId);
-  // Verdicts just chosen in a Compliance dropdown, shown before the refetch lands. One overlay, so the
-  // sheet's Judged count and the Evaluation bar read the same roll-up.
-  const [verdicts, setVerdicts] = useState({});
-  const showVerdict = (id, verdict) => setVerdicts((current) => ({ ...current, [id]: verdict }));
-  const dropVerdict = (id) =>
-    setVerdicts((current) => {
-      const { [id]: _settled, ...rest } = current;
-      return rest;
-    });
-  const matrix = withVerdicts(fetched, verdicts);
+  const { data: matrix, isLoading, isError, error } = useCostingMatrix(opportunityId);
   const writes = useCostingWrites(opportunityId);
   const incharge = useInchargeOptions(opportunity);
   const { canFill, fill, odooNote } = useFill(matrix, opportunityId, writes);
@@ -203,6 +182,8 @@ export default function CostingDesk({ opportunityId, opportunity }) {
 
   const canSalesIncharge = inAnyBand(matrix.allBands ?? matrix.bands, COMPONENT_BANDS.sales_incharge_id);
   const canPurchasingIncharge = inAnyBand(matrix.allBands ?? matrix.bands, COMPONENT_BANDS.purchasing_incharge_id);
+  // The Technical in-charge (#908) is named by Sales or Purchasing, as the other incharges are.
+  const canPickTechnical = inAnyBand(matrix.allBands ?? matrix.bands, [COSTING_BAND.SALES, COSTING_BAND.PURCHASING]);
 
   return (
     <div className="space-y-6 pb-2" data-testid="costing-desk">
@@ -253,17 +234,22 @@ export default function CostingDesk({ opportunityId, opportunity }) {
             purchasingOptions={incharge.purchasingOptions}
             canSales={canSalesIncharge}
             canPurchasing={canPurchasingIncharge}
+            technical={matrix.matrix?.technical_incharge_id}
+            technicalOptions={incharge.technicalOptions}
+            canTechnical={canPickTechnical}
             onSave={async (who) => {
               await costingMatrixService.setIncharge({ matrixId: matrix.matrixId }, who);
               await writes.refresh();
             }}
           />
 
+          <TechnicalVerdict matrix={matrix} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
+
           <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
 
           <section className="space-y-3">
             <h3 className="text-sm font-bold text-foreground">Lines · {lines.length}</h3>
-            <CostingSheet matrix={matrix} opportunity={opportunity} writes={writes} canWrite={canWrite} onOpenLine={setOpenLineId} onVerdict={showVerdict} onVerdictSettled={dropVerdict} />
+            <CostingSheet matrix={matrix} opportunity={opportunity} writes={writes} canWrite={canWrite} onOpenLine={setOpenLineId} />
             {canWrite && (
               <Button type="button" variant="outline" size="sm" disabled={writes.busy} onClick={() => writes.run(() => costingMatrixService.addTenderLine(matrix.matrixId, {}, actorId))}>
                 <Plus size={14} aria-hidden="true" />

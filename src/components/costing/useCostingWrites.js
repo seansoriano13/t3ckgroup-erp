@@ -55,10 +55,14 @@ export function dealTeamIds(opportunity) {
   return ids;
 }
 
+/** Is the employee in the Technical sub-department? Trimmed and case-insensitive, as the database checks (#908). */
+export const isTechnicalEmployee = (employee) => String(employee?.subDepartment ?? "").trim().toLowerCase() === "technical";
+
 /**
  * Who can be named incharge, and what to call them (#268): the Sales incharge is picked from the
  * SOR's Deal Team and the Purchasing incharge from people with Purchasing access, which is what
- * the database checks. Names only; naming someone grants and notifies nothing.
+ * the database checks. The Technical in-charge (#909) is picked from the Technical sub-department.
+ * Names only; naming someone grants and notifies nothing.
  */
 export function useInchargeOptions(opportunity) {
   const { data: employees = [] } = useQuery({
@@ -74,6 +78,7 @@ export function useInchargeOptions(opportunity) {
     return {
       salesOptions: employees.filter((e) => team.has(e.id)).map(option),
       purchasingOptions: employees.filter((e) => e.has_purchasing_flow).map(option),
+      technicalOptions: employees.filter(isTechnicalEmployee).map(option),
       nameOf: (id) => employees.find((e) => e.id === id)?.name ?? null,
     };
   }, [employees, opportunity]);

@@ -580,7 +580,7 @@ describe("costingMatrixService", () => {
       const second = makeEmployee({ name: "Manager Two" });
       const third = makeEmployee({ name: "Evaluator" });
 
-      expect(await costingMatrixService.getSignerLists()).toEqual({ final_acquire: [], evaluation: [], markup: [], team_rrd: [], team_ioe: [] });
+      expect(await costingMatrixService.getSignerLists()).toEqual({ final_acquire: [], evaluation: [], markup: [] });
       const added = await costingMatrixService.setSignerList("final_acquire", [first.id, second.id, first.id]);
       expect(added.map((m) => m.employeeId).sort()).toEqual([first.id, second.id].sort());
 
