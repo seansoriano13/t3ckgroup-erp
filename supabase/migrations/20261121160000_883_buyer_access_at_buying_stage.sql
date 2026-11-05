@@ -225,8 +225,6 @@ declare
   v_requesters jsonb;
   v_reraise public.purchase_requests;
 begin
-  v_requesters jsonb;
-begin
   if v_actor is null then
     raise exception 'sor_open_purchase_request: not signed in' using errcode = '42501';
   end if;
