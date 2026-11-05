@@ -108,16 +108,13 @@ async function onFinalAcquireList(employee) {
 }
 
 /**
- * Is the employee on the RRD or IOE evaluation team list (#706)? They get the Technical entry in the menu.
- * A failure reads as "no": this is a convenience for the navigation, never the gate (the database is).
+ * Is the employee the Technical in-charge of at least one S0 Evaluation (#908, spec #907 decision 10)? They get the
+ * Technical entry in the menu. The RRD and IOE team lists are retired. A failure reads as "no": this is a convenience
+ * for the navigation, never the gate (the database is).
  */
-async function onEvaluationTeamList(employee) {
+async function onTechnicalInchargeSomewhere(employee) {
   try {
-    const { data, error } = await supabase
-      .from("costing_signer_lists")
-      .select("list_key")
-      .eq("employee_id", employee.id)
-      .in("list_key", ["team_rrd", "team_ioe"]);
+    const { data, error } = await supabase.from("costing_matrices").select("id").eq("technical_incharge_id", employee.id).limit(1);
     return !error && (data || []).length > 0;
   } catch {
     return false;
@@ -162,7 +159,7 @@ export const employeeService = {
     const ipasLists = await ipasListMembership(data);
     const isFinalAcquire = await onFinalAcquireList(data);
     const isCostingOpen = await costingOpenAnywhere();
-    const isEvaluationTeam = await onEvaluationTeamList(data);
+    const isEvaluationTeam = await onTechnicalInchargeSomewhere(data);
     return {
       id: data.id,
       email: data.email,
