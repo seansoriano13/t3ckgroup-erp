@@ -44,7 +44,9 @@ import { Field, GroupTitle, PickField, ReadValue, RequiredMark } from "./FormFie
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
 import { BY_HAND, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
 
-const KIND_OPTIONS = IPAS_PAYMENT_KINDS.map((value) => ({ value, label: IPAS_PAYMENT_KIND_LABELS[value] }));
+export const SHOW_HAS_TICKS = false;
+
+const KIND_OPTIONS =IPAS_PAYMENT_KINDS.map((value) => ({ value, label: IPAS_PAYMENT_KIND_LABELS[value] }));
 
 const asOption = (option) => ({ value: option.id, label: option.active ? option.label : `${option.label} (deactivated)` });
 
@@ -556,6 +558,9 @@ function SavedDocumentRow({ document, row, required, canChange, canTickFinance, 
         </span>
       </div>
       <AttachmentField document={document} row={row} disabled={!canChange} onPatch={onPatch} />
+      {/* The "has it" ticks are hidden for now: nothing waits on them, and Filing keeps its own ticks. */}
+      {SHOW_HAS_TICKS && (
+      <>
       <FieldBox inline className="gap-1.5 text-xs text-foreground">
         <Checkbox
           tone="neutral"
@@ -576,6 +581,8 @@ function SavedDocumentRow({ document, row, required, canChange, canTickFinance, 
         />
         {IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.FINANCE]}
       </FieldBox>
+      </>
+      )}
       {/* Only a document added by hand can be removed; a suggested one is ticked or left. */}
       {canChange && document.byHand && (
         <Button type="button" variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-red-11" aria-label={`Remove ${document.label}`} onClick={onRemove}>
@@ -605,7 +612,6 @@ function NewDocumentRow({ ipas, form, row, index, fresh, onPatch, onRemove }) {
           <Field id={id("label")} label="Name" required placeholder="e.g. Warranty card" value={row.label} onChange={(v) => onPatch({ label: v })} />
         )}
       </div>
-      <p className="text-xs text-muted-foreground">Both ticks start empty.</p>
     </DraftRow>
   );
 }
@@ -667,7 +673,9 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
             );
           })
         )}
-        <p className="text-xs text-muted-foreground">Each department ticks its own box. A filing item ticked here is already ticked at Filing.</p>
+        {SHOW_HAS_TICKS && (
+          <p className="text-xs text-muted-foreground">Each department ticks its own box. A filing item ticked here is already ticked at Filing.</p>
+        )}
       </Titled>
     </div>
   );
