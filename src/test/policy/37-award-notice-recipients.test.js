@@ -1,10 +1,11 @@
 /**
- * #890: who the "SOR Awarded" notice goes to.
+ * #890 (spec #907, decision 6): who the "SOR Awarded" notice goes to.
  *
- *   - The Buyers of the SOR's Purchase Requests, and nobody else on Purchasing.
+ *   - The Buyer of the SOR's Purchase Request, the SOR's Purchasing Incharge
+ *     (costing matrix) and the request's purchasing members.
  *   - With no Buyer on any request, the Purchasing heads (is_head AND
  *     has_purchasing_flow). A head without the Purchasing flow is not one.
- *   - A soft-deleted Buyer never counts.
+ *   - A soft-deleted person never counts.
  *   - Only a signed-in employee may ask.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -12,8 +13,8 @@ import { ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cas
 import { serviceClient } from "./support/stack.js"
 import { makeSor } from "./support/rows.js"
 
-let sorWithBuyer, sorWithoutBuyer, sorWithDeletedBuyer
-const touched = { ids: [ids.stageParticipant, ids.head, ids.subHead, ids.deleted] }
+let sorBuyerAndMembers, sorHeadsOnly, sorDeletedBuyer
+const touched = [ids.stageParticipant, ids.head, ids.subHead, ids.deleted, ids.ordinary]
 const originalFlags = {}
 
 const recipients = async (client, opportunityId) =>
@@ -24,77 +25,86 @@ async function setFlags(employeeId, patch) {
     if (error) throw new Error(`Setting employee flags: ${error.message}`)
 }
 
-async function addRequest(opportunityId, assignedTo) {
-    const { error } = await serviceClient().from("sor_procurement_requests").insert({
-        opportunity_id: opportunityId,
-        requested_name: "[policy-tier] Rope",
-        requested_by: ids.dealOwner,
-        assigned_to: assignedTo,
-    })
+/** One Purchase Request per SOR (unique on opportunity_id). */
+async function addRequest(opportunityId, buyerId) {
+    const { data, error } = await serviceClient()
+        .from("purchase_requests")
+        .insert({ opportunity_id: opportunityId, buyer_id: buyerId, created_by: ids.dealOwner })
+        .select("id")
+        .single()
     if (error) throw new Error(`Seeding a Purchase Request: ${error.message}`)
+    return data.id
 }
 
 beforeAll(async () => {
     await ensureCastLoaded()
-    const { data } = await serviceClient()
-        .from("employees")
-        .select("id, has_purchasing_flow, is_head, is_deleted")
-        .in("id", touched.ids)
-    for (const row of data) originalFlags[row.id] = row
+    const { data } = await serviceClient().from("employees").select("id, has_purchasing_flow").in("id", touched)
+    for (const row of data) originalFlags[row.id] = row.has_purchasing_flow
 
-    // The buyer is a plain employee given the Purchasing flow; the head has it too.
+    // The buyer, the head and the deleted person have the Purchasing flow; the
+    // sub-head is a head without it.
     await setFlags(ids.stageParticipant, { has_purchasing_flow: true })
     await setFlags(ids.head, { has_purchasing_flow: true })
     await setFlags(ids.subHead, { has_purchasing_flow: false })
     await setFlags(ids.deleted, { has_purchasing_flow: true })
+    await setFlags(ids.ordinary, { has_purchasing_flow: true })
 
-    sorWithBuyer = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
-    sorWithoutBuyer = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
-    sorWithDeletedBuyer = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
-    await addRequest(sorWithBuyer, ids.stageParticipant)
-    await addRequest(sorWithDeletedBuyer, ids.deleted)
+    sorBuyerAndMembers = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+    sorHeadsOnly = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+    sorDeletedBuyer = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+
+    const requestId = await addRequest(sorBuyerAndMembers, ids.stageParticipant)
+    const { error: memberError } = await serviceClient().from("purchase_request_members").insert({
+        request_id: requestId,
+        employee_id: ids.ordinary,
+        side: "purchasing",
+    })
+    if (memberError) throw new Error(`Seeding a request member: ${memberError.message}`)
+    const { error: matrixError } = await serviceClient().from("costing_matrices").insert({
+        opportunity_id: sorBuyerAndMembers,
+        purchasing_incharge_id: ids.subHead,
+    })
+    if (matrixError) throw new Error(`Seeding a costing matrix: ${matrixError.message}`)
+
+    await addRequest(sorDeletedBuyer, ids.deleted)
 })
 
 afterAll(async () => {
     const svc = serviceClient()
-    await svc
-        .from("sor_procurement_requests")
-        .delete()
-        .in("opportunity_id", [sorWithBuyer, sorWithoutBuyer, sorWithDeletedBuyer])
-    await svc.from("sales_opportunities").delete().in("id", [sorWithBuyer, sorWithoutBuyer, sorWithDeletedBuyer])
-    for (const id of touched.ids) {
-        const row = originalFlags[id]
-        if (row) {
-            await setFlags(id, { has_purchasing_flow: row.has_purchasing_flow })
+    const sors = [sorBuyerAndMembers, sorHeadsOnly, sorDeletedBuyer]
+    await svc.from("costing_matrices").delete().in("opportunity_id", sors)
+    await svc.from("purchase_requests").delete().in("opportunity_id", sors)
+    await svc.from("sales_opportunities").delete().in("id", sors)
+    for (const id of touched) {
+        if (originalFlags[id] !== undefined) {
+            await setFlags(id, { has_purchasing_flow: originalFlags[id] })
         }
     }
 })
 
 describe("who the SOR Awarded notice goes to", () => {
-    it("is the Buyer of the SOR's Purchase Request, and nobody else", async () => {
-        const { data, error } = await recipients(await clientFor("ordinary"), sorWithBuyer)
+    it("is the Buyer, the Purchasing Incharge and the purchasing members, and nobody else", async () => {
+        const { data, error } = await recipients(await clientFor("ordinary"), sorBuyerAndMembers)
         expect(error).toBeNull()
-        expect(data).toEqual([ids.stageParticipant])
+        expect([...data].sort()).toEqual([ids.stageParticipant, ids.subHead, ids.ordinary].sort())
+        expect(data).not.toContain(ids.head)
     })
 
-    it("falls back to the Purchasing heads when no request has a Buyer yet", async () => {
-        const { data, error } = await recipients(await clientFor("ordinary"), sorWithoutBuyer)
+    it("falls back to the Purchasing heads when the SOR has no Buyer", async () => {
+        const { data, error } = await recipients(await clientFor("ordinary"), sorHeadsOnly)
         expect(error).toBeNull()
-        expect(data).toContain(ids.head)
-        expect(data).not.toContain(ids.subHead)
-        expect(data).not.toContain(ids.ordinary)
-        expect(data).not.toContain(ids.stageParticipant)
+        expect(data).toEqual([ids.head])
     })
 
     it("does not count a soft-deleted Buyer, so the heads are named instead", async () => {
-        const { data, error } = await recipients(await clientFor("ordinary"), sorWithDeletedBuyer)
+        const { data, error } = await recipients(await clientFor("ordinary"), sorDeletedBuyer)
         expect(error).toBeNull()
         expect(data).not.toContain(ids.deleted)
         expect(data).toContain(ids.head)
     })
 
     it("refuses a caller who is not signed in", async () => {
-        const { error } = await recipients(anonymousClient(), sorWithBuyer)
+        const { error } = await recipients(anonymousClient(), sorBuyerAndMembers)
         expect(error).not.toBeNull()
     })
 })
