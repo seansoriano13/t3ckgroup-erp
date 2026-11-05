@@ -1017,7 +1017,9 @@ export default function SorModal({
     >
       <RecordModalContent
         showCloseButton={false}
-        className="flex flex-col shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)]"
+        // z-[70] is the record layer (ModalShell's record window, e.g. the S0 Evaluation).
+        // The SOR is a record too, so opened over one it stacks on top of it (#886).
+        className="z-[70] flex flex-col shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)]"
       >
         {PrototypeShell ? (
           <Suspense fallback={null}>
