@@ -8,10 +8,9 @@
  *      warehouse, technical). Idempotent, like seed-mock-employees.mjs.
  *   2. Purchasing settings back to the demo's: IPAS sign-off lists, Transmittal
  *      staff lists and S0 Evaluation lists are refilled with the cast (DEMO_LISTS),
- *      the "Government" markup preset (1.30) is the only active one, ageing rules
- *      are blank and the Evaluation template is cleared. Option lists (payment
- *      methods etc.) and costing rates are left as they are: they are the defaults,
- *      not a choice.
+ *      the "Government" markup preset (1.30) is the only active one and ageing rules
+ *      are blank. Option lists (payment methods etc.) and costing rates are left as
+ *      they are: they are the defaults, not a choice.
  *   3. Requested Items (#678): the demo Purchase Requests list every S0 line as a Not
  *      checked item, the shape the app now keeps by itself.
  *   4. "Project [FOR DEMO]": the production "Project" Sales Flow, copied from
@@ -152,7 +151,6 @@ async function resetSettings(c) {
     console.log(`  ${table}: ${Object.keys(lists).length} lists filled with the cast`)
   }
   console.log(`  Ageing rules blanked: ${await n("update public.order_ageing_rules set days = null, updated_at = now() where days is not null")}`)
-  console.log(`  Evaluation template cleared: ${await n("update public.costing_evaluation_settings set evaluation_template_id = null, updated_at = now() where evaluation_template_id is not null")}`)
   // A preset a matrix already used stays (deactivated); an unused one goes. Then the demo's one.
   const used = await n("update public.costing_markup_presets p set active = false, updated_at = now() where exists (select 1 from public.costing_matrix_money m where m.default_preset_id = p.id)")
   const gone = await n("delete from public.costing_markup_presets p where not exists (select 1 from public.costing_matrix_money m where m.default_preset_id = p.id)")

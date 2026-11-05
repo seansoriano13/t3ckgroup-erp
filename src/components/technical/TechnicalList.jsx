@@ -15,6 +15,8 @@ import { IdentityCell } from "../purchasing/list/IdentityCell";
 import { StateCell, STATE_HEAD_CLASS } from "../purchasing/list/StateCell";
 import { SortHead, Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import { TablePager } from "../ui/TablePager";
+import { useAuth } from "../../context/AuthContext";
+import { getPermissionContext } from "../../utils/permissions";
 import { useTableSort } from "../../hooks/useTableSort";
 import { usePaging } from "../../hooks/usePaging";
 import { costingMatrixService } from "../../services/costingMatrixService";
@@ -25,7 +27,8 @@ import { TECHNICAL_TAB, checkedLabel, filterTechnical, technicalKeys, technicalS
 /**
  * The Technical list (#877), built like the Purchasing lists: To check / Done / All pills, a search, sortable
  * columns, a pager, and a row that opens its sheet in a record window over the list (`selectedId` is the row whose
- * window is open). SOR names and counts only, never money.
+ * window is open). SOR names and counts only, never money. Someone on the Evaluation list also gets "Waiting for
+ * approval" (a verdict in, no approval yet), and opens on it unless they are an in-charge, whose verdicts come first.
  */
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
@@ -102,7 +105,10 @@ function TechnicalRow({ row, selected, onOpen, search, stageTones }) {
 
 export default function TechnicalList({ selectedId = null }) {
   const navigate = useNavigate();
-  const [tab, setTab] = useState(TECHNICAL_TAB.TO_CHECK);
+  const { user } = useAuth();
+  const { isOnEvaluationList: approves, isTechnicalIncharge: givesVerdicts } = getPermissionContext(user);
+  const firstTab = approves && !givesVerdicts ? TECHNICAL_TAB.TO_APPROVE : TECHNICAL_TAB.TO_CHECK;
+  const [tab, setTab] = useState(firstTab);
   const [search, setSearch] = useState("");
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -120,6 +126,7 @@ export default function TechnicalList({ selectedId = null }) {
   const counts = useMemo(
     () => ({
       [TECHNICAL_TAB.TO_CHECK]: filterTechnical(narrowed, { tab: TECHNICAL_TAB.TO_CHECK }).length,
+      [TECHNICAL_TAB.TO_APPROVE]: filterTechnical(narrowed, { tab: TECHNICAL_TAB.TO_APPROVE }).length,
       [TECHNICAL_TAB.DONE]: filterTechnical(narrowed, { tab: TECHNICAL_TAB.DONE }).length,
       [TECHNICAL_TAB.ALL]: narrowed.length,
     }),
@@ -129,8 +136,17 @@ export default function TechnicalList({ selectedId = null }) {
   const { sorted: visible, sort, toggle } = useTableSort(filtered, SORT);
   const paging = usePaging(visible);
 
-  const hasActiveFilters = search !== "" || tab !== TECHNICAL_TAB.TO_CHECK;
+  const hasActiveFilters = search !== "" || tab !== firstTab;
   const open = (id) => navigate(`/technical/${id}`);
+
+  const description =
+    approves && givesVerdicts
+      ? "The S0 Evaluations you give a verdict on, and the ones waiting for your approval."
+      : approves
+        ? "The S0 Evaluations waiting for your approval. Open one to read the Technical verdict and approve it."
+        : "The S0 Evaluations you are the Technical in-charge for. Open one to give its Complies or Deviates verdict.";
+  const emptyAtStart = approves ? "S0 Evaluations appear here once a Technical in-charge is named on them." : "S0 Evaluations appear here once Sales or Purchasing names you as their Technical in-charge.";
+  const nothingWaiting = rows.length > 0 && tab === TECHNICAL_TAB.TO_APPROVE && search === "";
 
   const toolbar = (
     <>
@@ -141,6 +157,7 @@ export default function TechnicalList({ selectedId = null }) {
         onChange={setTab}
         tabs={[
           { value: TECHNICAL_TAB.TO_CHECK, label: "To check", badge: counts[TECHNICAL_TAB.TO_CHECK] },
+          ...(approves ? [{ value: TECHNICAL_TAB.TO_APPROVE, label: "Waiting for approval", badge: counts[TECHNICAL_TAB.TO_APPROVE] }] : []),
           { value: TECHNICAL_TAB.DONE, label: "Done", badge: counts[TECHNICAL_TAB.DONE] },
           { value: TECHNICAL_TAB.ALL, label: "All", badge: counts[TECHNICAL_TAB.ALL] },
         ]}
@@ -150,14 +167,14 @@ export default function TechnicalList({ selectedId = null }) {
         hasActiveFilters={hasActiveFilters}
         onClearAll={() => {
           setSearch("");
-          setTab(TECHNICAL_TAB.TO_CHECK);
+          setTab(firstTab);
         }}
       />
     </>
   );
 
   return (
-    <PageShell title="Technical" description="The S0 Evaluations you are the Technical in-charge for. Open one to give its Complies or Deviates verdict." toolbar={toolbar}>
+    <PageShell title="Technical" description={description} toolbar={toolbar}>
       {isLoading && <PageLoading label="Technical" />}
 
       {isError && <QueryError title="The Technical list could not be loaded." onRetry={refetch} />}
@@ -165,11 +182,13 @@ export default function TechnicalList({ selectedId = null }) {
       {!isLoading && !isError && visible.length === 0 && (
         <EmptyState
           icon={ClipboardCheck}
-          title={rows.length === 0 ? "Nothing to check yet" : "No matching SOR"}
+          title={rows.length === 0 ? "Nothing to check yet" : nothingWaiting ? "Nothing waiting for approval" : "No matching SOR"}
           description={
             rows.length === 0
-              ? "S0 Evaluations appear here once Sales or Purchasing names you as their Technical in-charge."
-              : "Nothing matches. Try another tab or search, or clear the filters."
+              ? emptyAtStart
+              : nothingWaiting
+                ? "An S0 Evaluation shows up here once its Technical in-charge gives the verdict."
+                : "Nothing matches. Try another tab or search, or clear the filters."
           }
         />
       )}

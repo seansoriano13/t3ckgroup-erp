@@ -226,8 +226,8 @@ ol.steps input[type=checkbox] {
         <tr><td><button class="copy" type="button">jelai@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Finance: records payment with proof, approves IPAS Section 3 (Computation &amp; Landed Cost).</td></tr>
         <tr><td><button class="copy" type="button">jen@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Admin: executes Transmittal Check by (1).</td></tr>
         <tr><td><button class="copy" type="button">grace@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Operations Manager: approves Evaluation of Specification, executes Transmittal Check by (2), signs IPAS Section 4 Received.</td></tr>
-        <tr><td><button class="copy" type="button">201@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>General Manager: markup management, Go unlock authority, signs IPAS Section 4 Checked and Approved.</td></tr>
-        <tr><td><button class="copy" type="button">101@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Sales Director / Super Admin: Flow Canvas setup (Part 0), approves IPAS Section 1 &amp; Section 2, signs IPAS Section 4 Noted.</td></tr>
+        <tr><td><button class="copy" type="button">201@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>General Manager: markup management, Go unlock authority, approves Evaluation of Specification, signs IPAS Section 4 Checked and Approved.</td></tr>
+        <tr><td><button class="copy" type="button">101@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Sales Director / Super Admin: Flow Canvas setup (Part 0), approves IPAS Section 1 &amp; Section 2, approves Evaluation of Specification, signs IPAS Section 4 Noted.</td></tr>
         <tr><td><button class="copy" type="button">aldrin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Warehouse Staff: signs Transmittal Warehouse Checking &amp; Releasing, signs Received in Odoo, signs IPAS Logistics, packs Packing List.</td></tr>
         <tr><td><button class="copy" type="button">sherwin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Technical in-charge on the S0 Evaluations Sales names him for: gives the one Technical verdict (Sales &rarr; Technical), signs Transmittal Technical Inspection.</td></tr>
       </tbody>
@@ -525,8 +525,8 @@ ol.steps input[type=checkbox] {
     <li data-k="5.4"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">5.4</span><span class="seat s-sign">grace</span></div>
-        <div class="row where"><b>Where</b><div>Signers window (grace@demo) &rarr; S0 Evaluation sheet &rarr; "Evaluation of Specification" bar</div></div>
-        <div class="row do"><b>Do</b><div>Click <b>Approve the evaluation</b> button.</div></div>
+        <div class="row where"><b>Where</b><div>Signers window (grace@demo) &rarr; sidebar &rarr; Sales &rarr; <b>Technical</b> (opens on "Waiting for approval") &rarr; open the SOR &rarr; "Evaluation of Specification" bar</div></div>
+        <div class="row do"><b>Do</b><div>Click <b>Approve the evaluation</b> button. 201 and 101 are on the Evaluation list too and can approve the same way.</div></div>
         <div class="row see"><b>See</b><div>Bar turns green: "Evaluation approved by Grace demo" with timestamp. The button is not available until the Technical verdict in 5.3 is given.</div></div>
       </div>
     </li>
@@ -937,7 +937,7 @@ ol.steps input[type=checkbox] {
     <li data-k="C.3" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">C.3</span><span class="seat s-sign">grace</span></div>
-        <div class="row where"><b>Where</b><div>Signers window (grace@demo) &rarr; S0 Evaluation &rarr; Evaluation bar, before step 5.3</div></div>
+        <div class="row where"><b>Where</b><div>Signers window (grace@demo) &rarr; Technical &rarr; All &rarr; open the SOR &rarr; Evaluation bar, before step 5.3</div></div>
         <div class="row do"><b>Do</b><div>Inspect the <b>Approve the evaluation</b> button.</div></div>
         <div class="row see"><b>See</b><div>Approval is not available. The bar says "Technical verdict not given yet". The evaluation cannot be approved until the in-charge gives the verdict.</div></div>
       </div>

@@ -42,8 +42,12 @@ export function getPermissionContext(user) {
   const isFinalAcquire = !!(user?.is_final_acquire ?? user?.isFinalAcquire);
   // Sees the money side of at least one Costing Matrix (Purchasing, or on a Deal Team); derived by employeeService.
   const isCostingOpen = !!(user?.is_costing_open ?? user?.isCostingOpen);
-  // On the RRD or IOE evaluation team list: judges its rows on the Technical sheet; derived by employeeService.
-  const isEvaluationTeam = !!(user?.is_evaluation_team ?? user?.isEvaluationTeam);
+  // Named the Technical in-charge of at least one S0 Evaluation (#908); derived by employeeService.
+  const isTechnicalIncharge = !!(user?.is_technical_incharge ?? user?.isTechnicalIncharge);
+  // On the Evaluation list: approves an S0 Evaluation from the Technical page; derived by employeeService.
+  const isOnEvaluationList = !!(user?.is_on_evaluation_list ?? user?.isOnEvaluationList);
+  // The Technical page: the in-charge gives the verdict there, the Evaluation list approves it. Super Admins read it all.
+  const canOpenTechnical = isSuperAdmin || isTechnicalIncharge || isOnEvaluationList;
   const isBidDecider = isSuperAdmin || isFinalAcquire || isCostingOpen;
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
@@ -73,7 +77,9 @@ export function getPermissionContext(user) {
     isFinalAcquire,
     isCostingOpen,
     isBidDecider,
-    isEvaluationTeam,
+    isTechnicalIncharge,
+    isOnEvaluationList,
+    canOpenTechnical,
     hasRetailAccess,
     hasBugReportAccess,
     isRoleSimulator,

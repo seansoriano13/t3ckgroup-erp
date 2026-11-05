@@ -526,9 +526,9 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     if (rowsOf("costing_signoffs").some((s) => s.matrix_id === matrix.id && s.role === role && !s.cleared_at)) {
       throw pgrstError("55000", "costing_sign: the evaluation is already approved", { status: 409 })
     }
-    // #908: one Technical verdict for the whole S0 Evaluation, given by the in-charge; the giver cannot approve it.
-    if (matrix.compliance_by != null && matrix.compliance_by === actorId) {
-      throw pgrstError("42501", "costing_sign: you gave the Technical verdict, so someone else has to approve the evaluation", { status: 403 })
+    // #911: the S0 Evaluation's Technical in-charge cannot approve it, whoever stamped the verdict.
+    if (matrix.technical_incharge_id != null && matrix.technical_incharge_id === actorId) {
+      throw pgrstError("42501", "costing_sign: the Technical in-charge cannot approve the evaluation, so someone else has to", { status: 403 })
     }
     if (!matrix.compliance) {
       throw pgrstError("22023", "costing_sign: the Technical verdict is not given yet", { status: 400 })

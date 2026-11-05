@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-11-05",
+        "title": "Approve evaluations from the Technical page",
+        "version": "1.9.97",
+        "changes": [
+            "People on the Evaluation list now find the S0 Evaluations waiting for their approval on the Technical page, and approve them there.",
+            "The Technical in-charge of an SOR cannot approve its evaluation, and the page says so.",
+            "The evaluation task template setting is gone. Only the named Technical in-charge gives the verdict."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "Flow editor switch for employees",
         "version": "1.9.96",
         "changes": [

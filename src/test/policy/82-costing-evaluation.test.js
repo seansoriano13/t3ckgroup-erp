@@ -24,14 +24,13 @@ import { purgeCostingForSors } from "./support/costing.js"
 const svc = () => serviceClient()
 const CHECK_VIOLATION = "23514"
 const WRONG_STATE = "22023"
-const MIGRATION = readFileSync("supabase/migrations/20261121050004_908_technical_incharge.sql", "utf8")
 const APPROVAL_MIGRATION = readFileSync("supabase/migrations/20261121200000_911_approval_excludes_incharge.sql", "utf8")
+const DOOR_MIGRATION = readFileSync("supabase/migrations/20261124100000_907_technical_door_and_template_retired.sql", "utf8")
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId
 let lineId, compA, compB, bundleId, inclusionId
 let templateId, otherTemplateId, taskId, otherTaskId, memberRowId
-let previousTemplateId
 const sorIds = []
 
 const asSvc = async (query, what) => {
@@ -124,15 +123,14 @@ beforeAll(async () => {
         )
     }
 
-    // The template the settings row names, a task on this SOR created from it, and Technical on that task.
+    // A task on this SOR created from the old Evaluation of Specification template, with the in-charge on it. The template
+    // setting is retired (spec #907), so the task grants nothing; the cases below prove the verdict stays the in-charge's.
     templateId = (
         await asSvc(svc().from("group_task_templates").insert({ name: `${MARKER} Evaluation of Specification`, created_by: ids.head }).select("id").single(), "template")
     ).id
     otherTemplateId = (
         await asSvc(svc().from("group_task_templates").insert({ name: `${MARKER} Some other template`, created_by: ids.head }).select("id").single(), "other template")
     ).id
-    previousTemplateId = (await asSvc(svc().from("costing_evaluation_settings").select("evaluation_template_id").eq("id", true).single(), "settings")).evaluation_template_id
-    await asSvc(svc().from("costing_evaluation_settings").update({ evaluation_template_id: templateId }).eq("id", true), "settings")
 
     taskId = (
         await asSvc(
@@ -184,7 +182,6 @@ afterAll(async () => {
     await svc().from("costing_signer_lists").delete().eq("employee_id", ids.outsider).eq("list_key", "evaluation")
     await svc().from("costing_signer_lists").delete().eq("employee_id", ids.technical).eq("list_key", "evaluation")
     await svc().from("employees").update({ has_purchasing_flow: false, call_sign: null }).in("id", [ids.outsider, ids.ipasSigner])
-    await svc().from("costing_evaluation_settings").update({ evaluation_template_id: previousTemplateId }).eq("id", true)
     await purgeCostingForSors(sorIds)
     await svc().from("committee_task_members").delete().in("committee_task_id", [taskId, otherTaskId].filter(Boolean))
     await svc().from("committee_tasks").delete().in("id", [taskId, otherTaskId].filter(Boolean))
@@ -596,27 +593,15 @@ describe("the registries and settings", () => {
         expect(verdictBands).toEqual([])
     })
 
-    it("has row level security on the sign-offs and the settings", async () => {
-        for (const table of ["costing_signoffs", "costing_evaluation_settings"]) expect((await rlsStatus(table)).enabled, table).toBe(true)
+    it("has row level security on the sign-offs", async () => {
+        expect((await rlsStatus("costing_signoffs")).enabled).toBe(true)
     })
 
-    it("lets any signed-in employee read the settings and only a Super Admin change them", async () => {
-        const read = async (who) => (await (await clientFor(who)).from("costing_evaluation_settings").select("evaluation_template_id")).data
-        for (const who of ["ordinary", "technical", "outsider", "superAdmin"]) expect(await read(who), who).toEqual([{ evaluation_template_id: templateId }])
-
-        for (const who of ["outsider", "dealOwner", "technical"]) {
-            const client = await clientFor(who)
-            const update = await client.from("costing_evaluation_settings").update({ evaluation_template_id: null }).eq("id", true).select("id")
-            expect(update.data ?? [], who).toEqual([])
-            const insert = await client.from("costing_evaluation_settings").insert({ id: false, evaluation_template_id: null })
-            expect(insert.error?.code, who).toBe(RLS_VIOLATION)
-        }
-        const admin = await (await clientFor("superAdmin")).from("costing_evaluation_settings").update({ evaluation_template_id: otherTemplateId }).eq("id", true).select("id")
-        expect(admin.data).toHaveLength(1)
-        await asSvc(svc().from("costing_evaluation_settings").update({ evaluation_template_id: templateId }).eq("id", true), "restore")
-        // Only ever one row.
-        const extra = await svc().from("costing_evaluation_settings").insert({ id: false })
-        expect(extra.error?.code).toBe(CHECK_VIOLATION)
+    it("has retired the evaluation task template: no setting, and no function reads one (spec #907)", async () => {
+        const gone = await sql().query("select to_regclass('public.costing_evaluation_settings') as setting")
+        expect(gone.rows[0].setting).toBeNull()
+        const body = await sql().query("select pg_get_functiondef('public.costing_is_technical(uuid)'::regprocedure) as def")
+        expect(body.rows[0].def).not.toMatch(/costing_evaluation_settings|template_id/)
     })
 
     it("keeps the evaluation list to the Super Admin", async () => {
@@ -628,10 +613,12 @@ describe("the registries and settings", () => {
 
     it("runs again without harm, and keeps the in-charge and the verdict", async () => {
         await setVerdict("technical", { compliance: "complies" })
-        await sql().query(MIGRATION)
+        // 908 itself cannot run again: its Technical check read the template setting, which the door migration drops.
+        // Its columns and data are covered by the later migrations, which are the ones to run twice.
         await sql().query(APPROVAL_MIGRATION)
-        await sql().query(MIGRATION)
+        await sql().query(DOOR_MIGRATION)
         await sql().query(APPROVAL_MIGRATION)
+        await sql().query(DOOR_MIGRATION)
         expect(await matrixRow()).toMatchObject({ technical_incharge_id: ids.technical, compliance: "complies", compliance_by: ids.technical })
         expect(await canRead(await clientFor("outsider"), "costing_components", compA)).toBe(true)
     })

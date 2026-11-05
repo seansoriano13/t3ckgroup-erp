@@ -124,14 +124,15 @@ export const NAV_MODULES = {
         isPermitted: (ctx) => ctx.isBidDecider,
         exactMatch: true,
       },
-      // The Technical list (#706): the SORs with rows given to the caller's evaluation team (RRD or IOE), to
-      // judge them. No money on it. For the teams' members and Super Admins; the database refuses anyone else.
+      // The Technical list (#706, #908): the S0 Evaluations the caller is the Technical in-charge of, to give the
+      // verdict, and, for the Evaluation list, the ones waiting for approval. No money on it. For the in-charge, the
+      // list and Super Admins; the database refuses anyone else.
       {
         key: "sales.technical",
         label: "Technical",
         link: "/technical",
         icon: ClipboardCheck,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isEvaluationTeam,
+        isPermitted: (ctx) => ctx.canOpenTechnical,
       },
       // ADR 0021 keeps a Stage Participant out of `sales_opportunities`, so a
       // deal someone was called into can never appear in the SORS register.

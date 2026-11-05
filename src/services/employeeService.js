@@ -122,6 +122,24 @@ async function onTechnicalInchargeSomewhere(employee) {
 }
 
 /**
+ * Is the employee on the Evaluation list, the people who approve an S0 Evaluation? They get the Technical entry in
+ * the menu, where the evaluations waiting for approval are. A failure reads as "no": this is a convenience for the
+ * navigation, never the gate (the database is).
+ */
+async function onEvaluationList(employee) {
+  try {
+    const { data, error } = await supabase
+      .from("costing_signer_lists")
+      .select("list_key")
+      .eq("employee_id", employee.id)
+      .eq("list_key", "evaluation");
+    return !error && (data || []).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Does the signed-in caller see the money side of at least one Costing Matrix (a Super Admin, Purchasing,
  * or on any SOR's Deal Team)? They then get the Bid Decisions queue and the Costing Matrix page, which list
  * only their own SORs. A failure reads as "no": the database is the gate.
@@ -159,7 +177,8 @@ export const employeeService = {
     const ipasLists = await ipasListMembership(data);
     const isFinalAcquire = await onFinalAcquireList(data);
     const isCostingOpen = await costingOpenAnywhere();
-    const isEvaluationTeam = await onTechnicalInchargeSomewhere(data);
+    const isTechnicalIncharge = await onTechnicalInchargeSomewhere(data);
+    const isOnEvaluationList = await onEvaluationList(data);
     return {
       id: data.id,
       email: data.email,
@@ -186,8 +205,10 @@ export const employeeService = {
       isFinalAcquire,
       // Sees the money side of at least one Costing Matrix: Bid Decisions and the Costing Matrix page.
       isCostingOpen,
-      // On the RRD or IOE team list: the nav shows Technical.
-      isEvaluationTeam,
+      // Named the Technical in-charge of an S0 Evaluation: the nav shows Technical.
+      isTechnicalIncharge,
+      // On the Evaluation list: the nav shows Technical, where the evaluations waiting for approval are.
+      isOnEvaluationList,
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,

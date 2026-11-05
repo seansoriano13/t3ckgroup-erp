@@ -148,8 +148,11 @@ describe("the Evaluation of Specification on the grid", () => {
 
   describe("the approval", () => {
     it("offers the button to someone on the evaluation list, disabled until the Technical verdict is given", async () => {
-      db.seed("costing_signer_lists", { list_key: "evaluation", employee_id: reviewer.id });
-      mount();
+      // The in-charge never approves their own SOR (#911), so the approver is a different employee on the list.
+      const approver = makeEmployee({ name: "Approving Reviewer", has_purchasing_flow: true });
+      db.seed("costing_signer_lists", { list_key: "evaluation", employee_id: approver.id });
+      authUser = { id: approver.id };
+      mount({ actorId: approver.id });
       const button = await screen.findByRole("button", { name: "Approve the evaluation" });
       expect(button).toBeDisabled();
       expect(screen.getByTestId("evaluation-waiting")).toHaveTextContent("The Technical verdict is not given yet.");
@@ -178,11 +181,21 @@ describe("the Evaluation of Specification on the grid", () => {
       expect(screen.queryByRole("button", { name: "Approve the evaluation" })).not.toBeInTheDocument();
     });
 
-    it("says why the approval went when a specification changes, and offers to approve again", async () => {
+    it("has no button for the Technical in-charge, even on the list, and says someone else approves", async () => {
       db.seed("costing_signer_lists", { list_key: "evaluation", employee_id: reviewer.id });
       db.internal.rowsOf("costing_matrices")[0].compliance = "complies";
-      db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: reviewer.id });
-      const user = mount();
+      mount();
+      expect(await screen.findByTestId("evaluation-incharge-note")).toHaveTextContent("someone else");
+      expect(screen.queryByRole("button", { name: "Approve the evaluation" })).not.toBeInTheDocument();
+    });
+
+    it("says why the approval went when a specification changes, and offers to approve again", async () => {
+      const approver = makeEmployee({ name: "Approving Reviewer", has_purchasing_flow: true });
+      db.seed("costing_signer_lists", { list_key: "evaluation", employee_id: approver.id });
+      db.internal.rowsOf("costing_matrices")[0].compliance = "complies";
+      db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: approver.id });
+      authUser = { id: approver.id };
+      const user = mount({ actorId: approver.id });
       await openLines();
       expect(await screen.findByText("Evaluation approved")).toBeInTheDocument();
 

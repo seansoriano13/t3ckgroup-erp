@@ -111,7 +111,7 @@ Two lists open SORs. The **Final Acquire list** and the **Evaluation list** can 
 | Packing Lists | `/purchasing/packing-lists` | IPAS readers and the Warehouse list | The list. |
 | Packing List | `/purchasing/packing-lists/:id` | Readers | Boxes and contents. Pack. A modal over the list; the link still opens it. New Packing List is a modal too. |
 | Settings, Purchasing tab | `/settings?tab=purchasing` | Purchasing, Super Admin | Option lists, Transmittal lists, Ageing rules, Reference rates, Sign-off lists. |
-| Costing Matrix settings | inside the matrix settings | Finance, Super Admin | Rates, markup presets, signer lists, the Evaluation template. |
+| Costing Matrix settings | inside the matrix settings | Finance, Super Admin | Rates, markup presets, signer lists. |
 | Approval Center: IPAS | `/approvals/ipas` | Sign-off list members | Sign-offs waiting for them. |
 | Approval Center: Transmittals | `/approvals/transmittals` | Check by list | Slips waiting for Check by. |
 | Approval Center: Bid Decisions | `/approvals/bid-decisions` | Final Acquire list, Super Admin | Matrices with a Final Offer on every line and no live decision. Each row opens its SOR. |
@@ -586,8 +586,7 @@ This is the **Projects** tab of the Purchasing Dashboard (section 3). Five group
 | First Transmittal number | Super Admin | Once only |
 | Costing rates | Finance, Super Admin | Single row |
 | Markup presets | Final Acquire list, Super Admin | Deactivated, never deleted |
-| Costing signer lists (Final Acquire, Evaluation) | Super Admin | Final Acquire is seeded with call sign 101, Evaluation with 1001. Being on either list lets you open SORs that have a matrix. The change log shows list names, not stored keys. |
-| Evaluation template | Super Admin | Which group task template makes a member Technical |
+| Costing signer lists (Final Acquire, Evaluation) | Super Admin | Final Acquire is seeded with call sign 101, Evaluation with 1001. Being on either list lets you open SORs that have a matrix. The Evaluation list finds the evaluations waiting for it on the **Technical** page ("Waiting for approval"). The change log shows list names, not stored keys. |
 
 **Reference rates:** one source, fetched once a day by the `currency-rates-fetch` function on a schedule. A failed fetch writes nothing, so the last good row stays under its own date. It is always shown with its date and never presented as live. A Super Admin can override the rate of **any currency**, not only USD and EUR (the AUD case): the override adds the currency on demand, and it is fetched from then on. An override is never overwritten by the next fetch. It pre-fills a foreign Offer's comparison rate, and on an IPAS payment it is shown beside the typed rate and flags a wide gap. It does nothing else, and never reaches Landed Cost.
 

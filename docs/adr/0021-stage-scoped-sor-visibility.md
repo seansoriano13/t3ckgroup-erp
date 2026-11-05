@@ -279,3 +279,17 @@ What does not change:
   the matrix at the participant tier (no money), checked last in `costing_tier`, so a
   caller who already holds a higher tier keeps it.
 - The Evaluation approval rule (on the list, every Component has a verdict) is untouched.
+
+### 2026-11-05 — the Evaluation list's door is the Technical page
+
+From spec #907, after a demo account on the Evaluation list could read the matrix in the database but had nowhere in
+the app to open it. The 2026-10-23 amendment above says the list gets in "from the Bid Decisions or Evaluation
+queue"; there is no Evaluation queue, and Bid Decisions is for the people who decide bids.
+
+**The Evaluation list opens the S0 Evaluations waiting for it on the Technical page**, on a "Waiting for approval"
+filter, and approves from the sheet there. The Technical page's list (`costing_technical_list`) serves a list member
+every SOR that has a Technical in-charge, as it does a Super Admin, with names and counts and no money. Nothing about
+the tiers changes: the list still reads the matrix at the participant tier. No Approval Center tab was added.
+
+Also: the evaluation task template setting is retired, so a group task grants no Technical status; the SOR's
+Technical in-charge, or Purchasing access, is Technical.

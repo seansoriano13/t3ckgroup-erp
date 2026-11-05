@@ -1,9 +1,11 @@
+import { AlertTriangle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import QueryError from "../ui/QueryError";
 import PageLoading from "../ui/PageLoading";
-import StatusBadge from "../StatusBadge";
+import EvaluationBar from "../costing/EvaluationBar";
 import TechnicalVerdict from "../costing/TechnicalVerdict";
+import { useCostingWrites, useInchargeOptions } from "../costing/useCostingWrites";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { useAuth } from "../../context/AuthContext";
 import { costingMatrixService } from "../../services/costingMatrixService";
@@ -34,6 +36,12 @@ export default function TechnicalSheet({ opportunityId }) {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["technical"] });
 
+  // Approving the evaluation (the Evaluation list): the same button as on the S0 Evaluation sheet, then this sheet and
+  // the list behind it are read again so the approval shows without a reload.
+  const costingWrites = useCostingWrites(opportunityId);
+  const { nameOf } = useInchargeOptions(null);
+  const approvalWrites = { busy: costingWrites.busy, run: (work) => costingWrites.run(async () => { await work(); await refresh(); }) };
+
   const matrix = sheet.data?.matrix ?? null;
   const header = sheet.data?.header ?? null;
   const lines = matrix?.tenderLines ?? [];
@@ -55,12 +63,14 @@ export default function TechnicalSheet({ opportunityId }) {
 
       {matrix && !sheet.isError && (
         <>
-          <div className="flex flex-wrap items-center gap-3 text-sm" data-testid="technical-summary">
-            <StatusBadge
-              label={matrix.evaluation?.approved ? "Evaluation approved" : "Evaluation not approved yet"}
-              theme={matrix.evaluation?.approved ? "green" : "mauve"}
-            />
-          </div>
+          {costingWrites.notice && (
+            <p role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+              {costingWrites.notice}
+            </p>
+          )}
+
+          <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={user?.id ?? null} nameOf={nameOf} writes={approvalWrites} />
 
           <TechnicalVerdict matrix={matrix} actorId={user?.id ?? null} writes={{ refresh }} />
 

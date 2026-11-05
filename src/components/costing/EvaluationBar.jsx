@@ -30,7 +30,10 @@ export default function EvaluationBar({ matrix, opportunityId, actorId, nameOf, 
     retry: false,
     staleTime: 60_000,
   });
-  const canApprove = Boolean(actorId) && signers.includes(actorId);
+  const onList = Boolean(actorId) && signers.includes(actorId);
+  // The Technical in-charge gave the verdict, so someone else approves it, even if they are on the list (#911).
+  const isInCharge = Boolean(actorId) && actorId === (matrix.matrix?.technical_incharge_id ?? null);
+  const canApprove = onList && !isInCharge;
 
   const summary = verdict ? `Technical verdict: ${COMPLIANCE_LABEL[verdict]}` : "Technical verdict not given yet";
   const waiting = verdict ? 0 : 1;
@@ -71,6 +74,11 @@ export default function EvaluationBar({ matrix, opportunityId, actorId, nameOf, 
               </span>
             )}
           </>
+        )}
+        {onList && isInCharge && !evaluation.approved && (
+          <span className="text-xs text-muted-foreground" data-testid="evaluation-incharge-note">
+            You are the Technical in-charge, so someone else on the list approves this one.
+          </span>
         )}
         {canApprove && !evaluation.approved && (
           <>

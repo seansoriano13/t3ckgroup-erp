@@ -88,23 +88,16 @@ Guide §7. A matrix exists only after the "Open Costing Matrix" Stage Action has
   3. Set "Install kit" to complies.
 - **You should see**: step 1 is refused. Steps 2 and 3 save.
 
-### CM-09 · Technical through an Evaluation task
+### CM-09 · Technical through an Evaluation task (retired)
 - **Guide**: §7 Compliance
-- **Log in as**: super-admin, then technical
-- **Needs**: a fresh FLOW-00 SOR with a Costing Matrix. Nobody is added to the Evaluation list or mentioned as a workaround.
-- **Steps**:
-  1. As super-admin, set the Evaluation template in Costing Matrix settings (if not set).
-  2. Make a group task from that template on S990002 with technical as a member.
-  3. As technical, set a verdict on a Component.
-  4. Remove technical from the task. Try again.
-- **You should see**: step 3 saves. Step 4 is refused.
+- **Status**: Retired (spec #907). The Evaluation task template is gone, so a group task grants nothing. Only the SOR's Technical in-charge gives the verdict (#908).
 
 ### CM-10 · Evaluation approval, and what clears it
 - **Guide**: §2 Costing tiers, §7 Compliance
 - **Log in as**: ops-head (Evaluation list), then purchaser
 - **Needs**: every Component has a verdict. ops-head is on the Evaluation list only: not Purchasing, not Deal Team, not mentioned.
 - **Steps**:
-  0. As ops-head, open the SOR from the Evaluation queue. It opens, and the PMS tab shows each Tender Line's ask, the Components' Offer Specification and Compliance, with no money columns.
+  0. As ops-head, open Technical in the sidebar (it opens on "Waiting for approval") and open the SOR from there. It opens, and the PMS tab shows each Tender Line's ask, the Components' Offer Specification and Compliance, with no money columns.
   1. As ops-head, approve the Evaluation.
   2. As purchaser, change "Pump 1HP"'s Offer Specification.
   3. As ops-head, look at the Evaluation. Approve again.

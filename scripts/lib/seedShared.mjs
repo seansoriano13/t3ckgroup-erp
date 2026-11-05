@@ -145,7 +145,6 @@ export const SEED_TABLES = [
   // points at an SOR, its rows at the matrix, money rows at their row, and
   // decisions, sign-offs and events at the matrix.
   "costing_settings",
-  "costing_evaluation_settings",
   "costing_markup_presets",
   "costing_landed_defaults",
   "costing_cost_categories",

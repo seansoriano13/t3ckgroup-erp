@@ -10,6 +10,7 @@
  *   outsider      Purchasing access             -> nothing
  *   anonymous                                    -> refused
  *   cleared       in-charge removed             -> the SOR leaves the list
+ *   signer        on the Evaluation list        -> every in-charge's SOR, none marked as theirs (spec #907: their door)
  *
  * Carries no money: the row has SOR names and counts only.
  */
@@ -69,6 +70,16 @@ describe("who sees the Technical list", () => {
 
     it.each(["dealOwner", "outsider"])("shows %s nothing, since they are not the in-charge", async (who) => {
         expect(rowFor((await list(who)).data)).toBeUndefined()
+    })
+
+    it("shows someone on the Evaluation list the SOR, not as theirs, and stops when they come off the list", async () => {
+        await asSvc(svc().from("costing_signer_lists").insert({ list_key: "evaluation", employee_id: ids.ordinary }), "onto the evaluation list")
+        try {
+            expect(rowFor((await list("ordinary")).data)).toMatchObject({ is_mine: false, team: "Technical" })
+        } finally {
+            await asSvc(svc().from("costing_signer_lists").delete().eq("list_key", "evaluation").eq("employee_id", ids.ordinary), "off the evaluation list")
+        }
+        expect(rowFor((await list("ordinary")).data)).toBeUndefined()
     })
 
     it("refuses someone not signed in", async () => {

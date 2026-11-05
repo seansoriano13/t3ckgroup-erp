@@ -63,6 +63,10 @@ describe("filterTechnical", () => {
     expect(ids(filterTechnical(rows, { tab: TECHNICAL_TAB.ALL }))).toEqual(["a", "b", "c"])
   })
 
+  it("lists under To approve only what has a verdict and no approval yet", () => {
+    expect(ids(filterTechnical(rows, { tab: TECHNICAL_TAB.TO_APPROVE }))).toEqual(["b"])
+  })
+
   it("searches the SOR number, SO number, project and client", () => {
     expect(ids(filterTechnical(rows, { search: "S04081" }))).toEqual(["b"])
     expect(ids(filterTechnical(rows, { search: "roof" }))).toEqual(["b"])

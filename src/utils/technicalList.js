@@ -30,7 +30,7 @@ export function checkedLabel({ rowsJudged, rowsTotal }) {
   return `${rowsJudged} of ${rowsTotal} checked`;
 }
 
-export const TECHNICAL_TAB = { TO_CHECK: "to_check", DONE: "done", ALL: "all" };
+export const TECHNICAL_TAB = { TO_CHECK: "to_check", TO_APPROVE: "to_approve", DONE: "done", ALL: "all" };
 
 /** Where a row stands: Approved, Checked (every row answered, not approved yet) or To check. */
 export function technicalState(row) {
@@ -45,6 +45,8 @@ const isDone = (row) => technicalState(row).key !== "to_check";
 export function filterTechnical(rows, { tab = TECHNICAL_TAB.ALL, search = "" } = {}) {
   return rows.filter((row) => {
     if (tab === TECHNICAL_TAB.TO_CHECK && isDone(row)) return false;
+    // The Evaluation list's queue: the verdict is in, the approval is not.
+    if (tab === TECHNICAL_TAB.TO_APPROVE && technicalState(row).key !== "checked") return false;
     if (tab === TECHNICAL_TAB.DONE && !isDone(row)) return false;
     return matchesSearch(search, [
       ...sorSearchFields({ salesReference: row.soNumber, sorCode: row.sorNumber, projectTitle: row.projectTitle }),

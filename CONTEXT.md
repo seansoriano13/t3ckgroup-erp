@@ -1265,6 +1265,14 @@ see the S0 Evaluation without its money. Distinct from Completeness, which asks
 the same question of one Inclusion inside a bundle.
 _Avoid_: Compliant (as a status name), Conformity, Spec match
 
+**Evaluation list**:
+The people a Super Admin names to approve an Evaluation of Specification, once for
+the whole S0 Evaluation. A role never approves by itself: a Super Admin approves
+only when on the list, and the Technical in-charge never approves the evaluation
+they judged. The list reads any SOR's S0 Evaluation with no money shown, and its
+members find the evaluations waiting on them on the Technical page.
+_Avoid_: Evaluation team, Evaluators, Approver role
+
 **ITR**:
 The income tax the S0 Evaluation deducts from an offer — 8% of the Final Offer above
 ₱250,000, as the company's sheets compute it. A different figure from the

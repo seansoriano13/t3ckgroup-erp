@@ -270,19 +270,10 @@ describe("the Evaluation of Specification", () => {
 });
 
 describe("the evaluation settings", () => {
-  it("names the template and keeps the evaluation list to exactly the people picked", async () => {
+  it("keeps the evaluation list to exactly the people picked", async () => {
     const boss = makeEmployee({ name: "Reviewer One", department: "PURCHASING" });
     const other = makeEmployee({ name: "Reviewer Two", department: "PURCHASING" });
     const third = makeEmployee({ name: "Reviewer Three", department: "PURCHASING" });
-    const template = db.seed("group_task_templates", { name: "Evaluation of Specification", created_by: boss.id });
-    db.seed("costing_evaluation_settings", { id: true });
-    expect(await costingEvaluationSettingsService.getTemplateId()).toBeNull();
-    expect((await costingEvaluationSettingsService.getTemplates()).map((t) => t.name)).toEqual(["Evaluation of Specification"]);
-
-    await costingEvaluationSettingsService.setTemplateId(template.id);
-    expect(await costingEvaluationSettingsService.getTemplateId()).toBe(template.id);
-    await costingEvaluationSettingsService.setTemplateId(null);
-    expect(await costingEvaluationSettingsService.getTemplateId()).toBeNull();
 
     await costingEvaluationSettingsService.setSigners([boss.id, other.id]);
     expect((await costingEvaluationSettingsService.getSigners()).sort()).toEqual([boss.id, other.id].sort());

@@ -63,14 +63,19 @@ describe("navigation registry", () => {
       expect(groups.find((g) => g.key === "administration")).toBeUndefined();
     });
 
-    it("offers Technical to the evaluation teams and Super Admins only (#706)", () => {
+    it("offers Technical to a Technical in-charge, the Evaluation list and Super Admins only (#706, #908)", () => {
       const technical = (user) =>
         getFilteredNavigationGroups(user)
           .flatMap((g) => g.links)
           .some((l) => l.label === "Technical");
 
       expect(technical({ id: "sa", isSuperAdmin: true })).toBe(true);
-      expect(technical({ id: "team", is_evaluation_team: true })).toBe(true);
+      expect(technical({ id: "incharge", is_technical_incharge: true })).toBe(true);
+      // The Evaluation list approves from the Technical page, so it is their door to the sheet.
+      expect(technical({ id: "signer", is_on_evaluation_list: true })).toBe(true);
+
+      // The retired RRD and IOE team flag opens nothing.
+      expect(technical({ id: "team", is_evaluation_team: true })).toBe(false);
 
       // Not Purchasing, the Deal Team (sales flow), the Closed Book's list, a Head, or a standard employee.
       expect(technical({ id: "pu", has_purchasing_flow: true })).toBe(false);

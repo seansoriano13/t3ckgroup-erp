@@ -95,6 +95,8 @@ export const DEMO_LISTS = {
   costing_signer_lists: {
     // RRD/IOE team lists are retired (#908): Sherwin (Technical sub-department) is picked as
     // the Technical in-charge on each S0 Evaluation instead.
-    markup: ["201"], final_acquire: ["201"], evaluation: ["grace"],
+    // The Evaluation list approves an S0 Evaluation from the Technical page. Grace does it in the run sheet; 201 and 101
+    // are on it too so the General Manager and the Super Admin can (a Super Admin approves only when on the list).
+    markup: ["201"], final_acquire: ["201"], evaluation: ["grace", "201", "101"],
   },
 }
