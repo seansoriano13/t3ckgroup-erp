@@ -10,6 +10,16 @@
     },
     {
         "date": "2026-11-05",
+        "title": "Clearer Bid Decision buttons",
+        "version": "1.9.95",
+        "changes": [
+            "The Go button looks switched off, not chosen, until its conditions are met.",
+            "Only a Super Admin or the decider list sees the Unlock box and button on a locked bid, and others are told who can unlock it.",
+            "Unlock asks you to confirm first, showing your reason, just as Go does."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "Purchasing screens respond faster",
         "version": "1.9.90",
         "changes": [

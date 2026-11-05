@@ -83,6 +83,7 @@ export default function BidDecisionPanel({
   } = matrix;
   const [reason, setReason] = useState("");
   const [confirmingGo, setConfirmingGo] = useState(false);
+  const [confirmingUnlock, setConfirmingUnlock] = useState(false);
   if (!tierReadsBidDecision(tier)) return null;
 
   const canDecide = tierDecidesBid(tier);
@@ -97,6 +98,8 @@ export default function BidDecisionPanel({
   const revenue = matrix.summary?.revenue ?? null;
   const losing = revenue !== null && Number(revenue) < 0;
   const blockedLoss = losing && !matrix.canDecideLoss;
+  // #899: an Unlock is the same right as a Go on a loss (costing_unlock_bid: a Super Admin or the decider list).
+  const canUnlock = Boolean(matrix.canDecideLoss);
   const marginPercent =
     revenue === null || !Number(totals.finalOfferTotal) ? null : (Number(revenue) / Number(totals.finalOfferTotal)) * 100;
 
@@ -222,44 +225,55 @@ export default function BidDecisionPanel({
 
       {canDecide && (
         <div className="space-y-3 border-t border-border/50 pt-3">
-          <Textarea
-            aria-label={
-              locked ? "Reason for unlocking" : "Reason for the decision"
-            }
-            placeholder={
-              locked
-                ? "Unlock? Write why. It is recorded."
-                : bidDecision
-                  ? "Decide again? Write why."
-                  : "Why? Write the reason in your own words."
-            }
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            disabled={!ready || writes.busy}
-            className="min-h-[64px]"
-          />
+          {(!locked || canUnlock) && (
+            <Textarea
+              aria-label={
+                locked ? "Reason for unlocking" : "Reason for the decision"
+              }
+              placeholder={
+                locked
+                  ? "Unlock? Write why. It is recorded."
+                  : bidDecision
+                    ? "Decide again? Write why."
+                    : "Why? Write the reason in your own words."
+              }
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              disabled={!ready || writes.busy}
+              className="min-h-[64px]"
+            />
+          )}
           {writes.notice && (
             <p className="text-sm font-semibold text-destructive" role="alert" data-testid="bid-decision-refusal">
               {writes.notice}
             </p>
           )}
           {locked ? (
-            <Button
-              size="lg"
-              variant="outline"
-              className="h-14 w-full justify-start gap-3 px-4 text-left"
-              disabled={trimmed === "" || writes.busy}
-              onClick={unlock}
-              aria-label="Unlock"
-            >
-              <Unlock size={22} aria-hidden="true" />
-              <span className="flex flex-col">
-                <span className="text-base font-black">Unlock</span>
-                <span className="text-xs font-medium opacity-80">
-                  Opens the sheet again; the Go has to be taken again
+            canUnlock ? (
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-14 w-full justify-start gap-3 px-4 text-left"
+                disabled={trimmed === "" || writes.busy}
+                onClick={() => setConfirmingUnlock(true)}
+                aria-label="Unlock"
+              >
+                <Unlock size={22} aria-hidden="true" />
+                <span className="flex flex-col">
+                  <span className="text-base font-black">Unlock</span>
+                  <span className="text-xs font-medium opacity-80">
+                    Opens the sheet again; the Go has to be taken again
+                  </span>
                 </span>
-              </span>
-            </Button>
+              </Button>
+            ) : (
+              <p
+                className="text-sm font-semibold text-foreground"
+                data-testid="bid-decision-unlock-blocked"
+              >
+                Only a Super Admin or the people on the decider&apos;s list can unlock a bid.
+              </p>
+            )
           ) : (
             <div className="grid gap-2">
               {!evaluated && (
@@ -279,32 +293,36 @@ export default function BidDecisionPanel({
                 </p>
               )}
               {CHOICES.map(
-                ({ verdict, icon: Icon, words, className, variant }) => (
-                  <Button
-                    key={verdict}
-                    size="lg"
-                    variant={variant}
-                    className={`h-14 justify-start gap-3 px-4 text-left ${className ?? ""}`}
-                    disabled={
-                      !ready ||
-                      trimmed === "" ||
-                      writes.busy ||
-                      (verdict === BID_VERDICT.GO && (!evaluated || blockedLoss))
-                    }
-                    onClick={() => choose(verdict)}
-                    aria-label={BID_VERDICT_LABEL[verdict]}
-                  >
-                    <Icon size={22} aria-hidden="true" />
-                    <span className="flex flex-col">
-                      <span className="text-base font-black">
-                        {BID_VERDICT_LABEL[verdict]}
+                ({ verdict, icon: Icon, words, className, variant }) => {
+                  const disabled =
+                    !ready ||
+                    trimmed === "" ||
+                    writes.busy ||
+                    (verdict === BID_VERDICT.GO && (!evaluated || blockedLoss));
+                  // #899: a Go that is off wears the neutral outline, not the solid green that reads as "Go already chosen".
+                  const goOff = verdict === BID_VERDICT.GO && disabled;
+                  return (
+                    <Button
+                      key={verdict}
+                      size="lg"
+                      variant={goOff ? "outline" : variant}
+                      className={`h-14 justify-start gap-3 px-4 text-left ${goOff ? "" : (className ?? "")}`}
+                      disabled={disabled}
+                      onClick={() => choose(verdict)}
+                      aria-label={BID_VERDICT_LABEL[verdict]}
+                    >
+                      <Icon size={22} aria-hidden="true" />
+                      <span className="flex flex-col">
+                        <span className="text-base font-black">
+                          {BID_VERDICT_LABEL[verdict]}
+                        </span>
+                        <span className="text-xs font-medium opacity-80">
+                          {words}
+                        </span>
                       </span>
-                      <span className="text-xs font-medium opacity-80">
-                        {words}
-                      </span>
-                    </span>
-                  </Button>
-                ),
+                    </Button>
+                  );
+                },
               )}
             </div>
           )}
@@ -347,6 +365,21 @@ export default function BidDecisionPanel({
               </p>
             )}
           </ConfirmDialog>
+          {locked && canUnlock && (
+            <ConfirmDialog
+              open={confirmingUnlock}
+              onOpenChange={setConfirmingUnlock}
+              title="Unlock this bid?"
+              description="The sheet opens again and the Go is cleared. The Go has to be taken again."
+              confirmLabel="Unlock"
+              confirmDisabled={writes.busy}
+              onConfirm={unlock}
+            >
+              <p className="text-sm" data-testid="bid-decision-unlock-reason">
+                Your reason: <span className="font-semibold">{trimmed}</span>
+              </p>
+            </ConfirmDialog>
+          )}
         </div>
       )}
     </section>

@@ -913,6 +913,68 @@ describe("the Costing Desk", () => {
       expect(within(panel).getByRole("button", { name: "No-go" })).toBeEnabled();
     });
 
+    it("draws a Go that is off in the neutral style, and the solid green once it is on (#899)", async () => {
+      seedPriced({ approved: false });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      const go = within(panel).getByRole("button", { name: "Go" });
+      expect(go).toBeDisabled();
+      expect(go.className).not.toMatch(/bg-green-11/);
+
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Price fits");
+      expect(within(panel).getByRole("button", { name: "Go" })).toBeDisabled();
+    });
+
+    it("draws the solid green Go once the spec is approved and a reason is written (#899)", async () => {
+      seedPriced();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Price fits");
+      const go = within(panel).getByRole("button", { name: "Go" });
+      expect(go).toBeEnabled();
+      expect(go.className).toMatch(/bg-green-11/);
+    });
+
+    it("hides the Unlock controls from people who cannot unlock, and says who can (#899)", async () => {
+      seedPriced();
+      seedDecision({ verdict: "go", reason: "Fits the budget" });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: false });
+      openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-locked")).toBeInTheDocument();
+      expect(within(panel).getByTestId("bid-decision-unlock-blocked")).toHaveTextContent(
+        "Only a Super Admin or the people on the decider's list can unlock a bid.",
+      );
+      expect(within(panel).queryByRole("button", { name: "Unlock" })).not.toBeInTheDocument();
+      expect(within(panel).queryByLabelText("Reason for unlocking")).not.toBeInTheDocument();
+    });
+
+    it("asks to confirm an Unlock, and clears the Go only once it is confirmed (#899)", async () => {
+      seedPriced();
+      seedDecision({ verdict: "go", reason: "Fits the budget" });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: true });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      await user.type(within(panel).getByLabelText("Reason for unlocking"), "Price needs a second look");
+      await user.click(within(panel).getByRole("button", { name: "Unlock" }));
+
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByTestId("bid-decision-unlock-reason")).toHaveTextContent("Price needs a second look");
+      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(db.rows("costing_bid_decisions")[0].cleared_at).toBeFalsy();
+      expect(within(panel).getByTestId("bid-decision-locked")).toBeInTheDocument();
+
+      await user.click(within(panel).getByRole("button", { name: "Unlock" }));
+      await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Unlock" }));
+      await waitFor(() => expect(db.rows("costing_bid_decisions")[0].cleared_at).toBeTruthy());
+    });
+
     it("keeps the controls off while a Tender Line has no Final Offer", async () => {
       seedPriced({ offer: null });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
