@@ -4,7 +4,8 @@ import toast from "react-hot-toast";
 import { ListTodo } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
 import { stageFieldService } from "../../services/stageFieldService";
-import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
+import { employeeService } from "../../services/employeeService";
+import { SOR_STAGE_FIELDS, formatStageFieldValue } from "../../constants/stageFields";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
@@ -45,6 +46,15 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
     queryFn: () => stageFieldService.getValuesForVisit(previousVisitId),
     enabled: !!previousVisitId,
   });
+
+  // Employee fields pick from the same list the rest of the app uses (the
+  // PeoplePicker's ["employees"] query), and show a saved employee id as a name.
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
+  });
+  const employeeNames = Object.fromEntries(employees.map((e) => [e.id, e.name]));
+  const employeeOptions = employees.map((e) => ({ value: e.id, label: e.name }));
 
   // A field just saved this visit shows as satisfied rather than as an empty
   // input the salesperson has to re-fill on every render.
@@ -116,12 +126,14 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
               {field.help && <p className="text-[11px] text-muted-foreground">{field.help}</p>}
 
               {savedThisVisit !== null && savedThisVisit !== undefined && savedThisVisit !== "" ? (
-                <p className="text-xs text-green-9">Saved this visit: {String(savedThisVisit)}</p>
+                <p className="text-xs text-green-9">
+                  Saved this visit: {formatStageFieldValue(field.field_type, savedThisVisit, employeeNames)}
+                </p>
               ) : (
                 <>
                   {previousValue !== null && previousValue !== undefined && previousValue !== "" && (
                     <p className="text-[11px] italic text-muted-foreground">
-                      Last visit: {String(previousValue)} (for reference only)
+                      Last visit: {formatStageFieldValue(field.field_type, previousValue, employeeNames)} (for reference only)
                     </p>
                   )}
                   <div className="flex items-center gap-2 max-w-sm">
@@ -141,6 +153,30 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                         placeholder="Select…"
                         className="w-full"
                       />
+                    ) : field.source === "custom" && field.field_type === "employee" ? (
+                      <SelectField
+                        aria-label={field.label}
+                        value={value}
+                        onChange={(next) => setDraft((p) => ({ ...p, [field.id]: next }))}
+                        options={employeeOptions}
+                        placeholder="Select an employee…"
+                        className="w-full"
+                      />
+                    ) : field.source === "custom" && field.field_type === "currency" ? (
+                      <div className="flex w-full items-center gap-1.5">
+                        <span className="text-xs font-semibold text-muted-foreground" aria-hidden="true">₱</span>
+                        <Input
+                          aria-label={field.label}
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          min="0"
+                          value={value}
+                          onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
+                          placeholder="0.00"
+                          containerClassName="flex w-full" className="h-8 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
+                        />
+                      </div>
                     ) : (
                       <Input
                         aria-label={field.label}

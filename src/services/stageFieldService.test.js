@@ -155,5 +155,56 @@ describe("stageFieldService", () => {
       expect(values[field.id]).toBe("second")
       expect(db.rows("sor_stage_field_values").filter((r) => r.field_id === field.id)).toHaveLength(1)
     })
+
+    describe("currency and employee fields (ticket #893)", () => {
+      const setup = (fieldType) => {
+        const opportunity = makeOpportunity({ flow_stage_id: stage.id })
+        const visit = db.rows("sor_stage_visits").find((v) => v.opportunity_id === opportunity.id)
+        const field = makeStageField({ stage_id: stage.id, source: "custom", field_type: fieldType })
+        const save = (value) =>
+          stageFieldService.saveValue(
+            { opportunityId: opportunity.id, stageVisitId: visit.id, fieldId: field.id, value },
+            admin.id,
+          )
+        return { visit, field, save }
+      }
+
+      it("stores a currency amount typed with commas and a peso sign as a number", async () => {
+        const { visit, field, save } = setup("currency")
+
+        await save("₱1,370,535.74")
+
+        const values = await stageFieldService.getValuesForVisit(visit.id)
+        expect(values[field.id]).toBe(1370535.74)
+      })
+
+      it("refuses a currency value that is not a number, and saves nothing", async () => {
+        const { visit, save } = setup("currency")
+
+        await expect(save("1,370,535.74 pesos")).rejects.toThrow(/as a number/)
+
+        const values = await stageFieldService.getValuesForVisit(visit.id)
+        expect(values).toEqual({})
+      })
+
+      it("stores an employee field as the picked employee's id", async () => {
+        const picked = makeEmployee({ name: "Juan Dela Cruz" })
+        const { visit, field, save } = setup("employee")
+
+        await save(picked.id)
+
+        const values = await stageFieldService.getValuesForVisit(visit.id)
+        expect(values[field.id]).toBe(picked.id)
+      })
+
+      it("refuses an employee field that is typed text rather than a picked employee", async () => {
+        const { visit, save } = setup("employee")
+
+        await expect(save("Juan Dela Cruz")).rejects.toThrow(/Pick an employee/)
+
+        const values = await stageFieldService.getValuesForVisit(visit.id)
+        expect(values).toEqual({})
+      })
+    })
   })
 })

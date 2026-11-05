@@ -1,6 +1,39 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { CUSTOM_FIELD_TYPE_VALUES, isSorStageField } from "../constants/stageFields";
+import {
+  CUSTOM_FIELD_TYPES,
+  CUSTOM_FIELD_TYPE_VALUES,
+  isSorStageField,
+  parseCurrencyValue,
+} from "../constants/stageFields";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Checks a value against its custom field's type before it is saved (ticket
+ * #893): a `currency` must read as a number, and an `employee` must be an
+ * employee id. Other types are saved as given. Throws a plain message the
+ * Fields form shows as a toast.
+ */
+async function valueForFieldType(fieldId, value) {
+  const { data: field, error } = await supabase
+    .from("flow_stage_fields")
+    .select("field_type")
+    .eq("id", fieldId)
+    .single();
+  if (error) throw error;
+
+  if (field.field_type === CUSTOM_FIELD_TYPES.CURRENCY) {
+    const amount = parseCurrencyValue(value);
+    if (amount === null) throw new Error("Enter the amount as a number, like 1370535.74.");
+    return amount;
+  }
+  if (field.field_type === CUSTOM_FIELD_TYPES.EMPLOYEE) {
+    if (!UUID_PATTERN.test(String(value))) throw new Error("Pick an employee from the list.");
+    return String(value);
+  }
+  return value;
+}
 
 /**
  * Access control check for Stage Fields modifications. Mirrors
@@ -250,7 +283,8 @@ export const stageFieldService = {
    * written here — it writes through the SOR's own single-field save
    * (#199); calling this for one is a caller error.
    */
-  async saveValue({ opportunityId, stageVisitId, fieldId, value }, actorId) {
+  async saveValue({ opportunityId, stageVisitId, fieldId, value: rawValue }, actorId) {
+    const value = await valueForFieldType(fieldId, rawValue);
     const { data, error } = await supabase
       .from("sor_stage_field_values")
       .upsert(

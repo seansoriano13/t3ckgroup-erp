@@ -78,6 +78,15 @@
         ]
     },
     {
+        "date": "2026-11-05",
+        "title": "Money and People Fields Are Checked",
+        "version": "1.9.89",
+        "changes": [
+            "Flow Canvas: a Stage field can now be a Currency field (shown in pesos, only accepts a number) or an Employee field (pick a person from the list).",
+            "Project flows: NOA Amount is now a Currency field, and Purchasing Involved, Logistics Representative and Representative are now Employee fields. Amounts and names saved before this change stay as they were."
+        ]
+    },
+    {
         "date": "2026-11-03",
         "title": "Date-Range Leave Follows Your Work Schedule",
         "version": "1.9.81",
