@@ -252,7 +252,7 @@ function ProofField({ row, disabled, onPatch }) {
   };
   return (
     <div className="min-w-0">
-      <FieldBox label="Proof of payment" />
+      <FieldBox label={<>Proof of payment<RequiredMark /></>} />
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         {row.proofUrl ? (
           <>
@@ -276,7 +276,7 @@ function ProofField({ row, disabled, onPatch }) {
           </FileInput>
         )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">Optional. With P.O.P shows on the IPAS while any payment has one.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Finance needs proof on every payment before it signs off. With P.O.P shows on the IPAS while any payment has one.</p>
     </div>
   );
 }
