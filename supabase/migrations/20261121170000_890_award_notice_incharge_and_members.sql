@@ -8,7 +8,7 @@
 -- Purchasing heads (is_head AND has_purchasing_flow) instead.
 -- Soft-deleted employees never count. No broadcast.
 --
--- Replaces the 20261105120000 body, which read the retired sor_procurement_requests
+-- Replaces the 20261105120003 body, which read the retired sor_procurement_requests
 -- table and so named no Buyer in the current model. The signature is unchanged.
 
 create or replace function public.sor_award_notice_recipients(p_opportunity_id uuid)

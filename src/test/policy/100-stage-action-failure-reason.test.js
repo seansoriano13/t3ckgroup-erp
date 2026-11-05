@@ -1,6 +1,6 @@
 /**
  * Issue #896 — a Stage Action that fails says why. sor_run_stage_actions
- * (supabase/migrations/20261121050000_896_stage_action_failure_reason.sql):
+ * (supabase/migrations/20261121050003_896_stage_action_failure_reason.sql):
  *
  *   - a Group Task whose member is no longer an employee fails with
  *     "member no longer exists", not a foreign-key error;

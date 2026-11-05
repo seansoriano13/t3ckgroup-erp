@@ -11,7 +11,7 @@
 --   1. Row level policies on every Flow Canvas table, including the two Access
 --      tables and the snapshot insert that lock_sales_flow makes.
 --   2. lock_sales_flow (publish) refuses non-editors with a clear message.
---   3. restore_flow_snapshot is guarded in 20261121180000, because later
+--   3. restore_flow_snapshot is guarded in 20261121180002, because later
 --      migrations (724, 744, 745) re-create it and would drop a guard added here.
 --
 -- lock_sales_flow is re-created in full, not patched. Its body is copied from

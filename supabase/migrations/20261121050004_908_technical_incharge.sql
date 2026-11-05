@@ -215,7 +215,7 @@ create trigger costing_clear_evaluation_matrix
 -- Who is Technical, and who reads the matrix as a participant
 -- ---------------------------------------------------------------------------
 
--- costing_is_technical (latest: 20261121050000_908): the in-charge of this SOR, Purchasing access, or a current
+-- costing_is_technical (latest: 20261121050004_908): the in-charge of this SOR, Purchasing access, or a current
 -- member of a group task on that SOR created from the Evaluation of Specification template.
 create or replace function public.costing_is_technical(p_opportunity_id uuid)
 returns boolean
@@ -242,7 +242,7 @@ as $$
     )
 $$;
 
--- costing_tier (latest: 20261121050000_908): the Technical in-charge reads the matrix without money.
+-- costing_tier (latest: 20261121050004_908): the Technical in-charge reads the matrix without money.
 create or replace function public.costing_tier(p_opportunity_id uuid)
 returns text
 language sql

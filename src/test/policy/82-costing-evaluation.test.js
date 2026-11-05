@@ -24,7 +24,7 @@ import { purgeCostingForSors } from "./support/costing.js"
 const svc = () => serviceClient()
 const CHECK_VIOLATION = "23514"
 const WRONG_STATE = "22023"
-const MIGRATION = readFileSync("supabase/migrations/20261121050000_908_technical_incharge.sql", "utf8")
+const MIGRATION = readFileSync("supabase/migrations/20261121050004_908_technical_incharge.sql", "utf8")
 const APPROVAL_MIGRATION = readFileSync("supabase/migrations/20261121200000_911_approval_excludes_incharge.sql", "utf8")
 
 let saleTypeId, flowId, stageId

@@ -15,7 +15,7 @@
 --                            No-go and Revise are unchanged. Costing settled is unchanged (#881 and
 --                            the Go gate still apply first).
 --
--- The rest of the function is the latest definition (20261121050000_881_go_requires_evaluation.sql),
+-- The rest of the function is the latest definition (20261121050001_881_go_requires_evaluation.sql),
 -- copied as it stood, with only the loss check added after the evaluation check.
 --
 -- Idempotent: create or replace.

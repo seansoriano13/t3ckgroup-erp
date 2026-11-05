@@ -4,7 +4,7 @@
 -- restore_flow_snapshot is SECURITY DEFINER, so it writes the whole flow without
 -- going through RLS. Without this guard a read-only employee could rewrite the
 -- draft by restoring a snapshot. The companion policies and lock_sales_flow are
--- in 20261105120000_flow_canvas_editor_gate.sql.
+-- in 20261105120001_flow_canvas_editor_gate.sql.
 --
 -- The body is copied from 20261119000000_745_contract_stage.sql (the newest
 -- definition) with only the guard added.
