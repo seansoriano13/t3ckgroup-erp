@@ -10,11 +10,10 @@
     },
     {
         "date": "2026-11-05",
-        "title": "Technical verdict shows what is still missing",
+        "title": "Simpler Technical verdict card",
         "version": "1.9.91",
         "changes": [
-            "The Technical verdict lists the Components that have no We offer yet, so you can see what is still missing.",
-            "You can still give the Technical verdict while some Components have no We offer."
+            "The Technical verdict card no longer lists the Components that have no We offer yet."
         ]
     },
     {
