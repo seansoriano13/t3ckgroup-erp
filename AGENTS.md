@@ -88,6 +88,12 @@ Read `docs/local-development.md` for setup, resets, seed data, the magic login a
 local edge functions. `pnpm dev` talks to local Supabase only; edge functions run locally
 too, with real Odoo reads when `supabase/functions/.env` holds the Odoo secrets.
 
+Uploads are the one path that leaves Supabase: `storageService` sends them to
+Cloudinary, except when the Supabase URL is the local stack. Then they go to the
+local `attachments` bucket (`supabase/config.toml`), so `pnpm dev` never writes
+to the company's Cloudinary account (issue #894).
+
+
 ### Review standards
 
 `CODING_STANDARDS.md` holds the judgement rules the reviewer applies: the render path must not throw, migration review points, data access, changelog wording. Read it when a change touches one of those.

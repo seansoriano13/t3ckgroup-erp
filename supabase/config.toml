@@ -82,6 +82,13 @@ enabled = false
 enabled = true
 file_size_limit = "50MiB"
 
+# Local-only upload bucket (ticket #894). `pnpm dev` sends attachments here
+# instead of Cloudinary. config.toml is read only by the local CLI, so this
+# bucket never exists on staging or production. Public so the stored URL can
+# be shown in an <img> like a Cloudinary one.
+[storage.buckets.attachments]
+public = true
+
 [local_smtp]
 enabled = true
 port = 54324
