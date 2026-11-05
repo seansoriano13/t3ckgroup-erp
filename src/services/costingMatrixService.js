@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
-import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
+import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
 import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { summariseCompleteness } from "../constants/projectEvaluation";
@@ -613,8 +613,11 @@ export const costingMatrixService = {
     if (error) throw error;
     const settings = data && tierReadsSummary(data.tier) ? await settingsRead : null;
     const shaped = shapeMatrix(data, settings);
+    // #880: only the Bid Decision's deciders need to know whether a Go on a loss is theirs to take.
+    const lossRight = shaped && tierDecidesBid(shaped.tier) ? costingMatrixService.canDecideLoss() : Promise.resolve(false);
     // Canvass and purchases touch different fields of the matrix, so they read side by side.
-    await Promise.all([withCanvass(shaped, opportunityId), withPurchases(shaped, opportunityId)]);
+    const [canLoss] = await Promise.all([lossRight, withCanvass(shaped, opportunityId), withPurchases(shaped, opportunityId)]);
+    if (shaped) shaped.canDecideLoss = Boolean(canLoss);
     return shaped;
   },
 
@@ -1057,6 +1060,16 @@ export const costingMatrixService = {
       patch = { default_factor: n, default_preset_id: null };
     }
     await writeMoney("costing_matrix_money", matrixId, patch);
+  },
+
+  /**
+   * Does the caller decide a Go on a loss-making bid (#880)? A Super Admin or a member of the decider list.
+   * The database checks it again on the Go; a failed read counts as no, so the Go stays off on the screen.
+   */
+  async canDecideLoss() {
+    const { data, error } = await supabase.rpc("costing_can_decide_loss");
+    if (error) return false;
+    return Boolean(data);
   },
 
   /** Does the caller edit the markup presets and the factor? Super Admins and the Final Acquire list. */

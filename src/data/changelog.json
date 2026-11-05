@@ -64,6 +64,15 @@
     },
     {
         "date": "2026-11-05",
+        "title": "Loss-making bids need a decider",
+        "version": "1.9.93",
+        "changes": [
+            "Go on the Bid Decision now asks you to confirm first. The confirm shows the Final Offer, the ABC and the planned revenue.",
+            "When the planned revenue is negative, only a Super Admin or someone on the decider list can take a Go. Others see why the Go is off. Revise and No-go are still available."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "SOR Awarded goes to the people buying",
         "version": "1.9.87",
         "changes": [

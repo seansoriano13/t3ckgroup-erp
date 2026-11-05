@@ -894,6 +894,29 @@ describe("costingMatrixService", () => {
       expect((await read()).bidDecision).toBeNull();
     });
 
+    it("refuses a Go on a loss to anyone but a Super Admin or the decider list, in words, and still takes a Revise (#880)", async () => {
+      // Final Offers total 3,942.88; a Component at 4,000 Final Acquire makes the planned revenue a loss.
+      const component = await costingMatrixService.addComponent(lineId, { name: "Head", quantity: 1 });
+      await costingMatrixService.updateComponent(component, { finalAcquireUnit: 4000 });
+      // A cost change clears the evaluation approval (#881), so approve it again for the Go.
+      db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: salesperson.id });
+
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales"], canDecideLoss: false });
+      const refused = await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Go" }).catch((e) => e);
+      expect(refused).toBeInstanceOf(CostingRuleError);
+      expect(refused.message).toBe("A Go on a loss needs a Super Admin or the decider list.");
+      expect((await read()).bidDecision).toBeNull();
+      expect((await read()).canDecideLoss).toBe(false);
+
+      await costingMatrixService.decideBid(matrix.id, { verdict: "revise", reason: "Reprice the head" });
+      expect((await read()).bidDecision).toMatchObject({ verdict: "revise" });
+
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales"], canDecideLoss: true });
+      expect((await read()).canDecideLoss).toBe(true);
+      await costingMatrixService.decideBid(matrix.id, { verdict: "go", reason: "Bid at a loss on purpose" });
+      expect((await read()).bidDecision).toMatchObject({ verdict: "go" });
+    });
+
     it("lists the pending decisions for the Approval Center", async () => {
       stubRpc("costing_pending_bid_decisions", () => [
         { matrix_id: matrix.id, opportunity_id: opportunity.id, project_title: "Fire truck", client_name: "BFP", deal_owner_id: "emp-1", deal_owner_name: "Dee Owner", final_offer_total: "3942.88", abc_total: null, waiting_since: "2026-10-16T01:00:00Z" },

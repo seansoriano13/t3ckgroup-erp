@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, Gavel, Lock, RotateCcw, Unlock, X } from "lucide-react";
 
 import { Button } from "../ui/button";
+import ConfirmDialog from "../ui/ConfirmDialog";
 import { APPROVE_CLASS } from "../ui/approveClass";
 import { Textarea } from "../ui/textarea";
 import StatusBadge from "../StatusBadge";
@@ -81,6 +82,7 @@ export default function BidDecisionPanel({
     evaluation,
   } = matrix;
   const [reason, setReason] = useState("");
+  const [confirmingGo, setConfirmingGo] = useState(false);
   if (!tierReadsBidDecision(tier)) return null;
 
   const canDecide = tierDecidesBid(tier);
@@ -91,6 +93,12 @@ export default function BidDecisionPanel({
   const earlier = bidDecisionHistory[0] ?? null;
   const locked = bidDecision?.verdict === BID_VERDICT.GO;
   const showFigures = tierReads(tier, "final_offer_unit");
+  // #880: the planned revenue the Go would be taken against. A loss needs a Super Admin or the decider list.
+  const revenue = matrix.summary?.revenue ?? null;
+  const losing = revenue !== null && Number(revenue) < 0;
+  const blockedLoss = losing && !matrix.canDecideLoss;
+  const marginPercent =
+    revenue === null || !Number(totals.finalOfferTotal) ? null : (Number(revenue) / Number(totals.finalOfferTotal)) * 100;
 
   const decide = (verdict) =>
     writes.run(async () => {
@@ -100,6 +108,12 @@ export default function BidDecisionPanel({
       });
       setReason("");
     });
+
+  /** A Go opens its confirm first, which states the figures it locks; the other verdicts go straight through. */
+  const choose = (verdict) => {
+    if (verdict === BID_VERDICT.GO) setConfirmingGo(true);
+    else decide(verdict);
+  };
 
   const unlock = () =>
     writes.run(async () => {
@@ -256,6 +270,14 @@ export default function BidDecisionPanel({
                   Approve the Evaluation of Specification first. A Go waits for it.
                 </p>
               )}
+              {blockedLoss && (
+                <p
+                  className="text-sm font-semibold text-destructive"
+                  data-testid="bid-decision-loss-blocked"
+                >
+                  Planned revenue is negative, so a Go waits for a Super Admin or the decider list. Revise and No-go are still open to you.
+                </p>
+              )}
               {CHOICES.map(
                 ({ verdict, icon: Icon, words, className, variant }) => (
                   <Button
@@ -267,9 +289,9 @@ export default function BidDecisionPanel({
                       !ready ||
                       trimmed === "" ||
                       writes.busy ||
-                      (verdict === BID_VERDICT.GO && !evaluated)
+                      (verdict === BID_VERDICT.GO && (!evaluated || blockedLoss))
                     }
-                    onClick={() => decide(verdict)}
+                    onClick={() => choose(verdict)}
                     aria-label={BID_VERDICT_LABEL[verdict]}
                   >
                     <Icon size={22} aria-hidden="true" />
@@ -291,6 +313,40 @@ export default function BidDecisionPanel({
               No-go and Revise tell the Deal Team. Nothing on the deal moves.
             </p>
           )}
+          <ConfirmDialog
+            open={confirmingGo}
+            onOpenChange={setConfirmingGo}
+            title="Go on this bid?"
+            description="A Go locks the sheet. Nobody can change a number until it is unlocked."
+            confirmLabel="Go"
+            tone={losing ? "destructive" : "approve"}
+            confirmDisabled={writes.busy}
+            onConfirm={() => decide(BID_VERDICT.GO)}
+          >
+            <dl className="grid gap-1 text-sm" data-testid="bid-decision-go-figures">
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Final Offer</dt>
+                <dd className="font-semibold">{pesos(totals.finalOfferTotal)}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">ABC</dt>
+                <dd className="font-semibold">{pesos(totals.abcTotal)}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-muted-foreground">Planned revenue</dt>
+                <dd className="font-semibold" data-testid="bid-decision-go-revenue">
+                  {revenue === null
+                    ? "Not worked yet"
+                    : `${pesos(revenue)}${marginPercent === null ? "" : ` (${marginPercent.toFixed(1)}% of the Final Offer)`}`}
+                </dd>
+              </div>
+            </dl>
+            {losing && (
+              <p className="text-sm font-semibold text-destructive" role="alert" data-testid="bid-decision-go-loss-warning">
+                This bid loses money on the planned figures. Take the Go only if you mean to bid at a loss.
+              </p>
+            )}
+          </ConfirmDialog>
         </div>
       )}
     </section>
