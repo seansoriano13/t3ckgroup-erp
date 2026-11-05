@@ -193,8 +193,9 @@ function MarkupCells({ line, kid, figures, tier, canMarkup, onSaveFactor }) {
             dash
           ) : (
             <>
-              <span className={cn(figures.margin < 0 && "text-destructive")}>{pesos(figures.margin)}</span>
-              {figures.percent != null && <div className={SUB}>{figures.percent}%</div>}
+              <span className={cn(figures.margin < 0 && "font-medium text-destructive")}>{pesos(figures.margin)}</span>
+              {figures.percent != null && <div className={cn(SUB, figures.margin < 0 && "text-destructive")}>{figures.percent}%</div>}
+              {figures.basis === "suggested" && <div className={SUB}>on Suggested</div>}
             </>
           )}
         </TableCell>
