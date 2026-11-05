@@ -13,7 +13,7 @@
  *
  * `20260930030000_open_flow_canvas_writes_to_all_employees.sql` reopened
  * every write to any employee — an accepted trade-off against #208.
- * `20261105120001_flow_canvas_editor_gate.sql` (issue #884, decision on #907)
+ * `20261121040100_flow_canvas_editor_gate.sql` (issue #884, decision on #907)
  * closed it again: only a Super Admin or a `can_edit_sales_flows` holder may
  * edit or publish. Everyone else reads and is refused, RPCs included.
  *

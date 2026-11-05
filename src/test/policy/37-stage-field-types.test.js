@@ -1,7 +1,7 @@
 /**
  * Stage Field types (ticket #893, spec #907 decision 7).
  *
- * `20261105120004_stage_field_currency_employee.sql` adds `currency` and
+ * `20261121040400_stage_field_currency_employee.sql` adds `currency` and
  * `employee` to the `flow_stage_fields.field_type` check, and converts the
  * Project flows' NOA Amount and people fields to them. The check is the only
  * thing that stops a bad type reaching the table from a caller that skips the
