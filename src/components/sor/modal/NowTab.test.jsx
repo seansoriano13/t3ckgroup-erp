@@ -155,7 +155,8 @@ describe("NowTab (#299)", () => {
 
     expect(await screen.findByLabelText("Award amount")).toBeInTheDocument()
     expect(screen.getByText("The amount awarded.")).toBeInTheDocument()
-    expect(screen.getByText("Nothing blocks this stage.")).toBeInTheDocument()
+    // The field is required and still empty, so the Stage box names it (#885).
+    expect(screen.getByText("Still needed before this stage can move: Award amount.")).toBeInTheDocument()
   })
 
   it("saves a Stage Field's value to the current Stage Visit", async () => {

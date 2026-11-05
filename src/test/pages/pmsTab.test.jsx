@@ -218,8 +218,9 @@ describe("the SOR window over the S0 Evaluation sheet (#886)", () => {
       </MemoryRouter>,
     );
 
+    // The sheet is aria-hidden while the SOR window is open on top of it, so ask for hidden dialogs too.
     const dialogs = await waitFor(() => {
-      const found = screen.getAllByRole("dialog");
+      const found = screen.getAllByRole("dialog", { hidden: true });
       expect(found).toHaveLength(2);
       return found;
     }, { timeout: 5000 });

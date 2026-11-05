@@ -141,7 +141,8 @@ describe("a winning Offer fills the Component", () => {
   })
 
   it("clears 'Evaluation approved' when it changes the Offer Specification", async () => {
-    for (const c of db.internal.rowsOf("costing_components")) c.compliance = "complies"
+    // #908: the Technical verdict is one verdict for the whole S0 Evaluation, not per Component.
+    for (const m of db.internal.rowsOf("costing_matrices")) m.compliance = "complies"
     await costingMatrixService.sign(matrix.id, "evaluation_approved")
     expect((await costingMatrixService.get(opportunity.id)).evaluation.approved).toBe(true)
 

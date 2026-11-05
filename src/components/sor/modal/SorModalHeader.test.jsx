@@ -103,7 +103,9 @@ describe("SorModalHeader — Clear to move accounts for Stage Fields (#407)", ()
     await waitFor(() => expect(screen.getByText(/Blocked/)).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole("button", { name: /^This stage/ }))
-    fireEvent.change(await screen.findByLabelText("Expected Award Date"), { target: { value: "2026-04-01" } })
+    // The date is a picker now, not a text input: open it, then pick a day.
+    fireEvent.click(await screen.findByText("Select date…"))
+    fireEvent.click(await screen.findByLabelText(/November 12th, 2026/))
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() => expect(screen.getByText("Clear to move")).toBeInTheDocument())

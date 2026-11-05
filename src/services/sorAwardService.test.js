@@ -50,6 +50,12 @@ describe("sorAwardService", () => {
   it("maps SOR ids to their Date of Award, leaving out SORs without one", async () => {
     const awarded = makeOpportunity({ date_of_award: "2026-11-12" })
     const open = makeOpportunity({ date_of_award: null })
+    // sor_award_dates is a SECURITY DEFINER function; the stub stands in for its answer.
+    stubRpc("sor_award_dates", ({ p_opportunity_ids }) =>
+      [awarded, open]
+        .filter((o) => p_opportunity_ids.includes(o.id) && o.date_of_award)
+        .map((o) => ({ id: o.id, date_of_award: o.date_of_award })),
+    )
 
     const map = await sorAwardService.forSors([awarded.id, open.id])
 
