@@ -365,7 +365,12 @@ create table if not exists public."costing_matrices" (
   "bid_submitted_at" timestamp with time zone,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "import_addon_percent" numeric(7,2)
+  "import_addon_percent" numeric(7,2),
+  "technical_incharge_id" uuid,
+  "compliance" text,
+  "compliance_note" text,
+  "compliance_by" uuid,
+  "compliance_at" timestamp with time zone
 );
 
 create table if not exists public."costing_matrix_money" (
@@ -439,7 +444,6 @@ create table if not exists public."costing_tender_lines" (
   "sor_line_snapshot" jsonb,
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
-  "evaluating_team" text,
   "odoo_line_id" bigint
 );
 
@@ -2142,6 +2146,8 @@ alter table costing_landed_defaults add constraint "costing_landed_defaults_impo
 alter table costing_landed_defaults add constraint "costing_landed_defaults_local_chk" CHECK ((local_addon_percent >= (0)::numeric));
 alter table costing_landed_defaults add constraint "costing_landed_defaults_one_row_chk" CHECK ((id = true));
 alter table costing_markup_presets add constraint "costing_markup_presets_factor_chk" CHECK ((factor > (0)::numeric));
+alter table costing_matrices add constraint "costing_matrices_compliance_chk" CHECK (((compliance IS NULL) OR (compliance = ANY (ARRAY['complies'::text, 'deviates'::text]))));
+alter table costing_matrices add constraint "costing_matrices_deviation_note_chk" CHECK (((compliance IS DISTINCT FROM 'deviates'::text) OR (NULLIF(btrim(compliance_note), ''::text) IS NOT NULL)));
 alter table costing_matrices add constraint "costing_matrices_import_addon_chk" CHECK (((import_addon_percent IS NULL) OR (import_addon_percent >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_factor_chk" CHECK (((default_factor IS NULL) OR (default_factor > (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_marketing_chk" CHECK (((marketing IS NULL) OR (marketing >= (0)::numeric)));
@@ -2153,14 +2159,13 @@ alter table costing_settings add constraint "costing_settings_retention_chk" CHE
 alter table costing_settings add constraint "costing_settings_single_chk" CHECK ((id = 1));
 alter table costing_settings add constraint "costing_settings_tax_chk" CHECK (((tax_rate >= (0)::numeric) AND (tax_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_vat_chk" CHECK ((vat_divisor >= (1)::numeric));
-alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text, 'team_rrd'::text, 'team_ioe'::text, 'markup'::text])));
+alter table costing_signer_lists add constraint "costing_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['final_acquire'::text, 'evaluation'::text, 'markup'::text])));
 alter table costing_signoffs add constraint "costing_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL)) OR ((cleared_at IS NOT NULL) AND (NULLIF(btrim(cleared_reason), ''::text) IS NOT NULL))));
 alter table costing_signoffs add constraint "costing_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'costed'::text, 'evaluation_approved'::text, 'final_approved'::text])));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_abc_chk" CHECK (((abc_unit IS NULL) OR (abc_unit >= (0)::numeric)));
 alter table costing_tender_line_prices add constraint "costing_tender_line_prices_offer_chk" CHECK (((final_offer_unit IS NULL) OR (final_offer_unit >= (0)::numeric)));
 alter table costing_tender_lines add constraint "costing_tender_lines_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table costing_tender_lines add constraint "costing_tender_lines_source_chk" CHECK ((source = ANY (ARRAY['typed'::text, 'sor_line'::text])));
-alter table costing_tender_lines add constraint "costing_tender_lines_team_chk" CHECK (((evaluating_team IS NULL) OR (evaluating_team = ANY (ARRAY['RRD'::text, 'IOE'::text]))));
 alter table currency_rate_currencies add constraint "currency_rate_currencies_currency_check" CHECK (((currency ~ '^[A-Z]{3}$'::text) AND (currency <> 'PHP'::text)));
 alter table currency_rate_currencies add constraint "currency_rate_currencies_divergence_pct_check" CHECK ((divergence_pct > (0)::numeric));
 alter table currency_rates add constraint "currency_rates_php_per_unit_check" CHECK ((php_per_unit > (0)::numeric));
@@ -2392,9 +2397,11 @@ alter table costing_events add constraint "costing_events_actor_id_fkey" FOREIGN
 alter table costing_events add constraint "costing_events_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_inclusions add constraint "costing_inclusions_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
 alter table costing_landed_defaults add constraint "costing_landed_defaults_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_matrices add constraint "costing_matrices_compliance_by_fkey" FOREIGN KEY (compliance_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table costing_matrices add constraint "costing_matrices_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_matrices add constraint "costing_matrices_technical_incharge_id_fkey" FOREIGN KEY (technical_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrix_money add constraint "costing_matrix_money_default_preset_id_fkey" FOREIGN KEY (default_preset_id) REFERENCES costing_markup_presets(id);
 alter table costing_matrix_money add constraint "costing_matrix_money_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_settings add constraint "costing_settings_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
@@ -4874,63 +4881,6 @@ AS $function$
   join public.purchase_requests r on r.id = pri.request_id and r.opportunity_id = p_opportunity_id
   join sole on sole.sor_item_id = pri.sor_item_id
   where pri.component_id is null
-$function$
-;
-CREATE OR REPLACE FUNCTION public._costing_notify_evaluation_team()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_opp uuid;
-  v_sor text;
-  v_project text;
-  v_message text;
-  r record;
-begin
-  if new.evaluating_team is null then
-    return new;
-  end if;
-  if tg_op = 'UPDATE' and new.evaluating_team is not distinct from old.evaluating_team then
-    return new;
-  end if;
-
-  select o.id, o.sor_code, o.project_title into v_opp, v_sor, v_project
-    from public.costing_matrices m
-    join public.sales_opportunities o on o.id = m.opportunity_id
-   where m.id = new.matrix_id;
-  if v_opp is null then
-    return new;
-  end if;
-
-  v_message := coalesce(v_sor, 'An SOR') || ' · ' || coalesce(v_project, '') || ': rows are waiting for ' ||
-               new.evaluating_team || ' to check.';
-
-  for r in
-    select l.employee_id
-      from public.costing_signer_lists l
-      join public.employees e on e.id = l.employee_id
-     where l.list_key = 'team_' || lower(new.evaluating_team)
-       and not coalesce(e.is_deleted, false)
-       and l.employee_id is distinct from public.get_employee_id()
-  loop
-    if not exists (
-      select 1 from public.notifications n
-       where n.recipient_id = r.employee_id
-         and n.type = 'COSTING_EVALUATION_ASSIGNED'
-         and n.reference_id = v_opp::text
-         and n.title = 'Rows waiting for ' || new.evaluating_team
-         and coalesce(n.is_read, false) = false
-    ) then
-      insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
-      values (r.employee_id, public.get_employee_id(), 'COSTING_EVALUATION_ASSIGNED',
-              'Rows waiting for ' || new.evaluating_team, v_message, v_opp::text);
-    end if;
-  end loop;
-
-  return new;
-end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._employee_has_purchasing_access(p_employee_id uuid)
@@ -9636,6 +9586,32 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_check_technical_incharge()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.technical_incharge_id is null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and new.technical_incharge_id is not distinct from old.technical_incharge_id then
+    return new;
+  end if;
+  if not exists (
+    select 1 from public.employees e
+    where e.id = new.technical_incharge_id
+      and not coalesce(e.is_deleted, false)
+      and lower(btrim(e.sub_department)) = 'technical'
+  ) then
+    raise exception 'costing_technical: the Technical in-charge must be an employee in the Technical sub-department'
+      using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_clear_evaluation_approval()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -9768,41 +9744,6 @@ exception when others then
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.costing_compliance_team_guard()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_team  text;
-  v_actor uuid := public.get_employee_id();
-begin
-  if (new.compliance is not distinct from old.compliance)
-     and (new.compliance_note is not distinct from old.compliance_note)
-     and (new.recommended_alternative is not distinct from old.recommended_alternative) then
-    return new;
-  end if;
-  if auth.uid() is null
-     or coalesce(auth.role(), '') = 'service_role'
-     or coalesce(current_setting('costing.bypass', true), '') = 'on' then
-    return new;
-  end if;
-
-  select l.evaluating_team into v_team from public.costing_tender_lines l where l.id = new.tender_line_id;
-  if v_team is null then
-    raise exception 'costing_team: name the team (RRD or IOE) that judges this row first' using errcode = '42501';
-  end if;
-  if not public.costing_on_list('team_' || lower(v_team)) then
-    raise exception 'costing_team: only the % team can mark this row', v_team using errcode = '42501';
-  end if;
-  if new.compliance is distinct from old.compliance or new.compliance_note is distinct from old.compliance_note then
-    new.complied_by := v_actor;
-  end if;
-  return new;
-end;
-$function$
-;
 CREATE OR REPLACE FUNCTION public.costing_component_delete_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -9913,6 +9854,28 @@ begin
     from public._costing_item_components(p_opportunity_id) ic
     join public.purchase_request_items i on i.id = ic.item_id
   );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_component_verdict_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if (new.compliance is not distinct from old.compliance)
+     and (new.compliance_note is not distinct from old.compliance_note)
+     and (new.recommended_alternative is not distinct from old.recommended_alternative) then
+    return new;
+  end if;
+  if auth.uid() is null
+     or coalesce(auth.role(), '') = 'service_role'
+     or coalesce(current_setting('costing.bypass', true), '') = 'on' then
+    return new;
+  end if;
+  raise exception 'costing_compliance: a Component''s verdict is read-only history; the Technical verdict is on the S0 Evaluation'
+    using errcode = '42501';
 end;
 $function$
 ;
@@ -10604,8 +10567,11 @@ CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
  SET search_path TO 'public'
 AS $function$
   select public.has_purchasing_access()
-    or public.costing_on_list('team_rrd')
-    or public.costing_on_list('team_ioe')
+    or exists (
+      select 1 from public.costing_matrices m
+      where m.opportunity_id = p_opportunity_id
+        and m.technical_incharge_id = public.get_employee_id()
+    )
     or exists (
       select 1
       from public.committee_tasks t
@@ -11304,6 +11270,39 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_matrix_verdict_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+begin
+  if (new.compliance is not distinct from old.compliance)
+     and (new.compliance_note is not distinct from old.compliance_note) then
+    -- Not a verdict change. The stamp belongs to the verdict, so a plain write cannot move it.
+    new.compliance_by := old.compliance_by;
+    new.compliance_at := old.compliance_at;
+    return new;
+  end if;
+  if auth.uid() is null
+     or coalesce(auth.role(), '') = 'service_role'
+     or coalesce(current_setting('costing.bypass', true), '') = 'on' then
+    return new;
+  end if;
+  if old.technical_incharge_id is null then
+    raise exception 'costing_technical: name the Technical in-charge first' using errcode = '42501';
+  end if;
+  if v_actor is distinct from old.technical_incharge_id then
+    raise exception 'costing_technical: only the Technical in-charge can give the Compliance verdict' using errcode = '42501';
+  end if;
+  new.compliance_by := v_actor;
+  new.compliance_at := now();
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_move_inclusion(p_inclusion_id uuid, p_component_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -11944,7 +11943,6 @@ AS $function$
 declare
   v_actor     uuid := public.get_employee_id();
   v_opp       uuid;
-  v_missing   integer;
   v_signature text;
   v_row       public.costing_signoffs;
 begin
@@ -11976,22 +11974,11 @@ begin
     raise exception 'costing_sign: the evaluation is already approved' using errcode = '22023';
   end if;
 
-  if exists (
-    select 1
-    from public.costing_components c
-    join public.costing_tender_lines l on l.id = c.tender_line_id
-    where l.matrix_id = p_matrix_id and c.complied_by = v_actor
-  ) then
-    raise exception 'costing_sign: you marked some of these rows, so someone else has to approve the evaluation' using errcode = '42501';
+  if exists (select 1 from public.costing_matrices m where m.id = p_matrix_id and m.compliance_by = v_actor) then
+    raise exception 'costing_sign: you gave the Technical verdict, so someone else has to approve the evaluation' using errcode = '42501';
   end if;
-  select count(*) into v_missing
-  from public.costing_components c
-  join public.costing_tender_lines l on l.id = c.tender_line_id
-  where l.matrix_id = p_matrix_id and c.compliance is null;
-  if v_missing > 0 then
-    raise exception 'costing_sign: % Component% no verdict yet',
-      v_missing, case when v_missing = 1 then ' has' else 's have' end
-      using errcode = '22023';
+  if not exists (select 1 from public.costing_matrices m where m.id = p_matrix_id and m.compliance is not null) then
+    raise exception 'costing_sign: the Technical verdict is not given yet' using errcode = '22023';
   end if;
 
   if not coalesce(p_decline_signature, false) then
@@ -12056,14 +12043,6 @@ begin
   if v_me is null then
     raise exception 'costing_technical_list: not signed in' using errcode = '42501';
   end if;
-  if not (v_all or exists (
-    select 1 from public.costing_signer_lists l
-    join public.employees e on e.id = l.employee_id
-    where l.employee_id = v_me and l.list_key in ('team_rrd', 'team_ioe') and not coalesce(e.is_deleted, false)
-  )) then
-    raise exception 'costing_technical_list: only the RRD and IOE teams and Super Admins read the Technical list'
-      using errcode = '42501';
-  end if;
 
   return query
   select
@@ -12073,34 +12052,24 @@ begin
     o.project_title,
     o.client_name,
     fs.name,
-    t.evaluating_team,
-    count(c.id)::integer,
-    (count(c.id) filter (where c.compliance is not null))::integer,
+    'Technical'::text,
+    (select count(*)::integer from public.costing_tender_lines l where l.matrix_id = m.id),
+    case when m.compliance is null then 0
+         else (select count(*)::integer from public.costing_tender_lines l where l.matrix_id = m.id)
+    end,
     exists (
       select 1 from public.costing_signoffs s
       where s.matrix_id = m.id and s.role = 'evaluation_approved' and s.cleared_at is null
     ),
-    -- Whether the caller is on this row's team: a Super Admin reads every team's rows but judges only their own.
-    exists (
-      select 1 from public.costing_signer_lists l
-      where l.employee_id = v_me and l.list_key = 'team_' || lower(t.evaluating_team)
-    )
+    m.technical_incharge_id = v_me
   from public.costing_matrices m
   join public.sales_opportunities o on o.id = m.opportunity_id
-  join public.costing_tender_lines t on t.matrix_id = m.id and t.evaluating_team is not null
-  left join public.costing_components c on c.tender_line_id = t.id
   left join public.flow_stages fs on fs.id = o.flow_stage_id
-  where not coalesce(o.is_deleted, false)
+  where m.technical_incharge_id is not null
+    and not coalesce(o.is_deleted, false)
     and not coalesce(o.is_scratch, false)
-    and (
-      v_all
-      or exists (
-        select 1 from public.costing_signer_lists l
-        where l.employee_id = v_me and l.list_key = 'team_' || lower(t.evaluating_team)
-      )
-    )
-  group by o.id, o.sor_code, o.sales_reference, o.project_title, o.client_name, o.serial_no, fs.name, t.evaluating_team, m.id
-  order by o.serial_no desc, t.evaluating_team;
+    and (v_all or m.technical_incharge_id = v_me)
+  order by o.serial_no desc;
 end;
 $function$
 ;
@@ -12235,9 +12204,14 @@ AS $function$
         and p.employee_id = public.get_employee_id()
         and p.closed_at is null
     ) then 'participant'
-    when (public.costing_on_list('evaluation') or public.costing_on_list('team_rrd') or public.costing_on_list('team_ioe'))
-      and exists (select 1 from public.costing_matrices m where m.opportunity_id = p_opportunity_id)
-    then 'participant'
+    when exists (
+      select 1 from public.costing_matrices m
+      where m.opportunity_id = p_opportunity_id
+        and (
+          m.technical_incharge_id = public.get_employee_id()
+          or public.costing_on_list('evaluation')
+        )
+    ) then 'participant'
     else null
   end
 $function$
@@ -22745,6 +22719,42 @@ AS $function$
      and (coalesce(public.has_purchasing_access(), false) or coalesce(public.is_super_admin(), false));
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.sor_award_notice_recipients(p_opportunity_id uuid)
+ RETURNS uuid[]
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_buyers uuid[];
+  v_heads uuid[];
+begin
+  if public.get_employee_id() is null then
+    raise exception 'sor_award_notice_recipients: not signed in' using errcode = '42501';
+  end if;
+
+  select coalesce(array_agg(distinct e.id), '{}'::uuid[])
+    into v_buyers
+  from public.sor_procurement_requests r
+  join public.employees e on e.id = r.assigned_to
+  where r.opportunity_id = p_opportunity_id
+    and e.is_deleted is not true;
+
+  if cardinality(v_buyers) > 0 then
+    return v_buyers;
+  end if;
+
+  select coalesce(array_agg(e.id), '{}'::uuid[])
+    into v_heads
+  from public.employees e
+  where e.is_head
+    and e.has_purchasing_flow
+    and e.is_deleted is not true;
+
+  return v_heads;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.sor_begin_action_run(p_opportunity_id uuid, p_stage_id uuid, p_action_id uuid, p_stage_visit_id uuid DEFAULT NULL::uuid, p_decider jsonb DEFAULT NULL::jsonb)
  RETURNS sor_action_runs
  LANGUAGE plpgsql
@@ -28924,8 +28934,8 @@ CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing
 CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_bundle_keeps_inclusions();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_clear_evaluation_components AFTER INSERT OR DELETE OR UPDATE OF offer_specification, compliance, compliance_note ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
-CREATE TRIGGER costing_compliance_team_guard BEFORE UPDATE OF compliance, compliance_note, recommended_alternative ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_compliance_team_guard();
 CREATE TRIGGER costing_component_delete_guard BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_component_delete_guard();
+CREATE TRIGGER costing_component_verdict_guard BEFORE UPDATE OF compliance, compliance_note, recommended_alternative ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_component_verdict_guard();
 CREATE TRIGGER costing_components_cleanup BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_components_cleanup();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
@@ -28949,8 +28959,11 @@ CREATE TRIGGER costing_landed_defaults_stamp BEFORE INSERT OR UPDATE ON public.c
 CREATE TRIGGER costing_markup_presets_touch BEFORE UPDATE ON public.costing_markup_presets FOR EACH ROW EXECUTE FUNCTION costing_markup_presets_touch();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
+CREATE TRIGGER costing_check_technical_incharge BEFORE INSERT OR UPDATE OF technical_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_technical_incharge();
+CREATE TRIGGER costing_clear_evaluation_matrix AFTER UPDATE OF compliance, compliance_note ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_matrices_touch BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
+CREATE TRIGGER costing_matrix_verdict_guard BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_matrix_verdict_guard();
 CREATE TRIGGER trg_zz_costing_matrices_default_addon BEFORE INSERT ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_matrices_default_addon();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_write_events();
@@ -28976,7 +28989,6 @@ CREATE TRIGGER costing_tender_line_delete_guard BEFORE DELETE ON public.costing_
 CREATE TRIGGER costing_tender_line_product_guard BEFORE UPDATE OF odoo_product_id ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_product_guard();
 CREATE TRIGGER costing_tender_line_removal_guard BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_removal_guard();
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
-CREATE TRIGGER costing_tender_lines_notify_team AFTER INSERT OR UPDATE OF evaluating_team ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION _costing_notify_evaluation_team();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();

@@ -103,10 +103,6 @@ export const COMPONENT_BANDS = {
   // The Canvass fill (#278): which winning Offer filled Offer Specification, and the Component's documents.
   offer_specification_from_offer_id: [PURCHASING],
   documents: [PURCHASING],
-  // The Evaluation of Specification (#271): written by members of the SOR's evaluation task, and by Purchasing access.
-  compliance: [TECHNICAL],
-  compliance_note: [TECHNICAL],
-  recommended_alternative: [TECHNICAL],
 };
 
 /**

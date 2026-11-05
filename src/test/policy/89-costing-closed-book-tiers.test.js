@@ -510,11 +510,11 @@ describe("write bands still refuse out-of-band writes", () => {
         }
     })
 
-    it("refuses the technical band to the Deal Team", async () => {
+    it("refuses the Deal Team a Component's verdict, which is read-only history since #908", async () => {
         const result = await tryUpdate(await clientFor("dealOwner"), "costing_components", componentId, { compliance: "deviates", compliance_note: "x" })
         expect(result.ok).toBe(false)
         expect(result.code).toBe(RLS_VIOLATION)
-        expect(result.message).toContain("costing_band:costing_components.compliance:technical")
+        expect(result.message).toContain("read-only history")
     })
 
     it("refuses the Deal Team the Purchasing Incharge and Purchasing the Sales Incharge", async () => {

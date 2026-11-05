@@ -58,7 +58,8 @@ describe("the Evaluation of Specification on the grid", () => {
     expect(screen.getByTestId("matrix-compliance")).toHaveTextContent("1 of 4 deviate · 2 not evaluated");
   });
 
-  it("lets the Technical band mark a Component, holding a deviation for its note", async () => {
+  // #908 retired per-Component marking (the verdict is offer-level now). The S0 verdict card that replaces it is #909.
+  it.skip("lets the Technical band mark a Component, holding a deviation for its note", async () => {
     const user = mount();
     await openLines();
     const rows = await screen.findAllByTestId("component");
@@ -79,7 +80,8 @@ describe("the Evaluation of Specification on the grid", () => {
     expect(await screen.findByTestId("line-compliance")).toHaveTextContent("1 of 3 deviate · 1 not evaluated");
   });
 
-  it("marks a Component that complies in one choice", async () => {
+  // #908: see the skipped test above (#909 replaces the marking UI).
+  it.skip("marks a Component that complies in one choice", async () => {
     const user = mount();
     await openLines();
     const rows = await screen.findAllByTestId("component");
