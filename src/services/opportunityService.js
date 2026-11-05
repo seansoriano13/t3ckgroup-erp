@@ -1659,17 +1659,25 @@ async function planVersionUpdate(ids, targetSnapshotId) {
   if (targetError) throw targetError;
   const { data: sors, error: sorError } = await supabase
     .from("sales_opportunities")
-    .select("id, sales_reference, project_title, client_name, sale_type, deal_owner_id, flow_stage_id, flow_snapshot_id")
+    .select("id, sales_reference, project_title, client_name, sale_type_id, deal_owner_id, flow_stage_id, flow_snapshot_id")
     .in("id", ids);
   if (sorError) throw sorError;
-  const sourceIds = [...new Set((sors || []).map((o) => o.flow_snapshot_id).filter(Boolean))];
+  // The Sale Type is its own row; the action templates want its name (#882).
+  const saleTypeIds = [...new Set((sors || []).map((o) => o.sale_type_id).filter(Boolean))];
+  const { data: saleTypes, error: saleTypeError } = saleTypeIds.length
+    ? await supabase.from("sale_types").select("id, name").in("id", saleTypeIds)
+    : { data: [], error: null };
+  if (saleTypeError) throw saleTypeError;
+  const saleTypeNameById = new Map((saleTypes || []).map((t) => [t.id, t.name]));
+  const sorRows = (sors || []).map((o) => ({ ...o, sale_type: saleTypeNameById.get(o.sale_type_id) || null }));
+  const sourceIds = [...new Set(sorRows.map((o) => o.flow_snapshot_id).filter(Boolean))];
   const { data: sources, error: sourceError } = sourceIds.length
     ? await supabase.from("flow_snapshots").select("id, version, version_minor, snapshot_data").in("id", sourceIds)
     : { data: [], error: null };
   if (sourceError) throw sourceError;
   const sourceById = new Map((sources || []).map((s) => [s.id, s]));
   const targetStages = target.snapshot_data?.stages || [];
-  const items = (sors || []).map((sor) => ({
+  const items = sorRows.map((sor) => ({
     sor,
     stage: targetStages.find((st) => st.id === sor.flow_stage_id) || { id: sor.flow_stage_id, name: "" },
     added: addedActionsForStage({
@@ -2901,11 +2909,14 @@ export const opportunityService = {
     const succeeded = [];
     const failed = [];
     // Read before the move: afterwards the old version is no longer on the row.
+    // A failed read is reported back, never swallowed (#882).
     let plan = { items: [] };
+    let planError = null;
     try {
       plan = await planVersionUpdate(ids, targetSnapshotId);
     } catch (err) {
       console.error("Could not work out the Stage Actions for this update:", err);
+      planError = err?.message || String(err);
     }
     onProgress?.({ done: 0, total: ids.length });
     for (let i = 0; i < ids.length; i += chunkSize) {
@@ -2948,7 +2959,7 @@ export const opportunityService = {
       }
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     }
-    return { succeeded, failed, actionFailures };
+    return { succeeded, failed, actionFailures, planError };
   },
 
   async deleteOpportunity(id, actorId) {

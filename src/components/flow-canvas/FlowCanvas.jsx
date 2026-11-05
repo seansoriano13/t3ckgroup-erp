@@ -62,7 +62,7 @@ import { Input } from "@/components/ui/input";
 import { FileInput } from "@/components/ui/FileInput";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { UPDATE_MODE, idsForUpdateMode, actionFailureMessage } from "@/utils/sorVersionUpdate";
+import { UPDATE_MODE, idsForUpdateMode, actionFailureMessage, planFailureMessage } from "@/utils/sorVersionUpdate";
 import {
   Dialog,
   DialogContent,
@@ -236,7 +236,7 @@ function FlowCanvasInner() {
   const [offerMode, setOfferMode] = useState(UPDATE_MODE.ALL);
   const [offerPicked, setOfferPicked] = useState([]);
   const offerIds = idsForUpdateMode(offerMode, (moveOffer?.sors ?? []).map((o) => o.id), offerPicked);
-  const { data: offerPreview } = useQuery({
+  const { data: offerPreview, error: offerPreviewError } = useQuery({
     queryKey: ["versionUpdatePreview", moveOffer?.targetSnapshotId, offerIds],
     queryFn: () => opportunityService.previewVersionUpdate(offerIds, moveOffer.targetSnapshotId),
     enabled: Boolean(moveOffer?.targetSnapshotId && offerIds.length > 0),
@@ -2043,6 +2043,11 @@ function FlowCanvasInner() {
                   ))}
                 </ul>
               )}
+              {offerPreviewError && (
+                <p role="alert" className="text-destructive">
+                  {planFailureMessage(offerPreviewError.message)}
+                </p>
+              )}
               <div role="group" aria-label="Which SORs" className="flex flex-wrap gap-2">
                 {modes.map(([value, label]) => (
                   <Button
@@ -2132,6 +2137,7 @@ function FlowCanvasInner() {
       >
         <div className="space-y-2 text-sm">
           <p>{moveResult?.succeeded?.length ?? 0} updated successfully.</p>
+          {moveResult?.planError && <p className="text-destructive">{planFailureMessage(moveResult.planError)}</p>}
           {moveResult?.failed?.length > 0 && (
             <div className="space-y-1">
               <p className="font-semibold text-destructive">{moveResult.failed.length} failed:</p>

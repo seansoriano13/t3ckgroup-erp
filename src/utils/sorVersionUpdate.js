@@ -130,6 +130,12 @@ export function formatActionFailures(failures) {
   return [...byName].map(([name, reason]) => (reason ? `${name} (${reason})` : name)).join(", ");
 }
 
+/** The warning when the Stage Actions could not be worked out before an update, or null (#882). */
+export function planFailureMessage(planError) {
+  if (!planError) return null;
+  return `Updated, but the new Stage Actions could not be worked out, so none were started: ${planError}`;
+}
+
 /** The warning for Stage Actions that failed to start after an update, or null. */
 export function actionFailureMessage(actionFailures) {
   if (!actionFailures || actionFailures.length === 0) return null;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { idsForUpdateMode, canUpdateSorVersion, isOutdatedSor, revertTargets, UPDATE_MODE } from "./sorVersionUpdate";
+import { idsForUpdateMode, canUpdateSorVersion, isOutdatedSor, revertTargets, UPDATE_MODE, planFailureMessage } from "./sorVersionUpdate";
 
 describe("idsForUpdateMode", () => {
   const all = ["a", "b", "c"];
@@ -101,5 +101,16 @@ describe("action failure messages (#896)", () => {
   it("returns no warning when nothing failed", () => {
     expect(actionFailureMessage([])).toBeNull()
     expect(actionFailureMessage(undefined)).toBeNull()
+  })
+})
+
+describe("planFailureMessage (#882)", () => {
+  it("says nothing when the Stage Actions were worked out", () => {
+    expect(planFailureMessage(null)).toBeNull();
+  })
+  it("says the new Stage Actions did not start, and why", () => {
+    expect(planFailureMessage("column sales_opportunities.sale_type does not exist")).toMatch(
+      /could not be worked out.*column sales_opportunities\.sale_type does not exist/,
+    );
   })
 })
