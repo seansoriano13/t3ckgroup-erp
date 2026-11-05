@@ -251,6 +251,16 @@ describe("RequestedItems", () => {
       )
     })
 
+    it("fills the bar by ready lines only, so lines waiting to be bought read as an empty bar (#902)", async () => {
+      seed("Bracket", "to_purchase")
+      seed("Anchor", "to_purchase")
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const meter = await screen.findByRole("meter", { name: "0 of 4 ready" })
+      expect(meter).toHaveAttribute("aria-valuenow", "0")
+      expect(within(screen.getByTestId("ready-bar")).getByText("0 of 4 ready")).toBeInTheDocument()
+    })
+
     it("names the cannot-source count and counts several purchased lines", async () => {
       seed("A", "purchased"); seed("B", "purchased"); seed("C", "cannot_source")
       renderWithProviders(<RequestedItems request={request} />)

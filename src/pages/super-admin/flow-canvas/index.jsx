@@ -12,8 +12,8 @@ import DesktopNotice from "@/components/ui/DesktopNotice";
  * The Live/Sandbox toggle and its one shared Sandbox document are gone (issue
  * #186); the canvas always opens straight onto the real Sales Flow. The
  * Snapshot history dialog is gone too (issue #192) — the canvas's own version
- * rail replaces it, open to everyone who can already publish from here, not
- * just Super Admins.
+ * rail replaces it, open to everyone who can already publish from here: Super
+ * Admins and Flow editors (#884). Everyone else sees the canvas read-only.
  *
  * A Tool page (ADR 0029): the shared PageShell header (compact title) over a
  * full-width frame, with the canvas as the body. `_app.jsx` drops its wrapper

@@ -97,7 +97,8 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
   const showFactor = tierReadsCost(tier, "markup_factor");
   const showMarkupPrice = tierReadsCost(tier, "markup_price_unit");
   const showLanded = tierReadsLandedCost(tier);
-  const canEvaluate = inAnyBand(bands, COMPONENT_BANDS.compliance);
+  // #908: a Component's verdict is read-only history; the Technical verdict is given once, on the S0 Evaluation.
+  const canEvaluate = false;
   const label = (text) => `${text} ${component.number}`;
   const save = async (fields) => {
     await costingMatrixService.updateComponent(component.id, fields);

@@ -120,6 +120,26 @@ export const notificationService = {
   },
 
   /**
+   * #901: resolve a Stage Action's "Create or Skip" notice for one Decider once
+   * the action is decided. Matches the notice on the SOR and its title; the
+   * already-read ones are left alone.
+   */
+  async resolveDecisionNotices(opportunityId, recipientId, title) {
+    if (!opportunityId || !recipientId) return;
+    let query = supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('recipient_id', recipientId)
+      .eq('type', 'OPPORTUNITY_ACTION_DECISION_DUE')
+      .eq('reference_id', opportunityId)
+      .eq('is_read', false);
+    if (title) query = query.eq('title', title);
+
+    const { error } = await query;
+    if (error) throw new Error(error.message);
+  },
+
+  /**
    * Mark a single notification as unread
    */
   async markAsUnread(notificationId) {

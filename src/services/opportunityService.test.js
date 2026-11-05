@@ -258,6 +258,31 @@ describe("opportunityService", () => {
         expect(created).toBeTruthy()
       })
 
+      // #889: an edge function that is missing or down used to surface as the raw
+      // "Edge Function returned a non-2xx status code". It now names the step.
+      it("says which step failed when the S0 check cannot reach the function, and registers nothing (#889)", async () => {
+        stubEdgeFunction("sor-sales-reference", () => new Response("Function not found", { status: 404 }))
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toThrow("Couldn't check S01237 against Odoo. Try again, or register without a Sales Reference.")
+        expect(sorCount()).toBe(before)
+      })
+
+      it("shows the function's own message when it answers with one (#889)", async () => {
+        stubEdgeFunction(
+          "sor-sales-reference",
+          () => new Response(JSON.stringify({ message: "Odoo is paused for maintenance." }), { status: 503 }),
+        )
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toThrow("Odoo is paused for maintenance.")
+        expect(sorCount()).toBe(before)
+      })
+
       it("makes no S0 call at all when the form has none", async () => {
         const calls = stubSalesReferenceSave()
 
@@ -2299,6 +2324,28 @@ describe("opportunityService", () => {
         expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(1)
       })
 
+      it("deciding resolves the Decider's decision notice (#901)", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register({ sales_reference: "S09913" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        const noticeOf = () =>
+          db.internal
+            .rowsOf("notifications")
+            .find((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE" && n.recipient_id === decider.id)
+        expect(noticeOf().is_read).toBeFalsy()
+
+        await opportunityService.decideAction(run.id, "skip", decider.id)
+
+        expect(noticeOf().is_read).toBe(true)
+      })
+
       it("Skip creates nothing and logs the skip", async () => {
         const decider = makeEmployee({ name: "Decider Dana" })
         makeStageAction({
@@ -2550,6 +2597,25 @@ describe("opportunityService", () => {
         expect(moved.failedStageActions).toEqual(["Broken action"])
         expect(db.internal.rowsOf("committee_tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(1)
         expect((await opportunityService.getOpportunityById(deal.id)).flow_stage_id).toBe(qualified.id)
+      })
+
+      it("says why an action failed when a Group Task member no longer exists (#896)", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_group_task",
+          config: {
+            title: "DELCOM - Kickoff",
+            members: [{ employeeId: "00000000-0000-4000-8000-00000000dead", taskDescription: "Check" }],
+          },
+          sort_order: 1,
+        })
+
+        const deal = await register()
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.failedStageActions).toEqual(["DELCOM - Kickoff"])
+        expect(moved.failedStageActionReasons).toEqual([{ name: "DELCOM - Kickoff", reason: "member no longer exists" }])
+        expect(db.internal.rowsOf("committee_tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(0)
       })
 
       it("reports no failures when every action runs", async () => {

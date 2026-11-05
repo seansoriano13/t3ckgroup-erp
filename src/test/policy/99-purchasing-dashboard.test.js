@@ -179,8 +179,22 @@ describe("what moves the SOR between groups", () => {
         await asSvc(svc().from("costing_bid_decisions").update({ cleared_at: new Date().toISOString(), cleared_reason: "fixture" }).eq("matrix_id", matrixId), "clear")
         const rows = mine((await dashboard("outsider")).data)
         expect(rows.some((row) => row.grp === "to_purchase")).toBe(false)
-        expect(rows.find((row) => row.target_kind === "costing_matrix").item_count).toBe(2)
+        // #891: the Bid Decision is a move, not an item. Only the unpriced Stretcher counts.
+        expect(rows.find((row) => row.target_kind === "costing_matrix").item_count).toBe(1)
         await asSvc(svc().from("costing_bid_decisions").update({ cleared_at: null, cleared_reason: null }).eq("matrix_id", matrixId), "unclear")
+    })
+
+    it("keeps the matrix row with a count of 0 when only the Bid Decision is pending (#891)", async () => {
+        await asSvc(svc().from("costing_bid_decisions").update({ cleared_at: new Date().toISOString(), cleared_reason: "fixture" }).eq("matrix_id", matrixId), "clear")
+        await asSvc(svc().from("costing_component_costs").upsert({ component_id: unpricedComp, acquire_unit: 500 }), "Acquire")
+        try {
+            const rows = mine((await dashboard("outsider")).data)
+            const matrix = rows.find((row) => row.target_kind === "costing_matrix")
+            expect(matrix).toMatchObject({ grp: "still_canvassing", item_count: 0 })
+        } finally {
+            await asSvc(svc().from("costing_component_costs").update({ acquire_unit: null }).eq("component_id", unpricedComp), "Unprice")
+            await asSvc(svc().from("costing_bid_decisions").update({ cleared_at: null, cleared_reason: null }).eq("matrix_id", matrixId), "unclear")
+        }
     })
 })
 

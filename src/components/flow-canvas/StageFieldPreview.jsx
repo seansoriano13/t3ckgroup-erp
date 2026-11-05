@@ -39,6 +39,23 @@ export default function StageFieldPreview({ draft }) {
               placeholder="Select…"
               className="w-full"
             />
+          ) : draft.source === "custom" && draft.fieldType === "employee" ? (
+            <SelectField
+              disabled
+              options={[]}
+              placeholder="Select an employee…"
+              className="w-full"
+            />
+          ) : draft.source === "custom" && draft.fieldType === "currency" ? (
+            <div className="flex w-full items-center gap-1.5">
+              <span className="text-xs font-semibold text-muted-foreground" aria-hidden="true">₱</span>
+              <Input
+                disabled
+                type="number"
+                placeholder="0.00"
+                containerClassName="flex w-full" className="h-8 cursor-not-allowed rounded-md border border-input bg-background/50 px-2.5 py-1 text-xs opacity-90 shadow-sm"
+              />
+            </div>
           ) : (
             <Input
               disabled

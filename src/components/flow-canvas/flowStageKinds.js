@@ -295,16 +295,39 @@ export function fieldDetail(field) {
 }
 
 /**
- * Hover note for a Stage Condition or Action whose kind also sits on other
+ * The document an attachment condition asks for, as one comparable string:
+ * its label, its `documentType` and its `accepts` list. Two attachment
+ * conditions are the same document only when all three match (#895).
+ */
+function attachmentDocumentKey(item) {
+  const config = item?.config ?? {}
+  const label = String(item?.label ?? "").trim().toLowerCase()
+  const accepts = Array.isArray(config.accepts) ? [...config.accepts].sort().join(",") : ""
+  return JSON.stringify([label, config.documentType ?? "", accepts])
+}
+
+/**
+ * Whether two items are the same check (#845, #895). Kind is the test for
+ * everything except attachments: "Purchasing settled" twice is a repeat, but
+ * "ITB" and "NOA" are two different documents even though both are attachments.
+ */
+function isSameCheck(a, b) {
+  if (a.kind !== b.kind) return false
+  if (a.kind !== CONDITION_KINDS.ATTACHMENT) return true
+  return attachmentDocumentKey(a) === attachmentDocumentKey(b)
+}
+
+/**
+ * Hover note for a Stage Condition or Action whose check also sits on other
  * Stages of the same flow (#845). Allowed, never blocked: each Stage checks the
  * whole SOR again, so the canvas only says where the other copies are.
  *
  * `itemsByStage` is the canvas's `{ [stageId]: items[] }` read. Returns null
- * when the kind sits on this Stage only.
+ * when the check sits on this Stage only.
  */
 export function alsoCheckedNote(item, stageId, itemsByStage, stages, { prefix = "Also checked at" } = {}) {
   const others = stages.filter(
-    (s) => s.id !== stageId && (itemsByStage[s.id] ?? []).some((x) => x.kind === item.kind),
+    (s) => s.id !== stageId && (itemsByStage[s.id] ?? []).some((x) => isSameCheck(x, item)),
   );
   if (others.length === 0) return null;
   const names = others.map((s) => s.name).join(", ");

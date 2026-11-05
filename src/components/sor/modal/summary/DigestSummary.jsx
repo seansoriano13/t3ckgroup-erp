@@ -85,7 +85,7 @@ export function StatsBand({ p, dg, className }) {
   );
 }
 
-/** `go(target)` gets "now" | "items" | "details"; a caller without a Details view maps "details" itself. */
+/** `go(target)` gets "now" | "items" | "details" | "pms"; a caller without a Details view maps "details" itself. */
 export function AttentionList({ dg, go }) {
   return (
     <section>

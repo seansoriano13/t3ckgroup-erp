@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input";
 import Dropdown from "../ui/Dropdown";
 import { ChevronDown } from "lucide-react";
 import { FilterOptionList } from "../ui/FilterDropdown";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { formatSorDate, ymdToDate } from "../../utils/sorDate";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
@@ -115,6 +118,75 @@ export function SelectField({
             }}
             close={close}
           />
+        )}
+      </Dropdown>
+    </div>
+  );
+}
+
+function dateToYmd(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// A date on the SOR forms, shown as "Nov 5, 2026" (see utils/sorDate.js).
+export function DateField({
+  label,
+  required,
+  className = "",
+  value,
+  onChange,
+  disabled = false,
+  placeholder = "Select date…",
+}) {
+  const control = (isOpen = false) => (
+    <div
+      className={`${CONTROL} flex items-center justify-between ${
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+      }`}
+    >
+      <span className={value ? "" : "text-muted-foreground/50"}>
+        {value ? formatSorDate(value) : placeholder}
+      </span>
+      <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+    </div>
+  );
+
+  const fieldLabel = (
+    <FieldBox label={<>{label}
+      {required && <span className="text-red-500 ml-0.5">*</span>}</>} className={LABEL} />
+  );
+
+  if (disabled) {
+    return (
+      <div className={`${BOX} ${className}`}>
+        {fieldLabel}
+        {control()}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${BOX} ${className}`}>
+      {fieldLabel}
+      <Dropdown
+        usePortal={true}
+        matchTriggerWidth={false}
+        trigger={({ isOpen }) => control(isOpen)}
+      >
+        {({ close }) => (
+          <div className="p-1">
+            <DatePicker
+              selected={ymdToDate(value)}
+              onChange={(date) => {
+                if (onChange) onChange({ target: { value: date ? dateToYmd(date) : "" } });
+                close();
+              }}
+              inline
+            />
+          </div>
         )}
       </Dropdown>
     </div>

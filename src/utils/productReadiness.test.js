@@ -33,6 +33,19 @@ describe("summarize (#680)", () => {
   })
 })
 
+describe("the ready bar fills by ready lines only (#902)", () => {
+  it("is 0% while every line is still to purchase", () => {
+    expect(summarize([{ status: "to_purchase" }, { status: "to_purchase" }]).readyPercent).toBe(0)
+  })
+  it("matches the headline: 1 ready of 4 is 25%, Cancelled lines left out", () => {
+    const s = summarize([{ status: "available" }, { status: "purchased" }, { status: "to_purchase" }, { status: "cancelled" }, { status: "not_checked" }])
+    expect(s).toMatchObject({ ready: 1, total: 4, readyPercent: 25 })
+  })
+  it("is 0% and not NaN with no lines", () => {
+    expect(summarize([]).readyPercent).toBe(0)
+  })
+})
+
 describe("summary names the open line's own P0 (#790)", () => {
   it("names P01047, not the P0 of a line that is already Received", () => {
     const items = [

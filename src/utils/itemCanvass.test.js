@@ -25,6 +25,12 @@ describe("canvassLine", () => {
     expect(canvassLine({ number: "CNV_0007", offers: [{}, {}], slotsCovered: 3 })).toBe("Canvass CNV_0007 · 3 of 3 slots")
   })
 
+  it("names the winner once one is picked (#898)", () => {
+    expect(
+      canvassLine({ number: "CNV_0007", offers: [{ supplier_name: "Redleaf Inc.", is_winner: true }, {}, {}] }),
+    ).toBe("Canvass CNV_0007 · 3 of 3 offers · Winner Redleaf Inc.")
+  })
+
   it("says a replaced line's Canvass was stopped", () => {
     expect(canvassLine({ number: "CNV_0007", stopped_reason: "Stopped · replaced by B" })).toBe("Canvass CNV_0007 · Stopped · replaced by B")
   })

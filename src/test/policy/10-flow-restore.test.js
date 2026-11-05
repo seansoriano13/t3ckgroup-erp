@@ -137,9 +137,8 @@ describe("restore_flow_snapshot", () => {
             .from("flow_stages")
             .insert({ flow_id: flowId, name: `${MARKER} Intruder`, sort_order: 9 })
 
-        // The RPC is SECURITY INVOKER, so this is the assertion an ordinary
-        // signed-in employee — not the service role — can actually call it.
-        const client = await clientFor("ordinary")
+        // A signed-in Flow editor (#884), not the service role, is who can call it.
+        const client = await clientFor("flowEditor")
         const { error } = await client.rpc("restore_flow_snapshot", {
             p_flow_id: flowId,
             p_snapshot_id: snapshotId,
@@ -167,7 +166,7 @@ describe("restore_flow_snapshot", () => {
         await svc().from("flow_stages").update({ name: `${MARKER} Lead` }).eq("id", stageIds.Qualified)
         await svc().from("flow_stages").update({ name: `${MARKER} Qualified` }).eq("id", stageIds.Lead)
 
-        const client = await clientFor("ordinary")
+        const client = await clientFor("flowEditor")
         const { error } = await client.rpc("restore_flow_snapshot", {
             p_flow_id: flowId,
             p_snapshot_id: snapshotId,
@@ -235,7 +234,7 @@ describe("restore_flow_snapshot", () => {
             .eq("flow_id", flowId)
             .order("sort_order")
 
-        const client = await clientFor("ordinary")
+        const client = await clientFor("flowEditor")
         const { error } = await client.rpc("restore_flow_snapshot", {
             p_flow_id: flowId,
             p_snapshot_id: twoStageSnap.data.id,
@@ -258,7 +257,7 @@ describe("restore_flow_snapshot", () => {
         await resetToSeededDraft()
         await svc().from("sales_flows").update({ state: "locked" }).eq("id", flowId)
 
-        const client = await clientFor("ordinary")
+        const client = await clientFor("flowEditor")
         const { error } = await client.rpc("restore_flow_snapshot", {
             p_flow_id: flowId,
             p_snapshot_id: snapshotId,

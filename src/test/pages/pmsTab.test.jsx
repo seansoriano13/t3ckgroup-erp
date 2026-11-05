@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
 import { renderWithProviders, setupUser } from "@/test/support";
@@ -8,6 +8,7 @@ import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "@/test/factories";
 import OpportunityDetailsModal from "@/components/sor/OpportunityDetailsModal";
+import ModalShell from "@/components/ui/ModalShell";
 
 /**
  * The PMS tab of the SOR modal (#267): the Costing Matrix card (its headline numbers and the way into
@@ -194,5 +195,40 @@ describe("the PMS tab", () => {
 
     expect(await screen.findByText("Buyer: Bea Buyer")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: /S0 Evaluation/ })).toBeInTheDocument();
+  });
+});
+
+describe("the SOR window over the S0 Evaluation sheet (#886)", () => {
+  it("stacks above the record window it is opened from, and comes after it in the page", async () => {
+    const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S06070" });
+    const owner = makeEmployee();
+    authUser = { id: owner.id, isSuperAdmin: true };
+    stubRpc("ipas_summaries_for_sor", []);
+    stubRpc("ipas_standing_for_sor", []);
+    stubRpc("handoffs_for_sor", { transmittals: [], packing_lists: [] });
+    stubEdgeFunction("odoo-sor-lookup", { success: true, found: true, order: { id: 1, name: "S1", state: "sale" }, customer: {}, items: [] });
+    stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/costing-matrix/x"]}>
+        <ModalShell open size="record" onOpenChange={() => {}} crumbs={["S0 Evaluation"]}>
+          <p>S0 sheet body</p>
+        </ModalShell>
+        <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} initialView="pms" />
+      </MemoryRouter>,
+    );
+
+    // The sheet is aria-hidden while the SOR window is open on top of it, so ask for hidden dialogs too.
+    const dialogs = await waitFor(() => {
+      const found = screen.getAllByRole("dialog", { hidden: true });
+      expect(found).toHaveLength(2);
+      return found;
+    }, { timeout: 5000 });
+    const sheet = dialogs.find((d) => d.getAttribute("data-modal-shell") === "record");
+    const sor = dialogs.find((d) => d !== sheet);
+    expect(sheet).toHaveClass("z-[70]");
+    expect(sor).toHaveClass("z-[70]");
+    // Portals append in mount order and the same layer paints later content on top.
+    expect(sheet.compareDocumentPosition(sor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

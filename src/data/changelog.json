@@ -1,5 +1,123 @@
 [
     {
+        "date": "2026-11-05",
+        "title": "Flow editor switch for employees",
+        "version": "1.9.96",
+        "changes": [
+            "Super Admins can turn the Flow editor on or off for an employee in the employee form.",
+            "Only a Super Admin can give someone Flow editor access, and the database refuses anyone else, including when a new employee is added."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Technical verdict shows what is still missing",
+        "version": "1.9.91",
+        "changes": [
+            "The Technical verdict lists the Components that have no We offer yet, so you can see what is still missing.",
+            "You can still give the Technical verdict while some Components have no We offer."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Clearer Bid Decision buttons",
+        "version": "1.9.95",
+        "changes": [
+            "The Go button looks switched off, not chosen, until its conditions are met.",
+            "Only a Super Admin or the decider list sees the Unlock box and button on a locked bid, and others are told who can unlock it.",
+            "Unlock asks you to confirm first, showing your reason, just as Go does."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Purchasing screens respond faster",
+        "version": "1.9.90",
+        "changes": [
+            "The SOR window shows its frame straight away while the deal loads, instead of a blank panel.",
+            "Raise a Transmittal shows its form outline straight away while the checks load.",
+            "Applying a markup to the Final Offers shows that it is saving.",
+            "The Buying opens here button on a Stage shows the new setting at once, and is greyed out while it saves."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Purchasing pages fit a 1440 px screen",
+        "version": "1.9.89",
+        "changes": [
+            "The SOR Register shows its Status column without scrolling sideways.",
+            "Product List totals and the Import add-on line no longer cut off money or wrap into a tall box.",
+            "The Purchase Request item tables keep their full width when Chat or Members is open.",
+            "Every Purchasing page title ends in the red accent word, including Canvasses, IPAS and Transmittals."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Clearer messages and easier stage fields",
+        "version": "1.9.90",
+        "changes": [
+            "A negative amount now says it must be zero or more, and a zero where a number is needed says it must be more than zero.",
+            "Pressing Enter in a single-line stage field now saves it, the same as pressing its Save button.",
+            "An optional item on a stage now says it is optional and not needed to move on, instead of saying it is not yet satisfied.",
+            "Only one Purchasing Incharge can be picked on Open S0 Evaluation. Once one is chosen, the add button goes away until you remove them.",
+            "The SORs updated message now shows only Done, with no Cancel button."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Pending Stage Actions show under Needs attention",
+        "version": "1.9.91",
+        "changes": [
+            "A Stage Action waiting for your Create or Skip now shows under Needs attention on the SOR summary, with a Go link to the decision.",
+            "Once you Create or Skip it, the matching notification is marked as read."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Easier SOR registration and sign-out",
+        "version": "1.9.92",
+        "changes": [
+            "When you register an SOR, you are the Deal Owner by default. Change it if the deal belongs to someone else.",
+            "Dates on the SOR forms now read like Nov 5, 2026, the same as the lists.",
+            "A link to an SOR, such as /sors?record=..., now opens that SOR. The address updates as you open and close one.",
+            "You can sign out from the menu at the top of the sidebar."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Registering an SOR shows its number",
+        "version": "1.9.88",
+        "changes": [
+            "The Register SOR message now shows the SOR number, such as \"SOR-257 registered.\"",
+            "The new SOR opens right after you register it, so you land on the deal you just made."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Loss-making bids need a decider",
+        "version": "1.9.93",
+        "changes": [
+            "Go on the Bid Decision now asks you to confirm first. The confirm shows the Final Offer, the ABC and the planned revenue.",
+            "When the planned revenue is negative, only a Super Admin or someone on the decider list can take a Go. Others see why the Go is off. Revise and No-go are still available."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "SOR Awarded goes to the people buying",
+        "version": "1.9.87",
+        "changes": [
+            "When an SOR gets a Date of Award, the SOR Awarded notice now goes only to the buyers of its purchase requests, not to every Purchasing employee.",
+            "If no purchase request has a buyer yet, the notice goes to the Purchasing heads instead."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Go waits for the evaluation",
+        "version": "1.9.88",
+        "changes": [
+            "A Go on the Bid Decision needs the Evaluation of Specification approved first. Until it is, the Go button is off and the card says to approve the evaluation first.",
+            "Revise and No-go are still available at any time."
+        ]
+    },
+    {
         "date": "2026-11-04",
         "title": "Technical page for the RRD and IOE teams",
         "version": "1.9.86",
@@ -57,6 +175,15 @@
             "Stage Gates: Stage moves and forward returns now reliably check that required fields and uploads are complete before moving forward, both on screen and on the server. The deal header immediately reflects saved stage fields.",
             "Purchasing & Orders: The Purchasing Tracker omits received lines from items waiting to be purchased, and attaching a PO to an already-received line is safely refused.",
             "IPAS: Status messages and notes now clearly name the Logistics team, and Section 2 ensures required charges are reviewed."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Money and People Fields Are Checked",
+        "version": "1.9.89",
+        "changes": [
+            "Flow Canvas: a Stage field can now be a Currency field (shown in pesos, only accepts a number) or an Employee field (pick a person from the list).",
+            "Project flows: NOA Amount is now a Currency field, and Purchasing Involved, Logistics Representative and Representative are now Employee fields. Amounts and names saved before this change stay as they were."
         ]
     },
     {

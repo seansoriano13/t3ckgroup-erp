@@ -19,7 +19,10 @@ export function canvassBlockedReason(item) {
   }
 }
 
-/** "Canvass CNV_0007 · 2 of 3 offers" for a line that has a Canvass, else null. */
+/**
+ * "Canvass CNV_0007 · 2 of 3 offers" for a line that has a Canvass, else null. Once a winner is
+ * picked, the line also names who won: "· Winner Redleaf Inc.".
+ */
 export function canvassLine(canvass) {
   if (!canvass) return null;
   const offers = canvass.offers?.length ?? canvass.offerCount ?? 0;
@@ -28,6 +31,8 @@ export function canvassLine(canvass) {
   if (canvass.stopped_reason) return `${head} · ${canvass.stopped_reason}`;
   // A "No other supplier" note covers a slot too, so count it (#795 A9).
   const covered = canvass.slotsCovered ?? offers;
-  if (covered > offers) return `${head} · ${covered} of ${MIN_CANVASS_OFFERS} slots`;
-  return `${head} · ${offers} of ${MIN_CANVASS_OFFERS} offers`;
+  const count = covered > offers ? `${covered} of ${MIN_CANVASS_OFFERS} slots` : `${offers} of ${MIN_CANVASS_OFFERS} offers`;
+  const winner = (canvass.offers || []).find((offer) => offer?.is_winner);
+  const winnerName = winner ? String(winner.supplier_name || winner.brand || "").trim() : "";
+  return winnerName ? `${head} · ${count} · Winner ${winnerName}` : `${head} · ${count}`;
 }

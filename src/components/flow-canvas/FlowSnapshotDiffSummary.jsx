@@ -46,6 +46,8 @@ export default function DiffSummary({
         nameOf={(c) => `on ${stageName(c.stage_id || c.id)}`}
       />
       {result.wonStageChanged && <p>• Won Stage changed.</p>}
+      {result.awardStageChanged && <p>• Notice of Award Stage changed.</p>}
+      {result.contractStageChanged && <p>• Contract Stage changed.</p>}
     </div>
   );
 }

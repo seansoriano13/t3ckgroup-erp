@@ -55,6 +55,12 @@ const decide = async (who, verdict, reason = "Reason for the decision") => {
 const unlock = async (who, reason = "Unlocking for the test") =>
     (await (await clientFor(who)).rpc("costing_unlock_bid", { p_matrix_id: matrixId, p_reason: reason })).error
 
+/** Approves the Evaluation of Specification (#881: a Go waits for it). Does nothing when it is approved already. */
+const approveEvaluation = async () => {
+    const approved = await asSvc(svc().from("costing_signoffs").select("id").eq("matrix_id", matrixId).eq("role", "evaluation_approved").is("cleared_at", null), "approval")
+    if (approved.length === 0) await asSvc(svc().from("costing_signoffs").insert({ matrix_id: matrixId, role: "evaluation_approved", signed_by: ids.ipasSigner }), "evaluation approval")
+}
+
 const setMoney = async (who, table, row, patch) =>
     (await (await clientFor(who)).rpc("costing_set_money", { p_table: table, p_row: row, p_patch: patch })).error
 
@@ -150,6 +156,14 @@ describe("before there is anything to judge", () => {
             const pending = await (await clientFor(who)).rpc("costing_pending_bid_decisions")
             expect((pending.data ?? []).filter((p) => p.matrix_id === matrixId), who).toHaveLength(0)
         }
+    })
+
+    it("refuses a Go until the Evaluation of Specification is approved (#881), and writes nothing", async () => {
+        const { id, error } = await decide("ipasSigner", "go", "Go before the approval")
+        expect(error?.code).toBe("22023")
+        expect(error?.message).toBe("costing_bid: approve the Evaluation of Specification first")
+        expect(id).toBeNull()
+        expect(await rows()).toHaveLength(0)
     })
 })
 
@@ -446,6 +460,7 @@ describe("what a No-go or a Revise does", () => {
 
     it("tells nobody on a Go", async () => {
         await asSvc(svc().from("notifications").delete().eq("reference_id", sorId), "clear notifications")
+        await approveEvaluation()
         const { error } = await decide("ipasSigner", "go", "Go ahead")
         expect(error).toBeNull()
         expect(await bidNotices()).toHaveLength(0)
@@ -472,6 +487,7 @@ describe("what a No-go or a Revise does", () => {
 describe("a Go locks the sheet", () => {
     it("stamps the planned cost with the Go, the way the Costing Matrix page adds it", async () => {
         // The Component at 950 x 2 and the cost-only row at 2500 x 1.
+        await approveEvaluation()
         const { id, error } = await decide("ipasSigner", "go", "Locking the sheet")
         expect(error).toBeNull()
         const [decision] = await live()
@@ -526,5 +542,57 @@ describe("a Go locks the sheet", () => {
         const error = await unlock("ipasSigner")
         expect(error?.code).toBe("22023")
         expect(error?.message).toBe("costing_bid: there is no Go to unlock")
+    })
+})
+
+describe("a Go on a loss needs a Super Admin or the decider list (#880)", () => {
+    // The sheet here is a loss: the Final Offers total 3,942.88 and the planned cost is 4,400 (the Go lock test above).
+    const lossRule = "costing_bid: a Go on a loss needs a Super Admin or the decider list"
+
+    it("says who may take a loss, and nobody else", async () => {
+        for (const [who, expected] of [["superAdmin", true], ["ipasSigner", true], ["dealOwner", false], ["outsider", false], ["stageParticipant", false], ["ordinary", false]]) {
+            const { data, error } = await (await clientFor(who)).rpc("costing_can_decide_loss")
+            expect(error, who).toBeNull()
+            expect(data, who).toBe(expected)
+        }
+    })
+
+    it("refuses a Go on a loss to the Deal Team and to Purchasing, writes nothing, and still takes a Revise", async () => {
+        expect(await live()).toHaveLength(0)
+        await approveEvaluation()
+        for (const who of ["dealOwner", "outsider"]) {
+            const { id, error } = await decide(who, "go", "Go at a loss")
+            expect(error?.code, who).toBe("42501")
+            expect(error?.message, who).toBe(lossRule)
+            expect(id, who).toBeNull()
+        }
+        expect(await live()).toHaveLength(0)
+        const { error } = await decide("dealOwner", "revise", "Reprice before a Go")
+        expect(error).toBeNull()
+        expect(await live()).toHaveLength(1)
+    })
+
+    it("takes a Go on a loss for a Super Admin, and for the decider list", async () => {
+        await approveEvaluation()
+        const { error } = await decide("superAdmin", "go", "Bid at a loss on purpose")
+        expect(error).toBeNull()
+        const [decision] = await live()
+        expect(decision).toMatchObject({ verdict: "go", reason: "Bid at a loss on purpose" })
+        expect(Number(decision.planned_cost_total)).toBe(4400)
+
+        expect(await unlock("superAdmin", "Re-deciding for the decider list")).toBeNull()
+        const second = await decide("ipasSigner", "go", "The decider list takes it")
+        expect(second.error).toBeNull()
+        expect(await live()).toHaveLength(1)
+    })
+
+    it("lets the Deal Team take a Go once the planned revenue is no longer a loss", async () => {
+        expect(await unlock("ipasSigner", "Lowering the cost for the test")).toBeNull()
+        // The cost-only row falls from 2,500 to 1,000: planned cost 950 x 2 + 1,000 = 2,900, below the 3,942.88 offers.
+        expect(await setMoney("ipasSigner", "costing_cost_rows", costRowId, { final_acquire_unit: 1000 })).toBeNull()
+        await approveEvaluation()
+        const { error } = await decide("dealOwner", "go", "Profitable, go")
+        expect(error).toBeNull()
+        expect(Number((await live())[0].planned_cost_total)).toBe(2900)
     })
 })

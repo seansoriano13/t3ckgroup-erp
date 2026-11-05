@@ -153,10 +153,10 @@ describe("Evaluation list", () => {
         expect(read.data).toBeNull()
     })
 
-    it("approves the Evaluation once every Component has a verdict, and not before", async () => {
+    it("approves the Evaluation once the Technical verdict is given, and not before", async () => {
         const early = await rpc("ordinary", "costing_sign", { p_matrix_id: matrixId, p_role: "evaluation_approved" })
-        expect(early.error?.message).toMatch(/no verdict yet/)
-        await asSvc(svc().from("costing_components").update({ compliance: "complies" }).eq("id", componentId), "compliance")
+        expect(early.error?.message).toMatch(/Technical verdict is not given yet/)
+        await asSvc(svc().from("costing_matrices").update({ compliance: "complies" }).eq("id", matrixId), "verdict")
         const signed = await rpc("ordinary", "costing_sign", { p_matrix_id: matrixId, p_role: "evaluation_approved" })
         expect(signed.error).toBeNull()
         expect(signed.data.signoff).toMatchObject({ role: "evaluation_approved", signed_by: ids.ordinary })

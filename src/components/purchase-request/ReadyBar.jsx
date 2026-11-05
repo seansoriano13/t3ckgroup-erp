@@ -1,7 +1,11 @@
 import { Button } from "@/components/ui/button";
 import Dot from "@/components/ui/Dot";
 
-/** #680 — "N of M ready", the bar, one plain sentence, and buttons that jump to each section. */
+/**
+ * #680 — "N of M ready", the bar, one plain sentence, and buttons that jump to each section.
+ * #902: the bar fills by the ready share only, so it agrees with the headline. The counts per
+ * status stay in the list under it.
+ */
 export default function ReadyBar({ summary, jumps }) {
   const shown = summary.segments.filter((s) => s.count > 0);
   return (
@@ -13,13 +17,14 @@ export default function ReadyBar({ summary, jumps }) {
         <p className="text-[13px] text-muted-foreground">Ready means Available or Received</p>
       </div>
       <div
-        role="img"
-        aria-label={`${summary.ready} of ${summary.total} ready. ${shown.map((s) => `${s.count} ${s.label}`).join(", ")}.`}
-        className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-muted"
+        role="meter"
+        aria-label={`${summary.ready} of ${summary.total} ready`}
+        aria-valuemin={0}
+        aria-valuemax={summary.total}
+        aria-valuenow={summary.ready}
+        className="h-2.5 w-full overflow-hidden rounded-full bg-muted"
       >
-        {shown.map((s) => (
-          <span key={s.key} className={s.bar} style={{ flexGrow: s.count, flexBasis: 0 }} />
-        ))}
+        <span className="block h-full bg-green-9" style={{ width: `${summary.readyPercent}%` }} />
       </div>
       <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
         {shown.map((s) => (

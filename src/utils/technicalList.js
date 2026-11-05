@@ -1,12 +1,12 @@
 /**
- * The Technical list (#877): the SORs with rows given to the caller's evaluation team (RRD or IOE). The
- * database read (`costing_technical_list`) carries SOR names and counts only, never money. This shapes it
- * to camelCase with numbers, and works the words the list and the sheet both show. "Checked" is a row
- * the team has answered Complies or Deviates on.
+ * The Technical list (#877, #908): the S0 Evaluations whose Technical in-charge is the caller. The database read
+ * (`costing_technical_list`) carries SOR names and counts only, never money. This shapes it to camelCase with
+ * numbers, and works the words the list and the sheet both show. "Checked" means the in-charge has given the
+ * one offer-level verdict (the matrix counts as checked once every row has an answer, see `rowsJudged`).
  */
 import { matchesSearch, sorSearchFields } from "./sorSearch";
 
-/** One row of the read, shaped: `{ opportunityId, sorNumber, soNumber, projectTitle, clientName, stage, team, rowsTotal, rowsJudged, approved, isMine }`. */
+/** One row of the read, shaped: `{ opportunityId, sorNumber, soNumber, projectTitle, clientName, stage, team, rowsTotal, rowsJudged, approved, isMine }`. `team` is always "Technical" now. */
 export function shapeTechnicalList(rows) {
   return (rows ?? []).map((row) => ({
     opportunityId: row.opportunity_id,
@@ -41,10 +41,9 @@ export function technicalState(row) {
 
 const isDone = (row) => technicalState(row).key !== "to_check";
 
-/** The rows for a tab, a team and a search. The tab counts are worked after the team and search, like the Purchasing lists. */
-export function filterTechnical(rows, { tab = TECHNICAL_TAB.ALL, team = null, search = "" } = {}) {
+/** The rows for a tab and a search. The tab counts are worked after the search, like the Purchasing lists. */
+export function filterTechnical(rows, { tab = TECHNICAL_TAB.ALL, search = "" } = {}) {
   return rows.filter((row) => {
-    if (team && row.team !== team) return false;
     if (tab === TECHNICAL_TAB.TO_CHECK && isDone(row)) return false;
     if (tab === TECHNICAL_TAB.DONE && !isDone(row)) return false;
     return matchesSearch(search, [
@@ -52,14 +51,6 @@ export function filterTechnical(rows, { tab = TECHNICAL_TAB.ALL, team = null, se
       row.clientName,
     ]);
   });
-}
-
-/**
- * The rows of an SOR's Tender Lines that belong to the teams the caller is on. A Super Admin passes
- * `teams: null` and sees every team's rows. Rows with no team are nobody's to check yet and are left out.
- */
-export function linesForTeams(tenderLines, teams) {
-  return (tenderLines ?? []).filter((line) => line.evaluating_team && (teams === null || teams.includes(line.evaluating_team)));
 }
 
 /** Query keys of the Technical list and of one SOR's sheet. The "technical" prefix refreshes both. */

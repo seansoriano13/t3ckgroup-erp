@@ -57,7 +57,7 @@ import { useNavBadges } from "../hooks/useNavBadges";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 
 export default function SideNav() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   usePushNotificationClick(user, navigate);
   const badges = useNavBadges(user);
@@ -244,9 +244,15 @@ export default function SideNav() {
   const profileOptions = [
     { value: "profile", label: "Profile" },
     { value: "settings", label: "Settings" },
+    { value: "sign-out", label: "Sign out" },
   ];
 
   const handleProfileSelect = (selected) => {
+    if (selected?.value === "sign-out") {
+      setIsMobileOpen(false);
+      logout();
+      return;
+    }
     if (selected) {
       navigate(`/${selected.value}`);
       setIsMobileOpen(false);

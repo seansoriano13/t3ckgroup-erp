@@ -180,7 +180,7 @@ ol.steps input[type=checkbox] {
   <span class="eyebrow">STAGING · t3ckgroup-erp-staging.vercel.app · SALE TYPE "PROJECT [FOR DEMO]" · S0 S03204</span>
   <h1>Purchasing Demo Run Sheet</h1>
   <p class="lede">One real government deal, from Lead to a filed IPAS, demonstrating the Purchasing subsystem. Deal is Odoo sale order <b class="mono">S03204</b>: Marikina City Government, fire-fighting equipment, 12 product lines, ₱1,370,535.74, procured across four real P0s. Part 0 is setup. Parts 1 to 9 are the live run. Parts A to F are targeted side scenarios. Tick each step as completed.</p>
-  <p class="note"><b>Branch state:</b> Updated for v1.9.86 (#877: a Technical page for the RRD and IOE teams; #875: Fetch from Odoo is back on the registration form; #876: compact SOR header). Earlier, PR #867 / v1.9.85 (bulk line status triage with unified Undo, search highlighting across Purchasing lists, recent activity sort on Dashboard, tinted top line for Attach P0, clickable IPAS links in attach notifications, and S0 card in Details edit form). Action-only: Who, Where, Do, See.</p>
+  <p class="note"><b>Branch state:</b> Updated for spec #907 (tickets #879 to #911, after the 2026-11-05 demo run). Earlier, v1.9.86 (#875: Fetch from Odoo is back on the registration form; #876: compact SOR header). Earlier, PR #867 / v1.9.85 (bulk line status triage with unified Undo, search highlighting across Purchasing lists, recent activity sort on Dashboard, tinted top line for Attach P0, clickable IPAS links in attach notifications, and S0 card in Details edit form). Action-only: Who, Where, Do, See.</p>
 </header>
 
 <section id="howto">
@@ -189,7 +189,7 @@ ol.steps input[type=checkbox] {
     <div class="card"><h4>Four rows per step</h4><p class="note"><b>Who:</b> Login account and role. <b>Where:</b> Navigation path and component. <b>Do:</b> Exact click or input action. <b>See:</b> Verified system response and screen output.</p></div>
     <div class="card"><h4>Stage departure gates</h4><p class="note">A gate on a stage stops the deal from <b>leaving</b> that stage. It does not stop arrival. Example: "Costing priced" on PMS Sourcing GS evaluates when Sales advances from PMS Sourcing GS to Proposal Submitted.</p></div>
     <div class="card"><h4>Four isolated browser sessions</h4><p class="note"><b>Sales:</b> Chrome (dani@demo). <b>Purchasing:</b> Chrome Incognito (cjay@demo). <b>Signers:</b> Edge (switch between grace, jelai, 101, 201, jen). <b>Warehouse:</b> Edge InPrivate (aldrin, sherwin).</p></div>
-    <div class="card"><h4>Fixed demo document</h4><p class="note">All file uploads use <code>docs/demos/purchasing-demo-files/demo-document.pdf</code>. All four P0s exist in Odoo and link to S03204.</p></div>
+    <div class="card"><h4>Fixed demo document</h4><p class="note">All file uploads use <code>docs/demos/purchasing-demo-files/demo-document.pdf</code>. All four P0s exist in Odoo and link to S03204. On the local stack, uploads stay in local Supabase Storage; on staging they go to Cloudinary (#894).</p></div>
   </div>
 </section>
 
@@ -210,7 +210,7 @@ ol.steps input[type=checkbox] {
     <div class="card"><h4>Final Gate Behavior</h4><p class="note">Odoo delivery records show partial delivery for 2.5" hose (2 of 10) and nozzle (0 of 4). At Project Delivery → Collection, the gate <b>Purchasing settled</b> halts the deal. This verifies that ERP stage gates strictly respect backend inventory status.</p></div>
     <div class="card"><h4>Cancelled P0s in Odoo</h4><p class="note">S03204 holds five cancelled P0s in Odoo: P01415, P01416, P01418, P01419, P01425. Scenario E uses P01415 to verify validation rejection.</p></div>
     <div class="card"><h4>Currency Conversion</h4><p class="note">USD costs convert to PHP using the stored Reference Rate of the day. Screen figures reflect live calculation.</p></div>
-    <div class="card"><h4>Automated Tasks</h4><p class="note">Stages may instantiate background Group Tasks (e.g. BIDCOM, DELCOM). These run asynchronously; skip prompt when PQ asks.</p></div>
+    <div class="card"><h4>Automated Tasks</h4><p class="note">Stages may instantiate background Group Tasks (e.g. BIDCOM, DELCOM). These run asynchronously. The setup script drops members that staging does not have (#896), and a failed action says why. No skip prompt appears at PQ: the PQ task runs as skipped.</p></div>
   </div>
 </section>
 
@@ -221,7 +221,7 @@ ol.steps input[type=checkbox] {
     <table>
       <thead><tr><th>Email</th><th>Seat</th><th>Demo Responsibilities</th></tr></thead>
       <tbody>
-        <tr><td><button class="copy" type="button">dani@demo</button></td><td><span class="seat s-sales">Sales</span></td><td>Deal Owner: registers SOR, initiates Purchase Request, enters ABC, assigns technical evaluation, issues Go decision, moves stages.</td></tr>
+        <tr><td><button class="copy" type="button">dani@demo</button></td><td><span class="seat s-sales">Sales</span></td><td>Deal Owner: registers SOR, initiates Purchase Request, enters ABC, names the Technical in-charge, issues Go decision, moves stages.</td></tr>
         <tr><td><button class="copy" type="button">cjay@demo</button></td><td><span class="seat s-buy">Purchasing</span></td><td>Purchaser: claims Purchase Request, bulk updates item statuses, conducts Canvass, costs items, attaches P0s, compiles IPAS, issues Transmittal and Packing List.</td></tr>
         <tr><td><button class="copy" type="button">jelai@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Finance: records payment with proof, approves IPAS Section 3 (Computation &amp; Landed Cost).</td></tr>
         <tr><td><button class="copy" type="button">jen@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Admin: executes Transmittal Check by (1).</td></tr>
@@ -229,7 +229,7 @@ ol.steps input[type=checkbox] {
         <tr><td><button class="copy" type="button">201@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>General Manager: markup management, Go unlock authority, signs IPAS Section 4 Checked and Approved.</td></tr>
         <tr><td><button class="copy" type="button">101@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Sales Director / Super Admin: Flow Canvas setup (Part 0), approves IPAS Section 1 &amp; Section 2, signs IPAS Section 4 Noted.</td></tr>
         <tr><td><button class="copy" type="button">aldrin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Warehouse Staff: signs Transmittal Warehouse Checking &amp; Releasing, signs Received in Odoo, signs IPAS Logistics, packs Packing List.</td></tr>
-        <tr><td><button class="copy" type="button">sherwin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Technician / RRD: marks technical compliance on the Technical page (Sales → Technical, #877), signs Transmittal Technical Inspection.</td></tr>
+        <tr><td><button class="copy" type="button">sherwin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Technical in-charge on the S0 Evaluations Sales names him for: gives the one Technical verdict (Sales &rarr; Technical), signs Transmittal Technical Inspection.</td></tr>
       </tbody>
     </table>
   </div>
@@ -261,12 +261,12 @@ ol.steps input[type=checkbox] {
         <tr><td>SO Evaluation → PMS Sourcing GS</td><td>Field <b>Brochure From Client</b>: "On file"<br>Field <b>Project GS</b>: "S03204 GS"</td><td>None</td><td class="num">5.1</td></tr>
         <tr><td>PMS Sourcing GS → Proposal Submitted</td><td>Field <b>Brochure From Supplier</b>: "Jiujang brochure"</td><td><span class="tag gate">gate</span> Costing priced</td><td class="num">5.6</td></tr>
         <tr><td>Proposal Submitted → Qualified</td><td>Upload <b>ITB</b> (demo PDF)</td><td>None</td><td class="num">5.7</td></tr>
-        <tr><td>Qualified → For Bidding</td><td>Field <b>Bidder</b>: "TG Global"<br>Field <b>Representative</b>: "Dani demo"<br>Field <b>Mode of Pre Bid</b>: "Online"</td><td>None</td><td class="num">5.7</td></tr>
-        <tr><td>For Bidding → Bid Submitted</td><td>Upload <b>PRICE SCHEDULE / PRICE OFFER</b> (demo PDF)<br>Field <b>Purchasing Involved</b>: "Cjay demo"<br>Field <b>Logistics Representative</b>: "Aldrin demo"</td><td><span class="tag gate">gate</span> Costing settled</td><td class="num">5.7</td></tr>
+        <tr><td>Qualified → For Bidding</td><td>Field <b>Bidder</b>: "TG Global"<br>Employee <b>Representative</b>: pick "Dani demo"<br>Field <b>Mode of Pre Bid</b>: "Online"</td><td>None</td><td class="num">5.7</td></tr>
+        <tr><td>For Bidding → Bid Submitted</td><td>Upload <b>PRICE SCHEDULE / PRICE OFFER</b> (demo PDF)<br>Employee <b>Purchasing Involved</b>: pick "Cjay demo"<br>Employee <b>Logistics Representative</b>: pick "Aldrin demo"</td><td><span class="tag gate">gate</span> Costing settled</td><td class="num">5.7</td></tr>
         <tr><td>Bid Submitted → PQ</td><td>Field <b>Remarks</b>: "Lowest Calculated Responsive Bidder"</td><td>None</td><td class="num">5.7</td></tr>
         <tr><td>PQ → Negotiation</td><td>Field <b>Product Demo</b>: "No"</td><td>None (skip PQ task modal)</td><td class="num">5.7</td></tr>
         <tr><td>Negotiation → NOA</td><td>None</td><td>None (Award stage reached)</td><td class="num">5.7</td></tr>
-        <tr><td>NOA → PB</td><td>Upload <b>NOA</b> (demo PDF)<br>Field <b>NOA Amount</b>: 1370535.74</td><td>None</td><td class="num">6.2</td></tr>
+        <tr><td>NOA → PB</td><td>Upload <b>NOA</b> (demo PDF)<br>Currency <b>NOA Amount</b>: 1370535.74</td><td>None</td><td class="num">6.2</td></tr>
         <tr><td>PB → NTP</td><td>Checkbox <b>Submit PB</b>, click <b>Certify</b></td><td>None (NTP opens buying)</td><td class="num">6.2</td></tr>
         <tr><td>NTP → CA/PO</td><td>Upload <b>NTP</b> (demo PDF)</td><td>None</td><td class="num">7.1</td></tr>
         <tr><td>CA/PO → Project Delivery</td><td>None required (Contract/PO uploads optional)</td><td>None (auto-creates PKL draft)</td><td class="num">7.1</td></tr>
@@ -286,39 +286,39 @@ ol.steps input[type=checkbox] {
         <div class="head"><span class="k">0.1</span><span class="seat s-boss">Terminal</span></div>
         <div class="row where"><b>Where</b><div>Local terminal, repository root</div></div>
         <div class="row do"><b>Do</b><div><ol><li>Verify <code>.env.local</code> contains valid <code>STAGING_DB_URL</code> and <code>PROD_DB_URL</code>.</li><li>Execute dry run: <code>node scripts/demo-purchasing-setup.mjs</code>.</li><li>Apply reset to staging: <code>node scripts/demo-purchasing-setup.mjs --apply</code>.</li></ol></div></div>
-        <div class="row see"><b>See</b><div>Output ends with <code>Committed.</code>. Old demo sale types are archived, demo cast is seeded, previous demo SORs soft-deleted, and fresh draft <code>Project [FOR DEMO]</code> is provisioned.</div></div>
+        <div class="row see"><b>See</b><div>Output ends with <code>Committed.</code>. Old demo sale types are archived, demo cast is seeded, previous demo SORs soft-deleted, and fresh draft <code>Project [FOR DEMO]</code> is provisioned. A line such as "dropped &hellip; (not on staging)" is expected (#896).</div></div>
       </div>
     </li>
     <li data-k="0.2"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">0.2</span><span class="seat s-sign">101</span></div>
-        <div class="row where"><b>Where</b><div>Flow Canvas (<code>/super-admin/flow-canvas</code>) → Sale Type: <b>Project [FOR DEMO]</b> → Click <b>Lead</b> stage → Add Action</div></div>
-        <div class="row do"><b>Do</b><div><ol><li>Select <b>Open Purchase Request</b>.</li><li>Set Default Buyer: <b>None — wait in the queue for a Take</b>.</li><li>Toggle <b>Require confirmation before running</b> to <b>ON</b>.</li><li>Leave Decider field empty (defaults to Deal Owner).</li><li>Keep default Deal Team roles under "Who can request items". Click <b>Save</b>.</li></ol></div></div>
-        <div class="row see"><b>See</b><div>"Open Purchase Request" appears in the Lead stage actions list.</div></div>
+        <div class="row where"><b>Where</b><div>Flow Canvas (<code>/super-admin/flow-canvas</code>) &rarr; Sale Type: <b>Project [FOR DEMO]</b> &rarr; Click <b>Lead</b> stage</div></div>
+        <div class="row do"><b>Do</b><div><ol><li><b>Verify only.</b> The copy from production already has <b>Open Purchase Request</b> on Lead. Do not add it again, or it runs twice.</li><li>Open its settings and check: Default Buyer <b>None</b> (wait in the queue for a Take), <b>Require confirmation before running</b> is <b>ON</b>, Decider is empty (defaults to Deal Owner), and the Deal Team roles under "Who can request items" are the defaults.</li></ol></div></div>
+        <div class="row see"><b>See</b><div>"Open Purchase Request" appears once in the Lead stage actions list.</div></div>
       </div>
     </li>
     <li data-k="0.3"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">0.3</span><span class="seat s-sign">101</span></div>
-        <div class="row where"><b>Where</b><div>Flow Canvas → <b>Lead</b> stage → Add Action</div></div>
-        <div class="row do"><b>Do</b><div><ol><li>Select <b>Open S0 Evaluation</b>.</li><li>Set Sales Incharge: <b>Deal Owner (default)</b>.</li><li>Set Purchasing Incharge: <b>A person</b> → <b>Cjay demo</b>.</li><li>Set Markup preset: <b>Government</b> (factor 1.30).</li><li>Ensure <b>Require confirmation before running</b> is <b>OFF</b> (opens automatically on registration). Click <b>Save</b>.</li></ol></div></div>
-        <div class="row see"><b>See</b><div>"Open S0 Evaluation" appears in the Lead stage actions list.</div></div>
+        <div class="row where"><b>Where</b><div>Flow Canvas &rarr; <b>Lead</b> stage &rarr; Add Action</div></div>
+        <div class="row do"><b>Do</b><div><ol><li>Select <b>Open S0 Evaluation</b> (this one is missing from the copy, so add it).</li><li>Set Sales Incharge: <b>Deal Owner (default)</b>.</li><li>Set Purchasing Incharge: <b>A person</b> &rarr; <b>Cjay demo</b>.</li><li>Set Markup preset: <b>Government</b> (factor 1.30).</li><li>Ensure <b>Require confirmation before running</b> is <b>OFF</b> (opens automatically on registration). Click <b>Save</b>.</li></ol></div></div>
+        <div class="row see"><b>See</b><div>"Open S0 Evaluation" appears in the Lead stage actions list. Lead now shows two S0 actions in total: this one and SO Evaluation from production. Both are expected.</div></div>
       </div>
     </li>
     <li data-k="0.4"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">0.4</span><span class="seat s-sign">101</span></div>
-        <div class="row where"><b>Where</b><div>Flow Canvas → Select stages below → Conditions → Add Condition</div></div>
-        <div class="row do"><b>Do</b><div>Add four conditions with Required enabled:<ul><li>On <b>PMS Sourcing GS</b> stage: Add kind <b>Costing priced</b> (Label: "Costing priced").</li><li>On <b>For Bidding</b> stage: Add kind <b>Costing settled</b> (Label: "Costing settled").</li><li>On <b>Project Delivery</b> stage: Add kind <b>Purchasing settled</b> (Label: "Purchasing settled").</li><li>On <b>Project Delivery</b> stage: Add kind <b>Goods checked</b> (Label: "Goods checked").</li></ul><i>(Note: Hovering over a condition kind checked at multiple stages shows tooltip: "Also checked at Stage ...", per #845).</i></div></div>
-        <div class="row see"><b>See</b><div>Conditions display under their respective stage inspection panels.</div></div>
+        <div class="row where"><b>Where</b><div>Flow Canvas &rarr; select the stage &rarr; Conditions</div></div>
+        <div class="row do"><b>Do</b><div><b>Verify only.</b> The copy from production already has four conditions, all Required. Do not add them again:<ul><li><b>PMS Sourcing GS</b>: Costing priced.</li><li><b>For Bidding</b>: Costing settled.</li><li><b>Project Delivery</b>: Purchasing settled and Goods checked.</li></ul><i>(A condition kind checked at several stages shows the tooltip "Also checked at Stage ...", per #845.)</i></div></div>
+        <div class="row see"><b>See</b><div>Each condition displays under its stage inspection panel.</div></div>
       </div>
     </li>
     <li data-k="0.5"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">0.5</span><span class="seat s-sign">101</span></div>
-        <div class="row where"><b>Where</b><div>Flow Canvas → <b>NTP - Notice to Proceed</b> stage, then <b>Project Delivery</b> stage</div></div>
-        <div class="row do"><b>Do</b><div><ol><li>Click <b>NTP - Notice to Proceed</b> stage. Click <b>Buying opens here?</b> button until it shows "Buying opens here" with active checkmark.</li><li>Click <b>Project Delivery</b> stage → Add Action → <b>Request Packing List</b> → Keep defaults → Click <b>Save</b>.</li><li>Verify <b>NOA - Notice of Award</b> shows "Notice of Award is here" under Stage Role (configured by setup script).</li><li>Verify <b>CA/PO</b> shows "The client's contract is here" under Stage Role (configured by setup script).</li></ol></div></div>
-        <div class="row see"><b>See</b><div>NTP stage badge displays shopping cart icon; Project Delivery lists "Request Packing List" action.</div></div>
+        <div class="row where"><b>Where</b><div>Flow Canvas &rarr; <b>NTP - Notice to Proceed</b> stage, then <b>Project Delivery</b> stage</div></div>
+        <div class="row do"><b>Do</b><div><ol><li>On <b>NTP - Notice to Proceed</b>, click <b>Buying opens here?</b> until it shows "Buying opens here" with the active checkmark. This one is missing from the copy, so you must add it.</li><li>On <b>Project Delivery</b>, <b>Request Packing List</b> already exists from production. Verify it. Do not add it again.</li><li>Verify <b>NOA - Notice of Award</b> shows "Notice of Award is here" under Stage Role (configured by setup script).</li><li>Verify <b>CA/PO</b> shows "The client's contract is here" under Stage Role (configured by setup script).</li></ol></div></div>
+        <div class="row see"><b>See</b><div>NTP stage badge displays shopping cart icon; Project Delivery lists "Request Packing List" once.</div></div>
       </div>
     </li>
     <li data-k="0.6"><input type="checkbox" aria-label="Done">
@@ -377,8 +377,8 @@ ol.steps input[type=checkbox] {
       <div class="step-body">
         <div class="head"><span class="k">2.1</span><span class="seat s-sales">Sales</span></div>
         <div class="row where"><b>Where</b><div>Sales → SORs → Register form</div></div>
-        <div class="row do"><b>Do</b><div><ol><li>Sale Type: Select <b>Project [FOR DEMO]</b> (Sale Type is mandatory; Legacy Pipeline is closed to new deals per #856).</li><li>Sales Reference: Enter <b class="mono">S03204</b>, then click <b>Fetch from Odoo</b> (#875): it fills Company Name, Contact Person and the Product List from the quotation.</li><li>Lead Source: Select <b>LGU</b>.</li><li>Company Name: Confirm <b>Marikina City Government</b> (typed if Fetch did not fill it).</li><li>Contact Person: Enter <b>Engr. Santos</b> if the quotation has none.</li><li>Project Title: Enter <b>Fire Fighting Equipment</b>.</li><li>Under Ownership, set Deal Owner to <b>Dani demo</b>.</li><li>Click <b>Register</b>. Record the generated SOR number in Session Identifiers.</li></ol></div></div>
-        <div class="row see"><b>See</b><div>SOR detail view opens. Header identity line displays <b class="mono">SOR-256</b> and <b class="mono">S03204</b> in plain text (#859) beside stage badge <b>Lead</b>. Total value displays ₱1,370,535.74. All 12 product lines loaded directly from Odoo. <i>(Note: The interactive S0 Card with Odoo status lives inside the edit form under Details → Sales Reference).</i></div></div>
+        <div class="row do"><b>Do</b><div><ol><li>Sale Type: Select <b>Project [FOR DEMO]</b> (Sale Type is mandatory; Legacy Pipeline is closed to new deals per #856).</li><li>Sales Reference: Enter <b class="mono">S03204</b>, then click <b>Fetch from Odoo</b> (#875): it fills Company Name, Contact Person and the Product List from the quotation.</li><li>Lead Source: Select <b>LGU</b>.</li><li>Company Name: Confirm <b>Marikina City Government</b> (typed if Fetch did not fill it).</li><li>Contact Person: Enter <b>Engr. Santos</b> if the quotation has none.</li><li>Project Title: Enter <b>Fire Fighting Equipment</b>.</li><li>Under Ownership, check that Deal Owner reads <b>Dani demo</b>. It defaults to the person who registers (#905).</li><li>Click <b>Register</b>. Record the generated SOR number in Session Identifiers.</li></ol></div></div>
+        <div class="row see"><b>See</b><div>A toast reads "SOR-256 registered." and the new SOR detail view opens (#888). Header identity line displays <b class="mono">SOR-256</b> and <b class="mono">S03204</b> in plain text (#859) beside stage badge <b>Lead</b>. Total value displays ₱1,370,535.74. All 12 product lines loaded directly from Odoo. <i>(Note: The interactive S0 Card with Odoo status lives inside the edit form under Details → Sales Reference).</i></div></div>
       </div>
     </li>
     <li data-k="2.2"><input type="checkbox" aria-label="Done">
@@ -386,7 +386,7 @@ ol.steps input[type=checkbox] {
         <div class="head"><span class="k">2.2</span><span class="seat s-sales">Sales</span></div>
         <div class="row where"><b>Where</b><div>The SOR detail view → <b>This stage</b> tab</div></div>
         <div class="row do"><b>Do</b><div>Locate the "Open Purchase Request" action card. Click <b>Create</b>.</div></div>
-        <div class="row see"><b>See</b><div>Card dismisses. Switch to the <b>PMS</b> tab: both the Purchase Request and S0 Evaluation are created and listed. S0 Evaluation is pre-populated with 12 lines and baseline costs from Odoo.</div></div>
+        <div class="row see"><b>See</b><div>Card dismisses with a "Created." toast, which does not show the PR number yet. Switch to the <b>PMS</b> tab: both the Purchase Request and S0 Evaluation are created and listed. S0 Evaluation is pre-populated with 12 lines and baseline costs from Odoo.</div></div>
       </div>
     </li>
   </ol>
@@ -399,7 +399,7 @@ ol.steps input[type=checkbox] {
       <div class="step-body">
         <div class="head"><span class="k">3.1</span><span class="seat s-buy">Purchasing</span></div>
         <div class="row where"><b>Where</b><div>Purchasing → Dashboard</div></div>
-        <div class="row do"><b>Do</b><div><ol><li>In "Search SOR, IPAS or PO", type <b>S03204</b>. Observe matching text highlighted in yellow (#847).</li><li>Observe the new <b>Sort</b> dropdown in the toolbar: <code>Sort: Urgency</code> (default) vs <code>Sort: Recent activity</code> (#848).</li><li>Click the SOR row to open the side-panel tracker.</li></ol></div></div>
+        <div class="row do"><b>Do</b><div><ol><li>In "Search SOR, IPAS or PO", type <b>S03204</b>. Observe matching text highlighted in yellow (#847).</li><li>Open <b>Filters</b> in the toolbar. The <b>Sort</b> option is inside it: <code>Sort: Urgency</code> (default) or <code>Sort: Recent activity</code> (#848).</li><li>Click the SOR row to open the side-panel tracker.</li></ol></div></div>
         <div class="row see"><b>See</b><div>Side-panel tracker displays stage Lead, status "0 of 12 ready", with linked SOR and empty procurement stages. Matched search terms are highlighted.</div></div>
       </div>
     </li>
@@ -423,7 +423,7 @@ ol.steps input[type=checkbox] {
       <div class="step-body">
         <div class="head"><span class="k">3.4</span><span class="seat s-buy">Purchasing</span></div>
         <div class="row where"><b>Where</b><div>Purchasing window → Purchase Request modal → Items list</div></div>
-        <div class="row do"><b>Do</b><div><ol><li>Check the checkboxes on the left of <b>Line 1 (Fire suit)</b>, <b>Line 2 (Gloves)</b>, and <b>Line 5 (Boots)</b>.</li><li>Observe the sticky <b>BulkStatusBar</b> appearing above the list: <code>3 selected</code> (#852).</li><li>Click <b>To purchase</b> button on the bulk status bar.</li><li>Observe the 15-second unified Undo toast: <code>3 lines: To purchase.</code> with <b>Undo</b> button. In Dani's notification drawer, status updates arrive merged as <code>3 products changed</code> (#851). Leave the remaining 9 lines as "Not checked".</li></ol></div></div>
+        <div class="row do"><b>Do</b><div><ol><li>Check the checkboxes on the left of <b>Line 1 (Fire suit)</b>, <b>Line 2 (Gloves)</b>, and <b>Line 5 (Boots)</b>.</li><li>A sticky <b>BulkStatusBar</b> shows <code>3 selected</code> over the list. The rows must not move when it appears (#902).</li><li>Click <b>To purchase</b> button on the bulk status bar.</li><li>Observe the 15-second unified Undo toast: <code>3 lines: To purchase.</code> with <b>Undo</b> button. In Dani's notification drawer, status updates arrive merged as <code>3 products changed</code> (#851). Leave the remaining 9 lines as "Not checked".</li></ol></div></div>
         <div class="row see"><b>See</b><div>All three selected lines update to "To purchase" simultaneously in one transaction. Lines remain in original sequential order without jumping. Header remains "0 of 12 ready" (Ready requires Available or Received).</div></div>
       </div>
     </li>
@@ -438,7 +438,7 @@ ol.steps input[type=checkbox] {
         <div class="head"><span class="k">4.1</span><span class="seat s-sales">Sales</span></div>
         <div class="row where"><b>Where</b><div>Sales window → SOR detail view → Move Stage button, then PMS tab</div></div>
         <div class="row do"><b>Do</b><div>Move stage from <b>Lead</b> to <b>SO Evaluation</b> (requires no inputs). Under the PMS tab, click to open <b>S0 Evaluation</b>.</div></div>
-        <div class="row see"><b>See</b><div>Costing matrix sheet opens. Header shows client "Marikina City Government", Sales Incharge "Dani demo", Purchasing Incharge "Cjay demo". Facts strip displays "S0 lines: 12", "Judged: 0 of 12". All 12 rows are populated with baseline Acquire prices from Odoo.</div></div>
+        <div class="row see"><b>See</b><div>Costing matrix sheet opens. Header shows client "Marikina City Government", Sales Incharge "Dani demo", Purchasing Incharge "Cjay demo". Facts strip displays "S0 lines: 12". The Technical in-charge is not named yet. All 12 rows are populated with baseline Acquire prices from Odoo.</div></div>
       </div>
     </li>
     <li data-k="4.2"><input type="checkbox" aria-label="Done">
@@ -472,7 +472,7 @@ ol.steps input[type=checkbox] {
       <div class="step-body">
         <div class="head"><span class="k">4.4</span><span class="seat s-buy">Purchasing</span></div>
         <div class="row where"><b>Where</b><div>The same Canvass modal</div></div>
-        <div class="row do"><b>Do</b><div><ol><li>Click <b>Add offer</b>. Supplier: <b>Taizhou Sanjiang</b>. Price: <b>215</b> (USD). Click <b>Save offer</b>.</li><li>Under Supplier Slots, on Slot 3, click <b>No other supplier</b>. Enter Reason: <code>Only two makers carry the Aramid IIIA suit</code>. Save slot.</li><li>Click <b>Pick winner</b> on Jiujang's offer card.</li><li>Scroll down to "Why this supplier" field. Enter: <code>Cheapest, same maker as our last BFP order</code>. Click outside the input to blur and trigger auto-save.</li><li>Close the Canvass modal.</li></ol></div></div>
+        <div class="row do"><b>Do</b><div><ol><li>Click <b>Add offer</b>. Supplier: <b>Taizhou Sanjiang</b>. Price: <b>215</b> (USD). Click <b>Save offer</b>.</li><li>Under Supplier Slots, on Slot 3, click <b>No other supplier</b>. Enter Reason: <code>Only two makers carry the Aramid IIIA suit</code>. Save slot.</li><li>Click <b>Pick winner</b> on Jiujang's offer card.</li><li>Scroll down to "Why this supplier" field. Enter: <code>Cheapest, same maker as our last BFP order</code>. Type the reason, then wait for the <b>Saved</b> sign. Each field saves on its own.</li><li>Close the Canvass modal.</li></ol></div></div>
         <div class="row see"><b>See</b><div>Jiujang offer shows gold winner badge. On the S0 Evaluation sheet, Fire suit Price shows <b>Canvass</b> badge ($208 converted at reference rate). In Line details for line 1, Acquire source indicates "from Canvass".</div></div>
       </div>
     </li>
@@ -489,7 +489,7 @@ ol.steps input[type=checkbox] {
         <div class="head"><span class="k">4.6</span><span class="seat s-sales">Sales</span></div>
         <div class="row where"><b>Where</b><div>S0 Evaluation sheet → Right-hand panel → <b>Markup playground</b></div></div>
         <div class="row do"><b>Do</b><div><ol><li>Verify top right displays "Saved: ×1.30" (Government preset).</li><li>Test clicking <b>+</b> button up to ×1.35; observe live adjustment in "Offer at this markup" and "Margin". Click <b>Government ×1.30</b> preset button to return to 1.30.</li><li>Ensure checkbox <b>Keep each line at or under its ABC</b> is checked.</li><li>Click <b>Apply ×1.30 to the Final Offers</b> at the bottom of the playground.</li></ol></div></div>
-        <div class="row see"><b>See</b><div>Final Offer / unit populates on all 12 rows. Facts strip shows Final Offer total (within ABC, ~99.9% of ABC).</div></div>
+        <div class="row see"><b>See</b><div>Final Offer / unit populates on all 12 rows. Margin now reads against the Final Offer, not the suggested price (#879). Facts strip shows Final Offer total (within ABC, ~99.9% of ABC).</div></div>
       </div>
     </li>
   </ol>
@@ -509,57 +509,57 @@ ol.steps input[type=checkbox] {
     <li data-k="5.2"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">5.2</span><span class="seat s-sales">Sales</span></div>
-        <div class="row where"><b>Where</b><div>S0 Evaluation sheet → Technical band → <b>Compliance</b> column</div></div>
-        <div class="row do"><b>Do</b><div>On all 12 rows, change the evaluating team selector from "No team" to <b>RRD</b>.</div></div>
-        <div class="row see"><b>See</b><div>All rows display "RRD · NOT JUDGED". Evaluating team is assigned. Sherwin (RRD team) gets one notification: "SOR-… rows are waiting for RRD to check."</div></div>
+        <div class="row where"><b>Where</b><div>S0 Evaluation sheet &rarr; header Incharge fields &rarr; <b>Technical in-charge</b> picker</div></div>
+        <div class="row do"><b>Do</b><div>Open the <b>Technical in-charge</b> picker and choose <b>Sherwin demo</b>. The picker lists only people in the Technical sub-department (#909). There is no team to assign any more.</div></div>
+        <div class="row see"><b>See</b><div>Sherwin demo shows as the Technical in-charge. The per-line team selector is gone. This S0 Evaluation now appears on Sherwin's Technical list.</div></div>
       </div>
     </li>
     <li data-k="5.3"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">5.3</span><span class="seat s-wh">sherwin</span></div>
-        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) → sidebar → Sales → <b>Technical</b> (or click the notification) → click the SOR row: the Technical sheet opens in a window over the list</div></div>
-        <div class="row do"><b>Do</b><div>On all 12 rows, select <b>Complies</b> from the <b>Your verdict</b> dropdown. The Technical sheet shows no prices; the main S0 Evaluation page stays with the Closed Book.</div></div>
-        <div class="row see"><b>See</b><div>All 12 rows show green "Complies". The sheet says <b>All 12 checked</b>, and the Technical list row moves to the <b>Done</b> tab. (In Dani's S0 Evaluation, the facts strip displays <b>Judged 12 of 12</b>.)</div></div>
+        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) &rarr; sidebar &rarr; Sales &rarr; <b>Technical</b> &rarr; open the SOR</div></div>
+        <div class="row do"><b>Do</b><div>On the <b>Technical verdict</b> card, choose <b>Complies</b>. Enter a short note in <b>Technical Evaluation Remarks &amp; Recommendations</b>. The card gives one verdict for the whole S0 Evaluation. The sheet shows no prices.</div></div>
+        <div class="row see"><b>See</b><div>The card shows <b>Complies</b> and "Given by Sherwin demo" with the date. If the card warns that some components have no "We offer", that is only a warning. The verdict still saves.</div></div>
       </div>
     </li>
     <li data-k="5.4"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">5.4</span><span class="seat s-sign">grace</span></div>
-        <div class="row where"><b>Where</b><div>Signers window (grace@demo) → S0 Evaluation sheet → "Evaluation of Specification" bar</div></div>
+        <div class="row where"><b>Where</b><div>Signers window (grace@demo) &rarr; S0 Evaluation sheet &rarr; "Evaluation of Specification" bar</div></div>
         <div class="row do"><b>Do</b><div>Click <b>Approve the evaluation</b> button.</div></div>
-        <div class="row see"><b>See</b><div>Bar turns green: "Evaluation approved by Grace demo" with timestamp.</div></div>
+        <div class="row see"><b>See</b><div>Bar turns green: "Evaluation approved by Grace demo" with timestamp. The button is not available until the Technical verdict in 5.3 is given.</div></div>
       </div>
     </li>
     <li data-k="5.5"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">5.5</span><span class="seat s-sales">Sales</span></div>
-        <div class="row where"><b>Where</b><div>Sales window (dani@demo) → S0 Evaluation sheet → Right-hand panel → <b>Bid Decision</b> card</div></div>
+        <div class="row where"><b>Where</b><div>Sales window (dani@demo) &rarr; S0 Evaluation sheet &rarr; Right-hand panel &rarr; <b>Bid Decision</b> card</div></div>
         <div class="row do"><b>Do</b><div>Select <b>Go</b> ("Bid at these Final Offers, and lock the sheet"). Reason: Enter <code>Within ABC, margin fine</code>. Click <b>Confirm Go</b>.</div></div>
-        <div class="row see"><b>See</b><div>Card shows green checkmark: "The sheet is locked." All sheet inputs become read-only.</div></div>
+        <div class="row see"><b>See</b><div>Go is offered only after 5.4. Before that, the card says "Approve the Evaluation of Specification first". The confirm step shows the Final Offer, ABC, planned revenue and margin (#880). Then the card shows a green checkmark: "The sheet is locked." All sheet inputs become read-only.</div></div>
       </div>
     </li>
     <li data-k="5.6"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">5.6</span><span class="seat s-sales">Sales</span></div>
-        <div class="row where"><b>Where</b><div>Sales window → SOR detail view → Move Stage</div></div>
-        <div class="row do"><b>Do</b><div>Move stage <b>PMS Sourcing GS → Proposal Submitted</b>. Enter required field:<ul><li>Brochure From Supplier: <code>Jiujang brochure</code></li></ul>Click Confirm move.</div></div>
+        <div class="row where"><b>Where</b><div>Sales window &rarr; SOR detail view &rarr; Move Stage</div></div>
+        <div class="row do"><b>Do</b><div>Move stage <b>PMS Sourcing GS &rarr; Proposal Submitted</b>. Enter required field:<ul><li>Brochure From Supplier: <code>Jiujang brochure</code></li></ul>Click Confirm move.</div></div>
         <div class="row see"><b>See</b><div>Move succeeds. <b>Costing priced</b> gate passes because all 12 rows have Acquire costs and Purchasing Incharge Cjay demo is named. SOR reaches Proposal Submitted.</div></div>
       </div>
     </li>
     <li data-k="5.7"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">5.7</span><span class="seat s-sales">Sales</span></div>
-        <div class="row where"><b>Where</b><div>Sales window → SOR detail view → Move Stage (sequential moves)</div></div>
+        <div class="row where"><b>Where</b><div>Sales window &rarr; SOR detail view &rarr; Move Stage (sequential moves)</div></div>
         <div class="row do"><b>Do</b><div>Execute sequence through Bidding and Award:
           <ol>
-            <li><b>Proposal Submitted → Qualified:</b> Upload ITB (demo PDF). Confirm.</li>
-            <li><b>Qualified → For Bidding:</b> Bidder: <code>TG Global</code>, Representative: <code>Dani demo</code>, Mode of Pre Bid: <code>Online</code>. Confirm.</li>
-            <li><b>For Bidding → Bid Submitted:</b> Upload PRICE SCHEDULE / PRICE OFFER (demo PDF), Purchasing Involved: <code>Cjay demo</code>, Logistics Representative: <code>Aldrin demo</code>. Confirm. (Enforces <b>Costing settled</b> gate: all rows costed, spec approved, Go active, within ABC).</li>
-            <li><b>Bid Submitted → PQ:</b> Remarks: <code>Lowest Calculated Responsive Bidder</code>. Confirm.</li>
-            <li><b>PQ → Negotiation:</b> Product Demo: <code>No</code>. Confirm. (Skip PQ task prompt if displayed).</li>
-            <li><b>Negotiation → NOA:</b> Requires no fields. Confirm move.</li>
+            <li><b>Proposal Submitted &rarr; Qualified:</b> Upload ITB (demo PDF). Confirm.</li>
+            <li><b>Qualified &rarr; For Bidding:</b> Bidder: <code>TG Global</code>, Representative: pick <code>Dani demo</code> from the employee list, Mode of Pre Bid: <code>Online</code>. Confirm.</li>
+            <li><b>For Bidding &rarr; Bid Submitted:</b> Upload PRICE SCHEDULE / PRICE OFFER (demo PDF). Purchasing Involved: pick <code>Cjay demo</code>. Logistics Representative: pick <code>Aldrin demo</code>. Confirm. (Enforces <b>Costing settled</b>: Final Offers, complete costs, spec approved, Go, within ABC.)</li>
+            <li><b>Bid Submitted &rarr; PQ:</b> Remarks: <code>Lowest Calculated Responsive Bidder</code>. Confirm.</li>
+            <li><b>PQ &rarr; Negotiation:</b> Product Demo: <code>No</code>. Confirm. No skip prompt appears. The PQ task "Preparation of PQ" runs as skipped.</li>
+            <li><b>Negotiation &rarr; NOA:</b> Requires no fields. Confirm move.</li>
           </ol></div></div>
-        <div class="row see"><b>See</b><div>On reaching NOA: Date of Award auto-fills with today's date. Purchasing receives "SOR Awarded" notice. In the Purchase Request, a green badge displays <b>Awarded · [today's date]</b>.</div></div>
+        <div class="row see"><b>See</b><div>On reaching NOA: Date of Award auto-fills with today's date. Cjay demo (the Buyer), the Purchasing Incharge and the request's purchasing members get the "SOR Awarded" notice, not everyone in Purchasing (#890). In the Purchase Request, a green badge displays <b>Awarded &middot; [today's date]</b>.</div></div>
       </div>
     </li>
   </ol>
@@ -569,6 +569,7 @@ ol.steps input[type=checkbox] {
 
 <section id="part6">
   <div class="part-head"><span class="part-no">6</span><h2>Procurement Execution: P0 Attachment &amp; Automated IPAS</h2><span class="mins">0:36 – 0:46</span></div>
+  <div class="warn"><strong>Odoo needed for Parts 6 to 8:</strong> run locally, these steps need Odoo credentials in <code>supabase/functions/.env</code>. Without them the Attach P0 dialog shows "Odoo integration is not configured on the server". Run Parts 6 to 8 where Odoo is configured.</div>
   <ol class="steps">
     <li data-k="6.1"><input type="checkbox" aria-label="Done">
       <div class="step-body">
@@ -582,7 +583,7 @@ ol.steps input[type=checkbox] {
       <div class="step-body">
         <div class="head"><span class="k">6.2</span><span class="seat s-sales">Sales</span></div>
         <div class="row where"><b>Where</b><div>Sales window → SOR detail view → Move Stage</div></div>
-        <div class="row do"><b>Do</b><div><ol><li>Move <b>NOA → PB:</b> Upload NOA (demo PDF), NOA Amount: <code>1370535.74</code>. Confirm move.</li><li>Move <b>PB → NTP:</b> Check <b>Submit PB</b> checkbox, then click <b>Certify</b> in the confirmation dialog. Confirm move.</li></ol></div></div>
+        <div class="row do"><b>Do</b><div><ol><li>Move <b>NOA → PB:</b> Upload NOA (demo PDF), NOA Amount (currency field, shown as &#8369;): <code>1370535.74</code>. Confirm move.</li><li>Move <b>PB → NTP:</b> Check <b>Submit PB</b> checkbox, then click <b>Certify</b> in the confirmation dialog. Confirm move.</li></ol></div></div>
         <div class="row see"><b>See</b><div>SOR stage is now <b>NTP - Notice to Proceed</b>. Buying is officially unlocked.</div></div>
       </div>
     </li>
@@ -845,7 +846,7 @@ ol.steps input[type=checkbox] {
       <div class="step-body">
         <div class="head"><span class="k">9.2</span><span class="seat s-buy">Purchasing</span></div>
         <div class="row where"><b>Where</b><div>Purchasing → Dashboard</div></div>
-        <div class="row do"><b>Do</b><div>Locate SOR-256 in the procurement tracker. Test switching the Sort dropdown between <b>Sort: Urgency</b> and <b>Sort: Recent activity</b> (#848).</div></div>
+        <div class="row do"><b>Do</b><div>Locate SOR-256 in the procurement tracker. Open <b>Filters</b>, then test switching the Sort option between <b>Sort: Urgency</b> and <b>Sort: Recent activity</b> (#848).</div></div>
         <div class="row see"><b>See</b><div>Under Recent activity, SOR-256 sits at the top with newest activity timestamp from the status changes and IPAS creation. Tracker shows "2 purchased (not received)" corresponding to the unfulfilled partial delivery lines.</div></div>
       </div>
     </li>
@@ -900,14 +901,14 @@ ol.steps input[type=checkbox] {
         <div class="head"><span class="k">B.2</span><span class="seat s-sales">Sales</span></div>
         <div class="row where"><b>Where</b><div>Sales window (dani@demo) → S0 Evaluation → Bid Decision card</div></div>
         <div class="row do"><b>Do</b><div>Attempt to unlock the sheet as Dani demo.</div></div>
-        <div class="row see"><b>See</b><div>Action refused: Deal Owner does not have unlock permission. Only Super Admin or authorized Management list may unlock.</div></div>
+        <div class="row see"><b>See</b><div>Action refused. Only a Super Admin or a person on the decider list may unlock a bid (#899).</div></div>
       </div>
     </li>
     <li data-k="B.3" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">B.3</span><span class="seat s-sign">201</span></div>
         <div class="row where"><b>Where</b><div>Signers window (201@demo) → S0 Evaluation → Bid Decision card</div></div>
-        <div class="row do"><b>Do</b><div>Click <b>Unlock</b>. Enter mandatory reason: <code>Supplier revised pricing on safety boots</code>. Confirm unlock.</div></div>
+        <div class="row do"><b>Do</b><div>Click <b>Unlock</b>. Enter mandatory reason: <code>Supplier revised pricing on safety boots</code>. Confirm unlock. (If 201 is not on the decider list, use 101 demo, a Super Admin.)</div></div>
         <div class="row see"><b>See</b><div>Sheet unlocks. Unlock reason and actor 201 demo recorded in history. Deal Owner must submit a fresh Go before For Bidding can proceed.</div></div>
       </div>
     </li>
@@ -915,31 +916,39 @@ ol.steps input[type=checkbox] {
 </section>
 
 <section id="scenC">
-  <div class="part-head"><span class="part-no">C</span><h2>Scenario: Evaluation Permission Restrictions</h2><span class="mins">2 min</span></div>
-  <p class="intro">Demonstrates strict role-based isolation during technical specification evaluation.</p>
+  <div class="part-head"><span class="part-no">C</span><h2>Scenario: Technical Verdict Rules</h2><span class="mins">2 min</span></div>
+  <p class="intro">Demonstrates who can give the one Technical verdict on an S0 Evaluation, and who can approve it (spec #907, decision 10).</p>
   <ol class="steps">
     <li data-k="C.1" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">C.1</span><span class="seat s-wh">sherwin</span></div>
-        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) → Sales → Technical, before step 5.2 assigns the RRD team</div></div>
-        <div class="row do"><b>Do</b><div>Open the Technical list while no row is given to RRD.</div></div>
-        <div class="row see"><b>See</b><div>"Nothing to check yet". Rows with no team never reach the Technical list; lines cannot be evaluated without team assignment.</div></div>
+        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) &rarr; Sales &rarr; Technical, before step 5.2</div></div>
+        <div class="row do"><b>Do</b><div>Open the Technical list.</div></div>
+        <div class="row see"><b>See</b><div>No SOR is listed for Sherwin. He is not the Technical in-charge of any S0 Evaluation yet. As Sales, Dani sees "Name a Technical in-charge for the S0 Evaluation" under Needs attention (#910).</div></div>
       </div>
     </li>
     <li data-k="C.2" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">C.2</span><span class="seat s-sign">101</span></div>
-        <div class="row where"><b>Where</b><div>Signers window as Super Admin (101@demo) → S0 Evaluation sheet → Row assigned to RRD</div></div>
-        <div class="row do"><b>Do</b><div>Attempt to mark compliance on an RRD row as Super Admin.</div></div>
-        <div class="row see"><b>See</b><div>Controls remain read-only. Only members of the assigned evaluating team (RRD) can judge technical compliance.</div></div>
+        <div class="row where"><b>Where</b><div>Signers window as Super Admin (101@demo) &rarr; S0 Evaluation sheet &rarr; Technical verdict card</div></div>
+        <div class="row do"><b>Do</b><div>Try to choose a verdict as Super Admin.</div></div>
+        <div class="row see"><b>See</b><div>The card stays read-only for Super Admin. Only the named Technical in-charge can give the verdict or its note (#908).</div></div>
       </div>
     </li>
     <li data-k="C.3" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">C.3</span><span class="seat s-sign">grace</span></div>
-        <div class="row where"><b>Where</b><div>Signers window (grace@demo) → S0 Evaluation → Spec approval bar while any row is unjudged</div></div>
+        <div class="row where"><b>Where</b><div>Signers window (grace@demo) &rarr; S0 Evaluation &rarr; Evaluation bar, before step 5.3</div></div>
         <div class="row do"><b>Do</b><div>Inspect the <b>Approve the evaluation</b> button.</div></div>
-        <div class="row see"><b>See</b><div>Button is disabled with message: "Components have no verdict yet". All lines must be judged before sign-off can occur.</div></div>
+        <div class="row see"><b>See</b><div>Approval is not available. The bar says "Technical verdict not given yet". The evaluation cannot be approved until the in-charge gives the verdict.</div></div>
+      </div>
+    </li>
+    <li data-k="C.4" data-opt><input type="checkbox" aria-label="Done">
+      <div class="step-body">
+        <div class="head"><span class="k">C.4</span><span class="seat s-wh">sherwin</span></div>
+        <div class="row where"><b>Where</b><div>Warehouse window (sherwin@demo) &rarr; Technical &rarr; the SOR, after step 5.3</div></div>
+        <div class="row do"><b>Do</b><div>Try to click <b>Approve the evaluation</b> as the Technical in-charge.</div></div>
+        <div class="row see"><b>See</b><div>Approval is refused. The Technical in-charge cannot approve the Evaluation. Someone else on the approval list must do it (#911).</div></div>
       </div>
     </li>
   </ol>

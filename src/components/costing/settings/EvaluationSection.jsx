@@ -18,9 +18,8 @@ const message = (error) => (error?.message || "Something went wrong.").replace(/
 /**
  * The Evaluation of Specification settings (#271, spec #266), Super Admins only (the database
  * refuses anyone else's write): which group task template calls Technical in, and who is on the
- * `evaluation` list that approves the evaluation. A member of a task made from the template, on
- * an SOR, may write Compliance on that SOR's Costing Matrix; leaving it empty grants that to
- * nobody. Changing the list never changes an approval already given.
+ * `evaluation` list that approves the evaluation. The Technical verdict is given by the in-charge
+ * named on each SOR (#908), not by this template. Changing the list never changes an approval already given.
  */
 export default function EvaluationSection() {
   const queryClient = useQueryClient();
@@ -67,8 +66,8 @@ export default function EvaluationSection() {
       <div>
         <h3 className="text-sm font-semibold text-foreground">Evaluation of Specification</h3>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-          Who evaluates an S0 Evaluation, and who approves the evaluation. A Compliance verdict is written by Purchasing access and by
-          the members of an SOR&apos;s evaluation task. The approval is signed by one person on the list below.
+          Who approves an S0 Evaluation, and which task template counts as Technical. The Technical verdict is given by the Technical
+          in-charge named on each SOR. The approval is signed by one person on the list below.
         </p>
       </div>
 

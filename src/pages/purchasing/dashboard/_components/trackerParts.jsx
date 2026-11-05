@@ -127,7 +127,9 @@ function RecordLine({ row, today, onOpen }) {
         {rowLabel(row)}
       </span>
       {row.delivery_note && <span className="shrink-0 text-xs text-muted-foreground">{row.delivery_note}</span>}
-      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{pluralize(row.item_count, "item")}</span>
+      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+        {row.target_kind === "costing_matrix" && row.item_count === 0 ? "Bid Decision pending" : pluralize(row.item_count, "item")}
+      </span>
       <Age days={ageDays(row.since, today)} />
     </LineButton>
   );

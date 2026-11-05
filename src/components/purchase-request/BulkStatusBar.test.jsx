@@ -51,6 +51,21 @@ describe("bulkStatuses", () => {
 describe("purchasing", () => {
   beforeEach(() => stubPurchaseRequestItemRpcs({ actorId: buyer.id }))
 
+  it("keeps a place for the bar above the list, so the first tick does not move the rows (#902)", async () => {
+    seedItem("Harness")
+    const user = setupUser()
+    show()
+
+    const slot = await screen.findByTestId("bulk-slot")
+    expect(slot).toBeEmptyDOMElement()
+    const firstRow = screen.getByTestId("requested-item")
+    expect(slot.compareDocumentPosition(firstRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    await user.click(screen.getByRole("checkbox", { name: "Select Harness" }))
+    expect(within(slot).getByRole("region", { name: "Change many lines" })).toBeInTheDocument()
+    expect(screen.getByTestId("requested-item")).toBe(firstRow)
+  })
+
   it("shows the bar for ticked lines, asks one reason, changes all, and one Undo reverses all", async () => {
     seedItem("Harness")
     seedItem("Rope")

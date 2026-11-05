@@ -333,13 +333,17 @@ export default function RequestedItems({ request, renderActions }) {
       ) : (
         <>
           {canTick && (
-            <BulkStatusBar
-              requestId={requestId}
-              items={tickedItems}
-              side={actor.side}
-              stockSnapshot={stockSnapshot}
-              onClear={() => setTicked(new Set())}
-            />
+            // #902: the slot is always there, one button row tall, so the bar appearing on the first
+            // tick does not push the list down under the cursor.
+            <div className="min-h-12" data-testid="bulk-slot">
+              <BulkStatusBar
+                requestId={requestId}
+                items={tickedItems}
+                side={actor.side}
+                stockSnapshot={stockSnapshot}
+                onClear={() => setTicked(new Set())}
+              />
+            </div>
           )}
           {items.length > 0 && (
             <ReadyBar

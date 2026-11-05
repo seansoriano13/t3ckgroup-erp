@@ -5,8 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import ModalShell from "../../../components/ui/ModalShell";
 import EmptyState from "../../../components/ui/EmptyState";
-import PageLoading from "../../../components/ui/PageLoading";
 import TransmittalForm from "../../../components/transmittals/TransmittalForm";
+import TransmittalFormSkeleton from "../../../components/transmittals/TransmittalFormSkeleton";
 import { transmittalKeys } from "../../../components/transmittals/transmittalKeys";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
@@ -58,7 +58,7 @@ function NewTransmittal() {
       actionsRef={setActionsSlot}
     >
       {checking || loadingLists ? (
-        <PageLoading label="Transmittal" />
+        <TransmittalFormSkeleton />
       ) : !canPrepare ? (
         <EmptyState
           title="You can't raise a Transmittal"

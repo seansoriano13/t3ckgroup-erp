@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Minus, Plus } from "lucide-react";
+import { Loader2, Minus, Plus } from "lucide-react";
 
 import { Button } from "../../ui/button";
 import { FieldBox } from "../../ui/FieldBox";
@@ -170,10 +170,13 @@ export default function MarkupPlayground({ matrix, writes }) {
 
       {canSaveFactor || canFillOffers ? (
         <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          <Button type="button" variant="outline" size="sm" disabled={busy || !changed} onClick={apply}>
+          <Button type="button" variant="outline" size="sm" disabled={busy || !changed} aria-busy={busy || undefined} onClick={apply}>
+            {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
             {canFillOffers ? `Apply ${factorLabel(tried)} to the Final Offers` : `Save ${factorLabel(tried)} as the markup`}
           </Button>
-          <span className="text-xs text-muted-foreground">{changed ? "Nothing changes until you apply." : "The Final Offers already match."}</span>
+          <span className="text-xs text-muted-foreground" role="status">
+            {busy ? "Saving, the figures update in a moment…" : changed ? "Nothing changes until you apply." : "The Final Offers already match."}
+          </span>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">Only the Markup list sets the markup.</p>

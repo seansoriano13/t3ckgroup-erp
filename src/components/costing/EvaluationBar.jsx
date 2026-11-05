@@ -5,23 +5,24 @@ import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
 import { costingEvaluationSettingsService } from "../../services/costingEvaluationSettingsService";
 import { costingMatrixService } from "../../services/costingMatrixService";
-import { describeComplianceRollup } from "../../utils/costingMath";
+import { COMPLIANCE_LABEL } from "../../constants/costing";
 import { formatDate } from "../../utils/formatDate";
 import { costingKeys } from "./costingKeys";
 
 /**
- * The matrix header's Evaluation of Specification line (#271): how the whole offer stands against
- * what was asked ("2 of 5 deviate · 1 not evaluated"), whether the evaluation is approved, and, for
+ * The matrix header's Evaluation of Specification line (#271): the Technical verdict on the whole offer
+ * ("Technical verdict: Deviates", or not judged yet), whether the evaluation is approved, and, for
  * someone on the evaluation list, the button that approves it. Approval is for the whole matrix,
- * once, and is refused while any Component has no verdict. It locks nothing: a change to a
- * specification or a verdict clears it, and this line says why it went.
+ * once, and is refused until the Technical in-charge has given the verdict (#908). It locks nothing: a
+ * change to a specification or the verdict clears it, and this line says why it went.
  *
  * Whether the viewer is on the list is read from `costing_signer_lists`, which the database shows a
  * member only their own row of (a Super Admin sees them all, so the viewer's id is matched).
  */
 export default function EvaluationBar({ matrix, opportunityId, actorId, nameOf, writes }) {
   const { busy, run } = writes;
-  const { evaluation, compliance } = matrix;
+  const { evaluation } = matrix;
+  const verdict = matrix.matrix?.compliance ?? null;
 
   const { data: signers = [] } = useQuery({
     queryKey: costingKeys.evaluationList(opportunityId),
@@ -31,8 +32,8 @@ export default function EvaluationBar({ matrix, opportunityId, actorId, nameOf, 
   });
   const canApprove = Boolean(actorId) && signers.includes(actorId);
 
-  const summary = describeComplianceRollup(compliance);
-  const waiting = compliance.notEvaluated;
+  const summary = verdict ? `Technical verdict: ${COMPLIANCE_LABEL[verdict]}` : "Technical verdict not given yet";
+  const waiting = verdict ? 0 : 1;
   const signer = evaluation.signoff?.signed_by;
   const reason = evaluation.cleared?.cleared_reason;
 
@@ -84,7 +85,7 @@ export default function EvaluationBar({ matrix, opportunityId, actorId, nameOf, 
             </Button>
             {waiting > 0 && (
               <span className="text-xs text-muted-foreground" data-testid="evaluation-waiting">
-                {waiting} {waiting === 1 ? "Component has" : "Components have"} no verdict yet.
+                The Technical verdict is not given yet.
               </span>
             )}
           </>

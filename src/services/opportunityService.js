@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { functionErrorMessage } from "../lib/functionErrors";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { itemsForVisit, shapeSorOverview } from "../utils/sorPurchaseRequest";
 import { notificationService } from "./notificationService";
@@ -938,11 +939,12 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   // them again. Now the RPC either returns (everything on this Stage is
   // created-or-failed) or the whole call never happened (nothing began, so
   // the fire-once gate still lets a retry pick it all up).
-  const failedStageActions = await runStageActionsOnEntry({ existing, to, snapshotActions, actorId });
+  const failedStageActionReasons = [];
+  const failedStageActions = await runStageActionsOnEntry({ existing, to, snapshotActions, actorId, failureReasons: failedStageActionReasons });
   // ADR 0048 — reaching the Won Stage with no Contract Date is allowed, but the
   // Deal Team is warned: no commission rate is fixed until it is typed in.
   const wonWithoutContractDate = wonStageId === to.id && !existing.contract_date && !patch.contract_date;
-  return { ...data, failedStageActions, wonWithoutContractDate };
+  return { ...data, failedStageActions, failedStageActionReasons, wonWithoutContractDate };
 }
 
 /**
@@ -950,8 +952,10 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
  * Snapshot (#204, #409). Shared by a stage move and by registration (SOR-245:
  * a deal registered onto a Stage with Actions got no run, so its Actions never
  * fired). Returns the names of the Actions that failed. It never throws.
+ * `failureReasons`, when given, collects { name, reason } for each failure the
+ * database could explain (#896).
  */
-async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId }) {
+async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId, failureReasons }) {
   const failedStageActions = [];
   let actionsAttempted = false;
   try {
@@ -1086,6 +1090,9 @@ async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId }
         }
       } else {
         for (const name of runResult?.failed || []) failedStageActions.push(name);
+        for (const failure of runResult?.failed_reasons || []) {
+          failureReasons?.push({ name: failure.name, reason: failure.reason });
+        }
 
         // The RPC already created the task/group task and marked the run —
         // that part survives the mover leaving. What's left is best-effort
@@ -1392,6 +1399,17 @@ function dealTeamIds(opportunity) {
  * preview of what Create will build) so the two can never drift apart —
  * spec: "Create makes exactly what the automatic action would."
  */
+/**
+ * #901: the title the decision-due notice was written with (the same template
+ * the payload uses in sor_run_stage_actions), so the decided notice can be found.
+ */
+function decisionNoticeTitle(action, templateContext) {
+  return (
+    renderActionTitle(action, templateContext) ||
+    stageActionTaskTitle({ salesReference: templateContext.salesReference, projectTitle: templateContext.projectTitle })
+  );
+}
+
 function renderActionTitle(action, templateContext) {
   const config = action.config || {};
   const dealTitle = stageActionTaskTitle({
@@ -1652,17 +1670,25 @@ async function planVersionUpdate(ids, targetSnapshotId) {
   if (targetError) throw targetError;
   const { data: sors, error: sorError } = await supabase
     .from("sales_opportunities")
-    .select("id, sales_reference, project_title, client_name, sale_type, deal_owner_id, flow_stage_id, flow_snapshot_id")
+    .select("id, sales_reference, project_title, client_name, sale_type_id, deal_owner_id, flow_stage_id, flow_snapshot_id")
     .in("id", ids);
   if (sorError) throw sorError;
-  const sourceIds = [...new Set((sors || []).map((o) => o.flow_snapshot_id).filter(Boolean))];
+  // The Sale Type is its own row; the action templates want its name (#882).
+  const saleTypeIds = [...new Set((sors || []).map((o) => o.sale_type_id).filter(Boolean))];
+  const { data: saleTypes, error: saleTypeError } = saleTypeIds.length
+    ? await supabase.from("sale_types").select("id, name").in("id", saleTypeIds)
+    : { data: [], error: null };
+  if (saleTypeError) throw saleTypeError;
+  const saleTypeNameById = new Map((saleTypes || []).map((t) => [t.id, t.name]));
+  const sorRows = (sors || []).map((o) => ({ ...o, sale_type: saleTypeNameById.get(o.sale_type_id) || null }));
+  const sourceIds = [...new Set(sorRows.map((o) => o.flow_snapshot_id).filter(Boolean))];
   const { data: sources, error: sourceError } = sourceIds.length
     ? await supabase.from("flow_snapshots").select("id, version, version_minor, snapshot_data").in("id", sourceIds)
     : { data: [], error: null };
   if (sourceError) throw sourceError;
   const sourceById = new Map((sources || []).map((s) => [s.id, s]));
   const targetStages = target.snapshot_data?.stages || [];
-  const items = (sors || []).map((sor) => ({
+  const items = sorRows.map((sor) => ({
     sor,
     stage: targetStages.find((st) => st.id === sor.flow_stage_id) || { id: sor.flow_stage_id, name: "" },
     added: addedActionsForStage({
@@ -2441,7 +2467,15 @@ export const opportunityService = {
     const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
       body: { action: "check", salesReference: salesReference || null },
     });
-    if (error) throw new Error(error.message || "The S0 could not be checked.");
+    if (error) {
+      // #889: say which step failed, and what to do, rather than the raw transport text.
+      throw new Error(
+        await functionErrorMessage(
+          error,
+          `Couldn't check ${salesReference} against Odoo. Try again, or register without a Sales Reference.`,
+        ),
+      );
+    }
     if (!data?.success) {
       const refusal = new Error(data?.message || "The S0 could not be checked.");
       refusal.hint = data?.hint;
@@ -2459,7 +2493,9 @@ export const opportunityService = {
     const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
       body: { opportunityId: id, salesReference: salesReference || null, reason: reason || null },
     });
-    if (error) throw new Error(error.message || "The S0 could not be saved.");
+    if (error) {
+      throw new Error(await functionErrorMessage(error, "The S0 could not be saved. Try again."));
+    }
     if (!data?.success) {
       const refusal = new Error(data?.message || "The S0 could not be saved.");
       refusal.hint = data?.hint;
@@ -2884,11 +2920,14 @@ export const opportunityService = {
     const succeeded = [];
     const failed = [];
     // Read before the move: afterwards the old version is no longer on the row.
+    // A failed read is reported back, never swallowed (#882).
     let plan = { items: [] };
+    let planError = null;
     try {
       plan = await planVersionUpdate(ids, targetSnapshotId);
     } catch (err) {
       console.error("Could not work out the Stage Actions for this update:", err);
+      planError = err?.message || String(err);
     }
     onProgress?.({ done: 0, total: ids.length });
     for (let i = 0; i < ids.length; i += chunkSize) {
@@ -2911,13 +2950,18 @@ export const opportunityService = {
     const actionFailures = [];
     for (const item of plan.items) {
       if (!movedIds.has(item.sor.id) || item.added.length === 0) continue;
+      const reasons = [];
       const names = await runStageActionsOnEntry({
         existing: item.sor,
         to: item.stage,
         snapshotActions: item.added,
         actorId,
+        failureReasons: reasons,
       });
-      names.forEach((name) => actionFailures.push({ id: item.sor.id, name }));
+      names.forEach((name) => {
+        const reason = reasons.find((r) => r.name === name)?.reason ?? null;
+        actionFailures.push({ id: item.sor.id, name, reason });
+      });
     }
     if (queryClient) {
       for (const { id } of succeeded) {
@@ -2926,7 +2970,7 @@ export const opportunityService = {
       }
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     }
-    return { succeeded, failed, actionFailures };
+    return { succeeded, failed, actionFailures, planError };
   },
 
   async deleteOpportunity(id, actorId) {
@@ -3410,6 +3454,15 @@ export const opportunityService = {
       .single();
     if (stageError) throw stageError;
 
+    const templateContext = {
+      salesReference: existing.sales_reference,
+      projectTitle: existing.project_title,
+      company: existing.client_name,
+      stageName: stage.name,
+      dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
+      saleType: existing.sale_type || null,
+    };
+
     if (retrying) {
       // Back to the decided-and-created state the create functions accept, then run the step again.
       const { error: reopenError } = await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "created" });
@@ -3421,6 +3474,10 @@ export const opportunityService = {
         p_actor_id: actorId,
       });
       if (decideError) throw decideError;
+      // #901: the decision notice in this Decider's inbox is resolved once the run is decided.
+      await notificationService
+        .resolveDecisionNotices(existing.id, actorId, decisionNoticeTitle(action, templateContext))
+        .catch(() => {});
     }
 
     if (decision === "skip") {
@@ -3433,14 +3490,6 @@ export const opportunityService = {
       return { outcome: "skipped" };
     }
 
-    const templateContext = {
-      salesReference: existing.sales_reference,
-      projectTitle: existing.project_title,
-      company: existing.client_name,
-      stageName: stage.name,
-      dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
-      saleType: existing.sale_type || null,
-    };
     if (action.kind === "open_purchase_request") {
       const { data: requestId, error: openError } = await supabase.rpc("sor_open_purchase_request", {
         p_run_id: runId,

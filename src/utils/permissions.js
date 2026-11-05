@@ -47,6 +47,7 @@ export function getPermissionContext(user) {
   const isBidDecider = isSuperAdmin || isFinalAcquire || isCostingOpen;
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
+  const canEditSalesFlows = !!(user?.can_edit_sales_flows || user?.canEditSalesFlows);
   const isRoleSimulator = !!(user?.is_role_simulator || user?.isRoleSimulator);
   const subDepartment = user?.subDepartment || user?.sub_department || null;
   const canManage = isHead || isSuperAdmin;
@@ -58,6 +59,7 @@ export function getPermissionContext(user) {
     isHead,
     isHr,
     canManageLeaves,
+    canEditSalesFlows,
     hasSalesFlow,
     hasTaskFlow,
     hasPurchasingFlow,

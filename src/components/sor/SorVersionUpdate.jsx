@@ -12,6 +12,7 @@ import {
     isOutdatedSor,
     revertTargets,
     actionFailureMessage,
+    planFailureMessage,
 } from "../../utils/sorVersionUpdate"
 import { useAuth } from "../../context/AuthContext"
 import { ChevronDown, Undo2 } from "lucide-react"
@@ -52,12 +53,14 @@ export default function SorVersionUpdate({ opportunity }) {
     const update = useMutation({
         mutationFn: (snapshotId) =>
             opportunityService.updateSorVersions([opportunity.id], snapshotId, { queryClient, actorId: user?.id }),
-        onSuccess: ({ failed, actionFailures }) => {
+        onSuccess: ({ failed, actionFailures, planError }) => {
             if (failed.length > 0) {
                 toast.error(failed[0].reason)
                 return
             }
             toast.success("Version updated.")
+            const planWarning = planFailureMessage(planError)
+            if (planWarning) toast.error(planWarning, { duration: 8000 })
             const warning = actionFailureMessage(actionFailures)
             if (warning) toast(warning, { duration: 8000 })
             queryClient.invalidateQueries({ queryKey: ["opportunity", opportunity.id] })

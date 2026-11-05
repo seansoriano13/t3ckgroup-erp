@@ -21,6 +21,9 @@ import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 
+// The "Show only when" picker's "always shown" choice (#900). Its value stands for "no rule".
+const ALWAYS_SHOWN = "__always__";
+
 const emptyDraft = () => ({
   label: "",
   help: "",
@@ -29,6 +32,8 @@ const emptyDraft = () => ({
   sorField: SOR_STAGE_FIELD_KEYS[0],
   fieldType: "text",
   options: ["", ""],
+  showWhenFieldId: "",
+  showWhenValue: "",
 });
 
 function draftFromField(field) {
@@ -40,6 +45,8 @@ function draftFromField(field) {
     sorField: field.sor_field || SOR_STAGE_FIELD_KEYS[0],
     fieldType: field.field_type || "text",
     options: field.options?.length ? field.options : ["", ""],
+    showWhenFieldId: field.show_when?.field_id ?? "",
+    showWhenValue: field.show_when?.value ?? "",
   };
 }
 
@@ -55,6 +62,7 @@ function payloadFrom(draft) {
         ? cleanChoiceOptions(draft.options)
         : [],
     isRequired: draft.isRequired,
+    showWhen: draft.showWhenFieldId ? { field_id: draft.showWhenFieldId, value: draft.showWhenValue } : null,
   };
 }
 
@@ -127,6 +135,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
           label: payload.label,
           help: payload.help,
           isRequired: payload.isRequired,
+          showWhen: payload.showWhen,
           // `update` refuses `options` on anything but a custom choice field
           // — only send it when that's what's being edited.
           ...(field.source === "custom" && field.field_type === "choice" ? { options: payload.options } : {}),
@@ -194,6 +203,9 @@ export default function StageFieldManager({ stageId, disabled = false }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!draft.label.trim() || !stageId) return;
+    if (draft.showWhenFieldId && !draft.showWhenValue.trim()) {
+      return toast.error("Pick the value the other field must have, or choose Always shown.");
+    }
     if (draft.source === "custom" && draft.fieldType === "choice") {
       const error = choiceOptionsError(draft.options);
       if (error) return toast.error(error);
@@ -205,6 +217,11 @@ export default function StageFieldManager({ stageId, disabled = false }) {
       addMutation.mutate(payload);
     }
   };
+
+  // The other fields of this Stage a field can wait on (#900). A choice field offers its options as the value.
+  const otherFields = (fields || []).filter((f) => !f.archived_at && f.id !== editingId);
+  const showWhenRef = otherFields.find((f) => f.id === draft.showWhenFieldId);
+  const showWhenChoices = showWhenRef?.source === "custom" && showWhenRef.field_type === "choice" ? showWhenRef.options || [] : null;
 
   const isFormOpen = isAdding || Boolean(editingId);
   const isSaving = addMutation.isPending || updateMutation.isPending;
@@ -308,6 +325,41 @@ export default function StageFieldManager({ stageId, disabled = false }) {
           onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
         />
       </FieldBox>
+
+      <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3" data-testid="show-when-rule">
+        <span className="block text-sm font-semibold text-foreground">Show only when</span>
+        <span className="block text-xs leading-snug text-muted-foreground">
+          A field that is not shown is not asked for, and never blocks the move.
+        </span>
+        <SelectField
+          aria-label="Show only when field"
+          value={draft.showWhenFieldId || ALWAYS_SHOWN}
+          onChange={(next) => setDraft((d) => ({ ...d, showWhenFieldId: next === ALWAYS_SHOWN ? "" : next, showWhenValue: "" }))}
+          options={[
+            { value: ALWAYS_SHOWN, label: "Always shown" },
+            ...otherFields.map((f) => ({ value: f.id, label: f.label })),
+          ]}
+          className="w-full"
+        />
+        {draft.showWhenFieldId &&
+          (showWhenChoices ? (
+            <SelectField
+              aria-label="Show only when value"
+              value={draft.showWhenValue}
+              onChange={(next) => setDraft((d) => ({ ...d, showWhenValue: next }))}
+              options={showWhenChoices.map((opt) => ({ value: opt, label: opt }))}
+              placeholder="Pick a value…"
+              className="w-full"
+            />
+          ) : (
+            <Input
+              label="Value it must have"
+              value={draft.showWhenValue}
+              onChange={(e) => setDraft((d) => ({ ...d, showWhenValue: e.target.value }))}
+              placeholder="e.g. Yes"
+            />
+          ))}
+      </div>
 
       <StageFieldPreview draft={draft} />
 

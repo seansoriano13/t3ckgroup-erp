@@ -485,7 +485,13 @@ export function buildDraftSnapshotData({
  *   explicit nulls.
  * - Recursively sorts object keys so key order differences (e.g. from Postgres
  *   JSONB normalization) never cause false diffs.
+ * - Omits `false` on the boolean Stage flags whose column default is false
+ *   (issue #887). A Snapshot taken before a flag existed has no key for it,
+ *   while the live row always carries `false`. Both mean "not set", so a
+ *   restored Snapshot must not read as every Stage changed.
  */
+const DEFAULT_FALSE_FLAG_KEYS = new Set(["buying_opens_here", "auto_move", "is_terminal"]);
+
 function canonicalItemForDiff(item) {
   if (item === null || typeof item !== "object") return item;
   if (Array.isArray(item)) return item.map(canonicalItemForDiff);
@@ -496,6 +502,7 @@ function canonicalItemForDiff(item) {
     if (ignoredKeys.has(key)) continue;
     const val = item[key];
     if (val === null || val === undefined || val === "") continue;
+    if (val === false && DEFAULT_FALSE_FLAG_KEYS.has(key)) continue;
     sorted[key] = canonicalItemForDiff(val);
   }
   return sorted;
@@ -552,9 +559,15 @@ export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
   const accessFlow = diffById(accessFlowA, accessFlowB)
   const accessStages = diffById(snapshotDataA.access?.stages, snapshotDataB.access?.stages)
   const wonStageChanged = (snapshotDataA.wonStageId ?? null) !== (snapshotDataB.wonStageId ?? null)
+  // The Notice of Award and contract Stages are role pointers on the flow, like
+  // the Won Stage. They must count too, or naming one alone reads as no change.
+  const awardStageChanged = (snapshotDataA.awardStageId ?? null) !== (snapshotDataB.awardStageId ?? null)
+  const contractStageChanged = (snapshotDataA.contractStageId ?? null) !== (snapshotDataB.contractStageId ?? null)
 
   const hasChanges =
     wonStageChanged ||
+    awardStageChanged ||
+    contractStageChanged ||
     [stages, edges, actions, conditions, stageFields, formFields, followUps, accessFlow, accessStages].some(
       (d) => d.added.length > 0 || d.removed.length > 0 || (d.changed?.length || 0) > 0,
     )
@@ -570,6 +583,8 @@ export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
     accessFlow,
     accessStages,
     wonStageChanged,
+    awardStageChanged,
+    contractStageChanged,
     hasChanges,
   }
 }
@@ -595,7 +610,9 @@ export function countFlowSnapshotChanges(diffResult) {
     byGroup(diffResult.followUps) +
     byGroup(diffResult.accessFlow) +
     byGroup(diffResult.accessStages) +
-    (diffResult.wonStageChanged ? 1 : 0)
+    (diffResult.wonStageChanged ? 1 : 0) +
+    (diffResult.awardStageChanged ? 1 : 0) +
+    (diffResult.contractStageChanged ? 1 : 0)
   )
 }
 

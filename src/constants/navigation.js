@@ -378,16 +378,15 @@ export const NAV_MODULES = {
       // isn't duplicated here.
 
       // Issue #36/#83 — a long-lived feature, not a one-time build. One
-      // editing surface since #186 removed the Sandbox mode. The Flow Canvas
-      // tables are writable by every signed-in employee (see the policy
-      // tier), so the entry stays visible to all; the Flow Snapshot history
-      // reached from the canvas is Super-Admin-gated.
+      // editing surface since #186 removed the Sandbox mode. Editing and
+      // publishing are for Super Admins and Flow editors
+      // (`can_edit_sales_flows`, #884); nobody else sees the entry.
       {
         key: "admin.flowCanvas",
         label: "Flow Canvas",
         link: "/super-admin/flow-canvas",
         icon: Workflow,
-        isPermitted: () => true,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.canEditSalesFlows,
       },
       // Bug Reports sent from the floating button on every page. Gated by the
       // Bug Reports access right (`has_bug_report_access`, on by default for

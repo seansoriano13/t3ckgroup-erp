@@ -16,6 +16,7 @@ import {
   tierReads,
   tierReadsBid,
   tierReadsCost,
+  DEFAULT_COSTING_SETTINGS,
 } from "@/constants/costing"
 import { markupPriceUnit, matrixTotals } from "@/utils/costingMath"
 import { computeLandedCost } from "@/test/stubs/landedCostFake"
@@ -64,13 +65,17 @@ const ensureGuideCategories = () => {
  * costing_can_manage_markup (default: the Closed Book). Who may write the factor is the policy tier's
  * (80-costing-markup.test.js).
  *
+ * #880: `canDecideLoss` stands for costing_can_decide_loss (a Super Admin or the decider list; default: the
+ * Closed Book). A Go whose planned revenue is negative is refused to anyone else, as the database refuses it
+ * (85-costing-bid-decision.test.js).
+ *
  * #271 adds the Evaluation of Specification (20261018140000_costing_matrix_evaluation.sql):
  * `costing_sign` is re-implemented here (`onEvaluationList` stands in for membership of the
  * evaluation list, `actorId` for the signed-in employee), the clearing triggers are mirrored in
  * src/test/db/triggers.js, and `costing_history` returns what those triggers wrote. Who may write
  * a verdict (the Technical band) is the policy tier's (82-costing-evaluation.test.js).
  */
-export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"], manageMarkup = tier === COSTING_TIER.CLOSED_BOOK, actorId = null, onEvaluationList = true } = {}) {
+export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sales"], manageMarkup = tier === COSTING_TIER.CLOSED_BOOK, canDecideLoss = tier === COSTING_TIER.CLOSED_BOOK, actorId = null, onEvaluationList = true } = {}) {
   const refuse = (table, column, needed) => {
     throw pgrstError("42501", `costing_band:${table}.${column}:${needed.join(",")}`, { status: 403 })
   }
@@ -214,6 +219,23 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
   }
 
   stubRpc("costing_can_manage_markup", () => manageMarkup)
+  stubRpc("costing_can_decide_loss", () => canDecideLoss)
+
+  // #880: planned revenue as costing_decide_bid works it: (Final Offer - Final Acquire total) - ITR on the part above the allowance.
+  // Null while any Component or cost-only row has no Final Acquire (or Acquire), as costing_planned_cost_total does.
+  const plannedCostOf = (matrixId) => {
+    const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrixId).map((l) => l.id)
+    const components = rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id))
+    const items = [
+      ...components.map((c) => {
+        const cost = rowsOf("costing_component_costs").find((x) => x.component_id === c.id)
+        return { unit: cost?.final_acquire_unit ?? cost?.acquire_unit ?? null, quantity: c.quantity }
+      }),
+      ...rowsOf("costing_cost_rows").filter((r) => r.matrix_id === matrixId).map((r) => ({ unit: r.final_acquire_unit ?? r.acquire_unit ?? null, quantity: r.quantity })),
+    ]
+    if (items.length === 0 || items.some((i) => i.unit == null)) return null
+    return items.reduce((sum, i) => sum + Math.round(Number(i.unit) * Number(i.quantity) * 100) / 100, 0)
+  }
 
   stubRpc("costing_set_money", (args) => {
     const table = args.p_table
@@ -267,6 +289,19 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     if (lines.length === 0 || totals.missingOffer > 0) {
       refuse("23514", "every Tender Line needs a Final Offer before the bid can be decided", 400)
     }
+    // #881: a Go waits for the Evaluation of Specification to be approved.
+    if (args.p_verdict === "go" && !rowsOf("costing_signoffs").some((s) => s.matrix_id === args.p_matrix_id && s.role === "evaluation_approved" && !s.cleared_at)) {
+      refuse("22023", "approve the Evaluation of Specification first", 400)
+    }
+    // #880: a Go on a loss (planned revenue below zero) is the Super Admin's or the decider list's to take.
+    if (args.p_verdict === "go") {
+      const cost = plannedCostOf(args.p_matrix_id)
+      const { itrRate, itrAllowance } = DEFAULT_COSTING_SETTINGS
+      const itr = Math.round(Math.max(totals.finalOfferTotal - itrAllowance, 0) * itrRate * 100) / 100
+      if (cost !== null && totals.finalOfferTotal - cost - itr < 0 && !canDecideLoss) {
+        refuse("42501", "a Go on a loss needs a Super Admin or the decider list", 403)
+      }
+    }
     if (rowsOf("costing_bid_decisions").some((d) => d.matrix_id === args.p_matrix_id && d.cleared_at == null && d.verdict === "go")) {
       refuse("22023", "the sheet is locked by a Go. Unlock it first", 400)
     }
@@ -291,7 +326,8 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     const refuse = (code, message, status) => {
       throw pgrstError(code, `costing_bid: ${message}`, { status })
     }
-    if (tier !== "closed_book") refuse("42501", "only a Super Admin or the people on the decider's list can unlock a bid", 403)
+    // #899: the unlock right is the same as a Go on a loss (a Super Admin or the decider list), not the tier alone.
+    if (tier !== "closed_book" || !canDecideLoss) refuse("42501", "only a Super Admin or the people on the decider's list can unlock a bid", 403)
     if (!String(args.p_reason ?? "").trim()) refuse("22023", "write the reason for unlocking", 400)
     const live = rowsOf("costing_bid_decisions").find((d) => d.matrix_id === args.p_matrix_id && d.cleared_at == null && d.verdict === "go")
     if (!live) refuse("22023", "there is no Go to unlock", 400)
@@ -490,10 +526,12 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     if (rowsOf("costing_signoffs").some((s) => s.matrix_id === matrix.id && s.role === role && !s.cleared_at)) {
       throw pgrstError("55000", "costing_sign: the evaluation is already approved", { status: 409 })
     }
-    const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).map((l) => l.id)
-    const missing = rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id) && !c.compliance).length
-    if (missing > 0) {
-      throw pgrstError("55000", `costing_sign: ${missing} Component${missing === 1 ? " has" : "s have"} no verdict yet`, { status: 409 })
+    // #908: one Technical verdict for the whole S0 Evaluation, given by the in-charge; the giver cannot approve it.
+    if (matrix.compliance_by != null && matrix.compliance_by === actorId) {
+      throw pgrstError("42501", "costing_sign: you gave the Technical verdict, so someone else has to approve the evaluation", { status: 403 })
+    }
+    if (!matrix.compliance) {
+      throw pgrstError("22023", "costing_sign: the Technical verdict is not given yet", { status: 400 })
     }
     const signoff = insertRow("costing_signoffs", { matrix_id: matrix.id, role, signed_by: actorId })
     return { signoff }

@@ -72,6 +72,65 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+// Issue #885 — the box must never claim "clear" before the conditions (and the
+// Stage Fields the header counts) have loaded, and must agree with the header.
+describe("while the Stage's conditions are still loading", () => {
+  it("renders no clear wording, only a checking state", async () => {
+    opportunityService.getStageChecklist.mockReturnValue(new Promise(() => {}))
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect(await screen.findByText("Checking what this stage owes…")).toBeInTheDocument()
+    expect(screen.queryByText("Nothing blocks this stage.")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Stage requirements met/)).not.toBeInTheDocument()
+  })
+
+  it("waits for the Stage Fields before claiming nothing blocks", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" blockersPending />,
+    )
+
+    expect(await screen.findByText("Checking what this stage owes…")).toBeInTheDocument()
+    expect(screen.queryByText("Nothing blocks this stage.")).not.toBeInTheDocument()
+  })
+})
+
+describe("a required Stage Field that is still empty", () => {
+  it("is named as blocking, so the box does not say nothing blocks", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    renderWithProviders(
+      <StageChecklist
+        opportunity={OPPORTUNITY}
+        employees={EMPLOYEES}
+        actorId="emp-1"
+        missingRequiredStageFields={[{ label: "Brochure From Client" }, { label: "Project GS" }]}
+      />,
+    )
+
+    expect(
+      await screen.findByText("Still needed before this stage can move: Brochure From Client, Project GS."),
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Nothing blocks this stage.")).not.toBeInTheDocument()
+  })
+
+  it("keeps the all-met message off while a field is still missing", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({ status: CONDITION_STATUS.SATISFIED, satisfiedBy: null, satisfiedAt: null }),
+    ])
+    renderWithProviders(
+      <StageChecklist
+        opportunity={OPPORTUNITY}
+        employees={EMPLOYEES}
+        actorId="emp-1"
+        missingRequiredStageFields={[{ label: "Expected Award Date" }]}
+      />,
+    )
+
+    await screen.findByText("Satisfied.")
+    expect(screen.queryByText(/Stage requirements met/)).not.toBeInTheDocument()
+  })
+})
+
 describe("nothing configured", () => {
   it("says nothing blocks the stage when the current Stage has no conditions", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([])
@@ -97,6 +156,55 @@ describe("what's outstanding", () => {
     renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
 
     expect(await screen.findByText("Optional")).toBeInTheDocument()
+  })
+
+  it("does not say an optional item is not yet satisfied (#900)", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({ condition: { ...item().condition, is_required: false } }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect(await screen.findByText("Optional. Not needed to move on.")).toBeInTheDocument()
+    expect(screen.queryByText(/not yet satisfied/i)).not.toBeInTheDocument()
+  })
+})
+
+// Issue #900 — a single-line field on the record saves when Enter is pressed, as the Canvass offers do.
+describe("a single-line field on the record saves on Enter", () => {
+  const fieldCondition = {
+    id: "f-1",
+    kind: "field",
+    label: "Contact person",
+    is_required: true,
+    sort_order: 0,
+    config: { column: "contact_person" },
+  }
+
+  it("saves the typed value on Enter", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([item({ condition: fieldCondition })])
+    const onSaveField = vi.fn(async () => {})
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" onSaveField={onSaveField} />,
+    )
+    const user = setupUser()
+
+    await user.type(await screen.findByLabelText("Contact person"), "Ana Reyes{Enter}")
+
+    await waitFor(() => expect(onSaveField).toHaveBeenCalledWith("contact_person", "Ana Reyes"))
+  })
+
+  it("does nothing on Enter while the field is empty", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([item({ condition: fieldCondition })])
+    const onSaveField = vi.fn(async () => {})
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" onSaveField={onSaveField} />,
+    )
+    const user = setupUser()
+
+    await user.click(await screen.findByLabelText("Contact person"))
+    await user.keyboard("{Enter}")
+
+    expect(onSaveField).not.toHaveBeenCalled()
   })
 })
 

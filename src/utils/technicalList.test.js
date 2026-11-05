@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { TECHNICAL_TAB, checkedLabel, filterTechnical, linesForTeams, shapeTechnicalList, technicalState } from "./technicalList"
+import { TECHNICAL_TAB, checkedLabel, filterTechnical, shapeTechnicalList, technicalState } from "./technicalList"
 
 const row = (over = {}) => ({ opportunityId: "o1", sorNumber: "SOR-3", soNumber: "S03204", projectTitle: "Fire", clientName: "Marikina", stage: "Lead", team: "RRD", rowsTotal: 12, rowsJudged: 7, approved: false, isMine: true, ...over })
 
@@ -63,10 +63,6 @@ describe("filterTechnical", () => {
     expect(ids(filterTechnical(rows, { tab: TECHNICAL_TAB.ALL }))).toEqual(["a", "b", "c"])
   })
 
-  it("narrows by team", () => {
-    expect(ids(filterTechnical(rows, { team: "IOE" }))).toEqual(["b"])
-  })
-
   it("searches the SOR number, SO number, project and client", () => {
     expect(ids(filterTechnical(rows, { search: "S04081" }))).toEqual(["b"])
     expect(ids(filterTechnical(rows, { search: "roof" }))).toEqual(["b"])
@@ -76,24 +72,3 @@ describe("filterTechnical", () => {
   })
 })
 
-describe("linesForTeams", () => {
-  const lines = [
-    { id: 1, evaluating_team: "RRD" },
-    { id: 2, evaluating_team: "IOE" },
-    { id: 3, evaluating_team: null },
-  ]
-
-  it("keeps only the rows of the caller's teams", () => {
-    expect(linesForTeams(lines, ["RRD"]).map((l) => l.id)).toEqual([1])
-    expect(linesForTeams(lines, ["RRD", "IOE"]).map((l) => l.id)).toEqual([1, 2])
-  })
-
-  it("gives a Super Admin (teams null) every team's rows, and never a row with no team", () => {
-    expect(linesForTeams(lines, null).map((l) => l.id)).toEqual([1, 2])
-  })
-
-  it("gives nothing to someone on no team", () => {
-    expect(linesForTeams(lines, [])).toEqual([])
-    expect(linesForTeams(undefined, ["RRD"])).toEqual([])
-  })
-})

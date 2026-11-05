@@ -4,7 +4,7 @@ import { TablePager } from "@/components/ui/TablePager";
 import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "../../utils/formatDate";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -161,9 +161,27 @@ export default function OpportunitiesPage() {
   // record's id, so the deep link has to actually open it — otherwise clicking
   // a stage-change or procurement notification lands on an unfiltered list and
   // the user has to find the deal by hand.
+  // `?record=<id>` opens that SOR, so a link to one can be shared or reloaded.
+  // The open SOR is written back to the URL, so the address always matches what
+  // is on screen.
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState(
-    () => location.state?.openOpportunityId || null,
+    () => location.state?.openOpportunityId || searchParams.get("record") || null,
   );
+
+  useEffect(() => {
+    const inUrl = searchParams.get("record") || null;
+    if (inUrl === (selectedId || null)) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (selectedId) next.set("record", selectedId);
+        else next.delete("record");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [selectedId, searchParams, setSearchParams]);
 
   // Synchronise deep-link nav state whenever location.state updates (e.g. from
   // notification drawer, toast popup, or overview clicks), and clear nav state
@@ -238,7 +256,10 @@ export default function OpportunitiesPage() {
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
       setFormOpen(false);
-      toast.success(`Opportunity ${created.opportunity_no} registered.`);
+      // #888: the human number is sor_code (the legacy opportunity_no is null
+      // now). The new SOR opens so the user lands on the deal they just made.
+      toast.success(`${created.sor_code} registered.`);
+      setSelectedId(created.id);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -1048,25 +1069,25 @@ export default function OpportunitiesPage() {
         ) : (
           <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <Table tableId="sor-register" className="table-fixed min-w-[1290px]">
+              <Table tableId="sor-register" className="table-fixed min-w-[1120px]">
                 <TableHeader>
                   {/* Sortable headers. The interaction styling is
                       TaskTableView's — cursor-pointer hover:text-foreground
                       transition-colors — but the padding stays at this
-                      table's own px-2.5/py-2.5: ten columns already overflow
-                      the fixed layout, and px-4 gutters would push Status out
-                      of view. */}
+                      table's own px-2.5/py-2.5: ten columns fill the 1120px the
+                      content gets at 1440 px, and px-4 gutters would push Status
+                      out of view. */}
                   <TableRow>
-                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[80px]">SOR</SortableTh>
-                    <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">Sales Ref.</SortableTh>
+                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">SOR</SortableTh>
+                    <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[72px]">Sales Ref.</SortableTh>
                     <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
-                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Lead Source</SortableTh>
-                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[200px]">Company</SortableTh>
-                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[220px]">Project</SortableTh>
-                    <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[114px]">Expected Value</SortableTh>
+                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[112px]">Lead Source</SortableTh>
+                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[168px]">Company</SortableTh>
+                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[176px]">Project</SortableTh>
+                    <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[128px]">Expected Value</SortableTh>
                     <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
-                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Deal Owner</SortableTh>
-                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[192px]">Status</SortableTh>
+                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[120px]">Deal Owner</SortableTh>
+                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Status</SortableTh>
                     {showLostReason && <TableHead className="w-[220px] px-2.5 py-2.5">Reason</TableHead>}
                   </TableRow>
                 </TableHeader>

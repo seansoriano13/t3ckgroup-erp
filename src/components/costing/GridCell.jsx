@@ -61,7 +61,10 @@ export function Cell({
         next = null;
       } else {
         const n = Number(text);
-        if (!Number.isFinite(n) || n < 0 || (required && n === 0)) return setError(`${noun} must be a number${required ? " above zero" : ""}.`);
+        // Say which rule was broken: a word that is not a number, a negative amount, or a zero where it must be above zero.
+        if (!Number.isFinite(n)) return setError(`${noun} must be a number.`);
+        if (n < 0) return setError(`${noun} must be zero or more.`);
+        if (required && n === 0) return setError(`${noun} must be more than zero.`);
         next = n;
       }
     }

@@ -1,5 +1,5 @@
 import { Download, Loader2 } from "lucide-react";
-import { TextField, SelectField } from "./SorField";
+import { TextField, SelectField, DateField } from "./SorField";
 import { isValidSalesReference } from "../../constants/sor";
 import { Button } from "../ui/button";
 import { CAPTION_BASE } from "@/lib/captionStyle";
@@ -41,12 +41,24 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
       );
     }
 
+    if (field.inputType === "date") {
+      return (
+        <DateField
+          label={field.label}
+          required={field.isRequired}
+          disabled={disabled}
+          value={value}
+          onChange={onChange}
+        />
+      );
+    }
+
     return (
       <TextField
         label={field.label}
         required={field.isRequired}
         disabled={disabled}
-        type={field.inputType === "number" ? "number" : field.inputType === "date" ? "date" : "text"}
+        type={field.inputType === "number" ? "number" : "text"}
         placeholder={field.help || `Enter ${field.label.toLowerCase()}`}
         value={value}
         onChange={onChange}
@@ -171,9 +183,8 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
 
     case "expected_award_date":
       return (
-        <TextField
+        <DateField
           label={field.label}
-          type="date"
           required={field.isRequired}
           disabled={disabled}
           value={form.expected_award_date || ""}

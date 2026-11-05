@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
-import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
+import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
 import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { summariseCompleteness } from "../constants/projectEvaluation";
@@ -94,7 +94,7 @@ export class CostingRuleError extends Error {
   }
 }
 
-const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|bid|team|line|cost_row): (.+)$/;
+const RULE_MESSAGE = /^costing_(?:inclusion|move_inclusion|incharge|technical|bid|team|line|cost_row): (.+)$/;
 // The CHECK on costing_components that wants a note whenever the verdict is Deviates (#271).
 const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
 
@@ -105,7 +105,7 @@ const DEVIATION_NOTE_CHECK = /costing_components_deviation_note_chk/;
 export function toRuleError(error) {
   // A CHECK violation (23514), a rule a matrix function refuses (22023, #556), or a Bid Decision refused to someone who may not take it (42501).
   const ruleRefusal = error?.code === REFUSAL.INVALID && RULE_MESSAGE.test(error?.message ?? "");
-  if (error?.code !== "23514" && !ruleRefusal && !(error?.code === REFUSAL.NOT_ALLOWED && /^costing_(?:bid|team): /.test(error?.message ?? ""))) return null;
+  if (error?.code !== "23514" && !ruleRefusal && !(error?.code === REFUSAL.NOT_ALLOWED && /^costing_(?:bid|team|technical): /.test(error?.message ?? ""))) return null;
   if (DEVIATION_NOTE_CHECK.test(error.message ?? "")) return new CostingRuleError("A deviation needs a note.", error.code);
   const match = RULE_MESSAGE.exec(error.message ?? "");
   if (!match) return null;
@@ -155,7 +155,6 @@ function lineColumns(fields) {
   if ("tenderSpecification" in fields) columns.tender_specification = fields.tenderSpecification ?? "";
   if ("unit" in fields) columns.unit = blankToNull(fields.unit);
   if ("quantity" in fields) columns.quantity = fields.quantity;
-  if ("evaluatingTeam" in fields) columns.evaluating_team = blankToNull(fields.evaluatingTeam);
   // Sales or Purchasing names the Odoo product on a typed line (#720).
   if ("odooProductId" in fields) columns.odoo_product_id = blankToNull(fields.odooProductId);
   return columns;
@@ -614,8 +613,11 @@ export const costingMatrixService = {
     if (error) throw error;
     const settings = data && tierReadsSummary(data.tier) ? await settingsRead : null;
     const shaped = shapeMatrix(data, settings);
+    // #880: only the Bid Decision's deciders need to know whether a Go on a loss is theirs to take.
+    const lossRight = shaped && tierDecidesBid(shaped.tier) ? costingMatrixService.canDecideLoss() : Promise.resolve(false);
     // Canvass and purchases touch different fields of the matrix, so they read side by side.
-    await Promise.all([withCanvass(shaped, opportunityId), withPurchases(shaped, opportunityId)]);
+    const [canLoss] = await Promise.all([lossRight, withCanvass(shaped, opportunityId), withPurchases(shaped, opportunityId)]);
+    if (shaped) shaped.canDecideLoss = Boolean(canLoss);
     return shaped;
   },
 
@@ -1019,14 +1021,16 @@ export const costingMatrixService = {
 
   /**
    * Names who answers for the matrix, or for one Component when `target` is `{ componentId }`:
-   * `{ sales, purchasing }` (an employee id, or null for the default). The Sales incharge must be
+   * `{ sales, purchasing, technical }` (an employee id, or null for the default). The Sales incharge must be
    * on the Deal Team (written by Sales) and the Purchasing incharge must have Purchasing access
-   * (written by Purchasing). It grants nothing and notifies nobody.
+   * (written by Purchasing). The Technical in-charge (#908) must be in the Technical sub-department
+   * and is set on the matrix only. It grants nothing and notifies nobody.
    */
-  async setIncharge(target, { sales, purchasing } = {}) {
+  async setIncharge(target, { sales, purchasing, technical } = {}) {
     const columns = {};
     if (sales !== undefined) columns.sales_incharge_id = blankToNull(sales);
     if (purchasing !== undefined) columns.purchasing_incharge_id = blankToNull(purchasing);
+    if (technical !== undefined) columns.technical_incharge_id = blankToNull(technical);
     if (Object.keys(columns).length === 0) return;
     const table = target?.componentId ? "costing_components" : "costing_matrices";
     const id = target?.componentId ?? target?.matrixId;
@@ -1056,6 +1060,16 @@ export const costingMatrixService = {
       patch = { default_factor: n, default_preset_id: null };
     }
     await writeMoney("costing_matrix_money", matrixId, patch);
+  },
+
+  /**
+   * Does the caller decide a Go on a loss-making bid (#880)? A Super Admin or a member of the decider list.
+   * The database checks it again on the Go; a failed read counts as no, so the Go stays off on the screen.
+   */
+  async canDecideLoss() {
+    const { data, error } = await supabase.rpc("costing_can_decide_loss");
+    if (error) return false;
+    return Boolean(data);
   },
 
   /** Does the caller edit the markup presets and the factor? Super Admins and the Final Acquire list. */
@@ -1143,6 +1157,31 @@ export const costingMatrixService = {
     const { data, error } = await supabase.from("costing_components").update(columns).eq("id", componentId).select("id");
     if (error) fail(error);
     if (!data?.length) throw new Error("That Component could not be changed.");
+  },
+
+  /**
+   * Gives the S0 Evaluation's one Technical verdict (#908, #909): `{ verdict, note }`. `verdict` is
+   * `"complies"`, `"deviates"` or null (not judged); a field left out stays as it is, and `note` set to
+   * null or "" clears it. A deviation needs a note, so one passed blank is refused here and by the
+   * database. Only the named Technical in-charge may write it (the database refuses anyone else with
+   * a rule error). Changing the verdict or its note clears "Evaluation approved".
+   */
+  async setTechnicalVerdict(matrixId, { verdict, note } = {}) {
+    const columns = {};
+    if (verdict !== undefined) {
+      if (verdict !== null && !COMPLIANCE_VERDICTS.includes(verdict)) {
+        throw new CostingRuleError("A verdict is Complies, Deviates or not judged.", "23514");
+      }
+      columns.compliance = verdict;
+    }
+    if (note !== undefined) columns.compliance_note = blankText(note);
+    if (columns.compliance === "deviates" && "compliance_note" in columns && columns.compliance_note === null) {
+      throw new CostingRuleError("A deviation needs a note.", "23514");
+    }
+    if (Object.keys(columns).length === 0) return;
+    const { data, error } = await supabase.from("costing_matrices").update(columns).eq("id", matrixId).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("The Technical verdict could not be given.");
   },
 
   /**

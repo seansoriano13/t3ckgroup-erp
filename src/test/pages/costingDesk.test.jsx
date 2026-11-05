@@ -761,12 +761,14 @@ describe("the Costing Desk", () => {
     let decider;
 
     // One Tender Line at a Final Offer of 2,980,000 against an ABC of 3,200,000.
-    function seedPriced({ offer = 2980000 } = {}) {
+    // The Evaluation of Specification is approved unless `approved` is false (#881: a Go waits for it).
+    function seedPriced({ offer = 2980000, approved = true } = {}) {
       matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
       db.seed("costing_settings", { id: 1 });
       const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Rescue vehicle", unit: "unit", quantity: 1 });
       db.seed("costing_tender_line_prices", { tender_line_id: line.id, abc_unit: 3200000, final_offer_unit: offer });
       decider = makeEmployee({ name: "Boss Person" });
+      if (approved) db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: decider.id });
     }
 
     const seedDecision = (fields = {}) =>
@@ -825,12 +827,152 @@ describe("the Costing Desk", () => {
 
       await user.type(within(panel).getByLabelText("Reason for the decision"), "Price fits and margin is fine");
       await user.click(within(panel).getByRole("button", { name: "Go" }));
+      await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Go" }));
 
       await waitFor(() => expect(within(screen.getByTestId("bid-decision")).getByTestId("bid-decision-live")).toHaveTextContent("Go"));
       expect(screen.getByTestId("bid-decision-reason")).toHaveTextContent("Price fits and margin is fine");
       expect(screen.getByTestId("bid-decision-figures")).toHaveTextContent("₱2,980,000.00");
       const [row] = db.rows("costing_bid_decisions");
       expect(row).toMatchObject({ verdict: "go", reason: "Price fits and margin is fine", final_offer_total: 2980000, abc_total: 3200000 });
+    });
+
+    it("keeps Go off until the Evaluation of Specification is approved, and says why; Revise stays on (#881)", async () => {
+      seedPriced({ approved: false });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-needs-evaluation")).toHaveTextContent("Approve the Evaluation of Specification first");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Reprice first");
+      expect(within(panel).getByRole("button", { name: "Go" })).toBeDisabled();
+      expect(within(panel).getByRole("button", { name: "Revise" })).toBeEnabled();
+      expect(within(panel).getByRole("button", { name: "No-go" })).toBeEnabled();
+    });
+
+    // #880: a Component whose Final Acquire (3,500,000) is more than the Final Offer (2,980,000) makes the planned revenue a loss.
+    function seedLoss() {
+      seedPriced();
+      const line = db.rows("costing_tender_lines")[0];
+      const part = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "4x4 pick-up", quantity: 1, unit: "unit" });
+      db.seed("costing_component_costs", { component_id: part.id, acquire_unit: 3500000, final_acquire_unit: 3500000 });
+      // A cost change clears the evaluation approval (#881), so the approval is seated again after it.
+      db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: decider.id });
+    }
+
+    it("asks to confirm a Go first, stating the Final Offer, ABC and planned revenue, and writes nothing until it is confirmed (#880)", async () => {
+      seedPriced();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Price fits and margin is fine");
+      await user.click(within(panel).getByRole("button", { name: "Go" }));
+
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByTestId("bid-decision-go-figures")).toHaveTextContent("Final Offer₱2,980,000.00");
+      expect(within(dialog).getByTestId("bid-decision-go-figures")).toHaveTextContent("ABC₱3,200,000.00");
+      expect(within(dialog).getByTestId("bid-decision-go-revenue")).toHaveTextContent("Not worked yet");
+      expect(within(dialog).queryByTestId("bid-decision-go-loss-warning")).not.toBeInTheDocument();
+      expect(db.rows("costing_bid_decisions")).toHaveLength(0);
+
+      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(db.rows("costing_bid_decisions")).toHaveLength(0);
+      expect(within(panel).getByTestId("bid-decision-none")).toBeInTheDocument();
+    });
+
+    it("warns on a loss, and lets a Super Admin or the decider list take the Go (#880)", async () => {
+      seedLoss();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: true });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).queryByTestId("bid-decision-loss-blocked")).not.toBeInTheDocument();
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Bid at a loss on purpose");
+      await user.click(within(panel).getByRole("button", { name: "Go" }));
+
+      const dialog = await screen.findByRole("dialog");
+      // (2,980,000 - 3,500,000) less the ITR of 218,400 on the 2,730,000 above the allowance.
+      expect(within(dialog).getByTestId("bid-decision-go-revenue")).toHaveTextContent("-₱738,400.00");
+      expect(within(dialog).getByTestId("bid-decision-go-loss-warning")).toHaveTextContent("loses money");
+      await user.click(within(dialog).getByRole("button", { name: "Go" }));
+
+      await waitFor(() => expect(db.rows("costing_bid_decisions")).toHaveLength(1));
+      expect(db.rows("costing_bid_decisions")[0]).toMatchObject({ verdict: "go", reason: "Bid at a loss on purpose" });
+    });
+
+    it("keeps Go off on a loss for everyone else, says why, and leaves Revise and No-go on (#880)", async () => {
+      seedLoss();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: false });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-loss-blocked")).toHaveTextContent("a Go waits for a Super Admin or the decider list");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Reprice first");
+      expect(within(panel).getByRole("button", { name: "Go" })).toBeDisabled();
+      expect(within(panel).getByRole("button", { name: "Revise" })).toBeEnabled();
+      expect(within(panel).getByRole("button", { name: "No-go" })).toBeEnabled();
+    });
+
+    it("draws a Go that is off in the neutral style, and the solid green once it is on (#899)", async () => {
+      seedPriced({ approved: false });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      const go = within(panel).getByRole("button", { name: "Go" });
+      expect(go).toBeDisabled();
+      expect(go.className).not.toMatch(/bg-green-11/);
+
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Price fits");
+      expect(within(panel).getByRole("button", { name: "Go" })).toBeDisabled();
+    });
+
+    it("draws the solid green Go once the spec is approved and a reason is written (#899)", async () => {
+      seedPriced();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Price fits");
+      const go = within(panel).getByRole("button", { name: "Go" });
+      expect(go).toBeEnabled();
+      expect(go.className).toMatch(/bg-green-11/);
+    });
+
+    it("hides the Unlock controls from people who cannot unlock, and says who can (#899)", async () => {
+      seedPriced();
+      seedDecision({ verdict: "go", reason: "Fits the budget" });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: false });
+      openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      expect(within(panel).getByTestId("bid-decision-locked")).toBeInTheDocument();
+      expect(within(panel).getByTestId("bid-decision-unlock-blocked")).toHaveTextContent(
+        "Only a Super Admin or the people on the decider's list can unlock a bid.",
+      );
+      expect(within(panel).queryByRole("button", { name: "Unlock" })).not.toBeInTheDocument();
+      expect(within(panel).queryByLabelText("Reason for unlocking")).not.toBeInTheDocument();
+    });
+
+    it("asks to confirm an Unlock, and clears the Go only once it is confirmed (#899)", async () => {
+      seedPriced();
+      seedDecision({ verdict: "go", reason: "Fits the budget" });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: true });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      await user.type(within(panel).getByLabelText("Reason for unlocking"), "Price needs a second look");
+      await user.click(within(panel).getByRole("button", { name: "Unlock" }));
+
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByTestId("bid-decision-unlock-reason")).toHaveTextContent("Price needs a second look");
+      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(db.rows("costing_bid_decisions")[0].cleared_at).toBeFalsy();
+      expect(within(panel).getByTestId("bid-decision-locked")).toBeInTheDocument();
+
+      await user.click(within(panel).getByRole("button", { name: "Unlock" }));
+      await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Unlock" }));
+      await waitFor(() => expect(db.rows("costing_bid_decisions")[0].cleared_at).toBeTruthy());
     });
 
     it("keeps the controls off while a Tender Line has no Final Offer", async () => {
