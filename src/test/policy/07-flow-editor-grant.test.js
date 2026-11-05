@@ -148,3 +148,33 @@ describe("can_edit_sales_flows write path, new employee", () => {
         expect(await flowFlag(result.id)).toBe(true)
     })
 })
+
+describe("privileged flags on insert, new employee", () => {
+    it("refuses HR creating an employee who is already a Super Admin", async () => {
+        const result = await tryInsert(clients.hr, "employees", newRow("hr-super", { is_super_admin: true }))
+        expect(result.ok).toBe(false)
+        expect(result.code).toBe(RLS_VIOLATION)
+    })
+
+    it("refuses an ordinary employee creating a Super Admin", async () => {
+        const result = await tryInsert(clients.ordinary, "employees", newRow("ord-super", { is_super_admin: true }))
+        expect(result.ok).toBe(false)
+        expect(result.code).toBe(RLS_VIOLATION)
+    })
+
+    it("refuses HR creating an employee with leave management", async () => {
+        const result = await tryInsert(clients.hr, "employees", newRow("hr-leaves", { can_manage_leaves: true }))
+        expect(result.ok).toBe(false)
+        expect(result.code).toBe(RLS_VIOLATION)
+    })
+
+    it("lets a Super Admin create a Super Admin and an employee with leave management", async () => {
+        const superRow = await tryInsert(clients.superAdmin, "employees", newRow("sa-super", { is_super_admin: true }))
+        expect(superRow.ok, superRow.message).toBe(true)
+        createdIds.push(superRow.id)
+
+        const leaveRow = await tryInsert(clients.superAdmin, "employees", newRow("sa-leaves", { can_manage_leaves: true }))
+        expect(leaveRow.ok, leaveRow.message).toBe(true)
+        createdIds.push(leaveRow.id)
+    })
+})
