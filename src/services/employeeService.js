@@ -194,6 +194,7 @@ export const employeeService = {
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,
+      canEditSalesFlows: !!data.can_edit_sales_flows,
       signaturePath: data.signature_path || null,
       avatarPath: data.avatar_path || null,
       dashboardBannerPath: data.dashboard_banner_path || null,

@@ -53,10 +53,10 @@ describe("SideNav Component", () => {
     expect(screen.getByText("My Requests")).toBeInTheDocument();
     expect(screen.queryByText("My Tasks")).not.toBeInTheDocument();
     expect(screen.queryByText("Human Resources")).not.toBeInTheDocument();
-    // Flow Canvas (issue #36) is deliberately visible to everyone while it is
-    // scaffolding for building Sales Flows with Operations, so Administration
-    // shows up for that one link — see navigation.js's comment on it.
-    expect(screen.getByText("Administration")).toBeInTheDocument();
+    // Flow Canvas (#884) is for Super Admins and Flow editors only, so a
+    // standard employee sees no Administration group at all.
+    expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+    expect(screen.queryByText("Flow Canvas")).not.toBeInTheDocument();
   });
 
   it("renders Operations and Approvals for Department Head with task flow", () => {

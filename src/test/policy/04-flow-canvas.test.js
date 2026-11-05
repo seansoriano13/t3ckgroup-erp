@@ -13,6 +13,9 @@
  *
  * `20260930030000_open_flow_canvas_writes_to_all_employees.sql` reopened
  * every write to any employee — an accepted trade-off against #208.
+ * `20261105120000_flow_canvas_editor_gate.sql` (issue #884, decision on #907)
+ * closed it again: only a Super Admin or a `can_edit_sales_flows` holder may
+ * edit or publish. Everyone else reads and is refused, RPCs included.
  *
  * Reads stay open to every signed-in employee — only the six tables' `_read`
  * policies changed for nothing here; ON DELETE RESTRICT on a Stage in use is
@@ -34,8 +37,11 @@ const OPENED_TO_EVERYONE = [
     "stage_conditions",
 ]
 
-/** Every employee may write to the Flow Canvas (20260930030000 reopened #291's gate). */
-const CAN_EDIT = CAST_KEYS
+/** Who may edit and publish the Flow Canvas (#884): a Super Admin or a Flow editor. */
+const CAN_EDIT = ["superAdmin", "flowEditor"]
+
+/** Every other cast member: signed in, can read the canvas, can change nothing. */
+const CANNOT_EDIT = CAST_KEYS.filter((key) => !CAN_EDIT.includes(key))
 
 let saleTypeId
 let flowId
@@ -192,6 +198,155 @@ describe("editing a flow", () => {
             name: `${MARKER} Anonymous rename`,
         })
         expect(renamed.affected).toBe(0)
+    })
+})
+
+describe("a signed-in employee who may not edit the Flow Canvas (#884)", () => {
+    it.each(CANNOT_EDIT)("%s cannot rename a stage", async (key) => {
+        const client = await clientFor(key)
+        const result = await tryUpdate(client, "flow_stages", stageId, {
+            name: `${MARKER} Renamed by ${key}`,
+        })
+        expect(result.affected, `${key} changed a stage`).toBe(0)
+    })
+
+    it.each(CANNOT_EDIT)("%s cannot add a stage", async (key) => {
+        const client = await clientFor(key)
+        const result = await tryInsert(client, "flow_stages", {
+            flow_id: flowId,
+            name: `${MARKER} Added by ${key}`,
+            sort_order: 91,
+        })
+        expect(result.ok, `${key} added a stage`).toBe(false)
+    })
+
+    it.each(CANNOT_EDIT)("%s cannot attach an action to a stage", async (key) => {
+        const client = await clientFor(key)
+        const result = await tryInsert(client, "flow_stage_actions", {
+            stage_id: stageId,
+            kind: "create_individual_task",
+            config: { title: `${MARKER} ${key}` },
+        })
+        expect(result.ok, `${key} attached an action`).toBe(false)
+    })
+
+    it.each(CANNOT_EDIT)("%s cannot create a Sale Type", async (key) => {
+        const client = await clientFor(key)
+        const result = await tryInsert(client, "sale_types", {
+            name: `${MARKER} Created by ${key}`,
+        })
+        expect(result.ok, `${key} created a Sale Type`).toBe(false)
+    })
+
+    it.each(CANNOT_EDIT)("%s cannot change a flow's Access settings", async (key) => {
+        const client = await clientFor(key)
+        const { error } = await client
+            .from("flow_access_settings")
+            .insert({ flow_id: flowId, always_sees: [{ type: "role", role: "deal_owner" }] })
+        expect(error, `${key} set Access settings`).not.toBeNull()
+    })
+})
+
+describe("publishing and restoring a flow, for someone who may not edit it (#884)", () => {
+    let lockFlowId
+    let lockSaleTypeId
+    let lockStageId
+    let lockSnapshotId
+
+    beforeAll(async () => {
+        const svc = serviceClient()
+        const saleType = await svc
+            .from("sale_types")
+            .insert({ name: `${MARKER} Editor gate sale type` })
+            .select("id")
+            .single()
+        if (saleType.error) throw new Error(`Seeding a Sale Type: ${saleType.error.message}`)
+        lockSaleTypeId = saleType.data.id
+
+        const flow = await svc
+            .from("sales_flows")
+            .insert({ sale_type_id: lockSaleTypeId })
+            .select("id")
+            .single()
+        if (flow.error) throw new Error(`Seeding a flow: ${flow.error.message}`)
+        lockFlowId = flow.data.id
+
+        const stage = await svc
+            .from("flow_stages")
+            .insert({ flow_id: lockFlowId, name: `${MARKER} Only Stage`, sort_order: 10 })
+            .select("id")
+            .single()
+        if (stage.error) throw new Error(`Seeding a stage: ${stage.error.message}`)
+        lockStageId = stage.data.id
+
+        const snapshot = await svc
+            .from("flow_snapshots")
+            .insert({ flow_id: lockFlowId, version: 900, snapshot_data: { stages: [], edges: [] } })
+            .select("id")
+            .single()
+        if (snapshot.error) throw new Error(`Seeding a snapshot: ${snapshot.error.message}`)
+        lockSnapshotId = snapshot.data.id
+    })
+
+    afterAll(async () => {
+        const svc = serviceClient()
+        await svc.from("flow_snapshots").delete().eq("flow_id", lockFlowId)
+        await svc.from("flow_stages").delete().eq("flow_id", lockFlowId)
+        await svc.from("sales_flows").delete().eq("id", lockFlowId)
+        await svc.from("sale_types").delete().eq("id", lockSaleTypeId)
+    })
+
+    it.each(CANNOT_EDIT)("%s cannot publish the flow", async (key) => {
+        const client = await clientFor(key)
+        const { error } = await client.rpc("lock_sales_flow", {
+            p_flow_id: lockFlowId,
+            p_actor_id: ids[key],
+            p_snapshot_data: { stages: [], edges: [] },
+            p_note: null,
+        })
+        expect(error, `${key} published the flow`).not.toBeNull()
+        expect(error.message).toMatch(/Flow editor/)
+
+        const { data } = await serviceClient().from("sales_flows").select("state").eq("id", lockFlowId).single()
+        expect(data.state, `${key} changed the flow state`).toBe("draft")
+    })
+
+    it.each(CANNOT_EDIT)("%s cannot write a snapshot directly", async (key) => {
+        const client = await clientFor(key)
+        const result = await tryInsert(client, "flow_snapshots", {
+            flow_id: lockFlowId,
+            version: 901,
+            snapshot_data: { stages: [], edges: [] },
+            created_by: ids[key],
+        })
+        expect(result.ok, `${key} wrote a snapshot`).toBe(false)
+    })
+
+    it.each(CANNOT_EDIT)("%s cannot restore a Flow Snapshot into the draft", async (key) => {
+        const client = await clientFor(key)
+        const { error } = await client.rpc("restore_flow_snapshot", {
+            p_flow_id: lockFlowId,
+            p_snapshot_id: lockSnapshotId,
+        })
+        expect(error, `${key} restored a snapshot`).not.toBeNull()
+        expect(error.message).toMatch(/Flow editor/)
+
+        const { data } = await serviceClient().from("flow_stages").select("id").eq("flow_id", lockFlowId)
+        expect(data.map((s) => s.id), `${key} changed the stages`).toEqual([lockStageId])
+    })
+
+    it("lets a Flow editor publish the flow", async () => {
+        const client = await clientFor("flowEditor")
+        const { error } = await client.rpc("lock_sales_flow", {
+            p_flow_id: lockFlowId,
+            p_actor_id: ids.flowEditor,
+            p_snapshot_data: { stages: [{ id: lockStageId, name: `${MARKER} Only Stage` }], edges: [] },
+            p_note: null,
+        })
+        expect(error, error?.message).toBeNull()
+
+        const { data } = await serviceClient().from("sales_flows").select("state").eq("id", lockFlowId).single()
+        expect(data.state).toBe("locked")
     })
 })
 
