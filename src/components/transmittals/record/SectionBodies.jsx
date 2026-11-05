@@ -26,7 +26,6 @@ import { transmittalService } from "@/services/transmittalService";
 import { ipasErrorMessage } from "@/utils/ipas";
 import { evidenceOf, stageRowOf, transmittalStateLabel } from "@/utils/transmittals";
 import { formatPreparedAt } from "@/utils/preparedAt";
-import { WarehouseRatings } from "../WarehouseRatings";
 import { choosesSlot, picksOtherSigner, stageBlocker } from "./transmittalMoves";
 import { STAGE_SIGNERS, STAGE_TITLE } from "./transmittalRecord";
 
@@ -130,9 +129,6 @@ export function LinesBody({ t }) {
                 <TableCell>{line.sor?.salesReference ?? "—"}</TableCell>
                 <TableCell>
                   {line.quantity} {line.unit ?? ""}
-                  {line.quantityReceived != null && (
-                    <span className="block text-xs text-muted-foreground">{line.quantityReceived} received</span>
-                  )}
                 </TableCell>
                 <TableCell>{line.serialNumbers || "—"}</TableCell>
                 <TableCell>{line.boxQuantity || "—"}</TableCell>
@@ -169,9 +165,7 @@ export function StageBody({ t, stage, rights, form, setForm, members, userId, on
   const signed = Boolean(row?.completed_at);
   const canSign = rights.canSign[stage];
   const signers = STAGE_SIGNERS[stage];
-  const technical = stage === STAGE.TECHNICAL_INSPECTION;
   const checking = stage === STAGE.WAREHOUSE_CHECKING;
-  const rated = checking || technical;
   const pickOther = picksOtherSigner(t, stage);
   const chooseSlot = choosesSlot(stage);
   const otherOptions = (checking ? members.warehouse : pickOther ? members.technical : []).map((m) => ({
@@ -220,29 +214,6 @@ export function StageBody({ t, stage, rights, form, setForm, members, userId, on
 
   return (
     <div className="space-y-6 text-[13px]">
-      {rated && (
-        <div className="space-y-2">
-          <p className={caption}>Ratings</p>
-          {rights.canRate[stage] ? (
-            <WarehouseRatings
-              key={t.lines.map((l) => `${l.id}:${technical ? l.techRating : l.whRating}`).join("|")}
-              transmittal={t}
-              canRate
-              technical={technical}
-              onSaved={onChanged}
-              members={technical ? members.technical : members.warehouse}
-              currentUserId={userId}
-            />
-          ) : (
-            <p className="text-muted-foreground">
-              {t.state === stage
-                ? `Lines are rated GC or NA by ${technical ? "Technical" : "the Warehouse"} while it is open.`
-                : "Ratings are on the Lines row."}
-            </p>
-          )}
-        </div>
-      )}
-
       <div className="space-y-2">
         <p className={caption}>Pictures and videos</p>
         {files.length === 0 ? (

@@ -43,15 +43,13 @@ function RatingCell({ ctx, line, side, inChargeId }) {
   const saved = cfg.rating(line) ?? "";
   const [pick, setPick] = useState(saved);
   const [remark, setRemark] = useState(cfg.remark(line) ?? "");
-  const [qty, setQty] = useState(line.quantityReceived == null ? "" : String(line.quantityReceived));
   const [state, setState] = useState("idle");
-  const showQty = canRate && !(side === "tech" && ctx.t.checkWarehouse);
 
   const save = async (next) => {
     setState("saving");
     try {
       await transmittalService.rateLines(ctx.t.id, [
-        { lineId: line.id, rating: next.rating, remark: next.remark, inChargeId: inChargeId || null, quantityReceived: next.qty },
+        { lineId: line.id, rating: next.rating, remark: next.remark, inChargeId: inChargeId || null },
       ]);
       setState("saved");
       ctx.refresh();
@@ -63,7 +61,6 @@ function RatingCell({ ctx, line, side, inChargeId }) {
 
   if (!canRate) {
     const look = RATING_LOOK[saved];
-    const received = line.quantityReceived != null && Number(line.quantityReceived) !== Number(line.quantity);
     return (
       <div className="min-w-[9rem] space-y-0.5">
         <p className={caption}>{cfg.label}</p>
@@ -79,7 +76,6 @@ function RatingCell({ ctx, line, side, inChargeId }) {
           )}
         </p>
         {cfg.remark(line) && <p className="max-w-[16rem] text-[12px] text-muted-foreground">{cfg.remark(line)}</p>}
-        {received && <p className="text-[12px] font-semibold text-amber-11">{line.quantityReceived} of {line.quantity} received</p>}
       </div>
     );
   }
@@ -98,26 +94,13 @@ function RatingCell({ ctx, line, side, inChargeId }) {
             disabled={ctx.busy}
             onClick={() => {
               setPick(value);
-              if (value === "gc") save({ rating: "gc", remark: "", qty });
+              if (value === "gc") save({ rating: "gc", remark: "" });
             }}
             className={cn("h-8 w-12 font-bold", pick === value ? RATING_LOOK[value].on : "text-muted-foreground")}
           >
             {RATING_LOOK[value].word}
           </Button>
         ))}
-        {showQty && (
-          <Input
-            type="number"
-            min="0"
-            step="any"
-            className="h-8 w-24 text-[13px]"
-            value={qty}
-            placeholder={`= ${line.quantity}`}
-            aria-label={`Quantity received, line ${line.position}`}
-            onChange={(e) => setQty(e.target.value)}
-            onBlur={() => pick && (pick === "gc" || remark.trim()) && qty !== (line.quantityReceived == null ? "" : String(line.quantityReceived)) && save({ rating: pick, remark: pick === "na" ? remark : "", qty })}
-          />
-        )}
         <span className="w-4 text-[11px] text-muted-foreground" aria-live="polite">
           {state === "saving" ? "…" : state === "saved" ? <Check size={13} /> : null}
         </span>
@@ -129,8 +112,8 @@ function RatingCell({ ctx, line, side, inChargeId }) {
           placeholder="Why is it NA? Enter to save"
           aria-label={`Remark, line ${line.position}`}
           onChange={(e) => setRemark(e.target.value)}
-          onBlur={() => remark.trim() && saved !== "na" && save({ rating: "na", remark, qty })}
-          onKeyDown={(e) => e.key === "Enter" && remark.trim() && save({ rating: "na", remark, qty })}
+          onBlur={() => remark.trim() && saved !== "na" && save({ rating: "na", remark })}
+          onKeyDown={(e) => e.key === "Enter" && remark.trim() && save({ rating: "na", remark })}
         />
       )}
     </div>
@@ -157,7 +140,7 @@ export default function LineRatings({ ctx }) {
     try {
       await transmittalService.rateLines(
         t.id,
-        unrated.map((l) => ({ lineId: l.id, rating: "gc", remark: "", inChargeId: inChargeId || null, quantityReceived: null })),
+        unrated.map((l) => ({ lineId: l.id, rating: "gc", remark: "", inChargeId: inChargeId || null })),
       );
       toast.success(`${unrated.length} line${unrated.length === 1 ? "" : "s"} marked GC.`);
       ctx.refresh();
