@@ -2552,6 +2552,25 @@ describe("opportunityService", () => {
         expect((await opportunityService.getOpportunityById(deal.id)).flow_stage_id).toBe(qualified.id)
       })
 
+      it("says why an action failed when a Group Task member no longer exists (#896)", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_group_task",
+          config: {
+            title: "DELCOM - Kickoff",
+            members: [{ employeeId: "00000000-0000-4000-8000-00000000dead", taskDescription: "Check" }],
+          },
+          sort_order: 1,
+        })
+
+        const deal = await register()
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.failedStageActions).toEqual(["DELCOM - Kickoff"])
+        expect(moved.failedStageActionReasons).toEqual([{ name: "DELCOM - Kickoff", reason: "member no longer exists" }])
+        expect(db.internal.rowsOf("committee_tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(0)
+      })
+
       it("reports no failures when every action runs", async () => {
         makeStageAction({ stage_id: qualified.id, kind: "create_individual_task", config: {} })
 

@@ -32,6 +32,7 @@ import LockedSorSlideOver from "../LockedSorSlideOver";
 import NoAccessSorSlideOver from "../NoAccessSorSlideOver";
 import { hiddenVisits } from "../../../utils/sorHiddenVisits";
 import { liveMentionIds, mentionWindowHint } from "../../../utils/mentionWindowHint";
+import { formatActionFailures } from "../../../utils/sorVersionUpdate";
 import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
@@ -479,7 +480,8 @@ export default function SorModal({
         toast("Moved to Won, but this SOR has no Contract Date yet. Type it in on the Details tab so the right commission rate is used.", { icon: "⚠️", duration: 8000 });
       }
       if (data?.failedStageActions?.length > 0) {
-        toast(`Moved, but these automations failed — create them by hand: ${data.failedStageActions.join(", ")}.`, { icon: "⚠️", duration: 8000 });
+        const failures = data.failedStageActions.map((name) => ({ name, reason: data.failedStageActionReasons?.find((r) => r.name === name)?.reason }));
+        toast(`Moved, but these automations failed — create them by hand: ${formatActionFailures(failures)}.`, { icon: "⚠️", duration: 8000 });
       }
       const isLeavingLead = opportunity?.status === "LEAD" && variables?.next !== "LEAD";
       if (isLeavingLead) {

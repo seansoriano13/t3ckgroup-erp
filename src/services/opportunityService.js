@@ -938,11 +938,12 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   // them again. Now the RPC either returns (everything on this Stage is
   // created-or-failed) or the whole call never happened (nothing began, so
   // the fire-once gate still lets a retry pick it all up).
-  const failedStageActions = await runStageActionsOnEntry({ existing, to, snapshotActions, actorId });
+  const failedStageActionReasons = [];
+  const failedStageActions = await runStageActionsOnEntry({ existing, to, snapshotActions, actorId, failureReasons: failedStageActionReasons });
   // ADR 0048 — reaching the Won Stage with no Contract Date is allowed, but the
   // Deal Team is warned: no commission rate is fixed until it is typed in.
   const wonWithoutContractDate = wonStageId === to.id && !existing.contract_date && !patch.contract_date;
-  return { ...data, failedStageActions, wonWithoutContractDate };
+  return { ...data, failedStageActions, failedStageActionReasons, wonWithoutContractDate };
 }
 
 /**
@@ -950,8 +951,10 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
  * Snapshot (#204, #409). Shared by a stage move and by registration (SOR-245:
  * a deal registered onto a Stage with Actions got no run, so its Actions never
  * fired). Returns the names of the Actions that failed. It never throws.
+ * `failureReasons`, when given, collects { name, reason } for each failure the
+ * database could explain (#896).
  */
-async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId }) {
+async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId, failureReasons }) {
   const failedStageActions = [];
   let actionsAttempted = false;
   try {
@@ -1086,6 +1089,9 @@ async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId }
         }
       } else {
         for (const name of runResult?.failed || []) failedStageActions.push(name);
+        for (const failure of runResult?.failed_reasons || []) {
+          failureReasons?.push({ name: failure.name, reason: failure.reason });
+        }
 
         // The RPC already created the task/group task and marked the run —
         // that part survives the mover leaving. What's left is best-effort
@@ -2911,13 +2917,18 @@ export const opportunityService = {
     const actionFailures = [];
     for (const item of plan.items) {
       if (!movedIds.has(item.sor.id) || item.added.length === 0) continue;
+      const reasons = [];
       const names = await runStageActionsOnEntry({
         existing: item.sor,
         to: item.stage,
         snapshotActions: item.added,
         actorId,
+        failureReasons: reasons,
       });
-      names.forEach((name) => actionFailures.push({ id: item.sor.id, name }));
+      names.forEach((name) => {
+        const reason = reasons.find((r) => r.name === name)?.reason ?? null;
+        actionFailures.push({ id: item.sor.id, name, reason });
+      });
     }
     if (queryClient) {
       for (const { id } of succeeded) {
