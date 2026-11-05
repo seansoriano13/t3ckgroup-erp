@@ -238,7 +238,10 @@ export default function OpportunitiesPage() {
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
       setFormOpen(false);
-      toast.success(`Opportunity ${created.opportunity_no} registered.`);
+      // #888: the human number is sor_code (the legacy opportunity_no is null
+      // now). The new SOR opens so the user lands on the deal they just made.
+      toast.success(`${created.sor_code} registered.`);
+      setSelectedId(created.id);
     },
     onError: (err) => toast.error(err.message),
   });

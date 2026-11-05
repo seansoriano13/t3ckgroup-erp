@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-11-05",
+        "title": "Registering an SOR shows its number",
+        "version": "1.9.88",
+        "changes": [
+            "The Register SOR message now shows the SOR number, such as \"SOR-257 registered.\"",
+            "The new SOR opens right after you register it, so you land on the deal you just made."
+        ]
+    },
+    {
+        "date": "2026-11-05",
         "title": "SOR Awarded goes to the people buying",
         "version": "1.9.87",
         "changes": [
