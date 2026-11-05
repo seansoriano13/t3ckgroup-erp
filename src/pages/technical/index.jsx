@@ -1,5 +1,5 @@
 import ProtectedRoute from "../../components/ProtectedRoute";
-import TeamsOnly from "../../components/technical/TeamsOnly";
+import TechnicalAccess from "../../components/technical/TechnicalAccess";
 import TechnicalList from "../../components/technical/TechnicalList";
 
 /**
@@ -10,9 +10,9 @@ import TechnicalList from "../../components/technical/TechnicalList";
 export default function TechnicalPage() {
   return (
     <ProtectedRoute>
-      <TeamsOnly>
+      <TechnicalAccess>
         <TechnicalList />
-      </TeamsOnly>
+      </TechnicalAccess>
     </ProtectedRoute>
   );
 }

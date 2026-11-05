@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import ModalShell from "../../components/ui/ModalShell";
-import TeamsOnly from "../../components/technical/TeamsOnly";
+import TechnicalAccess from "../../components/technical/TechnicalAccess";
 import TechnicalList from "../../components/technical/TechnicalList";
 import TechnicalSheet from "../../components/technical/TechnicalSheet";
 import { costingMatrixService } from "../../services/costingMatrixService";
@@ -33,10 +33,10 @@ export default function TechnicalRecordPage() {
   const { id } = useParams();
   return (
     <ProtectedRoute>
-      <TeamsOnly>
+      <TechnicalAccess>
         <TechnicalList selectedId={id} />
         <TechnicalWindow />
-      </TeamsOnly>
+      </TechnicalAccess>
     </ProtectedRoute>
   );
 }
