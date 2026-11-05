@@ -50,7 +50,7 @@ import { useAuth } from "../context/AuthContext";
 import { CANVASS_CURRENCIES, CANVASS_KIND, MIN_CANVASS_OFFERS, CANVASS_LIST_KEY, CANVASS_LOCKED_MESSAGE, DEFAULT_CURRENCY } from "../constants/canvass";
 import { getPermissionContext } from "../utils/permissions";
 import { CANVASS_STATE_TONES, canvassRequestState, canvassStateOf } from "../utils/canvassList";
-import { canPickWinner, offerCurrency } from "../utils/canvassMath";
+import { canPickWinner, offerCurrency, slotsCovered } from "../utils/canvassMath";
 import { projectOffer } from "../utils/offerProjection";
 import { useCostingMatrix, useCostingTier } from "./costing/useCostingMatrix";
 import { COSTING_TIER } from "../constants/costing";
@@ -809,27 +809,37 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const badge = { label: rowState.label, theme: CANVASS_STATE_TONES[rowState.state] };
 
 
+  // The three supplier slots must be filled or explained before the offers count as in.
+  const slotsReady = canPickWinner(offers, canvass?.noOtherSupplier || []);
+  const slotsCount = Math.min(slotsCovered(offers, canvass?.noOtherSupplier || []), MIN_CANVASS_OFFERS);
+  // Saved means the field matches what the database holds (no draft is waiting to be saved).
+  const reasonSaved = hasReason && reasonDraft === null;
+
   const status = !canvass
     ? ""
     : offers.length === 0
       ? "Next: add the first offer"
-      : !winner
-        ? "Next: pick a winner"
-        : !hasReason
-          ? "Next: say why this supplier"
-          : "Ready. Nothing left to do.";
+      : !slotsReady
+        ? "Next: fill or explain the other supplier slots"
+        : !winner
+          ? "Next: pick a winner"
+          : !hasReason
+            ? "Next: say why this supplier"
+            : "Ready. Nothing left to do.";
 
   const steps = canvass
     ? [
         {
           key: "offers",
           title: "Offers in",
-          summary: offers.length ? offerCount : "No offers yet",
-          state: offers.length ? STATE.DONE : STATE.CURRENT,
+          summary: slotsReady
+            ? offerCount
+            : `${slotsCount} of ${MIN_CANVASS_OFFERS} supplier slots filled or explained`,
+          state: slotsReady ? STATE.DONE : STATE.CURRENT,
           needsMe: false,
           body: (
             <p className="text-xs text-muted-foreground">
-              Compare at least {MIN_CANVASS_OFFERS} suppliers. Add each quote as an offer.
+              Compare at least {MIN_CANVASS_OFFERS} suppliers. Add each quote as an offer, or explain the empty slot.
               {canvass.moreOffersWarning ? ` ${canvass.moreOffersWarning}.` : ""}
             </p>
           ),
@@ -838,9 +848,17 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
           key: "winner",
           title: "Winner picked",
           summary: winnerLabel || "No winner picked",
-          state: winner ? STATE.DONE : offers.length ? STATE.CURRENT : STATE.WAITING,
+          state: winner ? STATE.DONE : slotsReady ? STATE.CURRENT : STATE.WAITING,
           needsMe: false,
           body: <p className="text-xs text-muted-foreground">Pick the winner on its offer card.</p>,
+        },
+        {
+          key: "reason",
+          title: "Why this supplier",
+          summary: hasReason ? "Reason written" : "No reason yet",
+          state: hasReason ? STATE.DONE : winner ? STATE.CURRENT : STATE.WAITING,
+          needsMe: false,
+          body: <p className="text-xs text-muted-foreground">Say why the winner was chosen, in your own words.</p>,
         },
         ...(requestState
           ? [
@@ -1079,7 +1097,14 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
               </section>
 
               <section className="space-y-3">
-                <SectionHeading title="Why this supplier" />
+                <div className="flex items-baseline justify-between gap-2">
+                  <SectionHeading title="Why this supplier" />
+                  {reasonSaved && canChange && (
+                    <span className="text-[11px] font-semibold text-muted-foreground" data-testid="reason-saved">
+                      Saved
+                    </span>
+                  )}
+                </div>
                 {canChange ? (
                   <Textarea
                     aria-label="Why this supplier"
