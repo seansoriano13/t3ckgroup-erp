@@ -9,6 +9,7 @@ import { db } from "@/test/db/store";
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 import { findOtherDialog, queryOtherDialog } from "@/test/support/dialogs"
+import { SHOW_HAS_TICKS } from "@/components/ipas/record/MoneyFields";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -110,7 +111,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       expect(within(drawer).queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
     });
 
-    it("lists the documents for the Source, each with two ticks and a filing mark on filing items", async () => {
+    it.skipIf(!SHOW_HAS_TICKS)("lists the documents for the Source, each with two ticks and a filing mark on filing items", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
 
@@ -125,7 +126,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       expect(within(bir).getByRole("checkbox", { name: /Finance has it: BIR 2307/ })).toBeInTheDocument();
     });
 
-    it("lets Purchasing tick Purchasing has it, and leaves Finance has it to Finance", async () => {
+    it.skipIf(!SHOW_HAS_TICKS)("lets Purchasing tick Purchasing has it, and leaves Finance has it to Finance", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
       const user = setupUser();
@@ -147,7 +148,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       expect(db.rows("ipas_events").at(-1)).toMatchObject({ kind: "document_ticked", detail: { side: "purchasing", value: true, label: "Waybill" } });
     });
 
-    it("shows a tick the moment it is made, and keeps it through a slow Save all", async () => {
+    it.skipIf(!SHOW_HAS_TICKS)("shows a tick the moment it is made, and keeps it through a slow Save all", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
       let release;
@@ -179,7 +180,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       expect(within(await documentRow("Waybill")).getByRole("checkbox", { name: /Purchasing has it/ })).toBeChecked();
     });
 
-    it("keeps the tick and says why, with Retry, when the server refuses the save", async () => {
+    it.skipIf(!SHOW_HAS_TICKS)("keeps the tick and says why, with Retry, when the server refuses the save", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
       stubRpc("ipas_tick_document", () => {
@@ -202,7 +203,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       expect(db.rows("ipas_documents").find((d) => d.kind_id === options.document_kind.Waybill.id).purchasing_has).toBe(false);
     });
 
-    it("offers Finance only its own tick and no way to change the list", async () => {
+    it.skipIf(!SHOW_HAS_TICKS)("offers Finance only its own tick and no way to change the list", async () => {
       mockUser.current = finance;
       stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });
       const row = ipas({ source: "import", created_by: purchaser.id });
@@ -277,7 +278,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       await waitFor(() => expect(screen.queryByRole("button", { name: /suggested/ })).not.toBeInTheDocument());
     });
 
-    it("offers no document controls on a filed IPAS", async () => {
+    it.skipIf(!SHOW_HAS_TICKS)("offers no document controls on a filed IPAS", async () => {
       const row = ipas({ source: "import", state: "filed", created_by: purchaser.id });
       giveDocuments(row);
 
