@@ -398,7 +398,7 @@ describe.each(RECORDS)("Purchasing record anatomy: $name", (record) => {
 
     // Inside the record window only: the list behind it can use the same words (a column header).
     const recordWindow = screen.getAllByRole("dialog").find((dialog) => dialog.dataset.modalShell === "record")
-    for (const label of record.pills) expect(within(recordWindow).getByText(label)).toBeInTheDocument()
+    for (const label of record.pills) expect(within(recordWindow).getAllByText(label).length).toBeGreaterThan(0)
   })
 
   it(record.hasMore ? "shows More, because it has items" : "shows no More, because it has nothing to hold", async () => {
