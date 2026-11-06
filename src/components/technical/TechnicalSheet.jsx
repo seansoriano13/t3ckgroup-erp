@@ -5,6 +5,7 @@ import QueryError from "../ui/QueryError";
 import PageLoading from "../ui/PageLoading";
 import EvaluationBar from "../costing/EvaluationBar";
 import TechnicalVerdict from "../costing/TechnicalVerdict";
+import ItemVerdict from "./ItemVerdict";
 import { useCostingWrites, useInchargeOptions } from "../costing/useCostingWrites";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { useAuth } from "../../context/AuthContext";
@@ -45,6 +46,7 @@ export default function TechnicalSheet({ opportunityId }) {
   const matrix = sheet.data?.matrix ?? null;
   const header = sheet.data?.header ?? null;
   const lines = matrix?.tenderLines ?? [];
+  const canWriteVerdict = Boolean(user?.id) && user.id === (matrix?.matrix?.technical_incharge_id ?? null);
 
   return (
     <div className="space-y-4 pb-2">
@@ -79,13 +81,14 @@ export default function TechnicalSheet({ opportunityId }) {
           ) : (
             <div className="overflow-hidden rounded-xl border border-border bg-card">
               <div className="overflow-x-auto">
-                <Table tableId="technical-sheet" className="md:min-w-[40rem]">
+                <Table tableId="technical-sheet" className="md:min-w-[56rem]">
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
                       <TableHead className={HEAD}>Item</TableHead>
                       <TableHead className={HEAD}>Qty</TableHead>
                       <TableHead className={HEAD}>Client asks for</TableHead>
                       <TableHead className={HEAD}>We offer</TableHead>
+                      <TableHead className={HEAD}>Verdict and remark</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -108,6 +111,9 @@ export default function TechnicalSheet({ opportunityId }) {
                             ) : (
                               <span className="text-muted-foreground">Not entered yet</span>
                             )}
+                          </TableCell>
+                          <TableCell className="min-w-56 align-top">
+                            <ItemVerdict component={component} canWrite={canWriteVerdict} onChanged={refresh} />
                           </TableCell>
                         </TableRow>
                       )),
