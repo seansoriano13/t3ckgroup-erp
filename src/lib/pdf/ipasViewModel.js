@@ -272,7 +272,7 @@ function documentsOf(part, documents) {
     filing: (doc) => doc.isFiling,
     finance: (doc) => !doc.isFiling && !claimed.has(kindOf(doc)),
   }[part];
-  return documents.filter(pick).map((doc) => ({ label: doc.label, have: Boolean(doc.purchasingHas || doc.financeHas) }));
+  return documents.filter(pick).map((doc) => ({ label: doc.label, have: Boolean(doc.purchasingHas || doc.financeHas || doc.attachmentUrl) }));
 }
 
 /** The Landed cost table's rows (ticket #710) as paper reads them. */

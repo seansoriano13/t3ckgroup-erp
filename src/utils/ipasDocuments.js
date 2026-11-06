@@ -74,7 +74,7 @@ export function shapeDocument(row, options = new Map()) {
     isFiling: kindIsFiling(kind),
     purchasingHas,
     financeHas,
-    ticked: purchasingHas || financeHas,
+    ticked: purchasingHas || financeHas || Boolean(clean(row.attachment_url)),
     attachmentUrl: clean(row.attachment_url),
   };
 }
@@ -122,7 +122,7 @@ export function kindsToAdd(options = [], documents = []) {
  * kinds), each with whether it is ticked. `ticked` is either tick.
  */
 export function filingChecklist(documents = []) {
-  return documents.filter((doc) => doc.isFiling).map((doc) => ({ ...doc, ticked: doc.purchasingHas || doc.financeHas }));
+  return documents.filter((doc) => doc.isFiling).map((doc) => ({ ...doc, ticked: Boolean(doc.purchasingHas || doc.financeHas || doc.attachmentUrl) }));
 }
 
 /** The filing items still unticked (section 7's checklist reads these). */
@@ -180,7 +180,7 @@ export function missingDocumentsByPart(documents = [], payments = [], source) {
  */
 export function unfiledRequiredDocuments(documents = [], source) {
   return requiredDocuments(documents, source)
-    .filter((doc) => !(doc.purchasingHas || doc.financeHas))
+    .filter((doc) => !(doc.purchasingHas || doc.financeHas || doc.attachmentUrl))
     .map((doc) => ({ id: doc.id, label: doc.label, usedFor: doc.usedFor, appliesTo: doc.appliesTo }));
 }
 

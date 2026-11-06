@@ -98,7 +98,9 @@ export function IpasFilingSection({ ipas, rights, canSendBack = false }) {
                         ? "Purchasing has it"
                         : doc.financeHas
                           ? "Finance has it"
-                          : "Not ticked"
+                          : doc.attachmentUrl
+                            ? "File attached"
+                            : "Not ticked"
                   }
                 />
               ))
