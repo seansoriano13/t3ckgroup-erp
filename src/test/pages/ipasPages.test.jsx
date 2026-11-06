@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import IpasListPage from "@/pages/purchasing/ipas/index";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import { renderWithProviders, setupUser } from "@/test/support";
-import { makeEmployee, makeFlowStage, makeOpportunity, makeSuperAdmin } from "@/test/factories";
+import { makeEmployee, makeFlowStage, makeOpportunity } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, screen, waitFor, within } from "@testing-library/react";
-import toast from "react-hot-toast";
 import { MemoryRouter, Route, Routes, RouterProvider, createMemoryRouter } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import { renderWithProviders, setupUser } from "@/test/support";
@@ -103,7 +102,6 @@ function stubWide() {
 
 describe("IPAS signing with the evidence in view", () => {
   let purchaser, approver, other;
-  let toastSpy = null;
 
   const originalMatchMedia = window.matchMedia;
 
@@ -141,8 +139,6 @@ describe("IPAS signing with the evidence in view", () => {
 
   afterEach(() => {
     window.matchMedia = originalMatchMedia;
-    toastSpy?.mockRestore();
-    toastSpy = null;
   });
 
   describe("the section blocks", () => {
