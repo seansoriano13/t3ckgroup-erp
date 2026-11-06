@@ -311,12 +311,6 @@ create table if not exists public."costing_cost_rows" (
   "category_key" text
 );
 
-create table if not exists public."costing_evaluation_settings" (
-  "id" boolean not null default true,
-  "evaluation_template_id" uuid,
-  "updated_at" timestamp with time zone not null default now()
-);
-
 create table if not exists public."costing_events" (
   "id" uuid not null default gen_random_uuid(),
   "matrix_id" uuid not null,
@@ -1947,7 +1941,6 @@ alter table costing_component_costs add constraint "costing_component_costs_pkey
 alter table costing_components add constraint "costing_components_pkey" PRIMARY KEY (id);
 alter table costing_cost_categories add constraint "costing_cost_categories_pkey" PRIMARY KEY (key);
 alter table costing_cost_rows add constraint "costing_cost_rows_pkey" PRIMARY KEY (id);
-alter table costing_evaluation_settings add constraint "costing_evaluation_settings_pkey" PRIMARY KEY (id);
 alter table costing_events add constraint "costing_events_pkey" PRIMARY KEY (id);
 alter table costing_inclusions add constraint "costing_inclusions_pkey" PRIMARY KEY (id);
 alter table costing_landed_defaults add constraint "costing_landed_defaults_pkey" PRIMARY KEY (id);
@@ -2140,7 +2133,6 @@ alter table costing_cost_rows add constraint "costing_cost_rows_factor_chk" CHEC
 alter table costing_cost_rows add constraint "costing_cost_rows_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
 alter table costing_cost_rows add constraint "costing_cost_rows_odoo_chk" CHECK (((odoo_unit IS NULL) OR (odoo_unit >= (0)::numeric)));
 alter table costing_cost_rows add constraint "costing_cost_rows_quantity_chk" CHECK ((quantity > (0)::numeric));
-alter table costing_evaluation_settings add constraint "costing_evaluation_settings_single" CHECK (id);
 alter table costing_events add constraint "costing_events_kind_chk" CHECK ((kind = ANY (ARRAY['added'::text, 'changed'::text, 'removed'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_completeness_chk" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
 alter table costing_inclusions add constraint "costing_inclusions_quantity_chk" CHECK ((quantity > (0)::numeric));
@@ -2395,7 +2387,6 @@ alter table costing_components add constraint "costing_components_sales_incharge
 alter table costing_components add constraint "costing_components_tender_line_id_fkey" FOREIGN KEY (tender_line_id) REFERENCES costing_tender_lines(id) ON DELETE CASCADE;
 alter table costing_cost_rows add constraint "costing_cost_rows_category_key_fkey" FOREIGN KEY (category_key) REFERENCES costing_cost_categories(key);
 alter table costing_cost_rows add constraint "costing_cost_rows_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
-alter table costing_evaluation_settings add constraint "costing_evaluation_settings_evaluation_template_id_fkey" FOREIGN KEY (evaluation_template_id) REFERENCES group_task_templates(id) ON DELETE SET NULL;
 alter table costing_events add constraint "costing_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table costing_events add constraint "costing_events_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_inclusions add constraint "costing_inclusions_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
@@ -2901,7 +2892,6 @@ alter table public."costing_component_costs" enable row level security;
 alter table public."costing_components" enable row level security;
 alter table public."costing_cost_categories" enable row level security;
 alter table public."costing_cost_rows" enable row level security;
-alter table public."costing_evaluation_settings" enable row level security;
 alter table public."costing_events" enable row level security;
 alter table public."costing_inclusions" enable row level security;
 alter table public."costing_landed_defaults" enable row level security;
@@ -3355,22 +3345,6 @@ create policy "costing_cost_rows_read" on public."costing_cost_rows"
   for select
   to authenticated
   using ((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text));
-create policy "costing_evaluation_settings_insert" on public."costing_evaluation_settings"
-  as permissive
-  for insert
-  to authenticated
-  with check (COALESCE(is_super_admin(), false));
-create policy "costing_evaluation_settings_read" on public."costing_evaluation_settings"
-  as permissive
-  for select
-  to authenticated
-  using (true);
-create policy "costing_evaluation_settings_update" on public."costing_evaluation_settings"
-  as permissive
-  for update
-  to authenticated
-  using (COALESCE(is_super_admin(), false))
-  with check (COALESCE(is_super_admin(), false));
 create policy "costing_events_read" on public."costing_events"
   as permissive
   for select
@@ -10658,16 +10632,6 @@ AS $function$
       where m.opportunity_id = p_opportunity_id
         and m.technical_incharge_id = public.get_employee_id()
     )
-    or exists (
-      select 1
-      from public.committee_tasks t
-      join public.committee_task_members m on m.committee_task_id = t.id
-      where t.opportunity_id = p_opportunity_id
-        and t.template_id is not null
-        and t.template_id = (select s.evaluation_template_id from public.costing_evaluation_settings s limit 1)
-        and t.status <> 'CANCELLED'
-        and m.employee_id = public.get_employee_id()
-    )
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_landed_costs(p_opportunity_id uuid)
@@ -12124,7 +12088,8 @@ CREATE OR REPLACE FUNCTION public.costing_technical_list()
 AS $function$
 declare
   v_me uuid := public.get_employee_id();
-  v_all boolean := coalesce(public.is_super_admin(), false);
+  -- A Super Admin reads every in-charge's SOR; so does someone on the Evaluation list, who approves them.
+  v_all boolean := coalesce(public.is_super_admin(), false) or public.costing_on_list('evaluation');
 begin
   if v_me is null then
     raise exception 'costing_technical_list: not signed in' using errcode = '42501';
