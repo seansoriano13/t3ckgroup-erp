@@ -341,15 +341,17 @@ describe("the retired teams and the per-Component verdicts", () => {
         expect(list.error?.code).toBe(CHECK_VIOLATION)
     })
 
-    it("keeps a Component's old verdict as read-only history: the in-charge and the Deal Team cannot change it", async () => {
+    it("lets only the Technical in-charge give a Component's verdict and remark, and refuses the Deal Team", async () => {
         await asSvc(svc().from("costing_components").update({ compliance: "complies", compliance_note: "Old verdict" }).eq("id", compB), "history")
-        const refused = await tryUpdate(await clientFor("technical"), "costing_components", compB, { compliance: "deviates", compliance_note: "x" })
+        const refused = await tryUpdate(await clientFor("dealOwner"), "costing_components", compB, { compliance_note: "x" })
         expect(refused).toMatchObject({ ok: false, code: RLS_VIOLATION })
-        expect(refused.message).toMatch(/read-only history/)
-        expect((await tryUpdate(await clientFor("dealOwner"), "costing_components", compB, { compliance_note: "x" })).message).toMatch(/read-only history/)
+        expect(refused.message).toMatch(/costing_band|costing_technical/)
+
+        const given = await tryUpdate(await clientFor("technical"), "costing_components", compB, { compliance: "deviates", compliance_note: "Narrower strap" })
+        expect(given).toEqual({ ok: true, affected: 1 })
 
         const read = await readMatrix("technical")
-        expect(read.tables.costing_components.find((c) => c.id === compB)).toMatchObject({ compliance: "complies", compliance_note: "Old verdict" })
+        expect(read.tables.costing_components.find((c) => c.id === compB)).toMatchObject({ compliance: "deviates", compliance_note: "Narrower strap" })
         await asSvc(svc().from("costing_components").update({ compliance: null, compliance_note: null }).eq("id", compB), "tidy history")
     })
 })
