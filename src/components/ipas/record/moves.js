@@ -235,5 +235,16 @@ export function footerMovesFor(ctx, digest, sectionKey) {
  */
 export function actionSectionFor(ctx, digest) {
   const { moves, costs } = cardMovesFor(ctx, digest);
-  return moves[0]?.section ?? costs[0]?.section ?? null;
+  const part = moves[0]?.section ?? costs[0]?.section ?? null;
+  // A move names its part ("purchasing"); the record's sections are keyed by what the screen shows ("order").
+  return part ? (SCREEN_KEY_OF_PART[part] ?? null) : null;
 }
+
+const SCREEN_KEY_OF_PART = {
+  purchasing: "order",
+  finance: "payments",
+  costing: "costs",
+  logistics: "delivery",
+  documents: "documents",
+  filing: "signoffs",
+};

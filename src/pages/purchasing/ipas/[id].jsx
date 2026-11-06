@@ -903,8 +903,8 @@ function IpasPage({ onClose }) {
   const on = {
     print: () => startPrint(false),
     printFiling: () => startPrint(true),
-    // The one page-level Edit: opens the long edit form at its first section (#581).
-    edit: () => openEdit("header"),
+    // The one page-level Edit: opens editing at its first section, 1 Order (#581).
+    edit: () => openEdit("order"),
     editPurpose: () => setEditing(true),
     hold: () => setHolding(true),
     cancel: () => setCancelling(true),

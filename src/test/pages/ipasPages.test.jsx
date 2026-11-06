@@ -670,7 +670,7 @@ describe("IPAS pages", () => {
       expect(within(header).getByText("Open")).toBeInTheDocument();
       expect(header.querySelectorAll("span.uppercase")).toHaveLength(1);
       expect(within(header).getByText(/^P02552 · raised /)).toBeInTheDocument();
-      for (const label of ["Entity", "Priority", "Source", "Purpose", "Status"]) expect(within(recordWindow()).getByText(label)).toBeInTheDocument();
+      for (const label of ["Entity", "Priority", "Source", "Purpose", "Status"]) expect(within(recordWindow()).getAllByText(label).length).toBeGreaterThan(0);
       expect(statusPill()).toHaveTextContent("Pending");
     });
 
@@ -719,10 +719,7 @@ describe("IPAS pages", () => {
       scrollIntoView.mockRestore();
     });
 
-    // KNOWN BUG (spec #926 follow-up): `actionSectionFor` still answers with the old part key
-    // ("purchasing") while the sections are keyed 1 Order … 6 Sign-offs ("order"), so nothing opens.
-    // `it.fails` passes while it is broken and starts failing the day it is fixed: then make it a plain `it`.
-    it.fails("opens the section that needs the viewer on arrival", async () => {
+    it("opens the section that needs the viewer on arrival", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       renderDetail(row.id);
 
@@ -733,22 +730,18 @@ describe("IPAS pages", () => {
 
     it("expands Order in place with its header facts, read-only until Edit", async () => {
       const row = ipas({ po_number: "P02552", remarks: "For the Capas deal", created_by: purchaser.id });
-      const user = setupUser();
       renderDetail(row.id);
 
+      // A purchaser with work in Order finds it open on arrival.
       const trigger = await screen.findByRole("button", { name: /^1 · Order/ });
-      await user.click(trigger);
-      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));
       expect(queryOtherDialog()).not.toBeInTheDocument();
       // The remark reads as text, not a box.
       expect(await screen.findByText("For the Capas deal")).toBeInTheDocument();
       expect(screen.queryByRole("textbox", { name: /^Remarks/ })).not.toBeInTheDocument();
     });
 
-    // KNOWN BUG (spec #926 follow-up): the page's Edit button asks for `?edit=header`, a section that no
-    // longer exists (1 Order … 6 Sign-offs), so the edit view never opens. `it.fails` passes while it is
-    // broken and starts failing the day it is fixed: then make it a plain `it`.
-    it.fails("the page Edit button opens the edit view, and Done comes back to the sections", async () => {
+    it("the page Edit button opens the edit view, and Done comes back to the sections", async () => {
       const row = ipas({ po_number: "P02552", remarks: "For the Capas deal", created_by: purchaser.id });
       const user = setupUser();
       renderDetail(row.id);
