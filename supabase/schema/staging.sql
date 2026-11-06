@@ -9904,6 +9904,9 @@ CREATE OR REPLACE FUNCTION public.costing_component_verdict_guard()
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_incharge uuid;
 begin
   if (new.compliance is not distinct from old.compliance)
      and (new.compliance_note is not distinct from old.compliance_note)
@@ -9915,8 +9918,23 @@ begin
      or coalesce(current_setting('costing.bypass', true), '') = 'on' then
     return new;
   end if;
-  raise exception 'costing_compliance: a Component''s verdict is read-only history; the Technical verdict is on the S0 Evaluation'
-    using errcode = '42501';
+
+  select m.technical_incharge_id
+    into v_incharge
+    from public.costing_tender_lines l
+    join public.costing_matrices m on m.id = l.matrix_id
+   where l.id = new.tender_line_id;
+
+  if v_incharge is null then
+    raise exception 'costing_technical: name the Technical in-charge first' using errcode = '42501';
+  end if;
+  if v_actor is distinct from v_incharge then
+    raise exception 'costing_technical: only the Technical in-charge can give a Component''s verdict' using errcode = '42501';
+  end if;
+  if new.compliance is distinct from old.compliance or new.compliance_note is distinct from old.compliance_note then
+    new.complied_by := v_actor;
+  end if;
+  return new;
 end;
 $function$
 ;
