@@ -24971,6 +24971,37 @@ begin
     values (v_req.id, v_actor, 'Purchase Request opened.', jsonb_build_object('event', 'opened'));
   end if;
 
+  -- Buying opens here: this run reused a request opened at an earlier Stage, so the "opened" notice
+  -- never reaches Purchasing again. At the Stage flagged "Buying opens here", tell the Buyer and the SOR's
+  -- Purchasing Incharge (every Purchasing member while neither is named) that buying has started.
+  if not v_created and v_run.stage_visit_id is not null and exists (
+    select 1
+    from public.sor_stage_visits sv
+    join public.flow_stages fs on fs.id = sv.flow_stage_id
+    where sv.id = v_run.stage_visit_id and fs.buying_opens_here
+  ) then
+    perform public._purchase_request_notify(
+      v_req.id,
+      coalesce(
+        nullif(
+          array(
+            select x from (
+              select v_req.buyer_id as x
+              union
+              select m.purchasing_incharge_id from public.costing_matrices m where m.opportunity_id = v_run.opportunity_id
+            ) q where x is not null
+          ),
+          '{}'::uuid[]
+        ),
+        array(select e.id from public.employees e where public._employee_has_purchasing_access(e.id))
+      ),
+      v_actor, 'PURCHASE_REQUEST_BUYING_OPENED',
+      'Buying has started',
+      public._purchase_request_label(v_req.id) || ': the SOR reached the Stage where buying opens. P0s can be attached now.',
+      false
+    );
+  end if;
+
   update public.sor_action_runs
   set outcome = 'created', purchase_request_id = v_req.id
   where id = p_run_id;
