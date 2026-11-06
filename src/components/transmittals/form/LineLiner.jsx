@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RequiredMark } from "@/components/ipas/record/FormFields";
 import { Check, ChevronDown, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -72,14 +73,17 @@ export default function LineLiner({ line, index, onChange, onRemove }) {
               </p>
             </>
           ) : (
+            <span className="relative block">
             <Input
-              className="h-9 text-[13px]"
+              className="h-9 pr-6 text-[13px]"
               value={line.description}
               onChange={(e) => onChange({ description: e.target.value })}
               placeholder="Describe the item"
               aria-label="Description"
               autoFocus={!line.description}
             />
+            <span className="absolute right-2 top-1.5"><RequiredMark /></span>
+            </span>
           )}
         </div>
         <div className="flex items-center gap-1.5">
@@ -94,9 +98,11 @@ export default function LineLiner({ line, index, onChange, onRemove }) {
             aria-label="Quantity"
             aria-invalid={badQuantity || undefined}
           />
+          <RequiredMark />
           {isPo ? (
             <span className="w-10 text-[13px] text-muted-foreground">{line.unit}</span>
           ) : (
+            <>
             <Input
               className="h-9 w-16 text-[13px]"
               value={line.unit}
@@ -104,6 +110,8 @@ export default function LineLiner({ line, index, onChange, onRemove }) {
               placeholder="Unit"
               aria-label="Unit"
             />
+            <RequiredMark />
+            </>
           )}
         </div>
         <ProjectChoice line={line} onChange={(sorId) => onChange({ sorId })} />

@@ -3,6 +3,7 @@ import { FilterOptionList, MultiFilterOptionList } from "@/components/ui/FilterD
 import { Input } from "@/components/ui/input";
 import PropertyPill from "@/components/ui/PropertyPill";
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/ipas/record/FormFields";
 import {
   TRANSMITTAL_ORIGIN,
   TRANSMITTAL_ORIGIN_LABELS,
@@ -21,7 +22,7 @@ const CHECK_OPTIONS = [
 const POPOVER = "popover-enter z-[10001] max-h-[70vh] w-64 overflow-y-auto rounded-xl bg-popover p-1 shadow-2xl ring-1 ring-mauve-6";
 
 /** One header property: a pill that names its value and opens its options. A property the slip still needs reads dashed. */
-function Property({ label, value, needed, children }) {
+function Property({ label, value, needed, required = false, children }) {
   return (
     <Dropdown
       usePortal
@@ -29,7 +30,10 @@ function Property({ label, value, needed, children }) {
       popoverClassName={POPOVER}
       trigger={
         <PropertyPill isActive={Boolean(value)} className={cn("h-8 text-[13px]", needed && "border-dashed border-amber-8 text-amber-11")}>
-          <span className="font-medium text-muted-foreground">{label}</span>
+          <span className="font-medium text-muted-foreground">
+            {label}
+            {required && <> <RequiredMark /></>}
+          </span>
           {value && <span className="max-w-56 truncate font-bold text-foreground">{value}</span>}
         </PropertyPill>
       }
@@ -78,7 +82,7 @@ export default function SlipProperties({
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
-        <Property label="Origin" value={labelOf(ORIGIN_OPTIONS, header.origin)} needed={needs("origin")}>
+        <Property label="Origin" required value={labelOf(ORIGIN_OPTIONS, header.origin)} needed={needs("origin")}>
           {({ close }) => <FilterOptionList options={ORIGIN_OPTIONS} value={header.origin} onChange={setField("origin")} close={close} />}
         </Property>
         {header.origin === TRANSMITTAL_ORIGIN.OTHER && (
@@ -90,10 +94,10 @@ export default function SlipProperties({
             aria-label="Origin, others"
           />
         )}
-        <Property label="Priority" value={labelOf(PRIORITY_OPTIONS, header.priority)} needed={needs("priority")}>
+        <Property label="Priority" required value={labelOf(PRIORITY_OPTIONS, header.priority)} needed={needs("priority")}>
           {({ close }) => <FilterOptionList options={PRIORITY_OPTIONS} value={header.priority} onChange={setField("priority")} close={close} />}
         </Property>
-        <Property label="Company" value={header.entity} needed={needs("entity")}>
+        <Property label="Company" required value={header.entity} needed={needs("entity")}>
           {({ close }) => <FilterOptionList options={entityOptions} value={header.entity} onChange={setField("entity")} close={close} />}
         </Property>
         <Property label="Location" value={labelOf(locationChoices, header.itemLocationId)}>
@@ -108,6 +112,7 @@ export default function SlipProperties({
         </Property>
         <Property
           label="Checking"
+          required
           value={[header.checkWarehouse && "Warehouse", header.checkTechnical && "TCA Technical", header.checkOther].filter(Boolean).join(" + ")}
           needed={needs("checking")}
         >
