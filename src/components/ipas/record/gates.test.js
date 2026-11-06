@@ -174,7 +174,7 @@ describe("gatesFor: names, states and lines", () => {
     const gates = gatesOf({ status: "lc_odoo_done", ...approvedBoth });
     const received = byKey(gates, "received");
     expect(received.prereqMet).toBe(false);
-    expect(received.line).toBe("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved, and Logistics is signed");
+    expect(received.line).toBe("Opens once 3 · Computation status & Landed Cost and 6 · Logistics are signed");
     expect(byKey(gatesOf({ status: "lc_odoo_done", ...approvedAll }), "received").prereqMet).toBe(true);
   });
 

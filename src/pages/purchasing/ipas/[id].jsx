@@ -767,7 +767,7 @@ function IpasPage({ onClose }) {
   const canHold = (hasPurchasingFlow || hasFinanceFlow) && open;
   // Finance has it: Finance access alone ticks it, until Filing.
   const canTickFinance = hasFinanceFlow && open;
-  const digest = digestIpas(ipas);
+  const digest = digestIpas(ipas, signerLists);
 
   // The sign-offs of sections 1, 2 and 3 (stored 1, 3 and 6): what this person may do on each.
   const sectionRights = (section) =>

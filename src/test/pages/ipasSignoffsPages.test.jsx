@@ -313,7 +313,7 @@ describe("IPAS sign-offs", () => {
       // The IPAS list sits behind the record window; only the window and the dialog over it are read.
       const text = screen.getAllByRole("dialog", { hidden: true }).map((dialog) => dialog.textContent ?? "").join(" ");
       expect(text).toContain("Return section 2?");
-      expect(text).toContain("Opens once 1 · Purchasing, 2 · Purchasing & Finance and 3 · Computation status & Landed Cost are approved");
+      expect(text).toContain("Opens once 2 · Purchasing & Finance, 3 · Computation status & Landed Cost and 6 · Logistics are signed");
       // Apart from the short move names (#593), a section is named with its number and its name, or not by number at all.
       const prose = text.replace(/(?:Return section|Undo approval of section) \d/g, "");
       expect(prose).not.toMatch(/\b(?:sections?|send|waiting for|and|for)\s+\d+\b(?!\s*·)/i);

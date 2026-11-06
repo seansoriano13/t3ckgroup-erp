@@ -11,7 +11,7 @@ import YourMoveCard from "@/components/record/YourMoveCard";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
 import { Button } from "@/components/ui/button";
 import { ipasSectionLabel } from "@/constants/ipas";
-import { nowGate } from "./gates";
+import { filingMissing, nowGate } from "./gates";
 import { COSTS_WAITING } from "./moveCopy";
 import { movesFor } from "./moves";
 
@@ -21,13 +21,22 @@ function statusLine(digest, offered) {
   if (digest.cancelled) return "Cancelled. Nothing to do.";
   // No gate is Now only while LC Odoo Done waits for Purchasing's encoding (gates.js).
   const now = nowGate(digest.gates);
-  if (!now) return offered.length === 0 ? `Nothing needs you right now. ${COSTS_WAITING}` : COSTS_WAITING;
+  if (!now) {
+    // Costs still being encoded is the usual reason; otherwise name the sections still unsigned, and who signs them.
+    let waiting = COSTS_WAITING;
+    const missing = digest.costsComplete ? filingMissing(digest) : [];
+    if (missing.length > 0) {
+      const parts = missing.map((m) => (m.who ? `${m.label} (${m.who})` : m.label));
+      waiting = `Waiting for ${parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]} to sign.`;
+    }
+    return offered.length === 0 ? `Nothing needs you right now. ${waiting}` : waiting;
+  }
   const mine = now.moveKeys.some((key) => offered.some((move) => move.key === key));
   // Filing has three steps under one section number, so it names the step too.
   const step = now.part === "filing" ? `${now.label}, ${now.role}` : now.label;
   // "the approvers of 1 · Purchasing" already named the section once: say it once.
   const who = now.waitsOn.replace(` of ${now.label}`, "");
-  return mine ? `Waiting for you: ${step}` : `Next: ${step}, waiting on ${who}`;
+  return mine ? `Waiting for you: ${step}` : `Next: ${step}, waiting on ${who}${now.signers ? ` (${now.signers})` : ""}`;
 }
 
 /** A step's title: "Section 1 · Purchasing", and for the gates that share a section its role too. Never a bare section label, which names the section row below. */
