@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { gatesOf } from "../../../components/transmittals/record/transmittalRecord";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { Flag, Hourglass, Plus, ReceiptText } from "lucide-react";
@@ -79,6 +80,30 @@ const STATE_TONES = {
   [TRANSMITTAL_STATE.CANCELLED]: "red",
 };
 
+/** One segment per step of the slip; a signed step is filled. A draft has no steps yet, and a cancelled slip none to show. */
+function stepsOf(row) {
+  if (row.state === TRANSMITTAL_STATE.DRAFT || row.state === TRANSMITTAL_STATE.CANCELLED) return null;
+  const gates = gatesOf(row.steps);
+  return { total: gates.length, done: gates.filter((gate) => gate.done).length };
+}
+
+function ProgressCell({ row }) {
+  const steps = stepsOf(row);
+  if (!steps || steps.total === 0) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <div className="w-full min-w-[7rem]">
+      <div className="flex gap-0.5" aria-hidden="true">
+        {Array.from({ length: steps.total }, (_, i) => (
+          <span key={i} className={`h-1 flex-1 rounded-full ${i < steps.done ? "bg-green-9" : "bg-mauve-5"}`} />
+        ))}
+      </div>
+      <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+        {steps.done} of {steps.total} done
+      </p>
+    </div>
+  );
+}
+
 const COLUMNS = [
   { id: "tg03", label: "TG03" },
   { id: "prepared", label: "Prepared" },
@@ -86,6 +111,7 @@ const COLUMNS = [
   { id: "priority", label: "Priority" },
   { id: "lines", label: "Lines" },
   { id: "na", label: "NA" },
+  { id: "progress", label: "Progress" },
   { id: "state", label: "State" },
 ];
 
@@ -96,6 +122,10 @@ const SORT = {
   priority: (r) => TRANSMITTAL_PRIORITY_LABELS[r.priority] ?? r.priority,
   lines: (r) => r.lineCount,
   na: (r) => r.naCount,
+  progress: (r) => {
+    const steps = stepsOf(r);
+    return steps && steps.total ? steps.done / steps.total : null;
+  },
   state: (r) => r.stateLabel,
 };
 
@@ -317,6 +347,9 @@ function TransmittalsList() {
                     <TableCell>{row.lineCount}</TableCell>
                     <TableCell className={row.naCount ? "font-semibold text-destructive" : "text-muted-foreground"}>
                       {row.naCount || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <ProgressCell row={row} />
                     </TableCell>
                     <StateCell state={row.state} label={row.stateLabel} tones={STATE_TONES} />
                   </TableRow>
