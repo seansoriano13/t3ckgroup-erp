@@ -10,7 +10,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover hover:-translate-y-0.5 [a]:hover:opacity-90",
+          // Neutral, not the brand red (2026-11-06): red is kept for danger only, so a main button never reads as a warning.
+          "bg-foreground text-background shadow-sm hover:bg-foreground/85 [a]:hover:opacity-90",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
         secondary:

@@ -556,9 +556,10 @@ describe("IPAS pages", () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       renderDetail(row.id, "purchasing", "edit");
 
-      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
-      expect(recordWindow()).toContainElement(screen.getByRole("button", { name: "Back to preview" }));
-      expect(screen.queryByRole("heading", { name: "Your move" })).not.toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Done" })).toBeInTheDocument();
+      expect(recordWindow()).toContainElement(screen.getByRole("button", { name: "Done" }));
+      // Editing is in place, so Your move stays beside the sections.
+      expect(screen.getByRole("heading", { name: "Your move" })).toBeInTheDocument();
     });
 
     it("shows each SOR as reference, project and Stage, never the customer", async () => {
@@ -751,10 +752,10 @@ describe("IPAS pages", () => {
 
       expect(within(trigger.closest("li")).queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Edit" }));
-      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Done" })).toBeInTheDocument();
       expect(screen.getByRole("region", { name: "Header" })).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Back to preview" }));
+      await user.click(screen.getByRole("button", { name: "Done" }));
       const back = await screen.findByRole("button", { name: /^Header/ });
       expect(back).toHaveAttribute("aria-expanded", "true");
       await waitFor(() => expect(back).toHaveFocus());

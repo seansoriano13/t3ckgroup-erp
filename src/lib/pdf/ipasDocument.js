@@ -195,6 +195,7 @@ export const CSS = `
   .frow .sigs { gap: 1.6mm 4mm; }
   .ticks { display: flex; flex-wrap: wrap; gap: 2px 10px; }
   .ticks span { display: inline-flex; gap: 4px; align-items: center; font-size: 6.6pt; }
+  .flow > .sec + .sec { margin-top: 4mm; }
 `;
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
@@ -213,7 +214,6 @@ const section = (title, aside, body) =>
 
 /** An Odoo-sourced value as the IPAS uses it; when Purchasing overrode it, the note names Odoo's value beside it. */
 const overridableValue = ({ value }) => (value ? esc(value) : '—');
-const overrideNote = ({ overridden, odoo }) => (overridden ? `overridden · Odoo: ${esc(odoo ?? 'blank')}` : '');
 
 /** The signature boxes: every string escaped before `sigBlock` concatenates it. A box prints the name with the call sign. */
 function sigs(boxes) {
@@ -313,7 +313,12 @@ function purchasing(vm) {
       <tfoot><tr><td colspan="4" style="text-align:right">Total before tax, as Odoo prices the lines</td><td class="num">${esc(s.itemsTotal)}</td></tr></tfoot></table>`
     : '<div class="empty">The Odoo PO has no item lines.</div>';
 
-  const payments = s.payments.length
+  return orderSection(vm, s, items);
+}
+
+function paymentsTable(vm) {
+  const s = vm.section1;
+  return s.payments.length
     ? `<table><thead><tr>
         <th style="width:15%">Payment</th><th style="width:13%">Date</th><th class="num" style="width:17%">Amount</th>
         <th class="num" style="width:17%">Pesos taken from the bank</th><th class="num" style="width:14%">Charge fee</th>
@@ -331,7 +336,9 @@ function purchasing(vm) {
           : ''
       }`
     : '<div class="empty">No payments recorded.</div>';
+}
 
+function orderSection(vm, s, items) {
   return section(
     esc(ipasSectionLabel('purchasing')),
     esc(s.poNumber),
@@ -343,37 +350,36 @@ function purchasing(vm) {
       ${s.piQtAmount ? field('P.I/QT Amount', esc(s.piQtAmount), { mono: true }) : ''}
     </div>
     ${items}
-    ${payments}
-    ${docTicks(s.docs)}`,
+    ${sorsOf(vm)}`,
   );
 }
 
-function sales(vm) {
-  const s = vm.section2;
-  const sors = s.sors.length
-    ? `<table><thead><tr><th style="width:18%">SOR</th><th>Project</th></tr></thead><tbody>${s.sors
-        .map(
-          (sor) => `<tr><td class="m" style="font-weight:600">${esc(sor.reference)}</td><td>${esc(sor.title ?? '—')}</td></tr>`,
-        )
+/** 1 · Order: what was bought, from whom, for which SOR. */
+const orderPart = (vm) => purchasing(vm);
+
+/** 2 · Payments: what was paid, and the account it went to. */
+function paymentsPart(vm) {
+  return section(esc(ipasSectionLabel('finance')), '', `${paymentsTable(vm)}${bankBox(vm)}`);
+}
+
+/** 3 · Costs: the charges on top of the price, and the Landed Cost. */
+function costsPart(vm) {
+  return section(esc(ipasSectionLabel('costing')), `Charges: ${esc(vm.section3.chargesTotal)}`, `${chargesTable(vm)}${costing(vm)}`);
+}
+
+function sorsOf(vm) {
+  const sors = vm.section2.sors;
+  return sors.length
+    ? `<table><thead><tr><th style="width:18%">SOR</th><th>Project</th></tr></thead><tbody>${sors
+        .map((sor) => `<tr><td class="m" style="font-weight:600">${esc(sor.reference)}</td><td>${esc(sor.title ?? '—')}</td></tr>`)
         .join('')}</tbody></table>`
-    : '<div class="empty">No SOR named.</div>';
-
-  return section(
-    esc(ipasSectionLabel('sales')),
-    '',
-    `${sors}
-    <div class="fields n2">
-      ${field('Googlesheet', tick(s.googleSheet))}
-      ${field('Gantt Chart', tick(s.ganttChart))}
-      ${field('Source Doc. Odoo', overridableValue(s.sourceDoc), { mono: true, note: overrideNote(s.sourceDoc) })}
-      ${field('Analytic Dist.', overridableValue(s.analytic), { note: overrideNote(s.analytic) })}
-    </div>`,
-  );
+    : '';
 }
 
-function finance(vm) {
+
+function chargesTable(vm) {
   const s = vm.section3;
-  const charges = `<table><thead><tr><th>Importation charge</th><th style="width:30%">Date</th><th class="num" style="width:34%">Amount</th></tr></thead>
+  return `<table><thead><tr><th>Importation charge</th><th style="width:30%">Date</th><th class="num" style="width:34%">Amount</th></tr></thead>
     <tbody>${
       s.freight ? `<tr><td>Freight${s.freight.service ? ` · ${esc(s.freight.service)}` : ''}</td><td></td><td class="num">${esc(s.freight.amount)}</td></tr>` : ''
     }${
@@ -384,7 +390,10 @@ function finance(vm) {
         : '<tr><td colspan="3" class="empty">No charges recorded.</td></tr>'
     }</tbody>
     <tfoot><tr><td colspan="2" style="text-align:right">Total charges</td><td class="num">${esc(s.chargesTotal)}</td></tr></tfoot></table>`;
+}
 
+function bankBox(vm) {
+  const s = vm.section3;
   // Bank details exist on paper only for someone who may read them.
   let bank = '';
   if (s.bank) {
@@ -400,20 +409,14 @@ function finance(vm) {
       : '<div class="box empty">No bank details typed.</div>';
   }
 
-  return section(
-    esc(ipasSectionLabel('finance')),
-    `Charges: ${esc(s.chargesTotal)}`,
-    `${charges}
-    ${docTicks(s.docs)}
-    ${bank}`,
-  );
+  return bank;
 }
 
 function logistics(vm) {
   return section(
     esc(ipasSectionLabel('logistics')),
-    '',
-    `<div class="fields n2">${field('Item Location', esc(vm.section5.itemLocation ?? '—'))}</div>${tg03Rows(vm.section5.tg03)}`,
+    vm.section6.hasOdooMarks ? legend : '',
+    `<div class="fields n2">${field('Item Location', esc(vm.section5.itemLocation ?? '—'))}</div>${tg03Rows(vm.section5.tg03)}${status(vm)}`,
   );
 }
 
@@ -449,12 +452,8 @@ function status(vm) {
         .join('')}</div></div>`
     : '';
 
-  return section(
-    esc(ipasSectionLabel('status')),
-    s.hasOdooMarks ? legend : '',
-    `${origin}
-    <div><div class="group-k">Buyer track</div><div class="stat">${s.buyerTrack.map(statusChip).join('')}</div></div>`,
-  );
+  return `${origin}
+    <div><div class="group-k">Buyer track</div><div class="stat">${s.buyerTrack.map(statusChip).join('')}</div></div>`;
 }
 
 /** The computation status and Landed Cost per line, with its provisional or final mark. */
@@ -462,12 +461,6 @@ function costing(vm) {
   const s = vm.section6;
   const lc = s.landedCost;
   const mark = `<span class="prov ${lc.status === 'final' ? 'final' : lc.status === 'unavailable' ? 'na' : ''}">${esc(lc.label)}</span>`;
-
-  const computation = `<div><div class="group-k">IPAS computation</div><div class="stat">${s.computation
-    .map(
-      (c) => `<span class="s${c.reached ? ' done' : ''}${c.current ? ' current' : ''}">${tick(c.reached)}<span class="t">${esc(c.label)}</span></span>`,
-    )
-    .join('')}</div></div>`;
 
   const t = s.landedTable;
   const cell = (v) => (v === null || v === undefined ? '—' : esc(v));
@@ -486,51 +479,48 @@ function costing(vm) {
             )
             .join('')}</tbody></table>`;
 
-  return section(
-    esc(ipasSectionLabel('costing')),
-    '',
-    `${computation}
-    <div class="box"><div class="group-k">Landed cost ${mark}</div>${landed}</div>
-    ${build(vm)}
-    ${docTicks(s.docs)}`,
-  );
+  return `<div class="box"><div class="group-k">Landed cost ${mark}</div>${landed}</div>
+    ${build(vm)}`;
 }
 
-function filing(vm) {
-  const s = vm.section7;
-  return section(
-    esc(ipasSectionLabel('filing')),
-    'Finance',
-    `<div class="stat">${s.checklist
-      .map(
-        (c) => `<span class="s${c.ticked ? ' done' : ''}">${tick(c.ticked)}<span class="t">${esc(c.label)}</span>${
-          c.detail ? `<span class="d">${esc(c.detail)}</span>` : ''
-        }</span>`,
-      )
-      .join('')}</div>${docTicks(s.docs)}`,
-  );
-}
 
 // ── The document ─────────────────────────────────────────────────────────────
 
-/** A part and its own sign-offs beside it. */
-const flowRow = (sectionHtml, boxes) =>
-  `<div class="frow"><div>${sectionHtml}</div><div class="signs">${boxes ? sigs(boxes) : '<div class="none">No sign-off for this part.</div>'}</div></div>`;
+/** The documents of every part, as one list of ticks (5 · Documents). */
+function documentsPart(vm) {
+  const docs = [vm.section1.docs, vm.section3.docs, vm.section6.docs, vm.section7.docs].flat().filter(Boolean);
+  const seen = new Set();
+  const unique = docs.filter((d) => (seen.has(d.label) ? false : seen.add(d.label)));
+  return section(esc(ipasSectionLabel('documents')), '', unique.length ? docTicks(unique) : '<div class="empty">No documents.</div>');
+}
 
-/** The page, as markup: the head, then one row per part in flow order, each with its sign-offs. */
+/**
+ * The page in the record's order (2026-11-06): 1 Order, 2 Payments, 3 Costs,
+ * 4 Delivery, 5 Documents, then 6 Sign-offs with every signature together, so
+ * the signers sign the whole form, read top to bottom.
+ */
 export function buildIpasPagesHtml(vm) {
-  const rows = [
-    flowRow(purchasing(vm), vm.section1.signoffs),
-    flowRow(finance(vm), vm.section3.signoffs),
-    flowRow(costing(vm), vm.section6.signoffs),
-    flowRow(logistics(vm), vm.section5.signoffs),
-    flowRow(filing(vm), vm.section7.signoffs),
-    flowRow(status(vm), null),
-    flowRow(sales(vm), null),
+  const s1 = vm.section1;
+  const s7 = vm.section7.signoffs;
+  const as = (box, role) => (box ? { ...box, role } : null);
+  const boxes = [
+    as(s1.signoffs?.[0], 'Sent for signing'),
+    as(s1.signoffs?.[1], 'Approved'),
+    as(vm.section5.signoffs?.[0], 'Logistics'),
+    as(s7?.[2], 'Checked'),
+    as(s7?.[3], 'Approved and filed'),
+  ].filter(Boolean);
+  const parts = [
+    orderPart(vm),
+    paymentsPart(vm),
+    costsPart(vm),
+    logistics(vm),
+    documentsPart(vm),
+    section(esc(ipasSectionLabel('filing')), '', sigs(boxes)),
   ].join('');
   return `<div class="sheet">
     ${rail(vm)}${head(vm)}
-    <div class="flow">${rows}</div>
+    <div class="flow">${parts}</div>
     ${footer(vm)}
   </div>`;
 }

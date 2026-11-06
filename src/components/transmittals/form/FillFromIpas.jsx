@@ -13,8 +13,9 @@ import { ipasErrorMessage } from "@/utils/ipas";
  *
  * `onFill(picks)` receives the IPAS's P0 lines (shaped like the live list's).
  */
-export default function FillFromIpas({ onFill }) {
-  const [number, setNumber] = useState("");
+export default function FillFromIpas({ onFill, initialNumber = "" }) {
+  // Coming from an IPAS's "Raise a Transmittal", its number is typed already: one click fills it.
+  const [number, setNumber] = useState(initialNumber);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
 

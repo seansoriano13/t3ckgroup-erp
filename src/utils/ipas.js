@@ -318,7 +318,8 @@ export function ipasErrorMessage(error, fallback = "Something went wrong.") {
   if (NETWORK_FAILURE.test(raw.trim())) return IPAS_OFFLINE_MESSAGE;
   // Database refusals lead with the function name (ipas_create:, transmittal_check:),
   // or with "packing list:" for the Packing List RPCs.
-  const text = raw.replace(/^(?:[a-z]+(?:_[a-z]+)+|packing list):\s*/i, "");
+  // "transmittal:" too: the Transmittal checks lead with it (#: "Transmittal: line 1 isn't on …" read as a code).
+  const text = raw.replace(/^(?:[a-z]+(?:_[a-z]+)+|packing list|transmittal):\s*/i, "");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 

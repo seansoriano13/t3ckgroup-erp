@@ -198,7 +198,7 @@ export function LandedCostBadge({ status, estimate = false }) {
  * the steps before it; LC Odoo Done, once reached, is green (#586). Section 3's
  * sign-offs arrive as `children`, below the Landed Cost.
  */
-export function IpasCostingSection({ ipas, canChange: granted = false, canSetStatus, onSetStatus, onSetSplit, canSetMarkup = false, onSetMarkup, children = null }) {
+export function IpasCostingSection({ ipas, canChange: granted = false, canSetStatus, onSetStatus, onSetSplit, canSetMarkup = false, onSetMarkup, showStatus = false, children = null }) {
   const canChange = useEditable(granted);
   const canStep = useEditable(true) && Boolean(onSetStatus);
   const lc = ipas.landedCost;
@@ -213,6 +213,8 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
   return (
     <IpasSection title={ipasSectionLabel("costing")}>
       <div className="space-y-4">
+        {/* The four computation steps are kept for the edit view only; the record says Provisional or Final. */}
+        {showStatus && (
         <div>
           <SectionHeader title="Computation status" className="border-b-0 pb-2" />
           <ol className="mt-2 flex flex-wrap items-center gap-2" aria-label="Computation status">
@@ -262,6 +264,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
             })}
           </ol>
         </div>
+        )}
 
         <div className="space-y-3">
           <SectionHeader title="Landed Cost" className="border-b-0 pb-2">

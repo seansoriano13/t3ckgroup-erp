@@ -57,7 +57,7 @@ function Step({ step, open, onToggle }) {
  * needsMe?, body, moves }]`; `body` is the step's work and `moves` its buttons
  * (green `APPROVE_CLASS` for the main one).
  */
-export default function YourMoveCard({ status, next, lead, steps, className }) {
+export default function YourMoveCard({ status, next, lead, steps, className, focusOnly = false }) {
   const headingId = useId();
   const [openKeys, setOpenKeys] = useState(() => new Set(steps.filter((step) => step.needsMe).map((step) => step.key)));
   const needing = needsKey(steps);
@@ -79,6 +79,12 @@ export default function YourMoveCard({ status, next, lead, steps, className }) {
 
   const signed = steps.filter((step) => step.state === STATE.DONE).length;
 
+  // `focusOnly`: show just the step that needs the viewer (else the one that is Now) and keep the rest behind one link.
+  const [showAll, setShowAll] = useState(false);
+  const inFocus = (step) => step.needsMe || step.state === STATE.CURRENT;
+  const focused = focusOnly && !showAll ? steps.filter(inFocus) : steps;
+  const hidden = steps.length - focused.length;
+
   return (
     <section aria-labelledby={headingId} className={cn("overflow-hidden rounded-2xl border border-border bg-card", className)}>
       <div className="space-y-3 p-4">
@@ -93,11 +99,28 @@ export default function YourMoveCard({ status, next, lead, steps, className }) {
         {lead}
       </div>
       {steps.length > 0 && (
-        <ol className="border-t border-border p-1.5">
-          {steps.map((step) => (
-            <Step key={step.key} step={step} open={openKeys.has(step.key)} onToggle={() => toggle(step.key)} />
-          ))}
-        </ol>
+        <>
+          {focused.length > 0 && (
+            <ol className="border-t border-border p-1.5">
+              {focused.map((step) => (
+                <Step key={step.key} step={step} open={openKeys.has(step.key)} onToggle={() => toggle(step.key)} />
+              ))}
+            </ol>
+          )}
+          {focusOnly && (hidden > 0 || showAll) && (
+            <div className="border-t border-border px-4 py-2">
+              <Button
+                type="button"
+                variant="link"
+                aria-expanded={showAll}
+                onClick={() => setShowAll((value) => !value)}
+                className="h-auto p-0 text-xs font-medium underline underline-offset-4"
+              >
+                {showAll ? "Show only my step" : `Show all ${steps.length} steps`}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

@@ -10,7 +10,7 @@ import { CHROME } from "@/components/record/sectionChrome";
 import YourMoveCard from "@/components/record/YourMoveCard";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
 import { Button } from "@/components/ui/button";
-import { ipasSectionLabel } from "@/constants/ipas";
+import { IPAS_PART_NO, ipasSectionLabel } from "@/constants/ipas";
 import { filingMissing, nowGate } from "./gates";
 import { COSTS_WAITING } from "./moveCopy";
 import { movesFor } from "./moves";
@@ -40,7 +40,7 @@ function statusLine(digest, offered) {
 }
 
 /** A step's title: "Section 1 · Purchasing", and for the gates that share a section its role too. Never a bare section label, which names the section row below. */
-const titleOf = (gate) => `Section ${gate.key === gate.part ? gate.label : `${gate.label}, ${gate.role}`}`;
+const titleOf = (gate) => `Section ${gate.key === gate.part ? gate.label : `${IPAS_PART_NO[gate.part]} · ${gate.role}`}`;
 
 function MoveList({ items, run, busy, failure }) {
   if (items.length === 0) return null;
@@ -86,6 +86,7 @@ export default function YourMove({ ctx, digest, onReview, next }) {
   return (
     <>
       <YourMoveCard
+        focusOnly
         status={statusLine(digest, offered)}
         next={
           next && (

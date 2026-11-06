@@ -56,6 +56,16 @@ export const FORM_SECTIONS = [
 
 const SECTION_ORDER = FORM_SECTIONS.map((section) => section.key);
 
+/** The record's sections as the screen numbers them (digest SECTIONS): required fields are counted per these. */
+const SCREEN_SECTIONS = [
+  { key: "order", parts: ["header", "purchasing", "sales"] },
+  { key: "payments", parts: [] },
+  { key: "costs", parts: ["finance", "costing"] },
+  { key: "delivery", parts: ["logistics", "status"] },
+  { key: "documents", parts: [] },
+];
+const SCREEN_ORDER = SCREEN_SECTIONS.map((section) => section.key);
+
 /** The choice in a new document's picker that means "type its name". */
 export const BY_HAND = "__by_hand__";
 
@@ -263,37 +273,37 @@ export function requiredFields(form) {
   const out = [];
   const need = (section, id, label, value) =>
     out.push({ section, id, label, filled: !blank(value) });
-  need("purchasing", "f-contact", "Supplier's name", form.contact);
-  need("purchasing", "f-piNumber", "P.I #", form.piNumber);
-  need("purchasing", "f-piQtAmount", "P.I/QT Amount", form.piQtAmount);
+  need("order", "f-contact", "Supplier's name", form.contact);
+  need("order", "f-piNumber", "P.I #", form.piNumber);
+  need("order", "f-piQtAmount", "P.I/QT Amount", form.piQtAmount);
   form.payments.forEach((p, i) => {
     const n = `Payment ${i + 1}`;
-    need("purchasing", `pay-${p.key}-paidOn`, `${n} date`, p.paidOn);
-    need("purchasing", `pay-${p.key}-amount`, `${n} amount`, p.amount);
+    need("payments", `pay-${p.key}-paidOn`, `${n} date`, p.paidOn);
+    need("payments", `pay-${p.key}-amount`, `${n} amount`, p.amount);
     // "Pesos taken from the bank" is optional (#604): not a required field.
-    need("purchasing", `pay-${p.key}-methodId`, `${n} method`, p.methodId);
+    need("payments", `pay-${p.key}-methodId`, `${n} method`, p.methodId);
   });
   form.charges.forEach((c, i) => {
     const n = `Charge ${i + 1}`;
-    need("finance", `chg-${c.key}-kindId`, `${n} kind`, c.kindId);
+    need("costs", `chg-${c.key}-kindId`, `${n} kind`, c.kindId);
     // A saved charge may be blank (unknown); only a new one must be filled in.
     if (!c.id) {
-      need("finance", `chg-${c.key}-chargedOn`, `${n} date`, c.chargedOn);
-      need("finance", `chg-${c.key}-amountPhp`, `${n} amount`, c.amountPhp);
+      need("costs", `chg-${c.key}-chargedOn`, `${n} date`, c.chargedOn);
+      need("costs", `chg-${c.key}-amountPhp`, `${n} amount`, c.amountPhp);
     }
   });
   form.documents
     .filter((d) => !d.id)
     .forEach((d, i) => {
       const n = `New document ${i + 1}`;
-      need("finance", `doc-${d.key}-choice`, `${n}`, d.choice);
+      need("documents", `doc-${d.key}-choice`, `${n}`, d.choice);
       if (d.choice === BY_HAND)
-        need("finance", `doc-${d.key}-label`, `${n} name`, d.label);
+        need("documents", `doc-${d.key}-label`, `${n} name`, d.label);
     });
-  need("logistics", "f-location", "Item Location", form.location);
+  need("delivery", "f-location", "Item Location", form.location);
   return out.sort(
     (a, b) =>
-      SECTION_ORDER.indexOf(a.section) - SECTION_ORDER.indexOf(b.section),
+      SCREEN_ORDER.indexOf(a.section) - SCREEN_ORDER.indexOf(b.section),
   );
 }
 
@@ -319,31 +329,30 @@ function sectionFilled(form, key) {
 /** [{ key, title, total, left, done, filled }] for every section; `filled` is for optional ones. */
 export function sectionProgress(form) {
   const all = requiredFields(form);
-  return FORM_SECTIONS.map((section) => {
+  return SCREEN_SECTIONS.map((section) => {
     const mine = all.filter((f) => f.section === section.key);
     let left = mine.filter((f) => !f.filled).length;
     const blankCharges =
-      section.key === "finance"
+      section.key === "costs"
         ? (form.charges ?? []).filter(
-            (c) =>
-              c.amountPhp === "" ||
-              c.amountPhp === null ||
-              c.amountPhp === undefined ||
-              String(c.amountPhp).trim() === "",
+            (c) => c.amountPhp === "" || c.amountPhp === null || c.amountPhp === undefined || String(c.amountPhp).trim() === "",
           ).length
         : 0;
     const hasBlankCharges = blankCharges > 0;
-    if (hasBlankCharges && left === 0) {
-      left = blankCharges;
-    }
+    if (hasBlankCharges && left === 0) left = blankCharges;
     const complete = mine.length > 0 && left === 0 && !hasBlankCharges;
+    const filled =
+      mine.length === 0 &&
+      (section.parts.some((part) => sectionFilled(form, part)) ||
+        (section.key === "payments" && form.payments.length > 0) ||
+        (section.key === "documents" && form.documents.length > 0));
     return {
       key: section.key,
-      title: section.title,
+      title: section.key,
       total: mine.length,
       left,
       done: Math.max(0, mine.length - left),
-      filled: mine.length === 0 && sectionFilled(form, section.key),
+      filled,
       hasBlankCharges,
       complete,
     };

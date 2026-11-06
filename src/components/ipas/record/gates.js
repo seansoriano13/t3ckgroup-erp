@@ -16,6 +16,8 @@ import { formatDate } from "@/utils/formatDate.js";
 import { STATE, STATE_WORD } from "@/components/record/statePalette";
 
 const name = (signoff) => signoff?.signedBy?.name ?? "someone";
+/** What stops the IPAS while Landed Cost has no figure, and what fixes it. */
+const LANDED_NEEDED = "Landed Cost has no figure yet. Add the payment in section 1 so it can be worked out.";
 const APPROVED = IPAS_SIGNOFF_ROLE_LABELS[IPAS_SIGNOFF_ROLE.APPROVED];
 
 /** Who is on the given signer lists, as "Ana", "Ana or Ben" or "Ana, Ben or Cy"; empty when the lists are not loaded or empty. */
@@ -27,7 +29,6 @@ export function signerNames(digest, listKeys = []) {
   return `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
 }
 
-const withWho = (label, names) => (names ? `${label} (${names})` : label);
 
 /** Reads "A", "A and B" or "A, B and C". */
 const listOut = (items) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}` : (items[0] ?? ""));
@@ -46,7 +47,7 @@ export function filingMissing(digest) {
 
 /** What section 4 still waits on: only the sections not yet signed, each with who can sign it. */
 export function filingWaitsOn(digest) {
-  const missing = filingMissing(digest).map((m) => withWho(m.label, m.who));
+  const missing = filingMissing(digest).map((m) => m.label);
   if (missing.length === 0) return null;
   return `Opens once ${listOut(missing)} ${missing.length > 1 ? "are" : "is"} signed`;
 }
@@ -68,10 +69,14 @@ function missingNote(labels, part) {
  * be passed yet; `moveKeys` are the moves (moves.js) that pass it.
  */
 function gateDefs(digest) {
-  const { s1, s3, s6, s7, s8, costsComplete, computationStatus } = digest;
+  const { s1, s3, s6, s7, s8, costsComplete, computationStatus, landedUnavailable } = digest;
+  // LC Odoo Done makes Landed Cost final, so it cannot be marked while there is no figure.
+  const costsNeedLanded = Boolean(landedUnavailable) && !costsComplete && computationStatus === IPAS_COMPUTATION_STATUS.LC_GS_DONE;
   const missing = digest.docs?.missingByPart ?? {};
   const sectionsApproved = Boolean(s1.approved && s3.approved && s6.approved && s8?.approved);
   const noteAndCheck = Boolean(s7.noted && s7.checked);
+  // Said on the last gate only once the costs are final and Landed Cost still has no figure (older IPAS); before that, the costs gate says it.
+  const landedStuck = Boolean(landedUnavailable) && Boolean(costsComplete);
 
   const section = (part, state, moveKeys, { key = part, prereqMet = true, early = null, list } = {}) => ({
     key,
@@ -103,7 +108,9 @@ function gateDefs(digest) {
         computationStatus === IPAS_COMPUTATION_STATUS.ENCODED ||
         computationStatus === IPAS_COMPUTATION_STATUS.LC_GS_DONE,
       waitsOn: "Purchasing",
-      line: `Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[computationStatus] ?? "not set"}`,
+      line: costsNeedLanded
+        ? LANDED_NEEDED
+        : `Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[computationStatus] ?? "not set"}`,
       at: null,
       moveKeys: ["costs"],
     },
@@ -155,12 +162,14 @@ function gateDefs(digest) {
       part: "filing",
       role: APPROVED,
       done: Boolean(s7.approved),
-      prereqMet: noteAndCheck && Boolean(costsComplete) && sectionsApproved,
-      waitsOn: "the filing approvers",
+      prereqMet: noteAndCheck && Boolean(costsComplete) && sectionsApproved && !landedUnavailable,
+      waitsOn: landedStuck ? "a payment, so Landed Cost can be worked out" : "the filing approvers",
       signers: signerNames(digest, [IPAS_SIGNER_LIST.S7_APPROVED]),
       line: s7.approved
         ? `Approved by ${name(s7.approved)}`
-        : `Files the IPAS, after Noted, Checked, LC Odoo Done and ${ipasSectionLabel("costing")} approved`,
+        : landedStuck
+          ? LANDED_NEEDED
+          : `Files the IPAS, after Noted, Checked, LC Odoo Done and ${ipasSectionLabel("costing")} approved`,
       at: s7.approved?.signedAt ?? null,
       moveKeys: ["file"],
     },

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -8,18 +8,18 @@ import RecordSections from "@/components/record/RecordSections";
 import { CHROME, MOVE_ORIGIN, RecordSectionChrome } from "@/components/record/sectionChrome";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
 import { SECTIONS, sectionState } from "./digest";
+import EditSectionBody, { EDITABLE_SECTIONS } from "./EditSectionBody";
 import { actionSectionFor, canEditSection, footerMovesFor } from "./moves";
 import { scrollToSection } from "./useSectionsOpen";
 
 /** These edit right there, in place. Every other section reads here and edits in the edit view. */
-const LIVE = new Set(["logistics", "status", "history"]);
+const LIVE = new Set(["delivery", "documents", "history"]);
 
-const SECONDARY = new Set(SECTIONS.filter((section) => section.secondary).map((section) => section.key));
+/** No foot (Edit section, Return) on these: History only reads. */
+const SECONDARY = new Set(["history"]);
 
-const GROUPS = [
-  { title: "Money and sign-offs", sections: SECTIONS.filter((section) => !section.secondary) },
-  { title: "Everything else", sections: SECTIONS.filter((section) => section.secondary) },
-];
+// One list, numbered 1 to 6 in the order the work happens, then History.
+const GROUPS = [{ sections: SECTIONS }];
 
 /**
  * The IPAS's sections, every one a collapsible block that opens in place
@@ -29,11 +29,15 @@ const GROUPS = [
  * (never Submit, which is in Your move) and an Edit section button that opens
  * the edit view.
  *
+ * While the page is being edited (`edit`: the form from useIpasEditForm, plus what the
+ * typed bodies need), the sections that take typing show their fields in place of their
+ * read lines, and a section that still has required fields says how many are left.
+ *
  * `open` is the page's useSectionsOpen. On arrival the section the link names
  * (`?open=`) opens and is scrolled to; with no link, the section that needs
  * the viewer opens.
  */
-export default function SectionsPanel({ ctx, blocks, digest, open, headRef, onEdit }) {
+export default function SectionsPanel({ ctx, blocks, digest, open, headRef, onEdit, edit = null }) {
   const { busy, failure, viewer } = ctx;
   const { param, openKeys, toggle, reveal, openAll, closeAll, autoOpen } = open;
   const actionKey = actionSectionFor(ctx, digest);
@@ -57,15 +61,52 @@ export default function SectionsPanel({ ctx, blocks, digest, open, headRef, onEd
     origin: MOVE_ORIGIN.SECTION,
   });
 
-  const bodyOf = (key) => (
-    <RecordSectionChrome.Provider value={LIVE.has(key) ? CHROME.INLINE : CHROME.DRAWER}>
-      {blocks[key]}
-    </RecordSectionChrome.Provider>
-  );
+  // Entering edit mode opens what still needs typing, and the section it was entered from.
+  const editing = Boolean(edit);
+  const entry = edit?.focusKey ?? null;
+  const pending = useRef(null);
+  useEffect(() => {
+    pending.current = edit?.progress ?? null;
+  });
+  useEffect(() => {
+    if (!editing) return;
+    for (const p of pending.current ?? []) if (p.left > 0) reveal(p.key);
+    if (entry) {
+      reveal(entry);
+      scrollToSection(entry);
+    }
+  }, [editing, entry, reveal]);
+
+  const bodyOf = (key) => {
+    if (edit && EDITABLE_SECTIONS.has(key)) {
+      return (
+        <EditSectionBody
+          sectionKey={key}
+          ipas={edit.ipas}
+          form={edit.form}
+          set={edit.set}
+          blocks={blocks}
+          disabled={!edit.can.change}
+          onEditPurpose={edit.onEditPurpose}
+          money={{ rows: edit.rows, fresh: edit.fresh, can: edit.can, ...edit.money }}
+        />
+      );
+    }
+    return (
+      <RecordSectionChrome.Provider value={LIVE.has(key) ? CHROME.INLINE : CHROME.DRAWER}>
+        {blocks[key]}
+      </RecordSectionChrome.Provider>
+    );
+  };
+
+  const summaryOf = (key) => {
+    const left = edit?.progress.find((p) => p.key === key)?.left ?? 0;
+    return left > 0 ? `${left} required ${left === 1 ? "field" : "fields"} to fill` : digest.lines[key];
+  };
 
   // The foot is for the money and sign-off sections. Header and Sales edit through the page's Edit button.
   const footerOf = (key) => {
-    if (SECONDARY.has(key)) return null;
+    if (SECONDARY.has(key) || editing) return null;
     // Submit lives only in Your move; a section's foot keeps the rest and its Edit section button.
     const moves = footerMovesFor(ctx, digest, key).filter((item) => item.kind !== "prepare");
     const editable = canEditSection(key, ctx);
@@ -114,7 +155,7 @@ export default function SectionsPanel({ ctx, blocks, digest, open, headRef, onEd
         onOpenAll={openAll}
         onCloseAll={closeAll}
         stateOf={(key) => sectionState(key, digest)}
-        summaryOf={(key) => digest.lines[key]}
+        summaryOf={summaryOf}
         bodyOf={bodyOf}
         footerOf={footerOf}
         headRef={headRef}

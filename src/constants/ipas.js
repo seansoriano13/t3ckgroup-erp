@@ -493,24 +493,29 @@ export const IPAS_SIGNOFF_STAGE = {
  * the RPCs).
  */
 export const IPAS_PART_NO = {
+  // The record reads top to bottom in the order the work happens (2026-11-06):
+  // 1 Order, 2 Payments, 3 Costs, 4 Delivery, 5 Documents, 6 Sign-offs.
+  // The stored sign-off sections (1, 3, 6, 7, 8) are unchanged; only what a person reads moves.
   purchasing: 1,
+  sales: 1,
   finance: 2,
   costing: 3,
-  filing: 4,
-  sales: 5,
-  logistics: 6,
-  status: 7,
+  logistics: 4,
+  status: 4,
+  documents: 5,
+  filing: 6,
 };
 
 /** The name each part is shown by. */
 export const IPAS_PART_NAMES = {
-  purchasing: "Purchasing",
-  finance: "Purchasing & Finance",
-  costing: "Computation status & Landed Cost",
-  filing: "Filing",
-  sales: "Sales & Operation",
-  logistics: "Logistics",
-  status: "Status",
+  purchasing: "Order",
+  sales: "Order",
+  finance: "Payments",
+  costing: "Costs",
+  logistics: "Delivery",
+  status: "Delivery",
+  documents: "Documents",
+  filing: "Sign-offs",
 };
 
 /** The part a stored sign-off section (1, 3, 6 or 7) is. */
@@ -579,14 +584,15 @@ export const IPAS_SECTION_7_LIST = {
 };
 
 export const IPAS_SIGNER_LIST_LABELS = {
-  [IPAS_SIGNER_LIST.S1_APPROVED]: `Section ${ipasSectionNo(1)} · Approved`,
-  [IPAS_SIGNER_LIST.S3_APPROVED]: `Section ${ipasSectionNo(3)} · Approved`,
-  [IPAS_SIGNER_LIST.S6_APPROVED]: `Section ${ipasSectionNo(6)} · Approved`,
-  [IPAS_SIGNER_LIST.S7_RECEIVED]: `Section ${ipasSectionNo(7)} · Received`,
-  [IPAS_SIGNER_LIST.S7_NOTED]: `Section ${ipasSectionNo(7)} · Noted`,
-  [IPAS_SIGNER_LIST.S7_CHECKED]: `Section ${ipasSectionNo(7)} · Checked`,
-  [IPAS_SIGNER_LIST.S7_APPROVED]: `Section ${ipasSectionNo(7)} · Approved (files the IPAS)`,
-  [IPAS_SIGNER_LIST.LOGISTICS_SIGNED]: `Section ${ipasSectionNo(8)} · Logistics signed`,
+  // Named after the rail's sign-offs (2026-11-06): one Approve covers 1 Order, 2 Payments and 3 Costs, each from its own list.
+  [IPAS_SIGNER_LIST.S1_APPROVED]: "Approve · 1 Order",
+  [IPAS_SIGNER_LIST.S3_APPROVED]: "Approve · 2 Payments",
+  [IPAS_SIGNER_LIST.S6_APPROVED]: "Approve · 3 Costs",
+  [IPAS_SIGNER_LIST.S7_RECEIVED]: "Check (as Received)",
+  [IPAS_SIGNER_LIST.S7_NOTED]: "Check (as Noted)",
+  [IPAS_SIGNER_LIST.S7_CHECKED]: "Check (as Checked)",
+  [IPAS_SIGNER_LIST.S7_APPROVED]: "Approve and file",
+  [IPAS_SIGNER_LIST.LOGISTICS_SIGNED]: "Sign Logistics · 4 Delivery",
 };
 
 /** The list that approves a section: the Approved of stored sections 1, 3 and 6. */

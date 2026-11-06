@@ -193,7 +193,7 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(drawer).queryByRole("button", { name: "Edit section" })).not.toBeInTheDocument();
     });
 
-    it("Edit section opens the edit view with the tables editable, and Back to preview returns to that section, open", async () => {
+    it("Edit section opens the edit view with the tables editable, and Done returns to that section, open", async () => {
       const row = ipas();
       renderRouted(row.id);
       const user = setupUser();
@@ -206,9 +206,9 @@ describe("IPAS signing with the evidence in view", () => {
 
       expect(await screen.findByRole("button", { name: "Add payment" })).toBeInTheDocument();
       expect(queryOtherDialog()).not.toBeInTheDocument();
-      expect(screen.queryByRole("region", { name: "Your move" })).not.toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Your move" })).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Back to preview" }));
+      await user.click(screen.getByRole("button", { name: "Done" }));
       // The section it was edited from comes back open, with its read-only body.
       expect(await screen.findByRole("button", { name: /^1 · Purchasing/ })).toHaveAttribute("aria-expanded", "true");
       expect(screen.queryByRole("button", { name: "Add payment" })).not.toBeInTheDocument();
@@ -223,7 +223,7 @@ describe("IPAS signing with the evidence in view", () => {
       await waitFor(() => expect(header).toHaveAttribute("aria-expanded", "true"));
       const drawer = await screen.findByRole("region", { name: "1 · Purchasing" });
       await user.click(within(drawer).getByRole("button", { name: "Edit section" }));
-      await screen.findByRole("button", { name: "Back to preview" });
+      await screen.findByRole("button", { name: "Done" });
       expect(router.state.location.search).toBe("?edit=purchasing");
 
       await act(() => router.navigate(-1));
@@ -259,7 +259,7 @@ describe("IPAS signing with the evidence in view", () => {
       await screen.findByRole("button", { name: /^2 · Purchasing & Finance/ });
 
       await act(() => router.navigate(`/purchasing/ipas/${row.id}?edit=finance`));
-      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Done" })).toBeInTheDocument();
       await act(() => router.navigate(-1));
 
       await waitFor(() => expect(router.state.location.search).toBe(""));

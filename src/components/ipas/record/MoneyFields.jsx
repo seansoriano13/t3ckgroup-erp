@@ -449,7 +449,7 @@ function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove
         />
       }
     >
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <PickField id={id("kindId")} label="Kind" required placeholder="Pick a kind" options={kinds} value={row.kindId} disabled={disabled} onChange={(v) => onPatch({ kindId: v })} />
         <Field id={id("chargedOn")} label="Date" kind="date" required={!saved} value={row.chargedOn} disabled={disabled} onChange={(v) => onPatch({ chargedOn: v })} />
         <Field
@@ -463,10 +463,7 @@ function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove
           error={row.amountPhp !== "" && !amount.ok ? "Not a number" : undefined}
           onChange={(v) => onPatch({ amountPhp: v })}
         />
-      </div>
-      <div className="mt-3">
         <AttachFile label="File" url={row.attachmentUrl} disabled={disabled} onChange={(v) => onPatch({ attachmentUrl: v })} />
-        {saved && row.amountPhp === "" && <p className="mt-1 text-xs text-amber-11">Fill the amount or remove this charge. Sections 2 and 3 wait for it.</p>}
       </div>
     </DraftRow>
   );
@@ -475,12 +472,19 @@ function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove
 /** Section 3's importation charges, in pesos. */
 export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved }) {
   const savedById = new Map((ipas.charges ?? []).map((charge) => [charge.id, charge]));
+  // One note for the lot, not one under every row: saved charges whose amount is still blank.
+  const noAmount = form.charges.filter((row) => row.id && row.amountPhp === "").length;
   return (
     <Titled title="Importation charges" action={canRecord && <AddButton onClick={() => rows.add("charges", newChargeDraft())}>Add charge</AddButton>}>
       {form.charges.length === 0 ? (
         <EmptyNote>No charges recorded yet. A charge covering several Odoo POs is recorded as this IPAS&apos;s own share.</EmptyNote>
       ) : (
         <>
+          {noAmount > 0 && (
+            <p role="status" className="pl-1 text-xs text-amber-11">
+              {noAmount === 1 ? "1 charge has" : `${noAmount} charges have`} no amount. Fill {noAmount === 1 ? "it" : "them"} in or remove {noAmount === 1 ? "it" : "them"}, so Landed Cost can be worked out.
+            </p>
+          )}
           {form.charges.map((row, index) => (
             <ChargeRow
               key={row.key}
@@ -646,32 +650,52 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
         {form.documents.length === 0 ? (
           <EmptyNote>No documents on this IPAS yet.{canChange ? " Add the ones this purchase asks for." : ""}</EmptyNote>
         ) : (
-          form.documents.map((row) => {
-            const document = savedById.get(row.id);
-            return document ? (
+          (() => {
+            // Tiles, not one long row each: the required ones first, then the rest; a new row being typed stays full width.
+            const saved = form.documents.filter((row) => savedById.has(row.id));
+            const drafts = form.documents.filter((row) => !savedById.has(row.id));
+            const tile = (row) => (
               <SavedDocumentRow
                 key={row.key}
-                document={document}
+                document={savedById.get(row.id)}
                 row={row}
-                required={isRequired(document)}
+                required={isRequired(savedById.get(row.id))}
                 canChange={canChange}
                 canTickFinance={canTickFinance}
                 onPatch={(patch) => rows.patch("documents", row.key, patch)}
-                onRemove={() => onRemoveSaved(document)}
-              />
-            ) : (
-              <NewDocumentRow
-                key={row.key}
-                ipas={ipas}
-                form={form}
-                row={row}
-                index={form.documents.filter((d) => !d.id).indexOf(row)}
-                fresh={fresh === row.key}
-                onPatch={(patch) => rows.patch("documents", row.key, patch)}
-                onRemove={() => rows.drop("documents", row.key)}
+                onRemove={() => onRemoveSaved(savedById.get(row.id))}
               />
             );
-          })
+            const needed = saved.filter((row) => isRequired(savedById.get(row.id)));
+            const other = saved.filter((row) => !isRequired(savedById.get(row.id)));
+            const group = (title, list) =>
+              list.length > 0 && (
+                <div className="space-y-2">
+                  <p className="pl-1 text-xs font-semibold text-muted-foreground">
+                    {title} · {list.filter((row) => row.attachmentUrl || savedById.get(row.id)?.attachmentUrl).length} of {list.length} attached
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">{list.map(tile)}</div>
+                </div>
+              );
+            return (
+              <>
+                {group("Needed before signing", needed)}
+                {group("Other documents", other)}
+                {drafts.map((row) => (
+                  <NewDocumentRow
+                    key={row.key}
+                    ipas={ipas}
+                    form={form}
+                    row={row}
+                    index={drafts.indexOf(row)}
+                    fresh={fresh === row.key}
+                    onPatch={(patch) => rows.patch("documents", row.key, patch)}
+                    onRemove={() => rows.drop("documents", row.key)}
+                  />
+                ))}
+              </>
+            );
+          })()
         )}
         {SHOW_HAS_TICKS && (
           <p className="text-xs text-muted-foreground">Each department ticks its own box. A filing item ticked here is already ticked at Filing.</p>

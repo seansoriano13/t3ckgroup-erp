@@ -1,6 +1,9 @@
 import { ArrowUpRight, Briefcase } from "lucide-react";
 
+import { Link } from "react-router";
+
 import { Button } from "@/components/ui/button";
+import { sorHref } from "@/utils/sorLink";
 import { requestKind, REQUEST_KIND } from "@/constants/purchaseRequest";
 
 /**
@@ -15,20 +18,14 @@ export default function OpenSorButton({ request, onBeforeOpen }) {
   if (!request || requestKind(request) !== REQUEST_KIND.PROJECT) return null;
   const ref = request.sales_reference;
 
-  const open = () => {
-    onBeforeOpen?.();
-    window.dispatchEvent(
-      new CustomEvent("OPEN_ENTITY_DETAILS", {
-        detail: { id: request.opportunity_id, type: "OPPORTUNITY_QUICK_VIEW" },
-      }),
-    );
-  };
-
+  // A real link to the SOR's page: following it leaves this window, so the SOR never opens underneath it.
   return (
-    <Button type="button" variant="outline" size="sm" onClick={open} title={ref ? `Open SOR ${ref}` : "Open SOR"} className="gap-1.5">
-      <Briefcase size={14} />
-      Open SOR
-      <ArrowUpRight size={14} />
+    <Button asChild variant="outline" size="sm" className="gap-1.5">
+      <Link to={sorHref(request.opportunity_id)} onClick={() => onBeforeOpen?.()} title={ref ? `Open SOR ${ref}` : "Open SOR"}>
+        <Briefcase size={14} />
+        Open SOR
+        <ArrowUpRight size={14} />
+      </Link>
     </Button>
   );
 }

@@ -85,6 +85,11 @@ function stubWide(wide) {
 const movesIn = (region) => within(region).queryAllByRole("button").filter((button) => !button.hasAttribute("aria-expanded"));
 
 /** One step of the card, by the start of its title. */
+/** The rail shows only the step that needs the viewer; this opens the rest. */
+const showAll = async (user, region) => {
+  const link = within(region).queryByRole("button", { name: /^Show all \d+ steps/ });
+  if (link) await user.click(link);
+};
 const stepOf = (region, title) => within(region).getByRole("button", { name: new RegExp(`^${title}`) });
 
 describe("IPAS decider: Your move and the filed state", () => {
@@ -116,9 +121,11 @@ describe("IPAS decider: Your move and the filed state", () => {
 
   it("names the card region and offers the purchaser the moves allowed to them, each in its step with its hint", async () => {
     const row = ipas();
+    const user = setupUser();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
+    await showAll(user, region);
     expect(within(region).getByRole("heading", { name: "Your move" })).toBeInTheDocument();
 
     // Every step that needs the viewer opens on arrival and holds its own move.
@@ -132,7 +139,7 @@ describe("IPAS decider: Your move and the filed state", () => {
     expect(within(region).queryByText(/Also waiting for you/)).not.toBeInTheDocument();
 
     expect(
-      within(region).getByText("Submits section 1 · Purchasing for approval. Nothing locks. Next: the approvers of 1 · Purchasing, told now."),
+      within(region).getByText("Sends section 1 · Purchasing to its approvers, who are told now."),
     ).toBeInTheDocument();
     expect(within(region).getByText("Waiting for you: 1 · Purchasing")).toBeInTheDocument();
   });
@@ -152,12 +159,14 @@ describe("IPAS decider: Your move and the filed state", () => {
     const row = ipas({ computation_status: "lc_gs_done" });
     signoff(row.id, 1, "prepared", purchaser);
     signoff(row.id, 1, "approved", approver);
+    const user = setupUser();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
+    await showAll(user, region);
     const costs = within(region).getByRole("button", { name: "Mark LC Odoo Done" });
     const step = costs.closest("ol > li");
-    expect(within(step).getByRole("button", { name: /^Section 3 · Computation status & Landed Cost, LC Odoo Done/ })).toBeInTheDocument();
+    expect(within(step).getByRole("button", { name: /^Section 3 · LC Odoo Done/ })).toBeInTheDocument();
     expect(step).not.toBe(within(region).getByRole("button", { name: "Submit section 2" }).closest("ol > li"));
     expect(within(region).getByText(/Makes Landed Cost final/)).toBeInTheDocument();
   });
@@ -172,15 +181,17 @@ describe("IPAS decider: Your move and the filed state", () => {
     signoff(row.id, 6, "approved", approver);
     // Filing also waits for the Logistics sign-off (stored 8, #713).
     signoff(row.id, 8, "approved", approver);
+    const user = setupUser();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
+    await showAll(user, region);
     expect(stepOf(region, "Section 1 · Purchasing")).toHaveTextContent("Done");
     expect(stepOf(region, "Section 2 · Purchasing & Finance")).toHaveTextContent("Done");
-    expect(stepOf(region, "Section 3 · Computation status & Landed Cost, LC Odoo Done")).toHaveTextContent("Waiting");
-    expect(stepOf(region, "Section 4 · Filing, Received")).toHaveTextContent("Now");
-    expect(stepOf(region, "Section 4 · Filing, Noted and Checked")).toHaveTextContent("Waiting");
-    expect(stepOf(region, "Section 4 · Filing, Approved")).toHaveTextContent("Waiting");
+    expect(stepOf(region, "Section 3 · LC Odoo Done")).toHaveTextContent("Waiting");
+    expect(stepOf(region, "Section 4 · Received")).toHaveTextContent("Now");
+    expect(stepOf(region, "Section 4 · Noted and Checked")).toHaveTextContent("Waiting");
+    expect(stepOf(region, "Section 4 · Approved")).toHaveTextContent("Waiting");
     expect(within(region).getAllByText("Now")).toHaveLength(1);
     expect(within(region).getByText(/^\d+ of 7 signed$/)).toBeInTheDocument();
   });
@@ -189,11 +200,13 @@ describe("IPAS decider: Your move and the filed state", () => {
     const row = ipas({ computation_status: "encoding" });
     signoff(row.id, 1, "prepared", purchaser);
     signoff(row.id, 1, "approved", approver, { signed_at: "2026-09-05T06:40:00.000Z" });
+    const user = setupUser();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
+    await showAll(user, region);
     expect(within(stepOf(region, "Section 1 · Purchasing")).getByText(/^Approved by Boss Lito · Sep 5, 2026/)).toBeInTheDocument();
-    expect(within(stepOf(region, "Section 4 · Filing, Noted and Checked")).getByText("Noted and Checked, in either order, after Received")).toBeInTheDocument();
+    expect(within(stepOf(region, "Section 4 · Noted and Checked")).getByText("Noted and Checked, in either order, after Received")).toBeInTheDocument();
   });
 
   it("says nothing needs the purchaser while the Now gate waits on Finance, and names the section", async () => {
@@ -235,7 +248,7 @@ describe("IPAS decider: Your move and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText("Next: 1 · Purchasing, waiting on Purchasing")).toBeInTheDocument();
+    expect(within(region).getByText(/^Next: 1 · Purchasing, waiting on Purchasing/)).toBeInTheDocument();
     expect(movesIn(region)).toHaveLength(0);
   });
 
@@ -246,7 +259,7 @@ describe("IPAS decider: Your move and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText("Next: 1 · Purchasing, waiting on the approvers")).toBeInTheDocument();
+    expect(within(region).getByText(/^Next: 1 · Purchasing, waiting on the approvers/)).toBeInTheDocument();
     expect(within(region).queryByText(/^Waiting for you/)).not.toBeInTheDocument();
   });
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Plus, Save, Send } from "lucide-react";
@@ -109,6 +110,9 @@ const sameLine = (line, pick) => line.ipasId === pick.ipasId && line.odooPoLineI
  */
 export default function TransmittalForm({ existing = null, defaultOrigin = "", onSaved, onCancel, actionsSlot }) {
   const queryClient = useQueryClient();
+  // ?ipas=TGIPAS_… from an IPAS's "Raise a Transmittal": its number waits in "Fill from an IPAS".
+  const [searchParams] = useSearchParams();
+  const fromIpas = existing ? "" : (searchParams.get("ipas") ?? "");
   const [header, setHeader] = useState(() => headerFrom(existing, defaultOrigin));
   const [productIds, setProductIds] = useState(() => existing?.products.map((p) => p.id) ?? []);
   const [referenceIds, setReferenceIds] = useState(() => existing?.references.map((r) => r.id) ?? []);
@@ -175,7 +179,14 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
       queryClient.invalidateQueries({ queryKey: transmittalKeys.all });
       onSaved?.(saved.id);
     } catch (error) {
-      toast.error(ipasErrorMessage(error, "The Transmittal could not be saved."));
+      const message = ipasErrorMessage(error, "The Transmittal could not be saved.");
+      // A line whose P0 line is no longer on the stored Odoo copy: say which, and what to do.
+      const stale = message.match(/^Line (\d+) isn't on (\S+) Odoo copy/i);
+      toast.error(
+        stale
+          ? `Line ${stale[1]} is no longer on ${stale[2]} in Odoo. Remove it from the slip, or open the IPAS to refresh it from Odoo, then fill the lines again.`
+          : message,
+      );
     } finally {
       setBusy(false);
     }
@@ -208,7 +219,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
     <div className="grid gap-8 pb-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <aside className="min-w-0">
         <SectionTitle title="Live P0 lines" note="Click a line to put it on the slip. Click it again to take it off." />
-        <FillFromIpas onFill={addPicks} />
+        <FillFromIpas onFill={addPicks} initialNumber={fromIpas} />
         <PoLineBrowser lines={lines} onToggle={togglePick} onAddAll={addPicks} onAddTyped={addTyped} />
       </aside>
 

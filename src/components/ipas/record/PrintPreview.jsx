@@ -29,7 +29,7 @@ function deskStyle() {
 }</style>`;
 }
 
-function PreviewFrame({ ctx, filingCopy, frame }) {
+export function PreviewFrame({ ctx, filingCopy, frame }) {
   const { ipas, refresh, printedBy } = ctx;
   const [html, setHtml] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -108,7 +108,7 @@ export function PrintPreviewButton({ ctx }) {
         }
       >
         <p className="border-b border-border px-5 py-2 text-xs text-muted-foreground">
-          <span className="font-mono">{ipas.number}</span> exactly as it prints: two A4 pages.
+          <span className="font-mono">{ipas.number}</span> exactly as it prints.
         </p>
         <div className="min-h-0 flex-1 bg-mauve-4">
           {open && <PreviewFrame key={String(filingCopy)} ctx={ctx} filingCopy={filingCopy} frame={frame} />}

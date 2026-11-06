@@ -567,7 +567,9 @@ export default function OpportunitiesPage() {
   // no-access view instead.
   useEffect(() => {
     if (!directOpportunityRefused || !selectedId) return;
-    window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: selectedId, type: "OPPORTUNITY" } }));
+    window.dispatchEvent(
+      new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: selectedId, type: "OPPORTUNITY", view: searchParams.get("view") || undefined } }),
+    );
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedId(null);
   }, [directOpportunityRefused, selectedId]);
@@ -1262,6 +1264,8 @@ export default function OpportunitiesPage() {
         isOpen={!!selected}
         onClose={() => setSelectedId(null)}
         opportunity={selected}
+        // `?view=pms` (from an IPAS or another record's SOR link) opens the SOR on that tab.
+        initialView={searchParams.get("view") || undefined}
         onEdit={(o) => {
           setSelectedId(null);
           setEditing(o);

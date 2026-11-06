@@ -15,14 +15,11 @@ import {
   IpasSalesSection,
   IpasStatusSection,
 } from "@/components/ipas/IpasSections";
-import { IpasSignoffs } from "@/components/ipas/IpasSignoffs";
+
+import SignoffList from "./SignoffList";
 
 export function buildBlocks(ctx) {
   const { ipas, can, on, rights } = ctx;
-
-  const signoffs = (section) => (
-    <IpasSignoffs section={section} state={ipas.signoffSections[section]} rights={rights[section]} />
-  );
 
   const payments = (
     <IpasPaymentsBlock
@@ -51,79 +48,81 @@ export function buildBlocks(ctx) {
     />
   );
 
+  const purchasing = (
+    <IpasPurchasingSection ipas={ipas} refreshing={ctx.refreshing} canChange={can.change} onEditHeader={on.editHeader} />
+  );
+  const costing = (
+    <IpasCostingSection
+      ipas={ipas}
+      canChange={can.change}
+      onSetSplit={on.setSplit}
+      canSetMarkup={can.markup}
+      onSetMarkup={on.setMarkup}
+    />
+  );
+  const charges = (
+    <IpasChargesSection ipas={ipas} canRecord={can.record} onAddCharge={on.addCharge} onEditCharge={on.editCharge} onRemoveCharge={on.removeCharge} />
+  );
+  const sales = (
+    <IpasSalesSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} />
+  );
+  const logistics = (
+    <IpasLogisticsSection
+      ipas={ipas}
+      canChange={can.pickLocation ?? can.change}
+      onPick={on.pickLocation}
+      signRights={rights[8]}
+      busy={ctx.busy?.signoff}
+      onSign={() => on.approve(8, "logistics")}
+    />
+  );
+  const status = (
+    <IpasStatusSection
+      ipas={ipas}
+      canChange={can.change}
+      onEditOrigin={on.editOrigin}
+      onEditStatus={on.editStatus}
+      onStamp={on.stamp}
+      onClearStamp={on.clearStamp}
+    />
+  );
+
   return {
-    // Parts the long edit form places itself (#581): the sign-offs of sections 1, 2 and 3 (stored 1, 3 and 6).
-    // The money is typed there.
-    signoffs1: signoffs(1),
-    signoffs3: signoffs(3),
-    signoffs6: signoffs(6),
-    header: (
-      <IpasHeaderSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} onEditHeader={on.editHeader} />
+    // Kept for the edit view's typed bodies, which embed the read parts they don't type.
+    filing: <IpasFilingSection ipas={ipas} rights={rights[7]} canSendBack={rights.sendBack7} />,
+    // 1 · Order: what we bought, from whom, for which SOR.
+    order: (
+      <div className="space-y-6">
+        {purchasing}
+        {sales}
+        <IpasHeaderSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} onEditHeader={on.editHeader} />
+      </div>
     ),
-    purchasing: (
-      <IpasPurchasingSection ipas={ipas} refreshing={ctx.refreshing} canChange={can.change} onEditHeader={on.editHeader}>
+    // 2 · Payments: what was paid, and to which account.
+    payments: (
+      <div className="space-y-6">
         {payments}
-        {signoffs(1)}
-      </IpasPurchasingSection>
-    ),
-    finance: (
-      <IpasChargesSection
-        ipas={ipas}
-        canRecord={can.record}
-        onAddCharge={on.addCharge}
-        onEditCharge={on.editCharge}
-        onRemoveCharge={on.removeCharge}
-      >
-        {documents}
         <IpasBankDetails ipas={ipas} canChange={can.change} onEdit={on.editBank} />
-        {signoffs(3)}
-      </IpasChargesSection>
+      </div>
     ),
-    costing: (
-      <IpasCostingSection
-        ipas={ipas}
-        canChange={can.change}
-        canSetStatus={can.setStatus}
-        onSetStatus={on.setComputationStatus}
-        onSetSplit={on.setSplit}
-        canSetMarkup={can.markup}
-        onSetMarkup={on.setMarkup}
-      >
-        {signoffs(6)}
-      </IpasCostingSection>
+    // 3 · Costs: the charges on top of the price, and the Landed Cost they make.
+    costs: (
+      <div className="space-y-6">
+        {charges}
+        {costing}
+      </div>
     ),
-    filing: (
-      <IpasFilingSection ipas={ipas} rights={rights[7]} canSendBack={rights.sendBack7} />
+    // 4 · Delivery: where the goods are, and the Logistics sign-off.
+    delivery: (
+      <div className="space-y-6">
+        {logistics}
+        {status}
+      </div>
     ),
-    sales: (
-      <IpasSalesSection
-        ipas={ipas}
-        canChange={can.change}
-        onEditOverride={on.editOverride}
-        onResetOverride={on.resetOverride}
-        onTick={on.tickSheet}
-      />
-    ),
-    logistics: (
-      <IpasLogisticsSection
-        ipas={ipas}
-        canChange={can.pickLocation ?? can.change}
-        onPick={on.pickLocation}
-        signRights={rights[8]}
-        busy={ctx.busy?.signoff}
-        onSign={() => on.approve(8, "logistics")}
-      />
-    ),
-    status: (
-      <IpasStatusSection
-        ipas={ipas}
-        canChange={can.change}
-        onEditOrigin={on.editOrigin}
-        onEditStatus={on.editStatus}
-        onStamp={on.stamp}
-        onClearStamp={on.clearStamp}
-      />
-    ),
+    // 5 · Documents: every file, in one list.
+    documents,
+    // 6 · Sign-offs: who signed the final IPAS.
+    signoffs: <SignoffList steps={ctx.journey?.sign ?? []} />,
     history: <IpasHistorySection events={ipas.events} />,
   };
 }

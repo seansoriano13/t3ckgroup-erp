@@ -28,7 +28,7 @@ export default function HeaderActions({ ctx }) {
   if (can.change) {
     // A Project's SORs are fixed when it is raised, so its Purpose has nowhere to go (#551).
     if (!ipas.sors?.length) items.push({ key: "purpose", label: "Purpose", icon: Pencil, onSelect: on.editPurpose });
-    items.push({ key: "cancel", label: "Cancel IPAS", icon: Ban, destructive: true, onSelect: on.cancel });
+    items.push({ key: "cancel", label: "Cancel IPAS (wrong PO)", icon: Ban, destructive: true, onSelect: on.cancel });
   }
   return (
     <>

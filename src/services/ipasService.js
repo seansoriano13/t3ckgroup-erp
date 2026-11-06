@@ -1168,6 +1168,85 @@ export const ipasService = {
   },
 
   /**
+   * Gives several sign-offs of sections 1, 2 and 3 (stored 1, 3 and 6) in one go:
+   * "Send for signing" prepares them all, "Approve" approves every one the
+   * person may. `steps` is [{ section, role }]. Each is still its own database
+   * sign-off (the database checks each), but the people to tell are told once.
+   * Stops at the first refusal; the ones given before it stay.
+   * Returns { given, notified }.
+   */
+  async signMany(id, steps, { declineSignature = false } = {}) {
+    const recipients = new Map();
+    let last = null;
+    let given = 0;
+    for (const { section, role } of steps) {
+      requireSignoffSection(section);
+      const { data, error } = await supabase.rpc("ipas_sign", {
+        p_ipas_id: id,
+        p_section: section,
+        p_role: role,
+        p_decline_signature: Boolean(declineSignature),
+      });
+      if (error) throw error;
+      given += 1;
+      for (const recipient of data?.notify_ids ?? []) recipients.set(recipient, data);
+      if ((data?.notify_ids ?? []).length > 0) last = { data, section, role };
+    }
+    if (last) {
+      const label = await readIpasLabel(id, last.data?.ipas);
+      const note = stageNotification(last.data?.stage ?? IPAS_SIGNOFF_STAGE.SECTION_PREPARED, {
+        label,
+        section: last.section,
+        role: last.role,
+      });
+      await Promise.all(
+        [...recipients.keys()].map((recipient_id) =>
+          notificationService.createNotification({
+            recipient_id,
+            sender_id: last.data?.signoff?.signed_by ?? null,
+            type: note.type,
+            title: note.title,
+            message: note.message,
+            reference_id: id,
+          }),
+        ),
+      );
+    }
+    return { given, notified: recipients.size };
+  },
+
+  /**
+   * Filing's one "Check" (Received, Noted and Checked together), by anyone on
+   * one of those three lists, once sections 1, 2, 3 and Logistics are signed.
+   * Tells the Approved list. Returns { notified }.
+   */
+  async signCheck(id, { declineSignature = false } = {}) {
+    const { data, error } = await supabase.rpc("ipas_sign_check", {
+      p_ipas_id: id,
+      p_decline_signature: Boolean(declineSignature),
+    });
+    if (error) throw error;
+    const recipients = data?.notify_ids ?? [];
+    if (recipients.length > 0) {
+      const label = await readIpasLabel(id, data?.ipas);
+      const note = stageNotification(IPAS_SIGNOFF_STAGE.APPROVE_READY, { label, section: 7, role: "checked" });
+      await Promise.all(
+        recipients.map((recipient_id) =>
+          notificationService.createNotification({
+            recipient_id,
+            sender_id: data?.signoff?.signed_by ?? null,
+            type: note.type,
+            title: note.title,
+            message: note.message,
+            reference_id: id,
+          }),
+        ),
+      );
+    }
+    return { notified: recipients.length };
+  },
+
+  /**
    * The required documents nobody has ticked on an IPAS: the document kinds that
    * match its Source (Import, Local or Both; documentation, filing or both) whose
    * row neither Purchasing nor Finance has ticked. Each is

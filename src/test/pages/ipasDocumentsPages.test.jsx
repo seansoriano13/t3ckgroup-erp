@@ -275,7 +275,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       await user.click(await screen.findByRole("button", { name: "Add 1 suggested" }));
 
       expect(await documentRow("Insurance Certificate")).toBeTruthy();
-      await waitFor(() => expect(screen.queryByRole("button", { name: /suggested/ })).not.toBeInTheDocument());
+      await waitFor(() => expect(screen.queryByRole("button", { name: /^Add \d+ suggested/ })).not.toBeInTheDocument());
     });
 
     it.skipIf(!SHOW_HAS_TICKS)("offers no document controls on a filed IPAS", async () => {

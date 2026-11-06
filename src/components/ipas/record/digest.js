@@ -173,7 +173,39 @@ export function digestIpas(ipas, signerLists = null) {
       : "Nothing recorded yet",
   };
 
+  // The screen's sections (1 Order … 6 Sign-offs): one line each, what it holds.
+  const missingFiles = Object.values(docs.missingByPart).flat();
+  const prepared = [s1, s3, s6].every((state) => state?.prepared || state?.approved);
+  const approvedAll = [s1, s3, s6].every((state) => state?.approved);
+  const signedCount = (prepared ? 1 : 0) + (approvedAll ? 1 : 0) + (s7.received && s7.noted && s7.checked ? 1 : 0) + (s7.approved ? 1 : 0);
+  Object.assign(lines, {
+    order: join([
+      plural(money.lineCount, "line", "lines"),
+      ipas.piNumber ? `P.I ${ipas.piNumber}` : "no P.I # yet",
+      ipas.sors.length > 0 ? ipas.sors.map((sor) => sor.salesReference).join(", ") : null,
+    ]),
+    payments: join([
+      sum.count > 0 ? `${plural(sum.count, "payment", "payments")}, ${money.paidText} paid` : "no payments yet",
+      ipas.canReadBankDetails ? (ipas.bankDetails ? (ipas.bankDetails.flagged ? "account # changed" : "bank details in") : "no bank details") : null,
+    ]),
+    costs: join([
+      ipas.charges.length > 0 ? `${plural(ipas.charges.length, "charge", "charges")}, ${pesos(sum.chargesPhp)}` : "no charges",
+      money.landedPhp === null ? "Landed Cost not worked out yet" : `Landed Cost ${money.landedText}`,
+    ]),
+    delivery: join([
+      ipas.itemLocation?.label ?? "Item Location not set",
+      (ipas.slips ?? []).length > 0 ? plural(ipas.slips.length, "Transmittal", "Transmittals") : "no Transmittal yet",
+      track.last ? `latest: ${track.last.label}` : null,
+    ]),
+    documents: missingFiles.length > 0
+      ? `${missingFiles.length} still missing · ${docs.attached} attached`
+      : `${docs.attached} attached · nothing missing`,
+    signoffs: `${signedCount} of 4 signed`,
+  });
+
   const digest = {
+    missingFiles,
+    signedCount,
     open,
     filed,
     cancelled,
@@ -187,6 +219,8 @@ export function digestIpas(ipas, signerLists = null) {
     s8,
     given7,
     costsComplete,
+    // No Landed Cost figure yet (a foreign-currency PO with no payment, say): LC Odoo Done and Filing wait for it.
+    landedUnavailable: money.landedStatus === IPAS_LANDED_COST_STATUS.UNAVAILABLE,
     signerLists,
     computationStatus: ipas.computationStatus,
     docs,
@@ -209,16 +243,14 @@ export function sectionTitle(key) {
  * the record page, as a collapsible block.
  */
 export const SECTIONS = [
-  { key: "purchasing" },
-  { key: "finance" },
-  { key: "costing" },
-  { key: "filing" },
-  { key: "header", secondary: true },
-  { key: "sales", secondary: true },
-  { key: "logistics", secondary: true },
-  { key: "status", secondary: true },
-  { key: "history", secondary: true },
-].map((section) => ({ ...section, title: sectionTitle(section.key) }));
+  { key: "order", part: "purchasing" },
+  { key: "payments", part: "finance" },
+  { key: "costs", part: "costing" },
+  { key: "delivery", part: "logistics" },
+  { key: "documents", part: "documents" },
+  { key: "signoffs", part: "filing" },
+  { key: "history" },
+].map((section) => ({ ...section, title: section.part ? ipasSectionLabel(section.part) : sectionTitle(section.key) }));
 
 /**
  * A section's state for the state palette: its `state` (done, current or
@@ -227,6 +259,17 @@ export const SECTIONS = [
  * never disagree; section 4 reads its three gates together.
  */
 export function sectionState(key, digest) {
+  const found = gateSectionState(key, digest);
+  // The rail alone says what is Now (the "Get it ready" / "Sign" road); a row says done or not yet.
+  return found && found.state === STATE.CURRENT ? { ...found, state: STATE.WAITING } : found;
+}
+
+function gateSectionState(key, digest) {
+  const done = (yes, doneWord, notYet) => ({ state: yes ? STATE.DONE : STATE.WAITING, detail: yes ? doneWord : notYet });
+  if (key === "costs") return done(digest.costsComplete, "Final", digest.landedUnavailable ? "No figure yet" : "Provisional");
+  if (key === "delivery") return done(Boolean(digest.s8?.approved), "Signed", "Needs the Logistics sign-off");
+  if (key === "documents") return done(digest.missingFiles.length === 0, "All in", `${digest.missingFiles.length} missing`);
+  if (key === "signoffs") return done(digest.filed, "Filed", `${digest.signedCount} of 4 signed`);
   const gate = (gateKey) => digest.gates.find((g) => g.key === gateKey);
   if (key === "purchasing") return { state: gate("purchasing").state, detail: SIGNOFF_DETAIL[digest.s1.status] };
   if (key === "finance") return { state: gate("finance").state, detail: SIGNOFF_DETAIL[digest.s3.status] };
@@ -240,6 +283,11 @@ export function sectionState(key, digest) {
         ? STATE.CURRENT
         : STATE.WAITING;
     return { state, detail: digest.costsComplete ? SIGNOFF_DETAIL[digest.s6.status] : null };
+  }
+  // Logistics is signed by someone else before Filing opens, so its row says so up front (not only after it is signed).
+  if (key === "logistics") {
+    const signed = Boolean(digest.s8?.approved);
+    return { state: signed ? STATE.DONE : STATE.WAITING, detail: signed ? "Signed" : "Needs a sign-off before Filing" };
   }
   if (key === "filing") {
     const filing = digest.gates.filter((g) => g.part === "filing");

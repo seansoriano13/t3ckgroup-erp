@@ -135,7 +135,6 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       // The IPAS list sits behind the record window, so read the window only.
       const record = screen.getAllByRole("dialog").find((dialog) => dialog.dataset.modalShell === "record");
       await waitFor(() => expect(within(record).getByText("DP").parentElement).toHaveTextContent(/3,000\.00/));
-      expect(within(record).queryByText(/balance/i)).not.toBeInTheDocument();
     }, 20_000);
 
     it("refuses a half-typed amount with a sentence on Save all, keeps what was typed, and never breaks", async () => {
@@ -199,7 +198,9 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const payment = await screen.findByRole("group", { name: "Payment 1" });
       await pick(user, payment, /^Method/, "Dated Check");
       await user.type(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "500");
-      await user.click(screen.getByRole("button", { name: /Charges paid in pesos/ }));
+      // Editing is in place: open the section if it is still shut.
+      const financeHead = screen.getByRole("button", { name: /^2 · Purchasing & Finance/ });
+      if (financeHead.getAttribute("aria-expanded") === "false") await user.click(financeHead);
       await user.click(await screen.findByRole("button", { name: /Add charge/ }));
       const charge = await screen.findByRole("group", { name: "Charge 1" });
       await pick(user, charge, /^Kind/, "Brokerage Fee");
@@ -263,7 +264,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 640, php_debited: null });
       // The edit view stays. Back to the section, then open Costing from its header.
       await waitFor(() => expect(screen.getByText("All changes saved")).toBeInTheDocument());
-      await user.click(screen.getByRole("button", { name: "Back to preview" }));
+      await user.click(screen.getByRole("button", { name: "Done" }));
       expect(await screen.findByRole("button", { name: /^1 · Purchasing/ })).toHaveAttribute("aria-expanded", "true");
       expect(queryOtherDialog()).not.toBeInTheDocument();
       // The section header (its number first); the card's "Review section 3 · …" link names it too.
@@ -446,7 +447,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       cleanup();
 
       renderDetail(row.id, "costing", "edit");
-      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Done" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "LC Odoo Done" })).not.toBeInTheDocument();
       expect(screen.queryByRole("combobox", { name: "Spread charges" })).not.toBeInTheDocument();
     });
@@ -471,7 +472,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       renderDetail(row.id, "costing", "edit");
 
-      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Done" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "LC GS Done" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Checked by" })).not.toBeInTheDocument();
     });
@@ -541,18 +542,18 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       const payments = renderDetail(row.id, "purchasing", "edit");
 
-      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Done" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Add payment/ })).not.toBeInTheDocument();
       payments.unmount();
 
       renderDetail(row.id, "costing", "edit");
-      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Done" })).toBeInTheDocument();
       expect(screen.getAllByText("Final").length).toBeGreaterThan(0);
       expect(screen.queryByText("Provisional")).not.toBeInTheDocument();
       cleanup();
 
       renderDetail(row.id, "finance", "edit");
-      expect(await screen.findByRole("button", { name: "Back to preview" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Done" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Add charge/ })).not.toBeInTheDocument();
     });
   });

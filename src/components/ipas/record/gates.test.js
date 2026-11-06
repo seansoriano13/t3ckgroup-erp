@@ -186,4 +186,18 @@ describe("gatesFor: names, states and lines", () => {
     const open = gatesOf({ status: "lc_odoo_done", ...approvedAll, s7: given });
     expect(byKey(open, "approved").prereqMet).toBe(true);
   });
+
+  it("holds the final Approve while Landed Cost has no figure, and says how to fix it", () => {
+    const given = { received: who("Fi"), noted: who("No"), checked: who("Ch") };
+    const digest = { ...digestOf({ status: "lc_odoo_done", ...approvedAll, s7: given }), landedUnavailable: true };
+    const approve = byKey(gatesFor(digest), "approved");
+    expect(approve.prereqMet).toBe(false);
+    expect(approve.line).toMatch(/Landed Cost has no figure yet/);
+    expect(byKey(gatesFor({ ...digest, landedUnavailable: false }), "approved").prereqMet).toBe(true);
+  });
+
+  it("explains on the costs gate why LC Odoo Done cannot be marked yet", () => {
+    const digest = { ...digestOf({ status: "lc_gs_done", ...approvedAll }), landedUnavailable: true };
+    expect(byKey(gatesFor(digest), "costs").line).toMatch(/Landed Cost has no figure yet/);
+  });
 });

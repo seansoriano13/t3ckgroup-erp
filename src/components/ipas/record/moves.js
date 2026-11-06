@@ -11,6 +11,7 @@ import {
   IPAS_UNDO_APPROVAL_SECTIONS,
   ipasSectionNo,
 } from "@/constants/ipas";
+import { isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { hintFor } from "./moveCopy";
 
 /**
@@ -111,7 +112,9 @@ export function movesFor(ctx, digest) {
     const at = IPAS_COMPUTATION_STATUSES.indexOf(digest.computationStatus);
     const next = IPAS_COMPUTATION_STATUSES[Math.min(Math.max(at, 0) + 1, IPAS_COMPUTATION_STATUSES.length - 1)];
     const nextLabel = IPAS_COMPUTATION_STATUS_LABELS[next];
-    costs.push(
+    // Landed Cost cannot be made final with no figure; the card says what to add instead.
+    const blocked = digest.landedUnavailable && isLandedCostFinal(next);
+    if (!blocked) costs.push(
       move("costs", "costing", {
         kind: "neutral",
         icon: Check,
@@ -165,7 +168,7 @@ export function movesFor(ctx, digest) {
       ...move("return", bySection[0].section, {
         kind: "return",
         icon: allUndo ? Undo2 : CornerUpLeft,
-        label: allUndo ? "Undo approval…" : "Return…",
+        label: allUndo ? "Undo approval…" : "Send back…",
         verb: allUndo ? "Undo approval" : "Return",
         confirm: false,
         run: (from) => on.openReturn(null, from),
@@ -203,24 +206,26 @@ export function cardMovesFor(ctx, digest) {
  */
 export function canEditSection(key, { can }) {
   switch (key) {
-    case "purchasing":
+    case "order":
+    case "payments":
+    case "costs":
       return can.change || can.record;
-    case "finance":
-      return can.record || can.change || can.tickFinance;
-    case "costing":
-      return can.change;
-    case "sales":
-    case "header":
-      return can.change;
+    case "delivery":
+      return can.change || can.pickLocation;
+    case "documents":
+      return can.change || can.tickFinance;
     default:
       return false;
   }
 }
 
-/** The moves a section's foot offers: the same moves as the card, for that section. */
+/**
+ * The moves a section's foot offers: Return and Undo approval, all on 6 · Sign-offs.
+ * Signing happens in one place, the rail's "Sign the final IPAS", after everything is ready.
+ */
 export function footerMovesFor(ctx, digest, sectionKey) {
-  const { moves, costs, bySection } = movesFor(ctx, digest);
-  return [...moves, ...costs, ...bySection].filter((item) => item.section === sectionKey);
+  if (sectionKey !== "signoffs") return [];
+  return movesFor(ctx, digest).bySection;
 }
 
 /**

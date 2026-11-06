@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Check, CircleAlert, CloudDownload, CloudOff, Pencil, RefreshCw, Undo2 } from "lucide-react";
+import { Check, CircleAlert, CloudDownload, CloudOff, Pencil, RefreshCw, Undo2, X } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -37,7 +37,9 @@ import { buildBuyerTrack } from "../../utils/ipasDocuments";
 import { formatDay } from "../../utils/ipasPayments";
 import { formatDate } from "../../utils/formatDate.js";
 import ReadTick from "@/components/record/ReadTick";
-import { useBare, useEditable, useInDrawer } from "@/components/record/sectionChrome";
+import { Link } from "react-router";
+import { sorHref } from "@/utils/sorLink";
+import { useBare, useEditable } from "@/components/record/sectionChrome";
 
 /** One numbered section of the IPAS, as the sheet draws it. */
 export function IpasSection({ title, aside, children }) {
@@ -231,8 +233,8 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false, canMark
   if (refresh && refresh.ok === false && !refreshDismissed) {
     banners.push({
       key: "refresh",
-      tone: "amber",
-      alert: true,
+      // A side note, not a problem: the page works on the stored copy. One quiet line, never a yellow box.
+      tone: "quiet",
       onDismiss: () => setRefreshDismissed(true),
       icon: CloudOff,
       title:
@@ -241,7 +243,7 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false, canMark
           : refresh.reason === IPAS_ERROR.ODOO_UNAVAILABLE
             ? "Odoo didn't answer"
             : "The Odoo copy couldn't be refreshed",
-      body: `Showing the last copy${refresh.fetchedAt ? `, fetched ${formatDate(refresh.fetchedAt)}` : ""}.`,
+      body: `Showing the copy from ${refresh.fetchedAt ? formatDate(refresh.fetchedAt) : "the last fetch"}.`,
       retry: true,
     });
   }
@@ -250,7 +252,31 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false, canMark
 
   return (
     <div className="space-y-2">
-      {banners.map(({ key, tone, alert, onDismiss, icon: Icon = CircleAlert, title, body, retry, extra }) => (
+      {banners.map(({ key, tone, alert, onDismiss, icon: Icon = CircleAlert, title, body, retry, extra }) =>
+        tone === "quiet" ? (
+          <p key={key} role="status" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-testid="ipas-refresh-note">
+            <Icon size={14} className="shrink-0" aria-hidden="true" />
+            <span>
+              <span className="font-medium text-foreground">{title}.</span> {body}
+            </span>
+            {onRetry && (
+              <Button
+                variant="link"
+                className="h-auto gap-1 p-0 text-xs font-medium underline underline-offset-4"
+                disabled={retrying}
+                onClick={onRetry}
+              >
+                <RefreshCw size={12} aria-hidden="true" className={retrying ? "animate-spin" : undefined} />
+                {retrying ? "Trying again…" : "Try again"}
+              </Button>
+            )}
+            {onDismiss && (
+              <Button variant="ghost" size="icon-xs" className="text-muted-foreground" aria-label="Hide this note" onClick={onDismiss}>
+                <X size={12} aria-hidden="true" />
+              </Button>
+            )}
+          </p>
+        ) : (
         <div
           key={key}
           role={alert ? "alert" : "status"}
@@ -279,7 +305,8 @@ export function IpasWarnings({ ipas, refresh, onRetry, retrying = false, canMark
             </Button>
           )}
         </div>
-      ))}
+        ),
+      )}
     </div>
   );
 }
@@ -471,17 +498,15 @@ export function IpasPurchasingSection({ ipas, refreshing = false, canChange: gra
  */
 function SorTrailLinks({ sorId }) {
   if (!sorId) return null;
-  const openPms = () =>
-    window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: sorId, type: "OPPORTUNITY", view: "pms" } }));
-  const openS0 = () => window.open(`/costing-matrix/${sorId}`, "_blank", "noopener");
+  // Real links (#: z-index): following one leaves the IPAS window, so the SOR never opens underneath it.
   return (
     <span className="ml-2 inline-flex gap-2">
-      <Button type="button" variant="link" onClick={openPms} className="h-auto p-0 text-xs font-medium underline">
+      <Link to={sorHref(sorId, "pms")} className="text-xs font-medium text-foreground underline underline-offset-4">
         PMS tab
-      </Button>
-      <Button type="button" variant="link" onClick={openS0} className="h-auto p-0 text-xs font-medium underline">
+      </Link>
+      <Link to={`/costing-matrix/${sorId}`} target="_blank" rel="noopener" className="text-xs font-medium text-foreground underline underline-offset-4">
         S0 Evaluation
-      </Button>
+      </Link>
     </span>
   );
 }
@@ -490,9 +515,8 @@ function SorTrailLinks({ sorId }) {
  * Section 2: the SORs it serves, the two plain ticks (Googlesheet, Gantt Chart,
  * #241), and Odoo's Source Document and analytic accounts.
  */
-export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverride, onResetOverride, onTick }) {
+export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverride, onResetOverride }) {
   const canChange = useEditable(granted);
-  const inDrawer = useInDrawer();
   return (
     <IpasSection title={ipasSectionLabel("sales")}>
       <DetailGrid
@@ -508,7 +532,9 @@ export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverr
                 <ul className="space-y-1">
                   {ipas.sors.map((sor) => (
                     <li key={sor.id} className="text-sm">
-                      <span className="font-mono font-semibold">{sor.salesReference}</span>
+                      <Link to={sorHref(sor.id)} className="font-mono font-semibold text-foreground underline-offset-4 hover:underline">
+                        {sor.salesReference}
+                      </Link>
                       <span className="font-normal text-muted-foreground">
                         {" "}
                         · {sor.projectTitle}
@@ -520,34 +546,7 @@ export function IpasSalesSection({ ipas, canChange: granted = false, onEditOverr
                 </ul>
               ),
           },
-          {
-            label: "Googlesheet",
-            value: inDrawer ? (
-              <ReadTick checked={ipas.googleSheet} label="Googlesheet" />
-            ) : (
-              <Checkbox
-                checked={ipas.googleSheet}
-                disabled={!canChange}
-                aria-label="Googlesheet"
-                tone="neutral"
-                onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GOOGLE_SHEET, Boolean(value))}
-              />
-            ),
-          },
-          {
-            label: "Gantt Chart",
-            value: inDrawer ? (
-              <ReadTick checked={ipas.ganttChart} label="Gantt Chart" />
-            ) : (
-              <Checkbox
-                checked={ipas.ganttChart}
-                disabled={!canChange}
-                aria-label="Gantt Chart"
-                tone="neutral"
-                onCheckedChange={(value) => onTick(IPAS_HEADER_FIELD.GANTT_CHART, Boolean(value))}
-              />
-            ),
-          },
+          // The Googlesheet and Gantt Chart ticks are gone from the record (2026-11-06): they only mirrored a spreadsheet.
           overrideItem(ipas.overrides[IPAS_OVERRIDE.SOURCE_DOC], canChange, onEditOverride, onResetOverride),
           overrideItem(ipas.overrides[IPAS_OVERRIDE.ANALYTIC], canChange, onEditOverride, onResetOverride),
         ]}

@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event"
 /**
  * The Purchasing anatomy test, records half (spec #631, "Testing Decisions"):
  * every Purchasing record opens in the record window and gets the SAME checks.
@@ -415,6 +416,9 @@ describe.each(RECORDS)("Purchasing record anatomy: $name", (record) => {
       const heading = screen.getByRole("heading", { name: "Your move" })
       const status = screen.getByText(record.yourMove.status)
       const signed = screen.getByText(/^\d+ of \d+ signed$/)
+      // The IPAS rail shows only the step that needs the viewer; the link beside it opens the rest.
+      const more = screen.queryByRole("button", { name: /^Show all \d+ steps/ })
+      if (more) await userEvent.setup().click(more)
       const steps = record.yourMove.steps.map((title) => screen.getByRole("button", { name: new RegExp(`^${title}`) }))
 
       const parts = [heading, status, signed, ...steps]

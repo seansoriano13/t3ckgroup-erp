@@ -20,15 +20,15 @@ import ReturnDialog from "../../../components/ipas/ReturnDialog";
 import FilingDialog from "../../../components/ipas/FilingDialog";
 import { IpasFiledNotice } from "../../../components/ipas/IpasFiling";
 import { IpasWarnings } from "../../../components/ipas/IpasSections";
-import YourMove from "../../../components/ipas/record/YourMove";
+import IpasJourney from "../../../components/ipas/record/IpasJourney";
+import { journeyFor } from "../../../components/ipas/record/journey";
 import RecordHeader from "../../../components/record/RecordHeader";
 import PropertyPills from "../../../components/record/PropertyPills";
 import { ipasBadge, ipasLine, ipasPills } from "../../../components/ipas/record/recordFacts";
 import InlineError from "../../../components/record/InlineError";
-import EditForm from "../../../components/ipas/record/EditForm";
+import EditableSections from "../../../components/ipas/record/EditableSections";
 import MoneySummary from "../../../components/ipas/record/MoneySummary";
 import HeaderActions from "../../../components/ipas/record/HeaderActions";
-import SectionsPanel from "../../../components/ipas/record/SectionsPanel";
 import { buildBlocks } from "../../../components/ipas/record/blocks";
 import { digestIpas, filingSummary } from "../../../components/ipas/record/digest";
 import { useEditSection } from "../../../components/ipas/record/useEditSection";
@@ -299,6 +299,8 @@ function IpasPage({ onClose }) {
             ? `Section ${ipasSectionLabel(section)} submitted. The approvers were told.`
             : `Section ${ipasSectionLabel(section)} submitted. Nobody is on its approval list yet.`,
         );
+      } else if (section === 8) {
+        toast.success("Logistics signed.");
       } else {
         toast.success(`Section ${ipasSectionLabel(section)} approved.`);
       }
@@ -310,6 +312,38 @@ function IpasPage({ onClose }) {
       context?.rollback?.();
       failMove(error, vars.from, () => signoff.mutate(vars));
     },
+  });
+
+  // The rail's sign-offs, each given after reading the final IPAS form: "Send for
+  // signing" and "Approve" (several sections at once), and the one "Check".
+  const signMany = useMutation({
+    mutationFn: ({ steps }) => ipasService.signMany(id, steps),
+    onSuccess: ({ notified }, { steps }) => {
+      const sending = steps.every((step) => step.role === IPAS_SIGNOFF_ROLE.PREPARED);
+      toast.success(
+        sending
+          ? notified > 0
+            ? "Sent for signing. The approvers were told."
+            : "Sent for signing. Nobody is on the approver lists yet."
+          : "Approved.",
+      );
+      setFailure(null);
+      markSigned();
+      signoffChanged();
+    },
+    onError: (error) => {
+      toast.error(ipasErrorMessage(error));
+      signoffChanged();
+    },
+  });
+  const signCheck = useMutation({
+    mutationFn: () => ipasService.signCheck(id),
+    onSuccess: () => {
+      toast.success("Checked. The filing approver was told.");
+      markSigned();
+      signoffChanged();
+    },
+    onError: (error) => toast.error(ipasErrorMessage(error)),
   });
 
   // Section 7's steps. Approved files the IPAS and goes through the dialog that
@@ -360,7 +394,7 @@ function IpasPage({ onClose }) {
       if (undo) {
         toast.success(`Computation status is back to ${IPAS_COMPUTATION_STATUS_LABELS[computationStatus]}.`);
       } else if (undoTo !== undefined && from && computationStatus === IPAS_COMPUTATION_STATUS.LC_ODOO_DONE) {
-        undoableSuccessToast("LC Odoo Done. Landed Cost is final.", "Undo", () =>
+        undoableSuccessToast("Landed Cost is final.", "Undo", () =>
           setStatus.mutate({ computationStatus: undoTo, undo: true }),
         );
       } else if (undoTo !== undefined && from) {
@@ -902,6 +936,10 @@ function IpasPage({ onClose }) {
     approve: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.APPROVED, from }),
     openReturn: (section, from) => setReturning({ section, from }),
     give: giveSignoff,
+    signMany: (steps) => signMany.mutateAsync({ steps }),
+    signCheck: () => signCheck.mutateAsync(),
+    // The last sign-off: read the final form, then file. The files were attached in "Get it ready".
+    file: () => give.mutateAsync({ role: IPAS_SIGNOFF_ROLE.APPROVED, confirm: true }),
   };
 
   const ctx = {
@@ -924,7 +962,7 @@ function IpasPage({ onClose }) {
     onHold: Boolean(digest.figures?.onHold),
     rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, 8: logisticsRights, sendBack7: canReturnSection7 },
     busy: {
-      signoff: signoff.isPending || returnSection.isPending,
+      signoff: signoff.isPending || returnSection.isPending || signMany.isPending || signCheck.isPending,
       give: give.isPending || returnSection.isPending,
       print: print.isPending,
     },
@@ -933,41 +971,28 @@ function IpasPage({ onClose }) {
     viewer: user?.name ?? null,
     failure: failure && { ...failure, dismiss: () => setFailure(null) },
   };
+  const journey = journeyFor({
+    ipas,
+    digest,
+    lists: signerLists,
+    userId: user?.id,
+    can: { purchasing: hasPurchasingFlow && open, change: canChange, record: canRecord, pickLocation: canPickLocation },
+  });
+  ctx.journey = journey;
   const blocks = buildBlocks(ctx);
-  // The long edit form (#581). The money is typed in its cards; only the sign-offs and the
-  // filing checklist reuse the section bodies.
-  const editView = editKey ? (
-    <EditForm
-      ipas={ipas}
-      blocks={blocks}
-      can={ctx.can}
-      canSave={canChange || canRecord || canTickFinance}
-      savedCount={savedCount}
-      onRemoveSaved={(type, row) => setRemoving({ type, row })}
-      onRemoveDocument={setRemovingDocument}
-      onSuggest={() => suggest.mutate()}
-      focusKey={editKey}
-      saving={saveAll.isPending}
-      onSave={(plan) => saveAll.mutateAsync(plan)}
-      onBack={backToPreview}
-      onEditPurpose={canChange && !ipas.sors?.length ? on.editPurpose : null}
-      notice={
-        changedBy && (
-          <div role="status" className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-a5 bg-amber-3 px-3 py-2 text-sm text-amber-11">
-            <span>{changedBy} updated this IPAS. Reload to see the changes.</span>
-            <Button type="button" size="sm" variant="outline" className="ml-auto" onClick={reloadChanged}>
-              Reload
-            </Button>
-          </div>
-        )
-      }
-      failure={
-        shownFailure && (
-          <InlineError message={shownFailure.message} onRetry={shownFailure.retry} onDismiss={() => setChangeFailure(null)} />
-        )
-      }
-    />
-  ) : null;
+  // Editing is in place (#581): the sections show their fields and one bar at the foot saves them.
+  // The sign-offs and the filing checklist reuse the section bodies.
+  const editNotice = changedBy && (
+    <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-a5 bg-amber-3 px-3 py-2 text-sm text-amber-11">
+      <span>{changedBy} updated this IPAS. Reload to see the changes.</span>
+      <Button type="button" size="sm" variant="outline" className="ml-auto" onClick={reloadChanged}>
+        Reload
+      </Button>
+    </div>
+  );
+  const editFailure = shownFailure && (
+    <InlineError message={shownFailure.message} onRetry={shownFailure.retry} onDismiss={() => setChangeFailure(null)} />
+  );
 
   // The dialog closes on a failure too (its onConfirm catches): the failure then
   // shows inline at the move that started it, with Retry.
@@ -986,7 +1011,7 @@ function IpasPage({ onClose }) {
             <PropertyPills items={ipasPills(ipas, digest.figures)} />
             {/* The IPAS Status (#597): read from the same IPAS figures as the list, so the two never disagree.
                 Putting it On-Hold is More's item; the dialog it opens lives here. */}
-            <div data-testid="ipas-record-status" className="empty:hidden">
+            <div data-testid="ipas-record-status" className="empty:hidden [&:not(:has(:not(:empty)))]:hidden">
               <IpasStatusControl
                 ipas={ipas}
                 figures={digest.figures}
@@ -1001,11 +1026,6 @@ function IpasPage({ onClose }) {
                 </p>
               )}
             </div>
-            {open && (hasPurchasingFlow || isSuperAdmin) && (
-              <p className="text-xs text-muted-foreground" data-testid="ipas-wrong-po-hint">
-                Wrong PO? Cancel this IPAS and raise a new one.
-              </p>
-            )}
           </div>
 
           <div className="space-y-2 empty:hidden">
@@ -1033,7 +1053,8 @@ function IpasPage({ onClose }) {
 
             <IpasWarnings
               ipas={ipas}
-              refresh={refresh.data}
+              // A filed IPAS is frozen: a failed Odoo refresh changes nothing there, so it isn't mentioned.
+              refresh={filed ? null : refresh.data}
               onRetry={() => refresh.refetch()}
               retrying={refresh.isFetching}
               canMarkChecked={hasPurchasingFlow && open}
@@ -1041,28 +1062,39 @@ function IpasPage({ onClose }) {
           </div>
 
           {/* Top to bottom: the money, then every section as a block that opens in place; Your move is the rail beside them. */}
-          {editView ?? (
-            <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_25rem] xl:gap-y-8">
-              <div data-testid="ipas-money-summary-slot" className="min-w-0 xl:col-start-1 xl:row-start-1">
-                <MoneySummary digest={digest} onOpen={sections.show} />
-              </div>
-              <aside className="min-w-0 xl:sticky xl:top-2 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
-                <YourMove ctx={ctx} digest={digest} onReview={sections.show} next={nextIpas} />
-              </aside>
-              <div className="min-w-0 xl:col-start-1 xl:row-start-2">
-                <SectionsPanel
-                  ctx={ctx}
-                  blocks={blocks}
-                  digest={digest}
-                  open={sections}
-                  headRef={(key) => (node) => {
-                    rowEls.current[key] = node;
-                  }}
-                  onEdit={openEdit}
-                />
-              </div>
+          {/* Rows: the money summary keeps its own height, the sections row takes whatever the tall rail adds (no gap between them). */}
+          <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_25rem] xl:grid-rows-[auto_1fr] xl:gap-y-8">
+            <div data-testid="ipas-money-summary-slot" className="min-w-0 xl:col-start-1 xl:row-start-1">
+              <MoneySummary digest={digest} onOpen={sections.show} />
             </div>
-          )}
+            <aside className="min-w-0 xl:sticky xl:top-2 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
+              <IpasJourney ctx={ctx} digest={digest} journey={journey} onEdit={openEdit} next={nextIpas} />
+            </aside>
+            <div className="min-w-0 xl:col-start-1 xl:row-start-2">
+              <EditableSections
+                ctx={ctx}
+                blocks={blocks}
+                digest={digest}
+                open={sections}
+                headRef={(key) => (node) => {
+                  rowEls.current[key] = node;
+                }}
+                editKey={editKey}
+                onEdit={openEdit}
+                onDone={backToPreview}
+                canSave={canChange || canRecord || canTickFinance}
+                savedCount={savedCount}
+                saving={saveAll.isPending}
+                onSave={(plan) => saveAll.mutateAsync(plan)}
+                onEditPurpose={canChange && !ipas.sors?.length ? on.editPurpose : null}
+                onRemoveSaved={(type, row) => setRemoving({ type, row })}
+                onRemoveDocument={setRemovingDocument}
+                onSuggest={() => suggest.mutate()}
+                notice={editNotice}
+                failure={editFailure}
+              />
+            </div>
+          </div>
         </div>
       </ModalShell>
 

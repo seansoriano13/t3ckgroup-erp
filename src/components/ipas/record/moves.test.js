@@ -83,7 +83,7 @@ describe("cardMovesFor: the earliest section only", () => {
     const ctx = ctxOf({ s6: { returnMode: "return" } });
     const card = cardMovesFor(ctx, digest);
     expect(labels(card.bySection)).toEqual(["Return section 3"]);
-    expect(card.bySection[0].hint).toMatch(/Clears Submitted and Approved/);
+    expect(card.bySection[0].hint).toMatch(/Sends it back to Purchasing/);
 
     const undo = cardMovesFor(ctxOf({ s6: { returnMode: "undo" } }), digest);
     expect(labels(undo.bySection)).toEqual(["Undo approval of section 3"]);

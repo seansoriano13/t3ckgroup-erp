@@ -223,11 +223,11 @@ ol.steps input[type=checkbox] {
       <tbody>
         <tr><td><button class="copy" type="button">dani@demo</button></td><td><span class="seat s-sales">Sales</span></td><td>Deal Owner: registers SOR, initiates Purchase Request, enters ABC, names the Technical in-charge, issues Go decision, moves stages.</td></tr>
         <tr><td><button class="copy" type="button">cjay@demo</button></td><td><span class="seat s-buy">Purchasing</span></td><td>Purchaser: claims Purchase Request, bulk updates item statuses, conducts Canvass, costs items, attaches P0s, compiles IPAS, issues Transmittal and Packing List.</td></tr>
-        <tr><td><button class="copy" type="button">jelai@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Finance: records payment with proof, approves IPAS Section 3 (Computation &amp; Landed Cost).</td></tr>
+        <tr><td><button class="copy" type="button">jelai@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Finance: records payment with proof, approves IPAS 3 · Costs (part of Approve).</td></tr>
         <tr><td><button class="copy" type="button">jen@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Admin: executes Transmittal Check by (1).</td></tr>
-        <tr><td><button class="copy" type="button">grace@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Operations Manager: approves Evaluation of Specification, executes Transmittal Check by (2), signs IPAS Section 4 Received.</td></tr>
-        <tr><td><button class="copy" type="button">201@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>General Manager: markup management, Go unlock authority, approves Evaluation of Specification, signs IPAS Section 4 Checked and Approved.</td></tr>
-        <tr><td><button class="copy" type="button">101@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Sales Director / Super Admin: Flow Canvas setup (Part 0), approves IPAS Section 1 &amp; Section 2, approves Evaluation of Specification, signs IPAS Section 4 Noted.</td></tr>
+        <tr><td><button class="copy" type="button">grace@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Operations Manager: approves Evaluation of Specification, executes Transmittal Check by (2), gives the IPAS Check.</td></tr>
+        <tr><td><button class="copy" type="button">201@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>General Manager: markup management, Go unlock authority, approves Evaluation of Specification, gives the IPAS Approve and file.</td></tr>
+        <tr><td><button class="copy" type="button">101@demo</button></td><td><span class="seat s-sign">Signers</span></td><td>Sales Director / Super Admin: Flow Canvas setup (Part 0), approves IPAS 1 · Order and 2 · Payments (part of Approve), approves Evaluation of Specification, can also give the IPAS Check.</td></tr>
         <tr><td><button class="copy" type="button">aldrin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Warehouse Staff: signs Transmittal Warehouse Checking &amp; Releasing, signs Received in Odoo, signs IPAS Logistics, packs Packing List.</td></tr>
         <tr><td><button class="copy" type="button">sherwin@demo</button></td><td><span class="seat s-wh">Warehouse</span></td><td>Technical in-charge on the S0 Evaluations Sales names him for: gives the one Technical verdict (Sales &rarr; Technical), signs Transmittal Technical Inspection.</td></tr>
       </tbody>
@@ -631,44 +631,31 @@ ol.steps input[type=checkbox] {
     <li data-k="6.7"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">6.7</span><span class="seat s-buy">Purchasing</span></div>
-        <div class="row where"><b>Where</b><div>Purchasing → IPAS → Open the P01046 IPAS → Click <b>Edit</b></div></div>
+        <div class="row where"><b>Where</b><div>Purchasing window (cjay) → IPAS → open the P01046 IPAS</div></div>
         <div class="row do"><b>Do</b><div><ol>
-          <li>In Section 2 (Purchasing &amp; Finance), locate Charges. Freight and Brokerage Fee start blank.</li>
-          <li>On <b>Freight</b>: Enter Amount: <code>8000</code>, upload demo PDF.</li>
-          <li>On <b>Brokerage Fee</b>: Click Remove to eliminate blank row.</li>
-          <li>Under Documents: Attach demo PDF to <b>Proforma Invoice</b>.</li>
-          <li>Enter <b>P.I/QT Amount</b>: <code>3223</code> (same as the PO total).</li>
-          <li>Under Bank details: Enter Bank: <code>BDO</code>, Account Name: <code>Jiujang Fire</code>, Account Number: <code>123456789</code>.</li>
+          <li>Read <b>Your move</b> on the right: <b>1. Get it ready</b> lists the work, each with who does it. <b>2. Sign the final IPAS</b> stays locked until 1 is done.</li>
+          <li>Click <b>Attach in 5 · Documents</b>. Attach demo PDF to <b>Proforma Invoice</b>.</li>
+          <li>In <b>1 · Order</b>: P.I/QT Amount <code>3223</code>.</li>
+          <li>In <b>2 · Payments</b>: Bank <code>BDO</code>, Account name <code>Jiujang Fire</code>, Account # <code>123456789</code>.</li>
+          <li>In <b>3 · Costs</b>: Freight amount <code>8000</code> with demo PDF. Remove the blank <b>Brokerage Fee</b> row.</li>
           <li>Click <b>Save all</b>.</li>
         </ol></div></div>
-        <div class="row see"><b>See</b><div>Toast confirms "All changes saved". Proforma Invoice and Freight charge are active. The bill check reads <b>Matches</b> (P.I ₱3,223.00 = Odoo PO ₱3,223.00).</div></div>
+        <div class="row see"><b>See</b><div>"Saved." The Supplier bill check reads <b>Matches the Odoo PO</b>. In <b>Attach the files</b>, Proforma Invoice is gone from the missing list.</div></div>
       </div>
     </li>
     <li data-k="6.8"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">6.8</span><span class="seat s-sign">jelai</span></div>
-        <div class="row where"><b>Where</b><div>Signers window (jelai@demo) → Purchasing → IPAS → P01046 IPAS → Click <b>Edit</b></div></div>
+        <div class="row where"><b>Where</b><div>Signers window (jelai@demo) → IPAS → P01046 → <b>Edit</b></div></div>
         <div class="row do"><b>Do</b><div><ol>
-          <li>In Section 1 (Purchasing), locate Payments. Click <b>Add payment</b>.</li>
-          <li>Kind: <b>Payment</b>, Amount: <b>3223</b> (PHP), Method: <b>BDO</b>, Proof: Attach demo PDF.</li>
+          <li>In <b>2 · Payments</b>: <b>Add payment</b>. Kind <b>Payment</b>, Amount <code>3223</code>, Method <b>BDO</b>, proof: demo PDF.</li>
           <li>Click <b>Save all</b>.</li>
         </ol></div></div>
-        <div class="row see"><b>See</b><div>Payment saved. P01046 is a PHP order, so there is no Forex Rate and "In pesos" shows ₱3,223.00.</div></div>
+        <div class="row see"><b>See</b><div>The payment shows ₱3,223.00 in pesos. The money strip shows Paid ₱3,223.00 and Remaining balance ₱0.00.</div></div>
       </div>
     </li>
-    <li data-k="6.9"><input type="checkbox" aria-label="Done">
-      <div class="step-body">
-        <div class="head"><span class="k">6.9</span><span class="seat s-buy">Purchasing</span><span class="seat s-sign">101</span></div>
-        <div class="row where"><b>Where</b><div>Purchasing window (cjay), then Signers window (101) → Approval Center → IPAS</div></div>
-        <div class="row do"><b>Do</b><div><ol>
-          <li>Cjay in IPAS modal: Submit <b>Section 1</b> (Purchasing) and Submit <b>Section 2</b> (Purchasing &amp; Finance).</li>
-          <li>101 in Approval Center → IPAS: Click <b>Approve</b> on Section 1, then click <b>Approve</b> on Section 2.</li>
-        </ol></div></div>
-        <div class="row see"><b>See</b><div>Sections 1 and 2 display green "Approved" badges.</div></div>
-      </div>
-    </li>
-  </ol>
-  <div class="dash"><strong>Tracker Check:</strong> In Purchasing → Dashboard → SOR-256 side panel: 2 lines show Purchased (not received), and 4 IPAS records display with respective pending workflows.</div>
+      </ol>
+  <div class="dash"><strong>Tracker Check:</strong> In Purchasing → Dashboard → SOR-256 side panel: 2 lines show Purchased (not received), and the 4 IPAS show what each still waits on.</div>
 </section>
 
 <section id="part7">
@@ -688,9 +675,9 @@ ol.steps input[type=checkbox] {
     <li data-k="7.2"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">7.2</span><span class="seat s-buy">Purchasing</span></div>
-        <div class="row where"><b>Where</b><div>Purchasing → Transmittals → Click <b>Raise Transmittal</b></div></div>
+        <div class="row where"><b>Where</b><div>IPAS P01046 → Your move → <b>Raise a Transmittal</b></div></div>
         <div class="row do"><b>Do</b><div><ol>
-          <li>In "Fill from an IPAS number", enter the P01046 IPAS code → Click <b>Fill lines</b>.</li>
+          <li>The IPAS number is already typed in "Fill from an IPAS number". Click <b>Fill lines</b>.</li>
           <li>Set Origin: <b>Purchasing</b>.</li>
           <li>Set Priority: <b>Medium</b>.</li>
           <li>Set Location: <b>Marikina Warehouse</b>.</li>
@@ -760,40 +747,37 @@ ol.steps input[type=checkbox] {
   <ol class="steps">
     <li data-k="8.1"><input type="checkbox" aria-label="Done">
       <div class="step-body">
-        <div class="head"><span class="k">8.1</span><span class="seat s-buy">Purchasing</span><span class="seat s-sign">jelai</span></div>
-        <div class="row where"><b>Where</b><div>Purchasing window (cjay) → IPAS → P01046 IPAS → Edit</div></div>
+        <div class="head"><span class="k">8.1</span><span class="seat s-buy">Purchasing</span></div>
+        <div class="row where"><b>Where</b><div>Purchasing window (cjay) → IPAS → P01046</div></div>
         <div class="row do"><b>Do</b><div><ol>
-          <li>Under Documents: Attach demo PDF to <b>BL or Waybill</b>, <b>Packing List</b>, <b>Commercial Invoice</b>, and <b>Freight Billing</b>.</li>
-          <li>Under Section 3 (Computation status): Advance dropdown sequentially: <b>Encoding → Encoded → LC GS Done → LC Odoo Done</b>. Click <b>Save all</b>.</li>
-          <li>Click <b>Submit Section 3</b>.</li>
-          <li>In Signers window as Jelai demo (jelai@demo): Navigate to Approval Center → IPAS → Click <b>Approve</b> on Section 3.</li>
+          <li>Click <b>Attach in 5 · Documents</b>. Under <b>Needed before signing</b>, attach demo PDF to <b>BL or Waybill</b>, <b>Packing List</b>, <b>Commercial Invoice</b>, <b>Freight Billing</b> and <b>BIR 2307</b>. Click <b>Save all</b>.</li>
+          <li>In Your move, click <b>Mark Landed Cost final</b>.</li>
         </ol></div></div>
-        <div class="row see"><b>See</b><div>Section 3 is Approved. Landed Cost is locked as final (₱12,621.89/unit). On the S0 Evaluation sheet, suit rows display "Real · from the IPAS".</div></div>
+        <div class="row see"><b>See</b><div><b>3 · Costs</b> shows Landed Cost <b>Final</b> (₱12,621.89/unit). On the S0 Evaluation sheet, the suit rows read "Real · from the IPAS".</div></div>
       </div>
     </li>
     <li data-k="8.2"><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">8.2</span><span class="seat s-buy">Purchasing</span><span class="seat s-wh">aldrin</span></div>
-        <div class="row where"><b>Where</b><div>Purchasing window (cjay) then Warehouse window (aldrin) → P01046 IPAS → Logistics</div></div>
+        <div class="row where"><b>Where</b><div>Purchasing window (cjay), then Warehouse window (aldrin) → IPAS → P01046</div></div>
         <div class="row do"><b>Do</b><div><ol>
-          <li>Cjay in IPAS modal → Edit → Status tab: Set <b>Arrived in Whs.</b> date to today. Click <b>Save all</b>.</li>
-          <li>Aldrin in IPAS modal → Logistics section: Confirm Item Location is <b>Marikina Warehouse</b>. Click <b>Sign Logistics</b>.</li>
+          <li>Cjay: click <b>Type it in 4 · Delivery</b>, set <b>Arrived in Whs.</b> to today, <b>Save all</b>.</li>
+          <li>Aldrin: Your move reads <b>Your turn: Sign Logistics.</b> Check Item Location is <b>Marikina Warehouse</b>, then click <b>Sign Logistics</b>.</li>
         </ol></div></div>
-        <div class="row see"><b>See</b><div>Logistics sign-off is applied. Section 4 filing is now unlocked.</div></div>
+        <div class="row see"><b>See</b><div><b>1. Get it ready</b> is all ticked. <b>2. Sign the final IPAS</b> opens, with <b>Send for signing</b> as cjay's turn.</div></div>
       </div>
     </li>
     <li data-k="8.3"><input type="checkbox" aria-label="Done">
       <div class="step-body">
-        <div class="head"><span class="k">8.3</span><span class="seat s-buy">Purchasing</span><span class="seat s-sign">grace</span><span class="seat s-sign">101</span><span class="seat s-sign">201</span></div>
-        <div class="row where"><b>Where</b><div>Purchasing window (cjay) then Signers window → Approval Center → IPAS</div></div>
+        <div class="head"><span class="k">8.3</span><span class="seat s-buy">Purchasing</span><span class="seat s-sign">101</span><span class="seat s-sign">jelai</span><span class="seat s-sign">grace</span><span class="seat s-sign">201</span></div>
+        <div class="row where"><b>Where</b><div>Each signer opens P01046 → Your move → <b>2. Sign the final IPAS</b></div></div>
         <div class="row do"><b>Do</b><div><ol>
-          <li>Cjay in IPAS Edit → Documents: Attach demo PDF to <b>BIR 2307</b>. Click Save all.</li>
-          <li>Grace demo (grace@demo): Click <b>Receive section 4</b>.</li>
-          <li>101 demo (101@demo): Click <b>Note section 4</b>.</li>
-          <li>201 demo (201@demo): Click <b>Check section 4</b>.</li>
-          <li>201 demo: Click <b>Approve and file</b>.</li>
+          <li>Cjay: <b>Review and send</b>. The final IPAS form opens. Read it, click <b>Send for signing</b>.</li>
+          <li>101, then jelai: <b>Review and approve</b> → <b>Approve</b>. Each approves the parts on their own list; the step is done when both have.</li>
+          <li>Grace: <b>Review and check</b> → <b>Check</b>. One sign-off covers Received, Noted and Checked.</li>
+          <li>201: <b>Review and file</b> → <b>Approve and file</b>.</li>
         </ol></div></div>
-        <div class="row see"><b>See</b><div>IPAS status updates to <b>Filed</b>. Record is frozen; modifications are locked.</div></div>
+        <div class="row see"><b>See</b><div>The IPAS reads <b>Filed</b>. <b>6 · Sign-offs</b> lists all four with names and times. Preview shows the one-page form with every signature at the end. Nothing can be edited.</div></div>
       </div>
     </li>
     <li data-k="8.4"><input type="checkbox" aria-label="Done">
@@ -977,15 +961,15 @@ ol.steps input[type=checkbox] {
     <li data-k="D.1" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">D.1</span><span class="seat s-buy">Purchasing</span></div>
-        <div class="row where"><b>Where</b><div>IPAS Edit modal → Section 2 with blank charge rows present</div></div>
-        <div class="row do"><b>Do</b><div>Attempt to submit Section 2 with unpopulated blank charges.</div></div>
-        <div class="row see"><b>See</b><div>Submission rejected by server: "Charge(s) are blank. Fill each in or remove it first".</div></div>
+        <div class="row where"><b>Where</b><div>IPAS → Edit → 3 · Costs with a blank charge row</div></div>
+        <div class="row do"><b>Do</b><div>Look at the note above the charges.</div></div>
+        <div class="row see"><b>See</b><div>"1 charge has no amount. Fill it in or remove it, so Landed Cost can be worked out."</div></div>
       </div>
     </li>
     <li data-k="D.2" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">D.2</span><span class="seat s-buy">Purchasing</span></div>
-        <div class="row where"><b>Where</b><div>IPAS Edit modal → Section 2 → Add Freight Charge</div></div>
+        <div class="row where"><b>Where</b><div>IPAS → Edit → 3 · Costs → Freight</div></div>
         <div class="row do"><b>Do</b><div>Attempt to enter a freight currency other than PHP or the PO's currency (USD).</div></div>
         <div class="row see"><b>See</b><div>Invalid currency rejected. Freight charges are constrained to PHP or PO currency.</div></div>
       </div>
@@ -993,17 +977,17 @@ ol.steps input[type=checkbox] {
     <li data-k="D.3" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">D.3</span><span class="seat s-wh">aldrin</span></div>
-        <div class="row where"><b>Where</b><div>Warehouse window → IPAS modal → Logistics section on an IPAS without a Transmittal</div></div>
-        <div class="row do"><b>Do</b><div>Attempt to click <b>Sign Logistics</b>.</div></div>
-        <div class="row see"><b>See</b><div>Refused by server: "Logistics needs the Item Location, a Transmittal, and the arrival date first".</div></div>
+        <div class="row where"><b>Where</b><div>Warehouse window → an IPAS with no Transmittal → Your move</div></div>
+        <div class="row do"><b>Do</b><div>Find <b>Sign Logistics</b>.</div></div>
+        <div class="row see"><b>See</b><div>No button. The line reads "Opens once the Transmittal is in." and names who signs it.</div></div>
       </div>
     </li>
     <li data-k="D.4" data-opt><input type="checkbox" aria-label="Done">
       <div class="step-body">
         <div class="head"><span class="k">D.4</span><span class="seat s-sign">grace</span></div>
-        <div class="row where"><b>Where</b><div>Signers window → IPAS modal → Section 4 Received before Logistics sign-off</div></div>
-        <div class="row do"><b>Do</b><div>Inspect Section 4 Received button.</div></div>
-        <div class="row see"><b>See</b><div>Section 4 is disabled with message: "Opens once sections 1, 2, 3 and Logistics are signed".</div></div>
+        <div class="row where"><b>Where</b><div>Signers window → an IPAS before Logistics is signed → Your move</div></div>
+        <div class="row do"><b>Do</b><div>Look at <b>2. Sign the final IPAS</b>.</div></div>
+        <div class="row see"><b>See</b><div>Locked: "Opens once everything in 1 is done." Each step names who signs it.</div></div>
       </div>
     </li>
   </ol>
