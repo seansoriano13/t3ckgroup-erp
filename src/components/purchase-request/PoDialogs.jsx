@@ -27,6 +27,7 @@ import { refusal, useRefreshRequest } from "./requestHooks";
 import { purchaseRequestKeys } from "./queryKeys";
 import { OVER_REQUEST_MODAL } from "./stacking";
 import { AttachToOthers } from "./AttachToOthers";
+import { showAttachFollowUp } from "./attachFollowUp";
 import IpasMessage from "./IpasMessage";
 
 /**
@@ -173,7 +174,10 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
       // #809: the other items this P0 covers are offered before the window closes. #811: so are open
       // items with no Odoo product, on their own.
       if (updated?.offer?.offered?.length || updated?.offer?.unticked?.length || updated?.offer?.noOdooProduct?.length) {
-        setFollowUp({ offer: updated.offer, poNumber: chosen, orderEarly: !!notOpen, earlyReason: earlyReason.trim() });
+        const step = { requestId, offer: updated.offer, poNumber: chosen, orderEarly: !!notOpen, earlyReason: earlyReason.trim() };
+        // The list's host keeps the step open however the row changes; a dialog with no list around it keeps it itself.
+        if (showAttachFollowUp(step)) close();
+        else setFollowUp(step);
         return;
       }
       close();

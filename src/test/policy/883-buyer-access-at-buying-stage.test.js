@@ -282,3 +282,42 @@ describe("while the request has an open line", () => {
         }
     })
 })
+
+describe("the Stage flagged Buying opens here tells Purchasing", () => {
+    let sorId, buyingVisitId
+
+    const noticesOf = async (employeeId, requestId) => {
+        const { data, error } = await svc()
+            .from("notifications")
+            .select("type")
+            .eq("recipient_id", employeeId)
+            .eq("reference_id", requestId)
+            .eq("type", "PURCHASE_REQUEST_BUYING_OPENED")
+        if (error) throw new Error(error.message)
+        return data
+    }
+
+    beforeAll(async () => {
+        const flagged = await svc().from("flow_stages").update({ buying_opens_here: true }).eq("id", buyingId)
+        if (flagged.error) throw new Error(flagged.error.message)
+        sorId = await freshSor()
+        const leadVisitId = await currentVisitOf(sorId)
+        await run(sorId, { stageId: leadId, actionId: leadActionId, visitId: leadVisitId })
+        const moved = await svc().from("sales_opportunities").update({ flow_stage_id: buyingId }).eq("id", sorId)
+        if (moved.error) throw new Error(moved.error.message)
+        buyingVisitId = await currentVisitOf(sorId)
+    })
+
+    afterAll(async () => {
+        await svc().from("flow_stages").update({ buying_opens_here: false }).eq("id", buyingId)
+    })
+
+    it("tells the Buyer when the SOR reaches that Stage and the run reuses the request", async () => {
+        const [request] = await requestOf(sorId)
+        expect(await noticesOf(ids.stageParticipant, request.id)).toHaveLength(0)
+
+        const result = await run(sorId, { stageId: buyingId, actionId: buyingActionId, visitId: buyingVisitId })
+        expect(result.failed).toEqual([])
+        expect(await noticesOf(ids.stageParticipant, request.id)).toHaveLength(1)
+    })
+})

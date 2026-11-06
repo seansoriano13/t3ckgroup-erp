@@ -18,6 +18,7 @@ import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
 import BulkStatusBar from "./BulkStatusBar";
 import LineButtons from "./LineButtons";
+import AttachFollowUpHost from "./AttachFollowUpHost";
 import { AskedSub, ColumnHeads, COLUMNS, ForCell, NotesCell, P0Cell, ProductCode, QtyCell, StockCell } from "./ProductLineCells";
 import { YoursBadge } from "./YoursDialog";
 import StatusBadge from "../StatusBadge";
@@ -321,6 +322,7 @@ export default function RequestedItems({ request, renderActions }) {
         </h3>
         <AddRequestedItems request={request} />
       </div>
+      <AttachFollowUpHost requestId={requestId} />
       {itemsQuery.isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner />
