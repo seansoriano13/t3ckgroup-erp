@@ -1257,13 +1257,24 @@ Project Evaluation, which judged whether a deal was worth pursuing at all.
 _Avoid_: Project Evaluation, Spec Check, Compliance Matrix
 
 **Compliance**:
-Whether a Component answers the Tender Line it sits under — Complies, Deviates,
-or unjudged. A deviation is always written down, and may name the compliant
-alternative recommended instead; it records the gap and blocks nothing. Judged
-by Technical, meaning the people an SOR's evaluation group task calls in, who
-see the S0 Evaluation without its money. Distinct from Completeness, which asks
-the same question of one Inclusion inside a bundle.
+Whether an offer answers the client's specification — Complies, Deviates, or
+unjudged. The Technical in-charge gives it twice over: one verdict for the whole
+S0 Evaluation (the one "Evaluation approved" waits for), and a verdict with a
+remark on each product on the Technical sheet. A deviation is always written
+down (a deviating product needs its remark; the offer-level note names the lines
+that deviate and any compliant alternative); it records the gap and blocks
+nothing. Only the in-charge writes either, at any time, seeing the S0 Evaluation
+without its money; lines that don't yet say what we offer are flagged beside the
+verdict, not blocked. Changing a verdict or remark clears "Evaluation approved".
+Distinct from Completeness, which asks the same question of one Inclusion inside
+a bundle.
 _Avoid_: Compliant (as a status name), Conformity, Spec match
+
+**Technical in-charge**:
+The one employee named on an SOR to give its Compliance verdict, picked by
+Sales or Purchasing from the employees whose sub-department is Technical. A
+person, not a team. Cannot also approve the Evaluation of Specification.
+_Avoid_: Technical team, RRD, IOE, evaluating team
 
 **Evaluation list**:
 The people a Super Admin names to approve an Evaluation of Specification, once for
@@ -1272,6 +1283,12 @@ only when on the list, and the Technical in-charge never approves the evaluation
 they judged. The list reads any SOR's S0 Evaluation with no money shown, and its
 members find the evaluations waiting on them on the Technical page.
 _Avoid_: Evaluation team, Evaluators, Approver role
+
+**Technical Evaluation Remarks & Recommendations**:
+The Technical in-charge's written verdict note on the S0 Evaluation, at bid
+time. Not the Transmittal's "Technical: Inspection Remarks & Recommendations",
+which is written after the goods arrive.
+_Avoid_: Inspection remarks (for the bid-time note)
 
 **ITR**:
 The income tax the S0 Evaluation deducts from an offer — 8% of the Final Offer above

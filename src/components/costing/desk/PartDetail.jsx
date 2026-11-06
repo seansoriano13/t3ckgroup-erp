@@ -109,7 +109,7 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
 
   return (
     <div data-testid="component">
-      <ItemRoad component={component} locked={Boolean(matrix.locked)} linkIpas={tier !== COSTING_TIER.PARTICIPANT} />
+      <ItemRoad component={component} linkIpas={tier !== COSTING_TIER.PARTICIPANT} />
       <Band title={asProduct ? "Product" : "Part"} hint="What we supply">
         <Field label="Name" wide>
           <div className="flex items-start gap-1">
