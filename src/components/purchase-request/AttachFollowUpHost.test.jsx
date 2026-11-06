@@ -5,7 +5,8 @@ vi.mock("./AttachToOthers", () => ({
   AttachToOthers: ({ poNumber }) => <div data-testid="attach-to-others">{poNumber}</div>,
 }));
 
-import AttachFollowUpHost, { showAttachFollowUp } from "./AttachFollowUpHost";
+import AttachFollowUpHost from "./AttachFollowUpHost";
+import { showAttachFollowUp } from "./attachFollowUp";
 
 const step = (requestId) => ({ requestId, offer: { offered: [{ id: "i1" }] }, poNumber: "P01423", orderEarly: false, earlyReason: "" });
 

@@ -27,7 +27,7 @@ import { refusal, useRefreshRequest } from "./requestHooks";
 import { purchaseRequestKeys } from "./queryKeys";
 import { OVER_REQUEST_MODAL } from "./stacking";
 import { AttachToOthers } from "./AttachToOthers";
-import { showAttachFollowUp } from "./AttachFollowUpHost";
+import { showAttachFollowUp } from "./attachFollowUp";
 import IpasMessage from "./IpasMessage";
 
 /**
