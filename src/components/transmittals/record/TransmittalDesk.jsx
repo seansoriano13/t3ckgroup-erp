@@ -1,7 +1,6 @@
 import { Link } from "react-router";
 import MoveButton from "@/components/record/MoveButton";
 import { CHROME } from "@/components/record/sectionChrome";
-import NumbersStrip from "@/components/record/NumbersStrip";
 import RecordHeader from "@/components/record/RecordHeader";
 import YourMoveCard from "@/components/record/YourMoveCard";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
@@ -11,7 +10,7 @@ import SectionTitle from "../SectionTitle";
 import LineRatings from "./LineRatings";
 import SlipFacts from "./SlipFacts";
 import { footerMovesFor, slipMovesFor } from "./transmittalMoves";
-import { badgeThemeOf, numbersOf, railStepsOf } from "./transmittalRecord";
+import { badgeThemeOf, railStepsOf } from "./transmittalRecord";
 
 function MoveList({ items, run, busy, failure }) {
   if (items.length === 0) return null;
@@ -35,7 +34,6 @@ function MoveList({ items, run, busy, failure }) {
  */
 export default function TransmittalDesk({ ctx }) {
   const { t, built, gates, summaries, status, nextSlip, busy, failure } = ctx;
-  const numbers = numbersOf(t, gates);
   const { run, dialog } = useMoveConfirm({ restate: ctx.restate, viewer: ctx.user?.name, origin: CHROME.CARD });
   const steps = railStepsOf(t, gates, summaries).map((step) => {
     const moves = footerMovesFor(built, step.key);
@@ -60,14 +58,6 @@ export default function TransmittalDesk({ ctx }) {
       />
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_25rem]">
         <div className="min-w-0 space-y-6">
-          <NumbersStrip
-            stats={[
-              { key: "lines", label: "Lines", value: numbers.lines },
-              { key: "gc", label: "GC", value: numbers.gc },
-              { key: "na", label: "NA", value: numbers.na, tone: numbers.na > 0 ? "warning" : undefined },
-              { key: "steps", label: "Steps done", value: numbers.stepsTotal > 0 ? `${numbers.stepsDone} of ${numbers.stepsTotal}` : "—" },
-            ]}
-          />
           <SlipFacts t={t} />
           <section>
             <SectionTitle title={`Lines · ${t.lines.length}`} />
