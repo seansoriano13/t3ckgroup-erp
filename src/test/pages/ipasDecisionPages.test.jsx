@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import { renderWithProviders, setupUser } from "@/test/support";
-import { COSTS_WAITING } from "@/components/ipas/record/moveCopy";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
-import { findOtherDialog } from "@/test/support/dialogs"
+import { makeReady } from "@/test/support/ipasReady";
+import { findOtherDialog } from "@/test/support/dialogs";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -17,10 +17,10 @@ vi.mock("@/context/AuthContext", () => ({
 }));
 
 /**
- * The decider (#531) as the people at the screen meet it, now the shared
- * "Your move" card (#642): it offers only what the person may do, says what
- * happens next, and lists the gates as steps by section and role with exactly
- * one Now. Each step holds its own moves.
+ * The rail ("Your move") as the people at the screen meet it: one road in two
+ * stretches. "1. Get it ready" is a checklist of the work, each item naming who does
+ * it; "2. Sign the final IPAS" opens once all of it is done. The headline says whose
+ * turn it is, and a person sees a button only on the items that are theirs.
  */
 
 const poCopy = (po) => ({
@@ -81,24 +81,27 @@ function stubWide(wide) {
   }));
 }
 
-/** The buttons that are moves: the steps of the card are toggles (they carry aria-expanded), the moves are not. */
-const movesIn = (region) => within(region).queryAllByRole("button").filter((button) => !button.hasAttribute("aria-expanded"));
+const item = (region, key) => within(region).getByTestId(`ipas-journey-${key}`);
 
-/** One step of the card, by the start of its title. */
-/** The rail shows only the step that needs the viewer; this opens the rest. */
-const showAll = async (user, region) => {
-  const link = within(region).queryByRole("button", { name: /^Show all \d+ steps/ });
-  if (link) await user.click(link);
-};
-const stepOf = (region, title) => within(region).getByRole("button", { name: new RegExp(`^${title}`) });
-
-describe("IPAS decider: Your move and the filed state", () => {
+describe("IPAS rail: Your move and the filed state", () => {
   let purchaser, approver, other, superAdmin;
   const originalMatchMedia = window.matchMedia;
 
   const signIn = (person, opts = {}) => {
     mockUser.current = person;
     stubIpasRpcs({ actorId: person.id, purchasing: Boolean(person.has_purchasing_flow), ...opts });
+  };
+
+  /** A ready IPAS: files attached, Landed Cost final, Logistics signed. */
+  const readyIpas = (overrides = {}) => {
+    const row = ipas({ computation_status: "lc_odoo_done", ...overrides });
+    makeReady(row, approver);
+    return row;
+  };
+  const sentByPurchaser = (row) => {
+    signoff(row.id, 1, "prepared", purchaser);
+    signoff(row.id, 3, "prepared", purchaser);
+    signoff(row.id, 6, "prepared", purchaser);
   };
 
   beforeEach(() => {
@@ -119,165 +122,145 @@ describe("IPAS decider: Your move and the filed state", () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  it("names the card region and offers the purchaser the moves allowed to them, each in its step with its hint", async () => {
+  it("names the region and tells the purchaser it is their turn, with a button on each item that is theirs", async () => {
     const row = ipas();
-    const user = setupUser();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    await showAll(user, region);
     expect(within(region).getByRole("heading", { name: "Your move" })).toBeInTheDocument();
+    expect(within(region).getByTestId("ipas-journey-headline")).toHaveTextContent("Your turn: Attach the files.");
+    expect(within(region).getByRole("heading", { name: /^1\. Get it ready/ })).toHaveTextContent("1 of 6 done");
 
-    // Every step that needs the viewer opens on arrival and holds its own move.
-    const one = stepOf(region, "Section 1 · Purchasing").closest("li");
-    const two = stepOf(region, "Section 2 · Purchasing & Finance").closest("li");
-    expect(within(one).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
-    expect(within(two).getByRole("button", { name: "Submit section 2" })).toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: /^Approve/ })).not.toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: /Send section/ })).not.toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: "Reopen this IPAS" })).not.toBeInTheDocument();
-    expect(within(region).queryByText(/Also waiting for you/)).not.toBeInTheDocument();
-
-    expect(
-      within(region).getByText("Sends section 1 · Purchasing to its approvers, who are told now."),
-    ).toBeInTheDocument();
-    expect(within(region).getByText("Waiting for you: 1 · Purchasing")).toBeInTheDocument();
+    expect(within(item(region, "files")).getByRole("button", { name: "Attach in 5 · Documents" })).toBeInTheDocument();
+    expect(within(item(region, "location")).getByRole("button", { name: "Pick it in 4 · Delivery" })).toBeInTheDocument();
+    expect(within(item(region, "transmittal")).getByRole("button", { name: "Raise a Transmittal" })).toBeInTheDocument();
+    expect(within(item(region, "landed")).getByRole("button", { name: "Mark Landed Cost final" })).toBeInTheDocument();
+    // Every item says who does it; the charges item has nothing left to do.
+    expect(item(region, "files")).toHaveTextContent("Who: Purchasing");
+    expect(item(region, "charges")).toHaveTextContent("done");
+    // Signing is not open yet, and nothing in it is offered.
+    expect(within(region).getByText(/Opens once everything in 1 is done/)).toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: /^Review and/ })).not.toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: "Send back…" })).not.toBeInTheDocument();
   });
 
-  it("opens the right section from a step's Review section link", async () => {
+  it("opens the section an item points to, ready for typing", async () => {
     const user = setupUser();
     const row = ipas();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    await user.click(within(region).getByRole("button", { name: "Review section 2 · Purchasing & Finance" }));
-    await screen.findByRole("region", { name: "2 · Purchasing & Finance" });
-    expect(screen.getByRole("button", { name: /^2 · Purchasing & Finance/ })).toHaveAttribute("aria-expanded", "true");
+    await user.click(within(item(region, "location")).getByRole("button", { name: "Pick it in 4 · Delivery" }));
+
+    expect(await screen.findByRole("button", { name: /^Save all/ })).toBeDisabled();
   });
 
-  it("keeps the next LC step in the step it belongs to", async () => {
+  it("marks Landed Cost final from its item, in one click", async () => {
     const row = ipas({ computation_status: "lc_gs_done" });
-    signoff(row.id, 1, "prepared", purchaser);
-    signoff(row.id, 1, "approved", approver);
     const user = setupUser();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    await showAll(user, region);
-    const costs = within(region).getByRole("button", { name: "Mark LC Odoo Done" });
-    const step = costs.closest("ol > li");
-    expect(within(step).getByRole("button", { name: /^Section 3 · LC Odoo Done/ })).toBeInTheDocument();
-    expect(step).not.toBe(within(region).getByRole("button", { name: "Submit section 2" }).closest("ol > li"));
-    expect(within(region).getByText(/Makes Landed Cost final/)).toBeInTheDocument();
+    await user.click(within(item(region, "landed")).getByRole("button", { name: "Mark Landed Cost final" }));
+
+    await waitFor(() => expect(db.rows("ipas")[0].computation_status).toBe("lc_odoo_done"));
   });
 
-  it("lists the gates as steps by section and role, and marks exactly one Now (encoding, sections 1 and 2 approved: Received)", async () => {
-    const row = ipas({ computation_status: "encoding" });
-    signoff(row.id, 1, "prepared", purchaser);
+  it("folds the finished checklist away, and shows it again on request", async () => {
+    const row = readyIpas();
+    const user = setupUser();
+    renderDetail(row.id);
+
+    const region = await screen.findByRole("region", { name: "Your move" });
+    expect(within(region).getByRole("heading", { name: /^1\. Get it ready/ })).toHaveTextContent("6 of 6 done");
+    expect(within(region).queryByTestId("ipas-journey-files")).not.toBeInTheDocument();
+    await user.click(within(region).getByRole("button", { name: "Show what was done" }));
+    expect(item(region, "files")).toHaveTextContent("done");
+    expect(item(region, "logistics")).toHaveTextContent("Signed by Boss Lito.");
+  });
+
+  it("opens signing once everything is ready, with Send for signing as the purchaser's turn", async () => {
+    const row = readyIpas();
+    renderDetail(row.id);
+
+    const region = await screen.findByRole("region", { name: "Your move" });
+    expect(within(region).getByTestId("ipas-journey-headline")).toHaveTextContent("Your turn: Send for signing.");
+    expect(within(item(region, "send")).getByRole("button", { name: "Review and send" })).toBeInTheDocument();
+    // The later steps wait, and say who they wait on.
+    expect(item(region, "approve")).toHaveTextContent("Who: Boss Lito");
+    expect(item(region, "check")).toHaveTextContent("Nobody is on the Received, Noted and Checked list yet");
+    expect(within(region).queryByRole("button", { name: /^Review and (approve|check|file)/ })).not.toBeInTheDocument();
+  });
+
+  it("says who sent it and that it is approved, once the signatures are in", async () => {
+    const row = readyIpas();
+    sentByPurchaser(row);
     signoff(row.id, 1, "approved", approver);
-    signoff(row.id, 3, "prepared", purchaser);
     signoff(row.id, 3, "approved", approver);
-    signoff(row.id, 6, "prepared", purchaser);
     signoff(row.id, 6, "approved", approver);
-    // Filing also waits for the Logistics sign-off (stored 8, #713).
-    signoff(row.id, 8, "approved", approver);
-    const user = setupUser();
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    await showAll(user, region);
-    expect(stepOf(region, "Section 1 · Purchasing")).toHaveTextContent("Done");
-    expect(stepOf(region, "Section 2 · Purchasing & Finance")).toHaveTextContent("Done");
-    expect(stepOf(region, "Section 3 · LC Odoo Done")).toHaveTextContent("Waiting");
-    expect(stepOf(region, "Section 4 · Received")).toHaveTextContent("Now");
-    expect(stepOf(region, "Section 4 · Noted and Checked")).toHaveTextContent("Waiting");
-    expect(stepOf(region, "Section 4 · Approved")).toHaveTextContent("Waiting");
-    expect(within(region).getAllByText("Now")).toHaveLength(1);
-    expect(within(region).getByText(/^\d+ of 7 signed$/)).toBeInTheDocument();
+    expect(item(region, "send")).toHaveTextContent("Sent by Buyer.");
+    expect(item(region, "approve")).toHaveTextContent("Approved.");
+    expect(item(region, "check")).toHaveTextContent("waiting");
   });
 
-  it("says who approved a gate and when, and keeps Noted and Checked in either order", async () => {
-    const row = ipas({ computation_status: "encoding" });
-    signoff(row.id, 1, "prepared", purchaser);
-    signoff(row.id, 1, "approved", approver, { signed_at: "2026-09-05T06:40:00.000Z" });
-    const user = setupUser();
-    renderDetail(row.id);
-
-    const region = await screen.findByRole("region", { name: "Your move" });
-    await showAll(user, region);
-    expect(within(stepOf(region, "Section 1 · Purchasing")).getByText(/^Approved by Boss Lito · Sep 5, 2026/)).toBeInTheDocument();
-    expect(within(stepOf(region, "Section 4 · Noted and Checked")).getByText("Noted and Checked, in either order, after Received")).toBeInTheDocument();
-  });
-
-  it("says nothing needs the purchaser while the Now gate waits on Finance, and names the section", async () => {
-    const row = ipas({ computation_status: "encoding" });
-    signoff(row.id, 1, "prepared", purchaser);
-    signoff(row.id, 1, "approved", approver);
-    signoff(row.id, 3, "prepared", purchaser);
-    signoff(row.id, 3, "approved", approver);
-    signoff(row.id, 6, "prepared", purchaser);
-    signoff(row.id, 6, "approved", approver);
-    // Filing also waits for the Logistics sign-off (stored 8, #713).
-    signoff(row.id, 8, "approved", approver);
-    renderDetail(row.id);
-
-    const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText("Next: 4 · Filing, Received, waiting on the Received list")).toBeInTheDocument();
-    // The LC steps are not offered until the computation status is Encoded: the costs gate is not Now.
-    expect(within(region).queryByRole("button", { name: /^Mark LC/ })).not.toBeInTheDocument();
-  });
-
-  it("offers an approver only Approve and Return on their section, never a Purchasing move", async () => {
-    const row = ipas();
-    signoff(row.id, 1, "prepared", purchaser);
+  it("offers an approver Review and approve and Send back, never a Purchasing move", async () => {
+    const row = readyIpas();
+    sentByPurchaser(row);
     signIn(approver);
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByRole("button", { name: "Approve section 1" })).toBeInTheDocument();
-    // One Return button on the card; its dialog picks the section.
-    expect(within(region).getByRole("button", { name: "Return…" })).toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: /^Submit/ })).not.toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: /^Mark LC/ })).not.toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: /Approve section 2/ })).not.toBeInTheDocument();
+    expect(within(region).getByTestId("ipas-journey-headline")).toHaveTextContent("Your turn: Approve.");
+    expect(within(item(region, "approve")).getByRole("button", { name: "Review and approve" })).toBeInTheDocument();
+    expect(within(region).getByRole("button", { name: "Send back…" })).toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: "Review and send" })).not.toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: /^Mark Landed/ })).not.toBeInTheDocument();
   });
 
-  it("says nothing needs the viewer, and names the sections it waits on", async () => {
+  it("tells a preparer that someone else approves what they sent", async () => {
+    const row = readyIpas();
+    signoff(row.id, 1, "prepared", approver);
+    signoff(row.id, 3, "prepared", approver);
+    signoff(row.id, 6, "prepared", approver);
+    signIn(approver);
+    renderDetail(row.id);
+
+    const region = await screen.findByRole("region", { name: "Your move" });
+    expect(item(region, "approve")).toHaveTextContent("Boss Lito sent it, so someone else on the list approves it.");
+    expect(within(item(region, "approve")).queryByRole("button")).not.toBeInTheDocument();
+    expect(within(region).getByTestId("ipas-journey-headline")).not.toHaveTextContent(/^Your turn/);
+  });
+
+  it("says nothing is the viewer's turn, and names who the IPAS waits on", async () => {
     const row = ipas();
     signIn(other);
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText(/^Next: 1 · Purchasing, waiting on Purchasing/)).toBeInTheDocument();
-    expect(movesIn(region)).toHaveLength(0);
+    expect(within(region).getByTestId("ipas-journey-headline")).toHaveTextContent("Getting it ready. Waiting on Purchasing: Attach the files.");
+    expect(within(region).queryAllByRole("button").filter((b) => /^(Attach|Pick|Mark|Review)/.test(b.textContent))).toHaveLength(0);
+    expect(within(region).queryByRole("button", { name: "Raise a Transmittal" })).not.toBeInTheDocument();
   });
 
-  it("tells a purchaser who prepared both sections that the approvers hold the next step", async () => {
+  it("names the approvers as the wait once the purchaser has sent it", async () => {
+    const row = readyIpas();
+    sentByPurchaser(row);
+    renderDetail(row.id);
+
+    const region = await screen.findByRole("region", { name: "Your move" });
+    expect(within(region).getByTestId("ipas-journey-headline")).toHaveTextContent("Waiting on Boss Lito: Approve.");
+  });
+
+  it("says why Logistics cannot be signed yet, and what it opens on", async () => {
     const row = ipas();
-    signoff(row.id, 1, "prepared", purchaser);
-    signoff(row.id, 3, "prepared", purchaser);
+    signIn(other);
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText(/^Next: 1 · Purchasing, waiting on the approvers/)).toBeInTheDocument();
-    expect(within(region).queryByText(/^Waiting for you/)).not.toBeInTheDocument();
-  });
-
-  it("names Purchasing's encoding as the wait when sections 1 and 2 and the filing steps are given but costs are not encoded", async () => {
-    const row = ipas({ computation_status: "encoding" });
-    signoff(row.id, 1, "prepared", purchaser);
-    signoff(row.id, 1, "approved", approver);
-    signoff(row.id, 3, "prepared", purchaser);
-    signoff(row.id, 3, "approved", approver);
-    signoff(row.id, 7, "received", approver);
-    signoff(row.id, 7, "noted", approver);
-    signoff(row.id, 7, "checked", approver);
-    // Costs are not encoded yet, so the costs gate is not Now and filing waits on it: nothing is Now.
-    renderDetail(row.id);
-
-    const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByText(`Nothing needs you right now. ${COSTS_WAITING}`)).toBeInTheDocument();
-    expect(within(region).queryByText("Now")).not.toBeInTheDocument();
+    expect(item(region, "logistics")).toHaveTextContent(/Opens once the Item Location and Transmittal are in\./);
   });
 
   it("says Filed, with no moves; Reopen sits in the filed banner and only a Super Admin gets it", async () => {
@@ -295,7 +278,7 @@ describe("IPAS decider: Your move and the filed state", () => {
 
     const region = await screen.findByRole("region", { name: "Your move" });
     expect(within(region).getByText("Filed. Nothing left to do.")).toBeInTheDocument();
-    expect(movesIn(region)).toHaveLength(0);
+    expect(within(region).queryAllByRole("button")).toHaveLength(0);
     expect(within(screen.getByTestId("ipas-filed-notice")).queryByRole("button", { name: "Reopen" })).not.toBeInTheDocument();
     unmount();
 
@@ -317,7 +300,7 @@ describe("IPAS decider: Your move and the filed state", () => {
     const sections = await screen.findByRole("heading", { name: "Sections" });
     const yourMove = screen.getByRole("heading", { name: "Your move" });
     expect(yourMove.compareDocumentPosition(sections) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // The steps and their moves are there at any width.
-    expect(within(await screen.findByRole("region", { name: "Your move" })).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
+    // The checklist and its buttons are there at any width.
+    expect(within(await screen.findByRole("region", { name: "Your move" })).getByRole("button", { name: "Mark Landed Cost final" })).toBeInTheDocument();
   });
 });

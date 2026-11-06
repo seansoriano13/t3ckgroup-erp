@@ -96,26 +96,27 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
   };
 
   describe("documents", () => {
-    // #533: in the section the two ticks read as words; the edit view keeps the boxes.
-    it("reads the ticks as words in the section, and offers no document controls there", async () => {
+    // The Documents section works in place: every file of the Source, each with its Attach button.
+    it("lists the Source's documents in place, each with an Attach button, and nothing to remove on a suggested one", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
 
-      renderDetail(row.id, "finance");
+      renderDetail(row.id, "documents");
 
-      const drawer = await screen.findByRole("region", { name: "2 · Purchasing & Finance" });
-      const waybill = await within(drawer).findByText("Waybill");
+      const section = await screen.findByRole("region", { name: "5 · Documents" });
+      const waybill = await within(section).findByText("Waybill");
       const rowEl = waybill.closest("[data-testid=ipas-document-row]");
-      expect(within(rowEl).queryByRole("checkbox")).not.toBeInTheDocument();
-      expect(within(drawer).queryByRole("button", { name: "Add document" })).not.toBeInTheDocument();
-      expect(within(drawer).queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
+      expect(within(rowEl).getByRole("button", { name: "Attach a file to Waybill" })).toBeInTheDocument();
+      expect(within(section).queryByText("Quotation (Local)")).not.toBeInTheDocument();
+      expect(within(section).getByRole("button", { name: "Add document" })).toBeInTheDocument();
+      expect(within(section).queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
     });
 
     it.skipIf(!SHOW_HAS_TICKS)("lists the documents for the Source, each with two ticks and a filing mark on filing items", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
 
-      renderDetail(row.id, "finance", "edit");
+      renderDetail(row.id, "documents", "edit");
 
       const section = await screen.findByTestId("ipas-documents");
       expect(within(section).getByText("BL or Waybill")).toBeInTheDocument();
@@ -131,7 +132,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       giveDocuments(row);
       const user = setupUser();
 
-      renderDetail(row.id, "finance", "edit");
+      renderDetail(row.id, "documents", "edit");
       const waybill = await documentRow("Waybill");
       const purchasingBox = within(waybill).getByRole("checkbox", { name: /Purchasing has it/ });
       const financeBox = within(waybill).getByRole("checkbox", { name: /Finance has it/ });
@@ -164,7 +165,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       });
       const user = setupUser();
 
-      renderDetail(row.id, "finance", "edit");
+      renderDetail(row.id, "documents", "edit");
       const waybill = await documentRow("Waybill");
       const box = within(waybill).getByRole("checkbox", { name: /Purchasing has it/ });
       await user.click(box);
@@ -190,7 +191,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       });
       const user = setupUser();
 
-      renderDetail(row.id, "finance", "edit");
+      renderDetail(row.id, "documents", "edit");
       const waybill = await documentRow("Waybill");
       await user.click(within(waybill).getByRole("checkbox", { name: /Purchasing has it/ }));
       await user.click(screen.getByRole("button", { name: /^Save all/ }));
@@ -210,7 +211,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       giveDocuments(row);
       const user = setupUser();
 
-      renderDetail(row.id, "finance", "edit");
+      renderDetail(row.id, "documents", "edit");
       const waybill = await documentRow("Waybill");
       refused(within(waybill).getByRole("checkbox", { name: /Purchasing has it/ }));
       const financeBox = within(waybill).getByRole("checkbox", { name: /Finance has it/ });
@@ -231,7 +232,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       db.seed("ipas_documents", { ipas_id: row.id, kind_id: null, label: "Warranty card", attachment_url: null, purchasing_has: false, finance_has: false });
       const user = setupUser();
 
-      renderDetail(row.id, "finance", "edit");
+      renderDetail(row.id, "documents", "edit");
       const waybill = await documentRow("Waybill");
       expect(within(waybill).queryByRole("button", { name: /Remove Waybill/ })).not.toBeInTheDocument();
       const bir = await documentRow("BIR 2307");
@@ -250,7 +251,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       giveDocuments(row);
       const user = setupUser();
 
-      renderDetail(row.id, "finance", "edit");
+      renderDetail(row.id, "documents", "edit");
       await user.click(await screen.findByRole("button", { name: "Add document" }));
       // A new row to fill in, right there: no dialog.
       const fresh = await screen.findByRole("group", { name: "New document 1" });
@@ -271,7 +272,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       db.seed("ipas_options", { list: "document_kind", label: "Insurance Certificate", sort: 500, active: true, applies_to: "import", used_for: "documentation" });
       const user = setupUser();
 
-      renderDetail(row.id, "finance", "edit");
+      renderDetail(row.id, "documents", "edit");
       await user.click(await screen.findByRole("button", { name: "Add 1 suggested" }));
 
       expect(await documentRow("Insurance Certificate")).toBeTruthy();
@@ -282,7 +283,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       const row = ipas({ source: "import", state: "filed", created_by: purchaser.id });
       giveDocuments(row);
 
-      renderDetail(row.id, "finance", "edit");
+      renderDetail(row.id, "documents", "edit");
 
       const waybill = await documentRow("Waybill");
       refused(within(waybill).getByRole("checkbox", { name: /Purchasing has it/ }));
@@ -292,13 +293,13 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
   });
 
   describe("Item Location", () => {
-    it("types an Item Location from the list, in section 5", async () => {
+    it("types an Item Location from the list, in section 4", async () => {
       const row = ipas({ source: "local", created_by: purchaser.id });
       const user = setupUser();
 
-      renderDetail(row.id, "logistics");
+      renderDetail(row.id, "delivery");
       // The row and the drawer both name the section.
-      expect((await screen.findAllByText("6 · Logistics")).length).toBeGreaterThan(0);
+      expect((await screen.findAllByText("4 · Delivery")).length).toBeGreaterThan(0);
       await user.click(screen.getByRole("combobox", { name: "Item Location" }));
       await user.click(await screen.findByRole("option", { name: "BM Office" }));
 
@@ -311,7 +312,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });
       const row = ipas({ source: "local", created_by: purchaser.id, item_location_id: options.item_location["Marikina Warehouse"].id });
 
-      renderDetail(row.id, "logistics");
+      renderDetail(row.id, "delivery");
 
       expect((await screen.findAllByText("Marikina Warehouse")).length).toBeGreaterThan(0);
       expect(screen.queryByRole("combobox", { name: "Item Location" })).not.toBeInTheDocument();
@@ -323,7 +324,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       const user = setupUser();
 
-      renderDetail(row.id, "status");
+      renderDetail(row.id, "delivery");
       const block = await screen.findByTestId("ipas-supplier-origin");
       for (const label of ["Shipped Out", "Onboard", "Arrived in PH", "Arrived in Whs."]) {
         expect(within(block).getByText(label)).toBeInTheDocument();
@@ -340,9 +341,9 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
     it("hides Supplier Origin entirely on a Local IPAS", async () => {
       const row = ipas({ source: "local", created_by: purchaser.id });
 
-      renderDetail(row.id, "status");
+      renderDetail(row.id, "delivery");
 
-      expect((await screen.findAllByText("7 · Status")).length).toBeGreaterThan(0);
+      expect((await screen.findAllByText("4 · Delivery")).length).toBeGreaterThan(0);
       expect(screen.queryByTestId("ipas-supplier-origin")).not.toBeInTheDocument();
       expect(screen.queryByText("Supplier Origin")).not.toBeInTheDocument();
       expect(screen.queryByText("Import Clearance")).not.toBeInTheDocument();
@@ -353,7 +354,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
     it("shows each status with where it came from", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
 
-      renderDetail(row.id, "status");
+      renderDetail(row.id, "delivery");
 
       const po = await screen.findByTestId("ipas-track-purchase_order");
       expect(within(po).getByText("stamped from Odoo")).toBeInTheDocument();
@@ -369,7 +370,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       const method = options.payment_method["Dated Check"];
 
       db.seed("ipas_payments", { ipas_id: row.id, kind: "payment", paid_on: "2026-10-01", amount: 1000, php_debited: null, charge_fee_php: 0, method_id: method.id, proof_url: "https://res.cloudinary.com/demo/image/upload/pop.jpg" });
-      renderDetail(row.id, "status");
+      renderDetail(row.id, "delivery");
 
       const pop = await screen.findByTestId("ipas-track-with_pop");
       await waitFor(() => expect(within(pop).getByText(/1 payment carries proof/)).toBeInTheDocument());
@@ -379,7 +380,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       const row = ipas({ source: "local", created_by: purchaser.id });
       const user = setupUser();
 
-      renderDetail(row.id, "status");
+      renderDetail(row.id, "delivery");
       const delivered = await screen.findByTestId("ipas-track-delivered");
       await user.click(within(delivered).getByRole("button", { name: "Type date" }));
       const dialog = await findOtherDialog();
@@ -395,7 +396,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       const row = ipas({ source: "local", created_by: purchaser.id });
       const user = setupUser();
 
-      renderDetail(row.id, "status");
+      renderDetail(row.id, "delivery");
       const checking = await screen.findByTestId("ipas-track-actual_checking");
       await user.click(within(checking).getByRole("button", { name: "Stamp" }));
 
@@ -411,7 +412,7 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });
       const row = ipas({ source: "import", created_by: purchaser.id });
 
-      renderDetail(row.id, "status");
+      renderDetail(row.id, "delivery");
 
       const delivered = await screen.findByTestId("ipas-track-delivered");
       expect(within(delivered).queryByRole("button")).not.toBeInTheDocument();

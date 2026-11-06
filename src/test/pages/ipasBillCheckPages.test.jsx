@@ -8,6 +8,7 @@ import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { makeReady } from "@/test/support/ipasReady";
 import { findOtherDialog } from "@/test/support/dialogs";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -176,51 +177,59 @@ describe("IPAS Supplier bill check", () => {
     });
   });
 
-  describe("beside section 1's approval", () => {
-    it("warns an approver of the difference in words, and still offers Approve", async () => {
-      const row = ipas({ pi_qt_amount: 16200 });
+  describe("beside the rail's Approve step", () => {
+    /** Ready and sent by the purchaser, so the approver's turn is open. */
+    const sentIpas = (overrides = {}) => {
+      const row = ipas({ computation_status: "lc_odoo_done", ...overrides });
+      makeReady(row, approver);
       signoff(row.id, 1, "prepared", purchaser);
+      signoff(row.id, 3, "prepared", purchaser);
+      signoff(row.id, 6, "prepared", purchaser);
+      return row;
+    };
+    const approveStep = async () => within(await screen.findByRole("region", { name: "Your move" })).findByTestId("ipas-journey-approve");
+
+    it("warns an approver of the difference in words, and still offers Approve", async () => {
+      const row = sentIpas({ pi_qt_amount: 16200 });
       signIn(approver);
       renderDetail(row.id);
 
-      const card = await screen.findByRole("region", { name: "Your move" });
-      const approve = within(card).getByRole("button", { name: "Approve section 1" });
-      const warning = within(card).getByTestId("move-warning-card-approve-1");
-      expect(warning).toHaveTextContent("the P.I is ₱5,000.00 more than the Odoo PO");
+      const step = await approveStep();
+      const approve = within(step).getByRole("button", { name: "Review and approve" });
+      const warning = within(step).getByText(/Supplier bill check: the P\.I is ₱5,000\.00 more than the Odoo PO/);
       // It sits beside the button, and never blocks it.
       expect(approve).toBeEnabled();
-      expect(approve.compareDocumentPosition(warning) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(warning.compareDocumentPosition(approve) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it("warns when the P.I/QT Amount is blank", async () => {
-      const row = ipas();
-      signoff(row.id, 1, "prepared", purchaser);
+      const row = sentIpas();
       signIn(approver);
       renderDetail(row.id);
 
-      const card = await screen.findByRole("region", { name: "Your move" });
-      expect(within(card).getByTestId("move-warning-card-approve-1")).toHaveTextContent("P.I/QT Amount is not typed yet");
-      expect(within(card).getByRole("button", { name: "Approve section 1" })).toBeEnabled();
+      const step = await approveStep();
+      expect(step).toHaveTextContent("P.I/QT Amount is not typed yet");
+      expect(within(step).getByRole("button", { name: "Review and approve" })).toBeEnabled();
     });
 
     it("shows no warning when the bill matches", async () => {
-      const row = ipas({ pi_qt_amount: 11200 });
-      signoff(row.id, 1, "prepared", purchaser);
+      const row = sentIpas({ pi_qt_amount: 11200 });
       signIn(approver);
       renderDetail(row.id);
 
-      const card = await screen.findByRole("region", { name: "Your move" });
-      expect(within(card).getByRole("button", { name: "Approve section 1" })).toBeInTheDocument();
-      expect(within(card).queryByTestId("move-warning-card-approve-1")).not.toBeInTheDocument();
+      const step = await approveStep();
+      expect(within(step).getByRole("button", { name: "Review and approve" })).toBeInTheDocument();
+      expect(step).not.toHaveTextContent("Supplier bill check");
     });
 
-    it("shows no warning on a Submit", async () => {
-      const row = ipas();
+    it("shows no warning on Send for signing", async () => {
+      const row = ipas({ computation_status: "lc_odoo_done" });
+      makeReady(row, approver);
       renderDetail(row.id);
 
-      const card = await screen.findByRole("region", { name: "Your move" });
-      expect(within(card).getByRole("button", { name: "Submit section 1" })).toBeInTheDocument();
-      expect(within(card).queryByTestId("move-warning-card-prepare-1")).not.toBeInTheDocument();
+      const step = await within(await screen.findByRole("region", { name: "Your move" })).findByTestId("ipas-journey-send");
+      expect(within(step).getByRole("button", { name: "Review and send" })).toBeInTheDocument();
+      expect(step).not.toHaveTextContent("Supplier bill check");
     });
   });
 

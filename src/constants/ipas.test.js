@@ -13,17 +13,15 @@ import {
  * sections (1, 3, 7) are keys in the database; a person reads the numbers here.
  */
 describe("the IPAS section numbers", () => {
-  it("numbers the seven parts 1 to 7 once each, in the module's order", () => {
-    expect(Object.entries(IPAS_PART_NO).sort((a, b) => a[1] - b[1]).map(([part]) => part)).toEqual([
-      "purchasing",
-      "finance",
-      "costing",
-      "filing",
-      "sales",
-      "logistics",
-      "status",
-    ]);
-    expect(Object.values(IPAS_PART_NO).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  it("numbers the parts 1 to 6 in the order the work happens: Order, Payments, Costs, Delivery, Documents, Sign-offs", () => {
+    const byNumber = (no) => Object.entries(IPAS_PART_NO).filter(([, n]) => n === no).map(([part]) => part).sort();
+    expect(byNumber(1)).toEqual(["purchasing", "sales"]);
+    expect(byNumber(2)).toEqual(["finance"]);
+    expect(byNumber(3)).toEqual(["costing"]);
+    expect(byNumber(4)).toEqual(["logistics", "status"]);
+    expect(byNumber(5)).toEqual(["documents"]);
+    expect(byNumber(6)).toEqual(["filing"]);
+    expect([...new Set(Object.values(IPAS_PART_NO))].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("names every part", () => {
@@ -36,39 +34,39 @@ describe("the IPAS section numbers", () => {
 });
 
 describe("ipasSectionNo (#552)", () => {
-  it("maps the stored sign-off sections 1, 3, 6 and 7 to the numbers the screen shows", () => {
-    expect([1, 3, 6, 7].map(ipasSectionNo)).toEqual([1, 2, 3, 4]);
+  it("maps the stored sign-off sections 1, 3, 6, 7 and 8 to the numbers the screen shows", () => {
+    expect([1, 3, 6, 7, 8].map(ipasSectionNo)).toEqual([1, 2, 3, 6, 4]);
     expect(ipasSectionNo("3")).toBe(2);
-    expect(ipasSectionWord(7)).toBe("section 4");
+    expect(ipasSectionWord(7)).toBe("section 6");
   });
 
-  it("names the Settings sign-off lists with the display numbers", () => {
+  it("names the Settings sign-off lists after the rail's sign-offs", () => {
     expect(IPAS_SIGNER_LIST_LABELS).toEqual({
-      s1_approved: "Section 1 · Approved",
-      s3_approved: "Section 2 · Approved",
-      s6_approved: "Section 3 · Approved",
-      s7_received: "Section 4 · Received",
-      s7_noted: "Section 4 · Noted",
-      s7_checked: "Section 4 · Checked",
-      s7_approved: "Section 4 · Approved (files the IPAS)",
-      logistics_signed: "Section 6 · Logistics signed",
+      s1_approved: "Approve · 1 Order",
+      s3_approved: "Approve · 2 Payments",
+      s6_approved: "Approve · 3 Costs",
+      s7_received: "Check (as Received)",
+      s7_noted: "Check (as Noted)",
+      s7_checked: "Check (as Checked)",
+      s7_approved: "Approve and file",
+      logistics_signed: "Sign Logistics · 4 Delivery",
     });
   });
 });
 
 describe("ipasSectionLabel", () => {
   it("formats a part key as its number and name", () => {
-    expect(ipasSectionLabel("finance")).toBe("2 · Purchasing & Finance");
-    expect(ipasSectionLabel("costing")).toBe("3 · Computation status & Landed Cost");
-    expect(ipasSectionLabel("filing")).toBe("4 · Filing");
-    expect(ipasSectionLabel("status")).toBe("7 · Status");
+    expect(ipasSectionLabel("finance")).toBe("2 · Payments");
+    expect(ipasSectionLabel("costing")).toBe("3 · Costs");
+    expect(ipasSectionLabel("filing")).toBe("6 · Sign-offs");
+    expect(ipasSectionLabel("status")).toBe("4 · Delivery");
   });
 
   it("formats a stored sign-off section the same as its part", () => {
-    expect(ipasSectionLabel(1)).toBe("1 · Purchasing");
+    expect(ipasSectionLabel(1)).toBe("1 · Order");
     expect(ipasSectionLabel(3)).toBe(ipasSectionLabel("finance"));
     expect(ipasSectionLabel(7)).toBe(ipasSectionLabel("filing"));
-    expect(ipasSectionLabel("3")).toBe("2 · Purchasing & Finance");
+    expect(ipasSectionLabel("3")).toBe("2 · Payments");
   });
 
   it("uses the middle dot with a space either side", () => {

@@ -68,7 +68,8 @@ describe("cardMovesFor: the earliest section only", () => {
     const card = cardMovesFor(ctx, digest);
 
     expect(labels(card.all)).toEqual(["Submit section 1", "Submit section 2"]);
-    expect(labels(footerMovesFor(ctx, digest, "finance"))).toEqual(["Submit section 2"]);
+    // Signing is given from the rail, so no section carries a Submit in its foot.
+    expect(labels(footerMovesFor(ctx, digest, "payments"))).toEqual([]);
   });
 
   it("keeps the Return button and the section's Return / Undo moves as they are", () => {
@@ -96,7 +97,7 @@ describe("cardMovesFor: section 4 earliest", () => {
     const ctx = ctxOf({ s7: { noted: { canGive: true }, checked: { canGive: true } } });
     const card = cardMovesFor(ctx, digest);
 
-    expect(labels(card.moves)).toEqual(["Note section 4", "Check section 4"]);
+    expect(labels(card.moves)).toEqual(["Note section 6", "Check section 6"]);
     expect(card.also).toEqual([]);
   });
 });

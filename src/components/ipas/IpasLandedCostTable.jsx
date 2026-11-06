@@ -4,7 +4,7 @@
 // An Inventory IPAS adds Retail, Wholesale and WS income / unit. Only the Markup list sets the
 // multiplier and the wholesale discount. One table, nothing nested in its rows.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button } from "../ui/button";
 import { FieldBox } from "../ui/FieldBox";
@@ -14,10 +14,52 @@ import { cn } from "@/lib/utils";
 import { formatAmount } from "../../utils/ipas";
 import { landedTable } from "../../utils/ipasLandedTable";
 
-const th = "border-b border-r border-mauve-5 bg-mauve-2 px-3 py-2 text-left text-label uppercase tracking-wider text-mauve-11 whitespace-nowrap last:border-r-0";
+const th = "relative border-b border-r border-mauve-5 bg-mauve-2 px-3 py-2 text-left text-label uppercase tracking-wider text-mauve-11 whitespace-nowrap last:border-r-0";
 const td = "border-b border-r border-mauve-5 px-3 py-2.5 align-top text-[13px] leading-snug last:border-r-0";
 const num = "text-right tabular-nums whitespace-nowrap";
 const foot = "border-r border-mauve-5 bg-mauve-2 px-3 py-2.5 text-[13px] font-semibold last:border-r-0";
+
+// The Item column starts narrow, so the figures beside it stay in view; the handle on its edge widens it.
+const ITEM_WIDTH = { start: 176, min: 120, max: 640 };
+const clampItem = (px) => Math.min(ITEM_WIDTH.max, Math.max(ITEM_WIDTH.min, px));
+
+/** The grip on the Item heading's right edge: drag it, or use the arrow keys, to resize the column. */
+function ItemResizer({ width, onChange }) {
+  const drag = useRef(null);
+  return (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the Item column"
+      aria-valuenow={Math.round(width)}
+      aria-valuemin={ITEM_WIDTH.min}
+      aria-valuemax={ITEM_WIDTH.max}
+      tabIndex={0}
+      data-testid="ipas-landed-item-resizer"
+      className="absolute inset-y-0 right-0 z-20 w-2 cursor-col-resize touch-none select-none hover:bg-primary/30 focus-visible:bg-primary/40 focus-visible:outline-none"
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        drag.current = { x: event.clientX, width };
+      }}
+      onPointerMove={(event) => {
+        if (drag.current) onChange(clampItem(drag.current.width + event.clientX - drag.current.x));
+      }}
+      onPointerUp={() => {
+        drag.current = null;
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+      }}
+      onDoubleClick={() => onChange(ITEM_WIDTH.start)}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft") onChange(clampItem(width - 16));
+        else if (event.key === "ArrowRight") onChange(clampItem(width + 16));
+        else return;
+        event.preventDefault();
+      }}
+    />
+  );
+}
 
 const php = (value) => (value === null || value === undefined ? "—" : formatAmount(value, "PHP"));
 
@@ -42,8 +84,10 @@ function MarkupInputs({ multiplier, discount, onSave }) {
 }
 
 export default function IpasLandedCostTable({ ipas, canSetMarkup = false, onSetMarkup }) {
+  const [itemWidth, setItemWidth] = useState(ITEM_WIDTH.start);
   const table = landedTable(ipas);
   if (!table) return null;
+  const itemStyle = { width: itemWidth, minWidth: itemWidth, maxWidth: itemWidth };
   const lc = ipas.landedCost;
   const currency = lc.currency || ipas.currency;
   const { pricing, totals, note } = table;
@@ -54,7 +98,10 @@ export default function IpasLandedCostTable({ ipas, canSetMarkup = false, onSetM
         <Table className="border-separate border-spacing-0">
           <TableHeader className="bg-transparent">
             <TableRow>
-              <th className={cn(th, "sticky left-0 z-10")}>Item</th>
+              <th className={cn(th, "sticky left-0 z-10")} style={itemStyle}>
+                Item
+                <ItemResizer width={itemWidth} onChange={setItemWidth} />
+              </th>
               {["Qty", "Unit price", "In pesos", "Share", "Duties / unit", "Freight / unit", "Other / unit", "Landed / unit"].map((h) => (
                 <th key={h} className={cn(th, "text-right")}>{h}</th>
               ))}
@@ -70,7 +117,7 @@ export default function IpasLandedCostTable({ ipas, canSetMarkup = false, onSetM
           <TableBody className="divide-y-0">
             {table.rows.map((row) => (
               <TableRow key={row.key} data-testid="ipas-landed-line" className="hover:bg-transparent">
-                <TableCell className={cn(td, "sticky left-0 z-10 min-w-[14rem] bg-card font-semibold")}>
+                <TableCell className={cn(td, "sticky left-0 z-10 bg-card font-semibold [overflow-wrap:anywhere]")} style={itemStyle}>
                   <span className="whitespace-pre-line">{row.name}</span>
                 </TableCell>
                 <TableCell className={cn(td, num)}>{row.quantity}{row.unit ? ` ${row.unit}` : ""}</TableCell>
@@ -95,7 +142,7 @@ export default function IpasLandedCostTable({ ipas, canSetMarkup = false, onSetM
           </TableBody>
           <tfoot>
             <tr>
-              <td className={cn(foot, "sticky left-0 z-10")}>{totals.units} units</td>
+              <td className={cn(foot, "sticky left-0 z-10")} style={itemStyle}>{totals.units} units</td>
               <td className={foot} />
               <td className={cn(foot, num)}>{lc.isForeign ? formatAmount(totals.goodsForeign, currency) : ""}</td>
               <td className={cn(foot, num)}>{php(totals.goodsPhp)}</td>

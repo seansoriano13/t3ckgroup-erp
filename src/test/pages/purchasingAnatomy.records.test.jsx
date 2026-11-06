@@ -307,9 +307,11 @@ const RECORDS = [
     badge: "Open",
     pills: ["Entity", "Priority", "Source", "Purpose", "Status"],
     hasMore: true,
+    // The IPAS rail is one road in two stretches, not expandable steps: its headline, then the two stretches.
     yourMove: {
-      status: "Waiting for you: 1 · Purchasing",
-      steps: ["Section 1 · Purchasing", "Section 2 · Purchasing & Finance"],
+      rail: true,
+      status: "Your turn: Attach the files.",
+      stretches: [/^1\. Get it ready/, /^2\. Sign the final IPAS/],
     },
   },
   {
@@ -322,7 +324,7 @@ const RECORDS = [
     badge: "Cancelled",
     pills: ["Entity", "Priority", "Source", "Purpose"],
     hasMore: true,
-    yourMove: { status: "Cancelled. Nothing to do.", steps: ["Section 1 · Purchasing", "Section 2 · Purchasing & Finance"] },
+    yourMove: { rail: true, status: "Cancelled. Nothing to do.", stretches: [] },
   },
 ]
 
@@ -408,7 +410,20 @@ describe.each(RECORDS)("Purchasing record anatomy: $name", (record) => {
     else expect(more).not.toBeInTheDocument()
   })
 
-  if (record.yourMove) {
+  if (record.yourMove?.rail) {
+    it("shows Your move with its headline, then its stretches in order", async () => {
+      renderRecord(record)
+      await screen.findByRole("heading", { name: record.title })
+
+      const heading = screen.getByRole("heading", { name: "Your move" })
+      const status = screen.getByTestId("ipas-journey-headline")
+      expect(status).toHaveTextContent(record.yourMove.status)
+      const stretches = record.yourMove.stretches.map((name) => screen.getByRole("heading", { name }))
+
+      const parts = [heading, status, ...stretches]
+      parts.slice(1).forEach((part, index) => expect(follows(parts[index], part)).toBe(true))
+    })
+  } else if (record.yourMove) {
     it("shows Your move with its parts in order", async () => {
       renderRecord(record)
       await screen.findByRole("heading", { name: record.title })

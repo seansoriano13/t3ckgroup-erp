@@ -95,8 +95,8 @@ describe("IpasSorSection (#249)", () => {
     const { container } = renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
     await screen.findByText("TGIPAS_052")
 
-    // Section 3 is named "Computation status & Landed Cost"; that is a name, not a figure.
-    expect(container.textContent.replace("Computation status & Landed Cost", "")).not.toMatch(/₱|PHP|Landed|account|payment|charge/i)
+    // Sections 2 and 3 are named "Payments" and "Costs"; those are names, not figures.
+    expect(container.textContent.replace("Section 2 · Payments", "")).not.toMatch(/₱|PHP|Landed|account|payment|charge/i)
   })
 
   it("shows the next thing, who owes it and a late mark per row (#265)", async () => {

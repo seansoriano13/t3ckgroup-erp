@@ -3,13 +3,14 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import IpasSignoffsQueuePage from "@/pages/approvals/ipas";
-import { confirmMove, renderWithProviders, setupUser } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { waitForNetworkIdle } from "@/test/network";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
-import { findOtherDialog } from "@/test/support/dialogs"
+import { makeReady } from "@/test/support/ipasReady";
+import { findOtherDialog } from "@/test/support/dialogs";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 const toastError = vi.hoisted(() => vi.fn());
@@ -106,12 +107,13 @@ describe("IPAS section 7 and Filing", () => {
     signoff(row.id, 3, "approved", boss);
     signoff(row.id, 6, "prepared", purchaser);
     signoff(row.id, 6, "approved", boss);
-    signoff(row.id, 8, "approved", boss);
+    // Files attached and Logistics signed: the IPAS is ready for the signers.
+    makeReady(row, boss);
   };
   const givenThroughChecked = (row) => {
     signoff(row.id, 7, "received", receiver);
-    signoff(row.id, 7, "noted", noter);
-    signoff(row.id, 7, "checked", checker);
+    signoff(row.id, 7, "noted", receiver);
+    signoff(row.id, 7, "checked", receiver);
   };
   const quotation = (row, over = {}) => {
     const kind = db.rows("ipas_options").find((o) => o.list === "document_kind" && o.label === "Quotation (Local)");
@@ -146,91 +148,91 @@ describe("IPAS section 7 and Filing", () => {
   });
 
   describe("on the IPAS page", () => {
-    it("shows section 7 waiting for sections 1, 2 and 3, with nothing to give", async () => {
+    const step = async (key) => within(await screen.findByRole("region", { name: "Your move" })).findByTestId(`ipas-journey-${key}`);
+    const live7 = () => db.rows("ipas_signoffs").filter((s) => s.section === 7 && !s.cleared_at);
+
+    it("shows Check waiting for Order, Payments, Costs and Logistics, with nothing to give", async () => {
       const row = ipas();
       signoff(row.id, 1, "prepared", purchaser);
       signoff(row.id, 1, "approved", boss);
       signIn(receiver);
 
-      renderDetail(row.id, "filing");
+      renderDetail(row.id, "signoffs");
 
-      const filing = await screen.findByTestId("ipas-filing");
-      expect(within(filing).getAllByText("Opens once 1 · Purchasing, 2 · Purchasing & Finance, 3 · Computation status & Landed Cost and 6 · Logistics are signed.")).toHaveLength(4);
-      expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
-      expect(screen.getAllByText("Opens once 2 · Purchasing & Finance, 3 · Computation status & Landed Cost and 6 · Logistics are signed").length).toBeGreaterThan(0);
+      const check = await step("check");
+      expect(check).toHaveTextContent("waiting");
+      expect(within(check).queryByRole("button")).not.toBeInTheDocument();
+      const section = await screen.findByRole("region", { name: "6 · Sign-offs" });
+      expect(within(section).queryByRole("button", { name: /^(Review and|Send back|Receive|Note|Check)/ })).not.toBeInTheDocument();
     });
 
-    it("offers Received to its list, then Noted and Checked, each only to its own list", async () => {
+    it("offers Check to anyone on the Received, Noted or Checked list, and one press gives all three", async () => {
       const row = ipas();
       approvedFirstSections(row);
       signIn(receiver);
       const user = setupUser();
 
-      renderDetail(row.id, "filing");
-      // The drawer's footer carries the step; the card repeats it.
-      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
-      expect(within(drawer).getByRole("button", { name: /Receive/ })).toBeInTheDocument();
-      expect(within(drawer).queryByRole("button", { name: /^Note/ })).not.toBeInTheDocument();
+      renderDetail(row.id);
+      expect(within(await step("check")).getByRole("button", { name: "Review and check" })).toBeInTheDocument();
+      expect(within(await step("file")).queryByRole("button")).not.toBeInTheDocument();
 
-      await user.click(within(drawer).getByRole("button", { name: /Receive/ }));
-      await confirmMove(user, "Receive section 4", "Receive");
+      await user.click(within(await step("check")).getByRole("button", { name: "Review and check" }));
+      const dialog = await screen.findByRole("dialog", { name: "Check" });
+      expect(within(dialog).getByText(/it goes to the filing approver/)).toBeInTheDocument();
+      expect(live7()).toHaveLength(0);
+      await user.click(within(dialog).getByRole("button", { name: "Check" }));
 
-      await waitFor(() =>
-        expect(within(screen.getByTestId("ipas-signoff-7-received")).getByText("Rita Receiver")).toBeInTheDocument(),
-      );
-      // Received is given; this person has nothing further. Noted and Checked now wait on their lists.
-      expect(within(screen.getByTestId("ipas-filing")).queryByRole("button", { name: /Receive|Note|Check|Approve/ })).not.toBeInTheDocument();
+      await waitFor(() => expect(live7().map((s) => s.role).sort()).toEqual(["checked", "noted", "received"]));
+      expect(live7().every((s) => s.signed_by === receiver.id)).toBe(true);
+      await waitFor(() => expect(screen.getByTestId("ipas-journey-check")).toHaveTextContent("Checked by Rita Receiver."));
+      expect(within(screen.getByTestId("ipas-journey-check")).queryByRole("button")).not.toBeInTheDocument();
       await waitForNetworkIdle();
-      expect(db.rows("notifications").filter((n) => n.type === "IPAS_SECTION_7_READY").map((n) => n.recipient_id).sort()).toEqual(
-        [noter.id, checker.id].sort(),
-      );
+      expect(db.rows("notifications").filter((n) => n.type === "IPAS_SECTION_7_READY").map((n) => n.recipient_id)).toEqual([boss.id]);
     });
 
-    it("lets a section 7 signer send Received, Noted and Checked back with a reason, and tells the others", async () => {
+    it("lets a Filing signer send the Check back with a reason, and tells who gave it", async () => {
       const row = ipas();
       approvedFirstSections(row);
       givenThroughChecked(row);
       signIn(noter);
       const user = setupUser();
 
-      renderDetail(row.id, "filing");
-      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
-      await user.click(within(drawer).getByRole("button", { name: "Return section 4" }));
+      renderDetail(row.id);
+      await user.click(await within(await screen.findByRole("region", { name: "Your move" })).findByRole("button", { name: "Send back…" }));
 
-      const dialog = await screen.findByRole("dialog", { name: "Return section 4?" });
+      const dialog = await screen.findByRole("dialog", { name: "Return section 6?" });
       const submit = within(dialog).getByRole("button", { name: "Return" });
       expect(submit).toBeDisabled();
       await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Landed cost is off");
       await user.click(submit);
 
-      await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.section === 7 && !s.cleared_at)).toHaveLength(0));
+      await waitFor(() => expect(live7()).toHaveLength(0));
       const cleared = db.rows("ipas_signoffs").filter((s) => s.section === 7);
       expect(cleared.map((s) => s.role).sort()).toEqual(["checked", "noted", "received"]);
       expect(cleared.every((s) => s.cleared_reason === "Returned: Landed cost is off")).toBe(true);
-      expect(await screen.findByTestId("ipas-signoff-history-7")).toBeInTheDocument();
+      // Checked is open again for the lists, and nobody has checked it.
+      await waitFor(() => expect(screen.getByTestId("ipas-journey-check")).not.toHaveTextContent("Checked by"));
       await waitForNetworkIdle();
-      expect(
-        db.rows("notifications").filter((n) => n.type === "IPAS_SENT_BACK").map((n) => n.recipient_id).sort(),
-      ).toEqual([receiver.id, checker.id].sort());
+      expect(db.rows("notifications").filter((n) => n.type === "IPAS_SENT_BACK").map((n) => n.recipient_id)).toEqual([receiver.id]);
     });
 
-    it("offers no Return before Received, to someone on no list, or on a filed IPAS", async () => {
-      const sendBack = /Send section 4 · Filing back/;
+    it("offers no Send back before Check, to someone on no list, or on a filed IPAS", async () => {
+      const sendBack = /^Send back…/;
       const early = ipas();
       approvedFirstSections(early);
       signIn(noter);
-      const { unmount } = renderDetail(early.id, "filing");
-      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
-      expect(within(drawer).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
+      const { unmount } = renderDetail(early.id);
+      const region = await screen.findByRole("region", { name: "Your move" });
+      expect(within(region).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
       unmount();
 
       const given = ipas();
       approvedFirstSections(given);
       signoff(given.id, 7, "received", receiver);
       signIn(superAdmin, { superAdmin: true });
-      const second = renderDetail(given.id, "filing");
-      const drawer2 = await screen.findByRole("region", { name: "4 · Filing" });
-      expect(within(drawer2).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
+      const second = renderDetail(given.id);
+      const region2 = await screen.findByRole("region", { name: "Your move" });
+      expect(within(region2).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
       second.unmount();
 
       const filed = ipas({ state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
@@ -238,10 +240,9 @@ describe("IPAS section 7 and Filing", () => {
       givenThroughChecked(filed);
       signoff(filed.id, 7, "approved", boss);
       signIn(noter);
-      renderDetail(filed.id, "filing");
+      renderDetail(filed.id);
       await screen.findByTestId("ipas-filed-notice");
-      const drawer3 = await screen.findByRole("region", { name: "4 · Filing" });
-      expect(within(drawer3).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
+      expect(within(await screen.findByRole("region", { name: "Your move" })).queryByRole("button", { name: sendBack })).not.toBeInTheDocument();
     });
 
     it("offers a person on neither list nothing, and a Super Admin off the lists the same", async () => {
@@ -249,68 +250,45 @@ describe("IPAS section 7 and Filing", () => {
       approvedFirstSections(row);
       signIn(superAdmin, { superAdmin: true });
 
-      renderDetail(row.id, "filing");
+      renderDetail(row.id);
 
-      const filing = await screen.findByTestId("ipas-filing");
-      expect(within(filing).queryByRole("button")).not.toBeInTheDocument();
+      const region = await screen.findByRole("region", { name: "Your move" });
+      expect(await step("check")).toHaveTextContent("waiting");
+      expect(within(region).queryByRole("button", { name: /^(Review and|Send back|Undo approval)/ })).not.toBeInTheDocument();
     });
 
-    it("holds Approved for LC Odoo Done, and says why", async () => {
+    it("holds Approve and file until Landed Cost is final, and says what it waits on", async () => {
       const row = ipas({ computation_status: "encoded" });
       approvedFirstSections(row);
       givenThroughChecked(row);
       signIn(boss);
 
-      renderDetail(row.id, "filing");
+      renderDetail(row.id);
 
-      const filing = await screen.findByTestId("ipas-filing");
-      expect(within(filing).queryByRole("button", { name: "Approve and file" })).not.toBeInTheDocument();
-      expect(within(filing).getByText(/waits for the computation status to reach LC Odoo Done/)).toBeInTheDocument();
+      const file = await step("file");
+      expect(within(file).queryByRole("button", { name: "Review and file" })).not.toBeInTheDocument();
+      expect(file).toHaveTextContent("waiting");
+      expect(screen.getByTestId("ipas-journey-headline")).toHaveTextContent("Getting it ready. Waiting on Purchasing: Mark Landed Cost final.");
     });
 
-    it("lists the unticked required documents in the Approve dialog and files on confirm", async () => {
+    it("reads the final form first, and files on the one press", async () => {
       const row = ipas();
       approvedFirstSections(row);
       givenThroughChecked(row);
-      quotation(row);
       signIn(boss);
       const user = setupUser();
 
-      renderDetail(row.id, "filing");
-      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
-      await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
+      renderDetail(row.id);
+      await user.click(within(await step("file")).getByRole("button", { name: "Review and file" }));
 
-      const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
-      const warnings = await within(dialog).findByTestId("ipas-filing-warnings");
-      expect(within(warnings).getByText("1 required document isn't ticked")).toBeInTheDocument();
-      expect(within(warnings).getByText("Quotation (Local)")).toBeInTheDocument();
-      expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("open");
-
-      await user.click(within(dialog).getByRole("button", { name: "File anyway" }));
-
-      await waitFor(() => expect(screen.getByTestId("ipas-filed-notice")).toBeInTheDocument());
-      expect(db.rows("ipas").find((r) => r.id === row.id)).toMatchObject({ state: "filed" });
-      expect(toastError).not.toHaveBeenCalled();
-    });
-
-    it("asks before filing even when nothing is unticked", async () => {
-      const row = ipas();
-      approvedFirstSections(row);
-      givenThroughChecked(row);
-      quotation(row, { purchasing_has: true });
-      signIn(boss);
-      const user = setupUser();
-
-      renderDetail(row.id, "filing");
-      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
-      await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
-
-      const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
-      expect(await within(dialog).findByText("Every required document is ticked.")).toBeInTheDocument();
+      const dialog = await screen.findByRole("dialog", { name: "Approve and file" });
+      expect(within(dialog).getByText(/the IPAS is filed and frozen/)).toBeInTheDocument();
       expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("open");
       await user.click(within(dialog).getByRole("button", { name: "Approve and file" }));
 
       await waitFor(() => expect(screen.getByTestId("ipas-filed-notice")).toBeInTheDocument());
+      expect(db.rows("ipas").find((r) => r.id === row.id)).toMatchObject({ state: "filed" });
+      expect(toastError).not.toHaveBeenCalled();
     });
 
     it("words the database's refusal in a sentence when Filing is refused", async () => {
@@ -318,22 +296,20 @@ describe("IPAS section 7 and Filing", () => {
       approvedFirstSections(row);
       givenThroughChecked(row);
       signIn(boss);
-      // The page thinks the viewer may approve; the database says costs aren't complete.
-      db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoded";
       const user = setupUser();
-      renderDetail(row.id, "filing");
-      // Offered from a stale read: Costs complete here, then the status moves underneath.
-      db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "lc_odoo_done";
-      const drawer = await screen.findByRole("region", { name: "4 · Filing" });
-      await user.click(within(drawer).getByRole("button", { name: "Approve and file" }));
-      db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoding";
-      const dialog = await screen.findByRole("dialog", { name: `File ${row.number}?` });
-      await user.click(await within(dialog).findByRole("button", { name: /Approve and file|File anyway/ }));
-      // The dialog closes on the failure; the error waits at the footer's move, with Retry.
-      expect(await within(drawer).findByRole("alert")).toHaveTextContent(/can't be filed until LC Odoo Done/);
 
-      await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/can't be filed until LC Odoo Done/)));
-      expect(toastError.mock.calls.at(-1)[0]).not.toMatch(/ipas_sign|55000/);
+      renderDetail(row.id);
+      await user.click(within(await step("file")).getByRole("button", { name: "Review and file" }));
+      const dialog = await screen.findByRole("dialog", { name: "Approve and file" });
+      // The page still reads Landed Cost as final; the status moves underneath it.
+      db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoding";
+      await user.click(within(dialog).getByRole("button", { name: "Approve and file" }));
+
+      // The refusal stays in the window beside the button.
+      const alert = await within(dialog).findByRole("alert");
+      expect(alert).toHaveTextContent(/can't be filed until LC Odoo Done/);
+      expect(alert.textContent).not.toMatch(/ipas_sign|55000/);
+      expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("open");
     });
   });
 
@@ -350,7 +326,7 @@ describe("IPAS section 7 and Filing", () => {
       const row = filedRow();
       signIn(purchaser);
 
-      renderDetail(row.id, "filing");
+      renderDetail(row.id, "signoffs");
 
       const notice = await screen.findByTestId("ipas-filed-notice");
       expect(within(notice).getByText(/^Filed /)).toBeInTheDocument();
@@ -359,8 +335,10 @@ describe("IPAS section 7 and Filing", () => {
       expect(screen.queryByRole("button", { name: "Cancel IPAS" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Purpose and SORs" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Add payment|Add charge/ })).not.toBeInTheDocument();
-      expect(within(screen.getByTestId("ipas-filing")).queryByRole("button")).not.toBeInTheDocument();
-      // The header badge and section 7's own both say so.
+      const region = await screen.findByRole("region", { name: "Your move" });
+      expect(within(region).queryAllByRole("button")).toHaveLength(0);
+      expect(within(screen.getByRole("region", { name: "6 · Sign-offs" })).queryByRole("button", { name: /^(Edit section|Review and|Send back|Undo)/ })).not.toBeInTheDocument();
+      // The header badge and the Sign-offs row both say so.
       expect(screen.getAllByText("Filed").length).toBeGreaterThanOrEqual(2);
     });
 
@@ -401,9 +379,9 @@ describe("IPAS section 7 and Filing", () => {
 
       renderDetail(row.id, "history");
 
-      expect(await screen.findByText("Section 4 · Filing approved · LC Odoo Done")).toBeInTheDocument();
+      expect(await screen.findByText("Section 6 · Sign-offs approved · LC Odoo Done")).toBeInTheDocument();
       expect(screen.getByText("1 added")).toBeInTheDocument();
-      expect(screen.getByText("“Charges were misread” · cleared section 4 · Filing: approved, checked")).toBeInTheDocument();
+      expect(screen.getByText("“Charges were misread” · cleared section 6 · Sign-offs: approved, checked")).toBeInTheDocument();
     });
 
     it("lets a Super Admin reopen it with a required reason, and the edit controls come back", async () => {
@@ -425,16 +403,11 @@ describe("IPAS section 7 and Filing", () => {
       const cleared = db.rows("ipas_signoffs").filter((s) => s.cleared_at);
       expect(cleared.map((s) => s.role).sort()).toEqual(["approved", "checked", "noted", "received"]);
       expect(cleared.every((s) => s.cleared_reason === "Reopened: Charges were misread")).toBe(true);
-      // Sections 1 and 3 stay approved; section 7 starts from Received again.
-      // The sections open in place, in the record window.
-      const openSection = async (name) => {
-        const row = await screen.findByRole("button", { name });
-        if (row.getAttribute("aria-expanded") !== "true") await user.click(row);
-      };
-      await openSection(/^1 · Purchasing/);
-      expect(within(await screen.findByTestId("ipas-signoffs-1")).getByText("Approved", { selector: "span" })).toBeInTheDocument();
-      await openSection(/^4 · Filing/);
-      expect(await screen.findByTestId("ipas-signoff-history-7")).toBeInTheDocument();
+      // Sections 1, 2 and 3 stay approved; Check and Approve and file start again.
+      const rail = await screen.findByRole("region", { name: "Your move" });
+      expect(within(rail).getByTestId("ipas-journey-approve")).toHaveTextContent("Approved.");
+      expect(within(rail).getByTestId("ipas-journey-check")).not.toHaveTextContent("Checked by");
+      expect(within(rail).getByTestId("ipas-journey-file")).not.toHaveTextContent("Filed by");
     });
   });
 
@@ -457,7 +430,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderQueue();
-      await user.click(await screen.findByRole("button", { name: `Receive ${row.number} section 4` }));
+      await user.click(await screen.findByRole("button", { name: `Receive ${row.number} section 6` }));
 
       await waitFor(() => expect(screen.getByText("Nothing waiting on you right now")).toBeInTheDocument());
       expect(db.rows("ipas_signoffs").filter((s) => s.section === 7).map((s) => s.role)).toEqual(["received"]);
@@ -470,7 +443,7 @@ describe("IPAS section 7 and Filing", () => {
 
       renderQueue();
 
-      await screen.findByRole("button", { name: `Receive ${row.number} section 4` });
+      await screen.findByRole("button", { name: `Receive ${row.number} section 6` });
       expect(screen.queryByRole("button", { name: /^Return/ })).not.toBeInTheDocument();
     });
 
@@ -482,7 +455,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderQueue();
-      await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 4` }));
+      await user.click(await screen.findByRole("button", { name: `Return ${row.number} section 6` }));
 
       const dialog = await findOtherDialog();
       await user.type(within(dialog).getByPlaceholderText(/What needs fixing before it is filed/), "Wrong supplier");
@@ -504,7 +477,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderQueue();
-      await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 4` }));
+      await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 6` }));
 
       const dialog = await findOtherDialog();
       expect(await within(dialog).findByTestId("ipas-filing-warnings")).toBeInTheDocument();

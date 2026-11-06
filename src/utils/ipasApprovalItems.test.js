@@ -27,7 +27,7 @@ describe("IPAS sign-offs as Approval Center items", () => {
     expect(item).toMatchObject({
       queue: "ipas",
       ref: "TGIPAS_049",
-      typeLabel: "P02552 · Section 2 · Purchasing & Finance",
+      typeLabel: "P02552 · Section 2 · Payments",
       person: { id: "buyer", name: "Buyer", dept: "Purchasing" },
       clockAt: "2026-10-13T08:00:00Z",
       isStale: true,
@@ -58,7 +58,7 @@ describe("IPAS sign-offs as Approval Center items", () => {
     const item = ipasToItem(pending, NOW)
 
     expect(item).toMatchObject({
-      typeLabel: "P02552 · Section 4 · Filing · Noted",
+      typeLabel: "P02552 · Section 6 · Sign-offs · Noted",
       person: { id: "rec", name: "Rita", dept: "Filing" },
       clockAt: "2026-10-19T08:00:00Z",
       isStale: false,
@@ -66,8 +66,8 @@ describe("IPAS sign-offs as Approval Center items", () => {
     expect(item.chain.map((s) => [s.label, s.state, s.who])).toEqual([
       ["Received", "done", "Rita"],
       ["Noted", "current", "You"],
-      ["Checked", "next", "Section 4 · Filing list"],
-      ["Approved", "next", "Section 4 · Filing list"],
+      ["Checked", "next", "Section 6 · Sign-offs list"],
+      ["Approved", "next", "Section 6 · Sign-offs list"],
     ])
     expect(ipasChain({ section: 7, role: "noted" })).toEqual([
       { label: "Submitted", who: "Purchasing", state: "done", at: null },

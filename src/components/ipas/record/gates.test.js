@@ -135,21 +135,21 @@ describe("gatesFor: the one Now", () => {
 describe("gatesFor: names, states and lines", () => {
   it("names each gate by section, role and state", () => {
     const gates = gatesOf({ status: "encoding", s1: { approved: who("M. Ramos") } });
-    expect(byKey(gates, "finance").accessibleName).toBe("Section 2, Purchasing & Finance, Approved, now");
-    expect(byKey(gates, "purchasing").accessibleName).toBe("Section 1, Purchasing, Approved, done");
-    expect(byKey(gates, "received").accessibleName).toBe("Section 4, Filing, Received, waiting");
+    expect(byKey(gates, "finance").accessibleName).toBe("Section 2, Payments, Approved, now");
+    expect(byKey(gates, "purchasing").accessibleName).toBe("Section 1, Order, Approved, done");
+    expect(byKey(gates, "received").accessibleName).toBe("Section 6, Sign-offs, Received, waiting");
   });
 
   it("labels the gates <no> · <name> with their role", () => {
     const gates = gatesOf({ status: "encoding" });
     expect(gates.map((gate) => [gate.label, gate.role])).toEqual([
-      ["1 · Purchasing", "Approved"],
-      ["2 · Purchasing & Finance", "Approved"],
-      ["3 · Computation status & Landed Cost", "LC Odoo Done"],
-      ["3 · Computation status & Landed Cost", "Approved"],
-      ["4 · Filing", "Received"],
-      ["4 · Filing", "Noted and Checked"],
-      ["4 · Filing", "Approved"],
+      ["1 · Order", "Approved"],
+      ["2 · Payments", "Approved"],
+      ["3 · Costs", "LC Odoo Done"],
+      ["3 · Costs", "Approved"],
+      ["6 · Sign-offs", "Received"],
+      ["6 · Sign-offs", "Noted and Checked"],
+      ["6 · Sign-offs", "Approved"],
     ]);
   });
 
@@ -166,15 +166,15 @@ describe("gatesFor: names, states and lines", () => {
   });
 
   it("names the sections waited on, once each", () => {
-    expect(waitingSections(gatesOf({ status: "encoding" }))).toBe("1 · Purchasing and 2 · Purchasing & Finance");
-    expect(waitingSections(gatesOf({ status: "encoding", ...approvedAll }))).toBe("4 · Filing");
+    expect(waitingSections(gatesOf({ status: "encoding" }))).toBe("1 · Order and 2 · Payments");
+    expect(waitingSections(gatesOf({ status: "encoding", ...approvedAll }))).toBe("6 · Sign-offs");
   });
 
   it("keeps Filing closed until section 3 is approved too (#590)", () => {
     const gates = gatesOf({ status: "lc_odoo_done", ...approvedBoth });
     const received = byKey(gates, "received");
     expect(received.prereqMet).toBe(false);
-    expect(received.line).toBe("Opens once 3 · Computation status & Landed Cost and 6 · Logistics are signed");
+    expect(received.line).toBe("Opens once 3 · Costs and 4 · Delivery are signed");
     expect(byKey(gatesOf({ status: "lc_odoo_done", ...approvedAll }), "received").prereqMet).toBe(true);
   });
 

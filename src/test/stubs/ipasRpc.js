@@ -1633,6 +1633,46 @@ export function stubIpasRpcs({
     }
   })
 
+  // Filing's one "Check": Received, Noted and Checked in one sign-off, by anyone on one of those lists.
+  stubRpc("ipas_sign_check", (args) => {
+    const ipas = requireOpenIpas("ipas_sign_check", args.p_ipas_id)
+    if (!["s7_received", "s7_noted", "s7_checked"].some((key) => onList(key, actorId))) {
+      refuse("42501", "ipas_sign_check: you are not on the Received, Noted or Checked list")
+    }
+    const live = liveSignoffs(ipas.id)
+    const has = (sec, r) => live.some((s) => s.section === sec && s.role === r)
+    if (!has(1, "approved") || !has(3, "approved") || !has(6, "approved") || !has(8, "approved")) {
+      refuse("22023", "ipas_sign_check: the IPAS can be checked once sections 1, 2, 3 and Logistics are signed")
+    }
+    const declined = Boolean(args.p_decline_signature)
+    const given = []
+    let last = null
+    for (const role of ["received", "noted", "checked"]) {
+      if (has(7, role)) continue
+      last = insertRow("ipas_signoffs", {
+        ipas_id: ipas.id,
+        section: 7,
+        role,
+        signed_by: actorId,
+        signature_declined: declined,
+        signature_version: declined ? null : (findRow("employees", actorId)?.signature_path ?? null),
+      })
+      event(ipas.id, "signed", { section: 7, role, signoff_id: last.id, signature_declined: declined })
+      given.push(role)
+    }
+    if (given.length === 0) refuse("22023", `ipas_sign_check: ${ipas.number} is already checked`)
+    return {
+      signoff: last,
+      ipas,
+      section: 7,
+      role: "checked",
+      given,
+      stage: "approve_ready",
+      filed: false,
+      notify_ids: membersOf(["s7_approved"]),
+    }
+  })
+
   stubRpc("ipas_reopen", (args) => {
     if (!superAdmin) refuse("42501", "ipas_reopen: only a Super Admin reopens a filed IPAS")
     const reason = String(args.p_reason || "").trim()

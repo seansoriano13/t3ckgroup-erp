@@ -212,11 +212,11 @@ describe("sign-off rows on page 1", () => {
   it("has one row per section in screen order, section 3 included, each with its own boxes", () => {
     const model = vm()
     expect(model.signoffRows.map((row) => [row.no, row.name])).toEqual([
-      [1, "Purchasing"],
-      [2, "Purchasing & Finance"],
-      [3, "Computation status & Landed Cost"],
-      [6, "Logistics"],
-      [4, "Filing"],
+      [1, "Order"],
+      [2, "Payments"],
+      [3, "Costs"],
+      [4, "Delivery"],
+      [6, "Sign-offs"],
     ])
     expect(model.signoffRows.map((row) => row.boxes)).toEqual([
       model.section1.signoffs,
@@ -241,7 +241,7 @@ describe("sign-off boxes", () => {
     expect(prepared).toMatchObject({
       role: "Submitted by",
       who: "J. Bautista",
-      title: "Purchasing",
+      title: "Order",
       state: "signed",
       signaturePath: "emp-bautista/signature.png",
       signatureDeclined: false,
@@ -308,7 +308,7 @@ describe("sign-off boxes", () => {
     expect(s7.map((box) => box.role)).toEqual(["Received by", "Noted by", "Checked by", "Approved by"])
     expect(s7.map((box) => box.state)).toEqual(["signed", "signed", "awaiting", "awaiting"])
     expect(s7[1].signaturePath).toBeNull()
-    expect(s7[0].title).toBe("Filing")
+    expect(s7[0].title).toBe("Sign-offs")
   })
 })
 
@@ -401,7 +401,7 @@ describe("the page's content", () => {
 
   it("gives Logistics its one sign-off box, waiting until it is signed", () => {
     const [box] = vm().section5.signoffs
-    expect(box).toMatchObject({ role: "Signed by", state: "awaiting", title: "Logistics" })
+    expect(box).toMatchObject({ role: "Signed by", state: "awaiting", title: "Delivery" })
   })
 
   it("carries each part's documents and the landed table for the flow rows", () => {

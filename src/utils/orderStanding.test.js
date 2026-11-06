@@ -107,7 +107,7 @@ describe("Filing waits for section 3 (#590)", () => {
       owner: "section_3_approvers",
       step: "section_3_approval",
     });
-    expect(ORDER_OWNER_LABELS[standing.next.owner]).toBe("Section 3 · Approved");
+    expect(ORDER_OWNER_LABELS[standing.next.owner]).toBe("Approve · 3 Costs");
   });
 
   it("is owed by Purchasing until section 3 is submitted", () => {

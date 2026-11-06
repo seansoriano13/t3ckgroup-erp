@@ -75,11 +75,11 @@ describe("IPAS page: bank details", () => {
     stubEdgeFunction("odoo-po-ipas", (body) => ({ success: true, found: true, ...poCopy(body.poNumber) }));
   });
 
-  it("lets Purchasing type bank details from section 3, and shows them without a flag", async () => {
+  it("lets Purchasing type bank details from section 2, and shows them without a flag", async () => {
     const row = ipas({ po_number: "P03001", created_by: purchaser.id });
     const user = setupUser();
 
-    renderDetail(row.id, "finance", "edit");
+    renderDetail(row.id, "payments", "edit");
     // Typed in place, with the rest: no dialog, and Save all stays off until something is typed.
     const block = await screen.findByTestId("ipas-bank-details");
     const save = screen.getByRole("button", { name: /^Save all/ });
@@ -104,7 +104,7 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03011", created_by: purchaser.id });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BPI", account_name: "Scorpe", account_number: "2222", account_flagged: true });
 
-    renderDetail(row.id, "finance", "edit");
+    renderDetail(row.id, "payments", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
     const alert = await within(block).findByRole("alert");
@@ -122,7 +122,7 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03020", created_by: purchaser.id });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BDO", account_name: "Scorpe", account_number: "0012", account_flagged: false });
 
-    renderDetail(row.id, "finance", "edit");
+    renderDetail(row.id, "payments", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
     expect(await within(block).findByDisplayValue("0012")).toBeDisabled();
@@ -136,9 +136,9 @@ describe("IPAS page: bank details", () => {
     const row = ipas({ po_number: "P03030", created_by: purchaser.id });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BDO", account_name: "Scorpe", account_number: "0099887766", account_flagged: true });
 
-    renderDetail(row.id, "finance", "edit");
+    renderDetail(row.id, "payments", "edit");
 
-    expect((await screen.findAllByText("2 · Purchasing & Finance")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("2 · Payments")).length).toBeGreaterThan(0);
     expect(screen.queryByTestId("ipas-bank-details")).not.toBeInTheDocument();
     expect(screen.queryByText(/Bank details/)).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent("0099887766");
@@ -155,7 +155,7 @@ describe("IPAS page: bank details", () => {
     });
     db.seed("ipas_bank_details", { ipas_id: row.id, bank_name: "BDO", account_name: "Scorpe", account_number: "0012", account_flagged: false });
 
-    renderDetail(row.id, "finance", "edit");
+    renderDetail(row.id, "payments", "edit");
 
     const block = await screen.findByTestId("ipas-bank-details");
     expect(within(block).queryByRole("button", { name: /bank details/i })).not.toBeInTheDocument();

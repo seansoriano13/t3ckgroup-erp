@@ -394,11 +394,11 @@ describe('HrLeavesManagerPage', () => {
       return { applicant, leave, key: `OFFSET-${leave.leave_group_id || leave.id}` };
     }
 
-    it('files for an employee from the standard red header button', async () => {
+    it('files for an employee from the standard header button', async () => {
       renderAt();
       const button = await screen.findByRole('button', { name: /File for Employee/i });
-      expect(button.className).not.toMatch(/uppercase|bg-foreground/);
-      expect(button.className).toMatch(/bg-primary/);
+      expect(button.className).not.toMatch(/uppercase/);
+      expect(button.className).toMatch(/bg-foreground/);
       expect(button.className).toMatch(/h-8/);
     });
 

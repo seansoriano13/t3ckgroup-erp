@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 
 import TransmittalForm from "@/components/transmittals/TransmittalForm";
+import { MemoryRouter } from "react-router";
 import { renderWithProviders, setupUser } from "@/test/support";
 
 const service = vi.hoisted(() => ({ pickablePoLines: vi.fn(), create: vi.fn(), submit: vi.fn() }));
@@ -32,7 +33,7 @@ describe("Transmittal form, P0 lines beside the slip", () => {
 
   it("puts a clicked P0 line on the slip, fills Company and Project from it, and takes it off on a second click", async () => {
     const user = setupUser();
-    renderWithProviders(<TransmittalForm />);
+    renderWithProviders(<MemoryRouter><TransmittalForm /></MemoryRouter>);
 
     await user.click(await screen.findByRole("button", { name: /Cutter/ }));
 
@@ -49,7 +50,7 @@ describe("Transmittal form, P0 lines beside the slip", () => {
 
   it("adds every line of a PO at once when its number is typed", async () => {
     const user = setupUser();
-    renderWithProviders(<TransmittalForm />);
+    renderWithProviders(<MemoryRouter><TransmittalForm /></MemoryRouter>);
 
     await user.type(await screen.findByLabelText("Find a P0 line"), "P02552");
     await user.click(await screen.findByRole("button", { name: /Add all 2 lines of P02552/ }));
@@ -60,7 +61,7 @@ describe("Transmittal form, P0 lines beside the slip", () => {
   it("adds what was typed as a typed line when nothing on a PO matches", async () => {
     const user = setupUser();
     service.pickablePoLines.mockResolvedValue([]);
-    renderWithProviders(<TransmittalForm />);
+    renderWithProviders(<MemoryRouter><TransmittalForm /></MemoryRouter>);
 
     await user.type(await screen.findByLabelText("Find a P0 line"), "Spare cable");
     await user.click(await screen.findByRole("button", { name: /Add “Spare cable” as a typed line/ }));
@@ -69,7 +70,7 @@ describe("Transmittal form, P0 lines beside the slip", () => {
   });
 
   it("lists everything still missing for Submit, not only the first", async () => {
-    renderWithProviders(<TransmittalForm />);
+    renderWithProviders(<MemoryRouter><TransmittalForm /></MemoryRouter>);
 
     const strip = await screen.findByRole("status");
     expect(strip).toHaveTextContent("things left before Submit");

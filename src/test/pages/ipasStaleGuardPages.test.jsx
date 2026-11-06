@@ -43,7 +43,7 @@ function seedIpas() {
 
 function renderEdit(id) {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}?edit=header`]}>
+    <MemoryRouter initialEntries={[`/purchasing/ipas/${id}?edit=order`]}>
       <Routes>
         <Route path="/purchasing/ipas/:id" element={<IpasDetailPage />} />
         <Route path="/purchasing/ipas" element={<p>The IPAS list</p>} />

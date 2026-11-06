@@ -115,6 +115,15 @@ const LISTS = [
           naCount: 0,
           hasNa: false,
           poNumbers: ["P02554"],
+          steps: {
+            state: "warehouse_checking",
+            checkWarehouse: true,
+            checkTechnical: false,
+            stages: [],
+            odooReceivedAt: null,
+            checkBy: { first: null, second: null },
+            lines: [{ kind: "po" }, { kind: "po" }],
+          },
         },
       ])
       return { employee, reference: "TG03_0007", name: "Store CDO", state: "Waiting on Warehouse" }

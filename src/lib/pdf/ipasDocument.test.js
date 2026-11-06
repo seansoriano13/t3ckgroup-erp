@@ -19,12 +19,12 @@ const FILED = { state: "filed", filed_at: "2026-09-16T02:00:00.000Z" }
 
 const IMAGE = "data:image/png;base64,iVBORw0KGgo="
 
-describe("Sales & Operation's ticks", () => {
-  it("prints Googlesheet and Gantt Chart as boxes, ticked or empty", () => {
+describe("the ticks that were dropped from the record", () => {
+  it("no longer prints Googlesheet and Gantt Chart: they only mirrored a spreadsheet", () => {
     const html = buildIpasDocument(buildIpasViewModel(makePrintableIpas({ row: { google_sheet: true } })))
 
-    expect(html).toContain('<span class="k">Googlesheet</span><span class="v"><span class="chk done"')
-    expect(html).toContain('<span class="k">Gantt Chart</span><span class="v"><span class="chk" aria-label="not ticked"')
+    expect(html).not.toContain("Googlesheet")
+    expect(html).not.toContain("Gantt Chart")
   })
 })
 
@@ -41,21 +41,23 @@ describe("the one A4 page of flow rows", () => {
     expect(html).not.toContain('class="band"')
   })
 
-  it("runs the parts in flow order: 1, 2, 3, Logistics 6, Filing 4, Status 7", () => {
+  it("runs the parts in the record's order: 1 Order … 6 Sign-offs", () => {
     const html = doc()
     const numbers = [...html.matchAll(/<h3><span>(\d) · /g)].map((match) => Number(match[1]))
 
-    expect(numbers).toEqual([1, 2, 3, 6, 4, 7, 5])
+    expect(numbers).toEqual([1, 2, 3, 4, 5, 6])
   })
 
-  it("prints each part's sign-offs beside that part, Logistics included", () => {
+  it("prints every signature together at the end, in 6 · Sign-offs, Logistics included", () => {
     const html = doc()
-    const rows = html.split('<div class="frow">').slice(1)
-    const signs = (row) => (row.match(/<div class="sig[ "]/g) ?? []).length
+    const sections = html.split('<section class="sec">').slice(1)
+    const signs = (part) => (part.match(/<div class="sig[ "]/g) ?? []).length
 
-    expect(rows.map(signs)).toEqual([2, 2, 2, 1, 4, 0, 0])
-    expect(rows[3]).toContain("6 · Logistics")
-    expect(rows[3]).toContain("Signed by")
+    expect(sections.map(signs)).toEqual([0, 0, 0, 0, 0, 5])
+    expect(sections[5]).toContain("6 · Sign-offs")
+    for (const role of ["Sent for signing", "Approved", "Logistics", "Checked", "Approved and filed"]) {
+      expect(sections[5]).toContain(role)
+    }
   })
 
   it("prints the name with the call sign in a signed box", () => {
@@ -127,9 +129,9 @@ describe("signatures", () => {
     // Name only: printed in the plate in the printed-name style, no image.
     expect(html).toContain('<div class="printed-name">M. Ramos</div>')
     expect(html).toMatch(/name only, no signature on file/)
-    // Waiting: section 2's two, section 3's two, Logistics' one and Filing's four, each printed once.
-    expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(9)
-    expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(9)
+    // Waiting: Logistics, Checked and Approved and filed, each printed once.
+    expect(html.match(/<div class="pending">Signature required<\/div>/g)).toHaveLength(3)
+    expect(html.match(/<div class="sig awaiting">/g)).toHaveLength(3)
   })
 
   it("prints a declined signature as the name only, never the image", () => {

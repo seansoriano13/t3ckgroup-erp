@@ -349,7 +349,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       expect(notices[0]).toMatchObject({ recipient_id: approver.id, sender_id: otherApprover.id, reference_id: ipas.id })
       expect(notices[0].title).toBe("IPAS approval undone")
       expect(notices[0].message).toContain("Wrong PO")
-      expect(notices[0].message).toContain("1 · Purchasing")
+      expect(notices[0].message).toContain("1 · Order")
     })
 
     it("needs a reason, a section 1 or 3, a live approval and a signer of the section", async () => {
@@ -408,7 +408,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       // The preparer and each section 4 signer, once.
       const notices = sent(IPAS_NOTIFICATION.SENT_BACK).slice(before)
       expect(notices.map((n) => n.recipient_id).sort()).toEqual([buyer.id, receiver.id, noter.id].sort())
-      expect(notices[0].message).toContain("4 · Filing")
+      expect(notices[0].message).toContain("6 · Sign-offs")
       expect(notices[0].title).toBe("IPAS returned")
     })
   })
@@ -466,7 +466,7 @@ describe("ipasService: sections 1 and 3 sign-offs", () => {
       const notices = sent(IPAS_NOTIFICATION.SENT_BACK).slice(before)
       expect(notices.map((n) => n.recipient_id).sort()).toEqual([receiver.id, noter.id].sort())
       expect(notices.every((n) => n.sender_id === checker.id && n.reference_id === ipas.id)).toBe(true)
-      expect(notices[0].message).toContain("section 4 · Filing")
+      expect(notices[0].message).toContain("section 6 · Sign-offs")
       expect(notices[0].message).toContain("Landed cost is off")
     })
 

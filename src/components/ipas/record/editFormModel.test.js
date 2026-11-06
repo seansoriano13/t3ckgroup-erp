@@ -50,9 +50,9 @@ describe("IPAS edit form model", () => {
     const form = formFromIpas(ipas({ contact: "R. Cruz" }));
     expect(missingFields(form).map((m) => m.id)).toEqual(["f-piNumber", "f-piQtAmount", "f-location"]);
     const progress = sectionProgress(form);
-    expect(progress.find((p) => p.key === "purchasing")).toMatchObject({ total: 3, left: 2, done: 1 });
-    expect(progress.find((p) => p.key === "logistics")).toMatchObject({ total: 1, left: 1 });
-    expect(progress.find((p) => p.key === "finance")).toMatchObject({ total: 0 });
+    expect(progress.find((p) => p.key === "order")).toMatchObject({ total: 3, left: 2, done: 1 });
+    expect(progress.find((p) => p.key === "delivery")).toMatchObject({ total: 1, left: 1 });
+    expect(progress.find((p) => p.key === "payments")).toMatchObject({ total: 0 });
   });
 
   it("sends only what changed: a reset for a cleared override, the header fields together", () => {
@@ -116,8 +116,10 @@ describe("IPAS edit form model", () => {
         "f-location",
       ]);
       const progress = sectionProgress(form);
-      expect(progress.find((p) => p.key === "purchasing")).toMatchObject({ total: 6, left: 2 });
-      expect(progress.find((p) => p.key === "finance")).toMatchObject({ total: 3, left: 2 });
+      expect(progress.find((p) => p.key === "order")).toMatchObject({ total: 3, left: 0 });
+      expect(progress.find((p) => p.key === "payments")).toMatchObject({ total: 3, left: 2 });
+      expect(progress.find((p) => p.key === "costs")).toMatchObject({ total: 3, left: 2 });
+      expect(progress.find((p) => p.key === "delivery")).toMatchObject({ total: 1, left: 1 });
     });
 
     it("never asks for the forex rate: it is optional on a foreign-currency PO (#604)", () => {
@@ -185,7 +187,7 @@ describe("IPAS edit form model", () => {
         }),
       );
       const progress = sectionProgress(form);
-      const finance = progress.find((p) => p.key === "finance");
+      const finance = progress.find((p) => p.key === "costs");
       expect(finance.complete).toBe(false);
       expect(finance.left).toBeGreaterThan(0);
     });
@@ -197,7 +199,7 @@ describe("IPAS edit form model", () => {
         }),
       );
       const progress = sectionProgress(form);
-      const finance = progress.find((p) => p.key === "finance");
+      const finance = progress.find((p) => p.key === "costs");
       expect(finance.complete).toBe(true);
       expect(finance.left).toBe(0);
     });
@@ -207,35 +209,33 @@ describe("IPAS edit form model", () => {
 describe("the stepper's Filled state", () => {
   const filledOf = (form, key) => sectionProgress(form).find((p) => p.key === key).filled;
 
-  it("marks an optional section filled once a field it owns has a value", () => {
+  it("never marks Order filled: it has required fields", () => {
     const form = formFromIpas(ipas());
-    expect(filledOf(form, "header")).toBe(false);
-    expect(filledOf({ ...form, remarks: "Rush" }, "header")).toBe(true);
-    // An override box counts as filled; the default spread and unticked boxes do not.
-    expect(filledOf(form, "sales")).toBe(true);
-    expect(filledOf({ ...form, analytic: "" }, "sales")).toBe(false);
-    expect(filledOf({ ...form, analytic: "", googleSheet: true }, "sales")).toBe(true);
-    expect(filledOf({ ...form, delivered: "2026-10-01" }, "status")).toBe(true);
-    expect(filledOf({ ...form, actualChecking: true }, "status")).toBe(true);
+    expect(filledOf(form, "order")).toBe(false);
+    expect(filledOf({ ...form, remarks: "Rush" }, "order")).toBe(false);
   });
 
-  it("counts a stored document in Finance, and bank details", () => {
-    const form = formFromIpas(ipas());
-    expect(filledOf(form, "finance")).toBe(false);
-    expect(filledOf({ ...form, bankName: "BDO" }, "finance")).toBe(true);
-    expect(filledOf({ ...form, documents: [{ ...newDocumentDraft(), id: "d1" }] }, "finance")).toBe(true);
+  it("never marks Delivery filled: the Item Location is a required field there", () => {
+    const form = formFromIpas(ipas({ item_location_id: "opt-1" }));
+    expect(filledOf({ ...form, delivered: "2026-10-01" }, "delivery")).toBe(false);
+    expect(filledOf({ ...form, actualChecking: true }, "delivery")).toBe(false);
   });
 
-  it("never marks a section with required fields, or Filing", () => {
+  it("marks Documents filled once one is listed, and Payments not while empty", () => {
+    const form = formFromIpas(ipas());
+    expect(filledOf(form, "payments")).toBe(false);
+    expect(filledOf(form, "documents")).toBe(false);
+    expect(filledOf({ ...form, documents: [{ ...newDocumentDraft(), id: "d1" }] }, "documents")).toBe(true);
+  });
+
+  it("never marks a section with required fields", () => {
     const form = formFromIpas(ipas({ contact: "R. Cruz", piNumber: "PI-1", piQtAmount: 10, item_location_id: "opt-1" }));
-    expect(filledOf(form, "purchasing")).toBe(false);
-    expect(filledOf(form, "logistics")).toBe(false);
-    expect(filledOf({ ...form, remarks: "x", computationStatus: "lc_odoo_done" }, "filing")).toBe(false);
+    expect(filledOf({ ...form, remarks: "x" }, "order")).toBe(false);
   });
 
-  it("marks part 3 only once Landed Cost is final", () => {
+  it("marks Costs only once Landed Cost is final", () => {
     const form = formFromIpas(ipas());
-    expect(filledOf({ ...form, computationStatus: "encoded" }, "costing")).toBe(false);
-    expect(filledOf({ ...form, computationStatus: "lc_odoo_done" }, "costing")).toBe(true);
+    expect(filledOf({ ...form, computationStatus: "encoded" }, "costs")).toBe(false);
+    expect(filledOf({ ...form, computationStatus: "lc_odoo_done" }, "costs")).toBe(true);
   });
 });

@@ -23,10 +23,10 @@ const base = {
   late: false,
   nextList: null,
   signoffs: [
-    { section: 1, name: "Purchasing", steps: [{ role: "approved", label: "Approved", done: true }] },
-    { section: 3, name: "Purchasing & Finance", steps: [{ role: "approved", label: "Approved", done: false }] },
-    { section: 6, name: "Computation status & Landed Cost", steps: [{ role: "approved", label: "Approved", done: false }] },
-    { section: 7, name: "Filing", steps: [{ role: "approved", label: "Filed", done: false }] },
+    { section: 1, name: "Order", steps: [{ role: "approved", label: "Approved", done: true }] },
+    { section: 3, name: "Payments", steps: [{ role: "approved", label: "Approved", done: false }] },
+    { section: 6, name: "Costs", steps: [{ role: "approved", label: "Approved", done: false }] },
+    { section: 7, name: "Sign-offs", steps: [{ role: "approved", label: "Filed", done: false }] },
   ],
 }
 
@@ -56,9 +56,9 @@ describe("IpasSorSection (#584)", () => {
     summaries = [{ ...base, nextThing: null, nextSlip: null }]
     renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
 
-    expect(screen.getByText("Section 1 · Purchasing")).toBeInTheDocument()
-    expect(screen.getByText("Section 2 · Purchasing & Finance")).toBeInTheDocument()
-    expect(screen.getByText("Section 3 · Computation status & Landed Cost")).toBeInTheDocument()
-    expect(screen.getByText("Section 4 · Filing")).toBeInTheDocument()
+    expect(screen.getByText("Section 1 · Order")).toBeInTheDocument()
+    expect(screen.getByText("Section 2 · Payments")).toBeInTheDocument()
+    expect(screen.getByText("Section 3 · Costs")).toBeInTheDocument()
+    expect(screen.getByText("Section 6 · Sign-offs")).toBeInTheDocument()
   })
 })
