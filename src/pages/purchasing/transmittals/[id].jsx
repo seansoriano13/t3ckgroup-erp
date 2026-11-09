@@ -137,12 +137,13 @@ function TransmittalPage({ onClose }) {
 
   // Runs one move: busy while it runs, a toast either way, and on a failure the message shows inline
   // where the move was started, with Retry (the same call again).
-  const perform = async (from, action, { success, error: errorText }) => {
+  const perform = async (from, action, { success, error: errorText, after }) => {
     setBusy(true);
     try {
       const result = await action();
       setFailure(null);
       if (success) toast.success(success(result));
+      after?.(result);
       refresh();
     } catch (error) {
       const message = ipasErrorMessage(error, errorText);
@@ -152,13 +153,48 @@ function TransmittalPage({ onClose }) {
           key: from.key,
           origin: from.origin,
           message,
-          retry: () => perform(from, action, { success, error: errorText }),
+          retry: () => perform(from, action, { success, error: errorText, after }),
           dismiss: () => setFailure(null),
         });
       }
     } finally {
       setBusy(false);
     }
+  };
+
+  // "Signed as <name> · Undo" for 10 seconds. Undo takes the signature back with no reason and no notice;
+  // when the window ends the held notices go out (the database also sends them if this page is closed).
+  const showSignedToast = (stage) => {
+    const signer = user?.name ?? "you";
+    toast.success(
+      (toastItem) => (
+        <span className="flex items-center gap-3">
+          <span>
+            {STAGE_TITLE[stage]} signed as {signer}
+          </span>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 font-semibold"
+            onClick={async () => {
+              toast.dismiss(toastItem.id);
+              try {
+                await transmittalService.quickUndo(t.id, stage);
+                toast.success("Signature undone.");
+              } catch (error) {
+                toast.error(ipasErrorMessage(error, "The signature could not be undone."));
+              }
+              refresh();
+            }}
+          >
+            Undo
+          </Button>
+        </span>
+      ),
+      { duration: 10000 },
+    );
+    setTimeout(() => transmittalService.flushNotices(), 15500);
   };
 
   const on = {
@@ -182,7 +218,7 @@ function TransmittalPage({ onClose }) {
           setForms((prev) => ({ ...prev, [stage]: undefined }));
           return result;
         },
-        { success: () => `${STAGE_TITLE[stage]} signed.`, error: "The stage could not be signed." },
+        { success: null, error: "The stage could not be signed.", after: () => showSignedToast(stage) },
       ),
     confirmStage: (stageId, value, from) =>
       perform(from, () => transmittalService.confirmSignature(stageId, value), {

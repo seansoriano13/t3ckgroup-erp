@@ -10,6 +10,7 @@ import { SelectField } from "@/components/ui/SelectField";
 import { cn } from "@/lib/utils";
 import { TRANSMITTAL_STAGE as STAGE } from "@/constants/transmittals";
 import { transmittalService } from "@/services/transmittalService";
+import { RequiredMark } from "@/components/ipas/record/FormFields";
 import { ipasErrorMessage } from "@/utils/ipas";
 
 const caption = "text-label font-bold uppercase tracking-wider text-muted-foreground";
@@ -82,7 +83,10 @@ function RatingCell({ ctx, line, side, inChargeId }) {
 
   return (
     <div className="min-w-[13rem] space-y-1.5">
-      <p className={caption}>{cfg.label}</p>
+      <p className={caption}>
+        {cfg.label}
+        <RequiredMark />
+      </p>
       <div className="flex items-center gap-1.5">
         {["gc", "na"].map((value) => (
           <Button
@@ -157,7 +161,9 @@ export default function LineRatings({ ctx }) {
       {liveSide && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-4 py-2.5">
           <div className="flex items-center gap-2 text-[13px]">
-            <span className="font-semibold text-foreground">Rating as</span>
+            <span className="font-semibold text-foreground">
+              Rating as<RequiredMark />
+            </span>
             <SelectField
               size="sm"
               className="w-52"
