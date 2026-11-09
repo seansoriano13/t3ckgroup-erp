@@ -20,6 +20,7 @@ import {
 import ReadTick from "@/components/record/ReadTick";
 import { useEditable, useInDrawer } from "@/components/record/sectionChrome";
 import { ALLOWED_EXTENSIONS_STRING } from "../../utils/attachments";
+import { requiredFilesByPart } from "../../utils/ipasDocuments";
 import { uploadDocumentFile } from "./uploadDocumentFile";
 
 /**
@@ -53,6 +54,7 @@ export function IpasDocuments({
   const documents = ipas.documents ?? [];
   const suggested = ipas.suggestedDocuments ?? [];
   const [uploadingId, setUploadingId] = useState(null);
+  const required = requiredFilesByPart(documents, ipas.payments ?? [], ipas.source);
 
   const attach = async (document, [file]) => {
     setUploadingId(document.id);
@@ -84,6 +86,26 @@ export function IpasDocuments({
           </>
         )}
       </SectionHeader>
+
+      {required.length > 0 && (
+        <div className="rounded-xl border border-border px-3 py-2 text-xs" data-testid="ipas-required-files">
+          <p className="font-semibold text-foreground">Required files</p>
+          <ul className="mt-1 space-y-0.5">
+            {required.map((row) => (
+              <li key={`${row.part}-${row.label}`} className="flex items-center gap-1.5">
+                <span className="font-medium text-red-11" aria-hidden="true">
+                  *
+                </span>
+                <span className="text-foreground">{row.label}</span>
+                <span className="sr-only">(required)</span>
+                <span className={row.missing ? "font-medium text-red-11" : "text-muted-foreground"}>
+                  {row.missing ? "Missing" : "Attached"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <LinerList
         label="Documents"
