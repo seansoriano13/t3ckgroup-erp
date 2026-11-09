@@ -1,5 +1,11 @@
 /** React Query keys for the IPAS (#242). */
 export const ipasListKey = ["ipas", "list"];
+/**
+ * Marks the IPAS list out of date without reading it again now (#928). The record is a
+ * window over the list: a change made in it should not reload the whole list behind it,
+ * which reads again once it is shown on its own.
+ */
+export const markIpasListStale = (queryClient) => queryClient.invalidateQueries({ queryKey: ipasListKey, refetchType: "none" });
 export const ipasKey = (id) => ["ipas", "one", id];
 export const ipasRefreshKey = (id) => ["ipas", "refresh", id];
 export const ipasSorSearchKey = (term) => ["ipas", "sor-search", term];

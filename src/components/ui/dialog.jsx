@@ -29,7 +29,7 @@ function DialogOverlay({ className, ...props }) {
       data-slot="dialog-overlay"
       forceRender
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/30 backdrop-blur-sm duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0",
+        "fixed inset-0 isolate z-[80] bg-black/30 backdrop-blur-sm duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0",
         className,
       )}
       {...props}
@@ -43,8 +43,12 @@ function DialogContent({
   showCloseButton = true,
   ...props
 }) {
-  // A dialog stacked above another (e.g. `z-[80]`) lifts its own backdrop to the
-  // same layer, so it dims the dialog beneath it instead of sitting under it.
+  // Every dialog sits on the dialog layer, z-[80], above the record windows (z-[70],
+  // ModalShell and RecordModalContent) and slide-overs opened over them (z-[75]), so
+  // one opened from a record window shows on top of it (#929). Dropdowns, selects,
+  // tooltips and toasts sit far above (z-[10001] and up). A dialog with its own layer
+  // (`z-[70]` for a record window) lifts or lowers its backdrop to match, so the
+  // backdrop always dims what is beneath the dialog, never the dialog itself.
   const layer = typeof className === "string" ? className.match(/(?:^|\s)(z-\[\d+\])/)?.[1] : undefined;
   return (
     <DialogPortal>
@@ -52,7 +56,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-[80] grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
         )}
         {...props}

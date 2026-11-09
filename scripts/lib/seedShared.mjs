@@ -107,6 +107,9 @@ export const SEED_TABLES = [
   "ipas",
   "ipas_sors",
   "ipas_events",
+  // "Worked on since raising" marks (#928): written by a trigger on ipas_events, which the restore
+  // runs with triggers off, so the marks are copied with the history they come from.
+  "ipas_work_marks",
   "ipas_payments",
   "ipas_charges",
   // Documents (#246) point at ipas and at the document_kind options above.

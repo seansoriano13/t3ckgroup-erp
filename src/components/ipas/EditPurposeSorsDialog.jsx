@@ -9,7 +9,7 @@ import { SelectField } from "@/components/ui/SelectField";
 import { ipasService } from "../../services/ipasService";
 import { IPAS_PURPOSE, IPAS_PURPOSES, IPAS_PURPOSE_LABELS } from "../../constants/ipas";
 import { ipasErrorMessage } from "../../utils/ipas";
-import { ipasKey, ipasListKey } from "./ipasKeys";
+import { ipasKey, markIpasListStale } from "./ipasKeys";
 
 // An IPAS with no SORs can be any Purpose but Project; the SOR list is fixed when it is raised (#551).
 const PURPOSE_OPTIONS = IPAS_PURPOSES.filter((value) => value !== IPAS_PURPOSE.PROJECT).map((value) => ({
@@ -36,7 +36,7 @@ function EditBody({ ipas, onClose }) {
     onSuccess: () => {
       toast.success("Purpose updated.");
       queryClient.invalidateQueries({ queryKey: ipasKey(ipas.id) });
-      queryClient.invalidateQueries({ queryKey: ipasListKey });
+      markIpasListStale(queryClient);
       onClose();
     },
     onError: (error) => toast.error(ipasErrorMessage(error)),

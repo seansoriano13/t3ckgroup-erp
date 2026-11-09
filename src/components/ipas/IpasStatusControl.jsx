@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 
 import IpasStatusPill from "./IpasStatusPill";
 import OnHoldDialog from "./OnHoldDialog";
-import { ipasKey, ipasListKey } from "./ipasKeys";
+import { ipasKey, markIpasListStale } from "./ipasKeys";
 import { ipasService } from "../../services/ipasService";
 import { IPAS_STATE } from "../../constants/ipas";
 
@@ -29,7 +29,8 @@ export default function IpasStatusControl({ ipas, figures, canSet = false, askin
     },
     onSettled: () =>
       Promise.all([
-        queryClient.invalidateQueries({ queryKey: ipasListKey }),
+        // Set from the record's More menu: the list behind it reads again when shown (#928).
+        markIpasListStale(queryClient),
         queryClient.invalidateQueries({ queryKey: ipasKey(ipas.id) }),
       ]),
     // A failure shows inside the dialog, with Retry; it stays open.

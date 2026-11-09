@@ -29,6 +29,7 @@ import { LandedCostRollup } from "../LandedCost";
 import LineDetail from "./LineDetail";
 import CostingSheet from "./CostingSheet";
 import MarkupPlayground from "./MarkupPlayground";
+import { useMarkupPlay } from "./useMarkupPlay";
 import S0LinkSuggestions from "./S0LinkSuggestions";
 
 const firstLine = (text) => (text ?? "").split("\n")[0].trim();
@@ -89,7 +90,7 @@ function useFill(matrix, opportunityId, writes) {
  * The Costing Desk: one SOR's Costing Matrix in its record window (layout A, chosen 2026-10-22). The
  * overview first (ABC, Final Offer, cost, margin), then the lines as one sheet, the other costs and the
  * summary. A line's parts, costs and evaluation open in a slide-over from its row, so the sheet stays
- * one table; on the right the Bid Decision, the markup playground
+ * one table, with the markup playground as a bar right above it (#931); on the right the Bid Decision
  * and the sign-offs. Lines come from the SOR's products, each priced from its product until it is broken
  * down into parts. Every figure and every write is the database's to allow; a tier sees only its columns.
  */
@@ -100,6 +101,8 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   const writes = useCostingWrites(opportunityId);
   const incharge = useInchargeOptions(opportunity);
   const { canFill, fill, odooNote } = useFill(matrix, opportunityId, writes);
+  // The markup being tried (#931): the bar above the Lines table and the table's per-line preview share it.
+  const markup = useMarkupPlay(matrix, writes, { enabled: Boolean(matrix) && tierReadsCost(matrix.tier, "markup_factor") });
   const lines = matrix?.tenderLines ?? [];
   // The line open in the slide-over, by id, so it stays open while lines are moved or refreshed.
   const [openLineId, setOpenLineId] = useState(null);
@@ -249,7 +252,15 @@ export default function CostingDesk({ opportunityId, opportunity }) {
 
           <section className="space-y-3">
             <h3 className="text-sm font-bold text-foreground">Lines · {lines.length}</h3>
-            <CostingSheet matrix={matrix} opportunity={opportunity} writes={writes} canWrite={canWrite} onOpenLine={setOpenLineId} />
+            <CostingSheet
+              matrix={matrix}
+              opportunity={opportunity}
+              writes={writes}
+              canWrite={canWrite}
+              onOpenLine={setOpenLineId}
+              preview={showClosedBook ? markup?.preview : null}
+              toolbar={showClosedBook && markup ? <MarkupPlayground markup={markup} matrix={matrix} busy={writes.busy} /> : null}
+            />
             {canWrite && (
               <Button type="button" variant="outline" size="sm" disabled={writes.busy} onClick={() => writes.run(() => costingMatrixService.addTenderLine(matrix.matrixId, {}, actorId))}>
                 <Plus size={14} aria-hidden="true" />
@@ -271,7 +282,6 @@ export default function CostingDesk({ opportunityId, opportunity }) {
 
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-2 xl:self-start">
           {tierReadsBidDecision(matrix.tier) && <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} />}
-          {showClosedBook && <MarkupPlayground key={matrix.defaultFactor ?? "none"} matrix={matrix} writes={writes} />}
           <SignoffBar matrix={matrix} nameOf={incharge.nameOf} />
         </aside>
       </div>

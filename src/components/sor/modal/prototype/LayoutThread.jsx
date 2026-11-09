@@ -18,7 +18,8 @@ import MentionTextarea, { NoteText } from "../../../ui/MentionTextarea";
 import { ALLOWED_EXTENSIONS_STRING, listableAttachments } from "../../../../utils/attachments";
 import NowTab from "../NowTab";
 import Sheet from "./Sheet";
-import StageStrip, { MoveButtons, TONE_BG, useJourneyVisits } from "../summary/StageStrip";
+import StageStrip, { MoveButtons, useJourneyVisits } from "../summary/StageStrip";
+import { stageColorFill } from "../../../../constants/stageColors";
 import { useDigest } from "../summary/useDigest";
 import { EditBody, HeaderActions, Identity, LABEL, QuoteActions, TeamList, ValueFigure, detailRows, formatShort, showMoney, useWarmTabs } from "../summary/shared";
 
@@ -79,7 +80,7 @@ function Chapter({ p, chapter, expanded, onExpand }) {
       <span
         className={cn(
           "absolute top-[5px] left-[4px] size-[11px] rounded-full ring-4 ring-popover",
-          isCurrent ? TONE_BG[p.currentFlowStageTone] || "bg-foreground" : "bg-mauve-8",
+          isCurrent ? stageColorFill(p.currentFlowStageTone) : "bg-mauve-8",
         )}
         aria-hidden
       />

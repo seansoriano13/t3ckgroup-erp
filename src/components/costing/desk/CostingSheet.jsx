@@ -198,7 +198,42 @@ function MarkupCells({ line, kid, figures, tier, canMarkup, onSaveFactor }) {
   );
 }
 
-export default function CostingSheet({ matrix, opportunity, writes, canWrite, onOpenLine }) {
+// Why a line keeps its price while a markup is tried (#931), in the Lines table under its Final Offer.
+const PREVIEW_WHY = {
+  "no-acquire": "No Acquire yet, left as it is",
+  "no-quantity": "No quantity, left as it is",
+  "at-abc": "Kept at the ABC",
+  "own-markup": "Its parts keep their own markup",
+  same: "Already at this price",
+};
+
+/** The previewed Final Offer under the saved one while a markup is tried (#931), or why it stays. */
+function OfferPreview({ preview }) {
+  if (!preview) return null;
+  if (!preview.changes) {
+    return (
+      <div className="mt-1 text-xs text-muted-foreground" data-testid="sheet-offer-preview" data-changes="false">
+        {PREVIEW_WHY[preview.reason]}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-1 flex flex-col items-end gap-0.5" data-testid="sheet-offer-preview" data-changes="true">
+      <span className="inline-flex items-center gap-1.5">
+        <StatusBadge label="Preview" theme="violet" />
+        <span className="font-mono text-[13px] font-semibold text-violet-11 tabular-nums">{pesos(preview.offerUnit)}</span>
+      </span>
+      {preview.reason === "at-abc" && <span className="text-xs text-muted-foreground">{PREVIEW_WHY["at-abc"]}</span>}
+    </div>
+  );
+}
+
+/**
+ * `preview` (#931) maps a line id to what the markup being tried would offer it at
+ * (utils/costingPlayground `linePreview`); null when nothing is being tried. `toolbar` is drawn
+ * directly above the table (the markup playground bar).
+ */
+export default function CostingSheet({ matrix, opportunity, writes, canWrite, onOpenLine, preview = null, toolbar = null }) {
   const lines = matrix.tenderLines;
   const { totals } = matrix;
   const showAbc = tierReads(matrix.tier, "abc_unit");
@@ -304,6 +339,8 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           </Fact>
         )}
       </div>
+
+      {toolbar}
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table className="border-separate border-spacing-0 text-[13px]">
@@ -443,6 +480,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                             className="min-w-28"
                           />
                           {line.totals.overAbc && <div className="mt-1 text-xs text-destructive">Over the ABC</div>}
+                          <OfferPreview preview={preview?.get(line.id)} />
                         </>
                       )}
                     </TableCell>

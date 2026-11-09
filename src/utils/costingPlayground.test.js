@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { linePlay, matrixPlay } from "./costingPlayground"
+import { linePlay, linePreview, matrixPlay } from "./costingPlayground"
 
 const line = (overrides = {}) => ({
     id: "l1",
@@ -70,3 +70,32 @@ describe("matrixPlay", () => {
         expect(play.cost).toBeNull()
     })
 })
+
+describe("linePreview (#931)", () => {
+  const part = (acquire, own = null) => ({ acquire_unit: acquire, quantity: 1, markup_factor: own });
+  const line = (components, { offer = null, abc = null, quantity = 1 } = {}) => ({ components, final_offer_unit: offer, abc_unit: abc, quantity });
+
+  it("previews a change, and names the ABC when it stops the price there", () => {
+    const l = line([part(100)], { offer: 120, abc: 1000 });
+    expect(linePreview(l, linePlay(l, 1.5))).toEqual({ offerUnit: 150, changes: true, reason: null });
+    const capped = line([part(100)], { offer: 120, abc: 140 });
+    expect(linePreview(capped, linePlay(capped, 1.5))).toEqual({ offerUnit: 140, changes: true, reason: "at-abc" });
+  });
+
+  it("says why a line stays: no Acquire, no quantity, at the ABC, its own markup, or already there", () => {
+    const bare = line([part(null)], { offer: 120 });
+    expect(linePreview(bare, linePlay(bare, 1.5)).reason).toBe("no-acquire");
+    const empty = line([], { offer: 120 });
+    expect(linePreview(empty, linePlay(empty, 1.5)).reason).toBe("no-acquire");
+    const noQty = line([part(100)], { offer: 120, quantity: 0 });
+    expect(linePreview(noQty, linePlay(noQty, 1.5)).reason).toBe("no-quantity");
+    const atAbc = line([part(100)], { offer: 140, abc: 140 });
+    expect(linePreview(atAbc, linePlay(atAbc, 1.5))).toMatchObject({ changes: false, reason: "at-abc" });
+    const own = line([part(100, 1.2)], { offer: 120 });
+    expect(linePreview(own, linePlay(own, 1.5))).toMatchObject({ changes: false, reason: "own-markup" });
+    // Priced at the factor being tried after all, it changes.
+    expect(linePreview(own, linePlay(own, 1.5, { ignoreOwn: true }), { ignoreOwn: true })).toMatchObject({ offerUnit: 150, changes: true });
+    const same = line([part(100)], { offer: 150 });
+    expect(linePreview(same, linePlay(same, 1.5))).toMatchObject({ changes: false, reason: "same" });
+  });
+});

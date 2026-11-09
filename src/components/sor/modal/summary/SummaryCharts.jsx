@@ -7,7 +7,7 @@ import { useMemo } from "react";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { TONE_BG } from "./StageStrip";
+import { stageColorFill } from "../../../../constants/stageColors";
 import { formatPHP, formatShort, itemsTotal, showMoney } from "./shared";
 
 const DAY = 86400000;
@@ -102,7 +102,7 @@ export function StageTimeChart({ p, visits, onOpen }) {
                 <div
                   className={cn(
                     "absolute inset-y-1 rounded-sm",
-                    v.isRestricted ? "bg-mauve-5" : isCurrent ? TONE_BG[p.currentFlowStageTone] || "bg-foreground" : "bg-mauve-8",
+                    v.isRestricted ? "bg-mauve-5" : isCurrent ? stageColorFill(p.currentFlowStageTone) : "bg-mauve-8",
                   )}
                   style={{ left: `${pos(start)}%`, width: `${Math.max(pos(end) - pos(start), 0.8)}%` }}
                   title={`${formatShort(v.enteredAt)} → ${v.leftAt ? formatShort(v.leftAt) : "now"}`}
