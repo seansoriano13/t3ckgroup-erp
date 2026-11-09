@@ -71,9 +71,6 @@ export function buildBlocks(ctx) {
       ipas={ipas}
       canChange={can.pickLocation ?? can.change}
       onPick={on.pickLocation}
-      signRights={rights[8]}
-      busy={ctx.busy?.signoff}
-      onSign={() => on.approve(8, "logistics")}
     />
   );
   const status = (
@@ -112,7 +109,7 @@ export function buildBlocks(ctx) {
         {costing}
       </div>
     ),
-    // 4 · Delivery: where the goods are, and the Logistics sign-off.
+    // 4 · Delivery: where the goods are.
     delivery: (
       <div className="space-y-6">
         {logistics}
@@ -122,7 +119,15 @@ export function buildBlocks(ctx) {
     // 5 · Documents: every file, in one list.
     documents,
     // 6 · Sign-offs: who signed the final IPAS.
-    signoffs: <SignoffList steps={ctx.journey?.sign ?? []} />,
+    signoffs: (
+      <SignoffList
+        steps={[
+          // Logistics is the first sign-off; it is a "get it ready" step on the rail and gates "Send for signing".
+          ...(ctx.journey?.ready ?? []).filter((step) => step.key === "logistics"),
+          ...(ctx.journey?.sign ?? []),
+        ]}
+      />
+    ),
     history: <IpasHistorySection events={ipas.events} />,
   };
 }

@@ -179,6 +179,20 @@ describe("IPAS rail: Your move and the filed state", () => {
     expect(item(region, "logistics")).toHaveTextContent("Signed by Boss Lito.");
   });
 
+  it("lists Logistics as the first row of section 6, and section 4 has no sign button", async () => {
+    const row = readyIpas();
+    const user = setupUser();
+    renderDetail(row.id);
+
+    await screen.findByRole("region", { name: "Your move" });
+    await user.click(screen.getByRole("button", { name: /^6 · Sign-offs/ }));
+    expect(screen.queryByTestId("ipas-logistics-signoff")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign Logistics" })).not.toBeInTheDocument();
+    const rows = document.querySelectorAll('li[id^="ipas-signoff-"]');
+    expect(rows[0]).toHaveAttribute("id", "ipas-signoff-logistics");
+    expect(rows[0]).toHaveTextContent("Signed by Boss Lito.");
+  });
+
   it("opens signing once everything is ready, with Send for signing as the purchaser's turn", async () => {
     const row = readyIpas();
     renderDetail(row.id);
