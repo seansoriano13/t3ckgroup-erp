@@ -61,7 +61,14 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
     const n = rawFiles.filter((other) => other === label).length;
     return n > 1 ? `${label} (×${n})` : label;
   });
-  const onlyProofs = files.length > 0 && files.every((label) => label.startsWith("Proof of payment"));
+  // Proof of payment is Finance's (#937); the other files are Purchasing's to attach.
+  const isProof = (label) => label.startsWith("Proof of payment");
+  const proofs = files.filter(isProof);
+  const otherFiles = files.filter((label) => !isProof(label));
+  const finance = { names: "Finance", empty: false };
+  // A foreign-currency payment with no Forex Rate Paid (a PHP PO has no rate to fill).
+  const foreignPo = Boolean(ipas.currency) && String(ipas.currency).toUpperCase() !== "PHP";
+  const noRate = foreignPo ? (ipas.payments ?? []).filter((payment) => payment.forex_rate === null || payment.forex_rate === undefined).length : 0;
   // Logistics signed means what it needed was in when it was signed: those items stay ticked.
   const logisticsSigned = Boolean(s8?.approved);
   const located = logisticsSigned || Boolean(ipas.itemLocation || ipas.item_location_id);
@@ -95,20 +102,34 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
     {
       key: "files",
       label: "Attach the files",
-      done: files.length === 0,
-      line: files.length === 0 ? "Every required file is attached." : `Still missing: ${files.join(", ")}.`,
+      done: otherFiles.length === 0,
+      line: otherFiles.length === 0 ? "Every required file is attached." : `Still missing: ${otherFiles.join(", ")}.`,
       who: buyer,
-      action: (can.change || can.record) && files.length > 0
-        ? { kind: "edit", section: onlyProofs ? "payments" : "documents", label: onlyProofs ? "Attach proof in 2 · Payments" : "Attach in 5 · Documents" }
-        : null,
+      action: can.change && otherFiles.length > 0 ? { kind: "edit", section: "documents", label: "Attach in 5 · Documents" } : null,
     },
     {
       key: "charges",
-      label: "Fill in the charges",
+      label: "Record payments and charges",
       done: chargeProblems.length === 0,
       line: chargeProblems.length === 0 ? "Every charge has an amount and a file." : `${chargeProblems.join("; ")}.`,
-      who: buyer,
-      action: (can.change || can.record) && chargeProblems.length > 0 ? { kind: "edit", section: "costs", label: "Fill in 3 · Costs" } : null,
+      who: finance,
+      action: can.record && chargeProblems.length > 0 ? { kind: "edit", section: "costs", label: "Fill in 3 · Costs" } : null,
+    },
+    {
+      key: "proof",
+      label: "Attach proof of payment",
+      done: proofs.length === 0,
+      line: proofs.length === 0 ? "Every payment has its proof." : `Still missing: ${proofs.join(", ")}.`,
+      who: finance,
+      action: can.record && proofs.length > 0 ? { kind: "edit", section: "payments", label: "Attach proof in 2 · Payments" } : null,
+    },
+    {
+      key: "forex",
+      label: "Fill the Forex Rate Paid",
+      done: noRate === 0,
+      line: noRate === 0 ? "Every payment has its rate." : `${noRate} ${noRate === 1 ? "payment has" : "payments have"} no Forex Rate Paid yet.`,
+      who: finance,
+      action: can.record && noRate > 0 ? { kind: "edit", section: "payments", label: "Type rate in 2 · Payments" } : null,
     },
     {
       key: "landed",
