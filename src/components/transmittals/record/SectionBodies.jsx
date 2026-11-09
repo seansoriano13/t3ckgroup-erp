@@ -23,6 +23,7 @@ import {
   TRANSMITTAL_STAGE as STAGE,
 } from "@/constants/transmittals";
 import { transmittalService } from "@/services/transmittalService";
+import { RequiredMark } from "@/components/ipas/record/FormFields";
 import { ipasErrorMessage } from "@/utils/ipas";
 import { evidenceOf, stageRowOf, transmittalStateLabel } from "@/utils/transmittals";
 import { formatPreparedAt } from "@/utils/preparedAt";
@@ -215,7 +216,9 @@ export function StageBody({ t, stage, rights, form, setForm, members, userId, on
   return (
     <div className="space-y-6 text-[13px]">
       <div className="space-y-2">
-        <p className={caption}>Pictures and videos</p>
+        <p className={caption}>
+          Pictures and videos{canSign && !signed && <> <RequiredMark /></>}
+        </p>
         {files.length === 0 ? (
           <p className="text-muted-foreground">
             {row?.no_pictures_reason ? `None: ${row.no_pictures_reason}` : "None yet."}
@@ -283,7 +286,7 @@ export function StageBody({ t, stage, rights, form, setForm, members, userId, on
             <Textarea rows={2} value={form.remarks} onChange={(e) => set({ remarks: e.target.value })} />
           </FieldBox>
           {files.length === 0 && (
-            <FieldBox label="No pictures or videos: why" bare>
+            <FieldBox label={<>No pictures or videos: why<RequiredMark /></>} bare>
               <Input value={form.noPicturesReason} onChange={(e) => set({ noPicturesReason: e.target.value })} />
             </FieldBox>
           )}
@@ -300,7 +303,7 @@ export function StageBody({ t, stage, rights, form, setForm, members, userId, on
             </FieldBox>
           )}
           {pickOther ? (
-            <FieldBox label={chooseSlot && form.signAsSecond ? signers.first : signers.second} bare>
+            <FieldBox label={<>{chooseSlot && form.signAsSecond ? signers.first : signers.second}<RequiredMark /></>} bare>
               <SelectField
                 options={otherOptions}
                 value={form.otherId}
@@ -309,7 +312,7 @@ export function StageBody({ t, stage, rights, form, setForm, members, userId, on
               />
             </FieldBox>
           ) : (
-            <FieldBox label="Received by (typed name)" bare>
+            <FieldBox label={<>Received by (typed name)<RequiredMark /></>} bare>
               <Input value={form.otherName} onChange={(e) => set({ otherName: e.target.value })} />
             </FieldBox>
           )}

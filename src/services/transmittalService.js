@@ -432,36 +432,62 @@ export const transmittalService = {
 
     const number = data.number;
     const stageName = transmittalStateLabel(data.state);
-    await Promise.all([
-      ...(data.notify_next_ids ?? []).map((recipient_id) =>
-        notificationService.createNotification({
-          recipient_id,
-          type: TRANSMITTAL_NOTIFICATION.STAGE_READY,
-          title: `${number} is waiting on you`,
-          message: `${number} is ${lowerFirst(stageName)}.`,
-          reference_id: id,
-        }),
-      ),
-      data.notify_confirm_id
-        ? notificationService.createNotification({
-            recipient_id: data.notify_confirm_id,
-            type: TRANSMITTAL_NOTIFICATION.CONFIRM_SIGNATURE,
-            title: `Confirm your signature on ${number}`,
-            message: `You are the second signatory on ${number}. Confirm or decline it.`,
-            reference_id: id,
-          })
-        : null,
-      ...(data.notify_na_ids ?? []).map((recipient_id) =>
-        notificationService.createNotification({
-          recipient_id,
-          type: TRANSMITTAL_NOTIFICATION.NA_RAISED,
-          title: `${number} has NA lines`,
-          message: `${number} was checked with ${data.na_count} line${data.na_count === 1 ? "" : "s"} rated NA.`,
-          reference_id: id,
-        }),
-      ),
-    ]);
+    const notices = [
+      ...(data.notify_next_ids ?? []).map((recipient_id) => ({
+        recipient_id,
+        type: TRANSMITTAL_NOTIFICATION.STAGE_READY,
+        title: `${number} is waiting on you`,
+        message: `${number} is ${lowerFirst(stageName)}.`,
+        reference_id: id,
+      })),
+      ...(data.notify_confirm_id
+        ? [
+            {
+              recipient_id: data.notify_confirm_id,
+              type: TRANSMITTAL_NOTIFICATION.CONFIRM_SIGNATURE,
+              title: `Confirm your signature on ${number}`,
+              message: `You are the second signatory on ${number}. Confirm or decline it.`,
+              reference_id: id,
+            },
+          ]
+        : []),
+      ...(data.notify_na_ids ?? []).map((recipient_id) => ({
+        recipient_id,
+        type: TRANSMITTAL_NOTIFICATION.NA_RAISED,
+        title: `${number} has NA lines`,
+        message: `${number} was checked with ${data.na_count} line${data.na_count === 1 ? "" : "s"} rated NA.`,
+        reference_id: id,
+      })),
+    ];
+
+    // The notices wait out the quick-undo window in the database, so they go
+    // out even if the signer closes the page. If they cannot be held, send now.
+    const held = await supabase.rpc("transmittal_hold_notices", {
+      p_transmittal_id: id,
+      p_stage: stage,
+      p_notices: notices,
+    });
+    if (held.error) {
+      await Promise.all(notices.map((notice) => notificationService.createNotification(notice)));
+    }
     return data;
+  },
+
+  /**
+   * The signer takes back a stage signature made seconds ago: no reason, no
+   * "signature undone" notice, and the notices it owed are dropped. The
+   * database allows only the signer, only inside the window.
+   */
+  async quickUndo(id, stage) {
+    const { data, error } = await supabase.rpc("transmittal_quick_undo", { p_transmittal_id: id, p_stage: stage });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Writes the held notices whose quick-undo window has passed (the database also does this every minute). */
+  async flushNotices() {
+    const { error } = await supabase.rpc("transmittal_flush_notices");
+    if (error) console.error("Held Transmittal notices could not be flushed:", error);
   },
 
   /** The co-signer confirms (or declines) the signature stored for them on a signed stage. */

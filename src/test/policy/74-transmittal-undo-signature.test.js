@@ -324,3 +324,70 @@ describe("the history of cleared signatures", () => {
         expect(service.error?.message ?? "").toMatch(/append-only/)
     })
 })
+
+describe("quick undo right after signing (#935)", () => {
+    const quick = (who, slipId, stage = "warehouse_checking") =>
+        rpc(who, "transmittal_quick_undo", { p_transmittal_id: slipId, p_stage: stage })
+    const notice = () => ({ recipient_id: ids.dealOwner, type: "TRANSMITTAL_STAGE_READY", title: "T is waiting on you", message: "m", reference_id: "x" })
+    const pending = async (slipId) =>
+        (await svc().from("transmittal_pending_notices").select("*").eq("transmittal_id", slipId)).data
+
+    it("lets the signer undo inside the window with no reason, drops the held notices and keeps the history", async () => {
+        const slipId = await submittedSlip()
+        await rate("warehouse", slipId)
+        await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
+        const held = await rpc("warehouse", "transmittal_hold_notices", {
+            p_transmittal_id: slipId,
+            p_stage: "warehouse_checking",
+            p_notices: [notice()],
+        })
+        expect(held.error).toBeNull()
+
+        const done = await quick("warehouse", slipId)
+        expect(done.error).toBeNull()
+        expect(done.data.notify_ids).toBeUndefined()
+        expect((await stageRow(slipId, "warehouse_checking")).completed_at).toBeNull()
+        const [cleared] = await clearedOf(slipId)
+        expect(cleared.cleared_reason).toBe("Undone right after signing")
+
+        const [row] = await pending(slipId)
+        expect(row.cancelled_at).toBeTruthy()
+        // Flushing later sends nothing for it.
+        await svc().from("transmittal_pending_notices").update({ due_at: new Date(Date.now() - 1000).toISOString() }).eq("id", row.id)
+        await rpc("warehouse", "transmittal_flush_notices", {})
+        expect((await pending(slipId))[0].sent_at).toBeNull()
+    })
+
+    it("sends the held notices once the window has passed, and refuses a quick undo then", async () => {
+        const slipId = await submittedSlip()
+        await rate("warehouse", slipId)
+        await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
+        await rpc("warehouse", "transmittal_hold_notices", {
+            p_transmittal_id: slipId,
+            p_stage: "warehouse_checking",
+            p_notices: [{ ...notice(), reference_id: slipId }],
+        })
+        // A signed stage is frozen, so let the real window run out.
+        await new Promise((resolve) => setTimeout(resolve, 15_500))
+
+        const late = await quick("warehouse", slipId)
+        expect(late.error?.message ?? "").toMatch(/window has passed/)
+        expect((await stageRow(slipId, "warehouse_checking")).completed_at).toBeTruthy()
+
+        await rpc("ordinary", "transmittal_flush_notices", {})
+        expect((await pending(slipId))[0].sent_at).toBeTruthy()
+        const sent = await svc().from("notifications").select("id").eq("reference_id", slipId).eq("recipient_id", ids.dealOwner)
+        expect(sent.data).toHaveLength(1)
+    }, 30_000)
+
+    it("refuses anyone but the signer, even on a list that may sign the stage", async () => {
+        const slipId = await submittedSlip()
+        await rate("warehouse", slipId)
+        await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
+        for (const who of ["dealOwner", "ordinary", "superAdmin"]) {
+            const { error } = await quick(who, slipId)
+            expect(error, `${who} quick-undid the signature`).toBeTruthy()
+        }
+        expect((await stageRow(slipId, "warehouse_checking")).completed_at).toBeTruthy()
+    })
+})

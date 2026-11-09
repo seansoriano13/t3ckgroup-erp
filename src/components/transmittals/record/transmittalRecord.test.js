@@ -173,7 +173,7 @@ describe("movesFor", () => {
     expect(moves[0].confirm).toBe(false);
   });
 
-  it("asks first once the stage is ready to sign", () => {
+  it("signs in one click once the stage is ready (the Undo toast is the safety net)", () => {
     const t = slip({
       lines: [line(1, { wh_rating: "gc", wh_in_charge_id: ME })],
       evidence: [{ id: "e1", record_id: "s1", file_name: "a.jpg", kind: "picture" }],
@@ -181,7 +181,7 @@ describe("movesFor", () => {
     const forms = { [STAGE.WAREHOUSE_CHECKING]: { ...EMPTY_STAGE_FORM, otherId: OTHER } };
     const [sign] = build(t, { userId: ME, lists: [LIST.WAREHOUSE] }, forms).moves;
     expect(stageBlocker(t, STAGE.WAREHOUSE_CHECKING, forms[STAGE.WAREHOUSE_CHECKING])).toBeNull();
-    expect(sign.confirm).toBe(true);
+    expect(sign.confirm).toBe(false);
   });
 
   it("offers the co-signer Confirm and Decline on a signed stage", () => {
