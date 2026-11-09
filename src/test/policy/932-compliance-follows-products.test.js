@@ -104,6 +104,17 @@ describe("the overall verdict is derived from the products", () => {
         await asSvc(svc().from("costing_components").delete().eq("id", extra.id), "remove extra")
         expect(await overall()).toBe("complies")
     })
+
+    it("follows a tender line being deleted with its products, and stamps the in-charge as the verdict's owner", async () => {
+        await reset()
+        await asSvc(svc().from("costing_components").update({ compliance: "complies" }).in("id", products), "all comply")
+        const lineC = (await asSvc(svc().from("costing_tender_lines").insert({ matrix_id: matrix, position: 3, tender_specification: "Line C", quantity: 1, created_by: ids.dealOwner }).select("id").single(), "line C")).id
+        await asSvc(svc().from("costing_components").insert({ tender_line_id: lineC, position: 1, name: "Bad part", quantity: 1, compliance: "deviates", compliance_note: "Wrong" }), "deviating product")
+        const stamped = await asSvc(svc().from("costing_matrices").select("compliance, compliance_by").eq("id", matrix).single(), "matrix")
+        expect(stamped).toMatchObject({ compliance: "deviates", compliance_by: ids.technical })
+        await asSvc(svc().from("costing_tender_lines").delete().eq("id", lineC), "remove line C")
+        expect(await overall()).toBe("complies")
+    })
 })
 
 describe("nobody picks the overall verdict by hand", () => {

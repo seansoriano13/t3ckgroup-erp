@@ -13,7 +13,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
-import { serviceClient } from "./support/stack.js"
+import { createClient } from "@supabase/supabase-js"
+import { serviceClient, API_URL, ANON_KEY } from "./support/stack.js"
 import { raiseAsPurchaser } from "./support/ipas.js"
 
 const svc = () => serviceClient()
@@ -328,7 +329,8 @@ describe("the history of cleared signatures", () => {
 describe("quick undo right after signing (#935)", () => {
     const quick = (who, slipId, stage = "warehouse_checking") =>
         rpc(who, "transmittal_quick_undo", { p_transmittal_id: slipId, p_stage: stage })
-    const notice = () => ({ recipient_id: ids.dealOwner, type: "TRANSMITTAL_STAGE_READY", title: "T is waiting on you", message: "m", reference_id: "x" })
+    const hold = (who, slipId, stage = "warehouse_checking") =>
+        rpc(who, "transmittal_hold_notices", { p_transmittal_id: slipId, p_stage: stage })
     const pending = async (slipId) =>
         (await svc().from("transmittal_pending_notices").select("*").eq("transmittal_id", slipId)).data
 
@@ -336,12 +338,9 @@ describe("quick undo right after signing (#935)", () => {
         const slipId = await submittedSlip()
         await rate("warehouse", slipId)
         await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
-        const held = await rpc("warehouse", "transmittal_hold_notices", {
-            p_transmittal_id: slipId,
-            p_stage: "warehouse_checking",
-            p_notices: [notice()],
-        })
+        const held = await hold("warehouse", slipId)
         expect(held.error).toBeNull()
+        expect((await pending(slipId))[0].notices.length).toBeGreaterThan(0)
 
         const done = await quick("warehouse", slipId)
         expect(done.error).toBeNull()
@@ -362,11 +361,7 @@ describe("quick undo right after signing (#935)", () => {
         const slipId = await submittedSlip()
         await rate("warehouse", slipId)
         await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
-        await rpc("warehouse", "transmittal_hold_notices", {
-            p_transmittal_id: slipId,
-            p_stage: "warehouse_checking",
-            p_notices: [{ ...notice(), reference_id: slipId }],
-        })
+        expect((await hold("warehouse", slipId)).error).toBeNull()
         // A signed stage is frozen, so let the real window run out.
         await new Promise((resolve) => setTimeout(resolve, 15_500))
 
@@ -374,11 +369,41 @@ describe("quick undo right after signing (#935)", () => {
         expect(late.error?.message ?? "").toMatch(/window has passed/)
         expect((await stageRow(slipId, "warehouse_checking")).completed_at).toBeTruthy()
 
+        // Someone else's flush does not send another person's notices; the signer's does.
         await rpc("ordinary", "transmittal_flush_notices", {})
+        expect((await pending(slipId))[0].sent_at).toBeNull()
+        await rpc("warehouse", "transmittal_flush_notices", {})
         expect((await pending(slipId))[0].sent_at).toBeTruthy()
-        const sent = await svc().from("notifications").select("id").eq("reference_id", slipId).eq("recipient_id", ids.dealOwner)
-        expect(sent.data).toHaveLength(1)
+        const sent = await svc().from("notifications").select("type").eq("reference_id", slipId).eq("recipient_id", ids.dealOwner)
+        expect(sent.data.map((n) => n.type)).toContain("TRANSMITTAL_CONFIRM_SIGNATURE")
     }, 30_000)
+
+    it("builds the notices itself: the caller names no recipient, type or text, and a repeat hold adds nothing", async () => {
+        const slipId = await submittedSlip()
+        await rate("warehouse", slipId)
+        await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
+        const forged = await rpc("warehouse", "transmittal_hold_notices", {
+            p_transmittal_id: slipId,
+            p_stage: "warehouse_checking",
+            p_notices: [{ recipient_id: ids.ordinary, type: "SPOOF", title: "x", message: "x", reference_id: "x" }],
+        })
+        expect(forged.error).toBeTruthy()
+        expect((await hold("warehouse", slipId)).error).toBeNull()
+        expect((await hold("warehouse", slipId)).error).toBeNull()
+        const rows = await pending(slipId)
+        expect(rows).toHaveLength(1)
+        for (const n of rows[0].notices) {
+            expect(["TRANSMITTAL_STAGE_READY", "TRANSMITTAL_CONFIRM_SIGNATURE", "TRANSMITTAL_NA_RAISED"]).toContain(n.type)
+            expect(n.reference_id).toBe(slipId)
+            expect(n.recipient_id).not.toBe(ids.ordinary)
+        }
+    })
+
+    it("is not callable by anon", async () => {
+        const anon = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
+        const { error } = await anon.rpc("transmittal_flush_notices")
+        expect(error).toBeTruthy()
+    })
 
     it("refuses anyone but the signer, even on a list that may sign the stage", async () => {
         const slipId = await submittedSlip()

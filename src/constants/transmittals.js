@@ -125,3 +125,12 @@ export const TRANSMITTAL_RATING_LABELS = {
 export const TRANSMITTAL_ERROR = {
   INVALID: "TRANSMITTAL_INVALID",
 };
+
+/**
+ * The quick-undo window after a Transmittal stage signature (#935). The
+ * database owns the real limit (transmittal_quick_undo_window(), 15 seconds);
+ * keep this in step with it. The toast is shorter than the window to leave
+ * slack for the network, and the page asks for a flush just after it ends.
+ */
+export const QUICK_UNDO_WINDOW_MS = 15_000;
+export const QUICK_UNDO_TOAST_MS = 10_000;

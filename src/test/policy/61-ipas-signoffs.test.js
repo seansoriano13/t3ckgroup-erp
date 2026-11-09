@@ -207,9 +207,11 @@ describe("the new table is protected", () => {
         const ipas = await raise()
         const bad = (section, role) =>
             svc().from("ipas_signoffs").insert({ ipas_id: ipas.id, section, role, signed_by: ids.outsider })
-        expect((await bad(1, "received")).error?.code).toBe("23514")
-        expect((await bad(3, "noted")).error?.code).toBe("23514")
-        expect((await bad(7, "prepared")).error?.code).toBe("23514")
+        // A wrong pair on a section with required documents is refused by the pair CHECK (23514) or, since #936,
+        // by the documents guard that runs first (22023). Either way no row is written.
+        expect((await bad(1, "received")).error?.code).toMatch(/^(23514|22023)$/)
+        expect((await bad(3, "noted")).error?.code).toMatch(/^(23514|22023)$/)
+        expect((await bad(7, "prepared")).error?.code).toMatch(/^(23514|22023)$/)
         expect((await bad(2, "prepared")).error?.code).toBe("23514")
         await readyToSign(ipas.id, 8, "approved")
         expect((await bad(8, "prepared")).error?.code).toBe("23514")
