@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { missingDocumentsByPart } from "./ipasDocuments";
+import { missingDocumentsByPart, requiredFilesByPart } from "./ipasDocuments";
 
 const doc = (label, attachmentUrl = "https://x/f.pdf") => ({ byHand: false, kind: { label }, attachmentUrl });
 
@@ -29,5 +29,14 @@ describe("missingDocumentsByPart", () => {
       { paid_on: "2026-10-20", proof_url: null },
     ];
     expect(missingDocumentsByPart([], payments, "import").finance).toEqual(["Proof of payment of Oct 20, 2026"]);
+  });
+});
+
+describe("requiredFilesByPart", () => {
+  it("lists each required kind and flags the ones without a file", () => {
+    const rows = requiredFilesByPart([doc("Proforma Invoice"), doc("Packing List", null)], [], "import");
+    expect(rows.find((r) => r.label === "Proforma Invoice")).toMatchObject({ part: "purchasing", missing: false });
+    expect(rows.find((r) => r.label === "Packing List")).toMatchObject({ part: "costing", missing: true });
+    expect(rows.find((r) => r.label === "BIR 2307")).toMatchObject({ part: "filing", missing: true });
   });
 });
