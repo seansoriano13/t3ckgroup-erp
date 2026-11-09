@@ -68,6 +68,25 @@ describe("the Technical list", () => {
     expect(within(shown()[0]).getByText("Still open")).toBeInTheDocument();
   });
 
+  it("shows judged of total products with a red deviates count while judging, and the result badge once all are judged", async () => {
+    stubRpc("costing_technical_list", () => [
+      row({ opportunity_id: "mid", project_title: "Half done", rows_total: 4, rows_judged: 2, rows_deviates: 1 }),
+      row({ opportunity_id: "bad", sor_code: "SOR-2", project_title: "All judged", rows_total: 2, rows_judged: 2, rows_deviates: 1, compliance: "deviates" }),
+      row({ opportunity_id: "good", sor_code: "SOR-3", project_title: "Clean", rows_total: 2, rows_judged: 2, rows_deviates: 0, compliance: "complies" }),
+    ]);
+    const user = mount({ id: "s1", is_super_admin: true });
+    await user.click(await screen.findByRole("tab", { name: /^All/ }));
+    const byTitle = (title) => shown().find((r) => within(r).queryByText(title));
+
+    const mid = byTitle("Half done");
+    expect(within(mid).getByTestId("technical-progress")).toHaveTextContent("2 of 4 judged");
+    expect(within(mid).getByTestId("technical-deviates")).toHaveTextContent("1 deviates");
+
+    expect(within(byTitle("All judged")).getByTestId("technical-progress")).toHaveTextContent("Deviates");
+    expect(within(byTitle("All judged")).queryByTestId("technical-deviates")).not.toBeInTheDocument();
+    expect(within(byTitle("Clean")).getByTestId("technical-progress")).toHaveTextContent("Complies");
+  });
+
   it("opens someone who is both on To check, since the verdict is theirs to give first", async () => {
     mount({ id: "b1", is_technical_incharge: true, is_on_evaluation_list: true });
     await screen.findAllByTestId("technical-row");

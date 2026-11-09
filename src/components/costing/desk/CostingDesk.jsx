@@ -246,8 +246,6 @@ export default function CostingDesk({ opportunityId, opportunity }) {
             }}
           />
 
-          <TechnicalVerdict matrix={matrix} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
-
           <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
 
           <section className="space-y-3">
@@ -274,6 +272,8 @@ export default function CostingDesk({ opportunityId, opportunity }) {
               </p>
             )}
           </section>
+
+          <TechnicalVerdict matrix={matrix} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
 
           <OtherCosts matrix={matrix} writes={writes} />
           <CostingSummary matrix={matrix} writes={writes} />

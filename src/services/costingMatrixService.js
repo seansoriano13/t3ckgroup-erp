@@ -1160,6 +1160,28 @@ export const costingMatrixService = {
   },
 
   /**
+   * Gives many products the same verdict at once (#932): `setComplianceMany(ids, { verdict, note })`. `verdict` is
+   * `"complies"`, `"deviates"` or null (not judged). Deviates needs one remark, which is written to every product; the
+   * other verdicts leave each product's remark alone. Only the Technical in-charge may; the database refuses anyone else.
+   */
+  async setComplianceMany(componentIds, { verdict, note } = {}) {
+    const ids = [...new Set(componentIds ?? [])];
+    if (ids.length === 0) return;
+    if (verdict !== null && !COMPLIANCE_VERDICTS.includes(verdict)) {
+      throw new CostingRuleError("A verdict is Complies, Deviates or not judged.", "23514");
+    }
+    const columns = { compliance: verdict };
+    if (verdict === "deviates") {
+      const remark = blankText(note);
+      if (remark === null) throw new CostingRuleError("A deviation needs a remark.", "23514");
+      columns.compliance_note = remark;
+    }
+    const { data, error } = await supabase.from("costing_components").update(columns).in("id", ids).select("id");
+    if (error) fail(error);
+    if (data?.length !== ids.length) throw new Error("Some of those products could not be changed.");
+  },
+
+  /**
    * Gives the S0 Evaluation's one Technical verdict (#908, #909): `{ verdict, note }`. `verdict` is
    * `"complies"`, `"deviates"` or null (not judged); a field left out stays as it is, and `note` set to
    * null or "" clears it. A deviation needs a note, so one passed blank is refused here and by the

@@ -24,8 +24,8 @@ import { purgeCostingForSors } from "./support/costing.js"
 const svc = () => serviceClient()
 const CHECK_VIOLATION = "23514"
 const WRONG_STATE = "22023"
-const APPROVAL_MIGRATION = readFileSync("supabase/migrations/20261121200000_911_approval_excludes_incharge.sql", "utf8")
-const DOOR_MIGRATION = readFileSync("supabase/migrations/20261124100000_907_technical_door_and_template_retired.sql", "utf8")
+// The latest migration to redefine the approval, the verdict guard and the Technical list (it carries all three).
+const COMPLIANCE_MIGRATION = readFileSync("supabase/migrations/20261127200000_932_compliance_follows_products.sql", "utf8")
 
 let saleTypeId, flowId, stageId
 let sorId, matrixId
@@ -61,6 +61,27 @@ const offList = async (listKey, who) =>
 /** The verdict and its note, written as the given cast member. */
 const setVerdict = (who, patch) => clientFor(who).then((client) => tryUpdate(client, "costing_matrices", matrixId, patch))
 
+/**
+ * Gives the S0 Evaluation an overall verdict the only way left (#932): by judging every product (service role), since the
+ * overall verdict follows from the products and cannot be written by hand. A `compliance_note` in the patch is written to
+ * the matrix as the Technical in-charge. Deviates puts a remark on each product, as a product's deviation needs one.
+ */
+const giveVerdict = async (patch) => {
+    if ("compliance" in patch) {
+        const value = patch.compliance
+        const lines = await asSvc(svc().from("costing_tender_lines").select("id").eq("matrix_id", matrixId), "lines")
+        await asSvc(
+            svc().from("costing_components").update({ compliance: value, compliance_note: value === "deviates" ? "Product remark" : null }).in("tender_line_id", lines.map((l) => l.id)),
+            "judge every product",
+        )
+    }
+    if ("compliance_note" in patch) {
+        const written = await setVerdict("technical", { compliance_note: patch.compliance_note })
+        if (!written.ok) return written
+    }
+    return { ok: true, affected: 1 }
+}
+
 /** Sets the in-charge with the service role (the Sales and Purchasing band is tested in 908). */
 const setInCharge = (employeeId) => asSvc(svc().from("costing_matrices").update({ technical_incharge_id: employeeId }).eq("id", matrixId), "in-charge")
 
@@ -80,8 +101,8 @@ const lastCleared = async () =>
 /** Gives the verdict (complies) when there is none, then approves as the reviewer. */
 async function approve() {
     if (await liveSignoff()) return
-    if ((await matrixRow()).compliance === null) {
-        const given = await setVerdict("technical", { compliance: "complies" })
+    if ((await matrixRow()).compliance !== "complies") {
+        const given = await giveVerdict({ compliance: "complies" })
         if (!given.ok || given.affected !== 1) throw new Error(`approve: verdict ${JSON.stringify(given)}`)
     }
     const { error } = await sign("outsider")
@@ -196,33 +217,39 @@ afterAll(async () => {
 describe("the Technical in-charge's verdict", () => {
     it("lets the in-charge give the one verdict and its note, stamped with who and when", async () => {
         const before = Date.now()
-        expect(await setVerdict("technical", { compliance: "deviates", compliance_note: "2.5 m, not the 3 m asked for" })).toEqual({ ok: true, affected: 1 })
+        expect(await giveVerdict({ compliance: "deviates", compliance_note: "2.5 m, not the 3 m asked for" })).toEqual({ ok: true, affected: 1 })
         const row = await matrixRow()
-        expect(row).toMatchObject({ compliance: "deviates", compliance_note: "2.5 m, not the 3 m asked for", compliance_by: ids.technical })
+        expect(row).toMatchObject({ compliance: "deviates", compliance_note: "2.5 m, not the 3 m asked for" })
         expect(new Date(row.compliance_at).getTime()).toBeGreaterThanOrEqual(before - 1000)
     })
 
     it("lets the in-charge clear the verdict back to unjudged", async () => {
-        expect(await setVerdict("technical", { compliance: null, compliance_note: null })).toEqual({ ok: true, affected: 1 })
-        expect(await matrixRow()).toMatchObject({ compliance: null, compliance_note: null, compliance_by: ids.technical })
+        expect(await giveVerdict({ compliance: null, compliance_note: null })).toEqual({ ok: true, affected: 1 })
+        expect(await matrixRow()).toMatchObject({ compliance: null, compliance_note: null })
+    })
+
+    it("refuses the in-charge too when they try to pick the overall verdict by hand (it follows from the products)", async () => {
+        const refused = await setVerdict("technical", { compliance: "complies" })
+        expect(refused).toMatchObject({ ok: false, code: RLS_VIOLATION })
+        expect(refused.message).toBe("costing_technical: the overall verdict follows from the products and cannot be set by hand")
     })
 
     it("refuses everyone else who can read the matrix, naming the in-charge", async () => {
         for (const who of ["dealOwner", "support", "outsider", "superAdmin", "stageParticipant"]) {
-            const refused = await setVerdict(who, { compliance: "complies" })
+            const refused = await setVerdict(who, { compliance_note: "Not mine to write" })
             expect(refused, who).toMatchObject({ ok: false, code: RLS_VIOLATION })
             expect(refused.message, who).toBe("costing_technical: only the Technical in-charge can give the Compliance verdict")
         }
         // No tier on the SOR at all: the row policy hides it, so nothing is written.
-        expect(await setVerdict("ordinary", { compliance: "complies" })).toEqual({ ok: true, affected: 0 })
-        expect(await setVerdict("finance", { compliance: "complies" })).toEqual({ ok: true, affected: 0 })
+        expect(await setVerdict("ordinary", { compliance_note: "Not mine to write" })).toEqual({ ok: true, affected: 0 })
+        expect(await setVerdict("finance", { compliance_note: "Not mine to write" })).toEqual({ ok: true, affected: 0 })
         expect((await matrixRow()).compliance).toBeNull()
     })
 
     it("refuses a verdict when no in-charge is named yet", async () => {
         await setInCharge(null)
         try {
-            const refused = await setVerdict("technical", { compliance: "complies" })
+            const refused = await setVerdict("technical", { compliance_note: "No in-charge yet" })
             expect(refused).toMatchObject({ ok: false, code: RLS_VIOLATION })
             expect(refused.message).toBe("costing_technical: name the Technical in-charge first")
         } finally {
@@ -233,9 +260,9 @@ describe("the Technical in-charge's verdict", () => {
     it("stays the in-charge's when they leave the task: the task grants Completeness only, not the verdict", async () => {
         await asSvc(svc().from("committee_task_members").delete().eq("id", memberRowId), "remove member")
         try {
-            expect(await setVerdict("technical", { compliance: "complies" })).toEqual({ ok: true, affected: 1 })
+            expect(await giveVerdict({ compliance: "complies" })).toEqual({ ok: true, affected: 1 })
             // A task member who is not the in-charge still cannot give it.
-            expect((await setVerdict("stageParticipant", { compliance: "deviates", compliance_note: "x" })).message).toBe(
+            expect((await setVerdict("stageParticipant", { compliance_note: "x" })).message).toBe(
                 "costing_technical: only the Technical in-charge can give the Compliance verdict",
             )
         } finally {
@@ -249,7 +276,7 @@ describe("the Technical in-charge's verdict", () => {
     })
 
     it("keeps the verdict out of a plain write: the stamp follows only a change to the verdict", async () => {
-        await setVerdict("technical", { compliance: "complies" })
+        await giveVerdict({ compliance: "complies" })
         const stamped = (await matrixRow()).compliance_by
         // The Sales and Purchasing write (import addon) cannot move the stamp to someone else.
         const plain = await tryUpdate(await clientFor("outsider"), "costing_matrices", matrixId, { import_addon_percent: 5, compliance_by: ids.outsider })
@@ -308,28 +335,30 @@ describe("the in-charge reads the matrix without money", () => {
 })
 
 describe("a deviation needs a note", () => {
-    it("is refused by the database without one, or with a blank one, even to the service role", async () => {
-        const bare = await setVerdict("technical", { compliance: "deviates" })
-        expect(bare).toMatchObject({ ok: false, code: CHECK_VIOLATION })
-        expect(bare.message).toMatch(/costing_matrices_deviation_note_chk/)
-        const blank = await setVerdict("technical", { compliance: "deviates", compliance_note: "   " })
-        expect(blank).toMatchObject({ ok: false, code: CHECK_VIOLATION })
-        const asService = await svc().from("costing_matrices").update({ compliance: "deviates" }).eq("id", matrixId)
-        expect(asService.error?.code).toBe(CHECK_VIOLATION)
+    it("is refused on a product without a remark, or with a blank one, even to the service role", async () => {
+        const bare = await svc().from("costing_components").update({ compliance: "deviates", compliance_note: null }).eq("id", compA)
+        expect(bare.error?.code).toBe(CHECK_VIOLATION)
+        const blank = await svc().from("costing_components").update({ compliance: "deviates", compliance_note: "   " }).eq("id", compA)
+        expect(blank.error?.code).toBe(CHECK_VIOLATION)
     })
 
-    it("refuses removing the note from a deviation", async () => {
-        expect(await setVerdict("technical", { compliance: "deviates", compliance_note: "Over spec" })).toEqual({ ok: true, affected: 1 })
-        const removed = await setVerdict("technical", { compliance_note: null })
-        expect(removed).toMatchObject({ ok: false, code: CHECK_VIOLATION })
+    it("lets a Deviates evaluation be written without the offer-level note, but not approved until it has one (#932)", async () => {
+        await giveVerdict({ compliance: "deviates", compliance_note: null })
+        expect(await matrixRow()).toMatchObject({ compliance: "deviates", compliance_note: null })
+        const early = await sign("outsider")
+        expect(early.error?.code).toBe(WRONG_STATE)
+        expect(early.error?.message).toBe("costing_sign: a deviation needs the Technical note first")
+        expect(await liveSignoff()).toBeNull()
+        expect(await giveVerdict({ compliance_note: "Different thread" })).toEqual({ ok: true, affected: 1 })
+        const approved = await sign("outsider")
+        expect(approved.error).toBeNull()
+        await giveVerdict({ compliance: null, compliance_note: null })
     })
 
-    it("accepts a deviation with a note, and a verdict outside the list is refused", async () => {
-        expect(await setVerdict("technical", { compliance: "deviates", compliance_note: "Different thread" })).toEqual({ ok: true, affected: 1 })
-        const odd = await setVerdict("technical", { compliance: "maybe" })
-        expect(odd).toMatchObject({ ok: false, code: CHECK_VIOLATION })
-        expect(odd.message).toMatch(/costing_matrices_compliance_chk/)
-        expect(await setVerdict("technical", { compliance: null, compliance_note: null })).toEqual({ ok: true, affected: 1 })
+    it("refuses a product verdict outside the list", async () => {
+        const odd = await svc().from("costing_components").update({ compliance: "maybe" }).eq("id", compA)
+        expect(odd.error?.code).toBe(CHECK_VIOLATION)
+        expect(odd.error?.message).toMatch(/costing_components_compliance_chk/)
     })
 })
 
@@ -358,7 +387,7 @@ describe("the retired teams and the per-Component verdicts", () => {
 
 describe("Evaluation approved", () => {
     it("is refused while the Technical verdict is not given, and says so", async () => {
-        await setVerdict("technical", { compliance: null, compliance_note: null })
+        await giveVerdict({ compliance: null, compliance_note: null })
         const { error } = await sign("outsider")
         expect(error?.code).toBe(WRONG_STATE)
         expect(error?.message).toBe("costing_sign: the Technical verdict is not given yet")
@@ -366,7 +395,7 @@ describe("Evaluation approved", () => {
     })
 
     it("is refused to anyone off the evaluation list, a Super Admin and the in-charge included", async () => {
-        await setVerdict("technical", { compliance: "complies" })
+        await giveVerdict({ compliance: "complies" })
         for (const who of ["superAdmin", "technical", "dealOwner", "stageParticipant"]) {
             const { error } = await sign(who)
             expect(error?.code, who).toBe(RLS_VIOLATION)
@@ -410,7 +439,7 @@ describe("Evaluation approved", () => {
     })
 
     it("is signed by someone on the list once the in-charge has given the verdict", async () => {
-        await setVerdict("technical", { compliance: "complies" })
+        await giveVerdict({ compliance: "complies" })
         const { data, error } = await sign("outsider")
         expect(error).toBeNull()
         expect(data.signoff).toMatchObject({ matrix_id: matrixId, role: "evaluation_approved", signed_by: ids.outsider, signature_declined: false, cleared_at: null })
@@ -450,7 +479,7 @@ describe("what clears it", () => {
     const cases = [
         ["a Tender Specification changes", "dealOwner", () => ({ table: "costing_tender_lines", id: lineId, patch: { tender_specification: "Rescue tripod, 3 m, 25 kN" } }), "A Tender Specification changed"],
         ["an Offer Specification changes", "outsider", () => ({ table: "costing_components", id: compA, patch: { offer_specification: "Tripod 3 m, 25 kN" } }), "An Offer Specification changed"],
-        ["the verdict changes", "technical", () => ({ table: "costing_matrices", id: matrixId, patch: { compliance: "deviates", compliance_note: "25 kN is over spec" } }), "A Compliance verdict changed"],
+        ["the verdict changes", "technical", () => ({ table: "costing_components", id: compA, patch: { compliance: "deviates", compliance_note: "25 kN is over spec" } }), "A Compliance verdict changed"],
         ["the note changes", "technical", () => ({ table: "costing_matrices", id: matrixId, patch: { compliance_note: "25 kN is more than asked" } }), "A Compliance note changed"],
     ]
 
@@ -573,9 +602,9 @@ describe("a verdict leaves the money alone", () => {
             const before = await money()
             expect(before.costs.find((c) => c.component_id === compA)).toMatchObject({ acquire_unit: 18250.5, final_acquire_unit: 17900 })
 
-            expect(await setVerdict("technical", { compliance: "deviates", compliance_note: "Over spec" })).toEqual({ ok: true, affected: 1 })
+            expect(await giveVerdict({ compliance: "deviates", compliance_note: "Over spec" })).toEqual({ ok: true, affected: 1 })
             expect(await money()).toEqual(before)
-            expect(await setVerdict("technical", { compliance: null, compliance_note: null })).toEqual({ ok: true, affected: 1 })
+            expect(await giveVerdict({ compliance: null, compliance_note: null })).toEqual({ ok: true, affected: 1 })
             expect(await money()).toEqual(before)
         } finally {
             await svc().from("costing_signer_lists").delete().eq("employee_id", ids.ipasSigner).in("list_key", ["final_acquire", "markup"])
@@ -614,14 +643,12 @@ describe("the registries and settings", () => {
     })
 
     it("runs again without harm, and keeps the in-charge and the verdict", async () => {
-        await setVerdict("technical", { compliance: "complies" })
+        await giveVerdict({ compliance: "complies" })
         // 908 itself cannot run again: its Technical check read the template setting, which the door migration drops.
         // Its columns and data are covered by the later migrations, which are the ones to run twice.
-        await sql().query(APPROVAL_MIGRATION)
-        await sql().query(DOOR_MIGRATION)
-        await sql().query(APPROVAL_MIGRATION)
-        await sql().query(DOOR_MIGRATION)
-        expect(await matrixRow()).toMatchObject({ technical_incharge_id: ids.technical, compliance: "complies", compliance_by: ids.technical })
+        await sql().query(COMPLIANCE_MIGRATION)
+        await sql().query(COMPLIANCE_MIGRATION)
+        expect(await matrixRow()).toMatchObject({ technical_incharge_id: ids.technical, compliance: "complies" })
         expect(await canRead(await clientFor("outsider"), "costing_components", compA)).toBe(true)
     })
 })
