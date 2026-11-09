@@ -22,6 +22,7 @@ const CHILDREN = [
     ["ipas_bank_details", "ipas_id"],
     ["ipas_documents", "ipas_id"],
     ["ipas_sors", "ipas_id"],
+    ["ipas_work_marks", "ipas_id"],
 ]
 
 /**

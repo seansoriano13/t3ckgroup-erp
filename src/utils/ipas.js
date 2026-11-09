@@ -477,3 +477,22 @@ export function shapeBankDetails(row) {
     updatedAt: row.updated_at ?? null,
   };
 }
+
+// The row fields an Odoo refresh can move: the copy itself, the contact and P.I #
+// it fills in, its change note and the "changed since filing" flag.
+const REFRESH_FIELDS = ["odoo_copy", "supplier_contact", "pi_number", "odoo_change_note", "odoo_changed_since_filing", "odoo_po_id"];
+
+/**
+ * Whether an Odoo refresh moved anything the IPAS record shows (#928), so the page
+ * reads the IPAS again only then. `cached` is the record as the page holds it;
+ * `outcome` is what `ipasService.refresh` answered. A refresh that failed or was
+ * skipped moved nothing; one that names cleared approvals or changed lines always did;
+ * otherwise the refreshed row is compared with the one shown. With nothing to compare,
+ * it counts as moved.
+ */
+export function odooRefreshMoved(cached, outcome) {
+  if (!outcome?.ok || outcome.skipped) return false;
+  if (outcome.changed || outcome.approvalsCleared?.length) return true;
+  if (!cached || !outcome.row) return true;
+  return REFRESH_FIELDS.some((field) => JSON.stringify(cached[field] ?? null) !== JSON.stringify(outcome.row[field] ?? null));
+}

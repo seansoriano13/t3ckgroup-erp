@@ -1,8 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { transmittalService } from "./transmittalService";
-import { readSection3Signoffs } from "./ipasSection3Signoffs";
-import { readIpasStatusFacts } from "./ipasStatusFacts";
+import { readIpasStatusFacts, readWorkedOn } from "./ipasStatusFacts";
 import {
   IPAS_APPROVAL_LIST,
   IPAS_COMPUTATION_STATUSES,
@@ -66,9 +65,26 @@ const IPAS_SELECT =
   " import_clearance_typer:employees!ipas_import_clearance_typed_by_fkey(id, name)," +
   " delivered_typer:employees!ipas_delivered_typed_by_fkey(id, name)," +
   " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)";
-// The list also reads each IPAS's payments (kind, amount, method) so the money
-// columns need no per-record fetch (#596).
-const LIST_SELECT = IPAS_SELECT + ", ipas_payments(kind, amount, method_id, paid_on, created_at)";
+// The list reads every column but the Odoo copy, and of the copy only the slice it
+// shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
+// (kind, amount, method) so the money columns need no per-record fetch (#596).
+const LIST_COLUMNS = [
+  "id", "number", "po_number", "odoo_po_id", "priority", "source", "purpose", "remarks", "odoo_fetched_at",
+  "state", "cancel_reason", "cancelled_by", "cancelled_at", "filed_at", "created_by", "created_at", "updated_at",
+  "supplier_contact", "pi_number", "entity_override", "source_doc_override", "analytic_override",
+  "odoo_change_note", "odoo_changed_since_filing", "pi_qt_amount", "freight_service_id", "landed_cost_split",
+  "computation_status", "shipped_out_on", "onboard_on", "arrived_in_ph_on", "arrived_in_whs_on",
+  "import_clearance_on", "import_clearance_typed_by", "import_clearance_typed_at", "delivered_on",
+  "delivered_typed_by", "delivered_typed_at", "actual_checking_by", "actual_checking_at", "item_location_id",
+  "google_sheet", "gantt_chart", "on_hold", "on_hold_note", "sor_warning_checked", "freight_amount",
+  "freight_currency", "freight_billed_by_supplier", "freight_attachment_url", "retail_multiplier",
+  "wholesale_discount_pct",
+].join(", ");
+const LIST_SELECT =
+  LIST_COLUMNS +
+  ", odoo_copy:ipas_list_copy" +
+  IPAS_SELECT.slice(1) +
+  ", ipas_payments(kind, amount, method_id, paid_on, created_at)";
 const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, avatar_path)";
 const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
 const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
@@ -251,18 +267,24 @@ export const ipasService = {
     if (state && state !== IPAS_STATE_FILTER_ALL) query = query.eq("state", state);
     if (purpose) query = query.eq("purpose", purpose);
 
-    const { data: rows, error } = await query;
-    if (error) throw error;
-    // The SOR headers are asked for by id: the database gives none for a null list.
-    const sorsByIpas = await readSorHeaders((rows || []).map((row) => row.id));
-    // The list filter "Section 3 approved" (#586): one read of the live section 3 approvals.
-    const { approved: section3Approved } = await readSection3Signoffs();
+    // Two rounds (#928): the rows and the payment methods side by side, then what is
+    // read by the listed ids (their SORs, their sign-off facts, worked on) side by side.
     // Payment methods are option rows read by id, as on the record.
-    const { data: optionRows, error: optionsError } = await supabase.from("ipas_options").select("id, list, label");
+    const [{ data: rows, error }, { data: optionRows, error: optionsError }] = await Promise.all([
+      query,
+      supabase.from("ipas_options").select("id, list, label"),
+    ]);
+    if (error) throw error;
     if (optionsError) throw optionsError;
     const options = new Map((optionRows || []).map((option) => [option.id, option]));
-    // The IPAS Status (#597) needs section 1's sign-off state and whether the IPAS was worked on: two cheap bulk reads.
-    const { section1Started, workedOn } = await readIpasStatusFacts((rows || []).map((row) => row.id));
+
+    const ids = (rows || []).map((row) => row.id);
+    // The SOR headers are asked for by id: the database gives none for a null list. The
+    // IPAS Status (#597) and the "Section 3 approved" filter (#586) read the sign-off facts.
+    const [sorsByIpas, { section1Started, section3Approved, workedOn }] = await Promise.all([
+      readSorHeaders(ids),
+      readIpasStatusFacts(ids),
+    ]);
 
     return (rows || [])
       .filter((row) => !entity || ipasEntity(row) === entity)
@@ -294,7 +316,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs, landed, statusFacts] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs, landed, workedOn] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -319,7 +341,7 @@ export const ipasService = {
       transmittalService.forIpas(id),
       supabase.from("ipas_signoffs").select(SIGNOFF_SELECT).eq("ipas_id", id).order("signed_at", { ascending: true }),
       supabase.rpc("ipas_landed_cost", { p_ipas_id: id }),
-      readIpasStatusFacts([id]),
+      readWorkedOn([id]),
     ]);
     for (const result of [events, payments, charges, options, documents, signoffs, landed]) {
       if (result.error) throw result.error;
@@ -340,7 +362,7 @@ export const ipasService = {
       ...shapeIpas(row, sors, sections),
       // The IPAS Status's "changed since raising" fact (#597). Section 1's sign-off state comes from the
       // shaped sign-offs, so an optimistic edit moves the status without a refetch.
-      workedOn: statusFacts.workedOn.has(id),
+      workedOn: workedOn.has(id),
       // The rows it was shaped from, so the page can show an edit before the
       // server has answered (utils/ipasOptimistic.js).
       raw: rawOf({ row, sors, ...sections }),
@@ -473,6 +495,8 @@ export const ipasService = {
       filed: Boolean(data?.filed),
       approvalsCleared: data?.approvals_cleared ?? [],
       fetchedAt: data?.ipas?.odoo_fetched_at ?? row.odoo_fetched_at,
+      // The IPAS row as the refresh left it, so the page can tell whether anything it shows moved (#928).
+      row: data?.ipas ?? null,
     };
   },
 
@@ -1376,11 +1400,14 @@ export const ipasService = {
 
     // Section 7 reads sections 1, 3 and 6 too: it opens on their approvals.
     const sections = sevenRoles.length > 0 ? [...new Set([...IPAS_SIGNOFF_SECTIONS, ...firstSections])] : firstSections;
+    // Only open IPAS can be waiting on anyone, so only their sign-offs are read (#928):
+    // the filed ones' history would otherwise grow this read forever.
     const { data: rows, error } = await supabase
       .from("ipas_signoffs")
-      .select(SIGNOFF_SELECT)
+      .select(`${SIGNOFF_SELECT}, open_ipas:ipas!ipas_signoffs_ipas_id_fkey!inner(state)`)
       .is("cleared_at", null)
-      .in("section", sections);
+      .in("section", sections)
+      .eq("open_ipas.state", IPAS_STATE.OPEN);
     if (error) throw error;
 
     const byIpas = new Map();

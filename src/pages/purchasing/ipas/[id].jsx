@@ -36,11 +36,11 @@ import { loadedVersion, useIpasChanged } from "../../../components/ipas/record/u
 import { useSectionsOpen } from "../../../components/ipas/record/useSectionsOpen";
 import {
   ipasKey,
-  ipasListKey,
   ipasPendingKey,
   ipasPendingPrefix,
   ipasRefreshKey,
   ipasSignerListsKey,
+  markIpasListStale,
 } from "../../../components/ipas/ipasKeys";
 import IpasListPage from "./index";
 import { ipasService } from "../../../services/ipasService";
@@ -49,7 +49,7 @@ import { openPrintWindow, printIpas } from "../../../lib/pdf/ipasPrinter";
 import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
-import { ipasErrorMessage } from "../../../utils/ipas";
+import { ipasErrorMessage, odooRefreshMoved } from "../../../utils/ipas";
 import IpasStatusControl from "../../../components/ipas/IpasStatusControl";
 import { parseAmountInput } from "../../../utils/ipasPayments";
 import {
@@ -249,16 +249,24 @@ function IpasPage({ onClose }) {
     rowEls.current[from]?.focus();
   }, [editKey]);
 
+  // The refresh reads the IPAS again only when it moved something the record shows; the
+  // list behind the window is marked out of date, not read again (#928). When nothing
+  // moved, only the fetch time is new.
   useEffect(() => {
-    if (!refresh.dataUpdatedAt) return;
-    queryClient.invalidateQueries({ queryKey: ipasKey(id) });
-    queryClient.invalidateQueries({ queryKey: ipasListKey });
-  }, [refresh.dataUpdatedAt, id, queryClient]);
+    const outcome = refresh.data;
+    if (!refresh.dataUpdatedAt || !outcome) return;
+    if (odooRefreshMoved(queryClient.getQueryData(ipasKey(id)), outcome)) {
+      queryClient.invalidateQueries({ queryKey: ipasKey(id) });
+      markIpasListStale(queryClient);
+    } else if (outcome.ok && !outcome.skipped && outcome.fetchedAt) {
+      queryClient.setQueryData(ipasKey(id), (old) => (old ? { ...old, odoo_fetched_at: outcome.fetchedAt } : old));
+    }
+  }, [refresh.dataUpdatedAt, refresh.data, id, queryClient]);
 
   const changed = () => {
     setChangeFailure(null);
     queryClient.invalidateQueries({ queryKey: ipasKey(id) });
-    queryClient.invalidateQueries({ queryKey: ipasListKey });
+    markIpasListStale(queryClient);
   };
 
   // A failed change: the toast as ever, and the message kept with Retry, which runs
@@ -705,7 +713,7 @@ function IpasPage({ onClose }) {
       } finally {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ipasKey(id) }),
-          queryClient.invalidateQueries({ queryKey: ipasListKey }),
+          markIpasListStale(queryClient),
           plan.done.has("bank") ? queryClient.invalidateQueries({ queryKey: ipasPendingPrefix }) : null,
         ]);
       }
@@ -748,7 +756,7 @@ function IpasPage({ onClose }) {
       setCancelling(false);
       setReason("");
       queryClient.invalidateQueries({ queryKey: ipasKey(id) });
-      queryClient.invalidateQueries({ queryKey: ipasListKey });
+      markIpasListStale(queryClient);
     },
     onError: (error) => toast.error(ipasErrorMessage(error)),
   });
@@ -763,7 +771,7 @@ function IpasPage({ onClose }) {
     // Printing refreshes from Odoo and may write events; reload so the form's version is current (#585).
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ipasKey(id) });
-      queryClient.invalidateQueries({ queryKey: ipasListKey });
+      markIpasListStale(queryClient);
     },
   });
   const startPrint = (filingCopy) => {
