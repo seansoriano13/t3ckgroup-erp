@@ -1,27 +1,21 @@
 // The rail of the IPAS record: one road in two stretches (journey.js).
 // "Get it ready" is a checklist of the work; "Sign the final IPAS" opens once
-// it is all ticked, and every signer reads the final IPAS form before signing.
+// it is all ticked. A sign-off is only pointed to here ("Go to sign-off"); it is signed from its
+// own row in 6 · Sign-offs, after the signer reads the final IPAS form.
 // Each item names who does it; the viewer's own items carry their button.
 
 import { useState } from "react";
 import { Link } from "react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Check, Circle, CircleAlert, Lock } from "lucide-react";
+import { Check, Circle, Lock } from "lucide-react";
 
 import MoveButton from "@/components/record/MoveButton";
 import { CHROME } from "@/components/record/sectionChrome";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
 import { Button } from "@/components/ui/button";
-import { APPROVE_CLASS } from "@/components/ui/approveClass";
-import ModalShell from "@/components/ui/ModalShell";
-import { ipasErrorMessage } from "@/utils/ipas";
-import { missingDocumentsByPart } from "@/utils/ipasDocuments";
-import { ipasService } from "@/services/ipasService";
-import { ipasFilingWarningsKey } from "../ipasKeys";
+import { isSignAction } from "./journey";
 import { movesFor } from "./moves";
-import { PreviewFrame } from "./PrintPreview";
 
-function Item({ item, number, locked, onAct, busy }) {
+function Item({ item, number, locked, onAct, onGo, busy }) {
   const { done, action } = item;
   const mine = Boolean(action) && !locked;
   return (
@@ -58,6 +52,10 @@ function Item({ item, number, locked, onAct, busy }) {
                 <Button asChild size="sm" variant="outline">
                   <Link to={action.to}>{action.label}</Link>
                 </Button>
+              ) : isSignAction(action) ? (
+                <Button size="sm" variant="outline" onClick={() => onGo(item.key)}>
+                  Go to sign-off
+                </Button>
               ) : (
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => onAct(item)}>
                   {action.label}
@@ -71,102 +69,9 @@ function Item({ item, number, locked, onAct, busy }) {
   );
 }
 
-/**
- * "Review and file" warns like the filing dialog does (#936): the required documents
- * nobody has ticked and the required files still missing. It only warns; the database
- * refuses a sign-off whose files are missing and names them.
- */
-function FilingWarning({ ipas }) {
-  const ticks = useQuery({
-    queryKey: ipasFilingWarningsKey(ipas.id),
-    queryFn: () => ipasService.filingWarnings(ipas.id),
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-  });
-  const byPart = missingDocumentsByPart(ipas.documents ?? [], ipas.payments ?? [], ipas.source);
-  const files = [...byPart.purchasing, ...byPart.finance, ...byPart.costing, ...byPart.filing];
-  const unticked = (ticks.data ?? []).map((doc) => doc.label);
-  if (files.length === 0 && unticked.length === 0) return null;
-  return (
-    <div
-      role="status"
-      data-testid="ipas-review-warnings"
-      className="border-b border-amber-400 bg-amber-3/40 px-5 py-2 text-[13px] text-amber-11"
-    >
-      <p className="flex items-center gap-1.5 font-semibold">
-        <CircleAlert size={15} aria-hidden="true" />
-        Required documents are missing
-      </p>
-      {files.length > 0 && <p className="mt-0.5 text-xs">No file attached: {files.join(", ")}.</p>}
-      {unticked.length > 0 && <p className="mt-0.5 text-xs">Not ticked: {unticked.join(", ")}.</p>}
-    </div>
-  );
-}
 
-/** The final IPAS form, as it prints, with the one button that signs it. */
-function SignReview({ ctx, item, onClose, onSign }) {
-  const [working, setWorking] = useState(false);
-  // A refusal stays here, beside the button, until the next try (a toast is gone in seconds).
-  const [problem, setProblem] = useState(null);
-  const { ipas, viewer } = ctx;
-  const action = item?.action;
-  return (
-    <ModalShell
-      open={Boolean(item)}
-      onOpenChange={(next) => {
-        if (next || working) return;
-        setProblem(null);
-        onClose();
-      }}
-      size="wide"
-      expandable
-      className="h-[90vh]"
-      bodyClassName="gap-0 p-0"
-      crumbs={["IPAS", ipas.number, item?.label ?? "Sign"]}
-      cancelLabel="Not yet"
-      actions={
-        action && (
-          <Button
-            size="lg"
-            className={APPROVE_CLASS}
-            disabled={working}
-            onClick={async () => {
-              setWorking(true);
-              setProblem(null);
-              try {
-                await onSign(item);
-                onClose();
-              } catch (error) {
-                setProblem(ipasErrorMessage(error));
-              } finally {
-                setWorking(false);
-              }
-            }}
-          >
-            {working ? "Signing…" : action.confirm}
-          </Button>
-        )
-      }
-    >
-      <p className="border-b border-border px-5 py-2 text-xs text-muted-foreground">
-        Read the final IPAS below. When you press <span className="font-semibold text-foreground">{action?.confirm}</span>, {action?.what}.
-        {viewer ? ` You sign as ${viewer}.` : ""}
-      </p>
-      {action?.kind === "file" && <FilingWarning ipas={ipas} />}
-      {problem && (
-        <p role="alert" className="border-b border-red-7 bg-red-3/40 px-5 py-2 text-sm font-medium text-red-11">
-          {problem}
-        </p>
-      )}
-      <div className="min-h-0 flex-1 bg-mauve-4">{item && <PreviewFrame ctx={ctx} filingCopy={false} />}</div>
-    </ModalShell>
-  );
-}
-
-export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
+export default function IpasJourney({ ctx, digest, journey, onEdit, onGoToSignoff, next }) {
   const { busy, failure, viewer, on } = ctx;
-  const [reviewing, setReviewing] = useState(null);
   const [showReady, setShowReady] = useState(false);
   const { run, dialog } = useMoveConfirm({ restate: (section) => digest.lines[section], viewer, origin: CHROME.CARD });
   const { returns } = movesFor(ctx, digest);
@@ -177,14 +82,6 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
     const { action } = item;
     if (action.kind === "edit") onEdit(action.section);
     else if (action.kind === "landed") on.setComputationStatus(action.status, { key: "costs", origin: CHROME.CARD });
-    else if (action.kind === "logistics") on.approve(8, { key: "logistics", origin: CHROME.CARD });
-    else setReviewing(item);
-  };
-  const signIt = (item) => {
-    const { action } = item;
-    if (action.kind === "sign") return on.signMany(action.steps);
-    if (action.kind === "check") return on.signCheck();
-    return on.file();
   };
 
   const finished = digest.filed || digest.cancelled;
@@ -221,7 +118,7 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
           ) : (
             <ul className="mt-2 space-y-2">
               {ready.map((item) => (
-                <Item key={item.key} item={item} onAct={act} busy={working} />
+                <Item key={item.key} item={item} onAct={act} onGo={onGoToSignoff} busy={working} />
               ))}
             </ul>
           )}
@@ -232,7 +129,7 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
           )}
           <ol className="mt-2 space-y-2">
             {sign.map((item, index) => (
-              <Item key={item.key} item={item} number={index + 1} locked={!readyDone && !item.done} onAct={act} busy={working} />
+              <Item key={item.key} item={item} number={index + 1} locked={!readyDone && !item.done} onAct={act} onGo={onGoToSignoff} busy={working} />
             ))}
           </ol>
         </>
@@ -246,7 +143,6 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
         </ul>
       )}
       {dialog}
-      <SignReview ctx={ctx} item={reviewing} onClose={() => setReviewing(null)} onSign={signIt} />
     </section>
   );
 }

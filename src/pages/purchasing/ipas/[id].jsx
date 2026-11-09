@@ -941,6 +941,7 @@ function IpasPage({ onClose }) {
     setSplit: (landedCostSplit) => pick.mutate({ landedCostSplit }),
     setMarkup: (values) => setMarkup.mutate(values),
     prepare: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.PREPARED, from }),
+    signLogistics: () => signoff.mutateAsync({ section: 8, role: IPAS_SIGNOFF_ROLE.APPROVED }),
     approve: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.APPROVED, from }),
     openReturn: (section, from) => setReturning({ section, from }),
     give: giveSignoff,
@@ -1076,7 +1077,7 @@ function IpasPage({ onClose }) {
               <MoneySummary digest={digest} onOpen={sections.show} />
             </div>
             <aside className="min-w-0 xl:sticky xl:top-2 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
-              <IpasJourney ctx={ctx} digest={digest} journey={journey} onEdit={openEdit} next={nextIpas} />
+              <IpasJourney ctx={ctx} digest={digest} journey={journey} onEdit={openEdit} onGoToSignoff={sections.showSignoff} next={nextIpas} />
             </aside>
             <div className="min-w-0 xl:col-start-1 xl:row-start-2">
               <EditableSections

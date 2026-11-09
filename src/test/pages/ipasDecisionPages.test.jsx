@@ -199,11 +199,32 @@ describe("IPAS rail: Your move and the filed state", () => {
 
     const region = await screen.findByRole("region", { name: "Your move" });
     expect(within(region).getByTestId("ipas-journey-headline")).toHaveTextContent("Your turn: Send for signing.");
-    expect(within(item(region, "send")).getByRole("button", { name: "Review and send" })).toBeInTheDocument();
+    expect(within(item(region, "send")).getByRole("button", { name: "Go to sign-off" })).toBeInTheDocument();
     // The later steps wait, and say who they wait on.
     expect(item(region, "approve")).toHaveTextContent("Who: Boss Lito");
     expect(item(region, "check")).toHaveTextContent("Nobody is on the Received, Noted and Checked list yet");
-    expect(within(region).queryByRole("button", { name: /^Review and (approve|check|file)/ })).not.toBeInTheDocument();
+    expect(within(item(region, "approve")).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("points the rail to the sign-off row, and Sign on the row opens the review", async () => {
+    const row = readyIpas();
+    const user = setupUser();
+    renderDetail(row.id);
+
+    const region = await screen.findByRole("region", { name: "Your move" });
+    await user.click(within(item(region, "send")).getByRole("button", { name: "Go to sign-off" }));
+
+    // Section 6 opens, and the row is marked for a moment.
+    const target = await waitFor(() => {
+      const found = document.getElementById("ipas-signoff-send");
+      expect(found).not.toBeNull();
+      return found;
+    });
+    await waitFor(() => expect(target).toHaveAttribute("data-highlighted", "true"));
+    // Nothing signed yet; the row's Sign opens the review window.
+    expect(screen.queryByRole("button", { name: "Send for signing" })).not.toBeInTheDocument();
+    await user.click(within(target).getByRole("button", { name: "Sign" }));
+    expect(await screen.findByRole("button", { name: "Send for signing" })).toBeInTheDocument();
   });
 
   it("says who sent it and that it is approved, once the signatures are in", async () => {
@@ -228,9 +249,9 @@ describe("IPAS rail: Your move and the filed state", () => {
 
     const region = await screen.findByRole("region", { name: "Your move" });
     expect(within(region).getByTestId("ipas-journey-headline")).toHaveTextContent("Your turn: Approve.");
-    expect(within(item(region, "approve")).getByRole("button", { name: "Review and approve" })).toBeInTheDocument();
+    expect(within(item(region, "approve")).getByRole("button", { name: "Go to sign-off" })).toBeInTheDocument();
     expect(within(region).getByRole("button", { name: "Send back…" })).toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: "Review and send" })).not.toBeInTheDocument();
+    expect(within(item(region, "send")).queryByRole("button", { name: "Go to sign-off" })).not.toBeInTheDocument();
     expect(within(region).queryByRole("button", { name: /^Mark Landed/ })).not.toBeInTheDocument();
   });
 
