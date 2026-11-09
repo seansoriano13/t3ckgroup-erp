@@ -145,10 +145,14 @@ describe("the Technical list", () => {
         expect(row.sor_code).toMatch(/^SOR-\d+$/)
     })
 
-    it("counts the SOR as checked once the in-charge gives the verdict", async () => {
-        const verdict = await tryUpdate(await clientFor("technical"), "costing_matrices", matrix, { compliance: "complies" })
-        expect(verdict).toEqual({ ok: true, affected: 1 })
-        expect(rowFor((await list("technical")).data)).toMatchObject({ rows_total: 2, rows_judged: 2 })
+    it("counts the SOR as checked once the in-charge has judged every product (#932)", async () => {
+        const products = await asSvc(svc().from("costing_components").select("id").in("tender_line_id", [lineA, lineB]), "products")
+        const client = await clientFor("technical")
+        expect(await tryUpdate(client, "costing_components", products[0].id, { compliance: "complies" })).toEqual({ ok: true, affected: 1 })
+        expect(rowFor((await list("technical")).data)).toMatchObject({ rows_total: 2, rows_judged: 1, rows_deviates: 0, compliance: null })
+        expect(await tryUpdate(client, "costing_components", products[1].id, { compliance: "complies" })).toEqual({ ok: true, affected: 1 })
+        expect(rowFor((await list("technical")).data)).toMatchObject({ rows_total: 2, rows_judged: 2, rows_deviates: 0, compliance: "complies" })
+        await asSvc(svc().from("costing_components").update({ compliance: null }).in("id", products.map((p) => p.id)), "tidy")
     })
 
     it("shows a Super Admin every in-charge's SOR, and none of them is theirs", async () => {

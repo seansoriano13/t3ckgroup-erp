@@ -86,18 +86,23 @@ describe("the Evaluation of Specification on the grid", () => {
     expect(screen.queryByRole("columnheader", { name: "Compliance" })).not.toBeInTheDocument();
   });
 
-  it("lets the in-charge give Deviates only with its note, saved together", async () => {
-    const user = mount();
-    const choice = await screen.findByLabelText(VERDICT_CHOICE);
-    await chooseOption(user, choice, "Deviates");
+  const judgeAll = (compliance) => {
+    for (const component of db.internal.rowsOf("costing_components")) component.compliance = compliance;
+  };
 
-    // Nothing is saved until the note is: the database would refuse a deviation without one.
+  it("has no verdict picker: the result follows from the products, and a deviation asks for the note", async () => {
+    judgeAll("complies");
+    db.internal.rowsOf("costing_components")[0].compliance = "deviates";
+    db.internal.rowsOf("costing_components")[0].compliance_note = "Narrower strap";
+    const user = mount();
+    expect(await screen.findByTestId("technical-verdict")).toBeInTheDocument();
+    expect(screen.queryByLabelText(VERDICT_CHOICE)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("technical-verdict")).getByText("Deviates")).toBeInTheDocument();
     expect(await screen.findByTestId("verdict-needs-note")).toBeInTheDocument();
-    expect(storedMatrix().compliance).toBeNull();
 
     await user.type(screen.getByLabelText(REMARKS), "2.5 m, not 3 m");
     await user.tab();
-    await waitFor(() => expect(storedMatrix()).toMatchObject({ compliance: "deviates", compliance_note: "2.5 m, not 3 m" }));
+    await waitFor(() => expect(storedMatrix()).toMatchObject({ compliance_note: "2.5 m, not 3 m" }));
     expect(screen.queryByTestId("verdict-needs-note")).not.toBeInTheDocument();
   });
 
@@ -108,14 +113,21 @@ describe("the Evaluation of Specification on the grid", () => {
     expect(screen.queryByTestId("verdict-offers-missing")).not.toBeInTheDocument();
   });
 
-  it("gives Complies in one choice", async () => {
-    const user = mount();
-    await chooseOption(user, await screen.findByLabelText(VERDICT_CHOICE), "Complies");
-    await waitFor(() => expect(storedMatrix()).toMatchObject({ compliance: "complies" }));
+  it("says to judge every product until each one has a verdict", async () => {
+    mount();
+    expect(await screen.findByTestId("technical-verdict-waiting")).toHaveTextContent("Judge every product to see the result");
+  });
+
+  it("shows Complies once every product complies", async () => {
+    judgeAll("complies");
+    mount();
+    await waitFor(() => expect(within(screen.getByTestId("technical-verdict")).getByText("Complies")).toBeInTheDocument());
+    expect(screen.queryByTestId("technical-verdict-waiting")).not.toBeInTheDocument();
   });
 
   it("shows the verdict and its note as text to anyone who is not the in-charge", async () => {
-    db.internal.rowsOf("costing_matrices")[0].compliance = "deviates";
+    judgeAll("complies");
+    db.internal.rowsOf("costing_components")[0].compliance = "deviates";
     db.internal.rowsOf("costing_matrices")[0].compliance_note = "Narrower strap";
     const someoneElse = makeEmployee({ name: "Sales Person" });
     authUser = { id: someoneElse.id };

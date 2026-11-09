@@ -18,16 +18,39 @@ export function shapeTechnicalList(rows) {
     team: row.team,
     rowsTotal: Number(row.rows_total) || 0,
     rowsJudged: Number(row.rows_judged) || 0,
+    rowsDeviates: Number(row.rows_deviates) || 0,
+    compliance: row.compliance ?? null,
     approved: Boolean(row.approved),
     // On this row's team: only then can the caller answer it (a Super Admin reads every team's rows).
     isMine: Boolean(row.is_mine),
   }));
 }
 
-/** "7 of 12 checked", or "All 12 checked" when nothing is left. */
+/** "7 of 12 judged", or "All 12 judged" when no product is left. Rows are products (#932). */
 export function checkedLabel({ rowsJudged, rowsTotal }) {
-  if (rowsTotal > 0 && rowsJudged >= rowsTotal) return `All ${rowsTotal} checked`;
-  return `${rowsJudged} of ${rowsTotal} checked`;
+  if (rowsTotal > 0 && rowsJudged >= rowsTotal) return `All ${rowsTotal} judged`;
+  return `${rowsJudged} of ${rowsTotal} judged`;
+}
+
+/**
+ * The overall verdict from the products' verdicts (#932, CONTEXT.md: Compliance): Complies only when every product
+ * complies, Deviates as soon as one deviates, otherwise null (unjudged). No products is unjudged. The database keeps
+ * `costing_matrices.compliance` at this same value.
+ */
+export function overallCompliance(components) {
+  const list = components ?? [];
+  if (list.some((c) => c?.compliance === "deviates")) return "deviates";
+  if (list.length > 0 && list.every((c) => c?.compliance === "complies")) return "complies";
+  return null;
+}
+
+/**
+ * How far the judging is, for the list's bar: `{ total, judged, deviates, done, result }`. `done` once every product is
+ * judged, and then `result` is the overall verdict the bar turns into (Complies or Deviates).
+ */
+export function judgingProgress({ rowsTotal = 0, rowsJudged = 0, rowsDeviates = 0 } = {}) {
+  const done = rowsTotal > 0 && rowsJudged >= rowsTotal;
+  return { total: rowsTotal, judged: rowsJudged, deviates: rowsDeviates, done, result: done ? (rowsDeviates > 0 ? "deviates" : "complies") : null };
 }
 
 export const TECHNICAL_TAB = { TO_CHECK: "to_check", TO_APPROVE: "to_approve", DONE: "done", ALL: "all" };

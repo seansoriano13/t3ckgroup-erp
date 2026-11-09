@@ -22,7 +22,8 @@ import { usePaging } from "../../hooks/usePaging";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import { salesFlowService } from "../../services/salesFlowService";
 import { flowStageTonesByName } from "../../constants/salesFlow";
-import { TECHNICAL_TAB, checkedLabel, filterTechnical, technicalKeys, technicalState } from "../../utils/technicalList";
+import { COMPLIANCE_LABEL, COMPLIANCE_THEME } from "../../constants/costing";
+import { TECHNICAL_TAB, checkedLabel, filterTechnical, judgingProgress, technicalKeys, technicalState } from "../../utils/technicalList";
 
 /**
  * The Technical list (#877), built like the Purchasing lists: To check / Done / All pills, a search, sortable
@@ -48,9 +49,17 @@ const COLUMNS = [
   ["State", "state"],
 ];
 
-// One segment per row; a checked row is filled, an open one is not (the same bar as the Purchase Requests list).
+// One segment per product; a judged product is filled. Once every product is judged the bar becomes the result badge.
 function ProgressCell({ row }) {
-  if (!row.rowsTotal) return <span className="text-xs text-muted-foreground">No rows yet</span>;
+  if (!row.rowsTotal) return <span className="text-xs text-muted-foreground">No products yet</span>;
+  const progress = judgingProgress(row);
+  if (progress.done) {
+    return (
+      <div data-testid="technical-progress">
+        <StatusBadge label={COMPLIANCE_LABEL[progress.result]} theme={COMPLIANCE_THEME[progress.result]} title="Technical verdict" />
+      </div>
+    );
+  }
   return (
     <div className="w-full min-w-[8rem]">
       <div className="flex gap-0.5" aria-hidden="true">
@@ -60,6 +69,11 @@ function ProgressCell({ row }) {
       </div>
       <p className="mt-1 text-xs tabular-nums text-muted-foreground" data-testid="technical-progress">
         {checkedLabel(row)}
+        {progress.deviates > 0 && (
+          <span className="ml-2 font-medium text-destructive" data-testid="technical-deviates">
+            {progress.deviates} deviates
+          </span>
+        )}
       </p>
     </div>
   );
