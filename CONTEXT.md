@@ -1258,9 +1258,11 @@ _Avoid_: Project Evaluation, Spec Check, Compliance Matrix
 
 **Compliance**:
 Whether an offer answers the client's specification — Complies, Deviates, or
-unjudged. The Technical in-charge gives it twice over: one verdict for the whole
-S0 Evaluation (the one "Evaluation approved" waits for), and a verdict with a
-remark on each product on the Technical sheet. A deviation is always written
+unjudged. The Technical in-charge judges each product on the Technical sheet,
+with a remark; the whole S0 Evaluation's verdict (the one "Evaluation approved"
+waits for) is never picked by hand but follows from the products: Complies only
+when every product complies, Deviates as soon as one deviates, otherwise
+unjudged. The in-charge still writes the offer-level note. A deviation is always written
 down (a deviating product needs its remark; the offer-level note names the lines
 that deviate and any compliant alternative); it records the gap and blocks
 nothing. Only the in-charge writes either, at any time, seeing the S0 Evaluation
