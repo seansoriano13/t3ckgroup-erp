@@ -22,6 +22,7 @@ import {
 } from "../../constants/costing";
 import { formatDate } from "../../utils/formatDate";
 import { pesos } from "./gridFormat";
+import { offerVsAbc } from "../../utils/costingMath";
 
 /** The badge colour of each verdict: Go green, Revise amber, No-go red. */
 const VERDICT_THEME = {
@@ -166,6 +167,8 @@ export default function BidDecisionPanel({
   const marginPercent =
     revenue === null || !Number(totals.finalOfferTotal) ? null : (Number(revenue) / Number(totals.finalOfferTotal)) * 100;
 
+  const offerCheck = offerVsAbc(tenderLines);
+
   const decide = (verdict) =>
     writes.run(async () => {
       await costingMatrixService.decideBid(matrix.matrixId, {
@@ -276,6 +279,35 @@ export default function BidDecisionPanel({
                 : ` and an ABC of ${pesos(totals.abcTotal)}`}
               .
             </p>
+          )}
+        </div>
+      )}
+
+      {showFigures && ready && revenue !== null && (
+        <p className="text-xs text-muted-foreground" data-testid="bid-decision-revenue-breakdown">
+          Planned revenue: Final Offer {pesos(totals.finalOfferTotal)} − Cost{" "}
+          {pesos(matrix.summary?.operationalExpenses)} − ITR {pesos(matrix.summary?.itr)} = {pesos(revenue)}
+          {marginPercent === null ? "" : ` (${marginPercent.toFixed(1)}% of the Final Offer)`}
+        </p>
+      )}
+      {showFigures && offerCheck.low && (
+        <div
+          className="space-y-1 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-sm text-foreground"
+          role="alert"
+          data-testid="bid-decision-low-offer"
+        >
+          <p className="font-semibold">
+            The offer is {offerCheck.percent}% of the ABC — check each ABC is per unit, and the offer prices.
+          </p>
+          {offerCheck.lines.length > 0 && (
+            <ul className="list-disc pl-5 text-xs" data-testid="bid-decision-low-offer-lines">
+              {offerCheck.lines.map((l, i) => (
+                <li key={l.id ?? i}>
+                  {l.number ? `${l.number} ` : ""}
+                  {l.name || "Line"}: {l.percent}% of its ABC
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}
