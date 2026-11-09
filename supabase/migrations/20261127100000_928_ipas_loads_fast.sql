@@ -74,6 +74,8 @@ $$;
 comment on function public.ipas_event_is_work(text, jsonb) is
   '#928: whether an IPAS history entry counts as work on it (the "worked on since raising" fact). The ignore list of #597 / #585.';
 
+revoke all on function public.ipas_event_is_work(text, jsonb) from public, anon;
+
 create table if not exists public.ipas_work_marks (
   ipas_id uuid not null,
   marked_at timestamptz not null default now(),
