@@ -128,11 +128,39 @@ describe("Packing List record page", () => {
 
     await user.click(await screen.findByRole("button", { name: /^Box 1 · M1/ }));
     await user.click(screen.getAllByRole("button", { name: "Contents" })[0]);
-    expect(await screen.findByLabelText("Pick from the Product List")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Add a product")).toBeInTheDocument();
     expect(screen.queryByTestId("nothing-received")).not.toBeInTheDocument();
-    await user.click(screen.getByLabelText("Pick from the Product List"));
+    await user.click(screen.getByLabelText("Add a product"));
     expect(await screen.findByText(/Hose/)).toBeInTheDocument();
     expect(screen.queryByText(/Valve/)).not.toBeInTheDocument();
+  });
+
+  it("adds a row per pick, merges repeats, and saves", async () => {
+    const user = setupUser();
+    service.sorProducts.mockResolvedValue([
+      { id: "l1", product_name: "Hose", quantity: 2, unit: "pc", on_hand: true },
+      { id: "l2", product_name: "Valve", quantity: 1, unit: "pc", on_hand: true },
+    ]);
+    service.setContents = vi.fn().mockResolvedValue({});
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /^Box 2/ }));
+    await user.click(screen.getAllByRole("button", { name: "Contents" })[0]);
+    await user.click(await screen.findByLabelText("Add a product"));
+    await user.click(await screen.findByRole("option", { name: /Hose/ }));
+    await user.click(screen.getByLabelText("Add a product"));
+    await user.click(await screen.findByRole("option", { name: /Valve/ }));
+    await user.click(screen.getByLabelText("Add a product"));
+    await user.click(await screen.findByRole("option", { name: /Hose/ }));
+
+    expect(screen.getAllByLabelText("Remove content")).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "Save contents" }));
+    await waitFor(() =>
+      expect(service.setContents).toHaveBeenCalledWith("b2", [
+        expect.objectContaining({ description: "Hose", quantity: 4, unit: "pc" }),
+        expect.objectContaining({ description: "Valve", quantity: 1, unit: "pc" }),
+      ]),
+    );
   });
 
   it("says so when no Product List line is on hand yet", async () => {
@@ -143,7 +171,7 @@ describe("Packing List record page", () => {
     await user.click(await screen.findByRole("button", { name: /^Box 1 · M1/ }));
     await user.click(screen.getAllByRole("button", { name: "Contents" })[0]);
     expect(await screen.findByTestId("nothing-received")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Pick from the Product List")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Add a product")).not.toBeInTheDocument();
   });
 
   it("signs Packed by from the card, asking first", async () => {
