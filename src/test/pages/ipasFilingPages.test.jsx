@@ -10,6 +10,7 @@ import { waitForNetworkIdle } from "@/test/network";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 import { makeReady } from "@/test/support/ipasReady";
+import { openSignReview } from "@/test/support/ipasSignRow";
 import { findOtherDialog } from "@/test/support/dialogs";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -173,10 +174,10 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderDetail(row.id);
-      expect(within(await step("check")).getByRole("button", { name: "Review and check" })).toBeInTheDocument();
+      expect(within(await step("check")).getByRole("button", { name: "Go to sign-off" })).toBeInTheDocument();
       expect(within(await step("file")).queryByRole("button")).not.toBeInTheDocument();
 
-      await user.click(within(await step("check")).getByRole("button", { name: "Review and check" }));
+      await openSignReview(user, "check");
       const dialog = await screen.findByRole("dialog", { name: "Check" });
       expect(within(dialog).getByText(/it goes to the filing approver/)).toBeInTheDocument();
       expect(live7()).toHaveLength(0);
@@ -266,7 +267,7 @@ describe("IPAS section 7 and Filing", () => {
       renderDetail(row.id);
 
       const file = await step("file");
-      expect(within(file).queryByRole("button", { name: "Review and file" })).not.toBeInTheDocument();
+      expect(within(file).queryByRole("button", { name: "Go to sign-off" })).not.toBeInTheDocument();
       expect(file).toHaveTextContent("waiting");
       expect(screen.getByTestId("ipas-journey-headline")).toHaveTextContent("Getting it ready. Waiting on Purchasing: Mark Landed Cost final.");
     });
@@ -279,7 +280,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderDetail(row.id);
-      await user.click(within(await step("file")).getByRole("button", { name: "Review and file" }));
+      await openSignReview(user, "file");
 
       const dialog = await screen.findByRole("dialog", { name: "Approve and file" });
       expect(within(dialog).getByText(/the IPAS is filed and frozen/)).toBeInTheDocument();
@@ -299,7 +300,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderDetail(row.id);
-      await user.click(within(await step("file")).getByRole("button", { name: "Review and file" }));
+      await openSignReview(user, "file");
       const dialog = await screen.findByRole("dialog", { name: "Approve and file" });
       // The page still reads Landed Cost as final; the status moves underneath it.
       db.internal.rowsOf("ipas").find((r) => r.id === row.id).computation_status = "encoding";
