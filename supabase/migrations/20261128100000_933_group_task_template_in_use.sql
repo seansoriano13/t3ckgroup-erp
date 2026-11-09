@@ -51,6 +51,7 @@ as $$
   order by 1, 2;
 $$;
 
+revoke execute on function public.group_task_template_usage(uuid) from public, anon;
 grant execute on function public.group_task_template_usage(uuid) to authenticated;
 
 create or replace function public.group_task_templates_block_delete_in_use()

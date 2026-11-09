@@ -39,6 +39,8 @@ import { stagesOf } from "../../../utils/transmittals";
 import { openTransmittalPrintWindow, printTransmittal } from "../../../lib/pdf/transmittalPrinter";
 import { openTsrPrintWindow, printTsr } from "../../../lib/pdf/tsrPrinter";
 import {
+  QUICK_UNDO_TOAST_MS,
+  QUICK_UNDO_WINDOW_MS,
   TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STAGE,
   TRANSMITTAL_STATE,
@@ -162,7 +164,7 @@ function TransmittalPage({ onClose }) {
     }
   };
 
-  // "Signed as <name> · Undo" for 10 seconds. Undo takes the signature back with no reason and no notice;
+  // "Signed as <name> · Undo" for the toast window. Undo takes the signature back with no reason and no notice;
   // when the window ends the held notices go out (the database also sends them if this page is closed).
   const showSignedToast = (stage) => {
     const signer = user?.name ?? "you";
@@ -192,9 +194,9 @@ function TransmittalPage({ onClose }) {
           </Button>
         </span>
       ),
-      { duration: 10000 },
+      { duration: QUICK_UNDO_TOAST_MS },
     );
-    setTimeout(() => transmittalService.flushNotices(), 15500);
+    setTimeout(() => transmittalService.flushNotices(), QUICK_UNDO_WINDOW_MS + 500);
   };
 
   const on = {

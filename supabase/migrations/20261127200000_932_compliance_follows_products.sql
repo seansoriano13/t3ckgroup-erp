@@ -5,9 +5,12 @@
 -- all-or-nothing, and it counted tender lines while the sheet judges products.
 --
 -- WHAT THIS CHANGES
---   * costing_derived_compliance(matrix): Complies only when every product complies, Deviates as soon as one deviates,
---     unjudged (null) otherwise, and unjudged for a matrix with no products. A trigger on costing_components keeps
---     costing_matrices.compliance equal to it after every product is added, removed or re-judged.
+--   * costing_overall_compliance_value(matrix) computes the verdict: Complies only when every product complies, Deviates
+--     as soon as one deviates, unjudged (null) otherwise, and unjudged for a matrix with no products.
+--     costing_refresh_overall_compliance(matrix) stores it. Triggers on costing_components (product added, removed,
+--     re-judged, moved) and on costing_tender_lines (line deleted, its products cascade) keep
+--     costing_matrices.compliance equal to it. compliance_by on a derived verdict is the matrix's Technical in-charge
+--     (not the editor who touched a product), empty when none is named.
 --   * costing_matrices.compliance can no longer be written by hand (only the derivation, or the service role, writes it).
 --     The in-charge still writes the offer-level note (compliance_note) and is still the only one who may.
 --   * Existing stored overall verdicts are replaced by the derived value. Approvals are NOT cleared by this backfill.
@@ -21,7 +24,7 @@
 -- The derivation
 -- ---------------------------------------------------------------------------
 
-create or replace function public.costing_derived_compliance(p_matrix_id uuid)
+create or replace function public.costing_overall_compliance_value(p_matrix_id uuid)
 returns text
 language sql
 stable
@@ -39,28 +42,32 @@ as $$
   where l.matrix_id = p_matrix_id
 $$;
 
-create or replace function public.costing_derive_compliance(p_matrix_id uuid)
+create or replace function public.costing_refresh_overall_compliance(p_matrix_id uuid)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_new text := public.costing_derived_compliance(p_matrix_id);
+  v_new text := public.costing_overall_compliance_value(p_matrix_id);
   v_old text;
 begin
   select m.compliance into v_old from public.costing_matrices m where m.id = p_matrix_id;
   if not found or v_old is not distinct from v_new then
     return;
   end if;
+  -- compliance_by means "whose verdict this is". The derived verdict is the Technical in-charge's by role (they are the
+  -- only person who may judge the offer), whoever happened to edit a product row (a sales or costing editor, or a
+  -- cascade from a deleted line). With no in-charge named yet it is left empty rather than naming an editor.
   perform set_config('costing.derive', 'on', true);
   update public.costing_matrices
-     set compliance = v_new, compliance_by = public.get_employee_id(), compliance_at = now()
+     set compliance = v_new, compliance_by = technical_incharge_id, compliance_at = now()
    where id = p_matrix_id;
   perform set_config('costing.derive', 'off', true);
 end;
 $$;
 
+-- Fires for a product row (insert, delete, re-judge, move to another line) ...
 create or replace function public.costing_component_derive_trigger()
 returns trigger
 language plpgsql
@@ -70,23 +77,54 @@ as $$
 declare
   v_matrix uuid;
 begin
-  select l.matrix_id into v_matrix from public.costing_tender_lines l
-   where l.id = coalesce(case when tg_op = 'DELETE' then null else new.tender_line_id end, old.tender_line_id);
-  if v_matrix is not null then
-    perform public.costing_derive_compliance(v_matrix);
+  if tg_op in ('INSERT', 'UPDATE') then
+    select l.matrix_id into v_matrix from public.costing_tender_lines l where l.id = new.tender_line_id;
+    if v_matrix is not null then
+      perform public.costing_refresh_overall_compliance(v_matrix);
+    end if;
+  end if;
+  if tg_op in ('DELETE', 'UPDATE') then
+    select l.matrix_id into v_matrix from public.costing_tender_lines l where l.id = old.tender_line_id;
+    if v_matrix is not null then
+      perform public.costing_refresh_overall_compliance(v_matrix);
+    end if;
   end if;
   return null;
 end;
 $$;
 
-revoke all on function public.costing_derived_compliance(uuid) from public, anon, authenticated;
-revoke all on function public.costing_derive_compliance(uuid) from public, anon, authenticated;
+-- ... and for a tender line that is deleted: its products go with it (cascade), and by then the line is
+-- gone, so the product trigger above cannot find its matrix. This one re-derives from the line itself.
+create or replace function public.costing_tender_line_derive_trigger()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.costing_refresh_overall_compliance(old.matrix_id);
+  return null;
+end;
+$$;
+
+revoke all on function public.costing_overall_compliance_value(uuid) from public, anon, authenticated;
+revoke all on function public.costing_refresh_overall_compliance(uuid) from public, anon, authenticated;
 revoke all on function public.costing_component_derive_trigger() from public, anon, authenticated;
+revoke all on function public.costing_tender_line_derive_trigger() from public, anon, authenticated;
 
 drop trigger if exists costing_component_derive on public.costing_components;
 create trigger costing_component_derive
   after insert or delete or update of compliance, tender_line_id on public.costing_components
   for each row execute function public.costing_component_derive_trigger();
+
+drop trigger if exists costing_tender_line_derive on public.costing_tender_lines;
+create trigger costing_tender_line_derive
+  after delete on public.costing_tender_lines
+  for each row execute function public.costing_tender_line_derive_trigger();
+
+-- Re-run safe: the first version of this migration used these two names.
+drop function if exists public.costing_derived_compliance(uuid);
+drop function if exists public.costing_derive_compliance(uuid);
 
 -- ---------------------------------------------------------------------------
 -- The matrix guard: the verdict is never written by hand
@@ -139,8 +177,8 @@ alter table public.costing_matrices drop constraint if exists costing_matrices_d
 alter table public.costing_matrices disable trigger costing_clear_evaluation_matrix;
 alter table public.costing_matrices disable trigger costing_matrix_verdict_guard;
 update public.costing_matrices m
-   set compliance = public.costing_derived_compliance(m.id)
- where m.compliance is distinct from public.costing_derived_compliance(m.id);
+   set compliance = public.costing_overall_compliance_value(m.id)
+ where m.compliance is distinct from public.costing_overall_compliance_value(m.id);
 alter table public.costing_matrices enable trigger costing_matrix_verdict_guard;
 alter table public.costing_matrices enable trigger costing_clear_evaluation_matrix;
 

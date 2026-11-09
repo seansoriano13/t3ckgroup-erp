@@ -39,7 +39,7 @@ beforeAll(async () => {
         },
     })
     if (raised.error) throw new Error(raised.error.message)
-    ipasId = raised.data
+    ipasId = raised.data.id
     const added = await rpc("outsider", "ipas_add_payment", {
         p_ipas_id: ipasId, p_kind: "down_payment", p_paid_on: "2026-10-01", p_amount: 200, p_php_debited: 200,
         p_charge_fee_php: 0, p_method_id: methodId, p_check_no: null, p_proof_url: null,
