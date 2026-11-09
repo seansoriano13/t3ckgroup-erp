@@ -87,3 +87,29 @@ export function matrixPlay(matrix, factor, { capAtAbc = true, ignoreOwn = false 
     percentOfAbc: offerTotal !== null && abc ? percentOf(offerTotal, abc) : null,
   };
 }
+
+/**
+ * One line of the Lines table while a markup is being tried (#931): what it would be offered at and,
+ * when that is not a change, why. `played` is the line's `matrixPlay` entry. Returns
+ * `{ offerUnit, changes, reason }`; `reason` is one of
+ *
+ *   "no-acquire"   a part has no Acquire yet (or the line has no part), so it is left as it is
+ *   "no-quantity"  the line has no quantity to share the price over, so it is left as it is
+ *   "at-abc"       the price is kept at the line's ABC (with a change, it says why it stops there)
+ *   "own-markup"   every part keeps a markup of its own, so the factor being tried does not reach it
+ *   "same"         it is offered at this price already
+ *
+ * and null for a plain change.
+ */
+export function linePreview(line, played, { ignoreOwn = false } = {}) {
+  if (!played || played.offerUnit === null) {
+    return { offerUnit: null, changes: false, reason: played?.priceTotal == null ? "no-acquire" : "no-quantity" };
+  }
+  const stored = line?.final_offer_unit == null ? null : Number(line.final_offer_unit);
+  const changes = stored === null || Number(played.offerUnit) !== stored;
+  if (played.capped) return { offerUnit: played.offerUnit, changes, reason: "at-abc" };
+  if (changes) return { offerUnit: played.offerUnit, changes, reason: null };
+  const components = line?.components ?? [];
+  const allOwn = !ignoreOwn && components.length > 0 && components.every((c) => c?.markup_factor != null);
+  return { offerUnit: played.offerUnit, changes, reason: allOwn ? "own-markup" : "same" };
+}
