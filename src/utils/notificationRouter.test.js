@@ -291,7 +291,7 @@ describe("handleNotificationRoute", () => {
 
       expect(navigate).not.toHaveBeenCalled()
       expect(dispatch).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "OPEN_ENTITY_DETAILS", detail: { id: "opp-3", type: "OPPORTUNITY" } }),
+        expect.objectContaining({ type: "OPEN_ENTITY_DETAILS", detail: { id: "opp-3", type: "OPPORTUNITY", view: "pms" } }),
       )
       dispatch.mockRestore()
     })

@@ -281,7 +281,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
         </div>
 
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-2 xl:self-start">
-          {tierReadsBidDecision(matrix.tier) && <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} />}
+          {tierReadsBidDecision(matrix.tier) && <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} opportunity={opportunity} />}
           <SignoffBar matrix={matrix} nameOf={incharge.nameOf} />
         </aside>
       </div>
