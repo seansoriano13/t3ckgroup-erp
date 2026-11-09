@@ -875,6 +875,11 @@ create table if not exists public."ipas_sors" (
   "created_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."ipas_work_marks" (
+  "ipas_id" uuid not null,
+  "marked_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."lwop_leaves" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default now(),
@@ -1987,6 +1992,7 @@ alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIM
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
 alter table ipas_signoffs add constraint "ipas_signoffs_pkey" PRIMARY KEY (id);
 alter table ipas_sors add constraint "ipas_sors_pkey" PRIMARY KEY (id);
+alter table ipas_work_marks add constraint "ipas_work_marks_pkey" PRIMARY KEY (ipas_id);
 alter table lwop_leaves add constraint "lwop_leaves_pkey" PRIMARY KEY (id);
 alter table meal_break_settings add constraint "meal_break_settings_pkey" PRIMARY KEY (key);
 alter table meeting_request_events add constraint "meeting_request_events_pkey" PRIMARY KEY (id);
@@ -2459,6 +2465,7 @@ alter table ipas_signoffs add constraint "ipas_signoffs_ipas_id_fkey" FOREIGN KE
 alter table ipas_signoffs add constraint "ipas_signoffs_signed_by_fkey" FOREIGN KEY (signed_by) REFERENCES employees(id);
 alter table ipas_sors add constraint "ipas_sors_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_sors add constraint "ipas_sors_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
+alter table ipas_work_marks add constraint "ipas_work_marks_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table lwop_leaves add constraint "lwop_leaves_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
 alter table lwop_leaves add constraint "lwop_leaves_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
 alter table lwop_leaves add constraint "lwop_leaves_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
@@ -2716,6 +2723,7 @@ CREATE INDEX employee_group_members_employee_idx ON public.employee_group_member
 CREATE UNIQUE INDEX employee_groups_active_name_key ON public.employee_groups USING btree (lower(TRIM(BOTH FROM name))) WHERE (archived_at IS NULL);
 CREATE UNIQUE INDEX employees_call_sign_key ON public.employees USING btree (call_sign) WHERE (call_sign IS NOT NULL);
 CREATE INDEX employees_company_id_idx ON public.employees USING btree (company_id);
+CREATE INDEX employees_email_idx ON public.employees USING btree (email);
 CREATE INDEX flow_edges_from_idx ON public.flow_edges USING btree (flow_id, from_stage_id);
 CREATE INDEX flow_form_fields_flow_id_idx ON public.flow_form_fields USING btree (flow_id);
 CREATE INDEX flow_stage_actions_stage_idx ON public.flow_stage_actions USING btree (stage_id, sort_order);
@@ -2937,6 +2945,7 @@ alter table public."ipas_signer_list_log" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
 alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
+alter table public."ipas_work_marks" enable row level security;
 alter table public."lwop_leaves" enable row level security;
 alter table public."meeting_request_events" enable row level security;
 alter table public."meeting_request_participants" enable row level security;
@@ -3789,7 +3798,7 @@ create policy "ipas_read" on public."ipas"
   as permissive
   for select
   to authenticated
-  using (ipas_can_read());
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "ipas_bank_details_read" on public."ipas_bank_details"
   as permissive
   for select
@@ -3799,17 +3808,17 @@ create policy "ipas_charges_read" on public."ipas_charges"
   as permissive
   for select
   to authenticated
-  using (ipas_can_read());
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "ipas_documents_read" on public."ipas_documents"
   as permissive
   for select
   to authenticated
-  using (ipas_can_read());
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "ipas_events_read" on public."ipas_events"
   as permissive
   for select
   to authenticated
-  using (ipas_can_read());
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "ipas_options_insert" on public."ipas_options"
   as permissive
   for insert
@@ -3830,7 +3839,7 @@ create policy "ipas_payments_read" on public."ipas_payments"
   as permissive
   for select
   to authenticated
-  using (ipas_can_read());
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "ipas_signer_list_log_read" on public."ipas_signer_list_log"
   as permissive
   for select
@@ -3845,17 +3854,22 @@ create policy "ipas_signer_lists_read" on public."ipas_signer_lists"
   as permissive
   for select
   to authenticated
-  using (ipas_can_read());
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "ipas_signoffs_read" on public."ipas_signoffs"
   as permissive
   for select
   to authenticated
-  using (ipas_can_read());
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "ipas_sors_read" on public."ipas_sors"
   as permissive
   for select
   to authenticated
-  using (ipas_can_read());
+  using (( SELECT ipas_can_read() AS ipas_can_read));
+create policy "ipas_work_marks_read" on public."ipas_work_marks"
+  as permissive
+  for select
+  to authenticated
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "lwop_leaves_head_select" on public."lwop_leaves"
   as permissive
   for select
@@ -5713,6 +5727,22 @@ AS $function$
   ], null)
   from public.ipas i
   where i.id = p_ipas_id;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_mark_worked_on()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+begin
+  if public.ipas_event_is_work(new.kind, new.detail) then
+    insert into public.ipas_work_marks (ipas_id, marked_at)
+    values (new.ipas_id, new.created_at)
+    on conflict (ipas_id) do nothing;
+  end if;
+  return null;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_missing_documents(p_ipas_id uuid, p_section integer)
@@ -14370,9 +14400,10 @@ AS '$libdir/btree_gist', $function$gbtreekey_out$function$
 CREATE OR REPLACE FUNCTION public.get_employee_id()
  RETURNS uuid
  LANGUAGE sql
- SECURITY DEFINER
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
 AS $function$
-  SELECT id FROM public.employees WHERE email = auth.jwt() ->> 'email';
+  select id from public.employees where email = auth.jwt() ->> 'email';
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.get_user_active_chats(p_user_id uuid, p_limit integer DEFAULT 30)
@@ -15178,6 +15209,22 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_event_is_work(p_kind text, p_detail jsonb)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  select (
+    p_kind not in (
+      'created',
+      'odoo_copy_changed', 'filled_from_odoo', 'odoo_changed_since_filing',
+      'on_hold_set', 'on_hold_changed', 'on_hold_cleared'
+    )
+    and not (p_kind = 'approvals_cleared' and p_detail ->> 'reason' = 'PO changed in Odoo')
+  ) is true;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_events_append_only()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -15460,6 +15507,28 @@ AS $function$
   from lc
   cross join lateral jsonb_array_elements(lc.r -> 'lines') as l
   where lc.r ->> 'status' <> 'unavailable'
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_list_copy(p_ipas ipas)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  select case
+    when jsonb_typeof(p_ipas.odoo_copy) is distinct from 'object' then p_ipas.odoo_copy
+    when jsonb_typeof(p_ipas.odoo_copy -> 'lines') is distinct from 'array' then p_ipas.odoo_copy
+    else (p_ipas.odoo_copy - 'lines') || jsonb_build_object('lines', (
+      select coalesce(jsonb_agg(
+               case when jsonb_typeof(l.line) = 'object'
+                    then l.line - array(
+                           select k from jsonb_object_keys(l.line) k
+                            where k not in ('analytic', 'price_subtotal'))
+                    else l.line end
+               order by l.ord), '[]'::jsonb)
+        from jsonb_array_elements(p_ipas.odoo_copy -> 'lines') with ordinality as l(line, ord)
+    ))
+  end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_mark_sor_warning_checked(p_ipas_id uuid, p_references text[], p_reason text)
@@ -17444,6 +17513,85 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_sign_check(p_ipas_id uuid, p_decline_signature boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_ipas public.ipas;
+  v_row public.ipas_signoffs;
+  v_role text;
+  v_signature text;
+  v_given text[] := '{}';
+  v_notify uuid[] := '{}';
+begin
+  if v_actor is null then
+    raise exception 'ipas_sign_check: not signed in' using errcode = '42501';
+  end if;
+
+  v_ipas := public._ipas_lock_open('ipas_sign_check', p_ipas_id);
+
+  if not (
+    public._ipas_on_list('s7_received', v_actor)
+    or public._ipas_on_list('s7_noted', v_actor)
+    or public._ipas_on_list('s7_checked', v_actor)
+  ) then
+    raise exception 'ipas_sign_check: you are not on the Received, Noted or Checked list' using errcode = '42501';
+  end if;
+
+  if not public._ipas_filing_open(v_ipas.id) then
+    raise exception 'ipas_sign_check: the IPAS can be checked once sections %, %, % and Logistics are signed',
+      public._ipas_section_no(1), public._ipas_section_no(3), public._ipas_section_no(6)
+      using errcode = '22023';
+  end if;
+
+  if p_decline_signature then
+    v_signature := null;
+  else
+    select e.signature_path into v_signature from public.employees e where e.id = v_actor;
+  end if;
+
+  foreach v_role in array array['received', 'noted', 'checked'] loop
+    if not exists (
+      select 1 from public.ipas_signoffs s
+       where s.ipas_id = v_ipas.id and s.section = 7 and s.role = v_role and s.cleared_at is null
+    ) then
+      insert into public.ipas_signoffs (ipas_id, section, role, signed_by, signature_declined, signature_version)
+      values (v_ipas.id, 7, v_role, v_actor, coalesce(p_decline_signature, false), v_signature)
+      returning * into v_row;
+
+      perform public._ipas_write_event(v_ipas.id, v_actor, 'signed', jsonb_build_object(
+        'section', 7,
+        'role', v_role,
+        'signoff_id', v_row.id,
+        'signature_declined', v_row.signature_declined
+      ));
+      v_given := v_given || v_role;
+    end if;
+  end loop;
+
+  if array_length(v_given, 1) is null then
+    raise exception 'ipas_sign_check: % is already checked', v_ipas.number using errcode = '22023';
+  end if;
+
+  v_notify := public._ipas_list_members(array['s7_approved'], v_actor);
+
+  return jsonb_build_object(
+    'signoff', to_jsonb(v_row),
+    'ipas', to_jsonb(v_ipas),
+    'section', 7,
+    'role', 'checked',
+    'given', to_jsonb(v_given),
+    'stage', 'approve_ready',
+    'filed', false,
+    'notify_ids', to_jsonb(v_notify)
+  );
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_signature_readable(p_name text)
  RETURNS boolean
  LANGUAGE sql
@@ -18126,15 +18274,9 @@ CREATE OR REPLACE FUNCTION public.ipas_worked_on(p_ipas_ids uuid[])
  STABLE
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-  select distinct e.ipas_id
-    from public.ipas_events e
-   where e.ipas_id = any (coalesce(p_ipas_ids, '{}'::uuid[]))
-     and e.kind not in (
-       'created',
-       'odoo_copy_changed', 'filled_from_odoo', 'odoo_changed_since_filing',
-       'on_hold_set', 'on_hold_changed', 'on_hold_cleared'
-     )
-     and not (e.kind = 'approvals_cleared' and e.detail ->> 'reason' = 'PO changed in Odoo');
+  select m.ipas_id
+    from public.ipas_work_marks m
+   where m.ipas_id = any (coalesce(p_ipas_ids, '{}'::uuid[]));
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.is_head()
@@ -29289,6 +29431,7 @@ CREATE TRIGGER ipas_charges_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.
 CREATE TRIGGER ipas_charges_updated_at BEFORE UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_documents_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_events_mark_worked_on AFTER INSERT ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION _ipas_mark_worked_on();
 CREATE TRIGGER ipas_events_no_change BEFORE DELETE OR UPDATE ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_events_no_truncate BEFORE TRUNCATE ON public.ipas_events FOR EACH STATEMENT EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_filed_guard();
