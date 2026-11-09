@@ -634,7 +634,7 @@ describe("IPAS pages", () => {
       const costs = screen.getByRole("button", { name: /^3 · Costs/ });
       expect(costs).toHaveTextContent("Waiting");
       expect(costs).toHaveTextContent("Provisional");
-      expect(screen.getByRole("button", { name: /^4 · Delivery/ })).toHaveTextContent("Needs the Logistics sign-off");
+      expect(screen.getByRole("button", { name: /^4 · Delivery/ })).toHaveTextContent("Not delivered yet");
       expect(screen.getByRole("button", { name: /^5 · Documents/ })).toHaveTextContent(/\d+ missing/);
       expect(screen.getByRole("button", { name: /^6 · Sign-offs/ })).toHaveTextContent("0 of 4 signed");
     });
