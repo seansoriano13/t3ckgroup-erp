@@ -88,6 +88,28 @@ export function flowStageTone(stage, flow, stagesOfFlow = []) {
 }
 
 /**
+ * The Stage a deal sits on and the color it renders with (#930), read from the
+ * Flow Snapshot the deal runs (`snapshotData`, a flow_snapshots.snapshot_data):
+ * that version's Stage, colored by that version's own color and Won Stage. The
+ * live flow (`liveCanvas`, salesFlowService.getFlow's `{ flow, stages }`) is the
+ * fallback while the snapshot is loading or when it lacks the Stage. Returns
+ * `{ stage, tone }`; with neither, no Stage and the neutral mauve.
+ */
+export function dealStageAndTone(stageId, snapshotData, liveCanvas) {
+  const snapshotStages = Array.isArray(snapshotData?.stages) ? snapshotData.stages : []
+  const fromSnapshot = stageId ? snapshotStages.find((s) => s.id === stageId) : null
+  if (fromSnapshot) {
+    return {
+      stage: fromSnapshot,
+      tone: flowStageTone(fromSnapshot, { won_stage_id: snapshotData.wonStageId ?? null }, snapshotStages),
+    }
+  }
+  if (!liveCanvas) return { stage: null, tone: "mauve" }
+  const live = (stageId && liveCanvas.stages?.find((s) => s.id === stageId)) || null
+  return { stage: live, tone: flowStageTone(live, liveCanvas.flow, liveCanvas.stages ?? []) }
+}
+
+/**
  * Each Stage name's tone, for a row that carries only the Stage's name (the
  * Purchase Requests list). Names repeat across flows; when Stages sharing a
  * name disagree on tone, that name gets none (null) rather than a guess.

@@ -15,7 +15,7 @@ import { quotationService } from "../../../services/quotationService";
 import { salesFlowService } from "../../../services/salesFlowService";
 import { stageFieldService } from "../../../services/stageFieldService";
 import { missingStageFields } from "../../../constants/stageGate";
-import { flowStageTone } from "../../../constants/salesFlow";
+import { dealStageAndTone } from "../../../constants/salesFlow";
 import { usePipelineStages } from "../../../hooks/usePipelineStages";
 import {
   isJudgedByStageCode,
@@ -275,8 +275,20 @@ export default function SorModal({
     queryFn: () => salesFlowService.getFlow(activeOpportunity.sale_type_id),
     enabled: !!activeOpportunity?.sale_type_id && isOpen,
   });
-  const currentFlowStage = flowCanvas?.stages?.find((s) => s.id === activeOpportunity?.flow_stage_id) || null;
-  const currentFlowStageTone = flowCanvas ? flowStageTone(currentFlowStage, flowCanvas.flow, flowCanvas.stages) : "mauve";
+  // The deal runs the Flow Snapshot it was registered under: its current Stage and that
+  // Stage's color come from there, the live flow only until it loads (#930). A snapshot
+  // never changes, so it is read once.
+  const { data: flowSnapshot } = useQuery({
+    queryKey: ["flowSnapshot", activeOpportunity?.flow_snapshot_id],
+    queryFn: () => salesFlowService.getSnapshot(activeOpportunity.flow_snapshot_id),
+    enabled: !!activeOpportunity?.flow_snapshot_id && isOpen,
+    staleTime: Infinity,
+  });
+  const { stage: currentFlowStage, tone: currentFlowStageTone } = dealStageAndTone(
+    activeOpportunity?.flow_stage_id,
+    flowSnapshot?.snapshot_data,
+    flowCanvas,
+  );
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
