@@ -188,7 +188,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
           : `Opens once the ${andList([!located && "Item Location", !carried && "Transmittal", !arrived && "arrival date"].filter(Boolean))} ${[!located, !carried, !arrived].filter(Boolean).length > 1 ? "are" : "is"} in.`,
       who: who([IPAS_SIGNER_LIST.LOGISTICS_SIGNED]),
       action: !s8?.approved && logisticsReady && onList([IPAS_SIGNER_LIST.LOGISTICS_SIGNED])
-        ? { kind: "logistics", label: "Sign Logistics" }
+        ? { kind: "logistics", label: "Review and sign", confirm: "Sign Logistics", what: "the goods are signed as delivered" }
         : null,
     },
   ].filter(Boolean);
@@ -289,4 +289,19 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
   else headline = "Nothing left to do.";
 
   return { ready, readyDone, sign, now, mine, headline };
+}
+
+/** Whether an action is a sign-off: the rail only points to it, the row in 6 · Sign-offs signs it. */
+export const isSignAction = (action) => ["sign", "check", "file", "logistics"].includes(action?.kind);
+
+/**
+ * The section that needs the viewer, which opens on arrival: where the rail's first
+ * item of theirs leads (a sign-off lives in 6 · Sign-offs). Null when nothing waits on them.
+ */
+export function actionSectionFor(journey) {
+  const action = journey?.mine?.[0]?.action;
+  if (!action) return null;
+  if (isSignAction(action)) return "signoffs";
+  if (action.kind === "landed") return "costs";
+  return action.section ?? null;
 }

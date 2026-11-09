@@ -121,6 +121,7 @@ export function buildBlocks(ctx) {
     // 6 · Sign-offs: who signed the final IPAS.
     signoffs: (
       <SignoffList
+        ctx={ctx}
         steps={[
           // Logistics is the first sign-off; it is a "get it ready" step on the rail and gates "Send for signing".
           ...(ctx.journey?.ready ?? []).filter((step) => step.key === "logistics"),
