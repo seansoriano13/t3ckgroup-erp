@@ -143,6 +143,8 @@ export const saveCharge =
 
 export const removeCharge = (chargeId) => (raw) => ({ ...raw, charges: raw.charges.filter((r) => r.id !== chargeId) });
 
+export const removeCharges = (chargeIds) => (raw) => ({ ...raw, charges: raw.charges.filter((r) => !chargeIds.includes(r.id)) });
+
 // ── Documents ───────────────────────────────────────────────────────────────
 
 /** Ticks or unticks one side of a document ("purchasing" or "finance"). */

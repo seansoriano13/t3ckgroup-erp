@@ -558,16 +558,34 @@ function IpasPage({ onClose }) {
   });
 
   const remove = useMutation({
-    mutationFn: ({ type, row }) =>
-      type === "payment" ? ipasService.removePayment(row.id) : ipasService.removeCharge(row.id),
-    onMutate: ({ type, row }) => {
+    mutationFn: async ({ type, row, rows }) => {
+      if (type === "blank-charges") {
+        // Same single-remove call per charge; Landed Cost is worked out once, in onSuccess.
+        for (const charge of rows) await ipasService.removeCharge(charge.id);
+        return;
+      }
+      return type === "payment" ? ipasService.removePayment(row.id) : ipasService.removeCharge(row.id);
+    },
+    onMutate: ({ type, row, rows }) => {
       setRemoving(null);
       return {
-        rollback: patchCache(type === "payment" ? optimistic.removePayment(row.id) : optimistic.removeCharge(row.id)),
+        rollback: patchCache(
+          type === "blank-charges"
+            ? optimistic.removeCharges(rows.map((charge) => charge.id))
+            : type === "payment"
+              ? optimistic.removePayment(row.id)
+              : optimistic.removeCharge(row.id),
+        ),
       };
     },
-    onSuccess: (_, { type }) => {
-      toast.success(type === "payment" ? "Payment removed." : "Charge removed.");
+    onSuccess: (_, { type, rows }) => {
+      toast.success(
+        type === "blank-charges"
+          ? `${rows.length} blank ${rows.length === 1 ? "charge" : "charges"} removed.`
+          : type === "payment"
+            ? "Payment removed."
+            : "Charge removed.",
+      );
       changed();
     },
     onError: (error, vars, context) => {
@@ -925,6 +943,7 @@ function IpasPage({ onClose }) {
     removePayment: (payment) => setRemoving({ type: "payment", row: payment }),
     tickSheet: (field, value) => tickSheet.mutate({ field, value }),
     removeCharge: (charge) => setRemoving({ type: "charge", row: charge }),
+    removeBlankCharges: (rows) => setRemoving({ type: "blank-charges", rows }),
     tickDocument: (document, side, value) => tick.mutate({ document, side, value }),
     // attach's onError has already toasted the reason; the catch keeps the rejection from escaping.
     attach: (document, url) => attach.mutateAsync({ document, url }).catch(() => {}),
@@ -1176,7 +1195,13 @@ function IpasPage({ onClose }) {
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(next) => !next && setRemoving(null)}
-        title={removing?.type === "payment" ? "Remove this payment?" : "Remove this charge?"}
+        title={
+          removing?.type === "payment"
+            ? "Remove this payment?"
+            : removing?.type === "blank-charges"
+              ? `Remove ${removing.rows.length} blank ${removing.rows.length === 1 ? "charge" : "charges"}?`
+              : "Remove this charge?"
+        }
         description="It leaves the IPAS and Landed Cost is worked out again. The history keeps what was removed."
         confirmLabel="Remove"
         cancelLabel="Keep it"
