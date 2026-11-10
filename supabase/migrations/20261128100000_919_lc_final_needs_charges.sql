@@ -33,3 +33,6 @@ create trigger ipas_lc_final_needs_charges
   for each row
   when (new.computation_status = 'lc_odoo_done' and old.computation_status is distinct from 'lc_odoo_done')
   execute function public.ipas_lc_final_needs_charges();
+
+-- A trigger function only: nobody calls it directly.
+revoke all on function public.ipas_lc_final_needs_charges() from public, anon;
