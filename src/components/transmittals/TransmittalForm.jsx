@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Plus, Save, Send } from "lucide-react";
@@ -112,6 +112,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
   const queryClient = useQueryClient();
   // ?ipas=TGIPAS_… from an IPAS's "Raise a Transmittal": its number waits in "Fill from an IPAS".
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const fromIpas = existing ? "" : (searchParams.get("ipas") ?? "");
   const [header, setHeader] = useState(() => headerFrom(existing, defaultOrigin));
   const [productIds, setProductIds] = useState(() => existing?.products.map((p) => p.id) ?? []);
@@ -175,9 +176,37 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
       (saved.warnings ?? []).forEach((w) =>
         toast(`${w.po_number} is on a different Company (${w.entity}). The slip is still raised.`, { icon: "⚠️" }),
       );
-      toast.success(submit ? `${saved.number} submitted.` : `${saved.number} saved as a draft.`);
+      // Opened from an IPAS: the line that carries it gives the id to go back to.
+      const wanted = fromIpas.trim().toLowerCase();
+      const source = wanted ? lines.find((l) => l.ipasId && String(l.ipasNumber ?? "").toLowerCase() === wanted) : null;
+      const backToIpas = submit && source ? { id: source.ipasId, number: source.ipasNumber } : null;
+      const message = submit ? `${saved.number} submitted.` : `${saved.number} saved as a draft.`;
+      if (backToIpas) {
+        toast.success(
+          (t) => (
+            <span className="flex items-center gap-3">
+              {message}
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto p-0 font-semibold"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  navigate(`/purchasing/ipas/${backToIpas.id}`);
+                }}
+              >
+                Back to {backToIpas.number}
+              </Button>
+            </span>
+          ),
+          { duration: 8000 },
+        );
+      } else {
+        toast.success(message);
+      }
       queryClient.invalidateQueries({ queryKey: transmittalKeys.all });
-      onSaved?.(saved.id);
+      onSaved?.(saved.id, { backToIpas });
     } catch (error) {
       const message = ipasErrorMessage(error, "The Transmittal could not be saved.");
       // A line whose P0 line is no longer on the stored Odoo copy: say which, and what to do.

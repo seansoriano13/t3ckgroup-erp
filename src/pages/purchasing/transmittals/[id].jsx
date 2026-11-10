@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Pencil, Printer, XCircle } from "lucide-react";
@@ -59,6 +59,9 @@ const LIST_PATH = "/purchasing/transmittals";
 
 function TransmittalPage({ onClose }) {
   const { id } = useParams();
+  const navigate = useNavigate();
+  // Set when this slip was just raised from an IPAS: the way back to it.
+  const backToIpas = useLocation().state?.backToIpas ?? null;
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { hasPurchasingFlow } = getPermissionContext(user);
@@ -346,6 +349,11 @@ function TransmittalPage({ onClose }) {
       crumbs={["Transmittal", t.number]}
       headerActions={
         <>
+          {backToIpas && (
+            <Button variant="outline" size="sm" onClick={() => navigate(`/purchasing/ipas/${backToIpas.id}`)}>
+              Back to {backToIpas.number}
+            </Button>
+          )}
           {rights.draft && rights.canChange && !editing && (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               <Pencil size={14} />
