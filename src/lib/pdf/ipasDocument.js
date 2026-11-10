@@ -110,6 +110,10 @@ export const CSS = `
   thead th { font-size: 6pt; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--rule); padding: 0 6px 4px 0; }
   th.num, td.num { text-align: right; font-family: var(--mono); white-space: nowrap; padding-right: 0; padding-left: 8px; }
   th.center, td.center { text-align: center; }
+  table.pay { table-layout: fixed; }
+  table.pay th.num, table.pay td.num { padding-right: 10px; padding-left: 4px; }
+  table.pay th { white-space: normal; overflow-wrap: break-word; }
+  table.pay td { overflow-wrap: anywhere; }
   tr { break-inside: avoid; page-break-inside: avoid; }
   tfoot td { font-weight: 600; border-top: 1px solid var(--ink); border-bottom: 0; padding: 5px 6px 0 0; }
   tfoot td.num { padding-right: 0; }
@@ -319,9 +323,9 @@ function purchasing(vm) {
 function paymentsTable(vm) {
   const s = vm.section1;
   return s.payments.length
-    ? `<table><thead><tr>
-        <th style="width:15%">Payment</th><th style="width:13%">Date</th><th class="num" style="width:17%">Amount</th>
-        <th class="num" style="width:17%">Pesos taken from the bank</th><th class="num" style="width:14%">Charge fee</th>
+    ? `<table class="pay"><thead><tr>
+        <th style="width:15%">Payment</th><th style="width:13%">Date</th><th class="num" style="width:16%">Amount</th>
+        <th class="num" style="width:18%">Pesos taken from the bank</th><th class="num" style="width:14%">Charge fee</th>
         <th style="width:16%">Method</th><th class="center" style="width:8%">Proof</th>
       </tr></thead><tbody>${s.payments
         .map(
