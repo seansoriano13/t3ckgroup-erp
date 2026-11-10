@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders, setupUser } from "../../test/support";
 import OpportunityFormModal from "./OpportunityFormModal";
 
