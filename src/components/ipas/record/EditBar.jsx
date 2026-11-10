@@ -9,15 +9,21 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { focusField } from "./formHelpers";
 
-export default function EditBar({ editor, canSave, saving, onDone, reveal, notice, failure }) {
+export default function EditBar({ editor, canSave, saving, onDone, reveal, show, missingFiles = [], notice, failure }) {
   const { changed, missing, done, total, saved, planError, save, clear } = editor;
   const [discarding, setDiscarding] = useState(false);
 
   const nextEmpty = () => {
     const first = missing[0];
-    if (!first) return;
-    reveal(first.section);
-    requestAnimationFrame(() => focusField(first.id));
+    if (first) {
+      reveal(first.section);
+      requestAnimationFrame(() => focusField(first.id));
+      return;
+    }
+    const file = missingFiles[0];
+    if (!file) return;
+    if (show) show(file.section);
+    else reveal(file.section);
   };
 
   let status = null;
@@ -39,10 +45,10 @@ export default function EditBar({ editor, canSave, saving, onDone, reveal, notic
           {status}
         </span>
         <span className="text-sm text-muted-foreground tabular-nums">
-          {done} of {total} required fields filled
+          {done} of {total} fields{missingFiles.length > 0 && ` · ${missingFiles.length} ${missingFiles.length === 1 ? "file" : "files"} missing`}
         </span>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button type="button" variant="ghost" size="sm" disabled={!missing.length} onClick={nextEmpty}>
+          <Button type="button" variant="ghost" size="sm" disabled={!missing.length && !missingFiles.length} onClick={nextEmpty}>
             Next empty
           </Button>
           {changed > 0 ? (

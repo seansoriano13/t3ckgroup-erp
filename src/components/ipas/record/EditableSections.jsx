@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import EditBar from "./EditBar";
 import SectionsPanel from "./SectionsPanel";
+import { missingRequiredFiles } from "./missingFiles";
 import { useIpasEditForm } from "./useIpasEditForm";
 
 /**
@@ -39,6 +40,8 @@ export default function EditableSections({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editKey]);
 
+  const missingFiles = missingRequiredFiles({ ipas, digest });
+
   const edit = editKey
     ? { ...editor, ipas, can, focusKey: editKey, onEditPurpose, money: { onRemoveSaved, onRemoveDocument, onSuggest } }
     : null;
@@ -47,7 +50,7 @@ export default function EditableSections({
     <div className="min-w-0 space-y-4">
       <SectionsPanel ctx={ctx} blocks={blocks} digest={digest} open={open} headRef={headRef} onEdit={onEdit} edit={edit} />
       {editKey && (
-        <EditBar editor={editor} canSave={canSave} saving={saving} onDone={onDone} reveal={open.reveal} notice={notice} failure={failure} />
+        <EditBar editor={editor} canSave={canSave} saving={saving} onDone={onDone} reveal={open.reveal} show={open.show} missingFiles={missingFiles} notice={notice} failure={failure} />
       )}
     </div>
   );
