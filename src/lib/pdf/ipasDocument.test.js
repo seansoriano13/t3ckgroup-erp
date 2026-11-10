@@ -83,6 +83,14 @@ describe("the one A4 page of flow rows", () => {
     }
   })
 
+  it("gives the Payments table separate header cells and prints an empty charge fee as a dash in its own cell", () => {
+    const html = doc()
+    const table = html.match(/<table class="pay">[\s\S]*?<\/table>/)?.[0] ?? ""
+
+    expect(table).toMatch(/<th[^>]*>Charge fee<\/th>\s*<th[^>]*>Method<\/th>/)
+    expect(table).toMatch(/<td class="num">—<\/td>\s*<td>[^<]+<\/td>/)
+  })
+
   it("marks the filing copy in the rail and the window title", () => {
     const ordinary = doc()
     const filing = doc({ row: FILED }, { filingCopy: true })
