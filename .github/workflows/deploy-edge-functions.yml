@@ -127,11 +127,13 @@ jobs:
           LIST: ${{ steps.plan.outputs.list }}
         # One call per function so a failure names the function. Per-function
         # settings (verify_jwt etc.) come from supabase/config.toml.
+        # --yes: the CLI began asking "Deploy 1 Function?" by 2026-11-10 and a CI job
+        # cannot answer (same as db push in migrate-prod.yml). The prod confirm input is the gate.
         run: |
           set -euo pipefail
           for fn in $LIST; do
             echo "::group::$fn"
-            supabase functions deploy "$fn" --project-ref "$REF" --use-api
+            supabase functions deploy "$fn" --project-ref "$REF" --use-api --yes
             echo "::endgroup::"
           done
 
