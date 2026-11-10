@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from "@testing-library/react";
+import { expect } from "vitest";
 
 /**
  * A sign-off is only pointed to from the rail ("Go to sign-off", #938/#939); it is signed from
