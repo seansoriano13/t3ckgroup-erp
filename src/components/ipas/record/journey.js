@@ -171,7 +171,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
           : `Opens once the ${andList([!located && "Item Location", !carried && "Transmittal", !arrived && "arrival date"].filter(Boolean))} ${[!located, !carried, !arrived].filter(Boolean).length > 1 ? "are" : "is"} in.`,
       who: who([IPAS_SIGNER_LIST.LOGISTICS_SIGNED]),
       action: !s8?.approved && logisticsReady && onList([IPAS_SIGNER_LIST.LOGISTICS_SIGNED])
-        ? { kind: "logistics", label: "Sign Logistics" }
+        ? { kind: "logistics", label: "Sign Logistics", confirm: "Sign Logistics", what: "Logistics is signed and filing can go ahead" }
         : null,
     },
   ].filter(Boolean);

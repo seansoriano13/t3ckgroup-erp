@@ -73,3 +73,23 @@ describe("rail: Approve and file after the Check (#921)", () => {
     expect(file("u2", "u1").action).toMatchObject({ kind: "file" });
   });
 });
+
+describe("rail: Sign Logistics reads the form first (#925)", () => {
+  const logistics = (listed) =>
+    journeyFor({
+      ipas: { charges: [], slips: [{ number: "T1" }], itemLocation: { label: "A" }, source: "local" },
+      digest,
+      lists: listed ? { logistics_signed: [{ employeeId: "u1", name: "Lo" }] } : {},
+      userId: "u1",
+      can: { change: false, record: false },
+    }).ready.find((item) => item.key === "logistics");
+
+  it("carries the review window's button and sentence, not a one-click sign", () => {
+    expect(logistics(true).action).toMatchObject({ kind: "logistics", confirm: "Sign Logistics" });
+    expect(logistics(true).action.what).toBeTruthy();
+  });
+
+  it("offers it to nobody off the Logistics list", () => {
+    expect(logistics(false).action).toBeNull();
+  });
+});
