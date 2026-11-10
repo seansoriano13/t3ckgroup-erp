@@ -1,3 +1,5 @@
+import { ChangeNotesSample, MarkLostSample, MyWorkSample, NeedsAttentionSample, S0CardSample } from "./sorSamples"
+
 /**
  * Maps an item's `sample` key in content.js to the component that renders it.
  * The release-notes test fails if an item names a key missing here, if a key
@@ -7,7 +9,14 @@
  * but a real component never changes to keep a sample working. If a sample
  * breaks, delete it here and in its file; its item shows as text only.
  */
-export const SAMPLES = {}
+export const SAMPLES = {
+  // SORs
+  "my-work": MyWorkSample,
+  "mark-lost": MarkLostSample,
+  "s0-card": S0CardSample,
+  "needs-attention": NeedsAttentionSample,
+  "change-notes": ChangeNotesSample,
+}
 
 /**
  * How far a reader can play with a sample. Most are live — the real

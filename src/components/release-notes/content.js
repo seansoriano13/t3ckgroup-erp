@@ -30,18 +30,21 @@ export const SECTIONS = [
         title: "My work: the SORs waiting on you",
         body: "SORS opens on My work. It lists every SOR you owe something on: your open tasks, your part of a Group Task and the Purchase Requests you buy for. Needs you comes first, then Watching, longest wait first, and Your move opens the task or request. My SORs is gone from the menu, and its old link opens My work.",
         who: ["Everyone"],
+        sample: "my-work",
       },
       {
         id: "mark-lost",
         title: "Mark a deal as Lost, and bring it back",
         body: "Mark a deal as Lost from the SOR window, or drag it to the Lost column on the Board. You pick a reason first. A Lost deal can be reopened, and it goes back to the Stage it was lost from. Lost deals no longer fill the list: the Lost filter shows them, with their reason.",
         who: ["Sales"],
+        sample: "mark-lost",
       },
       {
         id: "s0-card",
         title: "The S0 is set once, and checked in Odoo",
         body: "Set the S0 in the SOR's edit form, under Details. Saving it checks it in Odoo and brings in its products in one go. In the first Stage you can change it freely; after that it can be filled once, and then only a Super Admin can change it, with a reason. An S0 already on another SOR is refused, and every change is written in the deal's history.",
         who: ["Sales"],
+        sample: "s0-card",
       },
       {
         id: "contract-date",
@@ -66,12 +69,14 @@ export const SECTIONS = [
         title: "Needs attention shows decisions waiting on you",
         body: "A Stage Action waiting for you to Create or Skip it shows under Needs attention on the SOR summary, with a Go link to it. Once you decide, its notification is marked as read.",
         who: ["Sales", "Deal Team"],
+        sample: "needs-attention",
       },
       {
         id: "change-notes",
         title: "Clearer change notes",
         body: "In Activity & Log Notes, a change to an SOR shows as a label with the old and new value. Products that were added, removed, changed or renamed are grouped, and each group opens to show the details.",
         who: ["Sales", "Deal Team"],
+        sample: "change-notes",
       },
       {
         id: "closed-won",

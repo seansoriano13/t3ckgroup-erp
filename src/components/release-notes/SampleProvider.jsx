@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import toast from "react-hot-toast"
 
@@ -17,10 +17,37 @@ export const SAMPLE_SAVE_BLOCKED = "This is sample data. Nothing here is saved."
  * - Every mutation is refused before its request is built.
  * - Every form submit inside it — pop-ups included, since React events
  *   bubble through portals — is stopped before the form's own handler runs.
+ * - A click inside it that would open a real record window is stopped.
  *
  * `seed` is a list of [queryKey, data] pairs, read once.
  */
+// The app opens a task, Group Task, SOR or request from anywhere by this
+// window event, and the real window then reads its record. A click inside a
+// sample must not do that: there is no record behind Sample Data.
+const OPEN_EVENT = "OPEN_ENTITY_DETAILS"
+
+function useBlockOpenFromSample() {
+  const clickedInside = useRef(false)
+  useEffect(() => {
+    const block = (event) => {
+      if (!clickedInside.current) return
+      event.stopImmediatePropagation()
+      toast(SAMPLE_SAVE_BLOCKED, { id: "sample-save-blocked" })
+    }
+    window.addEventListener(OPEN_EVENT, block, true)
+    return () => window.removeEventListener(OPEN_EVENT, block, true)
+  }, [])
+  // Set for the one click or key press that happens inside the sample.
+  return () => {
+    clickedInside.current = true
+    setTimeout(() => {
+      clickedInside.current = false
+    }, 0)
+  }
+}
+
 export default function SampleProvider({ seed = [], children }) {
+  const markInside = useBlockOpenFromSample()
   const [client] = useState(() => {
     const created = new QueryClient({
       mutationCache: new MutationCache({
@@ -48,6 +75,8 @@ export default function SampleProvider({ seed = [], children }) {
   return (
     <QueryClientProvider client={client}>
       <div
+        onClickCapture={markInside}
+        onKeyDownCapture={markInside}
         onSubmitCapture={(event) => {
           event.preventDefault()
           event.stopPropagation()
