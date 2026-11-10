@@ -241,7 +241,7 @@ function OverviewLine({ children, onClick }) {
         type="button"
         variant="link"
         onClick={onClick}
-        className="h-auto justify-start p-0 text-left text-[15px] font-normal whitespace-normal text-foreground"
+        className="h-auto min-w-0 shrink justify-start p-0 text-left text-[15px] font-normal whitespace-normal text-foreground"
       >
         {children}
       </Button>
