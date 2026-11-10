@@ -4,7 +4,7 @@
         "title": "The November Update: See Everything in Release Notes",
         "version": "1.10.0",
         "changes": [
-            "Release Notes: every change since October, one line each. Open any of them to read more and try the screen.",
+            "Release Notes: every change since October, one line each. Open any of them to read more.",
             "SORs: My work shows what is waiting on you, and a deal can be marked Lost and brought back.",
             "Time Off: a new Calendar with Meeting Requests, and leave that follows your work schedule.",
             "Purchasing is open as Beta. Keep using Group Tasks for purchasing for now."

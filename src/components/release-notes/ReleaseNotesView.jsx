@@ -257,7 +257,7 @@ export function ReleaseNotesOverview({ sections, onOpen }) {
   return (
     <div className="min-w-0 space-y-6 pb-16">
       <p className="max-w-3xl text-[15px] text-muted-foreground">
-        Every change in this release, one line each. Click a line to read more and, for most, try the real screen.
+        Every change in this release, one line each. Click a line to read more; many also let you try the real screen.
       </p>
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         {sections.map((section) => {
