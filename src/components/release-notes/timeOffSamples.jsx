@@ -3,7 +3,7 @@ import toast from "react-hot-toast"
 import { Plus } from "lucide-react"
 import { SampleAuthProvider } from "@/context/AuthContext"
 import { Button } from "@/components/ui/button"
-import { manilaToday } from "@/lib/manilaDate.js"
+import { manilaDate, manilaToday, parseManilaDate } from "@/lib/manilaDate.js"
 import CalendarMonth from "@/components/calendar/CalendarMonth"
 import CalendarGantt from "@/components/calendar/CalendarGantt"
 import DayRail from "@/components/calendar/DayRail"
@@ -28,11 +28,8 @@ const VIEWER = { id: "sample-viewer", name: "Sample Viewer", department: "SALES"
 
 const BOOKING_NOTE = "In the app, this opens a Meeting Request for that Venue and time. Nothing is booked here."
 
-const addDays = (ymd, n) => {
-  const d = new Date(`${ymd}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + n)
-  return d.toISOString().slice(0, 10)
-}
+// Manila has no daylight saving, so a day is always 24 hours.
+const addDays = (ymd, n) => manilaDate(new Date(parseManilaDate(ymd).getTime() + n * 86400000))
 const at = (ymd, hhmm) => `${ymd}T${hhmm}:00+08:00`
 const who = (p) => ({ id: p.id, name: p.name, department: p.department })
 
