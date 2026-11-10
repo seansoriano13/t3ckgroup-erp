@@ -16,7 +16,35 @@ import {
   IpasStatusSection,
 } from "@/components/ipas/IpasSections";
 
+import { useState } from "react";
+
+import SignReview from "./SignReview";
 import SignoffList from "./SignoffList";
+
+const LOGISTICS_ITEM = {
+  key: "logistics",
+  label: "Sign Logistics",
+  action: { kind: "logistics", confirm: "Sign Logistics", what: "Logistics is signed and filing can go ahead" },
+};
+
+/** Section 4 with its Sign Logistics button opening the same review window as the rail. */
+function LogisticsWithReview({ ctx }) {
+  const { ipas, can, on, rights } = ctx;
+  const [reviewing, setReviewing] = useState(null);
+  return (
+    <>
+      <IpasLogisticsSection
+        ipas={ipas}
+        canChange={can.pickLocation ?? can.change}
+        onPick={on.pickLocation}
+        signRights={rights[8]}
+        busy={ctx.busy?.signoff}
+        onSign={() => setReviewing(LOGISTICS_ITEM)}
+      />
+      <SignReview ctx={ctx} item={reviewing} onClose={() => setReviewing(null)} onSign={() => on.signLogistics()} />
+    </>
+  );
+}
 
 export function buildBlocks(ctx) {
   const { ipas, can, on, rights } = ctx;
@@ -66,16 +94,7 @@ export function buildBlocks(ctx) {
   const sales = (
     <IpasSalesSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} />
   );
-  const logistics = (
-    <IpasLogisticsSection
-      ipas={ipas}
-      canChange={can.pickLocation ?? can.change}
-      onPick={on.pickLocation}
-      signRights={rights[8]}
-      busy={ctx.busy?.signoff}
-      onSign={() => on.approve(8, "logistics")}
-    />
-  );
+  const logistics = <LogisticsWithReview ctx={ctx} />;
   const status = (
     <IpasStatusSection
       ipas={ipas}

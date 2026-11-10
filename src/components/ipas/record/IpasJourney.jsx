@@ -11,11 +11,8 @@ import MoveButton from "@/components/record/MoveButton";
 import { CHROME } from "@/components/record/sectionChrome";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
 import { Button } from "@/components/ui/button";
-import { APPROVE_CLASS } from "@/components/ui/approveClass";
-import ModalShell from "@/components/ui/ModalShell";
-import { ipasErrorMessage } from "@/utils/ipas";
 import { movesFor } from "./moves";
-import { PreviewFrame } from "./PrintPreview";
+import SignReview from "./SignReview";
 
 function Item({ item, number, locked, onAct, busy }) {
   const { done, action } = item;
@@ -67,65 +64,6 @@ function Item({ item, number, locked, onAct, busy }) {
   );
 }
 
-/** The final IPAS form, as it prints, with the one button that signs it. */
-function SignReview({ ctx, item, onClose, onSign }) {
-  const [working, setWorking] = useState(false);
-  // A refusal stays here, beside the button, until the next try (a toast is gone in seconds).
-  const [problem, setProblem] = useState(null);
-  const { ipas, viewer } = ctx;
-  const action = item?.action;
-  return (
-    <ModalShell
-      open={Boolean(item)}
-      onOpenChange={(next) => {
-        if (next || working) return;
-        setProblem(null);
-        onClose();
-      }}
-      size="wide"
-      expandable
-      className="h-[90vh]"
-      bodyClassName="gap-0 p-0"
-      crumbs={["IPAS", ipas.number, item?.label ?? "Sign"]}
-      cancelLabel="Not yet"
-      actions={
-        action && (
-          <Button
-            size="lg"
-            className={APPROVE_CLASS}
-            disabled={working}
-            onClick={async () => {
-              setWorking(true);
-              setProblem(null);
-              try {
-                await onSign(item);
-                onClose();
-              } catch (error) {
-                setProblem(ipasErrorMessage(error));
-              } finally {
-                setWorking(false);
-              }
-            }}
-          >
-            {working ? "Signing…" : action.confirm}
-          </Button>
-        )
-      }
-    >
-      <p className="border-b border-border px-5 py-2 text-xs text-muted-foreground">
-        Read the final IPAS below. When you press <span className="font-semibold text-foreground">{action?.confirm}</span>, {action?.what}.
-        {viewer ? ` You sign as ${viewer}.` : ""}
-      </p>
-      {problem && (
-        <p role="alert" className="border-b border-red-7 bg-red-3/40 px-5 py-2 text-sm font-medium text-red-11">
-          {problem}
-        </p>
-      )}
-      <div className="min-h-0 flex-1 bg-mauve-4">{item && <PreviewFrame ctx={ctx} filingCopy={false} />}</div>
-    </ModalShell>
-  );
-}
-
 export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
   const { busy, failure, viewer, on } = ctx;
   const [reviewing, setReviewing] = useState(null);
@@ -139,13 +77,13 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
     const { action } = item;
     if (action.kind === "edit") onEdit(action.section);
     else if (action.kind === "landed") on.setComputationStatus(action.status, { key: "costs", origin: CHROME.CARD });
-    else if (action.kind === "logistics") on.approve(8, { key: "logistics", origin: CHROME.CARD });
     else setReviewing(item);
   };
   const signIt = (item) => {
     const { action } = item;
     if (action.kind === "sign") return on.signMany(action.steps);
     if (action.kind === "check") return on.signCheck();
+    if (action.kind === "logistics") return on.signLogistics();
     return on.file();
   };
 

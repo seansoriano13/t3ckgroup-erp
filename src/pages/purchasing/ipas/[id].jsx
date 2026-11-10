@@ -344,6 +344,16 @@ function IpasPage({ onClose }) {
       signoffChanged();
     },
   });
+  const signLogistics = useMutation({
+    mutationFn: () => ipasService.sign(id, 8, IPAS_SIGNOFF_ROLE.APPROVED),
+    onSuccess: () => {
+      toast.success("Logistics signed.");
+      setFailure(null);
+      markSigned();
+      signoffChanged();
+    },
+    onError: () => signoffChanged(),
+  });
   const signCheck = useMutation({
     mutationFn: () => ipasService.signCheck(id),
     onSuccess: () => {
@@ -965,6 +975,7 @@ function IpasPage({ onClose }) {
     give: giveSignoff,
     signMany: (steps) => signMany.mutateAsync({ steps }),
     signCheck: () => signCheck.mutateAsync(),
+    signLogistics: () => signLogistics.mutateAsync(),
     // The last sign-off: read the final form, then file. The files were attached in "Get it ready".
     file: () => give.mutateAsync({ role: IPAS_SIGNOFF_ROLE.APPROVED, confirm: true }),
   };
@@ -989,7 +1000,7 @@ function IpasPage({ onClose }) {
     onHold: Boolean(digest.figures?.onHold),
     rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, 8: logisticsRights, sendBack7: canReturnSection7 },
     busy: {
-      signoff: signoff.isPending || returnSection.isPending || signMany.isPending || signCheck.isPending,
+      signoff: signoff.isPending || returnSection.isPending || signMany.isPending || signCheck.isPending || signLogistics.isPending,
       give: give.isPending || returnSection.isPending,
       print: print.isPending,
     },
