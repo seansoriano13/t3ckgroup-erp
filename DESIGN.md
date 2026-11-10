@@ -352,6 +352,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### Dot
 `ui/Dot.jsx`. Small status dot. Props: `size`, `color` (Tailwind classes), `className`, plus native span props.
 
+#### BetaTag
+`ui/BetaTag.jsx`. The small "Beta" badge for a screen or nav item that is live but not finished (CONTEXT.md, "Beta tag"). Its hover says why (`BETA_HOVER`). Props: `className`.
+
 #### Avatar
 `Avatar.jsx` (root). The Primitive for people images. Props: `name`, `src`, `size` (`xxs`..`xl`), `isSelected`, `showCheckOnSelect`, `onClick`. Replaces raw `<img>` of a person.
 
