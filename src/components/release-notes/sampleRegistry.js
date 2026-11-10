@@ -1,3 +1,4 @@
+import { GroupTaskDatesSample, GroupTaskEvaluationSample, TaskApprovalsSample } from "./taskSamples"
 import { ChangeNotesSample, MarkLostSample, MyWorkSample, NeedsAttentionSample, S0CardSample } from "./sorSamples"
 
 /**
@@ -16,6 +17,10 @@ export const SAMPLES = {
   "s0-card": S0CardSample,
   "needs-attention": NeedsAttentionSample,
   "change-notes": ChangeNotesSample,
+  // Tasks
+  "group-task-evaluation": GroupTaskEvaluationSample,
+  "group-task-dates": GroupTaskDatesSample,
+  "task-approvals": TaskApprovalsSample,
 }
 
 /**

@@ -107,12 +107,14 @@ export const SECTIONS = [
         title: "Group Tasks wait for their Evaluator",
         body: "When every member is done, a Group Task shows Awaiting evaluation, and it is Completed only once it is rated. The To evaluate tab lists the ones waiting, longest first. The Evaluator gets a message, then reminders after 3, 6 and 9 days, and after that the creator and the Evaluator's heads are told. Pick the Evaluator when you create the task, or leave it empty to rate it yourself.",
         who: ["Everyone"],
+        sample: "group-task-evaluation",
       },
       {
         id: "group-task-dates",
         title: "Start and Due Dates, and checklist due dates",
         body: "A Group Task needs a Start Date and a Due Date, and shows how long is left. Checklist items can have their own due date and remarks, and a tick shows right away.",
         who: ["Everyone"],
+        sample: "group-task-dates",
       },
       {
         id: "group-task-teams",
@@ -125,6 +127,7 @@ export const SECTIONS = [
         title: "Task Approvals and HR Verifications are one page",
         body: "Task Approvals holds both steps of a task: the head's grade, then HR's check. A head sees the tasks waiting for a grade and HR sees graded tasks waiting to be verified; the Stage column says which. If you do both, the Step filter splits them. The 48-hour tabs are now called Active and Overdue on every approval page.",
         who: ["Department heads", "HR"],
+        sample: "task-approvals",
       },
     ],
     alsoFixed: [
