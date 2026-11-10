@@ -31,7 +31,7 @@ export default function GroupTaskMemberRail({
   return (
     <div className={cn("flex flex-col h-full min-h-0 border-r border-border bg-muted/20", className)}>
       <div className="px-4 pt-4 pb-2 shrink-0">
-        <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+        <h3 className="text-label font-bold text-muted-foreground uppercase tracking-widest">
           Members{" "}
           <span className="text-muted-foreground/60">({members.length})</span>
         </h3>

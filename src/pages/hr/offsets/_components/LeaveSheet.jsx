@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { AlertTriangle, CalendarDays, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { mealBreakHours } from '../../../../utils/mealBreak';
 import Dot from '@/components/ui/Dot';
 import SlideOver, { SlideOverBody, SlideOverFooter } from '@/components/ui/SlideOver';
 import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailParts';
 import { AttachmentList } from '../../../../components/ui/Attachments';
-import { APPROVE_CLASS } from '../../../approvals/_components/approvalUi';
+import { APPROVE_CLASS } from '@/components/ui/approveClass';
 import { StatusPill } from './LeaveParts';
 import { LABEL, TYPE_META, ago, balanceFor, fmtDay, fmtRange, hoursOf, recordKey, statusOf, windowOf } from './leaveDisplay';
 
@@ -87,6 +89,9 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
             <DetailRow label="Category">{request.category?.label}</DetailRow>
             <DetailRow label="Days">{request.dayCount || 1}</DetailRow>
           </dl>
+          {request.attachments?.length > 0 && (
+            <AttachmentList attachments={request.attachments} className="mt-3" />
+          )}
         </DetailSection>
 
         {!pending && (
@@ -109,11 +114,7 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
           </p>
         </DetailSection>
 
-        {request.attachments?.length > 0 && (
-          <DetailSection title="Attachments">
-            <AttachmentList attachments={request.attachments} />
-          </DetailSection>
-        )}
+        {pending && <KeepMealHour request={request} onKeep={actions.keepMealIn} />}
 
         {pending && <BalanceImpact request={request} available={availableHours} />}
 
@@ -154,11 +155,51 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
             </Button>
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Undo returns the request to Pending{request.type === 'UNDERTIME' ? '' : ' and restores the balance'}.
+            Undo returns the request to Pending{request.type === 'UNDERTIME' || request.type === 'LWOP' ? '' : ' and restores the balance'}.
           </p>
         </SlideOverFooter>
       )}
     </>
+  );
+}
+
+/**
+ * When the filed window covers a meal hour that was taken off, HR can put the
+ * hour back in (no break was taken). A reason is required and is saved.
+ */
+function KeepMealHour({ request, onKeep }) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const hour = request.start_time && request.end_time ? mealBreakHours(request.start_time, request.end_time) : 0;
+
+  if (request.meal_break_kept_reason) {
+    return (
+      <DetailSection title="Meal Break">
+        <p className="text-[13px] text-muted-foreground">Meal hour kept in. Reason: {request.meal_break_kept_reason}</p>
+      </DetailSection>
+    );
+  }
+  if (!(hour > 0) || !onKeep) return null;
+
+  const keep = async () => {
+    setBusy(true);
+    try {
+      await onKeep(request, reason);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <DetailSection title="Meal Break">
+      <div className="flex flex-col gap-2">
+        <p className="text-[13px] text-muted-foreground">{hour} hr was taken off for the meal break. If no break was taken, keep it in.</p>
+        <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why was no break taken?" rows={2} aria-label="Reason for keeping the meal hour in" />
+        <Button type="button" variant="outline" disabled={busy || !reason.trim()} onClick={keep}>
+          Keep the hour in
+        </Button>
+      </div>
+    </DetailSection>
   );
 }
 
@@ -184,7 +225,20 @@ function PendingFooter({ request, decide, overtimeAs, onOvertimeAs }) {
   return (
     <SlideOverFooter>
       {request.type === 'OVERTIME' && (
-        <div className="flex flex-col gap-2" role="radiogroup" aria-label="Approve overtime as">
+        <div
+          className="flex flex-col gap-2"
+          role="radiogroup"
+          aria-label="Approve overtime as"
+          onKeyDown={(e) => {
+            const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+            if (!step) return;
+            e.preventDefault();
+            const radios = [...e.currentTarget.querySelectorAll('[role="radio"]')];
+            const next = radios[(radios.indexOf(document.activeElement) + step + radios.length) % radios.length];
+            next?.focus();
+            next?.click();
+          }}
+        >
           <p className={LABEL}>Approve as</p>
           {[
             ['offset', 'Offset hours', `Adds ${hours.requested} hrs to the Offset balance`],
@@ -196,6 +250,7 @@ function PendingFooter({ request, decide, overtimeAs, onOvertimeAs }) {
               variant="outline"
               role="radio"
               aria-checked={overtimeAs === value}
+              tabIndex={overtimeAs === value ? 0 : -1}
               onClick={() => onOvertimeAs(value)}
               className={`h-auto justify-start gap-3 whitespace-normal rounded-xl px-4 py-3 text-left ${overtimeAs === value ? 'border-mauve-12 bg-muted' : ''}`}
             >
@@ -212,7 +267,7 @@ function PendingFooter({ request, decide, overtimeAs, onOvertimeAs }) {
       )}
       <div className="flex gap-2">
         <Button type="button" variant="destructive" className="flex-1" onClick={() => decide(request, 'reject')}>
-          Reject
+          Decline
         </Button>
         <Button type="button" className={`flex-1 ${APPROVE_CLASS}`} onClick={approve}>
           <Check />
@@ -229,7 +284,7 @@ function BalanceImpact({ request, available }) {
   if (request.type === 'UNDERTIME') {
     return (
       <DetailSection title="Balance impact">
-        <p className="text-[13px] leading-relaxed text-muted-foreground">Counts toward this month's undertime. It is not taken from any balance.</p>
+        <p className="text-[13px] leading-relaxed text-muted-foreground">Counts toward this month’s undertime. It is not taken from any balance.</p>
       </DetailSection>
     );
   }

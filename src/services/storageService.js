@@ -1,4 +1,47 @@
 import imageCompression from "browser-image-compression"
+import { supabase } from "../lib/supabase"
+
+/**
+ * Bucket that holds uploads when the app runs against the local Supabase stack.
+ * It is public (see supabase/config.toml), so the stored URL works in an <img>
+ * the same way a Cloudinary URL does.
+ */
+export const LOCAL_UPLOAD_BUCKET = "attachments"
+
+const LOCAL_HOSTNAMES = ["127.0.0.1", "localhost", "[::1]"]
+
+/**
+ * True when the Supabase URL points at the local stack (ticket #894). Uploads
+ * then stay on the developer's machine instead of reaching the company's
+ * Cloudinary account. Staging, production and the test host all return false.
+ */
+export function isLocalSupabaseUrl(url) {
+  if (!url) return false
+  try {
+    return LOCAL_HOSTNAMES.includes(new URL(url).hostname)
+  } catch {
+    return false
+  }
+}
+
+const usesLocalStorage = () => isLocalSupabaseUrl(import.meta.env.VITE_SUPABASE_URL)
+
+/** Keeps letters, digits, dots, dashes and underscores; everything else becomes "_". */
+const safeFileName = (name) => (name || "file").replace(/[^A-Za-z0-9._-]/g, "_")
+
+/** Stores a file in the local Supabase Storage bucket and returns its public URL. */
+async function uploadToLocalStorage(file, name) {
+  const path = `${crypto.randomUUID()}-${safeFileName(name)}`
+  const bucket = supabase.storage.from(LOCAL_UPLOAD_BUCKET)
+
+  const { error } = await bucket.upload(path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  })
+  if (error) throw new Error(error.message)
+
+  return bucket.getPublicUrl(path).data.publicUrl
+}
 
 export const storageService = {
   /**
@@ -83,6 +126,8 @@ export const storageService = {
       console.warn("Compression failed, uploading original.", error)
     }
 
+    if (usesLocalStorage()) return uploadToLocalStorage(fileToUpload, file.name)
+
     const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
     const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
 
@@ -126,6 +171,11 @@ export const storageService = {
     if (file.type?.startsWith("image/")) {
       const url = await this.uploadToCloudinary(file)
       return { url, name: file.name, type: file.type, bytes: file.size }
+    }
+
+    if (usesLocalStorage()) {
+      const url = await uploadToLocalStorage(file, file.name)
+      return { url, name: file.name, type: file.type || "", bytes: file.size }
     }
 
     const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME

@@ -1,3 +1,4 @@
+import { manilaDate } from "@/lib/manilaDate.js";
 // Pure helpers for the Commission Dashboard screens: period presets, the
 // colour legend, the formula walked step by step, and the ledger CSV. No
 // React here, so every screen file only exports components.
@@ -20,13 +21,21 @@ export const DATE_PRESETS = [
 ];
 
 export function getPresetDateRange(preset, now = new Date()) {
-  const y = now.getFullYear();
-  const iso = (d) => d.toISOString().slice(0, 10);
+  // ADR 0039: "this month" and "today" are the Manila ones.
+  const today = manilaDate(now);
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7)) - 1;
+  const pad = (n) => String(n).padStart(2, "0");
+  // Month-edge dates built from plain numbers, no timezone involved.
+  const edge = (year, month, day) => {
+    const d = new Date(Date.UTC(year, month, day));
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  };
   const quarter = { Q1: ["01-01", "03-31"], Q2: ["04-01", "06-30"], Q3: ["07-01", "09-30"], Q4: ["10-01", "12-31"] }[preset];
   if (quarter) return { startDate: `${y}-${quarter[0]}`, endDate: `${y}-${quarter[1]}` };
-  if (preset === "THIS_MONTH") return { startDate: iso(new Date(y, now.getMonth(), 1)), endDate: iso(new Date(y, now.getMonth() + 1, 0)) };
-  if (preset === "LAST_MONTH") return { startDate: iso(new Date(y, now.getMonth() - 1, 1)), endDate: iso(new Date(y, now.getMonth(), 0)) };
-  if (preset === "YTD") return { startDate: `${y}-01-01`, endDate: iso(now) };
+  if (preset === "THIS_MONTH") return { startDate: edge(y, m, 1), endDate: edge(y, m + 1, 0) };
+  if (preset === "LAST_MONTH") return { startDate: edge(y, m - 1, 1), endDate: edge(y, m, 0) };
+  if (preset === "YTD") return { startDate: `${y}-01-01`, endDate: today };
   return null;
 }
 

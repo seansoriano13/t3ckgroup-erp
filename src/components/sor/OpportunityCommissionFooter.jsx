@@ -6,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { formatPHP } from "../../constants/sor";
 import Spinner from "../ui/Spinner";
 import { Button } from "../ui/button";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 function useSafeNavigate() {
   try {
@@ -97,7 +98,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Col 1: Commissionable Revenue */}
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-0.5">
+            <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground block mb-0.5`}>
               Commissionable Revenue
             </span>
             <p className="text-sm font-extrabold tabular-nums text-foreground">
@@ -107,7 +108,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
 
           {/* Col 2: Commission Pool (1%) */}
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-0.5">
+            <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground block mb-0.5`}>
               Commission Pool (1%)
             </span>
             <p className="text-sm font-extrabold tabular-nums text-foreground">
@@ -117,7 +118,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
 
           {/* Col 3: Sales Dept (50%) */}
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-0.5">
+            <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground block mb-0.5`}>
               Sales Dept (50%)
             </span>
             <p className="text-sm font-extrabold tabular-nums text-foreground">

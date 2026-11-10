@@ -15,8 +15,6 @@ import {
   Clock,
   AlertTriangle,
   Eye,
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   Users,
 } from "lucide-react";
@@ -26,25 +24,25 @@ import StatusBadge from "../../../components/StatusBadge";
 import HighlightText from "../../../components/HighlightText";
 import EmptyState from "../../../components/ui/EmptyState";
 import { formatDueDate } from "../../../utils/formatDate";
+import { getDueCountdown } from "../utils/dueCountdown";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
 import { Button } from "@/components/ui/button";
-import { SelectField } from "@/components/ui/SelectField";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 
 export default function GroupTaskTableView({
   tasks = [],
   searchTerm = "",
   onView,
+  hasAnyTasks = false,
+  onClearFilters,
 }) {
   const avatarMap = useEmployeeAvatarMap();
 
   // Internal Sorting State
   const [sortField, setSortField] = useState("created_at");
   const [sortOrder, setSortOrder] = useState("desc");
-
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -53,7 +51,7 @@ export default function GroupTaskTableView({
       setSortField(field);
       setSortOrder("asc");
     }
-    setCurrentPage(1);
+    paging.setPage(1);
   };
 
   const sortedTasks = useMemo(() => {
@@ -91,20 +89,20 @@ export default function GroupTaskTableView({
     });
   }, [tasks, sortField, sortOrder]);
 
-  const totalPages = Math.ceil(sortedTasks.length / pageSize) || 1;
-  const paginatedTasks = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return sortedTasks.slice(start, start + pageSize);
-  }, [sortedTasks, currentPage, pageSize]);
+  const paging = usePaging(sortedTasks);
+  const paginatedTasks = paging.rows;
+
+  const ariaSort = (field) =>
+    sortField !== field ? "none" : sortOrder === "asc" ? "ascending" : "descending";
 
   const renderSortIcon = (field) => {
     if (sortField !== field) {
-      return <ArrowUpDown size={12} className="opacity-40 ml-1 inline-block" />;
+      return <ArrowUpDown size={12} className="size-3 opacity-40 ml-1 inline-block" />;
     }
     return sortOrder === "asc" ? (
-      <ArrowUp size={12} className="text-primary ml-1 inline-block" />
+      <ArrowUp size={12} className="size-3 text-primary ml-1 inline-block" />
     ) : (
-      <ArrowDown size={12} className="text-primary ml-1 inline-block" />
+      <ArrowDown size={12} className="size-3 text-primary ml-1 inline-block" />
     );
   };
 
@@ -112,11 +110,18 @@ export default function GroupTaskTableView({
     return (
       <EmptyState
         icon={Users}
-        title="No Group Tasks Found"
+        title="No group tasks found"
         description={
-          searchTerm
-            ? "Try adjusting your search criteria."
+          hasAnyTasks
+            ? "No group tasks match these filters."
             : "There are no active group tasks at the moment."
+        }
+        action={
+          hasAnyTasks && onClearFilters ? (
+            <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          ) : undefined
         }
       />
     );
@@ -127,51 +132,81 @@ export default function GroupTaskTableView({
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <Table className="min-w-[900px]">
+          <Table tableId="group-tasks" className="md:min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead
-                  onClick={() => handleSort("title")}
-                  className="cursor-pointer hover:text-foreground transition-colors"
+                  id="title"
+                  aria-sort={ariaSort("title")}
+                  className="hover:text-foreground transition-colors"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("title")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Group Task / Description {renderSortIcon("title")}
-                  </div>
+                  </Button>
                 </TableHead>
                 <TableHead
-                  onClick={() => handleSort("creator")}
-                  className="cursor-pointer hover:text-foreground transition-colors w-[170px]"
+                  id="creator"
+                  aria-sort={ariaSort("creator")}
+                  className="hover:text-foreground transition-colors w-[170px] hidden md:table-cell"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("creator")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Creator {renderSortIcon("creator")}
-                  </div>
+                  </Button>
                 </TableHead>
-                <TableHead className="w-[160px]">Members</TableHead>
+                <TableHead id="members" className="w-[160px] hidden md:table-cell">Members</TableHead>
                 <TableHead
-                  onClick={() => handleSort("status")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
+                  id="status"
+                  aria-sort={ariaSort("status")}
+                  className="px-3 hover:text-foreground transition-colors w-[150px]"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("status")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Status {renderSortIcon("status")}
-                  </div>
+                  </Button>
                 </TableHead>
                 <TableHead
-                  onClick={() => handleSort("dueDate")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
+                  id="dueDate"
+                  aria-sort={ariaSort("dueDate")}
+                  className="px-3 hover:text-foreground transition-colors w-[130px] hidden md:table-cell"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("dueDate")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Due Date {renderSortIcon("dueDate")}
-                  </div>
+                  </Button>
                 </TableHead>
                 <TableHead
-                  onClick={() => handleSort("progress")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[140px]"
+                  id="progress"
+                  aria-sort={ariaSort("progress")}
+                  className="px-3 hover:text-foreground transition-colors w-[140px] hidden md:table-cell"
                 >
-                  <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSort("progress")}
+                    className="h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent gap-1 justify-start"
+                  >
                     Progress {renderSortIcon("progress")}
-                  </div>
+                  </Button>
                 </TableHead>
-                <TableHead className="text-right w-[80px]">Action</TableHead>
+                <TableHead id="action" className="text-right w-[80px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -202,8 +237,15 @@ export default function GroupTaskTableView({
                 return (
                   <TableRow
                     key={task.id}
+                    tabIndex={0}
                     onClick={() => onView && onView(task)}
-                    className={`cursor-pointer group ${
+                    onKeyDown={(e) => {
+          if (e.key === "Enter" && e.target === e.currentTarget) {
+            e.preventDefault();
+            onView && onView(task);
+          }
+        }}
+                    className={`cursor-pointer outline-none focus-visible:bg-muted group ${
                       isOverdue ? "bg-amber-500/[0.03]" : ""
                     }`}
                   >
@@ -234,7 +276,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Creator */}
-                    <TableCell className="align-middle">
+                    <TableCell className="align-middle hidden md:table-cell">
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.creator?.name || "Unknown"}
@@ -249,7 +291,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Members Avatar Group */}
-                    <TableCell className="align-middle">
+                    <TableCell className="align-middle hidden md:table-cell">
                       <div className="flex items-center gap-1.5">
                         {memberPeople.length > 0 ? (
                           <div className="flex items-center gap-2">
@@ -300,7 +342,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Due Date */}
-                    <TableCell className="align-middle">
+                    <TableCell className="align-middle hidden md:table-cell">
                       {task.due_date ? (
                         <div className="flex flex-col">
                           <span
@@ -313,9 +355,13 @@ export default function GroupTaskTableView({
                             <Calendar size={12} className="shrink-0 opacity-70" />
                             {formatDueDate(task.due_date)}
                           </span>
-                          {isOverdue && (
-                            <span className="text-[10px] font-bold text-destructive uppercase tracking-tight">
-                              Overdue
+                          {task.status === "ACTIVE" && getDueCountdown(task.due_date) && (
+                            <span
+                              className={`text-label font-bold tracking-tight ${
+                                isOverdue ? "text-destructive" : "text-muted-foreground"
+                              }`}
+                            >
+                              {getDueCountdown(task.due_date).label}
                             </span>
                           )}
                         </div>
@@ -325,7 +371,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Progress Bar */}
-                    <TableCell className="align-middle">
+                    <TableCell className="align-middle hidden md:table-cell">
                       {totalMembers > 0 ? (
                         <div className="flex items-center gap-2 w-full max-w-[120px]">
                           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -368,72 +414,7 @@ export default function GroupTaskTableView({
         </div>
       </div>
 
-      {/* Pagination Footer */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1 py-1 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span>
-            Showing{" "}
-            <span className="font-semibold text-foreground">
-              {(currentPage - 1) * pageSize + 1}
-            </span>{" "}
-            to{" "}
-            <span className="font-semibold text-foreground">
-              {Math.min(currentPage * pageSize, sortedTasks.length)}
-            </span>{" "}
-            of{" "}
-            <span className="font-semibold text-foreground">
-              {sortedTasks.length}
-            </span>{" "}
-            tasks
-          </span>
-          <span className="text-border">|</span>
-          <div className="flex items-center gap-1.5">
-            <span>Rows:</span>
-            <SelectField
-              value={pageSize}
-              onChange={(next) => {
-                setPageSize(Number(next));
-                setCurrentPage(1);
-              }}
-              options={[10, 25, 50].map((n) => ({ value: n, label: String(n) }))}
-              size="sm"
-            />
-          </div>
-        </div>
-
-        {/* Page Nav Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="rounded-md bg-card text-foreground disabled:opacity-30 disabled:hover:bg-card"
-              title="Previous Page"
-              aria-label="Previous Page"
-            >
-              <ChevronLeft size={14} />
-            </Button>
-
-            <span className="px-2 text-xs font-semibold text-foreground">
-              Page {currentPage} of {totalPages}
-            </span>
-
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-md bg-card text-foreground disabled:opacity-30 disabled:hover:bg-card"
-              title="Next Page"
-              aria-label="Next Page"
-            >
-              <ChevronRight size={14} />
-            </Button>
-          </div>
-        )}
-      </div>
+      <TablePager {...paging} noun="tasks" className="rounded-xl border" />
     </div>
   );
 }

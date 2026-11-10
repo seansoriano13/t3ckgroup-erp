@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
 import { groupTaskService } from "../services/groupTaskService";
@@ -10,13 +10,41 @@ import OpportunityDetailsModal from "./sor/OpportunityDetailsModal";
 import OpportunityQuickView from "./sor/OpportunityQuickView";
 import { opportunityService } from "../services/opportunityService";
 import { useAuth } from "../context/AuthContext";
+import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import toast from "react-hot-toast";
+import { canManageGroupTasks } from "../utils/permissions";
+import { useRecordParam } from "../hooks/useRecordParam";
+import {
+  RECORD_LINK_PARAM,
+  NO_ACCESS_MESSAGE,
+  itemToRecordKey,
+  recordKeyToItem,
+} from "../utils/recordLink";
 
 export default function GlobalDetailManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }
-  const [activeItem, setActiveItem] = useState(null);
+  // The open record lives in the address (`?open=task:<id>`), so a copied link
+  // reopens it and Back closes it. `view` (the tab an SOR opens on) isn't part
+  // of the link; it rides along in state, matched to the record it was for.
+  const { recordId, open: openRecord, close: closeRecord } = useRecordParam(RECORD_LINK_PARAM);
+  const [openedView, setOpenedView] = useState(null);
+  // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }; PURCHASE_REQUEST has its own slot
+  const activeItem = useMemo(() => {
+    const linked = recordKeyToItem(recordId);
+    return linked && openedView?.key === recordId ? { ...linked, view: openedView.view } : linked;
+  }, [recordId, openedView]);
+  // Opening or closing in the app writes the address. A fresh open adds a
+  // history entry; swapping one record for another replaces it.
+  const setActiveItem = useCallback(
+    (item) => {
+      const key = itemToRecordKey(item);
+      setOpenedView(key && item.view ? { key, view: item.view } : null);
+      if (!key) closeRecord();
+      else if (key !== recordId) openRecord(key, recordId ? { replace: true } : undefined);
+    },
+    [closeRecord, openRecord, recordId],
+  );
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -24,6 +52,16 @@ export default function GlobalDetailManager() {
   // it's a drill-down, not a replacement, so closing the Task returns to
   // Quick View rather than to nothing.
   const [stackedTaskId, setStackedTaskId] = useState(null);
+  // A Purchase Request (#309) always opens stacked: it never replaces an open
+  // SOR/task (#310 opens it from the SOR), and closing it leaves the page, or
+  // whatever was open underneath, exactly as it was.
+  const [purchaseRequestId, setPurchaseRequestId] = useState(null);
+  // Set by a mention notification: the request opens with its Chat ready to type in.
+  const [purchaseRequestFocusChat, setPurchaseRequestFocusChat] = useState(false);
+  // Counts every open, so a mention clicked while its request is already open still refreshes the Chat.
+  // The tab a notification names: "chat" or "items" (#850); null leaves the window as it is.
+  const [purchaseRequestTab, setPurchaseRequestTab] = useState(null);
+  const [purchaseRequestOpenCount, setPurchaseRequestOpenCount] = useState(0);
 
   const isSuperAdmin = user?.is_super_admin === true || user?.isSuperAdmin === true;
   const isHead = user?.is_head === true || user?.isHead === true;
@@ -32,9 +70,15 @@ export default function GlobalDetailManager() {
 
   useEffect(() => {
     const handleOpenDetails = (e) => {
-      const { id, type, isNew } = e.detail;
-      if (id && type) {
-        setActiveItem({ id, type });
+      const { id, type, isNew, view, focusChat, tab } = e.detail;
+      if (id && type === "PURCHASE_REQUEST") {
+        setPurchaseRequestId(id);
+        setPurchaseRequestFocusChat(focusChat === true);
+        setPurchaseRequestTab(tab ?? null);
+        setPurchaseRequestOpenCount((n) => n + 1);
+      } else if (id && type) {
+        // `view` names the tab an SOR opens on (the Costing Matrix page opens "pms"); absent, it opens on its Summary.
+        setActiveItem(view ? { id, type, view } : { id, type });
         if (isNew) {
           setHighlightIdOnClose(id);
         }
@@ -43,7 +87,7 @@ export default function GlobalDetailManager() {
 
     window.addEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
     return () => window.removeEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
-  }, []);
+  }, [setActiveItem]);
 
   // Everyone needs the roster, not just managers: the detail modal feeds it to
   // the mention picker, and gating it on `canManage` left a normal employee
@@ -94,6 +138,24 @@ export default function GlobalDetailManager() {
     enabled: !!stackedTaskId,
     staleTime: 0,
   });
+
+  // #657: an old link to a task that was converted lands on the Group Task it became.
+  useEffect(() => {
+    if (activeItem?.type === "TASK" && taskData?.convertedToGroupTaskId) {
+      setActiveItem({ id: taskData.convertedToGroupTaskId, type: "GROUP_TASK" });
+    }
+  }, [activeItem?.type, taskData?.convertedToGroupTaskId, setActiveItem]);
+
+  // A link to a record the viewer can't read (or that is gone) says so, then
+  // clears the address instead of leaving a blank window.
+  const noAccess =
+    (activeItem?.type === "TASK" && !isLoadingTask && !taskData) ||
+    (activeItem?.type === "GROUP_TASK" && !isLoadingGroupTask && !groupTaskData);
+  useEffect(() => {
+    if (!noAccess) return;
+    toast.error(NO_ACCESS_MESSAGE, { id: "record-no-access" });
+    closeRecord();
+  }, [noAccess, closeRecord]);
 
   useEffect(() => {
     if (activeItem) {
@@ -168,7 +230,7 @@ export default function GlobalDetailManager() {
     mutationFn: (memberId) => groupTaskService.updateMemberStatus(memberId, "DONE", user?.id),
     onSuccess: () => {
       invalidateGroup();
-      toast.success("Task marked as done!");
+      toast.success("Task marked as done.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -220,7 +282,7 @@ export default function GlobalDetailManager() {
         queryClient.invalidateQueries({ queryKey: ["groupTasks"] }),
         queryClient.invalidateQueries({ queryKey: ["globalGroupTask", activeItem?.id] }),
       ]);
-      toast.success("Attachment uploaded successfully!");
+      toast.success("Attachment uploaded.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -236,7 +298,6 @@ export default function GlobalDetailManager() {
     onSuccess: () => {
       invalidateGroup();
     },
-    onError: (err) => toast.error(err.message),
   });
 
   const rateMutation = useMutation({
@@ -279,14 +340,24 @@ export default function GlobalDetailManager() {
     setActiveItem(null);
     setIsRateOpen(false);
     setStackedTaskId(null);
+    setPurchaseRequestId(null);
   };
 
-  if (!activeItem) return null;
+  if (!activeItem && !purchaseRequestId) return null;
 
   return (
     <>
+      {purchaseRequestId && (
+        <PurchaseRequestModal requestId={purchaseRequestId} focusChat={purchaseRequestFocusChat} tab={purchaseRequestTab} openCount={purchaseRequestOpenCount} onClose={() => {
+            // #310: an SOR behind the request re-reads its card and item statuses.
+            queryClient.invalidateQueries({ queryKey: ["sor-purchase-request"] });
+            queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });
+            setPurchaseRequestId(null);
+          }} />
+      )}
+
       {/* TASK MODAL */}
-      {activeItem.type === "TASK" && (
+      {activeItem?.type === "TASK" && (
         <TaskDetails
           isOpen={true}
           onClose={handleClose}
@@ -297,7 +368,7 @@ export default function GlobalDetailManager() {
       )}
 
       {/* GROUP TASK MODAL */}
-      {activeItem.type === "GROUP_TASK" && (
+      {activeItem?.type === "GROUP_TASK" && (
         <>
           <GroupTaskDetailModal
             isOpen={true}
@@ -306,6 +377,7 @@ export default function GlobalDetailManager() {
             currentUserId={user?.id}
             isSuperAdmin={isSuperAdmin}
             isHr={isHr}
+            canManage={canManageGroupTasks({ isHead, isHr, isSuperAdmin })}
             employees={employees}
             onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
             onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
@@ -316,7 +388,7 @@ export default function GlobalDetailManager() {
             onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}
             onUpdateMember={(memberId, payload) => updateMemberMutation.mutateAsync({ memberId, payload })}
             onRemoveMember={(memberId) => removeMemberMutation.mutateAsync(memberId)}
-            onInlineCheck={(memberId, checklist) => updateMemberChecklistMutation.mutate({ memberId, checklist })}
+            onInlineCheck={(memberId, checklist) => updateMemberChecklistMutation.mutateAsync({ memberId, checklist })}
             onVerify={() => verifyMutation.mutate({ id: activeItem.id, remarks: "" })}
             onReject={(remarks) => rejectMutation.mutate({ id: activeItem.id, remarks })}
             onUpdateTask={(payload) => updateGroupTaskMutation.mutateAsync(payload)}
@@ -344,14 +416,15 @@ export default function GlobalDetailManager() {
       )}
 
       {/* OPPORTUNITY MODAL */}
-      {activeItem.type === "OPPORTUNITY" && opportunityData && opportunityData.accessLevel !== "none" && (
+      {activeItem?.type === "OPPORTUNITY" && opportunityData && (
         <OpportunityDetailsModal
           isOpen={true}
           onClose={handleClose}
           opportunity={opportunityData.opportunity}
-          opportunityId={activeItem.id}
+          opportunityId={activeItem?.id}
           accessLevel={opportunityData.accessLevel}
           lockedSummary={opportunityData.lockedSummary}
+          initialView={activeItem?.view}
         />
       )}
 
@@ -359,15 +432,16 @@ export default function GlobalDetailManager() {
           Locked access has no Tasks/Conditions of its own left to act
           on (its window is closed), so it keeps the existing trimmed summary
           dialog instead of a Quick View with nothing in it. */}
-      {activeItem.type === "OPPORTUNITY_QUICK_VIEW" &&
+      {activeItem?.type === "OPPORTUNITY_QUICK_VIEW" &&
         opportunityData &&
-        opportunityData.accessLevel !== "none" &&
-        (opportunityData.accessLevel === "locked" ? (
+        // Locked and no-access both land on the modal's own preview: there is
+        // no Quick View work to show either of them (#474).
+        (opportunityData.accessLevel === "locked" || opportunityData.accessLevel === "none" ? (
           <OpportunityDetailsModal
             isOpen={true}
             onClose={handleClose}
             opportunity={opportunityData.opportunity}
-            opportunityId={activeItem.id}
+            opportunityId={activeItem?.id}
             accessLevel={opportunityData.accessLevel}
             lockedSummary={opportunityData.lockedSummary}
           />
@@ -376,7 +450,7 @@ export default function GlobalDetailManager() {
             isOpen={true}
             onClose={handleClose}
             opportunity={opportunityData.opportunity}
-            opportunityId={activeItem.id}
+            opportunityId={activeItem?.id}
             userId={user?.id}
             onViewFullDetails={() => setActiveItem({ id: activeItem.id, type: "OPPORTUNITY" })}
             onOpenTask={(taskId) => setStackedTaskId(taskId)}
@@ -386,7 +460,7 @@ export default function GlobalDetailManager() {
 
       {/* TASK STACKED ON QUICK VIEW — a drill-down, so it renders alongside
           Quick View rather than replacing it. */}
-      {stackedTaskId && (
+      {stackedTaskId && activeItem && (
         <TaskDetails
           isOpen={true}
           onClose={() => setStackedTaskId(null)}

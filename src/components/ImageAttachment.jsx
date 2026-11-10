@@ -8,6 +8,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { storageService } from "../services/storageService";
 import { cloudinaryThumb } from "../lib/cloudinaryThumb";
 import toast from "react-hot-toast";
+import { isPasteInsideTextField } from "@/utils/pasteTarget";
 
 export default function ImageAttachment({ 
   taskId, 
@@ -67,6 +68,7 @@ export default function ImageAttachment({
     if (readOnly || taskId === "NEW") return;
 
     const handlePaste = (e) => {
+      if (isPasteInsideTextField(e)) return;
       const items = Array.from(e.clipboardData?.items || []);
       const imageItems = items.filter((item) => item.type.startsWith("image/"));
       if (imageItems.length === 0) return;
@@ -212,7 +214,7 @@ export default function ImageAttachment({
         <Dialog open onOpenChange={(open) => !open && setFullscreenImage(null)}>
           <DialogContent
             showCloseButton={false}
-            className="max-w-[95vw] sm:max-w-[95vw] items-center justify-items-center bg-transparent p-0 ring-0"
+            className="z-[90] max-w-[95vw] sm:max-w-[95vw] items-center justify-items-center bg-transparent p-0 ring-0"
           >
             <Button
               variant="ghost"

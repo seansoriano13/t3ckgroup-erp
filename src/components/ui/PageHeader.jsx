@@ -13,12 +13,11 @@ const PageHeader = ({
   className = "",
   lastWordColor = "text-primary",
 }) => {
-  // Split title to colour the last word
+  // Split title to colour the last word. A one-word title is its own last
+  // word, so it takes the accent too (#903: Canvasses, IPAS, Transmittals).
   const titleWords = title.split(" ");
-  const lastWord =
-    titleWords.length > 1 ? titleWords[titleWords.length - 1] : "";
-  const firstPart =
-    titleWords.length > 1 ? titleWords.slice(0, -1).join(" ") : title;
+  const lastWord = titleWords[titleWords.length - 1];
+  const firstPart = titleWords.slice(0, -1).join(" ");
 
   return (
     <div
@@ -28,7 +27,7 @@ const PageHeader = ({
           wraps before the actions do. */}
       <div className="min-w-0 md:min-w-64 md:flex-1">
         <h1 className="flex flex-wrap items-center gap-x-2 text-xl font-black tracking-tight text-foreground md:text-2xl">
-          <span>{firstPart}</span>
+          {firstPart && <span>{firstPart}</span>}
           {lastWord && showGradient ? (
             <span className="text-primary pr-1">{lastWord}</span>
           ) : lastWord ? (
@@ -41,8 +40,12 @@ const PageHeader = ({
           </p>
         )}
       </div>
+      {/* `data-page-actions`: a plain (default-variant) Button placed straight
+          in here is the Page's main action and turns primary red (index.css),
+          so a new Page gets a red New button with nothing extra. Outline,
+          ghost and pill controls beside it keep their own look. */}
       {children && (
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div data-page-actions className="flex min-w-0 flex-wrap items-center gap-3">
           {children}
         </div>
       )}

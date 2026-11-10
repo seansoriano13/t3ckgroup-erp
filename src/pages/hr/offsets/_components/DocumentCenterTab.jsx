@@ -1,3 +1,4 @@
+import EmptyState from '@/components/ui/EmptyState';
 import React from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -11,6 +12,7 @@ import { FieldBox } from '@/components/ui/FieldBox';
 import { Input } from '@/components/ui/input';
 import { useDocumentCenter, recordKey, formatRecordDate } from './useDocumentCenter';
 import { TYPE_META } from './leaveDisplay';
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * The Document Center as three steps: choose approved records, set their
@@ -57,7 +59,7 @@ export default function DocumentCenterTab(props) {
                       {TYPE_META[req.type]?.label ?? req.type} · {formatRecordDate(req)} · {req.hours} hrs
                     </span>
                     {req.printed_at && (
-                      <span className="mt-1 inline-block rounded-full bg-mauve-3 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <span className={`mt-1 inline-block rounded-full bg-mauve-3 px-2 py-0.5 ${CAPTION_BASE} tracking-wider text-muted-foreground`}>
                         Already printed
                       </span>
                     )}
@@ -73,14 +75,17 @@ export default function DocumentCenterTab(props) {
             );
           })}
           {filteredRecords.length === 0 && (
-            <li className="p-8 text-center text-sm font-medium text-muted-foreground">
-              {approvedRecords.length === 0 ? 'No approved records for the selected period.' : 'No records match your search.'}
+            <li>
+              <EmptyState
+                title={approvedRecords.length === 0 ? 'No approved records for this period' : 'No records match your search'}
+                className="py-10"
+              />
             </li>
           )}
         </ul>
       </Step>
 
-      <Step n={2} title="Set the order" hint="Two slips share a sheet, top then bottom">
+      <Step n={2} title="Set the order" hint="Four slips share a sheet, left to right, top then bottom">
         <p className="text-xs font-bold tabular-nums text-foreground">
           {tray.length} {tray.length === 1 ? 'form' : 'forms'} queued
         </p>
@@ -160,7 +165,7 @@ function TrayRow({ id, record, index, onRemove }) {
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-bold text-foreground">{record.employee?.name}</span>
         <span className="block text-xs font-medium text-muted-foreground">
-          Sheet {Math.floor(index / 2) + 1} · {index % 2 ? 'bottom' : 'top'}
+          Sheet {Math.floor(index / 4) + 1} · {['top left', 'top right', 'bottom left', 'bottom right'][index % 4]}
         </span>
       </span>
       <Button

@@ -14,6 +14,7 @@ import {
   actionTitle,
   conditionDetail,
 } from "@/components/flow-canvas/flowStageKinds"
+import { endsAsWon } from "@/constants/salesFlow"
 
 /**
  * One Stage of a Flow Snapshot, opened beside the version viewer, read-only.
@@ -68,7 +69,7 @@ export default function FlowVersionStagePanel({
     isWon && { icon: Flag, label: "Deals are won here", tone: "text-green-11 bg-green-a3" },
     stage.is_terminal && {
       icon: Octagon,
-      label: "Deals end here",
+      label: isWon ? "Deals end here" : endsAsWon(stage) ? "Deals end here, as won" : "Deals end here, as lost",
       tone: "text-amber-11 bg-amber-a3",
     },
   ].filter(Boolean)
@@ -83,7 +84,7 @@ export default function FlowVersionStagePanel({
     >
       <header className="flex items-start gap-3 border-b border-mauve-5 px-5 py-4">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
             Stage · this version
           </p>
           <h2 className="mt-0.5 truncate text-lg font-bold tracking-[-0.015em] text-foreground">
@@ -117,7 +118,7 @@ export default function FlowVersionStagePanel({
           <div className="space-y-5 p-5">
             {roles.length > 0 ? (
               <section className="space-y-2.5">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                <h3 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                   Role in the flow
                 </h3>
                 <div className="flex flex-wrap gap-2">

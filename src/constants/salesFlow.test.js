@@ -3,12 +3,17 @@ import {
   actionsForSnapshotStage,
   buildDraftSnapshotData,
   classifyFlowStage,
+  endsAsWon,
+  isLostFlowStage,
   conditionsForSnapshotStage,
   countFlowSnapshotChanges,
   diffFlowSnapshots,
   entryStage,
   flowLockBlockers,
+  isLegacyPipelineSaleType,
+  flowPublishWarnings,
   flowStageTone,
+  flowStageTonesByName,
   isAtEntryStage,
   isFlowLockable,
   isLegalMove,
@@ -173,12 +178,38 @@ describe("what color a Stage renders with", () => {
   })
 })
 
+describe("a Stage's color looked up by its name alone", () => {
+  const flowsById = { "flow-1": { id: "flow-1", won_stage_id: "s-won" }, "flow-2": { id: "flow-2", won_stage_id: null } }
+
+  it("gives each name its Stage's tone", () => {
+    const tones = flowStageTonesByName({ flowsById, stagesByFlow: { "flow-1": STAGES } })
+    expect(tones.get("Lead")).toBe("blue")
+    expect(tones.get("Awarded")).toBe("green")
+  })
+
+  it("gives a name shared by Stages that disagree no tone", () => {
+    const other = [{ id: "x-1", flow_id: "flow-2", name: "Awarded", sort_order: 5, color: "violet" }]
+    const tones = flowStageTonesByName({ flowsById, stagesByFlow: { "flow-1": STAGES, "flow-2": other } })
+    expect(tones.get("Awarded")).toBeNull()
+    expect(tones.get("Lead")).toBe("blue")
+  })
+})
+
 describe("whether a flow may be locked", () => {
   const lockable = { stages: STAGES, edges: EDGES, wonStageId: "s-won" }
 
   it("is lockable once it has Stages, edges and one Won Stage", () => {
     expect(flowLockBlockers(lockable)).toEqual([])
     expect(isFlowLockable(lockable)).toBe(true)
+  })
+
+  it("refuses to lock when an Auto-move Stage lacks exactly one next Stage (#757)", () => {
+    const stages = STAGES.map((s) => (s.id === "s-qualified" ? { ...s, auto_move: true } : s))
+    const blockers = flowLockBlockers({ ...lockable, stages })
+    expect(blockers).toHaveLength(1)
+    expect(blockers[0]).toMatch(/exactly one next Stage/)
+    const ok = STAGES.map((s) => (s.id === "s-bidding" ? { ...s, auto_move: true } : s))
+    expect(flowLockBlockers({ ...lockable, stages: ok })).toEqual([])
   })
 
   it("refuses to lock a flow with no Won Stage", () => {
@@ -269,6 +300,8 @@ describe("shaping a draft into a Flow Snapshot's shape", () => {
       followUps: [],
       access: { flow: null, stages: [] },
       wonStageId: "s-won",
+      awardStageId: null,
+      contractStageId: null,
       saleTypeId: "st-1",
     })
   })
@@ -284,6 +317,8 @@ describe("shaping a draft into a Flow Snapshot's shape", () => {
       followUps: [],
       access: { flow: null, stages: [] },
       wonStageId: null,
+      awardStageId: null,
+      contractStageId: null,
       saleTypeId: null,
     })
   })
@@ -495,6 +530,76 @@ describe("comparing two Flow Snapshots", () => {
     expect(diff.wonStageChanged).toBe(true)
     expect(diff.hasChanges).toBe(true)
   })
+
+  // Issue #887 — the Notice of Award and contract Stages are role pointers on
+  // the flow, so naming one must count, list and publish like the Won Stage.
+  it("reports the Notice of Award Stage changing, alone, as a counted change", () => {
+    const next = { ...base, awardStageId: "s-qualified" }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.awardStageChanged).toBe(true)
+    expect(diff.contractStageChanged).toBe(false)
+    expect(diff.wonStageChanged).toBe(false)
+    expect(diff.hasChanges).toBe(true)
+    expect(countFlowSnapshotChanges(diff)).toBe(1)
+  })
+
+  it("reports the contract Stage changing, alone, as a counted change", () => {
+    const next = { ...base, contractStageId: null }
+    const withContract = { ...base, contractStageId: "s-qualified" }
+
+    expect(diffFlowSnapshots(base, next).hasChanges).toBe(false)
+
+    const diff = diffFlowSnapshots(base, withContract)
+    expect(diff.contractStageChanged).toBe(true)
+    expect(diff.awardStageChanged).toBe(false)
+    expect(diff.hasChanges).toBe(true)
+    expect(countFlowSnapshotChanges(diff)).toBe(1)
+  })
+
+  it("treats a null and an absent Notice of Award or contract Stage as the same", () => {
+    const absent = { ...base }
+    const explicitNull = { ...base, awardStageId: null, contractStageId: null }
+
+    expect(diffFlowSnapshots(absent, explicitNull).hasChanges).toBe(false)
+  })
+
+  // Issue #887 — a Snapshot saved before a Stage flag existed has no key for
+  // it, while the live row carries `false`. Restoring that Snapshot must not
+  // show every Stage as changed.
+  it("does not count a default-false Stage flag that the older Snapshot never recorded", () => {
+    // The older Snapshot predates all three flags, so its rows carry no key for them.
+    const withoutFlags = (s) => Object.fromEntries(Object.entries(s).filter(([key]) => key !== "is_terminal"))
+    const olderStages = [stage("s-lead", "Lead", 10), stage("s-qualified", "Qualified", 20)].map(withoutFlags)
+    const liveStages = olderStages.map((s) => ({ ...s, buying_opens_here: false, auto_move: false, is_terminal: false }))
+    const older = { ...base, stages: olderStages }
+    const live = { ...base, stages: liveStages }
+
+    const diff = diffFlowSnapshots(older, live)
+    expect(diff.stages).toEqual({ added: [], removed: [], changed: [] })
+    expect(diff.hasChanges).toBe(false)
+    expect(countFlowSnapshotChanges(diff)).toBe(0)
+  })
+
+  it("still counts a default-false Stage flag that is switched on", () => {
+    const next = {
+      ...base,
+      stages: base.stages.map((s) => (s.id === "s-qualified" ? { ...s, auto_move: true } : s)),
+    }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.stages.changed.map((c) => c.id)).toEqual(["s-qualified"])
+    expect(diff.hasChanges).toBe(true)
+  })
+
+  it("still counts a default-false Stage flag switched off from true", () => {
+    const on = {
+      ...base,
+      stages: base.stages.map((s) => (s.id === "s-lead" ? { ...s, buying_opens_here: true } : s)),
+    }
+
+    expect(diffFlowSnapshots(on, base).stages.changed.map((c) => c.id)).toEqual(["s-lead"])
+  })
 })
 
 // Issue #191 — reading a Stage's rules out of a Flow Snapshot for the
@@ -607,7 +712,7 @@ describe("classifyFlowStage, isPreWonFlowStage, and isWonOrPostWonFlowStage", ()
     { id: "s-won", name: "Won", sort_order: 2, is_terminal: false },
     { id: "s-deliv", name: "Delivery", sort_order: 3, is_terminal: false },
     { id: "s-close", name: "Closed Won", sort_order: 4, is_terminal: true },
-    { id: "s-lost", name: "Closed Lost", sort_order: 5, is_terminal: true },
+    { id: "s-lost", name: "Closed Lost", sort_order: 5, is_terminal: true, terminal_outcome: "lost" },
   ]
   const edges = [
     { from_stage_id: "s-lead", to_stage_id: "s-prop" },
@@ -643,15 +748,37 @@ describe("classifyFlowStage, isPreWonFlowStage, and isWonOrPostWonFlowStage", ()
     expect(isPreWonFlowStage(deliv, snapshotData)).toBe(false)
   })
 
-  it("classifies terminal non-won stages as LOST (neither pre-won nor won)", () => {
+  it("classifies a terminal stage with outcome Lost as LOST; an unset outcome is not lost", () => {
     const lost = stages.find((s) => s.id === "s-lost")
     const close = stages.find((s) => s.id === "s-close")
     expect(classifyFlowStage("s-lost", snapshotData)).toBe("LOST")
-    expect(classifyFlowStage("s-close", snapshotData)).toBe("LOST")
+    expect(classifyFlowStage("s-close", snapshotData)).toBe(null)
     expect(isPreWonFlowStage(lost, snapshotData)).toBe(false)
     expect(isWonOrPostWonFlowStage(lost, snapshotData)).toBe(false)
     expect(isPreWonFlowStage(close, snapshotData)).toBe(false)
     expect(isWonOrPostWonFlowStage(close, snapshotData)).toBe(false)
+  })
+
+  it("counts a Terminal Stage marked as ending won (Closed Won) as POST_WON, not LOST", () => {
+    const closedWon = { ...stages[4], terminal_outcome: "won" }
+    const marked = stages.map((s) => (s.id === "s-close" ? closedWon : s))
+    const data = { ...snapshotData, stages: marked }
+    expect(classifyFlowStage("s-close", data)).toBe("POST_WON")
+    expect(isWonOrPostWonFlowStage(closedWon, data)).toBe(true)
+    expect(isLostFlowStage(closedWon, "s-won")).toBe(false)
+  })
+
+  it("counts only a Terminal Stage explicitly marked Lost as lost; an unset outcome is not lost", () => {
+    const closedLost = { ...stages[5], terminal_outcome: "lost" }
+    expect(isLostFlowStage(closedLost, "s-won")).toBe(true)
+    expect(isLostFlowStage(stages[4], "s-won")).toBe(false)
+    expect(isLostFlowStage({ id: "x", is_terminal: false, terminal_outcome: "lost" }, "s-won")).toBe(false)
+    expect(isLostFlowStage(closedLost, "s-lost")).toBe(false)
+    expect(endsAsWon(stages[4])).toBe(false)
+  })
+
+  it("ignores an outcome on a Stage that isn't terminal", () => {
+    expect(endsAsWon({ id: "x", is_terminal: false, terminal_outcome: "won" })).toBe(false)
   })
 
   it("classifies a terminal won stage as WON, not LOST", () => {
@@ -688,5 +815,79 @@ describe("classifyFlowStage, isPreWonFlowStage, and isWonOrPostWonFlowStage", ()
     expect(classifyFlowStage("s-won", draftData)).toBe("PRE_WON")
     expect(classifyFlowStage("s-deliv", draftData)).toBe("PRE_WON")
     expect(classifyFlowStage("s-lost", draftData)).toBe("LOST")
+  })
+})
+
+describe("flowPublishWarnings (#463)", () => {
+  const stage = (id, name, sort_order, extra = {}) => ({ id, name, sort_order, is_terminal: false, ...extra })
+  const edge = (from, to) => ({ from_stage_id: from, to_stage_id: to })
+  const stages = [stage("a", "Lead", 0), stage("b", "Sourcing", 1), stage("c", "Bidding", 2), stage("d", "Submitted", 3)]
+  const chain = [edge("a", "b"), edge("b", "c"), edge("c", "d")]
+  const condition = (kind) => [{ kind }]
+  const opens = [{ kind: "open_costing_matrix" }]
+
+  it("says nothing when the flow has no costing condition", () => {
+    expect(flowPublishWarnings({ stages, edges: chain })).toEqual([])
+  })
+
+  it("warns for a costing condition reachable without an Open S0 Evaluation", () => {
+    const warnings = flowPublishWarnings({ stages, edges: chain, conditionsByStage: { c: condition("costing_priced") } })
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/^Bidding /)
+  })
+
+  it("warns for Costing settled too, once per Stage", () => {
+    const warnings = flowPublishWarnings({
+      stages,
+      edges: chain,
+      conditionsByStage: { c: [{ kind: "costing_priced" }, { kind: "costing_settled" }], d: condition("costing_settled") },
+    })
+    expect(warnings.map((w) => w.split(" ")[0])).toEqual(["Bidding", "Submitted"])
+  })
+
+  it("is quiet when every path passes a Stage that opens the matrix", () => {
+    expect(
+      flowPublishWarnings({ stages, edges: chain, conditionsByStage: { d: condition("costing_settled") }, actionsByStage: { b: opens } }),
+    ).toEqual([])
+  })
+
+  it("counts the Stage that opens the matrix itself as covered", () => {
+    expect(
+      flowPublishWarnings({ stages, edges: chain, conditionsByStage: { c: condition("costing_priced") }, actionsByStage: { c: opens } }),
+    ).toEqual([])
+  })
+
+  it("warns when only some paths pass the opening Stage", () => {
+    const edges = [edge("a", "b"), edge("b", "d"), edge("a", "c"), edge("c", "d")]
+    const warnings = flowPublishWarnings({
+      stages,
+      edges,
+      conditionsByStage: { d: condition("costing_settled") },
+      actionsByStage: { b: opens },
+    })
+    expect(warnings).toHaveLength(1)
+  })
+
+  it("ignores other conditions and other actions", () => {
+    expect(
+      flowPublishWarnings({
+        stages,
+        edges: chain,
+        conditionsByStage: { c: condition("attachment") },
+        actionsByStage: { b: [{ kind: "create_individual_task" }] },
+      }),
+    ).toEqual([])
+  })
+
+  it("does not warn about a Stage no path reaches (that is a lock blocker)", () => {
+    expect(flowPublishWarnings({ stages, edges: [edge("a", "b")], conditionsByStage: { d: condition("costing_settled") } })).toEqual([])
+  })
+})
+
+describe("isLegacyPipelineSaleType", () => {
+  it("knows the Legacy Pipeline by its fixed key, not its name", () => {
+    expect(isLegacyPipelineSaleType({ name: "Renamed", system_key: "legacy_pipeline" })).toBe(true)
+    expect(isLegacyPipelineSaleType({ name: "Legacy Pipeline", system_key: null })).toBe(false)
+    expect(isLegacyPipelineSaleType(null)).toBe(false)
   })
 })

@@ -1,4 +1,5 @@
 import { fireEvent, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import TaskDetails from "@/components/TaskDetails"
@@ -28,12 +29,12 @@ describe("the SOR link on task modals", () => {
   })
   afterEach(() => window.removeEventListener("OPEN_ENTITY_DETAILS", onOpen))
 
-  it("links an individual task to its SOR by Sales Reference, and opens Quick View in place of the task", async () => {
+  it("links an individual task to its SOR by Sales Reference, and is a link to the SOR's page and closes the task", async () => {
     const sor = makeOpportunity({ sales_reference: "S04521", client_name: "Quezon City Hall" })
     stubRpc("sor_link_label", () => sor.sales_reference || sor.client_name)
     const onClose = vi.fn()
     renderWithProviders(
-      <TaskDetails
+      <MemoryRouter><TaskDetails
         isOpen
         onClose={onClose}
         task={{
@@ -47,13 +48,15 @@ describe("the SOR link on task modals", () => {
         }}
         onUpdateTask={vi.fn()}
         onDeleteTask={vi.fn()}
-      />,
+      /></MemoryRouter>,
     )
 
-    fireEvent.click(await screen.findByRole("button", { name: /S04521/ }))
+    const link = await screen.findByRole("button", { name: /S04521/ })
+    expect(link).toHaveAttribute("href", `/sors?record=${sor.id}`)
+    fireEvent.click(link)
 
     expect(onClose).toHaveBeenCalled()
-    expect(opened).toEqual([{ id: sor.id, type: "OPPORTUNITY_QUICK_VIEW" }])
+    expect(opened).toEqual([])
   })
 
   it("links a Group Task to its SOR by Company when it has no Sales Reference", async () => {
@@ -61,7 +64,7 @@ describe("the SOR link on task modals", () => {
     stubRpc("sor_link_label", () => sor.sales_reference || sor.client_name)
     const onClose = vi.fn()
     renderWithProviders(
-      <GroupTaskDetailModal
+      <MemoryRouter><GroupTaskDetailModal
         isOpen
         onClose={onClose}
         currentUserId={authUser.id}
@@ -74,12 +77,14 @@ describe("the SOR link on task modals", () => {
           members: [],
           opportunity_id: sor.id,
         }}
-      />,
+      /></MemoryRouter>,
     )
 
-    fireEvent.click(await screen.findByRole("button", { name: /Open SOR.*Pasig City Hall/ }))
+    const link = await screen.findByRole("button", { name: /Open SOR.*Pasig City Hall/ })
+    expect(link).toHaveAttribute("href", `/sors?record=${sor.id}`)
+    fireEvent.click(link)
 
     expect(onClose).toHaveBeenCalled()
-    expect(opened).toEqual([{ id: sor.id, type: "OPPORTUNITY_QUICK_VIEW" }])
+    expect(opened).toEqual([])
   })
 })

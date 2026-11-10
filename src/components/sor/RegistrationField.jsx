@@ -1,7 +1,8 @@
 import { Download, Loader2 } from "lucide-react";
-import { TextField, SelectField } from "./SorField";
+import { TextField, SelectField, DateField } from "./SorField";
 import { isValidSalesReference } from "../../constants/sor";
 import { Button } from "../ui/button";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * One field of the SOR registration form, rendered from its resolved
@@ -40,12 +41,24 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
       );
     }
 
+    if (field.inputType === "date") {
+      return (
+        <DateField
+          label={field.label}
+          required={field.isRequired}
+          disabled={disabled}
+          value={value}
+          onChange={onChange}
+        />
+      );
+    }
+
     return (
       <TextField
         label={field.label}
         required={field.isRequired}
         disabled={disabled}
-        type={field.inputType === "number" ? "number" : field.inputType === "date" ? "date" : "text"}
+        type={field.inputType === "number" ? "number" : "text"}
         placeholder={field.help || `Enter ${field.label.toLowerCase()}`}
         value={value}
         onChange={onChange}
@@ -62,27 +75,29 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
               label={field.label}
               placeholder="e.g. S01237"
               required={field.isRequired}
-              disabled={disabled}
+              disabled={disabled || ctx.s0ReadOnly}
               value={form.sales_reference || ""}
               onChange={set("sales_reference")}
               className="flex-1"
             />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={ctx.handleFetchFromOdoo}
-              disabled={disabled || ctx.fetchingOdoo || !isValidSalesReference(form.sales_reference || "")}
-              title="Pull the customer and the product list from this quotation in Odoo"
-              className="whitespace-nowrap"
-            >
-              {ctx.fetchingOdoo ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-              Fetch from Odoo
-            </Button>
+            {!ctx.s0ReadOnly && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={ctx.handleFetchFromOdoo}
+                disabled={disabled || ctx.fetchingOdoo || !isValidSalesReference(form.sales_reference || "")}
+                title="Pull the customer and the product list from this quotation in Odoo"
+                className="whitespace-nowrap"
+              >
+                {ctx.fetchingOdoo ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                Fetch from Odoo
+              </Button>
+            )}
           </div>
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Fetching fills the Company, the Contact Person and the Product List from the
-            quotation. No quotation yet? Leave it blank — it is required before this
-            opportunity can move from Lead to Qualified.
+          <p className="px-3 pb-1 text-[11px] text-muted-foreground leading-relaxed">
+            {ctx.s0ReadOnly
+              ? "Change the S0 on the S0 card at the top of the SOR window."
+              : "Fetching fills the Company, the Contact Person and the Product List from the quotation. Odoo is checked again when this is saved. No quotation yet? Leave it blank."}
           </p>
         </div>
       );
@@ -132,7 +147,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
                 variant="ghost"
                 onClick={handleUndoCompany}
                 title={`Restore "${displacedCompany}"`}
-                className="h-auto -my-1.5 -mr-1 px-1.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-mauve-12 underline underline-offset-2 decoration-mauve-8 hover:decoration-mauve-11 hover:bg-transparent"
+                className={`h-auto -my-1.5 -mr-1 px-1.5 py-1.5 ${CAPTION_BASE} tracking-widest text-mauve-12 underline underline-offset-2 decoration-mauve-8 hover:decoration-mauve-11 hover:bg-transparent`}
               >
                 Undo
               </Button>
@@ -168,9 +183,8 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
 
     case "expected_award_date":
       return (
-        <TextField
+        <DateField
           label={field.label}
-          type="date"
           required={field.isRequired}
           disabled={disabled}
           value={form.expected_award_date || ""}

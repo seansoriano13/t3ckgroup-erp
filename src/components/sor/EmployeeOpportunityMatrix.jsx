@@ -18,6 +18,7 @@ import { formatPHP, isWonCode } from "../../constants/sor";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -137,7 +138,7 @@ export default function EmployeeOpportunityMatrix({
   if (employeeStats.length === 0) return null;
 
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm p-5 overflow-x-auto">
+    <div className="py-5 overflow-x-auto">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
         <div>
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -259,7 +260,7 @@ export default function EmployeeOpportunityMatrix({
                 </div>
 
                 <div className="flex-1 flex flex-col justify-center min-w-0 w-full lg:w-auto">
-                  <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">
+                  <div className={`flex justify-between ${CAPTION_BASE} tracking-widest text-muted-foreground mb-1.5`}>
                     <span>Pipeline</span>
                     <span className="text-foreground">
                       {emp.total} · {formatPHP(emp.value)}
@@ -356,7 +357,7 @@ export default function EmployeeOpportunityMatrix({
                 {/* Right: Metrics */}
                 <div className="flex items-center gap-4 sm:gap-6 shrink-0">
                   <div className="hidden md:flex flex-col items-end">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground">
                       Deals
                     </span>
                     <span className="text-xs font-semibold text-foreground">
@@ -365,7 +366,7 @@ export default function EmployeeOpportunityMatrix({
                   </div>
 
                   <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground">
                       Win Rate
                     </span>
                     <span className="flex items-center gap-1 text-xs font-semibold text-foreground">
@@ -384,7 +385,7 @@ export default function EmployeeOpportunityMatrix({
                   </div>
 
                   <div className="flex flex-col items-end min-w-[100px]">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground">
                       Pipeline Value
                     </span>
                     <span className="text-sm font-bold text-foreground">
@@ -431,7 +432,7 @@ export default function EmployeeOpportunityMatrix({
 
               {/* Segmented Pipeline Bar */}
               <div className="mt-3.5">
-                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                <div className={`flex justify-between ${CAPTION_BASE} tracking-wider text-muted-foreground mb-1.5`}>
                   <span>Pipeline</span>
                   <span className="text-foreground">{emp.total} Total</span>
                 </div>

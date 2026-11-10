@@ -7,6 +7,7 @@ import {
   parseChecklistGroups,
   getChecklistProgress,
   cleanChecklistForSave,
+  checklistDueDateError,
   isGroupedChecklist,
 } from "./checklist"
 
@@ -306,3 +307,23 @@ describe("isGroupedChecklist", () => {
   })
 })
 
+
+describe("checklist item due dates and remarks", () => {
+  it("keeps dueDate and remarks through parse and save, and old items stay plain", () => {
+    const saved = cleanChecklistForSave([
+      { text: "A", checked: false, dueDate: "2026-04-20", remarks: "note" },
+      { text: "B", checked: true },
+    ]);
+    expect(saved).toEqual([
+      { text: "A", checked: false, dueDate: "2026-04-20", remarks: "note" },
+      { text: "B", checked: true },
+    ]);
+  });
+
+  it("flags items due after the task's Due Date", () => {
+    const list = [{ text: "A", dueDate: "2026-05-02" }];
+    expect(checklistDueDateError(list, "2026-05-01T00:00:00.000Z")).toMatch(/due after/);
+    expect(checklistDueDateError(list, "2026-05-02")).toBeNull();
+    expect(checklistDueDateError(list, null)).toBeNull();
+  });
+});

@@ -1,8 +1,8 @@
 import { Children, cloneElement, isValidElement, useId } from "react";
 import { cn } from "@/lib/utils";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
-const CAPTION =
-  "flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest";
+const CAPTION = `flex items-center gap-1.5 ${CAPTION_BASE} text-muted-foreground tracking-widest`;
 
 /**
  * The form-field Primitive: a caption label, optionally with its control.

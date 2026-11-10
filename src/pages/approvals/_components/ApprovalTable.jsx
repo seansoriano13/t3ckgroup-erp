@@ -1,16 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, CircleAlert, MessageSquareReply, Paperclip } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
+import { useEffect, useState } from "react";
+import { CircleAlert, MessageSquareReply, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { SelectField } from "@/components/ui/SelectField";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TablePager } from "@/components/ui/TablePager";
+import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePaging } from "@/hooks/usePaging";
+import { useTableSort } from "@/hooks/useTableSort";
 import HighlightText from "../../../components/HighlightText";
 import { shortAge, shortDate } from "../../../utils/approvalItems.js";
 import { neighbourTaskId, resolveNavigationKey } from "../../../utils/approvalQueue.js";
 import { StageMeter, StatusPill } from "./ApprovalParts";
+import { statusOf } from "./approvalUi";
 import { PersonChip } from "@/components/ui/DetailParts";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const APPROVAL_SORT = {
+  request: (i) => i.title,
+  person: (i) => i.person?.name,
+  submitted: (i) => new Date(i.submittedAt).getTime(),
+  waiting: (i) => (i.done ? null : new Date(i.clockAt).getTime()),
+  status: (i) => statusOf(i),
+  // How far along its chain the request is; a finished one sorts last.
+  stage: (i) => {
+    const at = i.chain.findIndex((s) => s.state === "current");
+    return at >= 0 ? at : i.chain.length;
+  },
+};
+
+const HEAD = `${CAPTION_BASE} tracking-wider`;
 
 /**
  * One dense table for any Approval Center queue.
@@ -18,9 +36,11 @@ const HEAD = "text-[10px] font-bold uppercase tracking-wider";
  * Rows are ApprovalItems. Clicking a row (or Enter on the keyboard cursor)
  * opens it; J / K move the cursor while `keyboard` is on — the page turns it
  * off while the review sheet is open, so the sheet owns the keys then.
+ * `showStage` brings the Stage column down from the widest screens, for a
+ * queue whose rows sit at different steps of their chain.
  */
 export function ApprovalTable({
-  items,
+  items: unsortedItems,
   queueIcon: QueueIcon,
   personLabel = "Logged by",
   onOpen,
@@ -33,18 +53,15 @@ export function ApprovalTable({
   searchTerm = "",
   keyboard = true,
   paginate = false,
+  showStage = false,
   empty,
+  filtered = false,
+  onClearFilters,
 }) {
+  const { sorted: items, sort, toggle } = useTableSort(unsortedItems, APPROVAL_SORT);
   const [cursorId, setCursorId] = useState(null);
-  const [pageSize, setPageSize] = useState(25);
-  const [page, setPage] = useState(1);
-
-  const totalPages = paginate ? Math.ceil(items.length / pageSize) || 1 : 1;
-  const currentPage = Math.min(page, totalPages);
-  const rows = useMemo(
-    () => (paginate ? items.slice((currentPage - 1) * pageSize, currentPage * pageSize) : items),
-    [paginate, items, currentPage, pageSize],
-  );
+  const paging = usePaging(items);
+  const rows = paginate ? paging.rows : items;
   const cursor = rows.some((i) => i.id === cursorId) ? cursorId : rows[0]?.id;
 
   useEffect(() => {
@@ -71,12 +88,25 @@ export function ApprovalTable({
     return () => window.removeEventListener("keydown", onKey);
   }, [keyboard, rows, cursor, onOpen]);
 
+  if (items.length === 0 && filtered) {
+    return (
+      <EmptyState
+        title="No results match these filters"
+        description="Nothing here fits the current search or filters."
+        action={
+          onClearFilters && (
+            <Button variant="outline" size="sm" className="mt-2" onClick={onClearFilters}>
+              Clear filters
+            </Button>
+          )
+        }
+      />
+    );
+  }
+
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border px-6 py-20 text-center">
-        <p className="text-sm font-bold text-foreground">{empty?.title}</p>
-        <p className="max-w-sm text-xs text-muted-foreground">{empty?.description}</p>
-      </div>
+      <EmptyState title={empty?.title} description={empty?.description} action={empty?.action} />
     );
   }
 
@@ -85,19 +115,21 @@ export function ApprovalTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <Table>
+      <Table tableId="approvals">
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead className="w-10 pl-4">
+            <TableHead className="hidden w-10 pl-4 md:table-cell">
               {selectable && <Checkbox checked={allChecked} onCheckedChange={(v) => onToggleAll?.(v, rows)} aria-label="Select all" />}
             </TableHead>
-            <TableHead className={HEAD}>Request</TableHead>
-            <TableHead className={HEAD}>{personLabel}</TableHead>
-            <TableHead className={`${HEAD} hidden lg:table-cell`}>Submitted</TableHead>
-            <TableHead className={`${HEAD} hidden md:table-cell`}>Waiting</TableHead>
-            <TableHead className={`${HEAD} hidden 2xl:table-cell`}>Stage</TableHead>
-            <TableHead className={HEAD}>Status</TableHead>
-            <TableHead className="w-24" />
+            <SortHead id="request" sortKey="request" sort={sort} onSort={toggle} className={HEAD}>Request</SortHead>
+            <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>{personLabel}</SortHead>
+            <SortHead id="submitted" sortKey="submitted" sort={sort} onSort={toggle} className={`${HEAD} hidden lg:table-cell`}>Submitted</SortHead>
+            <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>Waiting</SortHead>
+            <SortHead id="stage" sortKey="stage" sort={sort} onSort={toggle} className={`${HEAD} hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>Stage</SortHead>
+            <SortHead id="status" sortKey="status" sort={sort} onSort={toggle} className={HEAD}>Status</SortHead>
+            <TableHead className="w-12 md:w-24">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -124,12 +156,12 @@ export function ApprovalTable({
                 }}
                 className={`group h-14 cursor-pointer outline-none focus-visible:bg-muted ${cursor === item.id && keyboard ? "bg-muted/60" : ""}`}
               >
-                <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
+                <TableCell className="hidden pl-4 md:table-cell" onClick={(e) => e.stopPropagation()}>
                   {selectable && <Checkbox checked={checked} onCheckedChange={() => onToggle?.(item.id)} aria-label={`Select ${item.title}`} />}
                 </TableCell>
-                <TableCell className="max-w-[280px] 2xl:max-w-[360px]">
+                <TableCell className="w-full max-w-0 md:w-auto md:max-w-[280px] 2xl:max-w-[360px]">
                   <div className="flex items-center gap-2.5">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                    <span className="hidden size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground sm:grid">
                       <QueueIcon size={14} />
                     </span>
                     <div className="min-w-0">
@@ -139,7 +171,7 @@ export function ApprovalTable({
                           <HighlightText text={item.title} search={searchTerm} />
                         </span>
                         {replied && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-11" title="You replied on this task">
+                          <span className={`inline-flex shrink-0 items-center gap-0.5 ${CAPTION_BASE} tracking-wider text-blue-11`} title="You replied on this task">
                             <MessageSquareReply size={11} /> Replied
                           </span>
                         )}
@@ -155,77 +187,43 @@ export function ApprovalTable({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="max-w-[180px]">
+                <TableCell className="hidden max-w-[180px] md:table-cell">
                   <PersonChip person={item.person} />
                 </TableCell>
                 <TableCell className="hidden whitespace-nowrap font-mono text-xs text-muted-foreground lg:table-cell">{shortDate(item.submittedAt)}</TableCell>
                 <TableCell className={`hidden font-mono text-xs tabular-nums md:table-cell ${item.isStale ? "font-bold text-amber-11" : "text-muted-foreground"}`}>
                   {item.done ? "—" : shortAge(item.clockAt)}
                 </TableCell>
-                <TableCell className="hidden 2xl:table-cell">
+                <TableCell className={`hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>
                   <StageMeter chain={item.chain} />
                 </TableCell>
                 <TableCell>
                   <StatusPill item={item} />
                 </TableCell>
-                <TableCell className="pr-4 text-right" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-end gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{renderRowAction?.(item)}</div>
+                <TableCell className="pr-2 text-right md:pr-4" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-end gap-1 max-md:opacity-100 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{renderRowAction?.(item)}</div>
                 </TableCell>
               </TableRow>
             );
           })}
         </TableBody>
       </Table>
-      <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-        <div className="flex items-center gap-3">
-          <span>
-            {paginate ? (
-              <>
-                Showing <span className="font-semibold text-foreground">{(currentPage - 1) * pageSize + 1}</span> to{" "}
-                <span className="font-semibold text-foreground">{Math.min(currentPage * pageSize, items.length)}</span> of{" "}
-                <span className="font-semibold text-foreground">{items.length}</span> requests
-              </>
-            ) : (
-              <>
-                {items.length} request{items.length === 1 ? "" : "s"}
-              </>
-            )}
+      {paginate ? (
+        <TablePager {...paging} noun="requests">
+          <span className="hidden sm:inline">
+            <span className="font-mono">J / K</span> to move · <span className="font-mono">Enter</span> to open
           </span>
-          {paginate && (
-            <>
-              <span className="text-border">|</span>
-              <div className="flex items-center gap-1.5">
-                <span>Rows:</span>
-                <SelectField
-                  value={pageSize}
-                  onChange={(next) => {
-                    setPageSize(Number(next));
-                    setPage(1);
-                  }}
-                  options={[10, 25, 50].map((n) => ({ value: n, label: String(n) }))}
-                  size="sm"
-                />
-              </div>
-            </>
-          )}
+        </TablePager>
+      ) : (
+        <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+          <span>
+            {items.length} request{items.length === 1 ? "" : "s"}
+          </span>
+          <span className="hidden sm:inline">
+            <span className="font-mono">J / K</span> to move · <span className="font-mono">Enter</span> to open
+          </span>
         </div>
-        {paginate && totalPages > 1 && (
-          <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="icon-sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} title="Previous Page">
-              <ChevronLeft size={14} />
-            </Button>
-            <span className="px-2 text-xs font-semibold text-foreground">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button variant="outline" size="icon-sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} title="Next Page">
-              <ChevronRight size={14} />
-            </Button>
-          </div>
-        )}
-        <span className="hidden sm:inline">
-          <span className="font-mono">J / K</span> to move · <span className="font-mono">Enter</span> to open
-        </span>
-      </div>
+      )}
     </div>
   );
 }

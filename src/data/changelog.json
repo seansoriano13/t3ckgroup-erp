@@ -1,12 +1,1098 @@
 [
     {
+        "date": "2026-11-10",
+        "title": "The November Update: See Everything in Release Notes",
+        "version": "1.10.0",
+        "changes": [
+            "Release Notes: every change since October, one line each. Open any of them to read more.",
+            "SORs: My work shows what is waiting on you, and a deal can be marked Lost and brought back.",
+            "Time Off: a new Calendar with Meeting Requests, and leave that follows your work schedule.",
+            "Purchasing is open as Beta. Keep using Group Tasks for purchasing for now."
+        ],
+        "link": "/release-notes"
+    },
+    {
+        "date": "2026-11-10",
+        "title": "IPAS tidy-up",
+        "version": "1.9.99",
+        "changes": [
+            "One button on an IPAS removes all the blank charges at once.",
+            "Landed Cost can no longer be marked final while a charge has no amount.",
+            "After you submit a Transmittal raised from an IPAS, a Back to the IPAS button takes you straight back.",
+            "The printed Payments table is tidier.",
+            "Order and Payments in the IPAS now show Done or Waiting.",
+            "The edit bar now counts the files still missing, and Next empty takes you to them.",
+            "The person who gave the Check on an IPAS can no longer also approve and file it."
+        ]
+    },
+    {
+        "date": "2026-11-09",
+        "title": "Technical, IPAS, Transmittal and costing improvements",
+        "version": "1.9.98",
+        "changes": [
+            "The overall Technical verdict now follows the products: Complies when every product complies, Deviates as soon as one deviates. The Technical page shows progress per product, and the in-charge can give one verdict to many products at once.",
+            "A Group Task template that a Stage Action uses can no longer be deleted. The message names the Flow and Stage that use it.",
+            "A Products tab on an SOR hides the Odoo stock badge once Purchasing has set a status.",
+            "Transmittal stages sign in one click, with an Undo for a few seconds after signing. Required fields show a red asterisk.",
+            "IPAS checks the required documents at every sign-off of a section. Finance now owns payments, proof of payment and the Forex Rate Paid, and Logistics signs off in section 6.",
+            "The IPAS rail points to the sign-off row, and signing happens there.",
+            "The Packing List has one Add a product picker that adds a row for each pick.",
+            "After a No-go, the Deal Owner gets a Move to Closed Lost button. It opens the normal lost-reason picker with the reason set to Other and the No-go reason in the note.",
+            "The Bid Decision shows how the planned revenue is worked out, and warns when the offer is below the ABC."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Approve evaluations from the Technical page",
+        "version": "1.9.97",
+        "changes": [
+            "People on the Evaluation list now find the S0 Evaluations waiting for their approval on the Technical page, and approve them there.",
+            "The Technical in-charge of an SOR cannot approve its evaluation, and the page says so.",
+            "The evaluation task template setting is gone. Only the named Technical in-charge gives the verdict."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Flow editor switch for employees",
+        "version": "1.9.96",
+        "changes": [
+            "Super Admins can turn the Flow editor on or off for an employee in the employee form.",
+            "Only a Super Admin can give someone Flow editor access, and the database refuses anyone else, including when a new employee is added."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Simpler Technical verdict card",
+        "version": "1.9.91",
+        "changes": [
+            "The Technical verdict card no longer lists the Components that have no We offer yet."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Clearer Bid Decision buttons",
+        "version": "1.9.95",
+        "changes": [
+            "The Go button looks switched off, not chosen, until its conditions are met.",
+            "Only a Super Admin or the decider list sees the Unlock box and button on a locked bid, and others are told who can unlock it.",
+            "Unlock asks you to confirm first, showing your reason, just as Go does."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Purchasing screens respond faster",
+        "version": "1.9.90",
+        "changes": [
+            "The SOR window shows its frame straight away while the deal loads, instead of a blank panel.",
+            "Raise a Transmittal shows its form outline straight away while the checks load.",
+            "Applying a markup to the Final Offers shows that it is saving.",
+            "The Buying opens here button on a Stage shows the new setting at once, and is greyed out while it saves."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Purchasing pages fit a 1440 px screen",
+        "version": "1.9.89",
+        "changes": [
+            "The SOR Register shows its Status column without scrolling sideways.",
+            "Product List totals and the Import add-on line no longer cut off money or wrap into a tall box.",
+            "The Purchase Request item tables keep their full width when Chat or Members is open.",
+            "Every Purchasing page title ends in the red accent word, including Canvasses, IPAS and Transmittals."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Clearer messages and easier stage fields",
+        "version": "1.9.90",
+        "changes": [
+            "A negative amount now says it must be zero or more, and a zero where a number is needed says it must be more than zero.",
+            "Pressing Enter in a single-line stage field now saves it, the same as pressing its Save button.",
+            "An optional item on a stage now says it is optional and not needed to move on, instead of saying it is not yet satisfied.",
+            "Only one Purchasing Incharge can be picked on Open S0 Evaluation. Once one is chosen, the add button goes away until you remove them.",
+            "The SORs updated message now shows only Done, with no Cancel button."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Pending Stage Actions show under Needs attention",
+        "version": "1.9.91",
+        "changes": [
+            "A Stage Action waiting for your Create or Skip now shows under Needs attention on the SOR summary, with a Go link to the decision.",
+            "Once you Create or Skip it, the matching notification is marked as read."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Easier SOR registration and sign-out",
+        "version": "1.9.92",
+        "changes": [
+            "When you register an SOR, you are the Deal Owner by default. Change it if the deal belongs to someone else.",
+            "Dates on the SOR forms now read like Nov 5, 2026, the same as the lists.",
+            "A link to an SOR, such as /sors?record=..., now opens that SOR. The address updates as you open and close one.",
+            "You can sign out from the menu at the top of the sidebar."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Registering an SOR shows its number",
+        "version": "1.9.88",
+        "changes": [
+            "The Register SOR message now shows the SOR number, such as \"SOR-257 registered.\"",
+            "The new SOR opens right after you register it, so you land on the deal you just made."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Loss-making bids need a decider",
+        "version": "1.9.93",
+        "changes": [
+            "Go on the Bid Decision now asks you to confirm first. The confirm shows the Final Offer, the ABC and the planned revenue.",
+            "When the planned revenue is negative, only a Super Admin or someone on the decider list can take a Go. Others see why the Go is off. Revise and No-go are still available."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "SOR Awarded goes to the people buying",
+        "version": "1.9.87",
+        "changes": [
+            "When an SOR gets a Date of Award, the SOR Awarded notice now goes only to the buyers of its purchase requests, not to every Purchasing employee.",
+            "If no purchase request has a buyer yet, the notice goes to the Purchasing heads instead."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Go waits for the evaluation",
+        "version": "1.9.88",
+        "changes": [
+            "A Go on the Bid Decision needs the Evaluation of Specification approved first. Until it is, the Go button is off and the card says to approve the evaluation first.",
+            "Revise and No-go are still available at any time."
+        ]
+    },
+    {
+        "date": "2026-11-04",
+        "title": "Technical page for the RRD and IOE teams",
+        "version": "1.9.86",
+        "changes": [
+            "RRD and IOE team members get a Technical entry in the menu. It lists the SORs with S0 Evaluation rows given to their team, and opens a sheet to mark each row Complies or Deviates. It shows no prices.",
+            "The team is notified when rows are given to it."
+        ]
+    },
+    {
+        "date": "2026-11-03",
+        "title": "Purchasing and SOR window polish",
+        "version": "1.9.85",
+        "changes": [
+            "Purchase Requests: tick several product lines and change their status in one go, with one Undo. The bar only offers statuses that are valid for every ticked line.",
+            "Several status changes on one request now arrive as one notification, like \"3 products changed\", instead of one each.",
+            "When a purchaser takes a request, or someone is named as the buyer, the people who asked for the products are told who is now buying.",
+            "Clicking a request notification opens the right tab (Chat for messages and mentions, the product lines for status changes), and reuses the window if that request is already open.",
+            "Purchasing Dashboard: the Projects and Register tabs have a new Recent activity sort, remembered for you. Urgency stays the default.",
+            "Purchase Requests and the Purchasing Dashboard now highlight what matched your search.",
+            "Attach P0: the item's own line comes first and is tinted. The IPAS number shown after an attach now opens that IPAS in the app.",
+            "The Legacy Pipeline is closed to new deals, and Sale Type is now required when registering a SOR. Existing legacy SORs keep working, and the Flow Canvas shows the Legacy Pipeline flow as view only.",
+            "Deleted SORs now has a search box, with highlighting, like the main register.",
+            "When you update an Outdated SOR to a newer version, you now see what will happen first, such as which Group Tasks start and who is notified. A bulk update shows one line per Action.",
+            "SOR window: the S0 card moved into the SOR's edit form, under Details. The header shows the S0 number as plain text again.",
+            "Flow Canvas: hover a Stage condition that is also checked at another Stage to see \"Also checked at Stage X\"."
+        ]
+    },
+    {
+        "date": "2026-11-03",
+        "title": "Filter Task Approvals by step",
+        "version": "1.9.84",
+        "changes": [
+            "Task Approvals: if you can both grade and verify tasks, a new Step filter shows only the tasks at Head grade or only the ones at HR verification.",
+            "Task Approvals: click the Stage column to sort by how far along each task is, like the other columns."
+        ]
+    },
+    {
+        "date": "2026-11-03",
+        "title": "Task Approvals and HR Verifications are one page",
+        "version": "1.9.83",
+        "changes": [
+            "Approval Center: Task Approvals now holds both steps of a task, the head's grade and HR's verification. The separate HR Verifications page is gone, and its old links open Task Approvals.",
+            "A head sees tasks waiting for their grade, HR sees graded tasks waiting for verification, and a Super Admin sees both. The sidebar count adds up everything waiting on you.",
+            "Each row shows its step in the Stage column, and its button follows that step: Grade for a head, the check mark to verify for HR.",
+            "The 48-hour tabs are now called Active and Overdue on every approval page. Hover over a tab to see the 48-hour rule."
+        ]
+    },
+    {
+        "date": "2026-11-03",
+        "title": "Purchasing and Costing Flow Improvements",
+        "version": "1.9.82",
+        "changes": [
+            "Costing & Evaluation: Opening a new S0 Evaluation automatically brings in the deal's products along with their latest costs from Odoo. Purchasing staff can now view the full deal header (client, Deal Owner, dates) on the Costing Matrix screen.",
+            "Canvasses: Pressing Enter in a supplier offer no longer saves accidentally if a price has not been typed. Canvass windows now always display on top of line details.",
+            "Stage Gates: Stage moves and forward returns now reliably check that required fields and uploads are complete before moving forward, both on screen and on the server. The deal header immediately reflects saved stage fields.",
+            "Purchasing & Orders: The Purchasing Tracker omits received lines from items waiting to be purchased, and attaching a PO to an already-received line is safely refused.",
+            "IPAS: Status messages and notes now clearly name the Logistics team, and Section 2 ensures required charges are reviewed."
+        ]
+    },
+    {
+        "date": "2026-11-05",
+        "title": "Money and People Fields Are Checked",
+        "version": "1.9.89",
+        "changes": [
+            "Flow Canvas: a Stage field can now be a Currency field (shown in pesos, only accepts a number) or an Employee field (pick a person from the list).",
+            "Project flows: NOA Amount is now a Currency field, and Purchasing Involved, Logistics Representative and Representative are now Employee fields. Amounts and names saved before this change stay as they were."
+        ]
+    },
+    {
         "date": "2026-11-03",
         "title": "Date-Range Leave Follows Your Work Schedule",
-        "version": "1.9.13",
+        "version": "1.9.81",
         "changes": [
             "Leaves & Overtime: a date range now skips weekends and other non-working days, so a Friday-to-Monday leave can be filed in one go.",
             "Leaves & Overtime: each day in a range starts at that day's scheduled hours (for example 07:30 to 18:00) instead of a flat 8, and you can still change the hours.",
             "Leaves & Overtime: you can remove a day from a range, such as a holiday, and add it back."
+        ]
+    },
+    {
+        "date": "2026-11-03",
+        "title": "Contract Date is the day of the client's contract",
+        "version": "1.9.80",
+        "changes": [
+            "The Contract Date now fills in by itself when a deal reaches the Stage that holds the client's PO or contract (CA / PO on the Project flow). It no longer waits for the deal to be won.",
+            "While the Contract Date is blank, you can type it in on the Details tab. Once it is set, only a Super Admin can change it, and every change is written in the deal's history.",
+            "If a deal reaches Won with no Contract Date, the move still goes through and you get a warning to type it in.",
+            "In the flow editor, a Super Admin can pick which Stage holds the contract with the new \"Make it the contract\" button.",
+            "Existing Contract Dates are left as they are."
+        ]
+    },
+    {
+        "date": "2026-10-31",
+        "title": "One place for the S0",
+        "version": "1.9.79",
+        "changes": [
+            "Each SOR now shows its S0 in a card at the top of the window, with an Edit button while it can still change.",
+            "In the deal's first Stage you can change or clear the S0 freely. After that it can be filled once if it is empty, and then it is locked. Only a Super Admin can change a locked S0, and they must say why.",
+            "Saving an S0 checks it in Odoo and brings in its products at the same time, so the separate Fetch from Odoo buttons are gone. If Odoo does not answer, the S0 is saved as Not checked.",
+            "An S0 already used by another SOR is refused, and the message names that SOR. SORs that already share an S0 get a red Duplicate badge.",
+            "Before you change or clear an S0, you are told how many products will be marked Removed from S0, and how many Requested Items and Tender Lines sit on them.",
+            "When you open an SOR, its S0 is checked in Odoo again. If Odoo no longer has it, the card shows Gone from Odoo.",
+            "Registering an SOR and the Sales Reference Stage Field run the same checks as the S0 card. Restoring a deleted SOR is refused if its S0 is now on another SOR.",
+            "Every S0 set, change, clear and override is written in the deal's history, with who, when, the old and new S0, and the reason."
+        ]
+    },
+    {
+        "date": "2026-10-31",
+        "title": "Attach a P0 to more items, with the right lines",
+        "version": "1.9.78",
+        "changes": [
+            "After you attach a P0 to an item, the same window offers to attach it to the other items in the request. Items that share a product start unticked, and items with no Odoo product are tagged \"No Odoo product\".",
+            "The P0 lines for an item are picked for you from the P0's rows with the same Odoo product. Attaching the same P0 again keeps the lines you already picked.",
+            "Attach P0 now lists the rows of the P0, so you can see what it holds before you attach it. If the P0 has no row for the item's product, you get a warning that it may be the wrong P0.",
+            "A Received item can now take a new P0.",
+            "\"P0 line\" now reads the same everywhere. It used to say \"PO line\" in some places.",
+            "Status badges use clearer teal and grey colors for the Purchasing steps, and the Undo button says what it will undo.",
+            "Marking an item Available when the stock check shows too little now asks for a short reason. The reason goes in the request history, and the item shows \"Now x free of y\" until it leaves Available."
+        ]
+    },
+    {
+        "date": "2026-10-30",
+        "title": "Mark a deal as Lost, and bring it back",
+        "version": "1.9.77",
+        "changes": [
+            "You can now mark a deal as Lost from the SOR window or by dragging it to the Lost column on the board. You pick a reason first.",
+            "A Lost deal can be reopened. It goes back to the stage it was lost from.",
+            "Lost deals no longer clutter the SOR list. Use the new \"Lost\" filter to see them, with the reason."
+        ]
+    },
+    {
+        "date": "2026-10-30",
+        "title": "Clearer compliance wording",
+        "version": "1.9.76",
+        "changes": [
+            "A row that has no verdict yet now says \"Not inspected\" in the Compliance column instead of \"Not judged\"."
+        ]
+    },
+    {
+        "date": "2026-10-29",
+        "title": "More fixes from the Purchasing demo run",
+        "version": "1.9.75",
+        "changes": [
+            "The Warehouse can now add boxes and sign \"Packed by\" on a Packing List.",
+            "\"Items bought\" now counts items that are Purchased or Received, and the Tracker count is right.",
+            "SORs with no Deal Owner now show the person who registered them. The \"Go\" link takes you to the Deal Owner field.",
+            "A failed step can be tried again with Create.",
+            "Late deliveries are marked late, Optional items are no longer counted as owed, and a duplicate Sales Reference asks you to confirm.",
+            "Old demo requests for deleted or lost SORs now show as Closed.",
+            "\"Final Acquire\" now reads \"Final cost\" and \"Decider list\" on the costing screens."
+        ]
+    },
+    {
+        "date": "2026-10-29",
+        "title": "Fixes from the Purchasing demo run",
+        "version": "1.9.74",
+        "changes": [
+            "A fully costed deal now passes \"Costing settled\". A row with no Final Acquire counts at its Acquire cost.",
+            "When something is refused, the reason now shows where you clicked. A failed Create can be tried again.",
+            "A Logistics signer can now pick the Item Location on an IPAS.",
+            "A line that is only partly ordered now shows as Purchased, not Received.",
+            "The Blocked count is now the same everywhere on an SOR.",
+            "IPAS section 2 cannot be submitted while a charge is blank.",
+            "The person who registers an SOR becomes its Deal Owner when no one else is picked.",
+            "The canvass count, the people picker and the sheet header now show the right thing."
+        ]
+    },
+    {
+        "date": "2026-10-29",
+        "title": "Fixes from the October review",
+        "version": "1.9.73",
+        "changes": [
+            "The leave and overtime forms now show the right hours after the meal break, wherever the time window starts.",
+            "Teams now show up when you pick members for a Group Task, and editing a Group Task no longer moves its Due Date back a day.",
+            "A duplicated or imported flow keeps its Stage colours, positions and won/lost endings.",
+            "Purchasing can start a Canvass from a line on the S0 Evaluation, including a line typed by Sales.",
+            "Meeting Requests now show only the HR step, and the S0 Evaluation page has its own tab title."
+        ]
+    },
+    {
+        "date": "2026-10-28",
+        "title": "October backlog: Awarded SORs, Meal Breaks, flow tools and meeting types",
+        "version": "1.9.72",
+        "changes": [
+            "A Super Admin page now holds the access settings for every flow in one place.",
+            "A flow can be exported to a file, imported back, or duplicated from the canvas toolbar. A Stage can also move on by itself once its last condition is met.",
+            "An SOR now has a Date of Award, Date of PDI and Date of Delivery. When a Date of Award is filled, Purchasing is told and the SOR shows an Awarded badge.",
+            "Outdated SORs can be updated in bulk, one at a time, or taken back to an older version.",
+            "Each Product List line shows its P0, linked to Odoo, and the SOR Quick View lists every task you can read on the SOR.",
+            "Group Tasks need a Start and Due Date and show a due countdown. Checklist items can have a due date and remarks, and ticking one shows right away.",
+            "You can pick a Team or Employee Group for a Group Task, and a role can carry a default checklist.",
+            "Meal Break is now set by the clock in HR settings and replaces the 5-hour lunch rule.",
+            "Meeting Requests are approved by HR only. A meeting can be Onsite, Online or Hybrid, with a link and Guest emails.",
+            "Notifications from one chat are grouped into one row, and the count badge is neutral.",
+            "An open Task, Group Task or SOR window keeps its place in the address, and a file picked from the library links the original file."
+        ]
+    },
+    {
+        "date": "2026-10-28",
+        "title": "The S0 Evaluation leads the road to buying",
+        "version": "1.9.71",
+        "changes": [
+            "The Costing Matrix is now called the S0 Evaluation on every screen, tab, print and notice.",
+            "Purchasing can type lines that are not on the S0 and put them on the S0 Evaluation before the S0 is made. When an S0 arrives, its lines join the sheet and lines that match nothing are added as new rows.",
+            "A Canvass now has three supplier slots. Each slot holds an Offer, or you mark that there is no other supplier. A Canvass has no sign-off any more: picking a winner is enough.",
+            "Each cost on the S0 Evaluation now shows a cost guide, a percentage that tells you how far a price is from what is expected.",
+            "Buying opens at the stage set for it. Before that, a P0 can be attached early with Order early and a reason.",
+            "When a P0 is attached, its IPAS is created for you. If Odoo does not answer, the P0 is marked \"IPAS to create\" so it can be done later.",
+            "A Transmittal can be filled from the IPAS and its P0 lines.",
+            "A Requested Item is marked Received when Odoo shows the goods were received.",
+            "The Canvasses page shows a Canvass as Open until it has a winner. Old Canvasses that were signed off keep that as history."
+        ]
+    },
+    {
+        "date": "2026-10-28",
+        "title": "Costing Matrix in the costing-sheet shape, and IPAS money that follows it",
+        "version": "1.9.70",
+        "changes": [
+            "The Costing Matrix is now one flat sheet, one row per line of the S0, with the cost, markup and compliance columns beside the prices. A suggested price now includes the items that come with a tower.",
+            "A Go on the Bid Decision locks the sheet. Only a Super Admin or the people on the decider's list can unlock it, with a reason that is recorded.",
+            "The multiplier is now set by the Markup list. Final Acquire has left the matrix screen.",
+            "On an IPAS, a payment is its amount times the forex rate paid, plus fees. Landed Cost is worked out from those, with freight counted once, and a retail and wholesale table for stock.",
+            "An IPAS can now carry a freight amount and its file. Freight the supplier already billed is not added twice, and freight in a currency other than pesos or the PO's is refused."
+        ]
+    },
+    {
+        "date": "2026-10-26",
+        "title": "P0s that list a product twice",
+        "version": "1.9.69",
+        "changes": [
+            "When a P0 lists the same product on several lines, the line now adds them all up for its ordered and received counts, and its price is the average over those lines.",
+            "Once Purchasing picks the P0 line, only that line counts, so two projects on one P0 each see their own quantity and price.",
+            "A product asked in words takes the P0's product when the P0 has only one. When the P0 has several, it shows no counts until its line is picked."
+        ]
+    },
+    {
+        "date": "2026-10-26",
+        "title": "Actual cost of a foreign P0 in pesos",
+        "version": "1.9.68",
+        "changes": [
+            "On the Costing Matrix, a P0 in dollars or another currency now shows its Actual cost in pesos, at the rate of the Canvass winner, with the P0's own price beside it.",
+            "If no Canvass winner is in the P0's currency, its price is shown in that currency and not compared with the peso cost."
+        ]
+    },
+    {
+        "date": "2026-10-26",
+        "title": "Product list is now a table",
+        "version": "1.9.67",
+        "changes": [
+            "On a Purchase Request, products now sit in a table with columns for quantity, stock, status, P0 and delivery notes.",
+            "Open a line to see its stock, Odoo code, P0 and price, with Canvass, Attach P0 and Replace buttons under it."
+        ]
+    },
+    {
+        "date": "2026-10-23",
+        "title": "Save only the field you clicked",
+        "version": "1.9.66",
+        "changes": [
+            "In an SOR's stage fields, clicking Save on one field now shows saving on that field only. Other fields keep their normal Save button."
+        ]
+    },
+    {
+        "date": "2026-10-23",
+        "title": "Pick who rates a group task when you create it",
+        "version": "1.9.65",
+        "changes": [
+            "The Create Group Task form now has an Evaluator field. Leave it empty and you rate the task yourself."
+        ]
+    },
+    {
+        "date": "2026-10-23",
+        "title": "Group tasks wait for their evaluator",
+        "version": "1.9.64",
+        "changes": [
+            "When every member is done, a group task now shows Awaiting evaluation instead of looking finished. It becomes Completed only after it is rated.",
+            "The new To evaluate tab on Group Tasks lists the tasks waiting for a rating, longest wait first, with a count of the ones waiting for you.",
+            "The evaluator gets one message when a task is ready to rate, and a reminder after 3, 6 and 9 days. After that, the creator and the heads of the evaluator's department are told.",
+            "The creator, the evaluator, heads and Super Admins can use Send to evaluation when some members will never finish.",
+            "Reminders and the automatic move apply to group tasks created from now on. Older tasks that were done but not rated now show under To evaluate."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "The Costing Matrix in its own window",
+        "version": "1.9.63",
+        "changes": [
+            "The Costing Matrix opens in its own window. Open it from an SOR's PMS tab with Open Costing Matrix, or from a row on the Costing Matrix page.",
+            "The matrix fills itself from the SOR's products, with each product's cost from Odoo. Refresh from the SOR brings in products added later. Nothing you typed is overwritten.",
+            "A line is priced from its product. Break it down into parts only when a line needs them.",
+            "The markup playground lets you try a markup and see the offer, its share of the ABC and the margin before anything is saved. Apply fills every Final Offer.",
+            "The Bid Decision has its own card with big Go, Revise and No-go buttons.",
+            "Sales, Purchasing and the SOR's Sales Director can now see and edit the costs and the markup, and Purchasing can set the Brand."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "A new Calendar, with a Gantt beside it",
+        "version": "1.9.62",
+        "changes": [
+            "The Calendar has two layouts. Switch between Calendar and Gantt at the top left. The Calendar remembers which one you used last.",
+            "Calendar: the month shows Time Off that runs over several days as one bar. Meetings and overtime are one line each, with their start time. Weekends are narrower.",
+            "Click a day to see it on the right: who is out, each room's day from 8 AM to 7 PM, and overtime. Click a free spot on a room to book it. Use the arrow keys to move from day to day.",
+            "Gantt: two or four weeks across. Rooms come first, then people grouped by department, with a count of how many people are out each day. Search for a person or a department.",
+            "Opening a Time Off request now shows the whole request (all its dates, the number of days and the total hours), not only the day you clicked. My Requests and HR's Time Off & Overtime tab use the same new Calendar."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "Purchasing looks the same everywhere",
+        "version": "1.9.61",
+        "changes": [
+            "Every Purchasing list now works the same way: state pills with counts, one filter bar with search and Export at the end, sortable headings, the reference over the name, a State badge on the right, and the same pager at the bottom.",
+            "Every Purchasing record opens in the same full-height window over its list: Purchase Request, Canvass, IPAS, Transmittal and Packing List. Close takes you back to the list, and records fill the screen on a phone. The IPAS is no longer a page of its own.",
+            "Each record starts with its number and name, one state badge and one quiet line, then its key facts as pills. Fields have small labels above their values, and lines, boxes, payments and documents are one-line rows that open in place.",
+            "Sign, Submit and Approve are green buttons in the same Your move card on the IPAS, Transmittal, Packing List and Canvass. A Canvass is now signed there too.",
+            "Dialogs with fields share one form style, plain yes/no questions use the plain confirm, and the Canvass no longer asks questions in pop-up toasts. Links are now text colour instead of red."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "Transmittals and Packing Lists get a desk and a rail",
+        "version": "1.9.60",
+        "changes": [
+            "New Transmittal: the live PO lines are on the left, and the slip is on the right. Click a PO line to put it on the slip, click it again to take it off. Company and Project fill in from the first line.",
+            "The slip's header is now a row of pills you click to set. A strip lists everything still missing before you can Submit, not only the first thing.",
+            "Each line on the slip is one row. You can add every line of a PO at once by typing its number, and add a typed line for anything not on a PO.",
+            "Transmittal record: the slip and its lines are on the left, and the GC / NA rating is done right on each line. A single card on the right shows what you need to do and lists the steps, and opening a step shows its work and sign button under the list.",
+            "Packing List record: same layout. The boxes and what is in them are on the left, and the card on the right holds Sign Packed by. The side drawer is gone."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "Canvasses join Purchase Requests, and lock once bought on",
+        "version": "1.9.59",
+        "changes": [
+            "Purchase Request window: the items now get the full width. Members and Chat are tucked behind two buttons and open as a side panel, and the item you click shows clearly as selected.",
+            "In a Purchase Request, Purchasing can press Add a Canvass to bring in Canvasses they already did. Each one becomes a new item, or goes onto an item the request already has, and the winner's price goes onto that item.",
+            "A Canvass locks once a Purchase Request is made from it, so its offers, prices, winner and reason can no longer change. A Super Admin can unlock it, and has to give a reason that is kept in the Canvass history.",
+            "The Canvasses list marks locked Canvasses with a lock, and the Request column now shows just the status (for example Requested), not a link. The Canvass window names the Purchase Request and opens it on top.",
+            "A Purchase Request no longer starts a Canvass on its items. Do the Canvass on the Canvasses page, then create a request from it or add it to one."
+        ]
+    },
+    {
+        "date": "2026-10-21",
+        "title": "Time Off & Overtime, the Calendar, Meeting Requests and Venues",
+        "version": "1.9.58",
+        "changes": [
+            "Leaves Manager and Leave Approvals are now called Time Off & Overtime. The My Requests button is now File Time Off / Overtime, and its tabs are Overtime, Offset, Leave and Undertime.",
+            "Printed forms (TG-11 leave, TG-12 overtime, TG-13 undertime) are cleaner, show when HR validated the request, and no longer print an Outcome box.",
+            "Dates for leave, overtime and offset now follow Manila time everywhere, so a request near midnight no longer lands on the wrong day. Withdrawing a request uses the Manila date too.",
+            "HR can now record Leave Without Pay (LWOP). It is saved as approved, can be verified from its printed QR code, and shows on the Calendar.",
+            "The new Calendar shows Time Off, overtime, LWOP and meetings in Month, Week, Day and People views, and updates by itself when a meeting changes.",
+            "Meeting Requests: book a Venue from the Calendar, add a Facilitator, Participants and guests. Your department head approves first, then HR, in the Approval Center. You can edit, send again or cancel before it starts, and everyone invited gets a reminder.",
+            "Venues: HR and Super Admins can add, rename, reorder, hide or delete the Venues people can book."
+        ]
+    },
+    {
+        "date": "2026-10-21",
+        "title": "IPAS list, record page and Costing Matrix page get a big upgrade",
+        "version": "1.9.57",
+        "changes": [
+            "The IPAS list now shows the Amount, Payment Scheme, Down Payment, Full Payment, Remaining Balance and the new IPAS Status (Pending, Requested, Ongoing, On-Hold, Paid, Done). Pick which columns to show.",
+            "Purchasing and Finance can put an IPAS On-Hold with a note from the record's More menu, and take it off again. An On-Hold order does not go late in Order Monitoring.",
+            "New list views: Unpaid, On-Hold, Ongoing and Raised by me. Totals are shown per currency, and the list can be exported to Excel.",
+            "Search finds an IPAS by its SO number, SOR number or project name, or by the SO number and project typed together.",
+            "The IPAS record is a full page again, with a money summary at the top and a Supplier bill check that compares the Odoo PO total with the P.I/QT Amount. A mismatch is shown beside Approve for section 1 and never blocks it.",
+            "Pesos taken from the bank is now optional on a foreign-currency payment. Left blank, Landed Cost uses the Reference Rate of the payment date and is marked as an estimate. The Computation status can jump to any step.",
+            "The SOR picker when raising an IPAS now finds every SOR by SO number, SOR number or project, and a Super Admin can set the number the next IPAS takes in Settings (it can only move forward).",
+            "New Costing Matrix page for the Closed Book: every SOR with its Planned Revenue and Actual Revenue side by side, with search, filters and totals."
+        ]
+    },
+    {
+        "date": "2026-10-21",
+        "title": "IPAS: Computation status & Landed Cost is now signed off, and Filing waits for it",
+        "version": "1.9.56",
+        "changes": [
+            "The third part of an IPAS (Computation status & Landed Cost) now has its own Submitted and Approved, like the first two parts. Purchasing submits it once the Computation status reaches LC Odoo Done, and someone else on its approvers list approves it. Its signatures show on the printed form.",
+            "The old Checked by step is gone. Computation status now ends at LC Odoo Done, and an IPAS that was at Checked by keeps its approval as the new sign-off.",
+            "Filing (section 4) now opens only after sections 1, 2 and 3 are all approved. A Return or an Undo on section 3 is offered like on the other sections.",
+            "Changing the Landed Cost of an open IPAS clears the section 3 sign-off, and the people who signed are told. Order Monitoring shows who owes section 3: Purchasing before it is submitted, its approvers after.",
+            "A new Super Admin setting lists who approves section 3. Finance people are on it to start with.",
+            "The IPAS \"Your move\" card now shows only the earliest section waiting for you, with short button names, and a flagged Account # clears only section 2.",
+            "Transmittal rows on an SOR's IPAS section now open the slip, and the section numbers there match the IPAS screens."
+        ]
+    },
+    {
+        "date": "2026-10-24",
+        "title": "Purchasing: a Canvasses page, Canvasses before a request, and easier Requested Items",
+        "version": "1.9.55",
+        "changes": [
+            "The IPAS edit form now tells you when someone else updates that IPAS while it is open, with a Reload button that never touches what you typed. Save all also refuses if someone else saved first, so two people cannot overwrite each other.",
+            "A new Canvasses page lists every Canvass in one place, with search and filters for Canvasser, sign-off, winner and linked or not.",
+            "Purchasing can start a Canvass on its own, before any Purchase Request exists. It gets its number when its first Offer is saved.",
+            "Purchasing can pick several finished Canvasses on the Canvasses page and create one Purchase Request from them. A Canvass that is not signed off yet only gives a warning.",
+            "A Purchase Request made from Canvasses now shows each winner's price on its Requested Item, only to members who may see prices (Purchasing, Finance and Super Admin).",
+            "A winner can now be un-picked. This clears the sign-off, is kept in the Canvass history, and leaves the values the winner filled in the Costing Matrix, with a note that no winner stands behind them.",
+            "The Canvass can be printed side by side, with the Offers next to each other.",
+            "Requested Items are now a queue of To do, In progress and Closed groups. Each item is a soft card with its name, quantity, status and PO number. Open it to read stock, who requested it, Canvass, PO and notes in clear, full-length lines. Items glide to their new group when the status changes.",
+            "After you change a Requested Item's status, an Undo button shows for about 10 seconds.",
+            "Important fields on the Canvass are now bold, and long product names no longer push the layout around.",
+            "The Purchase Request list now shows a badge for Direct requests.",
+            "A Purchase Request opens full screen on desktop, from the list and the Purchasing Dashboard, and in a side drawer on mobile.",
+            "The Purchasing dashboard is tidier and has tabs.",
+            "Every Purchasing Dashboard tab now opens with the same top: a row of totals and a filter bar with search and a Filters button. What needs doing and the Register got new filters (group, entity, source, supplier and late), and the totals follow the filters.",
+            "IPAS sections now open and edit in place.",
+            "On an IPAS, the sign-off step Prepare is now called Submit, and its status Prepared is now Submitted.",
+            "Editing an IPAS is now one long form with one Save. A bar at the top shows how many required fields are filled, jumps to the next empty one, and a stepper takes you to each section; finished sections fold to one line. Payments, freight, charges, documents, bank details, the computation status and the spread are typed in the same form, so \"Add payment\" opens a new payment right there instead of a pop-up. Sign-offs stay as buttons."
+        ]
+    },
+    {
+        "date": "2026-10-22",
+        "title": "Packing lists, goods checked and orders filed in the Flow Canvas",
+        "version": "1.9.54",
+        "changes": [
+            "A stage can now request a Packing List. It opens a draft Packing List for the SOR, unless one is already open, and tells the Warehouse people. Warehouse can pack a list that someone else created.",
+            "A new stage condition, Goods checked, is met when every submitted Transmittal that names the SOR is Closed. Drafts and cancelled slips are ignored, and an SOR no Transmittal names meets it.",
+            "A new stage condition, Orders filed, is met when every IPAS that names the SOR is filed. An SOR no IPAS names meets it. It is not used on Government.",
+            "Order Monitoring now shows the client's delivery deadline.",
+            "The Costing Matrix now opens by itself on SORs that are already past its stage."
+        ]
+    },
+    {
+        "date": "2026-10-19",
+        "title": "My SORs: your own SORs too, and filters that follow the latest activity",
+        "version": "1.9.53",
+        "changes": [
+            "My SORs now also lists the SORs where you are on the Deal Team, marked Deal Team with Full access, next to the ones you were called or mentioned into.",
+            "The Access filter has a new Full choice, and the Why I'm here filter has a new Deal Team choice.",
+            "The period filter now looks at when an SOR last had activity (a stage move, a note or an edit), not when your access opened.",
+            "SORs where your access has ended are still hidden until you pick Access ended. Save as default and Clear all work as before."
+        ]
+    },
+    {
+        "date": "2026-10-21",
+        "title": "Purchasing Dashboard: where every project's buying stands",
+        "version": "1.9.52",
+        "changes": [
+            "Purchasing has a new Purchasing Dashboard. It groups all buying by what is still to do: To source, To price, To order, On order and To check, with how many items and SORs are in each.",
+            "One SOR shows in every group it has work in, for example \"4 to source, 2 on order\". It is never squeezed into one stage.",
+            "Each entry opens the record that owns the work: the Purchase Request, the SOR's Costing Matrix, the IPAS, or the Transmittal. Orders whose PO has an IPAS are listed by IPAS.",
+            "To check also shows items received on an IPAS that has no Transmittal yet.",
+            "Direct requests, which have no SOR, are counted too.",
+            "Filter by SOR, Buyer, Canvasser, ageing, or items ordered with no canvass. The ageing filter can also show only orders that are late by Order Monitoring's ageing rules. The dashboard shows counts only, never money.",
+            "Purchase Requests and Order Monitoring stay as they are."
+        ]
+    },
+    {
+        "date": "2026-10-20",
+        "title": "Canvass: see what the costing becomes if an offer wins",
+        "version": "1.9.51",
+        "changes": [
+            "Canvass: beside each offer on a Component, Purchasing now sees what the cost and the selling price would be if that offer won. It updates when the offer's price or rate changes, and nothing is saved.",
+            "An offer in dollars or euros with no rate yet shows no figure, rather than a wrong one.",
+            "The Closed Book also sees what the line's margin and the Costing Matrix summary would become."
+        ]
+    },
+    {
+        "date": "2026-10-19",
+        "title": "Reference Rates: a daily exchange rate, always dated",
+        "version": "1.9.50",
+        "changes": [
+            "Purchasing now has a Reference Rate for US dollars and euros: what one unit is worth in pesos, taken once a day from the European Central Bank. It always shows the day it is for, for example \"USD 1 = ₱62.97 · 16 Oct\". On weekends and holidays it shows the last day the bank published.",
+            "Canvass: when you add an offer in dollars or euros, the comparison rate is filled in with today's Reference Rate. You can type over it, and what you type is what is saved and printed. If no rate is available, you type it yourself as before.",
+            "IPAS: when you record a payment on a dollar or euro PO, the Reference Rate for the payment's date shows next to the rate you entered. If the two are far apart, you see a warning to check the PHP debited against the remittance advice. It never fills in the PHP debited and never stops you saving.",
+            "Settings > Purchasing > Reference rates lists the recent rates. A Super Admin can correct a day's rate; the list shows who corrected it and what it was before."
+        ]
+    },
+    {
+        "date": "2026-10-19",
+        "title": "Costing Matrix: what each purchase actually cost",
+        "version": "1.9.49",
+        "changes": [
+            "The Costing Matrix has a new Landed Cost column, after Final Acquire. It shows what a Component's purchase actually cost, worked out from the PO lines Purchasing picked and that IPAS's payments and charges.",
+            "Each Landed Cost is marked Provisional until every IPAS it comes from has its costs complete, then Final. Each Tender Line and the whole matrix add theirs up, and stay blank while any Component is still blank.",
+            "When there is no figure yet, the matrix says why: Not ordered yet, PO line not picked, Landed Cost not yet available, or Pick the PO line again. Purchasing can pick the line again right there.",
+            "Landed Cost changes nothing else. Markup, Final Acquire, the summary, Revenue and Costing settled keep reading the estimates, and no sign-off is cleared.",
+            "Under P.O./RFQ No., everyone who can see the matrix now sees the PO numbers of its Requested Items, each PO's IPAS number and state, and a note such as \"ordered 3 of 5\" when the order is short.",
+            "A Component with a Requested Item or a typed P.O./RFQ No. can't be removed until it is unlinked, and neither can its Tender Line. Purchasing can unlink a Requested Item from the Component; the history keeps who did it and when.",
+            "The IPAS summaries on the PMS tab show each IPAS's Landed Cost and its mark to the people who can see the matrix's costs.",
+            "The printed Costing Matrix fills its Landed Cost column with each figure and its mark, or \"awaiting purchase\".",
+            "Stage Participants see the PO and IPAS columns but no Landed Cost, on screen and in print."
+        ]
+    },
+    {
+        "date": "2026-10-18",
+        "title": "Canvass: compare suppliers and pick a winner",
+        "version": "1.9.48",
+        "changes": [
+            "Purchasing can now canvass an item before ordering it. Open a Canvass from a Component row on the Costing Matrix, or from any item on a Purchase Request that is not tied to a Component. Each Canvass gets its own number (CNV_0001 and so on).",
+            "Add each supplier quote as an offer: the supplier, brand, what was offered, the price, how long the quote holds, the lead time and a brochure. A quote in another currency also shows its peso figure, using the rate you typed. That rate is only for comparing, not what will be paid.",
+            "Pick the winning offer and write down why. On a Component, the winner fills in the price, the description and its brochure for you, and marks them \"from Canvass\". If someone types over a filled-in figure, the mark goes away and their figure stays.",
+            "If the winning brand is different from the Component's brand, the Deal Team sees it and can accept it with one click. The brand is never changed without that click.",
+            "A Canvass with fewer than three offers shows a warning, but it never stops you. Offers past their date show \"Quote expired\".",
+            "The purchasing approvers sign off Canvasses from a new Canvass Sign-offs page in the Approval Center, and they are told when one is ready. You cannot sign a Canvass you opened. If anyone changes an offer, a price, the winner or the reason after it is signed, the sign-off is taken away and the history says why.",
+            "Any Canvass can be printed on A4, with the recommended supplier and the reason at the top.",
+            "When a Canvass is opened for an item that was marked \"To order\", the item moves to \"Canvassing\" on its own.",
+            "People who can see the order but not its costs see the offers without any prices."
+        ]
+    },
+    {
+        "date": "2026-10-18",
+        "title": "Costing Matrix: review fixes",
+        "version": "1.9.47",
+        "changes": [
+            "The PMS tab now shows for everyone who can see the SOR, Finance included, with the IPAS summaries, the Purchase Request and the Transmittals. The Costing Matrix section on it still shows only to people who may read the matrix.",
+            "Sales no longer see a Markup Price on cost-only rows, because at ×1.00 it would show Purchasing's cost.",
+            "The Costing settled checklist now says only Costing not settled to anyone who is not on the Deal Team, a Super Admin or on the Final Acquire list, so the Bid Decision and the offer against the ABC stay private.",
+            "The bid is marked submitted only when the Stage you left really had Costing settled and it was met.",
+            "ITR is now zero when the Final Offer is at or below the ₱250,000 allowance. Before, it went negative and made Revenue look higher than it is."
+        ]
+    },
+    {
+        "date": "2026-10-17",
+        "title": "Flow Canvas: Costing priced",
+        "version": "1.9.46",
+        "changes": [
+            "A new Stage Condition, Costing priced, marks the hand-off from Purchasing to Sales. It is met when the Costing Matrix has at least one Component, every Component and cost-only row has an Acquire unit cost, and a Purchasing Incharge is named. Inclusions don't count.",
+            "The Stage checklist lists, in plain words, which of those checks still fail. It is unmet while the SOR has no Costing Matrix, and it re-checks whenever an Acquire changes.",
+            "When you publish a flow, the Flow Canvas now warns you if Costing priced or Costing settled sits on a Stage that some path reaches without first passing a Stage that opens the Costing Matrix. It is a warning only: publishing still goes ahead."
+        ]
+    },
+    {
+        "date": "2026-10-17",
+        "title": "Costing Matrix: print it, and sign it off",
+        "version": "1.9.45",
+        "changes": [
+            "The PMS tab has a Print button. The Costing Matrix prints on landscape A4: a money sheet with every Tender Line, the summary, the margin and the Bid Decision, then a specification appendix with each Tender Specification in full next to what we offer.",
+            "Only Super Admins and the Final Acquire list get the money sheet. Everyone else who can open the matrix prints the specification appendix, which has no figures.",
+            "The money sheet has four signature blocks. An unsigned one reads Signature required, and a signer with no stored signature prints as a name.",
+            "Prepared by is signed by the Sales Incharge, Costed by by the Purchasing Incharge, and Final Acquire and offer approved by the Final Acquire list. A change to a Final Offer takes back Prepared by and the Final Acquire approval. A change to an Acquire or a markup factor takes back Costed by. A change to a Final Acquire takes back the Final Acquire approval."
+        ]
+    },
+    {
+        "date": "2026-10-17",
+        "title": "Flow Canvas: Costing settled",
+        "version": "1.9.44",
+        "changes": [
+            "A new Stage Condition, Costing settled, can gate the bid. It is met when every Tender Line has a Final Offer, the summary is complete, the evaluation is approved, the offer is within the ABC and the Bid Decision is Go.",
+            "The Stage checklist lists, in plain words, which of those checks still fail. It updates as the matrix changes, so a later edit that clears the approval or the Bid Decision makes it unmet again.",
+            "It is unmet while the SOR has no Costing Matrix.",
+            "When the SOR leaves a Stage through a met Costing settled, the bid counts as submitted. After that, any change to a Final Offer is noted on the SOR's timeline."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Flow Canvas: Open Costing Matrix",
+        "version": "1.9.43",
+        "changes": [
+            "A Stage Action called Open Costing Matrix can now be added to any Stage. When a deal arrives there, it opens the SOR's Costing Matrix and names the Sales Incharge and the Purchasing Incharge you chose.",
+            "It can also set the markup preset as the matrix default and call in extra people, who see the matrix without any money for the window you set. It can wait for a Decider, like Open Purchase Request.",
+            "If you do not name a Purchasing Incharge, the people you picked under Who assigns it are told that the matrix opened without one.",
+            "A second Open Costing Matrix on the same deal opens nothing new. It only fills what is still empty and adds the people who are missing.",
+            "A Purchase Request can now take the matrix's Purchasing Incharge as its Buyer."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Costing Matrix: the Bid Decision",
+        "version": "1.9.42",
+        "changes": [
+            "The Final Acquire list and Super Admins can now decide Go, No-go or Revise on a priced offer, with a reason, under the summary on the PMS tab. It is stamped with the Final Offer and ABC it was taken against.",
+            "Sales sees the verdict and the reason, but never the numbers behind it. Purchasing sees nothing of it.",
+            "A No-go or Revise tells the Deal Team and does not move the deal. Any later change to a Final Offer or a Final Acquire clears the decision, so a Go always matches the numbers.",
+            "Offers waiting for a decision appear in the Approval Center under Bid Decisions."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "SOR: evaluating the offer against the specification",
+        "version": "1.9.41",
+        "changes": [
+            "On the PMS tab each Component now shows the Tender Specification beside its Offer Specification, so you can see what was asked next to what we are offering.",
+            "Technical marks each Component Complies or Deviates. A deviation needs a note and can name the compliant alternative we recommend instead. Purchasing, Super Admins and the members of the SOR's Evaluation of Specification task can do this.",
+            "Each Tender Line and the top of the matrix count the gaps, like '2 of 5 deviate · 1 not evaluated'. A deviation never blocks anything and never changes a price or a total.",
+            "Someone on the evaluation list can approve the evaluation once for the whole matrix, after every Component has a verdict. Changing a specification, a verdict or its note, or adding or removing a Tender Line or Component, takes the approval back and says why.",
+            "Settings has a Costing Matrix tab where Super Admins pick the Evaluation of Specification task template and who is on the evaluation list."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "SOR: markup on the Costing Matrix",
+        "version": "1.9.40",
+        "changes": [
+            "The Final Acquire list can now set a default markup for a Costing Matrix, such as x1.35 (the same as +35%), typed or picked from a preset like Government. Any Component can have its own markup, and a cost-only row such as the Delivery Charge starts at x1.00.",
+            "Sales sees the suggested Markup Price for each Component and cost-only row, and each Tender Line's total beside its Final Offer. It is only a suggestion: nothing fills in the Final Offer, and changing the markup never changes it.",
+            "Sales and Purchasing never see the markup factor, so nobody can work the cost back out of the price. If a cost is still blank, the Markup Price stays blank instead of showing zero.",
+            "The Final Acquire list also sees the markup each Tender Line really achieves against its target, and the same for the whole matrix with cost-only rows counted.",
+            "Settings has a new Costing Matrix tab where Super Admins and the Final Acquire list edit the markup presets. A preset is switched off instead of deleted, and a matrix that used it keeps its markup."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Costing Matrix: the summary, Final Acquire and rates",
+        "version": "1.9.39",
+        "changes": [
+            "The Costing Matrix now works out the sheet's summary for you: VAT-exclusive, Tax, Retention, Collected Amount, ITR and Revenue, to the centavo.",
+            "Management types Final Acquire on each Component and cost-only row. Until every row has one, Revenue says how many rows still have no cost instead of showing a number.",
+            "The Final Acquire list can type Marketing and OPEX under the summary. Finance and Super Admins can change the rates in Settings under Costing Matrix.",
+            "Only Super Admins and the Final Acquire list see the summary. Super Admins choose who is on that list in Settings."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Purchase Requests: add items from the Costing Matrix",
+        "version": "1.9.38",
+        "changes": [
+            "On a Purchase Request, people with Purchasing access can now press Add from the Costing Matrix and pick Components. The ones marked For Order are ticked to start with.",
+            "Each Requested Item copies the Component's name, quantity, unit and Odoo product, and shows which Component it buys for, like 1.2 and its name. If the Component changes later, the item stays as it was asked.",
+            "A Component can have more than one Requested Item, so a split order stays linked. A Component from another SOR is refused.",
+            "On the PMS tab, each Component now shows the status of its Requested Items, such as Requested or Ordered. Everyone who can see the matrix sees the status only, with no names or prices."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "SOR: costing Components and cost-only rows",
+        "version": "1.9.37",
+        "changes": [
+            "Under each Tender Line on the PMS tab you can now add Components: what we supply toward it, numbered 1.1, 1.2. A Component is priced as a whole when you tick Bundle, and a bundle lists what comes with it as Inclusions, with no prices, under headings like Accessories.",
+            "Each column belongs to one team and the header says which: Sales types Brand, Status and the Odoo unit cost, Purchasing types the P.O./RFQ number, availability, source, Acquire and the Offer Specification. Anything outside your team shows as plain text.",
+            "Cost-only rows, like the Delivery Charge, sit below the Tender Lines. They count in the totals, not in any Tender Line's margin.",
+            "You can name a Sales incharge from the Deal Team and a Purchasing incharge, for the whole matrix or for one Component. It is only a label: it gives no access and sends no notice.",
+            "The Purchase Request card moved to the PMS tab from the Summary and This stage. The old Inclusions list is read-only, and any entries in it were moved under an Unplaced inclusions bundle for Sales to place."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "SOR: the PMS page and Tender Lines",
+        "version": "1.9.36",
+        "changes": [
+            "Every SOR you can see now has a PMS tab. The IPAS section and the Transmittals and Packing Lists section moved there from the Summary and This stage.",
+            "Once an SOR's Costing Matrix is opened, the PMS tab lists its Tender Lines: what the client asked for, with the ABC and our Final Offer. Sales can add them, type them, or pick them from the SOR's products.",
+            "A Tender Line you pick from a product keeps its own name, quantity and unit. If the SOR's product changes later, the line says what it now says. A Tender Line over its ABC is flagged.",
+            "Each person sees only their own figures. People called into a stage see the Tender Lines with no prices at all, and Purchasing never sees Final Offer."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "SOR: where its orders stand",
+        "version": "1.9.35",
+        "changes": [
+            "The IPAS section on an SOR now says the one next thing for each order, who owes it, and how many days it has waited.",
+            "An order past its step's ageing rule shows a Late mark. It is the same answer the Order Monitoring page gives.",
+            "You still see only that SOR's orders, and still no money."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Purchasing: the order register",
+        "version": "1.9.34",
+        "changes": [
+            "Order Monitoring has a new Register view behind What needs doing. It lists every order in one table, filed ones included and cancelled ones left out, so you can answer where order X is.",
+            "Each row draws the buyer track as steps: stamped, typed by a person, or still pending. It also shows the next thing, who owes it, how long it has waited, and the order value.",
+            "The hand-off column shows the latest Transmittal and its check result: open, GC, NA, or NA replaced by a later GC.",
+            "An Import order waiting on Delivered shows its latest Supplier Origin date.",
+            "Narrow the register by entity, source, SOR, supplier or state, or search by IPAS number, PO number or S number.",
+            "The page remembers which view you chose, for you only. If your browser blocks that, it still opens on What needs doing."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Purchasing: Order Monitoring",
+        "version": "1.9.33",
+        "changes": [
+            "Purchasing has a new Order Monitoring page. It lists every open order across every SOR, so you no longer open each IPAS one by one.",
+            "Orders open on what needs doing: Needs chasing, Waiting on us, and Waiting on someone else. Each line says the one next thing and who owes it.",
+            "Filed orders are kept in their own group, closed until you open it.",
+            "The four totals at the top count the orders in each group, and the value still open in each currency.",
+            "Purchasing, Finance and Super Admins can open the page. Nothing is blocked and nobody is notified."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Purchasing: ageing rules for orders",
+        "version": "1.9.32",
+        "changes": [
+            "Settings > Purchasing has a new Ageing rules section. Set how many days an order may sit at each step before it counts as late.",
+            "A step left blank has no rule and never goes late. Nothing is blocked and nobody is notified."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Transmittals and Packing Lists laid out like IPAS",
+        "version": "1.9.31",
+        "changes": [
+            "Transmittals and Packing Lists: the page shows the numbers, a row per section that opens in a drawer, and a Your move card that says what you can do or who it is waiting on.",
+            "Transmittals: sign a stage, Received in Odoo by or a Check by from the card or the drawer. Prints and Cancel are in the More menu.",
+            "Transmittals: someone who may sign a step can undo that signature with a reason. It is kept as history; ratings, remarks and pictures stay.",
+            "Packing Lists: Sign Packed by is the one move, in the card or the Packed by drawer.",
+            "Transmittals: a Check by signer can decline their stored signature, so the slip prints their name only, and apply it again later.",
+            "Transmittals: a company spelled with different capital letters in Odoo no longer warns as a different company."
+        ]
+    },
+    {
+        "date": "2026-10-16",
+        "title": "Transmittals: Technical inspection, Check by and prints",
+        "version": "1.9.30",
+        "changes": [
+            "Transmittals: Technical rates each line GC or NA and signs Technical inspection (Received by and Inspected by). On a slip with no Warehouse checking, Technical records the quantity received.",
+            "Transmittals: two Check by signatures close a slip. A slip waiting on you is listed in the Approval Center, and a PO slip needs Received in Odoo first.",
+            "Transmittals: the list filters by stage, priority, NA and awaiting my Check by, and shows an NA column.",
+            "Transmittals: Print gives the slip on the TG03 paper layout, with signatures; a TSR prints as one A4 sheet, with or without photographs.",
+            "Transmittals: Company is picked from the company list. Whoever completes Warehouse checking or Technical inspection can sign as either signatory; the other confirms.",
+            "IPAS: section 5 lists the TG03 slips carrying its PO lines, and Delivered and Actual Checking are ticked from those slips.",
+            "SOR: an SOR shows its Transmittals and Packing Lists, with their stage, NA count and boxes."
+        ]
+    },
+    {
+        "date": "2026-10-15",
+        "title": "Packing Lists: printed Packing List",
+        "version": "1.9.29",
+        "changes": [
+            "Packing Lists: Print on a Packing List prints one A4 sheet: the customer and SOR, the Odoo delivery reference, each box with its marks, seal number, gross weight and contents, the box count and total known weight, and Packed by.",
+            "Packing Lists: when some boxes have no weight, the footer says how many were weighed."
+        ]
+    },
+    {
+        "date": "2026-10-15",
+        "title": "Packing Lists: record and pack boxes for an SOR",
+        "version": "1.9.29",
+        "changes": [
+            "Packing Lists: the Warehouse records what is in each box packed for an SOR, with its marks, seal number and weight.",
+            "Packing Lists: each box's contents are typed or picked from the SOR's Product List, and keep the line as it was when picked.",
+            "Packing Lists: signing Packed by closes the list. A Packing List is under Purchasing, numbered PKL_."
+        ]
+    },
+    {
+        "date": "2026-10-15",
+        "title": "Transmittals: raise and submit a TG03 slip",
+        "version": "1.9.29",
+        "changes": [
+            "Transmittals: a purchaser, or someone on the Warehouse or Logistics list, raises a TG03 slip from Purchasing. Its number continues the paper series.",
+            "Transmittals: a slip carries PO lines from the IPAS (with their quantity), typed lines, its origin, checking, priority, products and reference checklist.",
+            "Transmittals: Submit opens the first stage and tells that list. A draft can be edited until it is submitted; a slip can be cancelled with a reason until a stage is signed.",
+            "Transmittals: a new Transmittals page under Purchasing lists the slips you can read. Super Admins set the first TG03 number once, in IPAS lists settings.",
+            "Transmittals: the Warehouse rates each line GC or NA (an NA needs a remark), signs Warehouse checking and releasing with pictures or videos, and its co-signer confirms the signature.",
+            "Transmittals: Received in Odoo is recorded by the Warehouse or Purchasing, with its Odoo receipt reference. Pictures are readable only by the slip's readers."
+        ]
+    },
+    {
+        "date": "2026-10-14",
+        "title": "IPAS: edits show at once, Return and Undo approval, new costing steps",
+        "version": "1.9.28",
+        "changes": [
+            "IPAS: what you type, tick, pick or sign shows at once; the save happens behind it. If it fails, the page puts it back and says why, with Retry.",
+            "IPAS: Back from a section's edit view returns to that section's panel.",
+            "IPAS: Contact is now Supplier's name, and the P.I/QT Amount and payment amounts show their currency in front.",
+            "IPAS: Send back is now Return. One Return button on Your move asks which section and why.",
+            "IPAS: once a section is approved the move is Undo approval, which takes back only the approval and leaves it prepared.",
+            "IPAS: returning or undoing section 1 or 2 after Filing has begun also clears Received, Noted and Checked. It names who gave them and asks for a second click.",
+            "IPAS: the computation status is Encoding, Encoded, LC GS Done, LC Odoo Done, Checked by. It moves one step at a time. Finance can give Checked by.",
+            "IPAS: the list shows each IPAS's costing step and can be filtered by it.",
+            "IPAS: documents and payment proofs accept the common file types, not only images and PDFs.",
+            "IPAS: the line under a section's heading no longer sits above its Add button."
+        ]
+    },
+    {
+        "date": "2026-10-14",
+        "title": "IPAS: sign-offs ask first, in the panel too",
+        "version": "1.9.27",
+        "changes": [
+            "IPAS: signing from a section's panel now asks you to confirm first, the same as from Your move.",
+            "IPAS: Edit section is in the footer of a section's panel, next to the sign-off buttons.",
+            "IPAS: Mark costs complete is offered once the costs are encoded.",
+            "IPAS: on a narrow screen, Your move shows just its status line; open it to see your moves.",
+            "IPAS: if the page fails to load an overview change, the message shows there with Retry.",
+            "IPAS: the Approval Center names sections the same way as the IPAS page, for example 2 · Purchasing & Finance."
+        ]
+    },
+    {
+        "date": "2026-10-14",
+        "title": "IPAS: record page fixes and clearer sign-offs",
+        "version": "1.9.26",
+        "changes": [
+            "IPAS: Back from a section's edit view returns to the IPAS overview, with that section highlighted.",
+            "IPAS: going to the next IPAS waiting for you no longer carries over a message or Retry from the one before.",
+            "IPAS: Mark costs complete happens straight away, with an Undo, and no confirmation.",
+            "IPAS: sign-offs are made from Your move or a section's panel. The edit view no longer has its own sign-off buttons.",
+            "IPAS: if sending a section back or reopening an IPAS fails, the reason stays in the box with a Retry button.",
+            "IPAS: a failed change made in a section's edit view shows its message there, with Retry.",
+            "IPAS: the Odoo warning can be dismissed; the saved copy stays on the page.",
+            "IPAS: the Approve confirmation uses the same green button as the Approve button.",
+            "IPAS: Edit section sits in the footer of a section's panel, next to its sign-off buttons.",
+            "Focus outlines are darker across the app, so they are easier to see when using a keyboard.",
+            "Approve buttons are readable in dark mode."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: SOR picker shows Stage, not customer",
+        "version": "1.9.25",
+        "changes": [
+            "IPAS: the SOR picker and the SORs on an IPAS show the reference, project and Stage. The customer name is no longer shown or searched; find an SOR by its reference or project",
+            "IPAS: payment methods, charge kinds, freight services, document kinds and item locations start from the paper IPAS sheet's own lists. They can still be edited in Purchasing settings",
+            "IPAS: section 2 has two ticks, Googlesheet and Gantt Chart, and they print on the IPAS"
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS options stay accurate on filed IPAS",
+        "version": "1.9.24",
+        "changes": [
+            "IPAS: a payment method, charge kind, document kind, freight service or item location used on a filed IPAS can no longer be renamed. Deactivate it and add a new one instead"
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: follow-ups",
+        "version": "1.9.23",
+        "changes": [
+            "IPAS: everyone who can read an IPAS now sees signers' signatures on the printed form. The filing copy of a printed IPAS is offered on filed IPAS only.",
+            "IPAS: section 7 can be sent back with a reason by anyone who signs it; the people who had signed are told. A suggested document can no longer be removed, only one added by hand.",
+            "Settings: the IPAS lists and sign-off lists moved into a new Purchasing tab, and Super Admins can see who changed the sign-off lists."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: review fixes",
+        "version": "1.9.22",
+        "changes": [
+            "IPAS: filing an IPAS checks Odoo for the latest PO first. If the PO changed since the approvals were given, they are cleared and nothing is filed.",
+            "IPAS: screens, messages and the printed form say \"Odoo PO\". Attaching a document that fails to save now says why."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: printed IPAS",
+        "version": "1.9.21",
+        "changes": [
+            "IPAS: Print puts an IPAS on two A4 portrait pages in the sheet's own order: the header and sections 1, 2 and 3, then sections 5, 6 and 7. Each section's sign-offs print beside it: a stored signature prints as the signature, a signer with none or who chose not to sign prints as the name only, and a box still waiting prints Signature required.",
+            "IPAS: Landed Cost prints per unit and in total with its provisional or final mark, and a filed IPAS always prints final. Statuses read from Odoo carry a mark with the legend stamped from Odoo, and the footer shows when the Odoo copy was read.",
+            "IPAS: bank account numbers print as the last four digits. Print filing copy prints them in full. Bank details print only for people who can read them, the filing copy included.",
+            "IPAS: printing refreshes an open IPAS from Odoo first. A filed IPAS prints its frozen copy and doesn't ask Odoo."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: summary on the SOR",
+        "version": "1.9.20",
+        "changes": [
+            "SOR: an IPAS section lists each Project IPAS that names the SOR, with its number, PO, supplier, state, buyer track, computation status and how far each section's sign-offs have got. Anyone who can read the SOR sees it, without Purchasing or Finance access.",
+            "SOR: the summary never shows payments, charges, bank details or Landed Cost. People with IPAS access get an Open IPAS button on each row; everyone else reads the summary only.",
+            "SOR: an IPAS that names two SORs appears on both, and an Inventory, Supplies or Events IPAS never appears on an SOR."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: section 7 and Filing",
+        "version": "1.9.19",
+        "changes": [
+            "IPAS: section 7 files the IPAS. It opens once sections 1 and 3 are approved. Received comes first, then Noted and Checked in either order, then Approved, which files it. Each step tells the next list, and the Approval Center queue shows the step waiting on you.",
+            "IPAS: Approved is refused until the computation status reaches Costs complete, because Filing freezes Landed Cost as final.",
+            "IPAS: required documents that nobody has ticked only warn. The Approve dialog lists them and the IPAS files when you confirm.",
+            "IPAS: a filed IPAS is frozen. Its payments, charges, documents, bank details, SORs, Purpose and overrides no longer change, and Landed Cost reads final. If the PO changes in Odoo afterwards, the page shows Odoo has changed since filing and the filed copy stays as it was.",
+            "IPAS: a Super Admin can reopen a filed IPAS with a reason. It clears section 7's sign-offs (kept in History), leaves sections 1 and 3 approved and makes it editable again. A filed IPAS can't be cancelled until it is reopened."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: sections 1 and 3 sign-offs in the Approval Center",
+        "version": "1.9.18",
+        "changes": [
+            "IPAS: sections 1 and 3 are signed in the ERP. Anyone with Purchasing access marks a section Prepared; the people on that section's approval list approve it. Whoever prepared a section can't approve it, and a Super Admin approves only when they are on the list.",
+            "IPAS: an approver can send a section back with a reason. It clears Prepared and Approved for that section, keeps them in History and tells whoever prepared it.",
+            "IPAS: a changed PO in Odoo (lines or total) or a flagged Account # clears the approvals on sections 1 and 3 and notifies the preparer. Payments, charges, overrides, Purpose and SORs never do.",
+            "IPAS: a payment recorded before section 1 is approved shows Paid before approval.",
+            "Approval Center: a new IPAS Sign-offs queue lists the sections waiting on you, with a count in the sidebar. A notification tells the approvers when a section is prepared.",
+            "IPAS settings: Super Admins keep the sign-off lists, who may approve each section.",
+            "Employees: HR and Super Admins can give someone a Call Sign, the code they go by (for example 101). Each Call Sign is unique."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: documents, Supplier Origin and the buyer track",
+        "version": "1.9.17",
+        "changes": [
+            "IPAS: section 3 lists the documents a purchase needs. An Import IPAS starts with the Import documents and a Local IPAS with the Local ones, plus the documents both need. Purchasing can add any other document by hand and attach the file.",
+            "IPAS: every document has two ticks. Purchasing ticks Purchasing has it and Finance ticks Finance has it; neither can tick the other's box, and each tick is kept in History with who made it. Filing documents such as BIR 2307 are the same rows, so one ticked here is already ticked at Filing.",
+            "IPAS: section 5 shows the Item Location, picked from a list. TG03 Location is gone.",
+            "IPAS: an Import IPAS carries the Supplier Origin dates (Shipped Out, Onboard, Arrived in PH, Arrived in Whs.). A Local IPAS doesn't show or accept them.",
+            "IPAS: the buyer track adds With P.O.P (shown while any payment carries proof of payment), Import Clearance (Import only), Delivered and Actual Checking. Each status says whether it was stamped from Odoo, derived or typed, and who typed or stamped it and when.",
+            "IPAS settings: Purchasing and Super Admins edit the document kinds (Import, Local or both; documentation, filing or both) and the Item Location list."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: bank details and the changed-account flag",
+        "version": "1.9.16",
+        "changes": [
+            "IPAS: Purchasing types the supplier's Bank Name, Account Name and Account # in section 3. Finance, Super Admins and the section 1 and 3 approvers can read them; Finance can't change them, and a section 7 Noted or Checked signer without those roles reads the IPAS but not the bank details.",
+            "IPAS: an Account # that differs from the same supplier's most recent IPAS is flagged beside the account. Spaces and dashes don't count as a difference, and a supplier's first IPAS is never flagged.",
+            "IPAS: a flagged account clears the approvals given on sections 1 and 3 and notifies whoever prepared them. History records that the bank details changed, never the account number itself."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: payments, charges and Landed Cost",
+        "version": "1.9.15",
+        "changes": [
+            "IPAS: Purchasing and Finance record any number of payments (down payment, payment, full payment, shipping fee) and importation charges. Each has its date and amount, a payment its charge fee, method, Check No. and optional proof of payment. Edit or remove them until the IPAS is filed; every change is kept in History.",
+            "IPAS: on a foreign-currency PO each payment records the PHP actually debited, so costs use the rate really paid. DP and FP come from the payment rows, P.I/QT Amount is typed, and no balance is worked out.",
+            "IPAS: each IPAS gets one freight service and a computation status: Encoding, Encoded, Costs complete, Checked by.",
+            "IPAS: Landed Cost shows per line and per unit, spread by value, by quantity or equally, marked provisional until Costs complete and final after. A foreign PO with no payment shows it as not available.",
+            "IPAS settings: Purchasing and Super Admins edit the payment method, charge kind and freight service lists. Options are reordered or deactivated, never deleted, and rows that used one keep it."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: the Odoo copy stays current, with overrides",
+        "version": "1.9.14",
+        "changes": [
+            "IPAS: opening an IPAS refreshes it from Odoo and notes what changed since the last copy: lines added or removed, and new quantities or prices. When Odoo doesn't answer, the last copy shows with its fetch time.",
+            "IPAS: Purchasing can override Entity, Source Doc. and Analytic Dist., with Odoo's value shown beside the override and one click to go back to it. Currency, Supplier, item lines and Brand stay as Odoo has them.",
+            "IPAS: the supplier contact and P.I # fill from Odoo only while blank, and what you type is kept.",
+            "IPAS: Purchase Order, Received in Odoo (with Partly received) and Create Bill are stamped from Odoo and marked as such. A PO cancelled in Odoo shows a banner and leaves the IPAS open, and a mismatch between Odoo's S numbers and the IPAS's SORs warns."
+        ]
+    },
+    {
+        "date": "2026-10-13",
+        "title": "IPAS: raise and track an IPAS from an Odoo purchase order",
+        "version": "1.9.13",
+        "changes": [
+            "IPAS: Purchasing can raise an IPAS from an Odoo PO number. The ERP checks the PO in Odoo, gives it a TGIPAS number, and brings in the supplier, currency and item lines.",
+            "IPAS: a Project IPAS names its SORs, suggested from the PO's Source Document and analytic accounts. Inventory, Supplies and Events name none.",
+            "IPAS: the new IPAS page in the Purchasing menu lists every IPAS by open, filed or cancelled, and by entity and purpose. Purchasing can change the purpose and SORs, or cancel with a reason. The number is kept.",
+            "Employees: a new Finance access switch sits beside Purchasing, for Finance staff who read every IPAS."
         ]
     },
     {
@@ -15,6 +1101,81 @@
         "version": "1.9.12",
         "changes": [
             "Leaves & Overtime: the Offset tab is now titled \"Request Offset\", the date field is labelled \"Offset Date\", and you no longer need to pick a category when requesting an offset."
+        ]
+    },
+    {
+        "date": "2026-10-12",
+        "title": "UI Refresh: Responsive queues, cleaner navigation and pagination",
+        "version": "1.9.11",
+        "changes": [
+            "Navigation: tabs scroll smoothly with edge indicators on small screens, and the sidebar collapses to a rail on tablets.",
+            "Queues and lists: phone-friendly table layouts, shared page numbering across registers and queues, and clearer empty states.",
+            "Forms and editing: unsaved edits on Profile and FAQ Editor are protected when navigating away, and sign-in highlights invalid fields inline.",
+            "Approvals: declining a leave request now opens the details sheet to add a reason before confirming."
+        ]
+    },
+    {
+        "date": "2026-10-12",
+        "title": "Task fixes: Submit for Review and grade colours",
+        "version": "1.9.10",
+        "changes": [
+            "Tasks: phased checklists (like Checking and Validation, Release with Payslip) no longer lock Submit for Review, Resubmit or Approve when every item is already ticked.",
+            "Tasks: the selected grade (1 to 5) keeps its colour when you hover it instead of turning grey."
+        ]
+    },
+    {
+        "date": "2026-10-12",
+        "title": "Purchase Request fixes: stock, chat and who can add items",
+        "version": "1.9.9",
+        "changes": [
+            "Purchase Requests: items you've already added now show their stock and when it was checked, so you don't have to look it up in Odoo. Stock checked more than a day ago is marked Stale. New products show no stock.",
+            "Purchase Requests: once a request has a Buyer, chat messages notify only the Buyer and the people who asked for items. @mentions still notify the person you mention.",
+            "Purchase Requests: the SOR's Deal Team can always add items. The \"who can request items\" setting on a Stage Action now only adds more people; it no longer locks the Deal Team out. The Flow Canvas wording says so.",
+            "Behind the scenes: tidier Purchase Request internals and extra checks. Nothing else changes for you."
+        ]
+    },
+    {
+        "date": "2026-10-12",
+        "title": "Keyboard access, clearer errors and tidier wording",
+        "version": "1.9.8",
+        "changes": [
+            "Everywhere: rows, cards, filter pills and settings toggles can now be used with the keyboard. Tab to one and press Enter or Space.",
+            "Everywhere: if a list fails to load you now see a message with a Retry button instead of an empty page.",
+            "Registers and approvals: when your search or filters hide everything, the page says so and offers Clear filters.",
+            "Pages: an unknown address now shows a Page not found screen, old links keep their filters, and each page has its own browser tab title.",
+            "SORs: the register now scrolls sideways on small screens instead of squashing its columns. Several other small layout fixes on Profile and Offsets.",
+            "Wording: clearer success and error messages, correct plurals, and proper … and ’ characters. Empty cells show — and dates look the same everywhere.",
+            "Buttons: Approve, Decline and similar buttons can no longer be double-clicked into running twice."
+        ]
+    },
+    {
+        "date": "2026-10-09",
+        "title": "Consolidated Purchase Request Item Status",
+        "version": "1.9.7",
+        "changes": [
+            "Purchase Requests: Requested item status and action controls are now consolidated into a single interactive status pill with responsive color feedback, removing the redundant Status button and saving space.",
+            "Purchase Requests: Polished SlideOver layout, member chip presentation, section spacing, item notes styling, and unified status pill metrics according to design guidelines.",
+            "Purchase Requests: Added an Expand / Full Screen button to the SlideOver and redesigned the Purchase Request modal into a responsive two-column split layout with dedicated full-height Chat."
+        ]
+    },
+    {
+        "date": "2026-10-07",
+        "title": "Purchase Requests Replace Procurement Requests",
+        "version": "1.9.6",
+        "changes": [
+            "Sales Flows: a new Stage Action, Open Purchase Request, opens the SOR's Purchase Request when the SOR enters the Stage, or once a Decider picks Create. An SOR has one request; a second action on a later Stage adds to it.",
+            "Sales Flows: everyone with Purchasing access and the SOR's Deal Team become members. On the action you can name a default Buyer, add people or groups, and leave out Deal Team roles.",
+            "SORs: purchasing members can open the SOR for the Stage the request was opened on, for as long as the action's access window allows. Other members see the SOR's name and current Stage.",
+            "Purchase Requests: each request has its own chat with @mentions and attachments. The Deal Team and the Buyer add items from the SOR's Product List, or request something that isn't in Odoo.",
+            "Purchase Requests: Purchasing moves each item along (To order, Canvassing, Ordered, Received, From stock) or closes it. The Buyer can offer a substitute. Ordered items can carry an Odoo PO number, checked against Odoo.",
+            "Purchasing: the old Purchasing page is now the Procurement Queue. Take an unassigned request to become its Buyer. A new request with no Buyer notifies Purchasing once.",
+            "SORs: the Now, Products and History tabs show the SOR's Purchase Request and its items. A new Stage condition, Purchasing settled, stops an SOR leaving a Stage until every item is closed.",
+            "Old procurement requests moved into each SOR's Purchase Request and can no longer be edited. The SOR's old Purchasing panel is gone.",
+            "Purchase Requests: when an SOR is deleted or lost while items are still open, the Buyer and the people who asked for items are told, and told again if it comes back. With no Buyer, everyone with Purchasing access hears.",
+            "Purchase Requests: the Procurement Queue marks a request whose SOR was deleted or lost, and shows the SOR number when there's no Sales Reference.",
+            "Purchasing: someone given Purchasing access joins the requests still being worked. When the access is removed they leave the requests they were only on to buy, and any they were the Buyer of go back to the queue.",
+            "Purchase Requests: the chat says who was added or removed, and dialogs opened from a request on an SOR now show in front of it.",
+            "Sales Flows: each Terminal Stage now says whether deals end there as Won or Lost. A deal at a Closed Won Stage counts as Won (Realized) instead of lost. Stages named Closed Won were set to Won automatically; set any other winning end Stage to Won in Flow Canvas."
         ]
     },
     {

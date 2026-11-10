@@ -88,6 +88,11 @@ describe("the Legacy Pipeline backfill", () => {
         expect(data.name).toBe("Legacy Pipeline")
     })
 
+    it("gives it the fixed key the no-new-deals block reads (#856)", async () => {
+        const { data } = await serviceClient().from("sale_types").select("system_key").eq("id", saleTypeId).single()
+        expect(data.system_key).toBe("legacy_pipeline")
+    })
+
     it("leaves no non-deleted SOR without a Sale Type", async () => {
         const { rows } = await sql().query(
             "select count(*)::int as n from public.sales_opportunities where sale_type_id is null and coalesce(is_deleted, false) = false",

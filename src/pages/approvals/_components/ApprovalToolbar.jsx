@@ -13,13 +13,13 @@ export function PillFilter({ label, icon, value, options, onChange }) {
     <Dropdown
       usePortal
       trigger={({ isOpen }) => (
-        <div className={`property-pill ${active ? "active" : ""}`} data-open={isOpen || undefined} role="button" aria-label={`${label}${active ? `: ${current?.label}` : ""}`}>
+        <Button type="button" variant="ghost" className={`property-pill h-auto gap-1.5 rounded-full border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground ${active ? "active border-mauve-6 bg-muted font-semibold text-foreground" : ""}`} data-open={isOpen || undefined} aria-haspopup="listbox" aria-expanded={!!isOpen} aria-label={`${label}${active ? `: ${current?.label}` : ""}`}>
           {icon}
           <span>
             {label}
             {active && `: ${current?.label}`}
           </span>
-        </div>
+        </Button>
       )}
     >
       {({ close }) => <FilterOptionList options={options} value={value} onChange={onChange} close={close} />}
@@ -77,7 +77,7 @@ export function ApprovalToolbar({
 export function SelectionBar({ count, onClear, children }) {
   if (!count) return null;
   return (
-    <div className="fixed bottom-6 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2.5 shadow-lg">
+    <div role="region" aria-label="Selection" aria-live="polite" className="fixed bottom-6 pb-[env(safe-area-inset-bottom)] left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2.5 shadow-lg">
       <span className="text-[13px] font-bold">{count} selected</span>
       {children}
       <Button variant="ghost" size="sm" onClick={onClear}>

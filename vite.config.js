@@ -1,7 +1,8 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import Generouted from '@generouted/react-router/plugin'
 import tailwindcss from '@tailwindcss/vite'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import path from "path"
 import { fileURLToPath } from "url"
 
@@ -34,31 +35,56 @@ function readChangelog() {
 
 function versionGeneratorPlugin() {
     return {
-        name: 'version-generator-plugin',
-        generateBundle() {
-            this.emitFile({
-                type: 'asset',
-                fileName: 'version.json',
-                source: JSON.stringify({
-                    version: appVersion,
-                    builtAt: buildTime,
-                }, null, 2),
-            })
+            name: 'version-generator-plugin',
+            generateBundle() {
+                this.emitFile({
+                    type: 'asset',
+                    fileName: 'version.json',
+                    source: JSON.stringify({
+                        version: appVersion,
+                        builtAt: buildTime,
+                    }, null, 2),
+                })
+            },
+        }
+    }
+
+    // https://vite.dev/config/
+    export default defineConfig(({ mode }) => {
+        // Source maps go to Bugsink only on a build that has the upload token (set in
+        // Vercel as BUGSINK_URL / BUGSINK_AUTH_TOKEN, deliberately without a VITE_
+        // prefix so they never reach the client bundle). Elsewhere the build is
+        // unchanged and ships no maps.
+        const env = loadEnv(mode, process.cwd(), '')
+        const uploadSourceMaps = Boolean(env.BUGSINK_URL && env.BUGSINK_AUTH_TOKEN)
+
+        return {
+        plugins: [
+            react(),
+            tailwindcss(),
+            Generouted(),
+            versionGeneratorPlugin(),
+            uploadSourceMaps && sentryVitePlugin({
+                org: 'bugsinkhasnoorgs',
+                project: 't3ckgroup-erp',
+                url: env.BUGSINK_URL,
+                authToken: env.BUGSINK_AUTH_TOKEN,
+                telemetry: false,
+                release: { name: appVersion, create: false, finalize: false, inject: true },
+                // The maps are for Bugsink only; do not serve them from Vercel.
+                sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
+            }),
+        ],
+        build: { sourcemap: uploadSourceMaps ? 'hidden' : false },
+        define: {
+            __APP_VERSION__: JSON.stringify(appVersion),
+            __APP_SEMVER__: JSON.stringify(visibleEntries(readChangelog(), mode === 'staging' || process.env.VITE_APP_ENV === 'staging')[0]?.version || 'dev'),
+            __BUILD_TIME__: JSON.stringify(buildTime),
+        },
+        resolve: {
+            alias: {
+                "@": path.resolve(__dirname, "./src"),
+            },
         },
     }
-}
-
-// https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
-    plugins: [react(), tailwindcss(), Generouted(), versionGeneratorPlugin()],
-    define: {
-        __APP_VERSION__: JSON.stringify(appVersion),
-        __APP_SEMVER__: JSON.stringify(visibleEntries(readChangelog(), mode === 'staging' || process.env.VITE_APP_ENV === 'staging')[0]?.version || 'dev'),
-        __BUILD_TIME__: JSON.stringify(buildTime),
-    },
-    resolve: {
-        alias: {
-            "@": path.resolve(__dirname, "./src"),
-        },
-    },
-}))
+})

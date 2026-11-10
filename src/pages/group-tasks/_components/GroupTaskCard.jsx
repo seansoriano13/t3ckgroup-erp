@@ -5,6 +5,7 @@ import GradeSelector from "../../../components/GradeSelector";
 import Avatar from "../../../components/Avatar";
 import AvatarGroup from "../../../components/AvatarGroup";
 import { formatDueDate } from "../../../utils/formatDate";
+import { getDueCountdown } from "../utils/dueCountdown";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
@@ -43,8 +44,15 @@ export default function GroupTaskCard({
 
   return (
     <div
+      tabIndex={0}
       onClick={onView}
-      className="bg-card p-5 rounded-2xl border border-border shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-all duration-300 group flex flex-col h-full cursor-pointer relative"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && e.target === e.currentTarget) {
+          e.preventDefault();
+          onView?.();
+        }
+      }}
+      className="outline-none focus-visible:ring-2 focus-visible:ring-ring/50 bg-card p-5 rounded-2xl border border-border shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-all duration-300 group flex flex-col h-full cursor-pointer relative"
     >
       <div className="flex justify-between items-start gap-4 mb-3 w-full">
         <h3 className="font-bold text-foreground line-clamp-2 break-words min-w-0 flex-1 leading-snug group-hover:text-primary transition-colors">
@@ -57,6 +65,10 @@ export default function GroupTaskCard({
           />
           {(isHrPending || isHrVerified) && (
             <div
+              role="img"
+              aria-label={
+                isHrVerified ? "Verified by HR" : "Pending HR Verification"
+              }
               title={
                 isHrVerified ? "Verified by HR" : "Pending HR Verification"
               }
@@ -83,7 +95,7 @@ export default function GroupTaskCard({
 
       {/* HR Rejected Banner */}
       {(task.status === "ACTIVE" || task.status === "AWAITING_EVALUATION") && task.hr_remarks && (
-        <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 bg-destructive/10 border border-red-500/20 rounded-lg text-[10px] font-bold text-destructive uppercase tracking-wider">
+        <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 bg-destructive/10 border border-red-500/20 rounded-lg text-label font-bold text-destructive uppercase tracking-wider">
           <AlertTriangle size={11} />
           HR Rejected — Resubmit Required
         </div>
@@ -114,7 +126,7 @@ export default function GroupTaskCard({
       {myMember && !isCreator && !isSuperAdmin && (
         <div className="mb-4 bg-muted/30 p-3.5 rounded-xl border border-border/40 hover:border-border/80 transition-colors w-full min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <div className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.1em] truncate">
+            <div className="text-label font-black text-muted-foreground uppercase tracking-[0.1em] truncate">
               My Task
             </div>
             {myMember.role && (
@@ -187,6 +199,9 @@ export default function GroupTaskCard({
               }
             >
               {formatDueDate(task.due_date)}
+              {task.status === "ACTIVE" && getDueCountdown(task.due_date) && (
+                <> · {getDueCountdown(task.due_date).label}</>
+              )}
             </span>
           </div>
         )}

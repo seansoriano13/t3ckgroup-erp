@@ -276,7 +276,7 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
 
         {/* ── Canvas area ────────────────────────────────────────────────── */}
         <div className="px-5 pt-5 pb-3 flex flex-col items-center gap-3">
-          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest self-start">
+          <p className="text-label font-black text-muted-foreground uppercase tracking-widest self-start">
             Drag to reposition · scroll or pinch to zoom
           </p>
 
@@ -360,7 +360,7 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
             type="button"
             variant="outline"
             onClick={handleReset}
-            className="h-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hover:bg-muted text-muted-foreground"
+            className="h-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-label font-black uppercase tracking-widest transition hover:bg-muted text-muted-foreground"
           >
             <RotateCcw size={12} />
             Reset
@@ -371,7 +371,7 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
               type="button"
               variant="ghost"
               onClick={onCancel}
-              className="h-auto px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground/80 hover:text-foreground hover:bg-muted transition-colors"
+              className="h-auto px-4 py-2 rounded-xl text-label font-black uppercase tracking-widest text-muted-foreground/80 hover:text-foreground hover:bg-muted transition-colors"
             >
               Cancel
             </Button>
@@ -379,7 +379,7 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
               type="button"
               onClick={handleConfirm}
               disabled={!imgLoaded || isCropping}
-              className="h-auto flex items-center gap-1.5 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:opacity-60"
+              className="h-auto flex items-center gap-1.5 px-5 py-2 rounded-xl text-label font-black uppercase tracking-widest shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:opacity-60"
             >
               {isCropping ? (
                 <Spinner size="sm" />

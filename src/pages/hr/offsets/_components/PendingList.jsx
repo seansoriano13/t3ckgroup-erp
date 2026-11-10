@@ -1,9 +1,11 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useMemo, useState } from 'react';
+import { pluralize } from "@/utils/plural";
 import { CheckCircle2, ChevronRight, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import Spinner from '@/components/ui/Spinner';
 import Avatar from '../../../../components/Avatar';
-import { EmptyState, StatusPill } from './LeaveParts';
+import EmptyState from '@/components/ui/EmptyState';
+import { StatusPill } from './LeaveParts';
 import { LABEL, TYPE_META, fmtRange, hoursOf, recordKey, relTime, windowOf } from './leaveDisplay';
 
 const COLS = 'grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1fr)_80px]';
@@ -36,16 +38,17 @@ export default function PendingList({ rows, total, loading, availableHoursFor, a
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center gap-3 py-20 text-muted-foreground">
-                <Spinner size="sm" />
-                <span className="text-sm font-medium">Loading pending requests…</span>
-              </div>
+              <PageLoading label="pending requests" />
             ) : shown.length === 0 ? (
-              <EmptyState icon={CheckCircle2} title="Nothing waiting on HR">
-                {total > 0
-                  ? 'Filters hide every request. Clear one above.'
-                  : 'Requests land here once a department head approves them.'}
-              </EmptyState>
+              <EmptyState
+                icon={CheckCircle2}
+                title="Nothing waiting on HR"
+                description={
+                  total > 0
+                    ? 'Filters hide every request. Clear one above.'
+                    : 'Requests land here once a department head approves them.'
+                }
+              />
             ) : (
               <div className="divide-y divide-border">
                 {shown.map((r) => {
@@ -89,7 +92,7 @@ export default function PendingList({ rows, total, loading, availableHoursFor, a
                       <span><StatusPill record={r} /></span>
                       <span className="flex items-center justify-end gap-2 font-mono text-xs text-muted-foreground">
                         {r.attachments?.length > 0 && (
-                          <span className="flex items-center gap-0.5" title={`${r.attachments.length} attachment(s)`}>
+                          <span className="flex items-center gap-0.5" title={pluralize(r.attachments.length, "attachment")}>
                             <Paperclip size={12} />{r.attachments.length}
                           </span>
                         )}

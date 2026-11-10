@@ -122,9 +122,9 @@ const flowSnapshotData = (opportunity, snapshotsById = {}) =>
  * booked" without asking where the deal currently sits. For a flow-built deal
  * the check below decides by current Stage, not by the Contract Date.
  *
- * A lost deal never counts. A flow deal is Realized while on the Won Stage or
- * a non-terminal Stage downstream of it, and stops being Realized if it moves
- * back before it. A legacy deal is Realized at or past the anchor Stage, and
+ * A lost deal never counts. A flow deal is Realized while on the Won Stage, a
+ * non-terminal Stage downstream of it, or a Terminal Stage that ends as won
+ * (Closed Won), and stops being Realized if it moves back before the Won Stage. A legacy deal is Realized at or past the anchor Stage, and
  * falls back to the Contract Date only when no anchor exists.
  */
 export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_STAGE_SEED) => {
@@ -173,6 +173,56 @@ const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIP
 };
 
 /**
+ * The fixed Lost reason list (#810, CONTEXT.md "Lost reason"), in the order the
+ * picker shows it. The database checks the same codes in mark_opportunity_lost.
+ */
+export const LOST_REASONS = [
+  { code: "NO_RESPONSE", label: "No response from client" },
+  { code: "PRICE_TOO_HIGH", label: "Price too high" },
+  { code: "LOST_TO_COMPETITOR", label: "Lost to competitor" },
+  { code: "CLIENT_CANCELLED", label: "Client cancelled the project" },
+  { code: "NO_BUDGET", label: "No budget / not approved" },
+  { code: "REQUIREMENTS_NOT_MET", label: "Did not meet the requirements" },
+  { code: "OTHER", label: "Other" },
+];
+
+export const LOST_REASON_OTHER = "OTHER";
+
+/**
+ * #814 — how a Lost deal's reason reads in the register. A coded reason shows
+ * its label (plus the note, when there is one); a deal with only the old free
+ * text and no code reads "Other: <text>". Empty when nothing was recorded.
+ */
+export const formatLostReason = (opportunity) => {
+  if (!opportunity) return "";
+  const note = (opportunity.lost_reason || "").trim();
+  const code = opportunity.lost_reason_code;
+  if (!code) return note ? `Other: ${note}` : "";
+  const label = LOST_REASONS.find((r) => r.code === code)?.label || code;
+  return note ? `${label}: ${note}` : label;
+};
+
+/**
+ * Lost, for either kind of deal: the one rule every list, count, commission
+ * and Open Pipeline check reads (issue #806). A legacy deal is lost by its
+ * status code. A flow-built deal's status never changes after registration
+ * (it moves via flow_stage_id), so it is lost when it sits on a Terminal
+ * Stage of its own Flow Snapshot whose outcome is explicitly Lost. A Terminal
+ * Stage with no outcome is not lost, and a deal whose Stage cannot be
+ * resolved is not treated as lost.
+ */
+export const isLostOpportunity = (opportunity, context = PIPELINE_STAGE_SEED) => {
+  if (!opportunity) return false;
+  const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(context)
+    ? { stages: context }
+    : context || {};
+  if (isJudgedByStageCode(opportunity)) return isLostCode(opportunity.status, stages);
+  const snapshotData = flowSnapshotData(opportunity, snapshotsById);
+  const flowStage = (snapshotData?.stages || []).find((s) => s.id === opportunity.flow_stage_id);
+  return isLostFlowStage(flowStage, snapshotData?.wonStageId ?? null);
+};
+
+/**
  * Open Pipeline (CONTEXT.md):
  * For Flow SORs: any active deal currently sitting on a pre-won Stage
  * (a stage preceding the Won Stage in the flow graph).
@@ -181,6 +231,7 @@ const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIP
  */
 export const isOpenPipelineOpportunity = (opportunity, context = PIPELINE_STAGE_SEED) => {
   if (!opportunity) return false;
+  if (isLostOpportunity(opportunity, context)) return false;
 
   const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(context)
     ? { stages: context }

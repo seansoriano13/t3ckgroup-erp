@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Wand2 } from "lucide-react";
@@ -11,6 +12,9 @@ import { opportunityService } from "@/services/opportunityService";
  * placeholder), and this is the one place it becomes a sentence.
  */
 function describeTarget(target) {
+  if (target.kind === "purchase_request") return "A Purchase Request for this SOR";
+  if (target.kind === "costing_matrix") return "An S0 Evaluation for this SOR";
+  if (target.kind === "packing_list") return "A Packing List request to the Warehouse for this SOR";
   if (target.kind === "group") {
     if (target.members.length === 0) return "A group task with no assignees yet";
     return `A group task for ${target.members.map((m) => m.name).join(", ")}`;
@@ -35,15 +39,28 @@ export default function PendingActionDecisions({ opportunity, actorId, onChanged
     enabled: !!opportunityId && !!actorId,
   });
 
+  // Set once the decision is actually sent, so a refusal raised before any request does not refetch.
+  const sentRef = useRef(false);
+
   const decideMutation = useMutation({
-    mutationFn: ({ runId, decision }) => opportunityService.decideAction(runId, decision, actorId),
+    mutationFn: ({ runId, decision }) => {
+      sentRef.current = true;
+      return opportunityService.decideAction(runId, decision, actorId);
+    },
     onSuccess: (_, { decision }) => {
+      sentRef.current = false;
       toast.success(decision === "create" ? "Created." : "Skipped.");
       queryClient.invalidateQueries({ queryKey: ["pendingActionDecisions", opportunityId, actorId] });
       queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
       onChanged?.();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      toast.error(err.message);
+      // #788: a failed open leaves the run as failed; refresh so the card offers the retry.
+      if (!sentRef.current) return;
+      sentRef.current = false;
+      queryClient.invalidateQueries({ queryKey: ["pendingActionDecisions", opportunityId, actorId] });
+    },
   });
 
   if (!pending.length) return null;
@@ -62,17 +79,24 @@ export default function PendingActionDecisions({ opportunity, actorId, onChanged
               <p className="truncate text-xs text-muted-foreground">
                 {describeTarget(run.target)} · waiting on you since entering {run.stageName}
               </p>
+              {run.failed && (
+                <p className="truncate text-xs font-semibold text-destructive" role="alert">
+                  It failed the last time. Press Create to try again.
+                </p>
+              )}
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={decideMutation.isPending}
-              onClick={() => decideMutation.mutate({ runId: run.runId, decision: "skip" })}
-            >
-              Skip
-            </Button>
+            {!run.failed && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={decideMutation.isPending}
+                onClick={() => decideMutation.mutate({ runId: run.runId, decision: "skip" })}
+              >
+                Skip
+              </Button>
+            )}
             <Button
               size="sm"
               disabled={decideMutation.isPending}

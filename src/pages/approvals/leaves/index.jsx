@@ -1,10 +1,11 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useMemo, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Clock, Layers, SlidersHorizontal, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { decideHeadApproval } from "../../../services/headApprovalService";
 import ProtectedRoute from "../../../components/ProtectedRoute";
-import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { leaveToItem } from "../../../utils/approvalItems.js";
@@ -89,11 +90,13 @@ function LeaveApprovalsQueue() {
     decide.mutate({ item, status, note }, { onSuccess: () => { if (String(item.id) !== recordId) return; if (next) stepRecord(next.id); else closeRecord(); } });
   };
 
+  if (q.isErrorLeaves) {
+    return <QueryError className="m-6" title="Leave & overtime requests could not be loaded." onRetry={q.refetchLeaves} />;
+  }
+
   if (q.isLoadingLeaves) {
     return (
-      <div className="flex justify-center py-16">
-        <Spinner size="md" />
-      </div>
+      <PageLoading label="leave approvals" />
     );
   }
 
@@ -104,8 +107,8 @@ function LeaveApprovalsQueue() {
         <ApprovalToolbar
           views={[
             { value: "ALL", label: "All Pending", icon: Layers, badge: all.length || undefined },
-            { value: "ACTIVE", label: "Active (<48h)", icon: Clock, badge: active.length || undefined },
-            { value: "STALE", label: "Stale Backlog (>48h)", icon: AlertTriangle, badge: stale.length || undefined },
+            { value: "ACTIVE", label: "Active", hint: "Waiting less than 48 hours", icon: Clock, badge: active.length || undefined },
+            { value: "STALE", label: "Overdue", hint: "Waiting 48 hours or more", icon: AlertTriangle, badge: stale.length || undefined },
           ]}
           view={view}
           onViewChange={(v) => {
@@ -134,6 +137,12 @@ function LeaveApprovalsQueue() {
 
         <ApprovalTable
           items={items}
+          filtered={source.length > 0}
+          onClearFilters={() => {
+            setSearch("");
+            setPerson("ALL");
+            setType("ALL");
+          }}
           queueIcon={QUEUE.icon}
           personLabel="Requested by"
           onOpen={(item) => openRecord(item.id)}
@@ -142,7 +151,7 @@ function LeaveApprovalsQueue() {
           renderRowAction={(item) => (
             <>
               <Tooltip content="Decline">
-                <Button variant="outline" size="icon-sm" aria-label={`Decline ${item.person.name}'s ${item.typeLabel}`} disabled={decide.isPending} onClick={() => onDecide(item, "REJECTED", "")}>
+                <Button variant="outline" size="icon-sm" aria-label={`Decline ${item.person.name}'s ${item.typeLabel}`} disabled={decide.isPending} onClick={() => openRecord(item.id)}>
                   <X size={14} />
                 </Button>
               </Tooltip>
@@ -160,7 +169,7 @@ function LeaveApprovalsQueue() {
               </Tooltip>
             </>
           )}
-          empty={{ title: "Nothing waiting on you right now.", description: "Leave, Offset and overtime requests routed to you as department head show up here." }}
+          empty={{ title: "Nothing waiting on you right now", description: "Leave, Offset and overtime requests routed to you as department head show up here." }}
         />
       </ApprovalCenterLayout>
 

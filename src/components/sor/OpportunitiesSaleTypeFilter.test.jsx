@@ -54,10 +54,6 @@ vi.mock("../../services/leadSourceService", () => ({
   leadSourceService: { getActiveLeadSources: vi.fn(async () => [{ value: "LGU", label: "LGU" }]) },
 }));
 
-vi.mock("../../services/purchasingService", () => ({
-  purchasingService: { listForOpportunity: vi.fn(async () => []) },
-}));
-
 vi.mock("../../context/AuthContext", () => ({
   useAuth: () => ({ user: { id: "user-1", name: "Alice", isSuperAdmin: true } }),
 }));

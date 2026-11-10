@@ -1,4 +1,9 @@
+import { manilaToday } from "@/lib/manilaDate.js";
+import PageLoading from "@/components/ui/PageLoading";
 import { useState, useMemo } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
+import QueryError from "@/components/ui/QueryError";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { employeeService } from "../../../services/employeeService";
@@ -9,7 +14,6 @@ import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
 import { UserPlus, Edit, Trash2, Shield, KeyRound, Users } from "lucide-react";
 import { passwordService } from "../../../services/passwordService";
-import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -22,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import HRFormModal from "../../../components/hr/HRFormModal";
 import EmployeeForm from "../../../components/hr/EmployeeForm";
 import EmployeeFilterBar from "../../../components/hr/EmployeeFilterBar";
-import { confirmActionToast } from "../../../components/ui/CustomToast";
+import { confirmActionToast, confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { silService } from "../../../services/silService";
 import { offsetService } from "../../../services/offsetService";
 import {
@@ -55,7 +59,7 @@ export default function EmployeeManagement() {
     [avatarMap],
   );
 
-  const { data: employees = [], isLoading } = useQuery({
+  const { data: employees = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["allEmployees"],
     queryFn: () => employeeService.getAllEmployees(),
   });
@@ -141,6 +145,7 @@ export default function EmployeeManagement() {
     roleFlagFilter,
     sortBy,
   ]);
+  const paging = usePaging(filteredEmployees);
 
   const filterSetters = {
     searchTerm: setSearchTerm,
@@ -173,19 +178,17 @@ export default function EmployeeManagement() {
     mutationFn: (id) => employeeService.deleteEmployee(id, user?.id || null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
-      toast.success("Employee deleted successfully");
+      toast.success("Employee deleted.");
     },
-    onError: (err) => toast.error("Failed to delete employee: " + err.message),
+    onError: (err) => toast.error(err.message || "Could not delete the employee."),
   });
 
   const handleDelete = (id) => {
-    if (
-      window.confirm(
-        "Are you sure you want to delete this employee? This action cannot be undone.",
-      )
-    ) {
-      deleteMutation.mutate(id);
-    }
+    confirmDeleteToast(
+      "Delete employee?",
+      "Are you sure you want to delete this employee? This action cannot be undone.",
+      () => deleteMutation.mutate(id),
+    );
   };
 
   const handleEdit = (employee) => {
@@ -211,13 +214,13 @@ export default function EmployeeManagement() {
   });
 
   const handleReissuePassword = (employee) => {
-    if (
-      window.confirm(
-        `Issue ${employee.name} a new password? Their current one stops working immediately.`,
-      )
-    ) {
-      reissueMutation.mutate(employee.id);
-    }
+    confirmActionToast(
+      "Reissue password?",
+      `Issue ${employee.name} a new password? Their current one stops working immediately.`,
+      "Reissue",
+      "destructive",
+      () => reissueMutation.mutate(employee.id),
+    );
   };
 
   const isEmployees = activeTab === "employees";
@@ -276,35 +279,41 @@ export default function EmployeeManagement() {
       >
         {activeTab === "employees" ? (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <Table className="whitespace-nowrap">
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="overflow-x-auto">
+              <Table scrollCue tableId="hr-employees" className="whitespace-nowrap">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Sub-Dept</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Balances</TableHead>
-                    <TableHead>Role Flags</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead id="name">Name</TableHead>
+                    <TableHead id="email">Email</TableHead>
+                    <TableHead id="department">Department</TableHead>
+                    <TableHead id="sub-dept">Sub-Dept</TableHead>
+                    <TableHead id="role">Role</TableHead>
+                    <TableHead id="status">Status</TableHead>
+                    <TableHead id="company">Company</TableHead>
+                    <TableHead id="balances">Balances</TableHead>
+                    <TableHead id="role-flags">Role Flags</TableHead>
+                    <TableHead id="actions" className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
+                  {isError ? (
+                    <TableRow>
+                      <TableCell colSpan={10}>
+                        <QueryError title="Employees could not be loaded." onRetry={refetch} />
+                      </TableCell>
+                    </TableRow>
+                  ) : isLoading ? (
                     <TableRow>
                       <TableCell
                         colSpan={10}
-                        className="p-10 text-center text-muted-foreground font-bold"
+                        className="p-0"
                       >
-                        <Spinner size="md" />
-                        Loading employees...
+                        <PageLoading label="employees" />
                       </TableCell>
                     </TableRow>
                   ) : filteredEmployees.length > 0 ? (
-                    filteredEmployees.map((emp) => (
+                    paging.rows.map((emp) => (
                       <TableRow
                         key={emp.id}
                       >
@@ -323,8 +332,8 @@ export default function EmployeeManagement() {
                               />
                             </p>
 
-                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-                              {emp.id?.slice(0, 8)}...
+                            <p className="text-label text-muted-foreground font-bold uppercase tracking-widest">
+                              {emp.id?.slice(0, 8)}…
                             </p>
                           </div>
                         </TableCell>
@@ -371,49 +380,49 @@ export default function EmployeeManagement() {
                             <span className="text-muted-foreground">{emp.company.name}</span>
                           ) : (
                             <span className="text-amber-11 bg-amber-2 border border-amber-6 px-2 py-1 rounded text-xs font-bold">
-                              No company
+                              No company set
                             </span>
                           )}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                            <span className="text-label font-black text-muted-foreground uppercase tracking-widest">
                               SIL: <span className="text-foreground">{emp.sil_hours_balance || 0}h</span>
                             </span>
-                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                            <span className="text-label font-black text-muted-foreground uppercase tracking-widest">
                               OFFSET: <span className="text-foreground">{emp.offset_hours_balance || 0}h</span>
                             </span>
                           </div>
                         </TableCell>
                         <TableCell className="text-xs flex gap-1">
                           {emp.isSuperAdmin && (
-                            <span className="bg-violet-2 text-violet-11 border border-mauve-5 px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 uppercase tracking-wider">
+                            <span className="bg-violet-2 text-violet-11 border border-mauve-5 px-2.5 py-1 rounded-lg font-black text-label flex items-center gap-1 uppercase tracking-wider">
                               <Shield size={11} /> Super Admin
                             </span>
                           )}
                           {emp.isHr && (
-                            <span className="bg-blue-2 text-blue-11 border border-blue-6 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                            <span className="bg-blue-2 text-blue-11 border border-blue-6 px-2.5 py-1 rounded-lg font-black text-label uppercase tracking-wider">
                               HR
                             </span>
                           )}
                           {emp.isHead && (
-                            <span className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                            <span className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-label uppercase tracking-wider">
                               Head
                             </span>
                           )}
                           {emp.canManageLeaves && (
-                            <span className="bg-orange-2 text-orange-11 border border-orange-6 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                            <span className="bg-orange-2 text-orange-11 border border-orange-6 px-2.5 py-1 rounded-lg font-black text-label uppercase tracking-wider">
                               Leave Mgr
                             </span>
                           )}
                           {!emp.isSuperAdmin && !emp.isHr && !emp.isHead && !emp.canManageLeaves && (
-                            <span className="bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                            <span className="bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-lg font-black text-label uppercase tracking-wider">
                               Standard
                             </span>
                           )}
                           {emp.isIssuedPassword && (
                             <span
-                              className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 uppercase tracking-wider"
+                              className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-label flex items-center gap-1 uppercase tracking-wider"
                               title="Still signed in with an issued password"
                             >
                               <KeyRound size={11} /> Issued Password
@@ -469,6 +478,8 @@ export default function EmployeeManagement() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+            {!isError && !isLoading && filteredEmployees.length > 0 && <TablePager {...paging} noun="employees" />}
             </div>
           </div>
         ) : activeTab === "categories" ? (
@@ -531,7 +542,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
-      toast.success(isEditing ? "Employee updated!" : "Employee added!");
+      toast.success(isEditing ? "Employee updated." : "Employee added.");
       onClose();
 
       if (!isEditing && data?.id) {
@@ -574,7 +585,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
             silService.getMySilLeaves(employee.id),
             offsetService.getMyOffsetLeaves(employee.id),
           ]);
-          const today = new Date().toISOString().slice(0, 10);
+          const today = manilaToday();
           const approvedFutureSil = silLeaves.filter((l) => l.status === "APPROVED" && l.date >= today);
           const approvedFutureOffset = offsetLeaves.filter((l) => l.status === "APPROVED" && l.date >= today);
 
@@ -586,7 +597,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
             }
             if (approvedFutureOffset.length) {
               const hrs = approvedFutureOffset.reduce((s, l) => s + (parseFloat(l.hours) || 0), 0);
-              parts.push(`${approvedFutureOffset.length} approved offset leave${approvedFutureOffset.length > 1 ? "s" : ""} (${hrs} hrs)`);
+              parts.push(`${approvedFutureOffset.length} approved Offset${approvedFutureOffset.length > 1 ? "s" : ""} (${hrs} hrs)`);
             }
 
             confirmActionToast(
@@ -613,7 +624,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
       title={isEditing ? "Edit Employee" : "Add Employee"}
       subtitle={
         isEditing
-          ? `Employee ID: ${employee.id?.slice(0, 8)}...`
+          ? `Employee ID: ${employee.id?.slice(0, 8)}…`
           : "Define system access & roles"
       }
       icon={isEditing ? Edit : UserPlus}
@@ -629,6 +640,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
         rawEmployees={employees}
         rawCompanies={companies}
         canGrantLeaveManagement={!!user?.isSuperAdmin}
+        canGrantFlowEditor={!!user?.isSuperAdmin}
       />
     </HRFormModal>
   );

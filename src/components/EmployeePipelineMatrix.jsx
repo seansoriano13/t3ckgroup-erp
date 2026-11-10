@@ -165,7 +165,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
   if (isLoading || employeeStats.length === 0) return null;
 
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm p-5 overflow-x-auto">
+    <div className="py-5 overflow-x-auto">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
         <div>
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
@@ -545,7 +545,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
                 {/* Right: Metrics */}
                 <div className="flex items-center gap-4 sm:gap-6 shrink-0">
                   <div className="hidden md:flex flex-col items-end">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground">
                       Avg Grade
                     </span>
                     <span className="flex items-center gap-1 text-xs font-semibold text-foreground">
@@ -555,7 +555,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
                   </div>
 
                   <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground">
                       Tasks Completed
                     </span>
                     <span className="text-xs font-semibold text-foreground">
@@ -564,7 +564,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
                   </div>
 
                   <div className="flex flex-col items-end min-w-[100px]">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-label font-semibold uppercase tracking-wider text-muted-foreground">
                       Completion
                     </span>
                     <span className="flex items-center gap-1 text-sm font-bold text-foreground">

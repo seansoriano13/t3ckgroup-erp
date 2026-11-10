@@ -10,27 +10,27 @@
  * The variants differ only in how the Summary is laid out and whether the
  * crumb also lists the sibling views (`nav="pills"`) or only the path.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import InclusionsPanel from "../../InclusionsPanel";
-import PurchasingPanel from "../../PurchasingPanel";
 import OpportunityCommissionFooter from "../../OpportunityCommissionFooter";
 import SorModalHeader from "../SorModalHeader";
 import NowTab from "../NowTab";
 import ItemsTab from "../ItemsTab";
 import JourneyTab from "../JourneyTab";
+import PmsTab from "../PmsTab";
 import NotesDrawer, { NotesButton } from "./NotesDrawer";
+import { goToDetails } from "./goToDetails";
 import { blockedLabels, EditBody, showMoney, useWarmTabs } from "./shared";
 
 export function nestedViews(p) {
-  const blocked = blockedLabels(p.checklist).length;
+  const blocked = blockedLabels(p.checklist, p.missingRequiredStageFields).length;
   return [
     { key: "now", label: "This stage", badge: blocked || null, badgeTone: "amber" },
     { key: "items", label: "Products", badge: p.ctx.items.length || null },
+    { key: "pms", label: "PMS" },
     p.canViewJourney && { key: "journey", label: "History" },
-    { key: "buying", label: "Inclusions & purchasing" },
     showMoney(p) && { key: "commission", label: "Commission" },
   ].filter(Boolean);
 }
@@ -62,10 +62,13 @@ export function SectionLinks({ views, open, className }) {
 export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   useWarmTabs(p, ["items", "details", "journey"]);
   const { ctx, opportunity } = p;
-  const [view, setView] = useState("summary");
-  const [opened, setOpened] = useState(["summary"]);
-  const [notesOpen, setNotesOpen] = useState(false);
+  // The PMS tab exists for everyone who can see the SOR; PmsTab shows the Costing Matrix only to a tier.
   const views = nestedViews(p);
+  // A caller can open the SOR on a tab (the Costing Matrix page opens "pms"); one this person has no tab for opens the Summary.
+  const [start] = useState(() => (views.some((v) => v.key === p.initialView) ? p.initialView : "summary"));
+  const [view, setView] = useState(start);
+  const [opened, setOpened] = useState(start === "summary" ? ["summary"] : ["summary", start]);
+  const [notesOpen, setNotesOpen] = useState(false);
   const current = views.find((v) => v.key === view);
 
   const open = (key) => {
@@ -76,7 +79,7 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   // here — fixing a missing field is an edit.
   const go = (target) => {
     if (target === "details") {
-      if (p.canEdit) p.handleEditToggle();
+      goToDetails(p);
       return;
     }
     open(target);
@@ -88,7 +91,11 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
       setView("now");
     }
   }, [ctx.pendingStage]);
+  // Back to Summary only when the window moves to a different SOR, never on mount or a re-render.
+  const lastId = useRef(p.id);
   useEffect(() => {
+    if (lastId.current === p.id) return;
+    lastId.current = p.id;
     setView("summary");
     setOpened(["summary"]);
   }, [p.id]);
@@ -163,15 +170,14 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
                 <ItemsTab ctx={ctx} hasOpened={p.hasOpened} />
               </div>
             )}
+            {view === "pms" && (
+              <div className="h-full overflow-y-auto">
+                <PmsTab opportunityId={p.id} opportunity={p.ctx.opportunity} />
+              </div>
+            )}
             {view === "journey" && (
               <div className="h-full overflow-y-auto">
                 <JourneyTab opportunityId={p.id} hasOpened={p.hasOpened} onGoToNow={() => open("now")} />
-              </div>
-            )}
-            {view === "buying" && (
-              <div className="h-full space-y-6 overflow-y-auto p-6">
-                <InclusionsPanel opportunity={opportunity} isRequired={ctx.requiresInclusions} />
-                <PurchasingPanel opportunity={opportunity} isRequired={ctx.requiresPurchasing} />
               </div>
             )}
             {view === "commission" && (

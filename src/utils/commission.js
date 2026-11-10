@@ -1,10 +1,8 @@
+import { manilaToday } from "@/lib/manilaDate.js";
 import {
-  isJudgedByStageCode,
-  isLostCode,
-  isRealizedOpportunity,
+  isLostOpportunity,
   PIPELINE_STAGE_SEED,
 } from "../constants/sor";
-import { isWonOrPostWonFlowStage } from "../constants/salesFlow";
 
 // Pure commission-pool math. No database, no network — every value comes in
 // as an argument and every result goes out as a plain number, so this can be
@@ -236,21 +234,6 @@ export const isRealizedCommissionOpportunity = (opp, stages = PIPELINE_STAGE_SEE
 };
 
 /**
- * Lost, for either kind of deal. A legacy deal is lost by its status code. A
- * flow-built deal's status never changes after registration (it moves via
- * flow_stage_id), so it is lost when it sits on a Terminal Stage of its own
- * Flow Snapshot that is not the Won Stage or a post-won Stage. A deal whose
- * Stage cannot be resolved is not treated as lost.
- */
-const isLostOpportunity = (opp, stages) => {
-  if (isJudgedByStageCode(opp)) return isLostCode(opp?.status, stages);
-  const snapshotData = opp.flow_snapshot?.snapshot_data;
-  const flowStage = (snapshotData?.stages || []).find((s) => s.id === opp.flow_stage_id);
-  if (!flowStage?.is_terminal) return false;
-  return !isWonOrPostWonFlowStage(flowStage, snapshotData);
-};
-
-/**
  * Aggregates commission metrics across a collection of opportunities.
  * Sums independent per-opportunity calculations based on each opportunity's
  * Contract Date (or currentDate if unawarded).
@@ -260,7 +243,7 @@ export function aggregateOpportunityCommissions({
   ratesResolver,
   departments = [],
   splitsByProjectType = {},
-  currentDate = new Date().toISOString().slice(0, 10),
+  currentDate = manilaToday(),
   scope = "ALL", // "ALL" | "REALIZED" | "FORECAST"
   dateFilter = null, // { startDate, endDate, dateField = "contract_date" }
   stages = PIPELINE_STAGE_SEED,

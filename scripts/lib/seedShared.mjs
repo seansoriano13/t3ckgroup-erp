@@ -39,6 +39,7 @@ export const SEED_TABLES = [
   "undertime_requests",
   "offset_leaves",
   "sil_leaves",
+  "lwop_leaves",
   "system_audit_logs",
   "sale_types",
   "sales_flows",
@@ -84,12 +85,108 @@ export const SEED_TABLES = [
   "sor_procurement_requests",
   "sor_canvasses",
   "sor_canvass_offers",
+  "sor_canvass_offer_prices",
+  "sor_canvass_signoff_events",
+  "sor_canvass_no_other_supplier",
   "sor_purchase_order_links",
+  // Purchase Requests (#303). After sales_opportunities, flow_stage_actions
+  // and sor_stage_visits, which the request points at; the rest point at it.
+  "purchase_requests",
+  "purchase_request_members",
+  "purchase_request_items",
+  // #582: the winning Offer price per item, after the items it points at.
+  "purchase_request_item_prices",
+  "purchase_request_messages",
+  // IPAS (#242). After sales_opportunities and employees, which they point at;
+  // ipas_sors and ipas_events point at ipas. ipas_options (#244) comes first:
+  // the business-edited lists (payment methods, charge kinds, freight services)
+  // that ipas.freight_service_id and the payment and charge rows point at. It is
+  // seeded rather than left to the migration so a restored IPAS keeps the
+  // option ids it was written with.
+  "ipas_options",
+  "ipas",
+  "ipas_sors",
+  "ipas_events",
+  // "Worked on since raising" marks (#928): written by a trigger on ipas_events, which the restore
+  // runs with triggers off, so the marks are copied with the history they come from.
+  "ipas_work_marks",
+  "ipas_payments",
+  "ipas_charges",
+  // Documents (#246) point at ipas and at the document_kind options above.
+  "ipas_documents",
+  // Sign-offs (#247) point at ipas and employees. Seeded with the lists beside
+  // them: an approval and who gave it are facts about the work, and the restore
+  // runs in replica mode, so the paid-before-approval flags it carries are kept
+  // as written rather than recomputed from the rows loaded so far. The
+  // signature_version column holds a storage path, never the image.
+  "ipas_signoffs",
+  "ipas_signer_lists",
+  // Who changed those lists (#241): history about employees, no sensitive data.
+  "ipas_signer_list_log",
   "odoo_retail_queue",
+  // TG03 Transmittals (#251) point at employees, ipas, ipas_options and SORs;
+  // the lines, links and stages point at the slip. pms_evidence holds storage
+  // paths, never the files.
+  "transmittals",
+  "transmittal_products",
+  "transmittal_references",
+  "transmittal_lines",
+  "transmittal_ipas",
+  "transmittal_sors",
+  "transmittal_stages",
+  "transmittal_cleared_signatures",
+  "pms_handoff_events",
+  "pms_evidence",
+  // Packing Lists (#255) point at SORs; boxes at the list, contents at the box.
+  "packing_lists",
+  "packing_list_boxes",
+  "packing_list_contents",
+  // Order Monitoring ageing rules (#262): one number per step, no people in it.
+  "order_ageing_rules",
+  "order_deadline_setting",
+  // Costing Matrix (#266): settings, presets, the cost guide categories (#723) and signer lists first; the matrix
+  // points at an SOR, its rows at the matrix, money rows at their row, and
+  // decisions, sign-offs and events at the matrix.
+  "costing_settings",
+  "costing_markup_presets",
+  "costing_landed_defaults",
+  "costing_cost_categories",
+  "costing_signer_lists",
+  "costing_matrices",
+  "costing_matrix_money",
+  "costing_tender_lines",
+  "costing_tender_line_prices",
+  "costing_components",
+  "costing_component_costs",
+  "costing_inclusions",
+  "costing_cost_rows",
+  "costing_bid_decisions",
+  "costing_signoffs",
+  "costing_events",
+  "currency_rate_currencies",
+  "currency_rates",
 ]
 
 /** Tables the migrations build that the seed deliberately leaves out, each with why. */
 export const SEED_EXCLUDED_TABLES = {
+  meal_break_settings:
+    "The default meal-break windows (#759) are inserted by the migration itself, so a seed would only replace them with whatever the remote held.",
+  calendar_venues:
+    "The two Venues (#619) are inserted by the migration itself, so a seed would only replace them with whatever the remote held.",
+  meeting_requests:
+    "Meeting Requests (#619) are transactional bookings tied to real people and dates. A local stack files its own.",
+  meeting_request_participants:
+    "Belongs to meeting_requests, which the seed leaves out.",
+  meeting_request_events:
+    "The history of meeting_requests, which the seed leaves out.",
+  costing_tables:
+    "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
+  costing_column_tiers:
+    "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
+  costing_column_bands:
+    "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
+  costing_virtual_columns:
+    "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
   push_subscriptions:
     "Real browser push endpoints and keys. A local stack must never push to a colleague's real device.",
   verification_rate_limits:
@@ -102,8 +199,12 @@ export const SEED_EXCLUDED_TABLES = {
     "Reports point at files in the remote environment's private bug-reports bucket, which a local stack cannot read, and carry each sender's browser details. Send a fresh one locally with the bug button.",
   bug_report_notes:
     "The thread on a Bug Report, and bug_reports itself is not seeded, so there is nothing for a note to hang on.",
+  ipas_bank_details:
+    "Suppliers' bank account numbers (#245). Narrow read policy by design (Purchasing, Finance, Super Admins and the section 1 and 3 approvers), and a local stack or a colleague's seed has no business carrying real account numbers. Type fresh ones locally on an IPAS.",
   sor_action_runs:
     "A fire-once ledger derived from Stage Actions actually firing (issue #204), not a fact to seed — a local stack regenerates it the first time a seeded deal moves through a Flow Stage.",
+  transmittal_pending_notices:
+    "Notices held for the 15 second quick-undo window after a Transmittal signature (#935), then sent or cancelled. Short-lived queue state, not a fact to seed — a local stack fills it the first time someone signs.",
 }
 
 export const DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
@@ -126,4 +227,22 @@ export function loadDotEnvLocal(repoRoot) {
     // local-db URL and test password); seed-dump's STAGING_DB_URL check reports its own error.
   }
   return env
+}
+
+// Plain sequences behind the document numbers (PR_0001, CNV_0001, PKL_001,
+// TG03-1). The restore inserts rows with their numbers already set, so the
+// sequences stay at 1 and the first new row collides (issue #794).
+export const NUMBER_SEQUENCES = [
+  { sequence: "purchase_request_number_seq", table: "purchase_requests", column: "pr_number" },
+  { sequence: "sor_canvass_number_seq", table: "sor_canvasses", column: "number" },
+  { sequence: "packing_list_number_seq", table: "packing_lists", column: "number" },
+  { sequence: "transmittal_number_seq", table: "transmittals", column: "number" },
+]
+
+// SQL that moves a number sequence to the highest number used in its table.
+// An empty table (or one with no digits) leaves the next number at 1.
+export function numberSequenceResyncSql({ sequence, table, column }) {
+  return `select setval('public.${sequence}',
+    coalesce((select max(substring("${column}" from '[0-9]+$')::bigint) from public."${table}"), 1),
+    exists (select 1 from public."${table}" where "${column}" ~ '[0-9]+$'))`
 }

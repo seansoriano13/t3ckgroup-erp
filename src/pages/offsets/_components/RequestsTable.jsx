@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { Trash2, ShieldCheck } from 'lucide-react';
 import {
+  SortHead,
   Table,
   TableBody,
   TableCell,
@@ -8,9 +9,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/useTableSort";
 import StatusBadge from '../../../components/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { AttachmentList } from '../../../components/ui/Attachments';
+import { fmtDay } from '../../hr/offsets/_components/leaveDisplay';
 import { formatWindow } from '../../../utils/time';
 import { deriveRequestStage } from '../../../utils/requestStage';
 import { getRequestStageTheme } from '../../../constants/status';
@@ -18,23 +21,33 @@ import { REQUEST_TYPE_BADGE } from './requestTypes';
 
 /**
  * Every request an employee filed, one row each, with the stage it has
- * reached (issue #158, #160). Split from My Requests so Release Notes can
- * show the same table filled with Sample Data (ADR 0030).
+ * reached (issue #158, #160).
  */
-export default function RequestsTable({ rows, onWithdraw }) {
+const REQUEST_SORT = {
+  "applied-on": (r) => new Date(r.created_at).getTime(),
+  type: (r) => r.type,
+  date: (r) => new Date(r.startDate || r.date).getTime(),
+  hours: (r) => Number(r.approved_hours ?? r.hours),
+  files: (r) => r.attachments?.length || 0,
+  stage: (r) => deriveRequestStage(r).label,
+  note: (r) => deriveRequestStage(r).note,
+};
+
+export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
+  const { sorted: rows, sort, toggle } = useTableSort(unsortedRows, REQUEST_SORT);
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card animate-in fade-in duration-300">
-      <Table className="whitespace-nowrap">
+      <Table tableId="my-offset-requests" className="whitespace-nowrap">
         <TableHeader>
           <TableRow>
-            <TableHead>Applied On</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Hours</TableHead>
-            <TableHead>Files</TableHead>
-            <TableHead>Stage</TableHead>
-            <TableHead>Note</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <SortHead id="applied-on" sortKey="applied-on" sort={sort} onSort={toggle}>Applied On</SortHead>
+            <SortHead id="type" sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
+            <SortHead id="date" sortKey="date" sort={sort} onSort={toggle}>Date</SortHead>
+            <SortHead id="hours" sortKey="hours" sort={sort} onSort={toggle}>Hours</SortHead>
+            <SortHead id="files" sortKey="files" sort={sort} onSort={toggle}>Files</SortHead>
+            <SortHead id="stage" sortKey="stage" sort={sort} onSort={toggle}>Stage</SortHead>
+            <SortHead id="note" sortKey="note" sort={sort} onSort={toggle}>Note</SortHead>
+            <TableHead id="actions" className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -43,25 +56,25 @@ export default function RequestsTable({ rows, onWithdraw }) {
             return (
               <TableRow key={req.type + '-' + req.id}>
                 <TableCell className="text-xs text-muted-foreground font-medium">
-                  {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {fmtDay(req.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </TableCell>
                 <TableCell>
-                  <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${REQUEST_TYPE_BADGE[req.type].badgeClass}`}>
+                  <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-label border ${REQUEST_TYPE_BADGE[req.type].badgeClass}`}>
                     {REQUEST_TYPE_BADGE[req.type].label}
                   </span>
                 </TableCell>
                 <TableCell className="text-sm font-bold text-foreground">
                   {req.dayCount > 1 ? (
                     <>
-                      {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {fmtDay(req.startDate, { month: 'short', day: 'numeric' })}
                       {' – '}
-                      {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      {fmtDay(req.endDate, { month: 'short', day: 'numeric' })}
+                      <span className="ml-1.5 text-label font-bold text-muted-foreground uppercase tracking-wider">
                         {req.dayCount} days
                       </span>
                     </>
                   ) : (
-                    new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                    fmtDay(req.date, { weekday: 'short', month: 'short', day: 'numeric' })
                   )}
                 </TableCell>
                 <TableCell>
@@ -77,7 +90,7 @@ export default function RequestsTable({ rows, onWithdraw }) {
                       )}
                     </span>
                     {req.start_time && req.end_time && (
-                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      <span className="text-label font-semibold text-muted-foreground uppercase tracking-wider">
                         {formatWindow(req.start_time, req.end_time)}
                       </span>
                     )}
@@ -87,20 +100,26 @@ export default function RequestsTable({ rows, onWithdraw }) {
                   {req.attachments?.length ? (
                     <AttachmentList attachments={req.attachments} compact />
                   ) : (
-                    <span className="text-xs text-muted-foreground/50">-</span>
+                    <span className="text-xs text-muted-foreground/50">—</span>
                   )}
                 </TableCell>
                 <TableCell>
-                  <StatusBadge theme={getRequestStageTheme(stage.tone)} label={stage.label} />
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <StatusBadge theme={getRequestStageTheme(stage.tone)} label={stage.label} />
+                    {req.recorded_by_hr && <StatusBadge theme={getRequestStageTheme('neutral')} label="Recorded by HR" />}
+                  </div>
                 </TableCell>
                 <TableCell className="text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={stage.note || ''}>
-                  {stage.note || '-'}
+                  {stage.note || '—'}
                 </TableCell>
-                <TableCell className="text-right flex items-center justify-end gap-2">
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
                   {req.verification_token && (
                     <Link
                       to={`/verify/${req.verification_token}`}
                       target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="View verified form"
                       className="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
                       title="View Verified Form"
                     >
@@ -120,6 +139,7 @@ export default function RequestsTable({ rows, onWithdraw }) {
                       <Trash2 size={14} />
                     </Button>
                   )}
+                </div>
                 </TableCell>
               </TableRow>
             );

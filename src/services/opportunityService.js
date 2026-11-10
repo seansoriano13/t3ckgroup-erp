@@ -1,8 +1,13 @@
 import { supabase } from "../lib/supabase";
+import { functionErrorMessage } from "../lib/functionErrors";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { purchasingService } from "./purchasingService";
+import { itemsForVisit, shapeSorOverview } from "../utils/sorPurchaseRequest";
 import { notificationService } from "./notificationService";
+import { sorAwardService } from "./sorAwardService";
 import { accessWindowSummary } from "../utils/stageAudience";
+import { SOURCE_DEAL_TEAM, SOURCE_MENTION } from "../utils/mySorsFilters";
+import { TASK_STATUS, GROUP_MEMBER_STATUS, GROUP_TASK_STATUS } from "../constants/status";
+import { isClosedStatus } from "../constants/purchaseRequest";
 import { sorStageParticipantService } from "./sorStageParticipantService";
 import { pipelineStageService } from "./pipelineStageService";
 import { getCurrentLocalDate } from "../utils/formatDate";
@@ -28,6 +33,8 @@ import {
   blockingConditions,
   missingStageFields,
 } from "../constants/stageGate";
+import { isCostingKind } from "../utils/costingConditions";
+import { isOrderKind } from "../utils/orderConditions";
 import { normaliseTeam, resolvePeople, DEAL_TEAM_ROLES } from "../utils/resolvePeople";
 import { employeeGroupService } from "./employeeGroupService";
 import {
@@ -39,6 +46,7 @@ import {
   snapshotRows,
 } from "../constants/salesFlow";
 import { formatSnapshotVersion } from "../constants/flowVersion";
+import { addedActionsForStage, describeAction, summariseAddedActions } from "../utils/sorVersionUpdate";
 import { renderTemplate } from "../constants/taskTemplates";
 import { nextFollowUpDue } from "../constants/followUp";
 import {
@@ -92,9 +100,17 @@ const RECORD_FIELD_WRITERS = {
   client_name: (v) => v,
   contact_person: (v) => v || null,
   project_title: (v) => v,
-  sales_reference: (v) => cleanSalesReference(v),
+  // sales_reference is NOT here (#822): the S0 changes only through setSalesReference. The
+  // database refuses a direct write to the column.
   expected_award_date: (v) => v || null,
   po_date: (v) => v || null,
+  // Manila dates (ADR 0039). Open to the Deal Team while blank; a set Date of
+  // Award is locked to Super Admin by the database.
+  // The Contract Date (ADR 0048) follows the same rule as the Date of Award.
+  contract_date: (v) => v || null,
+  date_of_award: (v) => v || null,
+  date_of_pdi: (v) => v || null,
+  date_of_delivery: (v) => v || null,
   deal_owner_id: (v) => v || null,
   closing_sales_id: (v) => v || null,
   support_sales_1_id: (v) => v || null,
@@ -245,6 +261,7 @@ async function narrateNewlySatisfied(opportunityId, stageId, flowSnapshotId, bef
   }
   if (!conditions || conditions.length === 0) return;
 
+  let newlySatisfied = false;
   for (const condition of conditions) {
     const wasSatisfied =
       evaluateCondition(condition, before).status === CONDITION_STATUS.SATISFIED;
@@ -253,8 +270,11 @@ async function narrateNewlySatisfied(opportunityId, stageId, flowSnapshotId, bef
 
     if (!wasSatisfied && isSatisfied) {
       await noteConditionSatisfied(opportunityId, condition, actorId);
+      newlySatisfied = true;
     }
   }
+  // #757: that may have been the last condition on an Auto-move Stage.
+  if (newlySatisfied) await autoMoveIfReady(opportunityId, actorId);
 }
 
 /**
@@ -467,6 +487,58 @@ async function resolveHasPurchasing(conditions, opportunityId, { asOf } = {}) {
 }
 
 /**
+ * Purchasing settled's evidence (#311): the SOR's Requested Items as
+ * `{ status, created_at, status_changed_at }`, or null when it has no
+ * Purchase Request. Read through a SECURITY DEFINER RPC, not the table: a
+ * Deal Team member left out of the request (or an Always-edits user) may move
+ * the SOR but can't read the request, and a plain select would show them "no
+ * request" — settled — and let the move through. Undefined when no condition
+ * asks for it; the evaluator fails closed on that.
+ */
+async function resolvePurchaseRequestItems(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.PURCHASING_SETTLED);
+  if (!needsIt) return undefined;
+  const { data, error } = await supabase.rpc("sor_purchase_request_item_states", {
+    p_opportunity_id: opportunityId,
+  });
+  if (error) throw error;
+  return data ?? null;
+}
+
+/**
+ * The costing conditions' evidence (#272, #463): `costing_condition_inputs`, booleans
+ * and counts the database worked out, read through a SECURITY DEFINER RPC because the
+ * mover may not be able to read the matrix. Undefined when no condition asks for it;
+ * the evaluator fails closed on that. Always an object once asked for ({ has_matrix:
+ * false } when there is no matrix).
+ */
+async function resolveCostingInputs(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => isCostingKind(r.kind));
+  if (!needsIt) return undefined;
+  const { data, error } = await supabase.rpc("costing_condition_inputs", {
+    p_opportunity_id: opportunityId,
+  });
+  if (error) throw error;
+  return data ?? { has_matrix: false };
+}
+
+/**
+ * Goods checked / Orders filed's evidence (#465, #466): `order_condition_inputs`, counts of
+ * the SOR's open Transmittals and unfiled IPAS plus each one's number and state, read through a SECURITY DEFINER RPC because
+ * the mover may not be able to read either. Undefined when no condition asks for it; the
+ * evaluator fails closed on that.
+ */
+async function resolveOrderInputs(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => isOrderKind(r.kind));
+  if (!needsIt) return undefined;
+  const { data, error } = await supabase.rpc("order_condition_inputs", {
+    p_opportunity_id: opportunityId,
+  });
+  if (error) throw error;
+  return data ?? { unclosed_slips: 0, unfiled_orders: 0, slips: [], orders: [] };
+}
+
+/**
  * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
  * .scratch/stage-gate-engine/issues/) — throws if any required condition
  * on any Stage the move crosses is unsatisfied, naming what's missing.
@@ -494,6 +566,9 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   const conditions = Object.values(conditionsByStage).flat();
   const hasInclusions = await resolveHasInclusions(conditions, opportunityId);
   const hasPurchasing = await resolveHasPurchasing(conditions, opportunityId);
+  const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, opportunityId);
+  const costingInputs = await resolveCostingInputs(conditions, opportunityId);
+  const orderInputs = await resolveOrderInputs(conditions, opportunityId);
 
   const gateResult = evaluateCrossing({
     fromCode,
@@ -506,6 +581,9 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     statusRowsByCondition,
     hasInclusions,
     hasPurchasing,
+    purchaseRequestItems,
+    costingInputs,
+    orderInputs,
   });
 
   if (!gateResult.blocked) return;
@@ -588,6 +666,8 @@ async function snapshotContextFor(opportunity) {
     conditions: d.conditions || [],
     stageFields: d.stageFields || [],
     wonStageId: d.wonStageId ?? null,
+    awardStageId: d.awardStageId ?? null,
+    contractStageId: d.contractStageId ?? null,
   };
 }
 
@@ -664,7 +744,7 @@ async function hasEverMoved(opportunityId) {
  * applied to flow-built deals. `stage_conditions` DO apply to flow-built
  * deals, because they are keyed to `flow_stages(id)`.
  */
-async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = null } = {}) {
+async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = null, auto = false } = {}) {
   // Issue #83 — every rule this move is judged by (which Stages exist, which
   // edges are legal, what conditions gate the stage being left, where the
   // deal is won) is resolved from the SOR's OWN Flow Snapshot, not the live
@@ -674,6 +754,8 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     stages,
     edges,
     wonStageId,
+    awardStageId,
+    contractStageId,
     conditions: snapshotConditions,
     actions: snapshotActions,
     stageFields: snapshotStageFields,
@@ -700,14 +782,24 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     throw new Error(`${from?.name || "This stage"} cannot move straight to ${to.name}.`);
   }
 
-  // Issue #390 — a Return must say what happens to the Stage's earlier work,
-  // and is never blocked by the Stage being left. Only a Return asks.
+  // Issue #390 — a Return must say what happens to the Stage's earlier work.
+  // Issue #831 — a move skips gates only when it goes backward, not when it
+  // follows a forward edge to a stage visited earlier. Only a Return asks.
   const isReturn = (await opportunityService.getReturnStageIds(existing.id)).includes(to.id);
   if (isReturn) assertReturnChoice(to, returnChoice);
 
+  const isBackward = Boolean(from && to && to.sort_order < from.sort_order);
+
   const currentVisit = await currentVisitFor(existing.id);
-  if (!isReturn) {
-    await assertCanLeaveStage({ existing, from, currentVisit, snapshotConditions, snapshotStageFields });
+  let leavesThroughCostingSettled = false;
+  if (!isBackward) {
+    ({ leavesThroughCostingSettled } = await assertCanLeaveStage({
+      existing,
+      from,
+      currentVisit,
+      snapshotConditions,
+      snapshotStageFields,
+    }));
   }
 
   // 2. Perform move
@@ -722,9 +814,20 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   // reads `flow_stage_id` against the loaded flow, not `status`.
   const patch = { flow_stage_id: to.id };
 
-  const stampsContractDate = wonStageId === to.id && !existing.contract_date;
+  // ADR 0048 — the flow's contract Stage (CA / PO on the Project flow) fills
+  // in a blank Contract Date. The Won Stage no longer does. A date the Deal
+  // Team typed in earlier is never overwritten.
+  const stampsContractDate = contractStageId === to.id && !existing.contract_date;
   if (stampsContractDate) {
     patch.contract_date = getCurrentLocalDate();
+  }
+
+  // ADR 0048 — the flow's Notice of Award Stage fills in a blank Date of
+  // Award. A date the Deal Team typed in earlier is never overwritten.
+  // A Return carries the date through its own RPC.
+  const stampsDateOfAward = awardStageId === to.id && !existing.date_of_award;
+  if (stampsDateOfAward) {
+    patch.date_of_award = getCurrentLocalDate();
   }
 
   // A Return's move and its choice commit together (sor_move_and_resume /
@@ -737,6 +840,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
       p_opportunity_id: existing.id,
       p_flow_stage_id: to.id,
       p_contract_date: patch.contract_date ?? null,
+      p_date_of_award: patch.date_of_award ?? null,
     });
     if (returnChoiceError) throw new Error(returnChoiceError.message.replace(/^(Resume|Start fresh): /, ""));
   }
@@ -747,6 +851,20 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   ).single();
   if (error) throw error;
 
+  // #272: the bid is submitted the moment the SOR leaves through a met Costing settled.
+  // A failure here must not undo or fail the move; the stamp is only a timeline switch.
+  if (leavesThroughCostingSettled) {
+    const { error: submittedError } = await supabase.rpc("costing_mark_bid_submitted", {
+      p_opportunity_id: existing.id,
+    });
+    if (submittedError) console.error("costing_mark_bid_submitted failed", submittedError);
+  }
+
+  // #746 — a Date of Award that just went from blank to filled tells Purchasing.
+  if (stampsDateOfAward) {
+    await sorAwardService.notifyPurchasing({ ...existing, date_of_award: patch.date_of_award }, actorId);
+  }
+
   const fromName = from?.name || "—";
   const stageChangeEvent = {
     event: "STAGE_CHANGED",
@@ -754,13 +872,15 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     to: to.id,
     employeeId: actorId,
     stampedContractDate: stampsContractDate,
+    stampedDateOfAward: stampsDateOfAward,
     ...(isReturn ? { returnChoice } : {}),
+    ...(auto ? { auto: true } : {}),
   };
   const returnChoiceLabel =
     returnChoice === RETURN_CHOICE.START_FRESH ? " (started fresh)" : " (resumed previous work)";
   await opportunityService.addSystemNote(
     existing.id,
-    `Stage moved: ${fromName} → ${to.name}${isReturn ? returnChoiceLabel : ""}`,
+    `Stage moved: ${fromName} → ${to.name}${isReturn ? returnChoiceLabel : ""}${auto ? " (moved automatically)" : ""}`,
     stageChangeEvent,
     actorId,
   );
@@ -821,6 +941,23 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   // them again. Now the RPC either returns (everything on this Stage is
   // created-or-failed) or the whole call never happened (nothing began, so
   // the fire-once gate still lets a retry pick it all up).
+  const failedStageActionReasons = [];
+  const failedStageActions = await runStageActionsOnEntry({ existing, to, snapshotActions, actorId, failureReasons: failedStageActionReasons });
+  // ADR 0048 — reaching the Won Stage with no Contract Date is allowed, but the
+  // Deal Team is warned: no commission rate is fixed until it is typed in.
+  const wonWithoutContractDate = wonStageId === to.id && !existing.contract_date && !patch.contract_date;
+  return { ...data, failedStageActions, failedStageActionReasons, wonWithoutContractDate };
+}
+
+/**
+ * Runs the Actions of `to`, the Stage a deal has just entered, from its Flow
+ * Snapshot (#204, #409). Shared by a stage move and by registration (SOR-245:
+ * a deal registered onto a Stage with Actions got no run, so its Actions never
+ * fired). Returns the names of the Actions that failed. It never throws.
+ * `failureReasons`, when given, collects { name, reason } for each failure the
+ * database could explain (#896).
+ */
+async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId, failureReasons }) {
   const failedStageActions = [];
   let actionsAttempted = false;
   try {
@@ -863,7 +1000,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
         const payload = {
           action_id: action.id,
           kind: action.kind,
-          name: stageActionName(action),
+          name: stageActionName(action, templateContext),
           confirm: isConfirm,
         };
 
@@ -950,11 +1087,14 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
         // same as the pre-#409 "reading the guard failed" case below.
         console.error("sor_run_stage_actions failed:", runError);
         for (const action of actions) {
-          const name = stageActionName(action);
+          const name = stageActionName(action, templateContext);
           if (!failedStageActions.includes(name)) failedStageActions.push(name);
         }
       } else {
         for (const name of runResult?.failed || []) failedStageActions.push(name);
+        for (const failure of runResult?.failed_reasons || []) {
+          failureReasons?.push({ name: failure.name, reason: failure.reason });
+        }
 
         // The RPC already created the task/group task and marked the run —
         // that part survives the mover leaving. What's left is best-effort
@@ -1004,6 +1144,12 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
                   actorId,
                 );
               }
+            } else if (created.kind === "open_purchase_request" && created.request_id) {
+              await notePurchaseRequestOpened(existing.id, to, action.id, created.request_id, actorId);
+            } else if ((created.kind === "open_costing_matrix" || created.kind === "evaluate_specification") && created.matrix_id) {
+              await noteCostingMatrixOpened(existing.id, to, action.id, created.matrix_id, actorId);
+            } else if (created.kind === "request_packing_list") {
+              await notePackingListRequested(existing.id, to, action.id, created.packing_list_id, actorId);
             } else if (created.kind === "create_group_task" && created.group_task_id) {
               await opportunityService.addSystemNote(
                 existing.id,
@@ -1043,14 +1189,22 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     // every action on this Stage is then unaccounted for.
     console.error("Failed to execute stage actions:", err);
     if (!actionsAttempted) {
+      const entryContext = {
+        salesReference: existing.sales_reference,
+        projectTitle: existing.project_title,
+        company: existing.client_name,
+        stageName: to.name,
+        dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
+        saleType: existing.sale_type || null,
+      };
       for (const action of actionsForSnapshotStage(snapshotActions, to.id)) {
-        const name = stageActionName(action);
+        const name = stageActionName(action, entryContext);
         if (!failedStageActions.includes(name)) failedStageActions.push(name);
       }
     }
   }
 
-  return { ...data, failedStageActions };
+  return failedStageActions;
 }
 
 /**
@@ -1110,6 +1264,11 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
   const conditions = blockingConditions(conditionsForFrom);
   const hasInclusions = await resolveHasInclusions(conditions, existing.id);
   const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
+  const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, existing.id);
+  // Read for every active Costing condition on the Stage, required or not: a met one
+  // stamps "bid submitted" below when the SOR leaves through it.
+  const costingInputs = await resolveCostingInputs(conditionsForFrom, existing.id);
+  const orderInputs = await resolveOrderInputs(conditions, existing.id);
 
   for (const condition of conditions) {
     const result = evaluateCondition(condition, {
@@ -1119,9 +1278,12 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
       statusRow: statusRowsByCondition[condition.id] ?? null,
       hasInclusions,
       hasPurchasing,
+      purchaseRequestItems,
+      costingInputs,
+      orderInputs,
     });
     if (result.status === CONDITION_STATUS.UNSATISFIED) {
-      missing.push({ stage: from, condition });
+      missing.push({ stage: from, condition, ...(result.detail ? { detail: result.detail } : {}) });
     }
   }
 
@@ -1132,8 +1294,10 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
     // along here too, since a toast is the only surface a Flow deal's
     // stage control has for a blocked move.
     const details = missing
-      .map(({ condition }) => {
+      .map(({ condition, detail }) => {
         const link = condition.config?.referenceLink;
+        const why = (detail?.messages ?? []).map((m) => m.replace(/.$/, "")).join("; ");
+        if (why) return `${condition.label} — ${why}`;
         return link ? `${condition.label} (${link})` : condition.label;
       })
       .join(", ");
@@ -1142,6 +1306,16 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
     error.missingConditions = missing;
     throw error;
   }
+
+  // Leaving through a met Costing settled submits the bid (#272): the caller stamps it
+  // once the move has landed.
+  return {
+    leavesThroughCostingSettled: conditionsForFrom.some(
+      (c) =>
+        c.kind === CONDITION_KINDS.COSTING_SETTLED &&
+        evaluateCondition(c, { opportunity: existing, costingInputs }).status === CONDITION_STATUS.SATISFIED,
+    ),
+  };
 }
 
 /**
@@ -1154,7 +1328,7 @@ async function assertCanLeaveStage({ existing, from, currentVisit, snapshotCondi
 async function resolveDeciderIds(deciderSelectors, opportunity) {
   if (!deciderSelectors || deciderSelectors.length === 0) return [];
   const [{ data: employees, error: employeesError }, groups] = await Promise.all([
-    supabase.from("employees").select("id, sub_department, is_deleted"),
+    supabase.from("employees").select("id, department, sub_department, is_deleted"),
     employeeGroupService.list(),
   ]);
   if (employeesError) throw employeesError;
@@ -1202,7 +1376,7 @@ async function resolveEvaluatorId(evaluatorSelectors, opportunity) {
 async function resolveSelectorIds(selectors, opportunity) {
   if (!selectors || selectors.length === 0) return [];
   const [{ data: employees, error: employeesError }, groups] = await Promise.all([
-    supabase.from("employees").select("id, sub_department, is_deleted"),
+    supabase.from("employees").select("id, department, sub_department, is_deleted"),
     employeeGroupService.list(),
   ]);
   if (employeesError) throw employeesError;
@@ -1235,6 +1409,17 @@ function dealTeamIds(opportunity) {
  * preview of what Create will build) so the two can never drift apart —
  * spec: "Create makes exactly what the automatic action would."
  */
+/**
+ * #901: the title the decision-due notice was written with (the same template
+ * the payload uses in sor_run_stage_actions), so the decided notice can be found.
+ */
+function decisionNoticeTitle(action, templateContext) {
+  return (
+    renderActionTitle(action, templateContext) ||
+    stageActionTaskTitle({ salesReference: templateContext.salesReference, projectTitle: templateContext.projectTitle })
+  );
+}
+
 function renderActionTitle(action, templateContext) {
   const config = action.config || {};
   const dealTitle = stageActionTaskTitle({
@@ -1280,7 +1465,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
 
     const groupTask = await groupTaskService.createGroupTask(payload).catch((err) => {
       console.error("Stage Action failed:", err);
-      failedStageActions?.push(stageActionName(action));
+      failedStageActions?.push(stageActionName(action, templateContext));
       return null;
     });
 
@@ -1364,7 +1549,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
     // with the insert; only a failure still needs sor_finish_action_run here.
     const task = await taskService.createTask(payload).catch((err) => {
       console.error("Stage Action failed:", err);
-      failedStageActions?.push(stageActionName(action));
+      failedStageActions?.push(stageActionName(action, templateContext));
       return null;
     });
 
@@ -1416,7 +1601,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
     // implement is a defect, so it fails loudly and lands in the same "create
     // them by hand" toast a failed create already uses.
     console.error("Stage Action has no builder for kind:", action.kind);
-    failedStageActions?.push(stageActionName(action));
+    failedStageActions?.push(stageActionName(action, templateContext));
     const { error: finishError } = await supabase.rpc("sor_finish_action_run", {
       p_run_id: runRow.id,
       p_outcome: "failed",
@@ -1425,12 +1610,107 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
   }
 }
 
+/**
+ * Issue #304 — the SOR's note that a Stage Action opened its Purchase Request.
+ * `sor_open_purchase_request` reads the action's saved config itself, so this
+ * note is all the client adds.
+ */
+function notePurchaseRequestOpened(opportunityId, stage, actionId, requestId, actorId) {
+  return opportunityService.addSystemNote(
+    opportunityId,
+    `Purchase Request opened on entering Stage: ${stage.name}.`,
+    { event: "STAGE_ACTION_PURCHASE_REQUEST_OPENED", stageId: stage.id, actionId, requestId },
+    actorId,
+  );
+}
+
+/**
+ * Issue #462 — the SOR's note that a Stage Action opened (or topped up) its Costing Matrix.
+ * `sor_open_costing_matrix` reads the action's saved config itself, so this note is all the client adds.
+ */
+function noteCostingMatrixOpened(opportunityId, stage, actionId, matrixId, actorId) {
+  return opportunityService.addSystemNote(
+    opportunityId,
+    `S0 Evaluation opened on entering Stage: ${stage.name}.`,
+    { event: "STAGE_ACTION_COSTING_MATRIX_OPENED", stageId: stage.id, actionId, matrixId },
+    actorId,
+  );
+}
+
+/**
+ * Issue #464 — the SOR's note that a Stage Action asked the Warehouse to pack. `sor_request_packing_list`
+ * reads the action's saved config itself and does the notifying, so this note is all the client adds.
+ * A run that found an open Packing List created nothing (`packingListId` null) and says so.
+ */
+function notePackingListRequested(opportunityId, stage, actionId, packingListId, actorId) {
+  return opportunityService.addSystemNote(
+    opportunityId,
+    packingListId
+      ? `Packing List requested on entering Stage: ${stage.name}.`
+      : `Packing List already open, none requested on entering Stage: ${stage.name}.`,
+    { event: "STAGE_ACTION_PACKING_LIST_REQUESTED", stageId: stage.id, actionId, packingListId: packingListId ?? null },
+    actorId,
+  );
+}
+
 /** How a failed Stage Action is named to the person who moved the SOR. */
-function stageActionName(action) {
+function stageActionName(action, templateContext) {
   const config = action?.config ?? {};
   const named = config.title || config.projectTitle;
-  if (typeof named === "string" && named.trim()) return named.trim();
+  // #933: fill {{...}} the same way the task title is filled.
+  if (typeof named === "string" && named.trim()) {
+    return (templateContext ? renderTemplate(named, templateContext) : named).trim();
+  }
+  if (action?.kind === "open_purchase_request") return "Purchase Request";
+  if (action?.kind === "open_costing_matrix") return "S0 Evaluation";
+  if (action?.kind === "evaluate_specification") return "Evaluation of Specification";
+  if (action?.kind === "request_packing_list") return "Packing List request";
   return action?.kind === "create_group_task" ? "Group task" : "Individual task";
+}
+
+/**
+ * For an update of `ids` to `targetSnapshotId`: each SOR with the Stage it sits
+ * at and the Actions the target added there (#846). Empty `added` for a move
+ * back, or for a Stage with nothing new.
+ */
+async function planVersionUpdate(ids, targetSnapshotId) {
+  if (!ids?.length) return { items: [] };
+  const { data: target, error: targetError } = await supabase
+    .from("flow_snapshots")
+    .select("id, version, version_minor, snapshot_data")
+    .eq("id", targetSnapshotId)
+    .single();
+  if (targetError) throw targetError;
+  const { data: sors, error: sorError } = await supabase
+    .from("sales_opportunities")
+    .select("id, sales_reference, project_title, client_name, sale_type_id, deal_owner_id, flow_stage_id, flow_snapshot_id")
+    .in("id", ids);
+  if (sorError) throw sorError;
+  // The Sale Type is its own row; the action templates want its name (#882).
+  const saleTypeIds = [...new Set((sors || []).map((o) => o.sale_type_id).filter(Boolean))];
+  const { data: saleTypes, error: saleTypeError } = saleTypeIds.length
+    ? await supabase.from("sale_types").select("id, name").in("id", saleTypeIds)
+    : { data: [], error: null };
+  if (saleTypeError) throw saleTypeError;
+  const saleTypeNameById = new Map((saleTypes || []).map((t) => [t.id, t.name]));
+  const sorRows = (sors || []).map((o) => ({ ...o, sale_type: saleTypeNameById.get(o.sale_type_id) || null }));
+  const sourceIds = [...new Set(sorRows.map((o) => o.flow_snapshot_id).filter(Boolean))];
+  const { data: sources, error: sourceError } = sourceIds.length
+    ? await supabase.from("flow_snapshots").select("id, version, version_minor, snapshot_data").in("id", sourceIds)
+    : { data: [], error: null };
+  if (sourceError) throw sourceError;
+  const sourceById = new Map((sources || []).map((s) => [s.id, s]));
+  const targetStages = target.snapshot_data?.stages || [];
+  const items = sorRows.map((sor) => ({
+    sor,
+    stage: targetStages.find((st) => st.id === sor.flow_stage_id) || { id: sor.flow_stage_id, name: "" },
+    added: addedActionsForStage({
+      source: sourceById.get(sor.flow_snapshot_id),
+      target,
+      stageId: sor.flow_stage_id,
+    }),
+  }));
+  return { items };
 }
 
 function currentStageId(opportunity) {
@@ -1539,6 +1819,9 @@ function auditLabel({ sales_reference, client_name }) {
     ? `Sales opportunity ${sales_reference}`
     : `Sales opportunity for ${client_name}`;
 }
+
+/** SORs per `move_opportunities_to_flow_snapshot` call — see moveOpportunitiesToVersion. */
+const VERSION_MOVE_BATCH_SIZE = 10;
 
 /**
  * Every non-deleted SOR on an earlier Flow Snapshot of the same flow whose
@@ -1658,6 +1941,35 @@ async function shapeAccessWindows(windows) {
   };
 }
 
+/**
+ * Auto-move (#757): after a write that can change whether a Stage Condition is
+ * met, moves the SOR on by itself when its Stage has Auto-move and every
+ * condition is met. A normal move, so Stage Actions fire. A blocked move is
+ * not an error here: the SOR just stays put. Never throws.
+ */
+async function autoMoveIfReady(opportunityId, actorId) {
+  try {
+    const { data: existing, error } = await supabase
+      .from("sales_opportunities")
+      .select("*")
+      .eq("id", opportunityId)
+      .single();
+    if (error || !existing?.flow_snapshot_id || !existing.flow_stage_id) return null;
+
+    const { stages, edges } = await snapshotContextFor(existing);
+    const from = stages.find((s) => s.id === existing.flow_stage_id);
+    if (!from?.auto_move || from.is_terminal) return null;
+
+    const next = edges.filter((e) => e.from_stage_id === from.id);
+    if (next.length !== 1) return null;
+
+    return await moveAlongFlow(existing, next[0].to_stage_id, actorId, { auto: true });
+  } catch (err) {
+    if (!err?.isGateBlock) console.error("Auto-move failed:", err);
+    return null;
+  }
+}
+
 export const opportunityService = {
   /**
    * The SOR Register. Every register count, the board, the matrix, and the
@@ -1689,6 +2001,19 @@ export const opportunityService = {
    * inverted. No new table: a retail record is a real SOR with a real
    * sales_reference and amount, just excluded from the pipeline (#171).
    */
+  /** Live SORs already registered under this Sales Reference (A38), for a duplicate warning. */
+  async findBySalesReference(salesReference) {
+    const ref = cleanSalesReference(salesReference);
+    if (!ref) return [];
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select("id, opportunity_no, sales_reference, client_name")
+      .neq("is_deleted", true)
+      .eq("sales_reference", ref);
+    if (error) throw error;
+    return data || [];
+  },
+
   async getRetailOpportunities() {
     const { data, error } = await supabase
       .from("sales_opportunities")
@@ -1744,6 +2069,13 @@ export const opportunityService = {
    * registrations cannot collide.
    */
   async createOpportunity(payload, actorId) {
+    // #820: registering runs the same checks as the S0 save step (format, duplicates, Odoo). They
+    // run FIRST, before anything is written, so a refused S0 never leaves a half-registered SOR.
+    // The SOR is then created without its S0 and the S0 goes in through the save step itself
+    // (below), which pulls the products and records the Odoo state.
+    const salesReference = cleanSalesReference(payload.sales_reference);
+    if (salesReference) await opportunityService.checkSalesReference(salesReference);
+
     // Issue #36 — a deal registered against a Sale Type enters that Sale
     // Type's flow at its first Stage. Both columns are set together or neither
     // is (migration 0049's CHECK), because a deal with a Sale Type and no
@@ -1774,11 +2106,14 @@ export const opportunityService = {
           supportSales2Id: payload.support_sales_2_id,
           currentProjectType: payload.project_type,
         }),
-        sales_reference: cleanSalesReference(payload.sales_reference),
+        // The S0 is NOT part of the insert: it goes in through setSalesReference below.
+        sales_reference: null,
         metadata: payload.metadata || null,
         expected_award_date: payload.expected_award_date || null,
         po_date: payload.po_date || null,
-        deal_owner_id: payload.deal_owner_id || null,
+        // #793: an SOR is never left without a Deal Owner. When none is
+        // named, the person registering it owns it.
+        deal_owner_id: payload.deal_owner_id || actorId || null,
         closing_sales_id: payload.closing_sales_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
         support_sales_2_id: payload.support_sales_2_id || null,
@@ -1794,6 +2129,20 @@ export const opportunityService = {
     // items first, then re-read the row to pick up the computed total before
     // it's quoted in the notes below.
     await opportunityService.replaceItems(data.id, payload.items);
+
+    // The S0, through the one save step: Odoo is asked again (the SOR did not exist for the
+    // pre-check), duplicates are refused, and Odoo's product lines replace the form's list. Only a
+    // race can refuse here (someone took the S0 in the last moment); then the new SOR is deleted
+    // the normal way (salespeople may not hard-delete a row) so it is out of every list, and the
+    // refusal is shown.
+    if (salesReference) {
+      try {
+        await opportunityService.setSalesReference(data.id, salesReference);
+      } catch (err) {
+        await opportunityService.deleteOpportunity(data.id, actorId).catch(() => {});
+        throw err;
+      }
+    }
 
     // The flow's custom registration fields, answered on the form that this
     // Sale Type's Flow Snapshot defines. Written separately for the same
@@ -1823,6 +2172,19 @@ export const opportunityService = {
 
     const final = await opportunityService.getOpportunityById(data.id);
 
+    // SOR-245: a deal lands on its entry Stage with no action run, so that
+    // Stage's Actions (a Purchase Request, a task) never fired. Run them here,
+    // from the same snapshot the deal was registered under.
+    let failedStageActions = [];
+    if (flowEntry) {
+      failedStageActions = await runStageActionsOnEntry({
+        existing: final,
+        to: flowEntry.entry,
+        snapshotActions: flowEntry.snapshot.snapshot_data?.actions || [],
+        actorId,
+      });
+    }
+
     await opportunityService.addSystemNote(
       final.id,
       `Registered — ${final.client_name}, ${formatPHP(final.expected_value)}.`,
@@ -1838,7 +2200,7 @@ export const opportunityService = {
       actorId,
     ).catch(console.error);
 
-    return final;
+    return { ...final, failedStageActions };
   },
 
   /**
@@ -1862,7 +2224,19 @@ export const opportunityService = {
     for (const [key, write] of Object.entries(RECORD_FIELD_WRITERS)) {
       if (has(key)) patch[key] = write(payload[key]);
     }
-    if (has("client_name") || has("sales_reference")) {
+    // The S0 (#822): an unchanged value is ignored (saveOdooLines re-sends it on every sync); a
+    // changed one goes through the save step first, so its checks, lock and history apply and
+    // a refusal stops the whole update.
+    let s0Changed = false;
+    if (has("sales_reference")) {
+      const nextRef = cleanSalesReference(payload.sales_reference);
+      const currentRef = cleanSalesReference(existing.sales_reference);
+      if (nextRef !== currentRef) {
+        await opportunityService.setSalesReference(id, nextRef);
+        s0Changed = true;
+      }
+    }
+    if (has("client_name") || s0Changed) {
       patch.odoo_partner_id = resolveOdooPartner(existing, {
         client_name: existing.client_name,
         ...payload,
@@ -1926,8 +2300,8 @@ export const opportunityService = {
     checkField('contact_person', 'Contact Person');
     checkField('project_title', 'Project');
     checkField('project_type', 'Sales Division');
-    checkField('sales_reference', 'Sales Reference');
-    
+    // Sales Reference: its own history entry comes from the save step (#822).
+
     // Check metadata fields dynamically
     const oldMeta = touched.has("metadata") ? existing.metadata || {} : {};
     const newMeta = touched.has("metadata") ? final.metadata || {} : {};
@@ -1942,6 +2316,10 @@ export const opportunityService = {
 
     checkField('expected_award_date', 'Expected Award Date');
     checkField('po_date', 'PO Date');
+    checkField('contract_date', 'Contract Date');
+    checkField('date_of_award', 'Date of Award');
+    checkField('date_of_pdi', 'Date of PDI');
+    checkField('date_of_delivery', 'Date of Delivery');
 
     const checkEmployee = (idField, objField, label) => {
       if (touched.has(idField) && existing[idField] !== final[idField]) {
@@ -1958,7 +2336,10 @@ export const opportunityService = {
     checkEmployee('support_sales_2_id', 'support_2', 'Support Sales 2');
 
     const newItems = replacesItems ? payload.items || [] : existingItems;
-    const oldProducts = previousItems.map((i) => i.product_name?.trim()).filter(Boolean);
+    // A line the S0 already dropped (kept, marked removed) is not on the list the
+    // person sees, so it is neither "removed" nor "added" again on the next read (#677).
+    const livePrevious = previousItems.filter((i) => !i.removed_from_s0);
+    const oldProducts = livePrevious.map((i) => i.product_name?.trim()).filter(Boolean);
     const newProducts = newItems.map((i) => i.product_name?.trim()).filter(Boolean);
 
     // A product Odoo renamed keeps its odoo_product_id, so it pairs a
@@ -1970,7 +2351,7 @@ export const opportunityService = {
     for (const name of newProducts.filter((p) => !oldProducts.includes(p))) {
       const productId = idOf(newItems, name);
       const from = productId == null ? undefined : oldProducts.find(
-        (o) => !newProducts.includes(o) && idOf(previousItems, o) === productId && !renamedProducts.some((r) => r.from === o),
+        (o) => !newProducts.includes(o) && idOf(livePrevious, o) === productId && !renamedProducts.some((r) => r.from === o),
       );
       if (from) renamedProducts.push({ from, to: name });
       else addedProducts.push(name);
@@ -1981,7 +2362,7 @@ export const opportunityService = {
     const modifiedProducts = [];
 
     newProducts.forEach((p) => {
-      const oldItem = previousItems.find((i) => i.product_name?.trim() === p);
+      const oldItem = livePrevious.find((i) => i.product_name?.trim() === p);
       const newItem = newItems.find((i) => i.product_name?.trim() === p);
       if (oldItem && newItem) {
         if (
@@ -2035,6 +2416,11 @@ export const opportunityService = {
       ).catch(console.error);
     }
 
+    // #746 — typing in a blank Date of Award tells Purchasing, once.
+    if (!existing.date_of_award && final.date_of_award) {
+      await sorAwardService.notifyPurchasing(final, noteActorId);
+    }
+
     // A `field`-kind condition on the Stage this deal is still sitting on
     // (e.g. po_date at PMS) is satisfied the moment the field is saved —
     // this call is "the existing field-save path" ticket 5 hooks into, not
@@ -2059,7 +2445,9 @@ export const opportunityService = {
    * validation, derived fields and change notes match an edit-form change.
    */
   async saveRecordField(id, column, value, actorId) {
-    if (Object.prototype.hasOwnProperty.call(RECORD_FIELD_WRITERS, column)) {
+    // The S0 is a real column but not in RECORD_FIELD_WRITERS (#822): updateOpportunity sends it
+    // through the save step.
+    if (column === "sales_reference" || Object.prototype.hasOwnProperty.call(RECORD_FIELD_WRITERS, column)) {
       return opportunityService.updateOpportunity(id, { [column]: value }, actorId);
     }
     const { data: fresh, error } = await supabase
@@ -2073,6 +2461,92 @@ export const opportunityService = {
       { metadata: { ...(fresh?.metadata || {}), [column]: value } },
       actorId,
     );
+  },
+
+  /**
+   * What the S0 card shows (#815): the S0, its lock, the first Stage's name, whether the caller may
+   * change it now, the Odoo state and last read, and the product count.
+   */
+  async getSalesReferenceCard(id) {
+    const { data, error } = await supabase.rpc("sales_reference_card", { p_opportunity_id: id });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * What saving this S0 (or clearing it, `salesReference` empty) would do to the products (#818):
+   * `{ removed_products, requested_items, tender_lines }`, or null when Odoo could not be asked, in
+   * which case the save goes ahead without a preview. Read-only.
+   */
+  async previewSalesReferenceChange(id, salesReference) {
+    const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+      body: { action: "preview", opportunityId: id, salesReference: salesReference || null },
+    });
+    if (error || !data?.success) return null;
+    return data.preview || null;
+  },
+
+  /**
+   * Re-checks the SOR's current S0 against Odoo (#817), in the background when the SOR opens. Only
+   * the Odoo state moves (found, or gone with one history entry). Never throws: a failed re-check
+   * leaves the card as it was.
+   */
+  async recheckSalesReference(id) {
+    try {
+      const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+        body: { action: "recheck", opportunityId: id },
+      });
+      if (error || !data?.success) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Registration's pre-flight (#820): the save step's checks (format, duplicates, Odoo) without
+   * saving, because the SOR does not exist yet. Throws the refusal (message and `hint`); an Odoo
+   * outage is not a refusal (the S0 registers as Not checked).
+   */
+  async checkSalesReference(salesReference) {
+    const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+      body: { action: "check", salesReference: salesReference || null },
+    });
+    if (error) {
+      // #889: say which step failed, and what to do, rather than the raw transport text.
+      throw new Error(
+        await functionErrorMessage(
+          error,
+          `Couldn't check ${salesReference} against Odoo. Try again, or register without a Sales Reference.`,
+        ),
+      );
+    }
+    if (!data?.success) {
+      const refusal = new Error(data?.message || "The S0 could not be checked.");
+      refusal.hint = data?.hint;
+      throw refusal;
+    }
+    return data;
+  },
+
+  /**
+   * The one way the S0 changes after registration (#815): set, change or clear (`salesReference`
+   * empty). The edge function checks Odoo and calls the database function as the caller. A refusal
+   * (format, lock, duplicate, ...) throws an Error carrying the text to show and a `hint` code.
+   */
+  async setSalesReference(id, salesReference, reason = null) {
+    const { data, error } = await supabase.functions.invoke("sor-sales-reference", {
+      body: { opportunityId: id, salesReference: salesReference || null, reason: reason || null },
+    });
+    if (error) {
+      throw new Error(await functionErrorMessage(error, "The S0 could not be saved. Try again."));
+    }
+    if (!data?.success) {
+      const refusal = new Error(data?.message || "The S0 could not be saved.");
+      refusal.hint = data?.hint;
+      throw refusal;
+    }
+    return data;
   },
 
   /**
@@ -2150,8 +2624,11 @@ export const opportunityService = {
       status: nextStatus,
       lost_reason: isLostCode(nextStatus) ? lostReason : null,
     };
-    const recordsRef = providedRef && providedRef !== existing.sales_reference;
-    if (recordsRef) patch.sales_reference = providedRef;
+    // The S0 goes through the save step BEFORE the move (#822): the database refuses a direct
+    // write, and the save step writes its own history entry (SALES_REFERENCE_SET).
+    if (providedRef && providedRef !== existing.sales_reference) {
+      await opportunityService.setSalesReference(id, providedRef);
+    }
     if (existing.sale_type_id) patch.flow_stage_id = await legacyFlowStageFor(existing.sale_type_id, nextStatus);
 
     // Contract Date anchors which dated Commission Rate applies to this
@@ -2174,23 +2651,6 @@ export const opportunityService = {
 
     if (error) throw error;
 
-    if (recordsRef) {
-      await opportunityService.addSystemNote(
-        id,
-        `Sales Reference recorded: ${providedRef}`,
-        { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
-        actorId,
-      );
-
-      systemAuditLogService.addSystemEvent(
-        "OPPORTUNITY",
-        id,
-        `${auditLabel(existing)}: Sales Reference recorded as ${providedRef}.`,
-        { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
-        actorId,
-      ).catch(console.error);
-    }
-
     const from = STAGE_LABELS[existing.status] || existing.status;
     const to = STAGE_LABELS[nextStatus] || nextStatus;
     const suffix = isLostCode(nextStatus) && lostReason ? ` — ${lostReason}` : "";
@@ -2211,16 +2671,6 @@ export const opportunityService = {
       { event: "STAGE_CHANGED", from: existing.status, to: nextStatus, employeeId: actorId },
       actorId,
     ).catch(console.error);
-
-    // Purchasing may already have committed to a supplier for this deal. They
-    // are told; nothing of theirs is closed on their behalf, because a task
-    // that silently vanished would take the evidence of that spend with it.
-    // Fire-and-forget: losing the deal must not fail because a notification did.
-    if (isLostCode(nextStatus)) {
-      purchasingService
-        .notifyDealClosed(id, actorId, lostReason)
-        .catch(console.error);
-    }
 
     return data;
   },
@@ -2393,25 +2843,6 @@ export const opportunityService = {
   },
 
   /**
-   * `moveOpportunitySnapshot`, for many SORs at once — adopting a revised
-   * process shouldn't mean editing deals one at a time (issue #83). Collects
-   * failures instead of throwing on the first blocked SOR, so one stranded
-   * deal doesn't stop the rest of the batch from moving.
-   */
-  async bulkMoveOpportunitySnapshot(opportunityIds, targetSnapshotId, actorId) {
-    const succeeded = [];
-    const failed = [];
-    for (const id of opportunityIds) {
-      try {
-        succeeded.push(await opportunityService.moveOpportunitySnapshot(id, targetSnapshotId, actorId));
-      } catch (err) {
-        failed.push({ id, reason: err.message });
-      }
-    }
-    return { succeeded, failed };
-  },
-
-  /**
    * How many SORs a "Move up to vX.Y" offer would move, without moving them
    * (issue #190) — the offer states N before anyone accepts it.
    */
@@ -2445,9 +2876,9 @@ export const opportunityService = {
   },
 
   /**
-   * What the post-publish offer should say (issue #190): how many SORs it
-   * would move, whether any come from an older major, and whether the Won
-   * Stage differs, so the dialog can warn instead of promising no change.
+   * What the post-publish offer should say (issue #190): whether any SOR
+   * comes from an older major, and whether the Won Stage differs, so the
+   * dialog can warn instead of promising no change.
    */
   async getVersionMoveOffer(targetSnapshotId) {
     const { ids, crossesMajor, wonStageChanged } = await versionMoveCandidates(targetSnapshotId);
@@ -2478,15 +2909,145 @@ export const opportunityService = {
 
   /**
    * Moves every non-deleted SOR (Scratch included) pinned to an earlier
-   * Flow Snapshot of this flow, whose Stage the target still has, onto `targetSnapshotId`, through the
-   * existing audited single-deal move (issue #190). Opt-in only — this runs
-   * solely when the Operations Manager accepts the post-publish offer, never
-   * as a side effect of publishing itself.
+   * Flow Snapshot of this flow, whose Stage the target still has, onto `targetSnapshotId` (issue #190).
+   * Opt-in only — this runs solely when the Operations Manager accepts the
+   * post-publish offer, never as a side effect of publishing itself.
+   *
+   * The move itself is `move_opportunities_to_flow_snapshot`, a database
+   * function that works through a batch in one call and writes each SOR's
+   * timeline note and audit entry beside the update. It used to loop here,
+   * one SOR and about eight requests at a time, so leaving or reloading the
+   * page stopped it partway: on prod two publishes in a row moved the first
+   * 8 SORs and stranded 24. Batches keep a page close to losing at most the
+   * batch in flight, and a re-run finds only what is left.
+   *
+   * `onProgress({ done, total })` fires before the first batch and after each,
+   * so the offer dialog can show how far it got. `actorId` is unused: the
+   * function reads the caller from the JWT.
    */
-  async moveOpportunitiesToVersion(targetSnapshotId, actorId) {
+  async moveOpportunitiesToVersion(
+    targetSnapshotId,
+    actorId,
+    { onProgress, chunkSize = VERSION_MOVE_BATCH_SIZE } = {},
+  ) {
     const ids = await eligibleOpportunityIdsForVersionMove(targetSnapshotId);
     if (ids.length === 0) return { succeeded: [], failed: [] };
-    return opportunityService.bulkMoveOpportunitySnapshot(ids, targetSnapshotId, actorId);
+
+    const succeeded = [];
+    const failed = [];
+    onProgress?.({ done: 0, total: ids.length });
+
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const batch = ids.slice(i, i + chunkSize);
+      const { data, error } = await supabase.rpc("move_opportunities_to_flow_snapshot", {
+        p_opportunity_ids: batch,
+        p_target_snapshot_id: targetSnapshotId,
+      });
+      if (error) {
+        // The whole batch is reported rather than thrown, so the rest still run.
+        batch.forEach((id) => failed.push({ id, reason: error.message }));
+      } else {
+        succeeded.push(...(data?.moved || []));
+        failed.push(...(data?.failed || []));
+      }
+      onProgress?.({ done: Math.min(i + chunkSize, ids.length), total: ids.length });
+    }
+
+    return { succeeded, failed };
+  },
+
+  /**
+   * The SORs a bulk update of the Flow Snapshot offers, with enough to name
+   * them in a pick list (#743). Same set as the count above.
+   */
+  async listOpportunitiesEligibleForVersionMove(targetSnapshotId) {
+    const ids = await eligibleOpportunityIdsForVersionMove(targetSnapshotId);
+    if (ids.length === 0) return [];
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select("id, sales_reference, client_name, project_title")
+      .in("id", ids);
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * What updating `ids` to `targetSnapshotId` would run (#846): the Stage
+   * Actions the target added to the Stage each SOR sits at. One summary line
+   * per Action, so the person sees it before confirming.
+   */
+  async previewVersionUpdate(ids, targetSnapshotId) {
+    const plan = await planVersionUpdate(ids, targetSnapshotId);
+    const entries = plan.items.flatMap((item) => item.added.map((action) => ({ action, name: describeAction(action) })));
+    return { lines: summariseAddedActions(entries) };
+  },
+
+  /**
+   * Updates the given SORs to `targetSnapshotId` (newer or older) through
+   * `update_sor_versions` (#743). The database checks who may update which
+   * SOR and refuses a version that lacks an SOR's Stage; refusals come back in
+   * `failed` with a reason. Works in batches like moveOpportunitiesToVersion.
+   * Clears the Stage checklist caches of the SORs it updated (#742).
+   */
+  async updateSorVersions(
+    ids,
+    targetSnapshotId,
+    { onProgress, chunkSize = VERSION_MOVE_BATCH_SIZE, queryClient = null, actorId = null } = {},
+  ) {
+    const succeeded = [];
+    const failed = [];
+    // Read before the move: afterwards the old version is no longer on the row.
+    // A failed read is reported back, never swallowed (#882).
+    let plan = { items: [] };
+    let planError = null;
+    try {
+      plan = await planVersionUpdate(ids, targetSnapshotId);
+    } catch (err) {
+      console.error("Could not work out the Stage Actions for this update:", err);
+      planError = err?.message || String(err);
+    }
+    onProgress?.({ done: 0, total: ids.length });
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const batch = ids.slice(i, i + chunkSize);
+      const { data, error } = await supabase.rpc("update_sor_versions", {
+        p_opportunity_ids: batch,
+        p_target_snapshot_id: targetSnapshotId,
+      });
+      if (error) {
+        batch.forEach((id) => failed.push({ id, reason: error.message }));
+      } else {
+        succeeded.push(...(data?.moved || []));
+        failed.push(...(data?.failed || []));
+      }
+      onProgress?.({ done: Math.min(i + chunkSize, ids.length), total: ids.length });
+    }
+    // Run what the new version added to each SOR's current Stage. The
+    // once-per-(SOR, Stage, Action) record in sor_run_stage_actions stops doubles.
+    const movedIds = new Set(succeeded.map((m) => m.id));
+    const actionFailures = [];
+    for (const item of plan.items) {
+      if (!movedIds.has(item.sor.id) || item.added.length === 0) continue;
+      const reasons = [];
+      const names = await runStageActionsOnEntry({
+        existing: item.sor,
+        to: item.stage,
+        snapshotActions: item.added,
+        actorId,
+        failureReasons: reasons,
+      });
+      names.forEach((name) => {
+        const reason = reasons.find((r) => r.name === name)?.reason ?? null;
+        actionFailures.push({ id: item.sor.id, name, reason });
+      });
+    }
+    if (queryClient) {
+      for (const { id } of succeeded) {
+        queryClient.invalidateQueries({ queryKey: ["quickViewChecklist", id] });
+        queryClient.invalidateQueries({ queryKey: ["stageChecklist", id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+    }
+    return { succeeded, failed, actionFailures, planError };
   },
 
   async deleteOpportunity(id, actorId) {
@@ -2498,10 +3059,6 @@ export const opportunityService = {
       .single();
 
     if (error) throw error;
-
-    purchasingService
-      .handleOpportunityDeleted(id, actorId, data)
-      .catch(console.error);
 
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
@@ -2541,54 +3098,20 @@ export const opportunityService = {
 
   /**
    * Restores a deleted SOR — a Super Admin or its own Deal Owner. Clears the
-   * flag and its deletion stamp, and never touches procurement: those
-   * requests were cancelled on delete (purchasingService.handleOpportunityDeleted)
-   * and restoring doesn't reopen them — whoever restores has to re-raise
-   * what's still needed.
+   * flag and its deletion stamp. A Purchase Request is untouched by either
+   * delete or restore. Goes through `restore_opportunity` (#819), which also
+   * refuses when another SOR now uses this SOR's S0; the refusal text names
+   * that SOR and is thrown as the Error message (`hint` is "duplicate").
+   * `actorId` is unused: the database knows the caller.
    */
+  // eslint-disable-next-line no-unused-vars
   async restoreOpportunity(id, actorId) {
-    const { data: existing, error: readError } = await supabase
-      .from("sales_opportunities")
-      .select("id, client_name, sales_reference, deal_owner_id")
-      .eq("id", id)
-      .single();
-    if (readError) throw readError;
-
-    const { data: actor, error: actorError } = await supabase
-      .from("employees")
-      .select("id, is_super_admin")
-      .eq("id", actorId)
-      .maybeSingle();
-    if (actorError) throw actorError;
-
-    const allowed = actor?.is_super_admin || existing.deal_owner_id === actorId;
-    if (!allowed) {
-      throw new Error("Only a Super Admin or this SOR's Deal Owner can restore it.");
+    const { data, error } = await supabase.rpc("restore_opportunity", { p_opportunity_id: id });
+    if (error) {
+      const refusal = new Error(error.message || "The SOR could not be restored.");
+      refusal.hint = error.hint;
+      throw refusal;
     }
-
-    const { data, error } = await supabase
-      .from("sales_opportunities")
-      .update({ is_deleted: false, deleted_at: null, deleted_by: null })
-      .eq("id", id)
-      .select(PARTICIPANT_SELECT)
-      .single();
-    if (error) throw error;
-
-    await opportunityService.addSystemNote(
-      id,
-      "SOR restored from Deleted.",
-      { event: "OPPORTUNITY_RESTORED", employeeId: actorId },
-      actorId,
-    );
-
-    systemAuditLogService.addSystemEvent(
-      "OPPORTUNITY",
-      id,
-      `${auditLabel(existing)} restored.`,
-      { event: "OPPORTUNITY_RESTORED", employeeId: actorId },
-      actorId,
-    ).catch(console.error);
-
     return data;
   },
 
@@ -2656,6 +3179,11 @@ export const opportunityService = {
    */
   async replaceItems(opportunityId, items) {
     const rows = (items || []).map((it) => ({
+      // The stored line this row is, and the Odoo S0 line it mirrors (#677): the
+      // save matches by these and updates in place instead of deleting and re-adding.
+      id: typeof it.id === "string" ? it.id : null,
+      odoo_line_id: Number.isInteger(it.odoo_line_id) ? it.odoo_line_id : null,
+      removed_from_s0: it.removed_from_s0 === true,
       product_name: it.product_name || "",
       unit: it.unit || "",
       quantity: Number(it.quantity) || 0,
@@ -2714,6 +3242,25 @@ export const opportunityService = {
 
     if (error) throw error;
     return data || [];
+  },
+
+  /**
+   * One page of an SOR's notes, oldest first: the `limit` newest strictly older
+   * than `before` (ISO timestamp), or the newest overall when `before` is null.
+   * A full page means older ones may remain.
+   */
+  async getNotesPage(opportunityId, { before = null, limit = 30 } = {}) {
+    if (!opportunityId) return [];
+    let query = supabase
+      .from("sales_opportunity_logs")
+      .select("*, author:employees!sales_opportunity_logs_author_id_fkey(id, name, avatar_path)")
+      .eq("opportunity_id", opportunityId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (before) query = query.lt("created_at", before);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).reverse();
   },
 
   /**
@@ -2952,7 +3499,9 @@ export const opportunityService = {
       .eq("id", runId)
       .single();
     if (runError) throw runError;
-    if (run.outcome !== "pending") {
+    // #788: a run whose "open" step failed is saved as failed; Create may be pressed again for it.
+    const retrying = run.outcome === "failed" && decision === "create";
+    if (run.outcome !== "pending" && !retrying) {
       throw new Error("This action has already been decided.");
     }
 
@@ -2982,12 +3531,31 @@ export const opportunityService = {
       .single();
     if (stageError) throw stageError;
 
-    const { error: decideError } = await supabase.rpc("sor_decide_action_run", {
-      p_run_id: runId,
-      p_decision: decision,
-      p_actor_id: actorId,
-    });
-    if (decideError) throw decideError;
+    const templateContext = {
+      salesReference: existing.sales_reference,
+      projectTitle: existing.project_title,
+      company: existing.client_name,
+      stageName: stage.name,
+      dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
+      saleType: existing.sale_type || null,
+    };
+
+    if (retrying) {
+      // Back to the decided-and-created state the create functions accept, then run the step again.
+      const { error: reopenError } = await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "created" });
+      if (reopenError) throw reopenError;
+    } else {
+      const { error: decideError } = await supabase.rpc("sor_decide_action_run", {
+        p_run_id: runId,
+        p_decision: decision,
+        p_actor_id: actorId,
+      });
+      if (decideError) throw decideError;
+      // #901: the decision notice in this Decider's inbox is resolved once the run is decided.
+      await notificationService
+        .resolveDecisionNotices(existing.id, actorId, decisionNoticeTitle(action, templateContext))
+        .catch(() => {});
+    }
 
     if (decision === "skip") {
       await opportunityService.addSystemNote(
@@ -2999,15 +3567,43 @@ export const opportunityService = {
       return { outcome: "skipped" };
     }
 
-    const templateContext = {
-      salesReference: existing.sales_reference,
-      projectTitle: existing.project_title,
-      company: existing.client_name,
-      stageName: stage.name,
-      dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
-      saleType: existing.sale_type || null,
-    };
-    await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, null);
+    if (action.kind === "open_purchase_request") {
+      const { data: requestId, error: openError } = await supabase.rpc("sor_open_purchase_request", {
+        p_run_id: runId,
+      });
+      if (openError) {
+        await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "failed" });
+        throw openError;
+      }
+      await notePurchaseRequestOpened(existing.id, stage, action.id, requestId, actorId).catch(() => {});
+      return { outcome: "created" };
+    }
+    if (action.kind === "open_costing_matrix" || action.kind === "evaluate_specification") {
+      const { data: matrixId, error: openError } = await supabase.rpc("sor_open_costing_matrix", {
+        p_run_id: runId,
+      });
+      if (openError) {
+        await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "failed" });
+        throw openError;
+      }
+      await noteCostingMatrixOpened(existing.id, stage, action.id, matrixId, actorId).catch(() => {});
+      return { outcome: "created" };
+    }
+    if (action.kind === "request_packing_list") {
+      const { data: packingListId, error: openError } = await supabase.rpc("sor_request_packing_list", {
+        p_run_id: runId,
+      });
+      if (openError) {
+        await supabase.rpc("sor_finish_action_run", { p_run_id: runId, p_outcome: "failed" });
+        throw openError;
+      }
+      await notePackingListRequested(existing.id, stage, action.id, packingListId, actorId).catch(() => {});
+      return { outcome: "created" };
+    }
+    // #788: a task that fails to build is saved as failed and shown to the person, so Create can be tried again.
+    const failedNow = [];
+    await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, failedNow);
+    if (failedNow.length) throw new Error(`Could not create "${failedNow[0]}". Please try again.`);
     return { outcome: "created" };
   },
 
@@ -3026,7 +3622,7 @@ export const opportunityService = {
       .from("sor_action_runs")
       .select("*")
       .eq("opportunity_id", opportunityId)
-      .eq("outcome", "pending");
+      .in("outcome", ["pending", "failed"]);
     if (runsError) throw runsError;
     if (!runs?.length) return [];
 
@@ -3076,7 +3672,13 @@ export const opportunityService = {
       // real builder would use, not a placeholder or a bare count.
       // `PendingActionDecisions.jsx` turns this into a sentence.
       const target =
-        action.kind === "create_group_task"
+        action.kind === "open_purchase_request"
+          ? { kind: "purchase_request" }
+          : action.kind === "open_costing_matrix" || action.kind === "evaluate_specification"
+          ? { kind: "costing_matrix" }
+          : action.kind === "request_packing_list"
+          ? { kind: "packing_list" }
+          : action.kind === "create_group_task"
           ? {
               kind: "group",
               members: (config.members || []).map((m) => ({
@@ -3101,6 +3703,7 @@ export const opportunityService = {
         stageName: stage.name,
         title: renderActionTitle(action, templateContext),
         target,
+        failed: run.outcome === "failed",
       });
     }
 
@@ -3205,6 +3808,8 @@ export const opportunityService = {
       actorId,
     );
 
+    await autoMoveIfReady(opportunityId, actorId);
+
     return data;
   },
 
@@ -3218,6 +3823,8 @@ export const opportunityService = {
    * once satisfied stays satisfied (D31), so ticking it again is a no-op
    * that returns the original row rather than overwriting who satisfied it.
    */
+  autoMoveIfReady,
+
   async satisfyCondition(opportunityId, conditionId, actorId) {
     const { data: opp, error: oppError } = await supabase
       .from("sales_opportunities")
@@ -3272,6 +3879,7 @@ export const opportunityService = {
 
     if (result.was_new) {
       await noteConditionSatisfied(opportunityId, condition, actorId);
+      await autoMoveIfReady(opportunityId, actorId);
     }
 
     return result;
@@ -3381,11 +3989,23 @@ export const opportunityService = {
       .order("created_at", { ascending: false });
     if (error) throw error;
 
-    // An old SOR's mention grant (`sor_mention_viewers`) is the same kind of
-    // "you were called in", with no Stage window behind it. RLS lets a person
-    // read only their own rows.
+    // A Mention Window (`sor_mention_viewers`) is the same kind of "you were
+    // called in": one per visit the person was mentioned on, closed once the
+    // SOR has left it. RLS lets a person read only their own rows.
     const mentionRows = await opportunityService.getMyMentionGrants(employeeId);
-    if ((!windows || windows.length === 0) && mentionRows.length === 0) return [];
+
+    // #478: the SORs this person is on the Deal Team of: Full access, no window.
+    const dealTeamIds = await opportunityService.getMyDealTeamSorIds();
+    // "Your move": the open work this person owes, per SOR. An SOR they owe
+    // work on is always listed, even if no window names it.
+    const moves = await opportunityService.getMySorMoves(employeeId);
+    if (
+      (!windows || windows.length === 0) &&
+      mentionRows.length === 0 &&
+      dealTeamIds.length === 0 &&
+      Object.keys(moves).length === 0
+    )
+      return [];
 
     const shape = windows?.length ? await shapeAccessWindows(windows) : () => null;
 
@@ -3395,35 +4015,59 @@ export const opportunityService = {
       byOpportunity.get(w.opportunity_id).push(w);
     }
 
-    const mentionByOpportunity = new Map(mentionRows.map((m) => [m.opportunity_id, m]));
-    for (const id of mentionByOpportunity.keys()) {
+    const mentionsByOpportunity = new Map();
+    for (const m of mentionRows) {
+      if (!mentionsByOpportunity.has(m.opportunity_id)) mentionsByOpportunity.set(m.opportunity_id, []);
+      mentionsByOpportunity.get(m.opportunity_id).push(m);
+      if (!byOpportunity.has(m.opportunity_id)) byOpportunity.set(m.opportunity_id, []);
+    }
+
+    for (const id of [...dealTeamIds, ...Object.keys(moves)]) {
       if (!byOpportunity.has(id)) byOpportunity.set(id, []);
     }
+    const dealTeam = new Set(dealTeamIds);
+
+    // #478: the SOR code, client, Sales Flow and last activity the filters need.
+    const facets = await opportunityService.getMySorsFacets([...byOpportunity.keys()]);
+    const stageColors = await opportunityService.getMySorsStageColors([...byOpportunity.keys()]);
 
     const rows = await Promise.all(
       [...byOpportunity.entries()].map(async ([opportunityId, ownWindows]) => {
         const summary = await opportunityService.getLockedSummary(opportunityId).catch(() => null);
-        const mention = mentionByOpportunity.get(opportunityId);
+        const mentions = mentionsByOpportunity.get(opportunityId) || [];
+        const allWindows = [
+          ...(dealTeam.has(opportunityId)
+            ? [{ id: `deal-team-${opportunityId}`, source: SOURCE_DEAL_TEAM, closedAt: null, createdAt: null, reachLabel: "the whole SOR (Full access)" }]
+            : []),
+          ...ownWindows.map(shape),
+          ...mentions.map((m) => ({
+            id: `mention-${m.id ?? opportunityId}`,
+            source: SOURCE_MENTION,
+            mentionedBy: m.granted_by_name ?? null,
+            calledInAtStageName: m.stage_name ?? null,
+            closedAt: m.closed_at ?? null,
+            createdAt: m.created_at ?? null,
+            reachLabel: m.stage_visit_id ? "this Stage until it moves" : "this SOR, read-only",
+          })),
+        ].sort(
+          (a, b) =>
+            Number(b.source === SOURCE_DEAL_TEAM) - Number(a.source === SOURCE_DEAL_TEAM) ||
+            new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
+        );
         return {
           opportunityId,
           salesReference: summary?.sales_reference ?? null,
           projectTitle: summary?.project_title ?? null,
           currentStageName: summary?.current_stage_name ?? null,
-          isOpen: Boolean(mention) || ownWindows.some((w) => !w.closed_at),
-          windows: [
-            ...ownWindows.map(shape),
-            ...(mention
-              ? [
-                  {
-                    id: `mention-${opportunityId}`,
-                    source: "mention",
-                    mentionedBy: mention.granted_by_name ?? null,
-                    closedAt: null,
-                    reachLabel: "this deal, read-only",
-                  },
-                ]
-              : []),
-          ],
+          currentStageColor: stageColors[opportunityId] ?? null,
+          sorCode: facets[opportunityId]?.sorCode ?? null,
+          clientName: facets[opportunityId]?.clientName ?? null,
+          saleTypeName: facets[opportunityId]?.saleTypeName ?? null,
+          lastActivityAt: facets[opportunityId]?.lastActivityAt ?? null,
+          // Owing work keeps an SOR current even when no window is open on it.
+          isOpen: allWindows.some((w) => !w.closedAt) || (moves[opportunityId] || []).length > 0,
+          windows: allWindows,
+          moves: moves[opportunityId] || [],
         };
       }),
     );
@@ -3462,32 +4106,247 @@ export const opportunityService = {
   },
 
   /**
-   * Old-SOR mention grants held by this person, with who mentioned them.
-   * Never throws: My SORs must still list the windows if this read fails.
+   * This person's Mention Windows, with who mentioned them, on which Stage,
+   * and when the SOR left it (`closed_at`, null while open or on an SOR with
+   * no visit). Never throws: My SORs must still list the windows if this fails.
    */
   async getMyMentionGrants(employeeId) {
     if (!employeeId) return [];
     const { data, error } = await supabase
       .from("sor_mention_viewers")
-      .select("opportunity_id, granted_by, created_at, granter:employees!sor_mention_viewers_granted_by_fkey(name)")
+      .select(
+        "id, opportunity_id, granted_by, created_at, stage_visit_id, granter:employees!sor_mention_viewers_granted_by_fkey(name), visit:sor_stage_visits(left_at, undone_at, flow_stages(name))",
+      )
       .eq("employee_id", employeeId);
     if (error) return [];
-    return (data || []).map((r) => ({ ...r, granted_by_name: r.granter?.name ?? null }));
+    return (data || []).map((r) => ({
+      ...r,
+      granted_by_name: r.granter?.name ?? null,
+      stage_name: r.visit?.flow_stages?.name ?? null,
+      closed_at: r.stage_visit_id ? (r.visit?.left_at ?? r.visit?.undone_at ?? null) : null,
+    }));
   },
 
+  /**
+   * #478: the SORs this person is on the Deal Team of (`sor_my_deal_team_sor_ids`,
+   * the one Deal Team definition). Throws on failure: a silent empty list would
+   * hide the person's own SORs.
+   */
+  async getMyDealTeamSorIds() {
+    const { data, error } = await supabase.rpc("sor_my_deal_team_sor_ids");
+    if (error) throw error;
+    // A `setof uuid` function comes back as a plain array of uuid strings.
+    return data || [];
+  },
+
+  /** #478: `sor_my_sors_facets` keyed by SOR — the SOR code, client, Sales Flow and last activity. */
+  async getMySorsFacets(opportunityIds) {
+    if (!opportunityIds?.length) return {};
+    const { data, error } = await supabase.rpc("sor_my_sors_facets", { p_opportunity_ids: opportunityIds });
+    if (error) throw error;
+    return Object.fromEntries(
+      (data || []).map((r) => [
+        r.opportunity_id,
+        { sorCode: r.sor_code ?? null, clientName: r.client_name ?? null, saleTypeName: r.sale_type_name ?? null, lastActivityAt: r.last_activity_at ?? null },
+      ]),
+    );
+  },
+
+  /**
+   * #739: each SOR's current Stage colour, read from the SOR's own pinned Flow
+   * Snapshot (the same `color` key the Flow Canvas paints). A Stage with no
+   * colour, or no snapshot, is simply absent so the badge stays neutral.
+   */
+  async getMySorsStageColors(opportunityIds) {
+    if (!opportunityIds?.length) return {};
+    const { data: opps, error } = await supabase
+      .from("sales_opportunities")
+      .select("id, flow_stage_id, flow_snapshot_id")
+      .in("id", opportunityIds);
+    if (error) throw error;
+    const snapshotIds = [...new Set((opps || []).map((o) => o.flow_snapshot_id).filter(Boolean))];
+    if (!snapshotIds.length) return {};
+    const { data: snaps, error: snapError } = await supabase
+      .from("flow_snapshots")
+      .select("id, snapshot_data")
+      .in("id", snapshotIds);
+    if (snapError) throw snapError;
+    const stagesBySnapshot = new Map((snaps || []).map((s) => [s.id, s.snapshot_data?.stages || []]));
+    const colors = {};
+    for (const o of opps || []) {
+      const stage = (stagesBySnapshot.get(o.flow_snapshot_id) || []).find((st) => st.id === o.flow_stage_id);
+      if (stage?.color) colors[o.id] = stage.color;
+    }
+    return colors;
+  },
+
+  /**
+   * "Your move" on My SOR Work: the open work this person owes on each SOR,
+   * keyed by SOR. Three kinds, each read through a policy that already names
+   * the person: their own individual tasks, their unfinished part of an
+   * active group task, and Purchase Requests they are the Buyer of that still
+   * have an unsettled item. A mention is not a move: it is listed under
+   * Watching. Oldest first, so the first move is the one waiting longest.
+   */
+  async getMySorMoves(employeeId) {
+    if (!employeeId) return {};
+    const [tasksRes, partsRes, requestsRes] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, opportunity_id, project_title, task_description, status, created_at, end_at")
+        .eq("logged_by", employeeId)
+        .not("opportunity_id", "is", null)
+        .in("status", [TASK_STATUS.INCOMPLETE, TASK_STATUS.NOT_APPROVED]),
+      supabase
+        .from("committee_task_members")
+        .select("id, task_description, status, created_at, task:committee_tasks!inner(id, title, status, due_date, opportunity_id)")
+        .eq("employee_id", employeeId)
+        .neq("status", GROUP_MEMBER_STATUS.DONE)
+        .eq("task.status", GROUP_TASK_STATUS.ACTIVE)
+        .not("task.opportunity_id", "is", null),
+      supabase
+        .from("purchase_requests")
+        .select("id, opportunity_id, pr_number, title, created_at, items:purchase_request_items(status)")
+        .eq("buyer_id", employeeId)
+        .not("opportunity_id", "is", null),
+    ]);
+    for (const res of [tasksRes, partsRes, requestsRes]) if (res.error) throw res.error;
+
+    const moves = {};
+    const add = (sorId, move) => {
+      if (!sorId) return;
+      (moves[sorId] ||= []).push(move);
+    };
+    for (const t of tasksRes.data || []) {
+      add(t.opportunity_id, {
+        id: t.id,
+        entityType: "TASK",
+        kind: t.status === TASK_STATUS.NOT_APPROVED ? "Redo task" : "Task",
+        label: t.project_title || t.task_description?.split("\n")[0] || "Task",
+        since: t.created_at,
+        dueAt: t.end_at || null,
+      });
+    }
+    for (const m of partsRes.data || []) {
+      add(m.task?.opportunity_id, {
+        id: m.task.id,
+        entityType: "GROUP_TASK",
+        kind: "Group task",
+        label: m.task_description?.split("\n")[0] || m.task.title || "Your part",
+        since: m.created_at,
+        dueAt: m.task.due_date || null,
+      });
+    }
+    for (const r of requestsRes.data || []) {
+      const open = (r.items || []).filter((i) => !isClosedStatus(i.status)).length;
+      if (open === 0) continue;
+      add(r.opportunity_id, {
+        id: r.id,
+        entityType: "PURCHASE_REQUEST",
+        kind: "Purchase Request",
+        label: `${open} item${open === 1 ? "" : "s"} to buy${r.pr_number ? ` · ${r.pr_number}` : ""}`,
+        since: r.created_at,
+        dueAt: null,
+      });
+    }
+    for (const list of Object.values(moves)) {
+      list.sort((a, b) => new Date(a.since || 0) - new Date(b.since || 0));
+    }
+    return moves;
+  },
+
+  /**
+   * The My SOR Work badge: how many SORs have a move waiting on this person.
+   * Counts SORs, not moves, to match the "Needs you" group the badge opens.
+   */
   async countMyOpenSors(employeeId) {
     if (!employeeId) return 0;
-    const { data, error } = await supabase
-      .from("sor_stage_participants")
-      .select("opportunity_id")
-      .eq("employee_id", employeeId)
-      .is("closed_at", null);
+    const moves = await opportunityService.getMySorMoves(employeeId);
+    return Object.keys(moves).length;
+  },
+
+  /**
+   * #474: the prohibited screen's one fact — the Deal Owner to ask — from
+   * `sor_access_contact`. `found: false` when the SOR does not exist.
+   */
+  async getAccessContact(opportunityId) {
+    if (!opportunityId) return { found: false, dealOwnerName: null };
+    const { data, error } = await supabase.rpc("sor_access_contact", { p_opportunity_id: opportunityId });
     if (error) throw error;
-    const mentions = await opportunityService.getMyMentionGrants(employeeId);
-    return new Set([
-      ...(data || []).map((r) => r.opportunity_id),
-      ...mentions.map((m) => m.opportunity_id),
-    ]).size;
+    const row = data?.[0];
+    return row ? { found: true, dealOwnerName: row.deal_owner_name ?? null } : { found: false, dealOwnerName: null };
+  },
+
+  /**
+   * #475: every live Stage Visit on the SOR beside the ones this viewer can
+   * read, so the timeline can mark the hidden ones instead of leaving a gap.
+   */
+  async getVisitVisibility(opportunityId) {
+    if (!opportunityId) return { visits: [], visibleIds: [] };
+    const [{ data: visits, error }, { data: idRows, error: idErr }] = await Promise.all([
+      supabase
+        .from("sor_stage_visits")
+        .select("id, sequence, entered_at, left_at, flow_stages(name)")
+        .eq("opportunity_id", opportunityId)
+        .is("undone_at", null)
+        .order("sequence", { ascending: true }),
+      supabase.rpc("sor_visible_visit_ids", { p_opportunity_id: opportunityId }),
+    ]);
+    if (error) throw error;
+    if (idErr) throw idErr;
+    const visibleIds = (idRows || []).map((row) => (typeof row === "string" ? row : row.sor_visible_visit_ids));
+    return { visits: visits || [], visibleIds };
+  },
+
+  /**
+   * #475: this person's Mention Windows on one SOR — who mentioned them, on
+   * which Stage, and whether the SOR has since left it. RLS returns only the
+   * caller's own rows.
+   */
+  async getMyMentionWindowsOn(opportunityId, employeeId) {
+    if (!opportunityId || !employeeId) return [];
+    const { data, error } = await supabase
+      .from("sor_mention_viewers")
+      .select(
+        "id, created_at, stage_visit_id, granter:employees!sor_mention_viewers_granted_by_fkey(name), visit:sor_stage_visits(left_at, undone_at, flow_stages(name))",
+      )
+      .eq("opportunity_id", opportunityId)
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data || []).map((r) => ({
+      id: r.id,
+      mentionedBy: r.granter?.name ?? null,
+      stageName: r.visit?.flow_stages?.name ?? null,
+      hasVisit: !!r.stage_visit_id,
+      closed: !!r.stage_visit_id && !!(r.visit?.left_at || r.visit?.undone_at),
+    }));
+  },
+
+  /**
+   * #476: which of these people a Mention would open a Mention Window for —
+   * `sor_mention_window_candidates`, the same rule the grant applies, so the
+   * composer's hint never promises access the grant would not give.
+   */
+  async getMentionWindowCandidates(opportunityId, employeeIds) {
+    if (!opportunityId || !employeeIds?.length) return [];
+    const { data, error } = await supabase.rpc("sor_mention_window_candidates", {
+      p_opportunity_id: opportunityId,
+      p_employee_ids: employeeIds,
+    });
+    if (error) throw error;
+    return (data || []).map((row) => (typeof row === "string" ? row : row.sor_mention_window_candidates));
+  },
+
+  /**
+   * #477: who this SOR has been shared with by Mention — `sor_mention_shares`,
+   * full access only (empty below it).
+   */
+  async getMentionShares(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase.rpc("sor_mention_shares", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data || [];
   },
 
   async getLockedSummary(opportunityId) {
@@ -3696,6 +4555,34 @@ export const opportunityService = {
     return Boolean(data);
   },
 
+  /**
+   * Mark as Lost (#810): the only way to lose a deal. The database checks the
+   * reason list, the note for "Other", the permission and the flow's Lost Stage.
+   * `lostStageId` is only needed when the flow has more than one Lost Stage.
+   */
+  async markLost(opportunityId, reasonCode, note = null, lostStageId = null) {
+    const { data, error } = await supabase.rpc("mark_opportunity_lost", {
+      p_opportunity_id: opportunityId,
+      p_reason_code: reasonCode,
+      p_note: note,
+      p_lost_stage_id: lostStageId,
+    });
+    if (error) throw new Error(error.message.replace(/^Mark as Lost: /, ""));
+    return Array.isArray(data) ? data[0] : data;
+  },
+
+  /**
+   * Reopen (#813): the only way out of a Lost Stage or status. The database
+   * checks the deal is Lost, the permission, and where it goes back to.
+   */
+  async reopen(opportunityId) {
+    const { data, error } = await supabase.rpc("reopen_opportunity", {
+      p_opportunity_id: opportunityId,
+    });
+    if (error) throw new Error(error.message.replace(/^Reopen: /, ""));
+    return Array.isArray(data) ? data[0] : data;
+  },
+
   async revertStage(opportunityId, progressChoice = null) {
     const { data, error } = await supabase.rpc("sor_revert_stage", {
       p_opportunity_id: opportunityId,
@@ -3773,6 +4660,9 @@ export const opportunityService = {
 
     const hasInclusions = await resolveHasInclusions(conditions, target.id);
     const hasPurchasing = await resolveHasPurchasing(conditions, target.id);
+    const purchaseRequestItems = await resolvePurchaseRequestItems(conditions, target.id);
+    const costingInputs = await resolveCostingInputs(conditions, target.id);
+    const orderInputs = await resolveOrderInputs(conditions, target.id);
 
     return conditions
       .map((condition) => ({
@@ -3784,6 +4674,9 @@ export const opportunityService = {
           statusRow: statusRowsByCondition[condition.id] ?? null,
           hasInclusions,
           hasPurchasing,
+          purchaseRequestItems,
+          costingInputs,
+          orderInputs,
         }),
       }))
       // Issue #203: a removed kind (field, project_evaluation) always reads
@@ -3899,9 +4792,12 @@ export const opportunityService = {
 
       if (stageConditions.length === 0) continue;
 
-      const [hasInclusions, hasPurchasing] = await Promise.all([
+      const [hasInclusions, hasPurchasing, purchaseRequestItems, costingInputs, orderInputs] = await Promise.all([
         resolveHasInclusions(stageConditions, opportunity.id),
         resolveHasPurchasing(stageConditions, opportunity.id),
+        resolvePurchaseRequestItems(stageConditions, opportunity.id),
+        resolveCostingInputs(stageConditions, opportunity.id),
+        resolveOrderInputs(stageConditions, opportunity.id),
       ]);
 
       const missing = stageConditions.filter(
@@ -3913,6 +4809,9 @@ export const opportunityService = {
             statusRow: (statusByOpportunity[opportunity.id] || {})[condition.id] ?? null,
             hasInclusions,
             hasPurchasing,
+            purchaseRequestItems,
+            costingInputs,
+            orderInputs,
           }).status === CONDITION_STATUS.UNSATISFIED,
       );
       if (missing.length > 0) blocked[opportunity.id] = missing;
@@ -4186,6 +5085,19 @@ export const opportunityService = {
     }
     const rawVisitById = Object.fromEntries(visits.map((v) => [v.id, v]));
 
+    // #310: the SOR's Purchase Request, as far as the caller may read it. A
+    // failed read leaves the Journey without the group, not without the Journey.
+    let requestedItems = [];
+    try {
+      const { data: overviewRows, error: overviewError } = await supabase.rpc("sor_purchase_request_overview", {
+        p_opportunity_id: opportunityId,
+      });
+      if (overviewError) throw overviewError;
+      requestedItems = shapeSorOverview((overviewRows || [])[0])?.items || [];
+    } catch {
+      requestedItems = [];
+    }
+
     const shaped = visits.map((visit) => {
       const visitWindow = { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
       const isRestricted = !visibleVisitIds.has(visit.id);
@@ -4208,9 +5120,9 @@ export const opportunityService = {
         isRestricted,
         tasks: isRestricted ? [] : tasks.filter((task) => visitOwnsTask(task, visitWindow)),
         groupTasks: isRestricted ? [] : groupTasks.filter((task) => visitOwnsTask(task, visitWindow)),
-        // #209 fills this in with the visit's Purchase Requests; until it does,
-        // the slot exists so the tab renders the same shape either way.
-        requestedItems: [],
+        // #310: the Requested Items raised during this visit (none on a
+        // restricted one). Items carry no visit id, so it is the visit window.
+        requestedItems: isRestricted ? [] : itemsForVisit(requestedItems, visitWindow),
         // #397: labelled from the visit's own Flow Snapshot, never the live
         // flow_stage_fields — same "frozen with everything else" rule the
         // Stage itself is named from (see `stageFor`, above).
@@ -4298,10 +5210,13 @@ export const opportunityService = {
           return { ...visit, conditions: [], attachments: attachments || [] };
         }
 
-        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing] = await Promise.all([
+        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing, purchaseRequestItems, costingInputs, orderInputs] = await Promise.all([
           gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt, preloaded }),
           resolveHasInclusions(conditions, opportunityId, { asOf: visit.leftAt }),
           resolveHasPurchasing(conditions, opportunityId, { asOf: visit.leftAt }),
+          resolvePurchaseRequestItems(conditions, opportunityId),
+          resolveCostingInputs(conditions, opportunityId),
+          resolveOrderInputs(conditions, opportunityId),
         ]);
 
         return {
@@ -4316,6 +5231,10 @@ export const opportunityService = {
                 statusRow: statusRowsByCondition[condition.id] ?? null,
                 hasInclusions,
                 hasPurchasing,
+                purchaseRequestItems,
+                purchaseRequestAsOf: visit.leftAt,
+                costingInputs,
+                orderInputs,
               });
 
               let matchedFiles = [];

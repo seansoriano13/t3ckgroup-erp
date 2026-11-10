@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 import { CheckCircle2, XCircle, Clock, SearchX, AlertTriangle, ArrowRight, ShieldCheck, ShieldAlert } from "lucide-react";
 
 function getStatusConfig(status) {
@@ -18,6 +18,14 @@ function getStatusConfig(status) {
     default:
       return { color: "text-amber-700 bg-amber-50 border-amber-200", icon: Clock, label: status || "PENDING" };
   }
+}
+
+/** Same wording the printed TG-11 uses for how a record is treated. */
+function treatedAsLabel(formType, category) {
+  if (formType === "Offset") return "Offset";
+  if (formType === "LWOP") return "Leave Without Pay (LWOP)";
+  if (formType === "Leave") return "Leave With Pay (LWP)";
+  return category;
 }
 
 export default function VerifiedRecordPreview({ token, standalone = false }) {
@@ -66,6 +74,11 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
             employeeFkey = "offset_leaves_employee_id_fkey";
             hrFkey = "offset_leaves_hr_processed_by_fkey";
           }
+          if (record.form_type === "LWOP") {
+            table = "lwop_leaves";
+            employeeFkey = "lwop_leaves_employee_id_fkey";
+            hrFkey = "lwop_leaves_hr_processed_by_fkey";
+          }
           if (record.form_type === "Overtime") {
             table = "overtime_requests";
             employeeFkey = "overtime_requests_employee_id_fkey";
@@ -105,10 +118,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
   if (isAuthLoading || loading) {
     return (
       <div className={`flex items-center justify-center p-8 ${standalone ? 'min-h-screen bg-[#F7F7F5]' : 'min-h-[400px]'}`}>
-        <div className="flex flex-col items-center gap-4 text-[#37352F]">
-          <Spinner size="lg" />
-          <p className="text-xs font-semibold uppercase tracking-widest animate-pulse opacity-60">Verifying Record...</p>
-        </div>
+        <PageLoading label="record" className="py-0 text-[#37352F]" />
       </div>
     );
   }
@@ -116,7 +126,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
   if (error === "not_found") {
     return (
       <div className={`flex items-center justify-center p-4 ${standalone ? 'min-h-screen bg-[#F7F7F5]' : ''}`}>
-        <div className="max-w-md w-full border border-[#E9E9E7] bg-white rounded-md p-8 text-center text-[#37352F] shadow-sm">
+        <div role="alert" className="max-w-md w-full border border-[#E9E9E7] bg-white rounded-md p-8 text-center text-[#37352F] shadow-sm">
           <SearchX className="h-8 w-8 text-[#9B9A97] mx-auto mb-4" />
           <h2 className="text-xl font-bold mb-2">Record Not Found</h2>
           <p className="text-sm opacity-80 mb-6">
@@ -225,7 +235,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
                 <h2 className="text-lg font-semibold text-[#37352F] border-b border-[#E9E9E7] pb-2 mb-4">Details</h2>
                 <div className="space-y-1">
                   <DetailRow label="Employee" value={fullRecord.employee_name} />
-                  <DetailRow label="Category" value={fullRecord.category} />
+                  <DetailRow label="Treated as" value={treatedAsLabel(fullRecord.form_type, fullRecord.category)} />
                   <DetailRow label="Inclusive Dates" value={new Date(fullRecord.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} />
                   <DetailRow label="Total Hours" value={`${fullRecord.total_hours} hrs`} />
                 </div>
@@ -291,7 +301,8 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
 
             <div className="space-y-1">
               <DetailRow label="Employee" value={data.employee_name} />
-              <DetailRow label="Form Type" value={`${data.form_type} (${data.category})`} />
+              <DetailRow label="Form Type" value={data.form_type} />
+              <DetailRow label="Treated as" value={treatedAsLabel(data.form_type, data.category)} />
               <DetailRow label="Dates" value={data.inclusive_dates} />
               <DetailRow label="Total Hours" value={`${data.total_hours} hrs`} />
             </div>
@@ -319,7 +330,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
               <div className="pt-8 text-center">
                  {!user ? (
                     <Link to="/login" className="text-sm text-[#787774] hover:text-[#37352F] transition-colors underline decoration-[#E9E9E7] underline-offset-4">
-                      T3CK Group Employee Login
+                      T3CKGROUP Employee Login
                     </Link>
                  ) : (
                     <Link to="/" className="text-sm text-[#787774] hover:text-[#37352F] transition-colors underline decoration-[#E9E9E7] underline-offset-4">

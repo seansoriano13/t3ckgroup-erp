@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import PageLoading from "@/components/ui/PageLoading";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -18,6 +19,10 @@ import { useAuth } from "../../context/AuthContext";
 import { SOR_STAGE_FIELDS, SOR_STAGE_FIELD_KEYS, CUSTOM_FIELD_TYPE_VALUES } from "../../constants/stageFields";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
+import { CAPTION_BASE } from "@/lib/captionStyle";
+
+// The "Show only when" picker's "always shown" choice (#900). Its value stands for "no rule".
+const ALWAYS_SHOWN = "__always__";
 
 const emptyDraft = () => ({
   label: "",
@@ -27,6 +32,8 @@ const emptyDraft = () => ({
   sorField: SOR_STAGE_FIELD_KEYS[0],
   fieldType: "text",
   options: ["", ""],
+  showWhenFieldId: "",
+  showWhenValue: "",
 });
 
 function draftFromField(field) {
@@ -38,6 +45,8 @@ function draftFromField(field) {
     sorField: field.sor_field || SOR_STAGE_FIELD_KEYS[0],
     fieldType: field.field_type || "text",
     options: field.options?.length ? field.options : ["", ""],
+    showWhenFieldId: field.show_when?.field_id ?? "",
+    showWhenValue: field.show_when?.value ?? "",
   };
 }
 
@@ -53,6 +62,7 @@ function payloadFrom(draft) {
         ? cleanChoiceOptions(draft.options)
         : [],
     isRequired: draft.isRequired,
+    showWhen: draft.showWhenFieldId ? { field_id: draft.showWhenFieldId, value: draft.showWhenValue } : null,
   };
 }
 
@@ -125,6 +135,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
           label: payload.label,
           help: payload.help,
           isRequired: payload.isRequired,
+          showWhen: payload.showWhen,
           // `update` refuses `options` on anything but a custom choice field
           // — only send it when that's what's being edited.
           ...(field.source === "custom" && field.field_type === "choice" ? { options: payload.options } : {}),
@@ -192,6 +203,9 @@ export default function StageFieldManager({ stageId, disabled = false }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!draft.label.trim() || !stageId) return;
+    if (draft.showWhenFieldId && !draft.showWhenValue.trim()) {
+      return toast.error("Pick the value the other field must have, or choose Always shown.");
+    }
     if (draft.source === "custom" && draft.fieldType === "choice") {
       const error = choiceOptionsError(draft.options);
       if (error) return toast.error(error);
@@ -204,6 +218,11 @@ export default function StageFieldManager({ stageId, disabled = false }) {
     }
   };
 
+  // The other fields of this Stage a field can wait on (#900). A choice field offers its options as the value.
+  const otherFields = (fields || []).filter((f) => !f.archived_at && f.id !== editingId);
+  const showWhenRef = otherFields.find((f) => f.id === draft.showWhenFieldId);
+  const showWhenChoices = showWhenRef?.source === "custom" && showWhenRef.field_type === "choice" ? showWhenRef.options || [] : null;
+
   const isFormOpen = isAdding || Boolean(editingId);
   const isSaving = addMutation.isPending || updateMutation.isPending;
 
@@ -213,7 +232,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
       className="space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6"
     >
       <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+        <h4 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
           {editingId ? "Edit field" : "New field"}
         </h4>
         <Button type="button" variant="ghost" size="icon-xs" onClick={resetForm} aria-label="Cancel">
@@ -237,7 +256,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
       />
 
       <div className="rounded-xl border border-border bg-muted/30 p-3">
-        <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
           Source
         </span>
         <div className="flex gap-2">
@@ -307,6 +326,41 @@ export default function StageFieldManager({ stageId, disabled = false }) {
         />
       </FieldBox>
 
+      <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3" data-testid="show-when-rule">
+        <span className="block text-sm font-semibold text-foreground">Show only when</span>
+        <span className="block text-xs leading-snug text-muted-foreground">
+          A field that is not shown is not asked for, and never blocks the move.
+        </span>
+        <SelectField
+          aria-label="Show only when field"
+          value={draft.showWhenFieldId || ALWAYS_SHOWN}
+          onChange={(next) => setDraft((d) => ({ ...d, showWhenFieldId: next === ALWAYS_SHOWN ? "" : next, showWhenValue: "" }))}
+          options={[
+            { value: ALWAYS_SHOWN, label: "Always shown" },
+            ...otherFields.map((f) => ({ value: f.id, label: f.label })),
+          ]}
+          className="w-full"
+        />
+        {draft.showWhenFieldId &&
+          (showWhenChoices ? (
+            <SelectField
+              aria-label="Show only when value"
+              value={draft.showWhenValue}
+              onChange={(next) => setDraft((d) => ({ ...d, showWhenValue: next }))}
+              options={showWhenChoices.map((opt) => ({ value: opt, label: opt }))}
+              placeholder="Pick a value…"
+              className="w-full"
+            />
+          ) : (
+            <Input
+              label="Value it must have"
+              value={draft.showWhenValue}
+              onChange={(e) => setDraft((d) => ({ ...d, showWhenValue: e.target.value }))}
+              placeholder="e.g. Yes"
+            />
+          ))}
+      </div>
+
       <StageFieldPreview draft={draft} />
 
       <div className="flex items-center justify-end gap-2">
@@ -341,7 +395,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
         )}
 
         {isLoading ? (
-          <p className="animate-pulse py-6 text-center text-sm text-muted-foreground">Loading fields…</p>
+          <PageLoading label="fields" className="py-6" />
         ) : fields?.length === 0 && !isFormOpen ? (
           <div className="rounded-2xl border border-dashed border-mauve-7 px-5 py-8 text-center">
             <ListChecks size={22} className="mx-auto mb-2 text-muted-foreground/60" />

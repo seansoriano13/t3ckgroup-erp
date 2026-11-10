@@ -3,6 +3,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
+import { lwopService } from '../../services/lwopService';
 import { hrSettingsService } from '../../services/hrSettingsService';
 import { employeeService } from '../../services/employeeService';
 import { useQuery } from '@tanstack/react-query';
@@ -10,10 +11,11 @@ import toast from 'react-hot-toast';
 import { X, Calendar, PlusCircle, Clock } from 'lucide-react';
 import TabGroup from '../ui/TabGroup';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
 import { AttachmentField } from '../ui/Attachments';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
-import { applyLunchDeduction, computeAvailableHours, deriveUndertimeHours, assertNotWeekend } from '../../services/leaveRules';
+import { applyLunchDeduction, previewLeaveHours, computeAvailableHours, deriveUndertimeHours, assertNotWeekend } from '../../services/leaveRules';
 import { enumerateDateRange } from '../../utils/dateUtils';
 import { dayShiftService } from '../../services/dayShiftService';
 import { DEFAULT_DAY_SHIFT_CONFIG, getShiftForDate, isWorkingDay } from '../../services/dayShift';
@@ -113,7 +115,7 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
                     className="h-auto px-2 py-1 rounded-md text-xs font-bold text-right"
                     aria-label={`Hours for ${formatRangeDay(date)}`}
                   />
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase">hrs</span>
+                  <span className="text-label font-semibold text-muted-foreground uppercase">hrs</span>
                   {netHours !== rawHours && (
                     <span className="text-[10px] font-semibold text-muted-foreground">→ {netHours} net</span>
                   )}
@@ -197,6 +199,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const offsetFiles = useFileAttachments();
 
   // SIL Leave State
+  const [leavePay, setLeavePay] = useState('sil'); // 'sil' (with pay) | 'lwop' (without pay) — the Leave tab files either
   const [silApplyMode, setSilApplyMode] = useState('single'); // 'single' | 'range'
   const [silDate, setSilDate] = useState('');
   const [silCategoryId, setSilCategoryId] = useState('');
@@ -207,6 +210,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const [silDayHours, setSilDayHours] = useState({});
   const [silReason, setSilReason] = useState('');
   const [silHeadId, setSilHeadId] = useState('');
+  const [recordAbsent, setRecordAbsent] = useState(false); // HR only: save the LWOP as already approved (#620)
   const [silSubmitting, setSilSubmitting] = useState(false);
   const silFiles = useFileAttachments();
 
@@ -221,11 +225,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const [utSubmitting, setUtSubmitting] = useState(false);
   const utFiles = useFileAttachments();
 
-  const currentOtHours = safeDeriveHours(otStartTime, otEndTime, true);
+  const currentOtHours = previewLeaveHours(otStartTime, otEndTime, { allowOvernight: true });
   const currentOffsetHoursRaw = safeDeriveHours(offsetStartTime, offsetEndTime, false);
-  const currentOffsetHours = applyLunchDeduction(currentOffsetHoursRaw);
+  const currentOffsetHours = previewLeaveHours(offsetStartTime, offsetEndTime);
   const currentSilHoursRaw = safeDeriveHours(silStartTime, silEndTime, false);
-  const currentSilHours = applyLunchDeduction(currentSilHoursRaw);
+  const currentSilHours = previewLeaveHours(silStartTime, silEndTime);
   // deriveUndertimeHours throws on a backwards window (via deriveHours) — the
   // right behavior for the submit path, but this live preview renders on every
   // keystroke while the user is still mid-edit, so a half-typed end time before
@@ -264,6 +268,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     return employees.find((e) => e.id === selectedEmployeeId)?.name || 'Unknown';
   }, [employees, selectedEmployeeId]);
 
+  const canRecordAbsent = showEmployeeSelector && leavePay === 'lwop';
   const employeeId = showEmployeeSelector ? selectedEmployeeId : user.id;
   const employeeName = showEmployeeSelector ? selectedEmployeeName : user.name;
 
@@ -376,7 +381,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           attachments,
           headId: offsetHeadId,
         });
-        toast.success(`Offset leave application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
+        toast.success(`Offset application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
         setOffsetRangeStart('');
         setOffsetRangeEnd('');
         setOffsetDayHours({});
@@ -386,7 +391,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         onSuccess?.();
         onClose();
       } catch (err) {
-        toast.error(err.message || 'Failed to submit offset leave.');
+        toast.error(err.message || 'Failed to submit Offset.');
       } finally {
         setOffsetSubmitting(false);
       }
@@ -411,7 +416,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         attachments,
         headId: offsetHeadId,
       });
-      toast.success('Offset leave application submitted!');
+      toast.success('Offset application submitted!');
       setOffsetDate('');
       setOffsetStartTime('');
       setOffsetEndTime('');
@@ -421,7 +426,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       onSuccess?.();
       onClose();
     } catch (err) {
-      toast.error(err.message || 'Failed to submit offset leave.');
+      toast.error(err.message || 'Failed to submit Offset.');
     } finally {
       setOffsetSubmitting(false);
     }
@@ -429,10 +434,27 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   const handleApplySilLeave = async (e) => {
     e.preventDefault();
-    if (!employeeId || !silHeadId) {
+    const isLwop = leavePay === 'lwop';
+    const recording = canRecordAbsent && recordAbsent;
+    if (!employeeId || (!silHeadId && !recording)) {
       toast.error('Please fill in all fields.');
       return;
     }
+
+    const leaveLabel = isLwop ? 'LWOP' : 'SIL leave';
+    const filedRange = isLwop ? lwopService.applyLwopLeaveRange : silService.applySilLeaveRange;
+    const filedOne = isLwop ? lwopService.applyLwopLeave : silService.applySilLeave;
+    // Recording as absent files the LWOP on the employee's behalf, then marks it approved.
+    const withRecording = (fn) => async (args) => {
+      const saved = await fn(args);
+      if (recording) {
+        const groupId = Array.isArray(saved) ? saved[0]?.leave_group_id : saved?.leave_group_id;
+        await lwopService.recordLwopLeaveAsApproved({ groupId, hrId: user.id });
+      }
+      return saved;
+    };
+    const applyLeaveRange = withRecording(filedRange);
+    const applyLeave = withRecording(filedOne);
 
     if (silApplyMode === 'range') {
       const days = rangeFiledDays(silRangeStart, silRangeEnd, dayShiftConfig, silDayHours);
@@ -444,16 +466,16 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       setSilSubmitting(true);
       try {
         const attachments = await silFiles.upload();
-        await silService.applySilLeaveRange({
+        await applyLeaveRange({
           employeeId,
           days: days.map((date) => ({ date, hours: rangeDayHours(date, dayShiftConfig, silDayHours) })),
           reason: silReason,
           categoryId: silCategoryId,
           employeeName,
           attachments,
-          headId: silHeadId,
+          headId: recording ? null : silHeadId,
         });
-        toast.success(`SIL leave application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
+        toast.success(`${leaveLabel} ${recording ? 'recorded as approved' : 'application submitted'} for ${days.length} day${days.length > 1 ? 's' : ''}!`);
         setSilRangeStart('');
         setSilRangeEnd('');
         setSilDayHours({});
@@ -464,7 +486,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         onSuccess?.();
         onClose();
       } catch (err) {
-        toast.error(err.message || 'Failed to submit SIL leave.');
+        toast.error(err.message || `Failed to submit ${leaveLabel}.`);
       } finally {
         setSilSubmitting(false);
       }
@@ -479,7 +501,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     setSilSubmitting(true);
     try {
       const attachments = await silFiles.upload();
-      await silService.applySilLeave({
+      await applyLeave({
         employeeId,
         date: silDate,
         startTime: silStartTime,
@@ -488,9 +510,9 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         categoryId: silCategoryId,
         employeeName,
         attachments,
-        headId: silHeadId,
+        headId: recording ? null : silHeadId,
       });
-      toast.success('SIL leave application submitted!');
+      toast.success(recording ? `${leaveLabel} recorded as approved!` : `${leaveLabel} application submitted!`);
       setSilDate('');
       setSilCategoryId('');
       setSilStartTime('');
@@ -501,7 +523,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       onSuccess?.();
       onClose();
     } catch (err) {
-      toast.error(err.message || 'Failed to submit SIL leave.');
+      toast.error(err.message || `Failed to submit ${leaveLabel}.`);
     } finally {
       setSilSubmitting(false);
     }
@@ -565,7 +587,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
-            Leaves & Overtime
+            Time Off & Overtime
           </h2>
           <Button
             variant="ghost"
@@ -584,7 +606,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
             tabs={[
               { value: 'overtime', label: 'Overtime' },
               { value: 'offset', label: 'Offset' },
-              { value: 'sil', label: 'SIL' },
+              { value: 'sil', label: 'Leave' },
               { value: 'undertime', label: 'Undertime' },
             ]}
             activeTab={activeTab}
@@ -757,7 +779,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   {currentOffsetHours > 0 && (
                     <div className="text-xs font-semibold text-blue-11 px-1">
                       Derived: {currentOffsetHours} hrs
-                      {currentOffsetHours !== currentOffsetHoursRaw && ' (1 hr lunch deducted)'}
+                      {currentOffsetHours !== currentOffsetHoursRaw && ' (meal break deducted)'}
                     </div>
                   )}
                 </>
@@ -768,7 +790,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <Textarea
                   value={offsetReason}
                   onChange={(e) => setOffsetReason(e.target.value)}
-                  placeholder="Reason for the offset leave"
+                  placeholder="Reason for the Offset"
                   rows={3}
                   className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
                   required
@@ -800,7 +822,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <div className="flex items-center space-x-2">
                   <Calendar size={16} className="text-green-11" />
                   <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
-                    Request Service Incentive Leave
+                    {leavePay === 'lwop' ? 'Request Leave Without Pay' : 'Request Service Incentive Leave'}
                   </h3>
                 </div>
                 <TabGroup
@@ -814,7 +836,20 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   size="sm"
                 />
               </div>
-              {employeeId && (
+              <div>
+                <FieldBox label="Pay" className="block mb-1.5" />
+                <TabGroup
+                  variant="pill"
+                  tabs={[
+                    { value: 'sil', label: 'With pay (SIL)' },
+                    { value: 'lwop', label: 'Without pay (LWOP)' },
+                  ]}
+                  activeTab={leavePay}
+                  onChange={setLeavePay}
+                  size="sm"
+                />
+              </div>
+              {employeeId && leavePay === 'sil' && (
                 <div className="text-xs font-semibold text-muted-foreground px-1">
                   Available: <span className="text-green-11 font-black">{availableSilHours} hrs</span>
                   {pendingSilHours > 0 && ` (${pendingSilHours} hrs already committed to pending applications)`}
@@ -877,12 +912,23 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   {currentSilHours > 0 && (
                     <div className="text-xs font-semibold text-green-11 px-1">
                       Derived: {currentSilHours} hrs
-                      {currentSilHours !== currentSilHoursRaw && ' (1 hr lunch deducted)'}
+                      {currentSilHours !== currentSilHoursRaw && ' (meal break deducted)'}
                     </div>
                   )}
                 </>
               )}
-              <HeadSelectField employee={selectedEmployee} value={silHeadId} onChange={setSilHeadId} />
+              {canRecordAbsent && (
+                <div
+                  className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border px-3.5 py-3 text-sm font-semibold text-foreground"
+                  onClick={(e) => e.target === e.currentTarget && setRecordAbsent(!recordAbsent)}
+                >
+                  <Checkbox checked={recordAbsent} onCheckedChange={setRecordAbsent} aria-label="Record as absent (already approved)" />
+                  <span onClick={() => setRecordAbsent(!recordAbsent)}>Record as absent (already approved)</span>
+                </div>
+              )}
+              {!(canRecordAbsent && recordAbsent) && (
+                <HeadSelectField employee={selectedEmployee} value={silHeadId} onChange={setSilHeadId} />
+              )}
               <div>
                 <FieldBox label="Reason" className="block mb-1.5" />
                 <Textarea

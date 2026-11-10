@@ -17,6 +17,9 @@
  */
 
 import { stageByCode } from "./sor"
+import { isSettled } from "./purchaseRequest"
+import { evaluateCostingCondition } from "../utils/costingConditions"
+import { evaluateOrderCondition } from "../utils/orderConditions"
 
 export const CONDITION_KINDS = {
   ATTACHMENT: "attachment",
@@ -29,14 +32,32 @@ export const CONDITION_KINDS = {
   // required, the decision needs an owner, not a second approval step.
   PROJECT_EVALUATION: "project_evaluation",
   INCLUSIONS: "inclusions",
+  // The old kind: a legacy procurement request exists. Hidden from the
+  // picker; older flow versions still evaluate it.
   PURCHASING: "purchasing",
+  // Issue #209 (#311): every Requested Item on the SOR's Purchase Request is
+  // closed, or the SOR has no Purchase Request at all.
+  PURCHASING_SETTLED: "purchasing_settled",
+  // Issue #272: the Costing Matrix is finished and the bid decided Go. Sibling
+  // kinds (#463) read the same evidence through utils/costingConditions.
+  COSTING_SETTLED: "costing_settled",
+  // Issue #463: Purchasing has costed every Component and cost-only row and a Purchasing
+  // Incharge is named. Same evidence and evaluator as Costing settled.
+  COSTING_PRICED: "costing_priced",
+  // Issue #707: the Costing Matrix's Evaluation of Specification is approved. The Evaluation of
+  // Specification Stage Action adds it to its Stage, so the deal waits there until approval.
+  COSTING_EVALUATION_APPROVED: "costing_evaluation_approved",
+  // Issue #465: every submitted, uncancelled Transmittal naming the SOR is Closed.
+  GOODS_CHECKED: "goods_checked",
+  // Issue #466: every uncancelled IPAS naming the SOR is filed. Not mounted on Government yet.
+  ORDERS_FILED: "orders_filed",
 }
 
 /**
  * The kinds offered when adding a *new* condition (issue #203): Field on
  * record and Project Evaluation are gone outright; Inclusions and the old
- * Purchasing kind are hidden pending the Purchase Requests spec, though a
- * condition already using one keeps evaluating. Shared by
+ * Purchasing kind are hidden (the old one replaced by Purchasing settled,
+ * #311), though a condition already using one keeps evaluating. Shared by
  * `stageConditionService`'s own validation and the picker's dropdown, so the
  * two lists can't quietly drift apart.
  */
@@ -45,6 +66,12 @@ export const NEW_CONDITION_KINDS = [
   CONDITION_KINDS.TICKBOX,
   CONDITION_KINDS.ASSIGNMENT,
   CONDITION_KINDS.DEADLINE,
+  CONDITION_KINDS.PURCHASING_SETTLED,
+  CONDITION_KINDS.COSTING_SETTLED,
+  CONDITION_KINDS.COSTING_PRICED,
+  CONDITION_KINDS.COSTING_EVALUATION_APPROVED,
+  CONDITION_KINDS.GOODS_CHECKED,
+  CONDITION_KINDS.ORDERS_FILED,
 ]
 
 export const CONDITION_STATUS = {
@@ -95,15 +122,20 @@ const notApplicable = () => ({
   satisfiedBy: null,
   satisfiedAt: null,
 })
-const unsatisfied = () => ({
+// `detail` (#272) says why a condition is unmet where the kind can tell:
+// `{ failing: [check keys], messages: [plain sentences] }`. The order kinds add
+// `basis: [{ number, state }]`, the records they read, met or not. Absent otherwise.
+const unsatisfied = (detail) => ({
   status: CONDITION_STATUS.UNSATISFIED,
   satisfiedBy: null,
   satisfiedAt: null,
+  ...(detail ? { detail } : {}),
 })
-const satisfied = (satisfiedBy = null, satisfiedAt = null) => ({
+const satisfied = (satisfiedBy = null, satisfiedAt = null, detail = null) => ({
   status: CONDITION_STATUS.SATISFIED,
   satisfiedBy,
   satisfiedAt,
+  ...(detail ? { detail } : {}),
 })
 
 /**
@@ -157,6 +189,18 @@ export function evaluateCondition(condition, {
   asOf = null,
   hasInclusions = false,
   hasPurchasing = false,
+  // Purchasing settled's evidence: the Purchase Request's items
+  // (`{ status, created_at, status_changed_at }`), null when the SOR has no
+  // request. Left undefined (nobody loaded it), it fails closed.
+  purchaseRequestItems = undefined,
+  // A closed visit's `left_at`: reads the items as they stood then.
+  purchaseRequestAsOf = null,
+  // Costing settled's evidence (#272): `costing_condition_inputs` (booleans and
+  // counts). Left undefined (nobody loaded it), it fails closed.
+  costingInputs = undefined,
+  // Goods checked / Orders filed evidence (#465, #466): `order_condition_inputs` (counts).
+  // Left undefined (nobody loaded it), it fails closed.
+  orderInputs = undefined,
 } = {}) {
   if (condition.archived_at) return notApplicable()
   if (asOf && condition.created_at && condition.created_at > asOf) return notApplicable()
@@ -214,9 +258,39 @@ export function evaluateCondition(condition, {
     case CONDITION_KINDS.PURCHASING: {
       return hasPurchasing ? satisfied() : unsatisfied()
     }
+    case CONDITION_KINDS.PURCHASING_SETTLED: {
+      if (purchaseRequestItems === undefined) return unsatisfied()
+      return isSettled(purchaseRequestItems, { asOf: purchaseRequestAsOf }) ? satisfied() : unsatisfied()
+    }
+    case CONDITION_KINDS.COSTING_SETTLED:
+    case CONDITION_KINDS.COSTING_PRICED:
+    case CONDITION_KINDS.COSTING_EVALUATION_APPROVED: {
+      const { met, failing, messages } = evaluateCostingCondition(condition.kind, costingInputs)
+      return met ? satisfied() : unsatisfied({ failing, messages })
+    }
+    case CONDITION_KINDS.GOODS_CHECKED:
+    case CONDITION_KINDS.ORDERS_FILED: {
+      const { met, failing, messages, basis } = evaluateOrderCondition(condition.kind, orderInputs)
+      return met ? satisfied(null, null, { failing, messages, basis }) : unsatisfied({ failing, messages, basis })
+    }
     default:
       return unsatisfied()
   }
+}
+
+/**
+ * Does a Stage Field show right now? A field with no `show_when` always shows (#900). One with
+ * `{ field_id, value }` shows only while that other field of the same Stage holds that value. The value is read
+ * the way the stage gate reads it: an `sor` field from the opportunity, a custom field from `visitValues`. A
+ * reference to a field that is not in `stageFields` hides nothing. This mirrors `stage_field_shown` in the database.
+ */
+export function stageFieldShown(field, { stageFields = [], opportunity = {}, visitValues = {} } = {}) {
+  const rule = field?.show_when
+  if (!rule || typeof rule !== "object" || !rule.field_id) return true
+  const ref = (stageFields || []).find((f) => f.id === rule.field_id)
+  if (!ref) return true
+  const raw = ref.source === "sor" ? opportunity[ref.sor_field] : visitValues[ref.id]
+  return String(raw ?? "") === String(rule.value ?? "")
 }
 
 /**
@@ -224,7 +298,8 @@ export function evaluateCondition(condition, {
  * value, in `flow_stage_fields` sort order. `visitValues` maps a custom
  * field's id to the current visit's saved value; an `sor`-source field reads
  * `opportunity[sorField]` directly, since it writes straight through
- * (#199's single-field write) rather than through a visit row. Pure and
+ * (#199's single-field write) rather than through a visit row. A field that
+ * is hidden by its `show_when` (#900) is not required. Pure and
  * synchronous, same shape as `blockingConditions` — the caller decides what
  * to do with a non-empty result (`moveAlongFlow`'s "Fill in: …").
  */
@@ -232,6 +307,7 @@ export function missingStageFields(stageFields = [], { opportunity = {}, visitVa
   return (stageFields || []).filter((field) => {
     if (field.archived_at) return false
     if (!field.is_required) return false
+    if (!stageFieldShown(field, { stageFields, opportunity, visitValues })) return false
     const value =
       field.source === "sor" ? opportunity[field.sor_field] : visitValues[field.id]
     return !isNonEmpty(value)
@@ -291,6 +367,9 @@ export function evaluateCrossing({
   asOf = null,
   hasInclusions = false,
   hasPurchasing = false,
+  purchaseRequestItems = undefined,
+  costingInputs = undefined,
+  orderInputs = undefined,
 }) {
   const crossed = stagesCrossed(fromCode, toCode, stages)
   const missing = []
@@ -306,6 +385,9 @@ export function evaluateCrossing({
         asOf,
         hasInclusions,
         hasPurchasing,
+        purchaseRequestItems,
+        costingInputs,
+        orderInputs,
       })
       if (result.status === CONDITION_STATUS.UNSATISFIED) {
         missing.push({ stage, condition })

@@ -2,7 +2,7 @@ import { Briefcase } from "lucide-react";
 import SlideOver, { SlideOverBody } from "../ui/SlideOver";
 
 const identity = (summary) => ({
-  ref: summary.sales_reference || "SOR",
+  ref: summary.sales_reference || summary.sor_code || "SOR",
   title: summary.project_title || "This SOR",
 });
 
@@ -35,12 +35,12 @@ export default function LockedSorSlideOver({ isOpen, onClose, lockedSummary, myV
           )}
 
           <div>
-            <p className="mb-1 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Current Stage</p>
+            <p className="mb-1 text-label font-bold tracking-widest text-muted-foreground uppercase">Current Stage</p>
             <p className="text-sm font-semibold text-foreground">{lockedSummary?.current_stage_name || "—"}</p>
           </div>
 
           <div>
-            <p className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Your visits</p>
+            <p className="mb-2 text-label font-bold tracking-widest text-muted-foreground uppercase">Your visits</p>
             {myVisits.length === 0 ? (
               <p className="text-sm text-muted-foreground/70">No visits recorded.</p>
             ) : (

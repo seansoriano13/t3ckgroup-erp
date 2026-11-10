@@ -5,12 +5,11 @@
  * Odoo edge function is stubbed.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 
 import { renderWithProviders } from "../../../test/support"
 import { stubEdgeFunction } from "../../../test/msw/server"
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "../../../test/factories"
-import { opportunityService } from "../../../services/opportunityService"
 import OpportunityDetailsModal from "../OpportunityDetailsModal"
 
 let authUser
@@ -57,22 +56,12 @@ describe("ItemsTab (#301)", () => {
     expect(screen.getByText("No product matches that search.")).toBeInTheDocument()
   })
 
-  it("offers Fetch from Odoo when there is a Sales Reference but no items, and it fills the list", async () => {
+  it("has no Fetch from Odoo button when there is a Sales Reference but no items (#816)", async () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S06070" })
     await openItems(deal)
 
-    const fetchButton = await screen.findByRole("button", { name: "Fetch from Odoo" })
-    stubEdgeFunction(
-      "odoo-sor-lookup",
-      lookup([{ product_name: "Pumper Truck", unit: "unit", quantity: 1, unit_price: 5000000 }]),
-    )
-    fireEvent.click(fetchButton)
-
-    expect(await screen.findByText("Pumper Truck")).toBeInTheDocument()
-    await waitFor(async () => {
-      const items = await opportunityService.getItems(deal.id)
-      expect(items.map((i) => i.product_name)).toEqual(["Pumper Truck"])
-    })
+    expect(await screen.findByText("No products on this SOR yet")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Fetch from Odoo" })).not.toBeInTheDocument()
   })
 
   it("asks for a Sales Reference first when there is none, with nothing to fetch", async () => {

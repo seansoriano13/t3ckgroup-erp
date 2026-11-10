@@ -13,6 +13,7 @@ A Retail Order's Income Note is added after the order, often weeks later, and Od
 
 - The sync writes only rows that differ from what is stored. A run that finds nothing new writes nothing, so `updated_at` means "last changed" and the Retail screen is told about real changes only.
 - Notes are read ten orders at a time and each batch is written before the next is read, so a failure part-way keeps what was already read.
-- The Missing/Suspect rule exists twice: `incomeStatus` (the screen) and `needsNoteReread` (the sync, which cannot import the screen's module). A test holds the two together.
+- The Missing/Suspect rule lives once, in `supabase/functions/_shared/incomeStatus.ts`. The screen re-exports it through `src/utils/retailReport.js` and the sync's `needsNoteReread` imports it, so the two cannot drift.
 - Cancelled and draft orders (Odoo `state` `cancel`/`draft`) are never re-read, in either mode: the report counts only `sale` and `done`, and confirming a quotation moves its change date, so the rolling window picks it up again (#457).
 - The sync is called by pg_cron with `Bearer CRON_SECRET` read from Vault (`project_url`, `cron_secret`), or by an operator with the service-role key. The function is deployed with `verify_jwt = false` and checks the caller itself (`_shared/cronAuth.ts`); the public anon key cannot trigger it, and an unset `CRON_SECRET` fails closed (#457).
+- Migration `20261002120000_retail_sync_cron_and_realtime.sql` is superseded by `20261005120000_cron_jobs_authenticate_with_cron_secret.sql` (#457). Its header (anon key in Vault, `CRON_SECRET` left unset) no longer holds; applied migrations are immutable, so this note is the correction.

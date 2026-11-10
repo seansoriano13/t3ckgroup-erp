@@ -43,6 +43,49 @@ describe("StageActionDetail", () => {
     expect(screen.getByText("Bob")).toBeInTheDocument();
   });
 
+  it("renders an Open S0 Evaluation's Incharges, assigners and extra members", () => {
+    const employees = [
+      { id: "emp-1", name: "Raquel" },
+      { id: "emp-2", name: "Mia" },
+      { id: "emp-3", name: "Ana" },
+    ];
+    const action = {
+      kind: "open_costing_matrix",
+      config: {
+        salesIncharge: { type: "employee", id: "emp-3" },
+        assigners: [{ type: "employee", id: "emp-1" }],
+        extras: [{ type: "employee", id: "emp-2" }],
+        markupPresetId: "preset-1",
+      },
+    };
+    render(<StageActionDetail action={action} employees={employees} />);
+
+    expect(screen.getByText("Sales: Ana · Purchasing: not named · Markup: a markup preset")).toBeInTheDocument();
+    expect(screen.getByText("Raquel")).toBeInTheDocument();
+    expect(screen.getByText("Mia")).toBeInTheDocument();
+  });
+
+  it("says a Request Packing List tells the Warehouse list by default, or the people named", () => {
+    const { unmount } = render(<StageActionDetail action={{ kind: "request_packing_list", config: {} }} employees={[]} />);
+    expect(screen.getByText(/and tells the Warehouse list\./)).toBeInTheDocument();
+    unmount();
+
+    render(
+      <StageActionDetail
+        action={{ kind: "request_packing_list", config: { notify: [{ type: "employee", id: "emp-1" }] } }}
+        employees={[{ id: "emp-1", name: "Pia" }]}
+      />,
+    );
+    expect(screen.getByText(/and tells Pia\./)).toBeInTheDocument();
+  });
+
+  it("says an Open S0 Evaluation defaults to the Deal Owner and tells nobody", () => {
+    render(<StageActionDetail action={{ kind: "open_costing_matrix", config: {} }} employees={[]} />);
+
+    expect(screen.getByText("Sales: Deal Owner · Purchasing: not named")).toBeInTheDocument();
+    expect(screen.getByText("Nobody is told")).toBeInTheDocument();
+  });
+
   it("shows who evaluates a group task, defaulting to the Deal Owner", () => {
     const withEvaluator = {
       kind: "create_group_task",

@@ -19,6 +19,7 @@ import { systemAuditLogService } from './systemAuditLogService';
 
 const TABLE_NOTIFICATION_TYPE = {
   sil_leaves: 'SIL_LEAVE_HEAD_DECISION',
+  lwop_leaves: 'LWOP_LEAVE_HEAD_DECISION',
   offset_leaves: 'OFFSET_LEAVE_HEAD_DECISION',
   overtime_requests: 'OVERTIME_HEAD_DECISION',
   undertime_requests: 'UNDERTIME_HEAD_DECISION',
@@ -70,14 +71,22 @@ export async function decideHeadApproval({ table, matchColumn, matchValue, headI
   const employeeId = rows[0].employee_id;
 
   let headSignatureVersion = null;
+  let deciderName = null;
   if (headId) {
     const { data: head } = await supabase
       .from('employees')
-      .select('signature_path')
+      .select('signature_path, name')
       .eq('id', headId)
       .single();
     headSignatureVersion = head?.signature_path ?? null;
+    deciderName = head?.name ?? null;
   }
+
+  // HR and super admins can decide any request, not just ones routed to them.
+  // The update below rewrites head_id to the decider, so the routed head is
+  // kept only in the audit trail.
+  const routedHeadId = rows[0].head_id ?? null;
+  const onBehalf = !!headId && !!routedHeadId && headId !== routedHeadId;
 
   const now = new Date().toISOString();
   const { data: updatedRows, error } = await supabase
@@ -99,15 +108,19 @@ export async function decideHeadApproval({ table, matchColumn, matchValue, headI
     sender_id: headId,
     type: TABLE_NOTIFICATION_TYPE[table],
     title: 'Department Head Decision',
-    message: `Your request was ${status.toLowerCase()} by the department head.`,
+    message: onBehalf
+      ? `Your request was ${status.toLowerCase()} on the department head's behalf${deciderName ? ` by ${deciderName}` : ''}.`
+      : `Your request was ${status.toLowerCase()} by the department head.`,
     reference_id: matchValue,
   });
 
   systemAuditLogService.addApprovalEvent(
     table.toUpperCase(),
     matchValue,
-    `Department head ${status.toLowerCase()} the request.`,
-    { event: 'HEAD_DECISION', status, employeeId },
+    onBehalf
+      ? `${deciderName || 'HR/admin'} ${status.toLowerCase()} the request on behalf of the routed department head.`
+      : `Department head ${status.toLowerCase()} the request.`,
+    { event: 'HEAD_DECISION', status, employeeId, ...(onBehalf ? { onBehalfOfHeadId: routedHeadId } : {}) },
     headId,
   ).catch(console.error);
 
@@ -155,11 +168,18 @@ export async function getPendingForHead(headId, { all = false } = {}) {
   // Super admins review every head's queue; everyone else only their own.
   const routedTo = (query) => (all ? query : query.eq('head_id', headId));
 
-  const [sil, offset, overtime, undertime] = await Promise.all([
+  const [sil, lwop, offset, overtime, undertime] = await Promise.all([
     routedTo(
       supabase
         .from('sil_leaves')
         .select('*, employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+      )
+      .eq('head_status', 'PENDING')
+      .order('date', { ascending: true }),
+    routedTo(
+      supabase
+        .from('lwop_leaves')
+        .select('*, employee:employees!lwop_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
       )
       .eq('head_status', 'PENDING')
       .order('date', { ascending: true }),
@@ -187,12 +207,14 @@ export async function getPendingForHead(headId, { all = false } = {}) {
   ]);
 
   if (sil.error) throw new Error(sil.error.message);
+  if (lwop.error) throw new Error(lwop.error.message);
   if (offset.error) throw new Error(offset.error.message);
   if (overtime.error) throw new Error(overtime.error.message);
   if (undertime.error) throw new Error(undertime.error.message);
 
   return [
     ...(sil.data || []).map((r) => ({ ...r, requestType: 'SIL', table: 'sil_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
+    ...(lwop.data || []).map((r) => ({ ...r, requestType: 'LWOP', table: 'lwop_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
     ...(offset.data || []).map((r) => ({ ...r, requestType: 'OFFSET', table: 'offset_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
     ...(overtime.data || []).map((r) => ({ ...r, requestType: 'OVERTIME', table: 'overtime_requests', matchColumn: 'id', matchValue: r.id })),
     ...(undertime.data || []).map((r) => ({ ...r, requestType: 'UNDERTIME', table: 'undertime_requests', matchColumn: 'id', matchValue: r.id })),

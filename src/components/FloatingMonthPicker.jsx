@@ -283,7 +283,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange, inline = 
                 />
               </div>
               <div className="flex items-center gap-2 leading-none">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                <span className="text-label font-black uppercase tracking-widest text-muted-foreground">
                   {mode === "MONTHLY"
                     ? "Month"
                     : mode === "QUARTERLY"
@@ -340,7 +340,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange, inline = 
                     key={m}
                     variant="ghost"
                     onClick={() => setMode(m)}
-                    className={`h-auto py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all duration-200 active:scale-95 ${
+                    className={`h-auto py-1.5 text-label font-bold uppercase tracking-wider rounded-md transition-all duration-200 active:scale-95 ${
                       mode === m
                         ? "bg-background text-foreground shadow-sm border border-border/50 hover:bg-background"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
@@ -500,7 +500,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange, inline = 
 
               {/* Footer info */}
               <div className="border-t border-border/50 pt-3 text-center">
-                <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
+                <p className="text-label font-semibold text-muted-foreground/50 uppercase tracking-widest">
                   Syncing {mode.toLowerCase()} boundaries
                 </p>
               </div>

@@ -54,7 +54,7 @@ export default function StageAccessManager({ stageId, flowId, disabled = false }
 }
 
 const SectionHeading = ({ icon: Icon, children, count }) => (
-  <h3 className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+  <h3 className="flex items-center gap-1.5 text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
     {Icon && <Icon size={11} />}
     {children}
     {count != null && <span className="tabular-nums text-mauve-11">· {count}</span>}

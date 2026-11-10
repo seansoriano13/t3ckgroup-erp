@@ -31,10 +31,8 @@ function RegisterProbe() {
 }
 
 async function clickBulkSwitch(user) {
-  const label = await screen.findByText("Enable Manager Bulk Approval");
-  const row = label.closest("div.group");
-  await waitFor(() => expect(row.querySelector("div.cursor-pointer")).not.toBeNull());
-  await user.click(row.querySelector("div.cursor-pointer"));
+  const sw = await screen.findByRole("switch", { name: "Enable Manager Bulk Approval", hidden: true });
+  await user.click(sw);
 }
 
 function renderBoth() {

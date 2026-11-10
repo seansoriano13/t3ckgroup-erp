@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { renderWithProviders, setupUser } from "../../test/support";
 import OpportunitiesPage from "../../pages/sors/index";
@@ -76,17 +76,18 @@ vi.mock("../../services/leadSourceService", () => ({
   },
 }));
 
-vi.mock("../../services/purchasingService", () => ({
-  purchasingService: {
-    listForOpportunity: vi.fn(async () => []),
-  },
-}));
-
 vi.mock("../../context/AuthContext", () => ({
   useAuth: () => ({
     user: { id: "user-1", name: "Alice", isSuperAdmin: true },
   }),
 }));
+
+// The register opens on My work the first time; these tests are about the
+// List, so they start from a person who last used it.
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem("opportunitiesView", "list");
+});
 
 describe("OpportunitiesPage Deep Linking", () => {
   beforeEach(() => {
@@ -211,7 +212,7 @@ describe("Deadline kind — countdown + notifications (ticket 7)", () => {
     );
 
     await screen.findByText("Acme CCTV Rollout");
-    expect(await screen.findByTitle('Deadline passed: "Confirm receipt"')).toBeInTheDocument();
+    expect(await screen.findByTitle('Deadline passed: “Confirm receipt”')).toBeInTheDocument();
   });
 
   it("checks for approach/breach notifications once, against the open deals loaded", async () => {
@@ -365,9 +366,119 @@ describe("default sort sinks Terminal Stage SORs", () => {
     // then descending — which the sink would never produce, since it always
     // sinks the terminal SOR regardless of column direction.
     // The page title also reads "SOR Register", so target the column header.
-    await user.click(screen.getByRole("columnheader", { name: /^SOR/ }))
-    await user.click(screen.getByRole("columnheader", { name: /^SOR/ }))
+    await user.click(within(screen.getByRole("columnheader", { name: /^SOR/ })).getByRole("button"))
+    await user.click(within(screen.getByRole("columnheader", { name: /^SOR/ })).getByRole("button"))
 
     expect(rowOrder()).toEqual(["Company 2", "Company 1"])
+  })
+})
+
+describe("SOR register paging", () => {
+  const many = Array.from({ length: 60 }, (_, i) => ({
+    ...MOCK_OPP_1,
+    id: `opp-many-${i + 1}`,
+    serial_no: i + 1,
+    sales_reference: `S${String(i + 1).padStart(5, "0")}`,
+    project_title: `Paged project ${i + 1}`,
+  }));
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    opportunityService.getOpportunities.mockResolvedValue(many);
+  });
+
+  it("shows one page of rows and pages through the rest", async () => {
+    const user = setupUser();
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/sors"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    );
+
+    // Default sort is newest serial first: 60 down to 36 on page 1.
+    expect(await screen.findByText("Paged project 60")).toBeInTheDocument();
+    expect(screen.queryByText("Paged project 35")).not.toBeInTheDocument();
+    expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+
+    expect(await screen.findByText("Paged project 35")).toBeInTheDocument();
+    expect(screen.queryByText("Paged project 60")).not.toBeInTheDocument();
+    expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+  });
+});
+
+// Issue #814 — Lost deals are out of the default list; the Lost filter shows
+// them with the reason they were lost for.
+describe("Lost deals in the register (#814)", () => {
+  const snapshot = makeFlowSnapshot({
+    snapshot_data: {
+      wonStageId: "stage-won",
+      stages: [
+        { id: "stage-lead", name: "Lead", is_terminal: false },
+        { id: "stage-lost", name: "Lost", is_terminal: true, terminal_outcome: "lost" },
+      ],
+    },
+  })
+  const flow = {
+    sale_type_id: "st-1",
+    flow_snapshot_id: snapshot.id,
+    flow_snapshot: { snapshot_data: snapshot.snapshot_data },
+    status: "LEAD",
+  }
+  const open = { ...MOCK_OPP_1, ...flow, id: "o-open", project_title: "Still open deal", flow_stage_id: "stage-lead" }
+  const lostCoded = {
+    ...MOCK_OPP_2, ...flow, id: "o-lost-1", serial_no: 3, project_title: "Coded lost deal",
+    flow_stage_id: "stage-lost", lost_reason_code: "NO_RESPONSE", lost_reason: null,
+  }
+  const lostOld = {
+    ...MOCK_OPP_2, ...flow, id: "o-lost-2", serial_no: 4, project_title: "Old lost deal",
+    flow_stage_id: "stage-lost", lost_reason_code: null, lost_reason: "Client went silent",
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    opportunityService.getOpportunities.mockResolvedValue([open, lostCoded, lostOld])
+  })
+
+  const renderPage = (state) =>
+    renderWithProviders(
+      <MemoryRouter initialEntries={[{ pathname: "/opportunities", state }]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    )
+
+  it("hides Lost deals from the default list", async () => {
+    renderPage()
+
+    expect(await screen.findByText("Still open deal")).toBeInTheDocument()
+    expect(screen.queryByText("Coded lost deal")).toBeNull()
+    expect(screen.queryByText("Old lost deal")).toBeNull()
+  })
+
+  it("keeps a Lost flow deal out of a Stage filter on its never-changing status", async () => {
+    renderPage({ filterStatus: "LEAD" })
+
+    expect(await screen.findByText("Still open deal")).toBeInTheDocument()
+    expect(screen.queryByText("Coded lost deal")).toBeNull()
+    expect(screen.queryByText("Old lost deal")).toBeNull()
+  })
+
+  it("the Lost filter shows them with a reason column, old free text as Other", async () => {
+    const user = setupUser()
+    renderPage()
+
+    await screen.findByText("Still open deal")
+    await user.click(screen.getByText("Filters"))
+    await user.click(screen.getByText("All Stages"))
+    await user.click(await screen.findByRole("button", { name: /^lost$/i }))
+
+    expect(await screen.findByText("Coded lost deal")).toBeInTheDocument()
+    expect(screen.getByText("Old lost deal")).toBeInTheDocument()
+    expect(screen.queryByText("Still open deal")).toBeNull()
+    expect(screen.getByRole("columnheader", { name: "Reason" })).toBeInTheDocument()
+    expect(screen.getByText("No response from client")).toBeInTheDocument()
+    expect(screen.getByText("Other: Client went silent")).toBeInTheDocument()
   })
 })

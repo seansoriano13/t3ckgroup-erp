@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  CircleX,
   MoreHorizontal,
   Pencil,
   Target,
@@ -14,12 +15,19 @@ import Dropdown from "../../ui/Dropdown";
 import StatusBadge from "../../StatusBadge";
 import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
+import MarkLostButton from "../MarkLostButton";
+import MarkLostDialogHost from "../MarkLostDialogHost";
+import ReopenButton from "../ReopenButton";
+import { isLostCode, isWonCode } from "../../../constants/sor";
+import { lostStagesOfFlow } from "../../../constants/salesFlow";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
+import SorVersionUpdate from "../SorVersionUpdate";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
 import { sorCodeOf } from "../../../utils/sorCode";
+import { blockedLabels } from "./summary/shared";
 
 const TONE_CLASSES = {
   green: { current: "bg-green-9 text-white hover:bg-green-9 hover:text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
@@ -49,12 +57,14 @@ export default function SorModalHeader({
   isFlowDeal,
   flowCanvas,
   currentFlowStage,
-  currentFlowStageTone,
+  currentFlowStageTone: _currentFlowStageTone, // the stage strip shows the stage now
   pipelineStages,
   stageMutation,
   handleStageChange,
   checklist,
   missingRequiredStageFields = [],
+  // Issue #885 — true while the conditions or Stage Fields are still loading.
+  blockersPending = false,
   isOpen,
   hasPrev,
   hasNext,
@@ -66,6 +76,7 @@ export default function SorModalHeader({
   returnStageIds = [],
 }) {
   const activeChevronRef = useRef(null);
+  const [markLostOpen, setMarkLostOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -92,6 +103,15 @@ export default function SorModalHeader({
     return () => cancelAnimationFrame(raf);
   }, [opportunity?.status, isOpen]);
 
+  // #814: Mark as Lost from the More-actions menu, open Stages only. The
+  // database is the real gate; this only decides whether to offer it.
+  const canMarkLost = isFlowDeal
+    ? Boolean(currentFlowStage) && !currentFlowStage.is_terminal
+    : !isLostCode(opportunity.status, pipelineStages) && !isWonCode(opportunity.status, pipelineStages);
+  const lostStages = flowCanvas
+    ? lostStagesOfFlow(flowCanvas.stages, flowCanvas.flow?.won_stage_id)
+    : [];
+
   const currentIndex = pipelineStages.findIndex((s) => s.code === opportunity.status);
   const lastIndex = pipelineStages.length - 1;
   // Issue #407 — a required, empty Stage Field blocks the move exactly like
@@ -100,14 +120,13 @@ export default function SorModalHeader({
   // the ribbon's blockedBy list. Before this, the badge only ever looked at
   // `checklist` and could read "Clear to move" while a Stage Field still
   // blocked the server-side move.
-  const blockedCount =
-    checklist.filter(({ condition, status }) => condition?.is_required && status === "unsatisfied").length +
-    missingRequiredStageFields.length;
+  const blockedLabelList = blockedLabels(checklist, missingRequiredStageFields);
+  const blockedCount = blockedLabelList.length;
 
   const legacyRibbon = (
     <div className="relative w-full">
       <StageRibbonScroller>
-        <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-12 min-w-full w-max gap-[2px]">
+        <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-9 min-w-full w-max gap-[2px]">
           {pipelineStages.map((s, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
@@ -179,31 +198,72 @@ export default function SorModalHeader({
     </div>
   );
 
+  const stageLine = (
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="flex flex-wrap items-center gap-2.5 text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
+            Pipeline Stage
+            {isFlowDeal && flowCanvas && (
+              <>
+                {/* The sale type name is on the version chip, so it is not repeated here. */}
+                {flowCanvas.flow.won_stage_id === currentFlowStage?.id ? (
+                  <span className="rounded-full bg-green-9/15 px-2 py-0.5 text-green-11">Won</span>
+                ) : (
+                  currentFlowStage?.is_terminal && (
+                    <span className="rounded-full bg-mauve-9/15 px-2 py-0.5 text-mauve-11">Closed</span>
+                  )
+                )}
+              </>
+            )}
+            {/* Issue #885 — no verdict until the conditions and Stage Fields are in. */}
+            <span
+              aria-live="polite"
+              className={cn(
+                "rounded-full px-2 py-0.5",
+                blockersPending
+                  ? "bg-muted text-muted-foreground"
+                  : blockedCount > 0
+                    ? "bg-red-9/15 text-red-11"
+                    : "bg-green-9/15 text-green-11",
+              )}
+            >
+              {blockersPending ? "Checking…" : blockedCount > 0 ? `Blocked: ${blockedCount}` : "Clear to move"}
+            </span>
+          </p>
+        </div>
+  );
+
+  const stageTrailing = (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <FlowVersionBadge
+                opportunity={opportunity}
+                onOpenVersion={(snapshotId) => {
+                  const stage = opportunity.flow_stage_id;
+                  const query = stage ? `?stage=${encodeURIComponent(stage)}` : "";
+                  window.open(`/flow-versions/${snapshotId}${query}`, "_blank", "noopener");
+                }}
+              />
+              <SorVersionUpdate opportunity={opportunity} />
+            </div>
+  );
+
   return (
-    <div className="flex shrink-0 flex-col gap-5 border-b border-border/60 px-5 pt-5 pb-5 sm:gap-6 sm:px-8 sm:pt-7 sm:pb-6">
+    <div className="flex shrink-0 flex-col gap-2.5 border-b border-border/60 px-5 pt-3 pb-3 sm:px-8">
       <div className="flex items-start justify-between gap-3 sm:gap-6">
-        <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex min-w-0 items-center gap-x-2.5">
             <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Target size={13} strokeWidth={2.5} />
             </div>
             {sorCodeOf(opportunity) && (
               <span className="font-mono text-[13px] font-bold text-primary">{sorCodeOf(opportunity)}</span>
             )}
-            {opportunity.sales_reference ? (
-              <span className="font-mono text-[13px] font-bold text-muted-foreground">
+            {opportunity.sales_reference && (
+              <span className="shrink-0 font-mono text-[13px] font-bold text-muted-foreground">
                 {opportunity.sales_reference}
               </span>
-            ) : (
-              <span className="truncate text-[13px] font-bold text-muted-foreground">
-                {opportunity.client_name}
-              </span>
             )}
-            {isFlowDeal ? (
-              currentFlowStage && <StatusBadge label={currentFlowStage.name} theme={currentFlowStageTone} />
-            ) : (
-              <StatusBadge status={opportunity.status} />
-            )}
+            {/* The stage strip below shows the stage, so only a lost/old deal's badge is kept here. */}
+            {!isFlowDeal && <StatusBadge status={opportunity.status} />}
           </div>
           {isEditing ? (
             <div className="space-y-2 mt-2 max-w-xl">
@@ -223,8 +283,8 @@ export default function SorModalHeader({
             </div>
           ) : (
             <>
-              <h2 className="line-clamp-2 text-xl leading-tight font-black tracking-[-0.02em] text-balance text-foreground sm:text-[26px]">{opportunity.project_title}</h2>
-              <p className="mt-1.5 truncate text-sm font-medium text-muted-foreground">{opportunity.client_name}</p>
+              <h2 className="truncate text-xl leading-tight font-black tracking-[-0.02em] text-foreground" title={opportunity.project_title}>{opportunity.project_title}</h2>
+              <p className="truncate text-sm font-medium text-muted-foreground">{opportunity.client_name}</p>
             </>
           )}
         </div>
@@ -312,6 +372,20 @@ export default function SorModalHeader({
               >
                 {({ close }) => (
                   <div className="flex flex-col gap-0.5">
+                    {canMarkLost && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          close();
+                          setMarkLostOpen(true);
+                        }}
+                        className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground"
+                      >
+                        <CircleX size={14} className="text-muted-foreground" />
+                        Mark as Lost
+                      </Button>
+                    )}
                     {canEdit && (
                       <Button
                         type="button"
@@ -319,8 +393,8 @@ export default function SorModalHeader({
                         onClick={() => {
                           close();
                           confirmDeleteToast(
-                            `Delete ${opportunity.opportunity_no}?`,
-                            "The record is archived, not erased.",
+                            `Delete ${sorCodeOf(opportunity) || "this SOR"}?`,
+                            "The record is archived, not erased. Client stopped responding? Mark as Lost instead, so it shows in reports.",
                             () => deleteMutation.mutate(),
                           );
                         }}
@@ -350,64 +424,40 @@ export default function SorModalHeader({
       </div>
 
       <div className="w-full">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <p className="flex flex-wrap items-center gap-2.5 text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
-            Pipeline Stage
-            {isFlowDeal && flowCanvas && (
-              <>
-                <span className="text-muted-foreground/40">—</span>
-                <span className="text-foreground">{flowCanvas.saleType.name}</span>
-                {flowCanvas.flow.won_stage_id === currentFlowStage?.id ? (
-                  <span className="rounded-full bg-green-9/15 px-2 py-0.5 text-green-11">Won</span>
-                ) : (
-                  currentFlowStage?.is_terminal && (
-                    <span className="rounded-full bg-mauve-9/15 px-2 py-0.5 text-mauve-11">Closed</span>
-                  )
-                )}
-              </>
-            )}
-            <span
-              className={cn(
-                "rounded-full px-2 py-0.5",
-                blockedCount > 0 ? "bg-red-9/15 text-red-11" : "bg-green-9/15 text-green-11",
-              )}
-            >
-              {blockedCount > 0 ? `Blocked: ${blockedCount}` : "Clear to move"}
-            </span>
-          </p>
-          {isFlowDeal && (
-            <div className="flex justify-end">
-              <FlowVersionBadge
-                opportunity={opportunity}
-                onOpenVersion={(snapshotId) => {
-                  const stage = opportunity.flow_stage_id;
-                  const query = stage ? `?stage=${encodeURIComponent(stage)}` : "";
-                  window.open(`/flow-versions/${snapshotId}${query}`, "_blank", "noopener");
-                }}
-              />
-            </div>
-          )}
-        </div>
+        {!isFlowDeal && <div className="mb-1.5">{stageLine}</div>}
         {isFlowDeal ? (
           <FlowStageControl
             opportunity={opportunity}
+            leading={stageLine}
+            trailing={stageTrailing}
+            showMarkLost={false}
             isMoving={stageMutation.isPending}
             disabled={moveDisabled}
-            blockedBy={[
-              ...checklist
-                .filter(({ condition, status }) => condition?.is_required && status === "unsatisfied")
-                .map(({ condition }) => condition.label),
-              ...missingRequiredStageFields.map((field) => field.label),
-            ]}
+            blockedBy={blockedLabelList}
             returnStageIds={returnStageIds}
             onMove={(flowStageId) =>
               stageMutation.mutate({ next: flowStageId, reason: null, salesReference: null })
             }
           />
         ) : (
-          legacyRibbon
+          <>
+            {legacyRibbon}
+            {/* Mark as Lost lives in the "…" menu (#814). */}
+            {/* #813: Reopen takes the same spot on a Lost deal. */}
+            {isLostCode(opportunity.status, pipelineStages) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <ReopenButton opportunity={opportunity} />
+              </div>
+            )}
+          </>
         )}
       </div>
+      <MarkLostDialogHost
+        opportunity={opportunity}
+        lostStages={lostStages}
+        isOpen={markLostOpen}
+        onClose={() => setMarkLostOpen(false)}
+      />
     </div>
   );
 }

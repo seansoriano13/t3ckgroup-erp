@@ -51,7 +51,7 @@ describe("offsetService", () => {
       expect(mine[0]).toMatchObject({
         start_time: "09:00",
         end_time: "13:00",
-        hours: 4,
+        hours: 3,
         status: "PENDING",
         reason: "Server migration",
       })
@@ -208,11 +208,11 @@ describe("offsetService", () => {
       expect((await offsetService.getMyOffsetLeaves(employee.id))[0].hours).toBe(9.5) // 10.5-hour window minus 1 hour for lunch
     })
 
-    it("does not deduct for lunch on a window under 5 hours", async () => {
+    it("does not deduct for lunch on a window that misses the lunch hour", async () => {
       await offsetService.applyOffsetLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        startTime: "09:00", endTime: "13:00",
+        startTime: "13:00", endTime: "17:00",
         reason: "Half day",
       })
 
@@ -291,7 +291,7 @@ describe("offsetService", () => {
       await offsetService.applyOffsetLeave({
         employeeId: capped.id,
         date: "2026-03-10",
-        startTime: '09:00', endTime: '13:00', // 4 hrs, exactly the balance
+        startTime: '13:00', endTime: '17:00', // 4 hrs, exactly the balance
         reason: "First",
       })
 
@@ -299,7 +299,7 @@ describe("offsetService", () => {
         offsetService.applyOffsetLeave({
           employeeId: capped.id,
           date: "2026-03-11",
-          startTime: '09:00', endTime: '13:00',
+          startTime: '13:00', endTime: '17:00',
           reason: "Second",
         }),
       ).rejects.toThrow("Insufficient offset hours. 4 hrs already committed to pending applications, leaving 0 hrs available.")
@@ -586,6 +586,7 @@ describe("offsetService", () => {
       for (const row of updated) {
         expect(row.approval_hash).toBeTruthy()
         expect(row.hr_processed_by).toBe(hr.id)
+        expect(row.hr_processed_at).toEqual(expect.any(String))
       }
     })
 
@@ -713,10 +714,12 @@ describe("offsetService", () => {
         hrId: hr.id,
       })
       expect(findRow("overtime_requests", request.id).hr_processed_by).toBe(hr.id)
+      expect(findRow("overtime_requests", request.id).hr_processed_at).toEqual(expect.any(String))
 
       const reverted = await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id })
 
       expect(reverted.hr_processed_by).toBeNull()
+      expect(reverted.hr_processed_at).toBeNull()
     })
 
     it("records what the decision used to be in the audit trail", async () => {

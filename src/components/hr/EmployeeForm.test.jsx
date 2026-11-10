@@ -36,7 +36,7 @@ describe("EmployeeForm hidden-from-navigation editor", () => {
     await renderForm({ initialData: { has_sales_flow: false } })
 
     // Sales flow off: Sales entries aren't offered as things to hide.
-    expect(screen.queryByText("SORS")).not.toBeInTheDocument()
+    expect(screen.queryByText("Commission Dashboard")).not.toBeInTheDocument()
     // Dashboard and My Leaves are permitted unconditionally.
     expect(screen.getByText("Dashboard")).toBeInTheDocument()
     expect(screen.getByText("My Requests")).toBeInTheDocument()
@@ -45,11 +45,11 @@ describe("EmployeeForm hidden-from-navigation editor", () => {
   it("adds an entry to the offered list live when a toggle that permits it is turned on", async () => {
     const { user } = await renderForm({ initialData: { has_sales_flow: false } })
 
-    expect(screen.queryByText("SORS")).not.toBeInTheDocument()
+    expect(screen.queryByText("Commission Dashboard")).not.toBeInTheDocument()
 
     await user.click(screen.getByText("Sales Opportunities"))
 
-    expect(screen.getByText("SORS")).toBeInTheDocument()
+    expect(screen.getByText("Commission Dashboard")).toBeInTheDocument()
   })
 
   it("toggling an entry off includes its key in the saved hiddenNavKeys", async () => {
@@ -89,5 +89,52 @@ describe("EmployeeForm Bug Reports access right", () => {
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     expect(submitted[0].has_bug_report_access).toBe(true)
+  })
+})
+
+describe("EmployeeForm Finance access right", () => {
+  it("saves the Finance switch beside Purchasing", async () => {
+    const { submitted, user } = await renderForm({ initialData: { has_finance_flow: false } })
+
+    await user.click(screen.getByText("Finance", { selector: "p" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].has_finance_flow).toBe(true)
+    expect(submitted[0].has_purchasing_flow).toBe(false)
+  })
+
+  it("starts a new employee without Finance access", async () => {
+    const { submitted, user } = await renderForm()
+
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].has_finance_flow).toBe(false)
+  })
+})
+
+describe("EmployeeForm Call Sign", () => {
+  const callSignInput = () => screen.getByPlaceholderText("e.g. 101 (unique, optional)")
+
+  it("saves the call sign typed beside the role", async () => {
+    const { submitted, user } = await renderForm({ initialData: {} })
+
+    await user.type(callSignInput(), "1203")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].call_sign).toBe("1203")
+  })
+
+  it("shows the call sign an employee already has", async () => {
+    await renderForm({ initialData: { call_sign: "101" } })
+    expect(callSignInput()).toHaveValue("101")
+  })
+
+  it("starts a new employee with no call sign, and a null one reads as blank", async () => {
+    const { submitted, user } = await renderForm({ initialData: { call_sign: null } })
+    expect(callSignInput()).toHaveValue("")
+
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].call_sign ?? "").toBe("")
   })
 })

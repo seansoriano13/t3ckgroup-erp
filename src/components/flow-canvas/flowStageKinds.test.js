@@ -29,10 +29,30 @@ describe("flowStageKinds", () => {
     expect(Object.keys(ACTION_KIND_META).sort()).toEqual([
       "create_group_task",
       "create_individual_task",
+      "evaluate_specification",
+      "open_costing_matrix",
+      "open_purchase_request",
+      "request_packing_list",
     ])
   })
 
   describe("actionTitle", () => {
+    it("names a Request Packing List, which carries no title", () => {
+      expect(actionTitle({ kind: "request_packing_list", config: {} })).toBe("Request Packing List")
+    })
+
+    it("names an Evaluation of Specification, which carries no title", () => {
+      expect(actionTitle({ kind: "evaluate_specification", config: {} })).toBe("Evaluation of Specification")
+    })
+
+    it("names an Open S0 Evaluation, which carries no title", () => {
+      expect(actionTitle({ kind: "open_costing_matrix", config: {} })).toBe("Open S0 Evaluation")
+    })
+
+    it("names an Open Purchase Request, which carries no title", () => {
+      expect(actionTitle({ kind: "open_purchase_request", config: {} })).toBe("Open Purchase Request")
+    })
+
     it("reads a group task's own title", () => {
       expect(actionTitle({ kind: "create_group_task", config: { title: "Prepare bid docs" } }))
         .toBe("Prepare bid docs")
@@ -77,6 +97,31 @@ describe("flowStageKinds", () => {
       expect(
         actionSummary({ kind: "create_individual_task", config: { priority: "HIGH" } }),
       ).toBe("Individual Task · high priority")
+    })
+
+    it("says who a Request Packing List tells: the Warehouse list, or the people named", () => {
+      expect(actionSummary({ kind: "request_packing_list", config: {} })).toBe(
+        "Request Packing List · tells the Warehouse list",
+      )
+      expect(
+        actionSummary(
+          { kind: "request_packing_list", config: { notify: [{ type: "employee", id: "p-1" }] } },
+          { employees: [{ id: "p-1", name: "Pia Reyes" }] },
+        ),
+      ).toBe("Request Packing List · tells Pia Reyes")
+    })
+
+    it("names the Purchasing Incharge an Open S0 Evaluation will set, or says there is none", () => {
+      const employees = [{ id: "p-1", name: "Raquel Dela Cruz" }]
+      expect(
+        actionSummary(
+          { kind: "open_costing_matrix", config: { purchasingIncharge: { type: "employee", id: "p-1" } } },
+          { employees },
+        ),
+      ).toBe("Open S0 Evaluation · Purchasing: Raquel Dela Cruz")
+      expect(actionSummary({ kind: "open_costing_matrix", config: {} })).toBe(
+        "Open S0 Evaluation · no Purchasing Incharge named",
+      )
     })
 
     // Issue #411 — a single-employee Decider was always rendered as "the

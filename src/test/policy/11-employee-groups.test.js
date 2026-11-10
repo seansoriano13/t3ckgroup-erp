@@ -62,7 +62,8 @@ describe("employee_group_member_ids", () => {
         expect(error).toBeNull()
 
         const resolved = data.map((row) => (typeof row === "string" ? row : Object.values(row)[0])).sort()
-        expect(resolved).toEqual([ids.outsider, ids.superAdmin].sort())
+        // LOGISTICS: the outsider and the Logistics Staff cast member.
+        expect(resolved).toEqual([ids.outsider, ids.logistics, ids.superAdmin].sort())
         expect(resolved).not.toContain(ids.deleted)
     })
 
@@ -83,7 +84,7 @@ describe("employee_group_member_ids", () => {
         const client = await clientFor("ordinary")
         const { data, error } = await client.rpc("employee_group_member_ids", { p_group_id: groupId })
         expect(error).toBeNull()
-        expect(data.length).toBe(2)
+        expect(data.length).toBe(3)
     })
 })
 

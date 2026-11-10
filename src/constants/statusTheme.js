@@ -18,4 +18,6 @@ export const STATUS_THEME = {
   VIOLET: "violet",
   ORANGE: "orange",
   MAUVE: "mauve",
+  TEAL: "teal",
+  GREY: "gray",
 };

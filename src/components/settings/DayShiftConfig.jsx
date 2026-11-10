@@ -28,11 +28,11 @@ function DayShiftRow({ day, onSave, isPending }) {
   };
 
   return (
-    <div className="p-4 flex items-center justify-between gap-4 hover:bg-muted/30 transition-colors">
-      <div className="w-24 shrink-0">
+    <div className="p-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 hover:bg-muted/30 transition-colors">
+      <div className="w-24 shrink-0 max-sm:flex-1">
         <p className="font-bold text-foreground text-sm">{WEEKDAY_LABELS[day.weekday]}</p>
       </div>
-      <div className="flex items-center gap-2 flex-1 justify-center">
+      <div className="flex items-center gap-2 flex-1 justify-center max-sm:order-last max-sm:basis-full max-sm:justify-start">
         <Input
           type="time"
           aria-label={`${WEEKDAY_LABELS[day.weekday]} start time`}

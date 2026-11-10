@@ -34,7 +34,7 @@ function FlowBracketNode({ data }) {
         />
       </svg>
       <span
-        className="absolute top-0 left-1/2 -translate-x-1/2 truncate rounded-full bg-violet-9 px-2.5 py-1 text-[10px] font-black tracking-[0.14em] text-white uppercase shadow-sm"
+        className="absolute top-0 left-1/2 -translate-x-1/2 truncate rounded-full bg-violet-9 px-2.5 py-1 text-label font-black tracking-[0.14em] text-white uppercase shadow-sm"
         style={{ maxWidth: width - 8 }}
         title={label}
       >

@@ -17,6 +17,8 @@ const BUCKETS = {
   signatures: { maxBytes: 204800, allowedMimeTypes: ["image/png"] },
   // Bug Reports: any type (`allowedMimeTypes: null`, as in the real bucket).
   "bug-reports": { maxBytes: 52428800, allowedMimeTypes: null },
+  // Transmittal stage pictures and videos (#253): any image or video, 50 MB.
+  "pms-evidence": { maxBytes: 52428800, allowedMimeTypes: null },
 }
 
 export const storageObjects = new Map() // `${bucket}/${path}` -> { bytes: ArrayBuffer, contentType }

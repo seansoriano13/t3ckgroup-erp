@@ -38,7 +38,7 @@ export default function FilterBar({
   className,
 }) {
   return (
-    <div className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-2", className)}>
+    <div className={cn("flex w-full min-w-0 flex-wrap sm:w-auto sm:flex-1 items-center gap-2", className)}>
       {search && (
         <Input
           icon={Search}

@@ -16,6 +16,7 @@ export function stubStartFreshStageWorkRpc() {
     updateRow("sales_opportunities", opportunity, {
       flow_stage_id: args.p_flow_stage_id,
       ...(args.p_contract_date ? { contract_date: args.p_contract_date } : {}),
+      ...(args.p_date_of_award && !opportunity.date_of_award ? { date_of_award: args.p_date_of_award } : {}),
     })
     return startFresh({ p_opportunity_id: args.p_opportunity_id })
   })

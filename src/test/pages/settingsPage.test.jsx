@@ -44,6 +44,14 @@ describe("SettingsPage", () => {
     vi.restoreAllMocks();
   });
 
+  it("exposes the theme toggle as a switch", async () => {
+    mockUser.current = makeSuperAdmin({ name: "Boss" });
+    renderAt("/settings?tab=general");
+
+    const sw = await screen.findByRole("switch", { name: "Theme mode", hidden: true });
+    expect(sw).toHaveAttribute("aria-checked");
+  });
+
   it("shows an employee only General, and bounces a forbidden tab without a history entry", async () => {
     mockUser.current = makeEmployee({ name: "Rank And File" });
     renderAt("/settings?tab=approvals");
@@ -54,12 +62,12 @@ describe("SettingsPage", () => {
     expect(screen.queryByText("Approval rules", { selector: "h2" })).not.toBeInTheDocument();
   });
 
-  it("shows an HR Officer General and HR & Schedule, with no Working Week", async () => {
+  it("shows an HR Officer General, HR & Schedule and Venues, with no Working Week", async () => {
     mockUser.current = makeHrEmployee({ name: "Hr Officer" });
     renderAt("/settings?tab=hr");
 
     await screen.findByRole("tab", { name: "HR & Schedule", hidden: true });
-    expect(tabNames()).toEqual(["General", "HR & Schedule"]);
+    expect(tabNames()).toEqual(["General", "HR & Schedule", "Venues"]);
     expect(screen.queryByText(/working week/i)).not.toBeInTheDocument();
     expect(await screen.findByText("Leave categories")).toBeInTheDocument();
   });
@@ -72,7 +80,17 @@ describe("SettingsPage", () => {
     expect(screen.getByText(/working week/i)).toBeInTheDocument();
   });
 
-  it("shows a Super Admin all six tabs, each on its own key", async () => {
+  it("shows Purchasing access General and Purchasing, with the option lists but no sign-off lists", async () => {
+    mockUser.current = makeEmployee({ name: "Buyer", has_purchasing_flow: true });
+    renderAt("/settings?tab=purchasing");
+
+    expect(await screen.findByRole("tab", { name: "Payment methods", hidden: true })).toBeInTheDocument();
+    expect(tabNames()).toEqual(expect.arrayContaining(["General", "Purchasing"]));
+    expect(screen.queryByRole("tab", { name: "Approval Rules", hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Sign-off lists", hidden: true })).not.toBeInTheDocument();
+  });
+
+  it("shows a Super Admin all nine tabs, each on its own key", async () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
     renderAt("/settings");
 
@@ -81,19 +99,27 @@ describe("SettingsPage", () => {
       "General",
       "Approval Rules",
       "HR & Schedule",
+      "Venues",
       "Sales Configuration",
+      "Purchasing",
+      "S0 Evaluation",
       "Employee Groups",
       "System Announcements",
     ]);
 
+    // Tab switches replace history (ui-audit F08) so Back leaves Settings.
     await setupUser().click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
-    expect(screen.getByTestId("loc")).toHaveTextContent("?tab=approvals|PUSH");
+    expect(screen.getByTestId("loc")).toHaveTextContent("?tab=approvals|REPLACE");
     await waitFor(() => expect(screen.getByText("Ops Manager Marketing Approvals")).toBeInTheDocument());
     expect(screen.queryByText("App preferences")).not.toBeInTheDocument();
 
     await setupUser().click(screen.getByRole("tab", { name: "Sales Configuration", hidden: true }));
     expect(await screen.findByText("Lead sources")).toBeInTheDocument();
     expect(screen.getByText("Commission Pool")).toBeInTheDocument();
+
+    await setupUser().click(screen.getByRole("tab", { name: "Purchasing", hidden: true }));
+    expect(screen.getByTestId("loc")).toHaveTextContent("?tab=purchasing|REPLACE");
+    expect(await screen.findByRole("tab", { name: "Sign-off lists", hidden: true })).toBeInTheDocument();
   });
 
   it("issues no settings request until the Approval Rules tab opens", async () => {

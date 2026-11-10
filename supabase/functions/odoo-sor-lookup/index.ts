@@ -12,52 +12,22 @@
 import {
   authenticate,
   corsHeaders,
-  executeKw,
   fetchCustomer,
   fetchProductStock,
   findOrder,
   isConfigured,
+  isLocalStack,
   jsonResponse,
   normalizeReference,
 } from "../_shared/odoo.ts";
-
-async function fetchOrderItems(uid, orderId) {
-  const lines = await executeKw(
-    uid,
-    "sale.order.line",
-    "search_read",
-    [
-      [["order_id", "=", orderId]],
-      ["product_id", "name", "product_uom_qty", "price_unit", "product_uom", "display_type"],
-    ],
-    { order: "sequence asc" },
-  );
-
-  return lines
-    .filter((l) => !l.display_type) // section/note lines aren't products
-    .map((l) => ({
-      // product_id comes back as [id, display_name]; issue #202 needs the id
-      // kept so stock can be looked up without re-reading the quotation.
-      odoo_product_id: (l.product_id && l.product_id[0]) || null,
-      product_name: (l.product_id && l.product_id[1]) || l.name || "",
-      // Issue #44: a bundled order's Inclusions live as free text in the
-      // line's own description, not in the product name — kept as its own
-      // field rather than folded into product_name so the existing Product
-      // List mapping (and everything downstream of it) is untouched.
-      description: l.name || "",
-      unit: (l.product_uom && l.product_uom[1]) || "",
-      quantity: l.product_uom_qty || 0,
-      unit_price: l.price_unit || 0,
-    }))
-    .filter((it) => it.product_name);
-}
+import { fetchOrderItems, localSampleLookup } from "../_shared/odooS0Lines.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  if (!isConfigured()) {
+  if (!isConfigured() && !isLocalStack()) {
     return jsonResponse({
       success: false,
       message: "Odoo integration is not configured on the server.",
@@ -78,6 +48,8 @@ Deno.serve(async (req) => {
       message: 'Enter a valid Sales Reference first — "S" followed by digits, e.g. S01237.',
     });
   }
+
+  if (!isConfigured()) return jsonResponse(localSampleLookup(ref));
 
   try {
     const uid = await authenticate();

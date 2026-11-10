@@ -16,6 +16,30 @@ const RESERVED_PARAMS = new Set(["select", "order", "limit", "offset", "on_confl
 
 const UNKNOWN = null
 
+/**
+ * PostgREST computed fields: SQL functions that take a table's row and are
+ * selected like a column (`odoo_copy:ipas_list_copy`). The fake never runs SQL
+ * functions, so each one the app selects is mirrored here, by table and name.
+ */
+const COMPUTED_FIELDS = {
+  ipas: {
+    // #928: the Odoo copy without line detail; each line keeps analytic and price_subtotal.
+    ipas_list_copy: (row) => {
+      const copy = row.odoo_copy
+      if (!copy || typeof copy !== "object" || Array.isArray(copy) || !Array.isArray(copy.lines)) return copy ?? null
+      return {
+        ...copy,
+        lines: copy.lines.map((line) => {
+          if (!line || typeof line !== "object" || Array.isArray(line)) return line
+          const kept = {}
+          for (const key of ["analytic", "price_subtotal"]) if (key in line) kept[key] = line[key]
+          return kept
+        }),
+      }
+    },
+  },
+}
+
 /** Splits on top-level commas, ignoring those inside parentheses or quotes. */
 function splitTopLevel(input, separator = ",") {
   const parts = []
@@ -418,6 +442,11 @@ export function projectRows(tableName, rows, select, embeddedFilters = new Map()
         if (field.children == null) {
           if (field.name === "*") {
             for (const column of Object.keys(table.columns)) output[column] = row[column]
+            continue
+          }
+          const computed = COMPUTED_FIELDS[tableName]?.[field.name]
+          if (!table.columns[field.name] && computed) {
+            output[field.alias ?? field.name] = computed(row)
             continue
           }
           if (!table.columns[field.name]) {

@@ -10,6 +10,18 @@
  * zero migration or backfilling.
  */
 
+/** Optional per-item extras. Absent on old data, so they are only copied when set. */
+function itemExtras(item) {
+  const extras = {};
+  if (item && typeof item.dueDate === "string" && item.dueDate.trim()) {
+    extras.dueDate = item.dueDate.trim().slice(0, 10);
+  }
+  if (item && typeof item.remarks === "string" && item.remarks.trim()) {
+    extras.remarks = item.remarks;
+  }
+  return extras;
+}
+
 /** True when a value is structured as an array of group sections. */
 export function isGroupedChecklist(value) {
   if (!Array.isArray(value) || value.length === 0) return false;
@@ -56,6 +68,7 @@ export function parseChecklistGroups(value) {
                 ? item
                 : "",
           checked: Boolean(item?.checked),
+          ...itemExtras(item),
         })),
       }));
     }
@@ -74,6 +87,7 @@ export function parseChecklistGroups(value) {
                 ? item
                 : "",
           checked: Boolean(item?.checked),
+          ...itemExtras(item),
         })),
       },
     ];
@@ -96,6 +110,7 @@ export function parseChecklistGroups(value) {
                 ? item
                 : "",
           checked: Boolean(item?.checked),
+          ...itemExtras(item),
         })),
       },
     ];
@@ -237,6 +252,7 @@ export function cleanChecklistForSave(value, { resetChecked = false } = {}) {
           id: item.id || `item-${gIdx}-${iIdx}`,
           text: item.text.trim(),
           checked: resetChecked ? false : Boolean(item.checked),
+          ...itemExtras(item),
         }));
 
       return {
@@ -254,6 +270,7 @@ export function cleanChecklistForSave(value, { resetChecked = false } = {}) {
     return cleanedGroups[0].items.map((i) => ({
       text: i.text,
       checked: i.checked,
+      ...itemExtras(i),
     }));
   }
 
@@ -297,3 +314,18 @@ export function resolveAssignment(member) {
   return { description: rawDescription, checklist: [] };
 }
 
+
+/**
+ * Returns an error message when any checklist item's due date falls after the
+ * task's Due Date, otherwise null. Dates compare as calendar days (YYYY-MM-DD).
+ * A task with no Due Date has no limit.
+ */
+export function checklistDueDateError(checklist, taskDueDate) {
+  if (!taskDueDate) return null;
+  const limit = String(taskDueDate).slice(0, 10);
+  const late = parseChecklistGroups(checklist)
+    .flatMap((g) => g.items)
+    .find((i) => i.dueDate && i.dueDate > limit);
+  if (!late) return null;
+  return `Checklist item "${late.text}" is due after the task's Due Date (${limit}).`;
+}

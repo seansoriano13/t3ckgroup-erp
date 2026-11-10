@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Printed Costing Matrix</title>
+<title>Printed S0 Evaluation</title>
 <!--
-  PROTOTYPE — throwaway. Ticket: Printed Costing Matrix (#229) on the IPAS/PMS map (#210).
-  Three variants of the printed Costing Matrix on one page, switchable with ?variant=A|B|C,
+  PROTOTYPE — throwaway. Ticket: Printed S0 Evaluation (#229) on the IPAS/PMS map (#210).
+  Three variants of the printed S0 Evaluation on one page, switchable with ?variant=A|B|C,
   the floating bar, or the arrow keys. Sample data is the Emergency Response Vehicle sheet
   shared 2026-09-14, with Final Acquire filled in so the summary computes.
   Print idiom follows ADR 0014: composed HTML, Geist / Geist Mono / Spectral, name prints
@@ -287,7 +287,7 @@
 
 <div class="desk">
   <div class="desk-head">
-    <h1>Printed Costing Matrix</h1>
+    <h1>Printed S0 Evaluation</h1>
     <span class="tag">prototype · #229</span>
     <p>Three ways to put one SOR's costing on paper. Sample data is the Emergency Response Vehicle sheet, with Final Acquire filled in so the summary computes. Flip with the bar below, the arrow keys, or <code>?variant=</code>. Ctrl/Cmd&#8209;P prints the variant on screen.</p>
   </div>
@@ -380,7 +380,7 @@ const rail = sub => `
   <div class="rail">
     <span class="mark">${MARK}</span>
     <span class="org"><b>T3CKGROUP</b>${D.entity} · purchasing</span>
-    <span class="doc"><div class="t">Costing Matrix</div><div class="s">${D.ref} · ${D.version} · ${sub}</div></span>
+    <span class="doc"><div class="t">S0 Evaluation</div><div class="s">${D.ref} · ${D.version} · ${sub}</div></span>
   </div>`;
 
 const facts = () => `
@@ -401,7 +401,7 @@ const sigs = () => `<div class="sigs">${D.sigs.map(s => `
     <div class="stamp">${s.awaiting ? 'Signature required' : (s.printed ? s.stamp : 'name printed · ' + s.stamp)}</div>
   </div>`).join('')}</div>`;
 
-const foot = page => `<div class="foot"><span>${D.ref} · Costing Matrix ${D.version} · printed ${D.printed}</span><span>Landed Cost provisional until purchasing marks costs complete</span><span>${page}</span></div>`;
+const foot = page => `<div class="foot"><span>${D.ref} · S0 Evaluation ${D.version} · printed ${D.printed}</span><span>Landed Cost provisional until purchasing marks costs complete</span><span>${page}</span></div>`;
 
 const summaryRows = () => `
   <div class="totals">

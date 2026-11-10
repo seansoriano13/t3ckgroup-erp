@@ -1,5 +1,6 @@
 import {
   LayoutList,
+  CalendarDays,
   ListCheck,
   ListTodo,
   Clock,
@@ -15,10 +16,17 @@ import {
   ShoppingCart,
   ShoppingBag,
   Sparkles,
-  Handshake,
   Bug,
+  PackageOpen,
+  ReceiptText,
+  PackageCheck,
+  Gavel,
+  Scale,
+  LayoutDashboard,
+  Calculator,
+  ClipboardCheck,
 } from "lucide-react";
-import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
+import { canManageGroupTasks, getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
 export const NAV_MODULES = {
   workspace: {
@@ -46,6 +54,15 @@ export const NAV_MODULES = {
         label: "My Requests",
         link: "/offsets",
         icon: Clock,
+        isPermitted: () => true,
+      },
+      // The company-wide Calendar, for everyone (ADR 0037). The server decides
+      // what each viewer may see on it.
+      {
+        key: "workspace.calendar",
+        label: "Calendar",
+        link: "/calendar",
+        icon: CalendarDays,
         isPermitted: () => true,
       },
       // What changed in the ERP, for everyone (ADR 0030). The What's new
@@ -91,25 +108,40 @@ export const NAV_MODULES = {
         label: "SORS",
         link: "/sors",
         icon: Target,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
-        exactMatch: true,
-      },
-      // ADR 0021 keeps a Stage Participant out of `sales_opportunities`, so a
-      // deal someone was called into can never appear in the SORS register.
-      // This is where it appears instead. Deliberately ungated, like Flow
-      // Canvas: `isPermitted` is synchronous and cannot ask whether this
-      // person holds a window, and gating on `hasSalesFlow` would lock out
-      // exactly the people ADR 0021 names — a purchaser, an engineer, a
-      // finance officer — none of whom need Sales access to be called in.
-      // The page shows an empty state to anyone who has none.
-      {
-        key: "sales.mySors",
-        label: "My SORs",
-        link: "/my-sors",
-        icon: Handshake,
+        // Open to everyone. ADR 0021 lets a purchaser, an engineer or a
+        // finance officer be called into an SOR without Sales access, and the
+        // register's My work view is where they find it. `isPermitted` is
+        // synchronous and cannot ask whether this person holds a window, so it
+        // does not try: someone without register access sees only My work
+        // (`canReadSorRegister`), with an empty state when they have none.
+        // The badge counts the SORs where something waits on this person.
         badgeKey: "mySors",
         isPermitted: () => true,
         exactMatch: true,
+      },
+      // The Costing Matrix page (#606): every SOR's matrix with Planned and
+      // Actual Revenue. The Closed Book only (Super Admins and the Final
+      // Acquire list); the page sends anyone else home and the database
+      // refuses the read.
+      {
+        key: "sales.costingMatrix",
+        beta: true,
+        label: "S0 Evaluation",
+        link: "/costing-matrix",
+        icon: Calculator,
+        isPermitted: (ctx) => ctx.isBidDecider,
+        exactMatch: true,
+      },
+      // The Technical list (#706, #908): the S0 Evaluations the caller is the Technical in-charge of, to give the
+      // verdict, and, for the Evaluation list, the ones waiting for approval. No money on it. For the in-charge, the
+      // list and Super Admins; the database refuses anyone else.
+      {
+        key: "sales.technical",
+        beta: true,
+        label: "Technical",
+        link: "/technical",
+        icon: ClipboardCheck,
+        isPermitted: (ctx) => ctx.canOpenTechnical,
       },
       {
         key: "sales.commissionDashboard",
@@ -141,19 +173,83 @@ export const NAV_MODULES = {
   purchasing: {
     key: "purchasing",
     label: "Purchasing",
+    // #946: Purchasing ships as Beta.
+    beta: true,
     defaultExpanded: true,
-    // Issue #179 — a Purchase Request module for purchases outside a
-    // project (not tied to an SOR) was considered and deferred. This entry
-    // and the queue below are untouched; the note is here so the deferred
-    // plan is where the next person will look for it.
     links: [
       {
+        // Every employee opens and follows their own Purchase Requests (#179);
+        // Purchasing access is what lets someone take and buy them.
         key: "purchasing.queue",
-        label: "Purchasing Queue",
+        label: "Purchase Requests",
         link: "/purchasing",
         icon: ShoppingCart,
+        isPermitted: () => true,
+        exactMatch: true,
+      },
+      // The Purchasing Dashboard (#322): every SOR's buying grouped by what is
+      // outstanding, with Order Monitoring (#263) folded into its tracker since
+      // 2026-10-20. Purchasing access, Finance access and Super Admins; the
+      // database limits the rows and the page sends anyone else home.
+      {
+        key: "purchasing.dashboard",
+        label: "Purchasing Dashboard",
+        link: "/purchasing/dashboard",
+        icon: LayoutDashboard,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow,
+        exactMatch: true,
+      },
+      // Canvasses (#566, ADR 0034): every Canvass, project ones included. For
+      // everyone with Purchasing access; the page sends anyone else home.
+      {
+        key: "purchasing.canvasses",
+        label: "Canvasses",
+        link: "/purchasing/canvasses",
+        icon: Scale,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow,
         exactMatch: true,
+      },
+      // The IPAS (#241): one per purchase order that needs one. Read by
+      // Purchasing access, Finance access, Super Admins and the sign-off
+      // lists; the database refuses everyone else, so this only spares the
+      // rest an empty screen. Not an exact match: an open IPAS is a child
+      // route.
+      {
+        key: "purchasing.ipas",
+        label: "IPAS",
+        link: "/purchasing/ipas",
+        icon: ReceiptText,
+        isPermitted: (ctx) =>
+          ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow || ctx.isIpasSigner,
+      },
+      // Transmittals (#252): the TG03 slips. Read by the IPAS readers and the
+      // four Transmittal staff lists; the database refuses everyone else.
+      {
+        key: "purchasing.transmittals",
+        label: "Transmittals",
+        link: "/purchasing/transmittals",
+        icon: ReceiptText,
+        isPermitted: (ctx) =>
+          ctx.isSuperAdmin ||
+          ctx.hasPurchasingFlow ||
+          ctx.hasFinanceFlow ||
+          ctx.isIpasSigner ||
+          ctx.isIpasApprover ||
+          ctx.isTransmittalStaff,
+      },
+      // Packing Lists (#255): the boxes packed for an SOR. Read by the IPAS
+      // readers and the Warehouse list; the database refuses everyone else.
+      {
+        key: "purchasing.packing_lists",
+        label: "Packing Lists",
+        link: "/purchasing/packing-lists",
+        icon: PackageOpen,
+        isPermitted: (ctx) =>
+          ctx.isSuperAdmin ||
+          ctx.hasPurchasingFlow ||
+          ctx.hasFinanceFlow ||
+          ctx.isIpasSigner ||
+          ctx.isTransmittalWarehouse,
       },
     ],
   },
@@ -168,8 +264,9 @@ export const NAV_MODULES = {
         link: "/approvals/tasks",
         icon: ShieldCheck,
         badgeKey: "taskApprovals",
+        // Both steps of a task: the head's grade and HR verification.
         isPermitted: (ctx) => {
-          if (ctx.isSuperAdmin) return true;
+          if (ctx.isSuperAdmin || ctx.isHr) return true;
           if (ctx.isHead) {
             const isMasterHead = !ctx.subDepartment;
             return isMasterHead || ctx.hasTaskFlow;
@@ -179,20 +276,56 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
-        key: "approvals.hrVerifications",
-        label: "HR Verifications",
-        link: "/approvals/hr-verification",
-        icon: ShieldCheck,
-        badgeKey: "hrVerifications",
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
-        exactMatch: true,
-      },
-      {
-        label: "Leave Approvals",
+        label: "Time Off & Overtime",
         link: "/approvals/leaves",
         icon: Clock,
         badgeKey: "leaveApprovals",
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead || ctx.isHr,
+        exactMatch: true,
+      },
+      {
+        // Meeting Requests (#624): the head step and HR's final say.
+        key: "approvals.meetings",
+        label: "Meeting Requests",
+        link: "/approvals/meetings",
+        icon: Clock,
+        badgeKey: "meetingApprovals",
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead || ctx.isHr,
+        exactMatch: true,
+      },
+      {
+        // IPAS sign-offs (#247, #248): sections 1 and 3, and section 7's
+        // Received, Noted, Checked and Approved, for the people on those
+        // lists. A Super Admin signs only when on a list, so no pass here.
+        key: "approvals.ipas",
+        beta: true,
+        label: "IPAS Sign-offs",
+        link: "/approvals/ipas",
+        icon: ReceiptText,
+        badgeKey: "ipasSignoffs",
+        isPermitted: (ctx) => ctx.isIpasApprover,
+        exactMatch: true,
+      },
+      {
+        // Transmittal Check by (#254): slips awaiting the two Check by
+        // signatures, for the Check by list only.
+        key: "approvals.transmittals",
+        beta: true,
+        label: "Transmittal Check by",
+        link: "/approvals/transmittals",
+        icon: PackageCheck,
+        isPermitted: (ctx) => ctx.isTransmittalCheckBy,
+        exactMatch: true,
+      },
+      {
+        // Costing Matrix Bid Decisions (#320): matrices waiting for Go, No-go
+        // or Revise, for Super Admins and the Final Acquire list.
+        key: "approvals.bidDecisions",
+        beta: true,
+        label: "Bid Decisions",
+        link: "/approvals/bid-decisions",
+        icon: Gavel,
+        isPermitted: (ctx) => ctx.isBidDecider,
         exactMatch: true,
       },
     ],
@@ -211,7 +344,7 @@ export const NAV_MODULES = {
       },
       {
         key: "hr.leavesManager",
-        label: "Leaves Manager",
+        label: "Time Off & Overtime",
         link: "/hr/offsets",
         icon: Clock,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.canManageLeaves,
@@ -243,16 +376,15 @@ export const NAV_MODULES = {
       // isn't duplicated here.
 
       // Issue #36/#83 — a long-lived feature, not a one-time build. One
-      // editing surface since #186 removed the Sandbox mode. The Flow Canvas
-      // tables are writable by every signed-in employee (see the policy
-      // tier), so the entry stays visible to all; the Flow Snapshot history
-      // reached from the canvas is Super-Admin-gated.
+      // editing surface since #186 removed the Sandbox mode. Editing and
+      // publishing are for Super Admins and Flow editors
+      // (`can_edit_sales_flows`, #884); nobody else sees the entry.
       {
         key: "admin.flowCanvas",
         label: "Flow Canvas",
         link: "/super-admin/flow-canvas",
         icon: Workflow,
-        isPermitted: () => true,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.canEditSalesFlows,
       },
       // Bug Reports sent from the floating button on every page. Gated by the
       // Bug Reports access right (`has_bug_report_access`, on by default for
@@ -317,8 +449,15 @@ export const QUICK_ACTIONS = [
       {
         id: "offset",
         key: "quick.offset",
-        label: "Apply Leave / Overtime",
+        label: "File Time Off / Overtime",
         icon: Clock,
+        isPermitted: () => true,
+      },
+      {
+        id: "meeting-request",
+        key: "quick.meetingRequest",
+        label: "New Meeting Request",
+        icon: UsersRound,
         isPermitted: () => true,
       },
     ],
@@ -331,7 +470,16 @@ export const QUICK_ACTIONS = [
         key: "quick.groupTask",
         label: "Create Group Task",
         icon: UsersRound,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasTaskFlow,
+        isPermitted: (ctx) => canManageGroupTasks(ctx),
+      },
+      {
+        // Every employee may open a Purchase Request (#179), as in the nav.
+        id: "purchase-request",
+        key: "quick.purchaseRequest",
+        beta: true,
+        label: "New Purchase Request",
+        icon: ShoppingCart,
+        isPermitted: () => true,
       },
     ],
   },

@@ -66,6 +66,10 @@
 @import "@radix-ui/colors/teal-alpha.css";
 @import "@radix-ui/colors/teal-dark.css";
 @import "@radix-ui/colors/teal-dark-alpha.css";
+@import "@radix-ui/colors/gray.css";
+@import "@radix-ui/colors/gray-alpha.css";
+@import "@radix-ui/colors/gray-dark.css";
+@import "@radix-ui/colors/gray-dark-alpha.css";
 @import "@radix-ui/colors/jade.css";
 @import "@radix-ui/colors/jade-alpha.css";
 @import "@radix-ui/colors/jade-dark.css";
@@ -101,6 +105,10 @@
   /* Brand: Red for primary actions */
   --primary: var(--red-9);
   --primary-foreground: var(--mauve-1);
+  /* The fill of a primary action button (Button `primary`, a Page's main
+     action). red-11 under white text in light mode: red-9 gives only 3.8:1,
+     short of WCAG AA's 4.5:1 (#871). Dark mode sets it back to red-9 below. */
+  --primary-action: var(--red-11);
 
   /* Destructive: Red 11 for distinct destructive vs brand */
   --destructive: var(--red-10);
@@ -120,8 +128,12 @@
   --border: var(--mauve-6);
   --input: var(--mauve-6);
 
-  /* Focus Rings */
-  --ring: var(--mauve-8);
+  /* Focus Rings: mauve-11 is 5.6:1 on the card in light and 8.4:1 in dark (WCAG 2.2 needs 3:1). */
+  --ring: var(--mauve-11);
+
+  /* Print preview (screen only): the desk and the sheet's lift, read by PrintPreview. */
+  --preview-desk: var(--mauve-4);
+  --preview-sheet-shadow: 0 1px 2px var(--mauve-a6), 0 14px 30px -16px var(--mauve-a9);
 
   /* Sidebar */
   --sidebar: var(--mauve-2);
@@ -556,6 +568,7 @@
 ---break--- */
 
 @theme inline {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --font-heading: var(--font-sans);
   --font-sans: "Plus Jakarta Sans", sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -583,6 +596,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-action: var(--primary-action);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -597,6 +611,9 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Uppercase tracked key-label role (DESIGN.md typography "label"): field keys, status badges. */
+  --text-label: 11px;
 }
 
 /* 
@@ -620,6 +637,10 @@
 */
 .reveal {
   display: grid;
+  /* One column that never grows past the panel: an auto column takes its
+     width from the widest child (a 64rem items table), and once settled that
+     spills over whatever sits beside the panel. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -797,4 +818,46 @@
 .flow-canvas .react-flow__handle-left:hover,
 .flow-canvas .react-flow__handle-right:hover {
   box-shadow: 0 0 0 6px var(--red-a5);
+}
+
+/* A hairline horizontal scrollbar: 3px thumb, no track or arrows. Chrome ignores the
+   ::-webkit-scrollbar rules once scrollbar-width is set, so that only goes to Firefox. */
+.scrollbar-minimal::-webkit-scrollbar {
+  height: 3px;
+  width: 3px;
+}
+.scrollbar-minimal::-webkit-scrollbar-track,
+.scrollbar-minimal::-webkit-scrollbar-button {
+  display: none;
+  background: transparent;
+}
+.scrollbar-minimal::-webkit-scrollbar-thumb {
+  background: var(--mauve-5);
+  border-radius: 9999px;
+}
+.scrollbar-minimal:hover::-webkit-scrollbar-thumb {
+  background: var(--mauve-7);
+}
+@supports not selector(::-webkit-scrollbar) {
+  .scrollbar-minimal {
+    scrollbar-width: thin;
+    scrollbar-color: var(--mauve-5) transparent;
+  }
+}
+
+.dark {
+  --primary-action: var(--red-9);
+}
+
+/* A Page's main action is primary red (2026-11-10): a default-variant Button
+   placed straight in the Page header's action area (PageHeader). Same fill
+   token as Button's `primary` variant. Unlayered, so it beats the variant's
+   own utility classes. Only direct children, so buttons inside an inline
+   picker in the header are left alone. */
+[data-page-actions] > [data-slot="button"][data-variant="default"] {
+  background-color: var(--primary-action);
+  color: var(--primary-foreground);
+}
+[data-page-actions] > [data-slot="button"][data-variant="default"]:hover {
+  background-color: color-mix(in srgb, var(--primary-action) 90%, transparent);
 }

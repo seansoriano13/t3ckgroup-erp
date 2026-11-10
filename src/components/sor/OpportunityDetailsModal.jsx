@@ -14,6 +14,7 @@ export default function OpportunityDetailsModal({
   lockedSummary,
   siblingIds,
   onNavigate,
+  initialView,
 }) {
   return (
     <SorModal
@@ -25,6 +26,7 @@ export default function OpportunityDetailsModal({
       lockedSummary={lockedSummary}
       siblingIds={siblingIds}
       onNavigate={onNavigate}
+      initialView={initialView}
     />
   );
 }

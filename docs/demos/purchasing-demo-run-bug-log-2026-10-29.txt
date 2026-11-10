@@ -1,0 +1,418 @@
+PURCHASING DEMO RUN - BUG LOG
+Date: 2026-10-29
+Run sheet: docs/demos/purchasing-demo-run-sheet.html (S03204, Project [FOR DEMO])
+Where it ran: LOCAL app (localhost:5173) + local Supabase, seeded from staging after
+  node scripts/demo-purchasing-setup.mjs --apply was run on staging (step 0.1).
+  Odoo functions served locally with supabase/.env. Staging UI was not used.
+Status of run: reached step 6.6. NOT run: 6.7 to 9, Scenarios A to F.
+Shortcuts taken (so results there are not proof):
+  - Part 0.2 flow rules written by script into the local DB (Open S0 Evaluation on Lead,
+    Costing priced, Costing settled, buying opens at NTP, Request Packing List,
+    Purchasing settled, Goods checked). Open Purchase Request action added in the UI.
+    Flow published in the UI as v5.10.
+  - Deal Owner set to Dani by DB update.
+  - 11 request lines set to "To purchase" by DB update.
+  - SOR moved Lead > SO Evaluation > PMS Sourcing GS in the UI, then NOA, then NTP by DB edit
+    (stage guards switched off for that one update and switched back on).
+  - Bid Decision (Go), Costing settled gate, Evaluation approval, ABC entry, markup: NOT tested.
+
+======================================================================
+A. BUGS IN THE APP
+======================================================================
+[A1] A failed "Create" gets stuck.
+  Where: SOR > This stage > Open Purchase Request > Create.
+  What: First click failed on a DB error (duplicate PR_0001). The run was saved as
+        outcome=failed. After that the Create button does nothing and shows no message.
+        Retrying is impossible. I reset the run row to "pending" by hand.
+  Fix idea: show the error; allow retry on a failed run.
+
+[A2] Registering an SOR leaves Deal Owner empty.
+  Where: Register SOR as Dani.
+  What: deal_owner_id stays null. SOR page says "Unassigned: Deal Owner", and its "Go"
+        link does nothing. S0 Evaluation then opened with "Sales incharge: Not set".
+        Run sheet 2.1 assumes Dani is the Deal Owner.
+  Fix idea: set the registrar as Deal Owner, or add a step/way to assign one.
+
+[A3] Stage header says blocked, panel says nothing blocks.
+  Where: SOR at SO Evaluation, header "Blocked: 2 - missing Brochure From Client, Project GS",
+         "What blocks this stage" panel says "Nothing blocks this stage".
+  What: After saving both fields the banner stayed "Blocked" until a full reload.
+
+[A4] 2.5" hose line shows Received when only part of it was ordered.
+  Where: Attach P01423 to Fire Hose Double Jacket 2.5" (needs 10, P0 line orders 2).
+  What: App shows "Received 2 of 2" and counts the line as ready. Sheet expects
+        "Purchased, 2 of 10 received". Result: 11 of 12 ready, sheet expects 10 of 12.
+  Note: the 2.5" nozzle on P01047 is correct: Purchased, 0 of 4.
+
+[A5] Purchase Request summary names the wrong P0.
+  Where: PR header: "1 is on P01046 and not here yet".
+  What: The one open line is the 2.5" nozzle on P01047.
+
+[A6] Old and new wording mixed on the S0 Evaluation / Canvass screen.
+  What: "Incomplete - 12 rows have no cost" and "12 costs have no Final Acquire yet" are shown
+        while the same sheet says "12 costs filled from Odoo". Final Acquire is meant to be retired.
+
+[A7] S0 Evaluation counts disagree.
+  What: List says "Items bought 0 of 0"; SOR PMS tab says "Lines 0"; the sheet itself shows
+        12 lines.
+
+[A8] Retired demo requests still listed as Open.
+  What: PR_0171 and PR_0172 (SOR DELETED) stay in the Purchase Requests Open list.
+
+[A9] Canvass screen is slow to update.
+  What: After saving "No other supplier" the slot still read "2 of 3" until reopened.
+
+[A10] Slow screens.
+  What: SOR PMS tab is blank for about 10 to 15 seconds on first open. SOR panel takes a few
+        seconds to open. First dev load shows "The app could not start" until a reload (dev only).
+
+[A11] People picker keeps old search text when reopened (Flow Canvas decider picker).
+
+======================================================================
+B. PROBLEMS IN THE LOCAL COPY / TOOLS (not the app)
+======================================================================
+[B1] Local seed restore does not reset number counters.
+  Counters: purchase_request_number_seq, sor_canvass_number_seq, packing_list_number_seq,
+  transmittal_number_seq (IPAS counter was fine). They start at 1 and collide with copied rows,
+  which caused A1. I reset them by hand.
+  Fix idea: scripts/seed-restore.mjs should setval every public *_number_seq to the max used.
+
+[B2] Two heavy DB calls time out locally and return 500:
+  get_user_active_chats and the committee_tasks list ("canceling statement due to statement
+  timeout"). Probably local data size only.
+
+[B3] Older S03204 SORs from earlier rehearsals exist on staging (two still active, one retired).
+
+======================================================================
+C. RUN SHEET CORRECTIONS
+======================================================================
+[C1] Step 0.2: sheet says "Decider" and "When confirmed". Screen says "Require confirmation
+     before running" and "Decider (defaults to the Deal Owner)". Adding the Sales Director
+     replaces the default, so Deal Owner must be added back.
+[C2] Step 2.1: no step assigns the Deal Owner (see A2).
+[C3] Total shown is P1,370,535.74, not P1,452,768. Sheet figure looks like it includes 6% tax.
+[C4] Step 4.5: costs are already filled from Odoo ("12 costs filled from Odoo"), so typing
+     costs is mostly not needed.
+[C5] Step 5.1: SO Evaluation also needs Brochure From Client and Project GS; PMS Sourcing GS
+     also needs Brochure From Supplier. Sheet only mentions the costing gate.
+[C6] Step 6.1: the Attach button works first; the refusal and "Order early" box appear after
+     pressing Attach.
+[C7] Step 6.3: attaching P01046 raised TGIPAS_064, but an older TGIPAS_063 for P01046 already
+     exists from a previous rehearsal.
+[C8] Publishing the flow lists every stage as "Changed" (fresh copy, probably expected).
+
+======================================================================
+D. WHAT WORKED AS THE SHEET SAYS
+======================================================================
+- "Fetch from Odoo" pulled 12 lines, Marikina City Government.
+- Take on the Purchase Request; 12 items listed as Not checked.
+- Canvass: Pick winner blocked with 1 offer; 3 of 3 slots (2 offers + "No other supplier"
+  with reason); winner picked; "Ready. Nothing left to do."
+- Supplier search against Odoo; USD currency choice.
+- Buying refused before NTP, with an "Order early" reason box.
+- After NTP: attaching a P0 raised an IPAS by itself:
+    TGIPAS_064 P01046 (Project, Medium), TGIPAS_065 P01421, TGIPAS_066 P01047,
+    TGIPAS_067 P01423. One IPAS covers all P01046 lines.
+- Odoo-suggested P0 list matched the sheet text for P01046, P01421, P01047, P01423.
+- 2.5" nozzle on P01047: Purchased, 0 of 4.
+
+======================================================================
+D2. SECOND PASS (steps 6.7 onward) - added later the same day
+======================================================================
+Worked as the sheet says:
+- IPAS TGIPAS_064 shows 7 lines of P01046, USD 3,223.00 total, Import, Project, Medium.
+- Submit section 1 is refused until the Proforma Invoice is attached ("Section 1 needs
+  Proforma Invoice first"); after attaching and saving, it submits ("The approvers were told").
+- The app rejects a fake PDF ("Invalid PDF file") and accepts the real demo PDF.
+- Payment: forex rate pre-fills from the Reference Rate (63.99 on 27 Oct); "In pesos" =
+  3,223 x 63.99 = P206,239.77; saved with a "PAID BEFORE APPROVAL" tag.
+
+Run sheet mismatches found in 6.7 / 6.8:
+[C9]  6.7 says section 1 needs "bank details" and blank charges. On screen, section 1 has
+      Supplier's name, P.I #, P.I/QT amount, freight, payments. Charges (2 blank), documents
+      (0 of 12) and "no bank details" sit in section 2.
+[C10] 6.7 says "Upload the PI". The Proforma Invoice upload is in the section 2 Documents list.
+      Submit section 1 was refused until it was attached.
+[C11] 6.8 says "Full payment"; the Kind list says "Payment".
+[C12] 6.8/6.9 say section 2 needs proof on every payment. The form says "Proof of payment:
+      Optional. With P.O.P shows on the IPAS while any payment has one."
+[A12] Section 2 shows "Complete" with 2 blank charges, no documents and no bank details.
+      Looks too early (sheet says blank charges must be filled or removed first).
+[A12b] CONFIRMED: Submit section 2 (Purchasing & Finance) was accepted with 2 blank charges,
+      documents 0 of 12 and no bank details. Sheet 6.7 says blank charges must be filled or
+      removed and a charge with an amount needs its file. No refusal seen.
+[A13] After saving section 1 fields, the section collapses to "Complete" and the next click
+      (Add payment) landed on a different section; easy to misclick (minor).
+
+Part 6.9 / Part 7 results:
+- 6.9 OK: 101 approved IPAS section 1 and section 2 in Approval Center > IPAS. After the
+  first approval the panel jumped to the next one by itself.
+- 7.2 OK: "Raise Transmittal" (sheet says "New Transmittal") + "Fill lines" from TGIPAS_064 gave
+  TG03-2 with 7 lines, company T3CK Trading. A priority had to be picked first (sheet does not
+  say so).
+- 7.3 BLOCKED: Aldrin could mark all 7 lines GC, but "Sign Warehouse checking" does nothing.
+[A14] Silent no-op: Sign Warehouse checking sends no request and shows no message. The form
+      says "Pick the other signatory"; the Inspected-by list only offers Aldrin (himself). With
+      the demo cast there is no second Warehouse signatory, so the step cannot be completed.
+      Either the list should include Sherwin (Technical), or the button should explain why.
+[C13] 7.3 says "add the PDF as the picture". The picture upload accepts images and videos only
+      (accept = image/*,video/*); a PDF cannot go there. Use "No pictures or videos: why".
+[C14] 7.3 does not mention the two-signatory rule or the "Received by / Inspected by" choice.
+Not run because of A14: 7.4 to 7.6 (Sherwin inspection, Received in Odoo, Check by 1 and 2).
+
+8.5 (last gate) OK: Dani at Project Delivery sees "Can't move on yet - missing: Sales invoice
+  with date, Inspection & Acceptance Report, Purchasing settled, Goods checked" (Blocked: 4),
+  and four "Before moving" items under Needs attention. "Purchasing settled" blocks because the
+  2.5" nozzle is only Purchased. "Goods checked" blocks because TG03-2 is not closed.
+[C15] 8.5 says only "Purchasing settled" refuses Collection. Two attachments (Sales invoice with
+      date, Inspection & Acceptance Report) from the copied Project flow also block, and Goods
+      checked blocks until the Transmittal is closed.
+[C16] 7.1: the SOR was moved to Project Delivery by database edit, so "Warehouse is told a draft
+      Packing List was started" was NOT tested (packing_lists count for this SOR = 0).
+
+Shortcuts in this pass: files were put on upload fields by script (demo PDF fetched from
+/docs/demos/purchasing-demo-files/demo-document.pdf), not by the file picker.
+
+======================================================================
+E. STILL TO RUN
+======================================================================
+Steps 6.7 to 9 (IPAS forms, payments, Transmittal, filing, Logistics, Collection gate,
+Settings), Bid Decision / Go lock / Evaluation approval, Scenarios A to F.
+
+======================================================================
+F. THIRD PASS (run to the end, no stopping)
+======================================================================
+[A14 CORRECTION] The Sign button is NOT a silent no-op. It opens a confirm dialog ("Sign
+  Warehouse checking? You sign as Aldrin demo.") that appears 2 to 5 seconds late, so my first
+  screenshots missed it. Real issue left: the dialog is slow to show with no spinner, and the
+  "Inspected by" list only offered Aldrin until Sherwin was added to list transmittal_warehouse.
+  After adding Sherwin the sign worked: Warehouse checking signed by Aldrin, second signer
+  Sherwin (not yet confirmed).
+[A15] Aldrin can pick himself as the "other signatory" for Warehouse checking (list offered
+  "Aldrin demo" as the only choice before the workaround). A person should not be able to pick
+  themselves as their own second signer.
+[A14 TAG] BLOCKED/WORKAROUND: Sherwin added to list transmittal_warehouse (local DB insert) so a
+  second Warehouse signatory exists. Result of the retry is logged below.
+7.3 to 7.6 RESULT (after the Sherwin workaround):
+- OK: Aldrin signed Warehouse checking (Sherwin second signer, confirmed later), Warehouse
+  releasing and Received in Odoo; Jen signed Check by (1); Grace signed Check by (2); the slip
+  TG03-2 got closed_at set (Closed). Warehouse releasing shows "Signed by Aldrin demo and Cjay
+  Demo" (the typed Received-by name).
+[C17] 7.2 says "Checks Warehouse and Technical". The Raise form only had Checking: Warehouse
+  by default, so there was no Technical inspection step on this slip; 7.4 (Sherwin Technical
+  inspection) did not exist as its own step. Sherwin only confirmed the Warehouse checking.
+[C18] 7.6 says both sign "in Approval Center > Transmittals". I signed from the slip page
+  (buttons "Sign Check by (1)" and "(2)"); Approval Center > Transmittals was not opened.
+[C19] 7.3 signing needs a "No pictures or videos: why" reason and an "Inspected by" second
+  signer; sheet mentions neither.
+[A16] 7.6: after TG03-2 closed (closed_at set), TGIPAS_064 still has delivered_on = null and
+  actual_checking_by = null. The sheet says "On the IPAS, Delivered and Actual Checking tick
+  by themselves." Checked in the DB right after closing; not seen ticking.
+[A12c] Section 3 submit (8.1) is refused with "2 charge(s) are blank. Fill each in or remove it
+  first." So the blank-charge rule exists but fires at section 3, not at section 2 where the sheet
+  (6.7) expects it. Section 2 itself accepted the blank charges (see A12b). Also section 3 submit
+  confirm dialog is slow to appear and the refusal shows only in the "Your move" panel.
+[A17] Sign-off numbering is confusing: the DB stores UI "Section 2 Purchasing & Finance" as
+  section 3 and the UI "Section 3 Computation" would be another number; staff reading the
+  events/sign-off data will mix them up (minor, internal).
+8.1 RESULT: OK after removing the 2 blank charges. BL/Waybill, Packing List, Commercial Invoice
+  and Freight Billing uploaded (by script), computation status set to LC Odoo Done, Submit
+  section 3 accepted, Jelai approved (Approval Center > IPAS Sign-offs, record ...:6).
+[C20] 8.1 says "Fill Freight with P8,000 and the PDF, and remove the rest" (6.7). I removed both
+  blank charges instead of filling Freight; the charge-with-amount-needs-a-file rule was NOT tested.
+[A18] "What's New" 1.9.73 dialog shows again after every login switch (once per user). Expected
+  per user; noted because it eats one click per seat in a demo.
+[A19] 8.2: Aldrin (Warehouse, the Logistics signer) opened TGIPAS_064 in Edit mode; the "Item
+  Location" dropdown in section 6 Logistics is DISABLED for him (button disabled), though the
+  list has 2 active options (BM Office, Marikina Warehouse). The sheet says Aldrin fills it.
+  Workaround: set item_location_id and arrived_in_whs_on by DB update (not tested in the UI).
+[A16 CORRECTION] "Delivered and Actual Checking tick by themselves" DID happen: a few minutes
+  after TG03-2 closed, the IPAS Status section shows "6 of 7 on the buyer track, latest: Actual
+  Checking Oct 29" and Logistics showed the closed TG03-2. My DB check was just too early.
+  Real issue left: it takes minutes (no instant update) - not confirmed how long.
+8.2 RESULT: after the DB workaround for A19, Aldrin's "Sign Logistics" worked on the IPAS page
+  (no confirm dialog this time, signed at once). Section 4 then says "Now, Ready to receive,
+  0 of 4 sign-offs, checklist 1 of 8".
+8.3 RESULT: OK. Cjay uploaded BIR 2307 (by script, then Save all). Section 4 signed in this order,
+  all from the IPAS page buttons: Grace "Receive section 4", 101 "Note section 4", 201 "Check
+  section 4", then 201 "Approve and file". The IPAS is Filed (filed_at set).
+[A20] "Approve and file" opened a second dialog with a "File anyway" button (a warning). I did
+  not read its text (clicked it by script). Section 4 checklist said "1 of 8" ticked, so the app
+  seems to let you file with an incomplete checklist after a warning. Worth confirming the text.
+[A21] Extra sign-off row: ipas_signoffs has section 8 role "approved" (signed as part of filing)
+  next to section 7 received/noted/checked/approved. The UI shows "4 Filing"; DB sections are
+  3/6/7/8. Internal numbering again confusing (see A17).
+[C21] 8.3 says Grace, 101 and 201 sign "Received, Noted, Checked, Approved". The buttons are
+  "Receive section 4", "Note section 4", "Check section 4" and "Approve and file". 201 signs both
+  Check and Approve (the sheet already says so).
+7.1 RESULT (redone properly): I put the SOR back at CA / PO by DB, Dani attached Contract and PO
+  (script upload) and moved it to Project Delivery in the app. The move asks "Move back to
+  Project Delivery? Resume previous work / Start fresh". With "Start fresh" the draft Packing List
+  was created (packing_lists count 1). So the Request Packing List action works.
+[A22] Contract and PO attachments are labelled "Optional" on the This stage tab, but the stage
+  says "0 of 2 ... Not yet satisfied" and counts them as owed. Labels contradict (minor).
+[A18 CORRECTION] The repeated "What's New" popup was caused by my clearing localStorage at each
+  login switch, not an app bug. Ignore A18.
+8.4 (start): PKL_002 draft exists for S03204 ("made by Dani demo").
+[A23] As Aldrin (Warehouse, who the sheet says packs it) the Packing List shows "Boxes 0 - No
+  boxes yet. Add a box..." but NO Add box button, and the move panel says "Nothing needs you right
+  now. Waiting on the maker of the list or Purchasing for Packed by." So the Warehouse cannot pack
+  the list the sheet says they should. Retried as Cjay (Purchasing) below.
+8.4 RESULT (as Cjay, since Aldrin cannot - see A23): Add a box (Marks "BOX 1") worked; "Sign Packed by"
+  with an empty box is refused ("PKL_002 has 1 box(es) with no contents"); after adding 1
+  content from the Product List (fire suit x10) the sign opens a confirm dialog and signs.
+[A24] After the refusal and a fix (content added), the red refusal banner "PKL_002 has 1 box(es)
+  with no contents" stayed on screen (stale) until retried/dismissed; the list also listed
+  all 12 SOR lines to pick from, not only items already received.
+[C22] 8.4 says Aldrin builds the box with fire suits and helmets. Only the maker/Purchasing can.
+9.2 (Dashboard Tracker) RESULT: S03204 row shows Still canvassing 1, Purchased (not received) 4,
+  Filed 1, next move "Finish the Bid Decision" (S0 Evaluation, Purchasing, 0d, +3 more), client
+  deadline Nov 13 (15d left). Sheet expects "two lines Purchased" (hose 2.5" + nozzle 2.5").
+[A25] Tracker counts do not match this SOR's own lines: DB shows only 1 line Purchased on PR_0173
+  (nozzle 2.5") and the fire suit is Received, yet the row says Purchased 4 and Still canvassing
+  1. The row is probably also adding older S03204 SORs from earlier rehearsals (see B3), because
+  the Tracker groups by Sales Reference. Counts below the DB query output in section G.
+[A26] "Next move: Finish the Bid Decision" - the Bid Decision (Go) was never taken in this run
+  (jumped Sales stages by DB), yet the deal sits at Project Delivery. The app does not stop
+  stage moves without a Go when I moved by DB; via UI the "Costing settled" gate on For Bidding
+  would have refused (not tested - see D).
+[A25 CORRECTION] The two older S03204 SORs are soft-deleted and have 0 Purchased lines (PR_0171,
+  PR_0172), so they do not explain the Tracker numbers. DB truth for PR_0173: 1 Purchased line.
+  The Tracker shows Purchased (not received) = 4. Cause unknown; counts likely include IPAS-level
+  or PO-line-level units, not lines. Needs a look.
+9.3 RESULT: OK. Settings > Purchasing > Ageing rules: every step starts blank with example hints
+  (Example: 3 days / 7 days). Cjay set With P.O.P = 3 and saved (order_ageing_rules with_pop = 3).
+  Also Settings page has General / Purchasing / S0 Evaluation tabs; sheet says "Settings > Purchasing"
+  which matches.
+[C23] 9.1 (SOR PMS tab shows all records in one place) was only partly checked: the PMS tab is
+  slow to render (see A10).
+
+======================================================================
+G. PART 4 / 5 / SCENARIO B (S0 Evaluation sheet), run late on the same SOR
+======================================================================
+4.2 OK: Dani typed ABC / unit on all 12 rows; ABC total = P1,370,535.74 = the SOR total.
+  The fire suit line shows Cost P133,099.20 = USD 208 x 63.99 x 10 (the Canvass winner applied).
+4.6 OK-ish: "Apply x1.30 to the Final Offers" worked when Dani clicked it (sheet says 201 does).
+  Suit Final Offer / unit = 17,302.90 = cost 13,309.92 x 1.30. Offer total P390,757.42 (28.51% of
+  the ABC), margin P90,174.84 (23.08%).
+5.5 Go: Go stays disabled with "Needs every offer and cost" until every Final Offer exists, then
+  Dani's Go worked and locked the sheet ("The sheet is locked. Nobody can change a number until
+  it is unlocked."). Go was accepted although the Evaluation of Specification was NOT approved and
+  12 lines were "not evaluated" (the later gate "Costing settled" is where that is meant to stop).
+[C24] Sheet 4.6 says 201 applies the markup. Dani (Sales) can click Apply too. Either the sheet or
+  the permission is off.
+[A27] The S0 Evaluation list shows "Items bought 0 of 12" for SOR-253 although 11 lines are
+  Received on the Purchase Request (earlier it showed "0 of 0"). The Items bought count is not
+  reading the received lines.
+[A28] Scenario B.2 works in the back end (POST costing_unlock_bid -> 403 Forbidden for Dani) but the
+  screen shows NO message: after clicking Unlock the sheet just stays locked with the reason box
+  still filled. The sheet says the refusal text should be read out ("only a Super Admin or the
+  decider's list can unlock a bid"). Silent 403.
+[A29] On the locked sheet the Bid Decision card text still says "12 costs have no Final Acquire yet"
+  in the cost guide (old wording, see A6).
+B.3 OK: 201 typed "Supplier raised the boots price" and Unlock worked ("The earlier decision (Go)
+  was cleared: Unlocked. ...") and a fresh Go ("Re-bid after boots price change") was recorded.
+  The first click on Unlock did nothing visible (focus moved off the reason box); the second worked.
+[A30] After 201 unlocked, the sheet header briefly read "SOR" instead of "SOR-253" (stale title).
+5.2 (judging team): In the app the Compliance column is a "No team" dropdown (No team / RRD / IOE)
+  that Dani (Sales) can set but 201 sees only read-only chips. After a Go the dropdowns disappear
+  (sheet locked), so teams must be set BEFORE the Go; the sheet orders Go after 5.2, which is fine,
+  but I took the Go early and had to unlock (a useful check of the lock).
+  Shortcut: only 1 row set by clicking (RRD); 10 more set by DB update; 1 row left without a team
+  on purpose to test Scenario C.1.
+[A31] Setting the team on each of the 12 rows is 2 clicks per row (24 clicks). No "set all to RRD"
+  action; the sheet says "On each row" so it is as designed, but slow for a live demo.
+[A2b] The S0 Evaluation header still shows "Sales incharge: Not set" (Deal Owner was set by DB
+  after the matrix opened; the matrix does not refresh the Sales incharge).
+5.3 Sherwin marking: his Compliance dropdowns (Not evaluated / Complies / Deviates) work with real
+  clicks; the header "Judged 0 of 12 / 2 of 12" lags a few seconds behind the row (row 3 showed
+  "Not evaluated" for a while although the DB already said complies) [A32 stale display].
+  Rows 1 to 3 marked in the UI; the other 8 RRD rows were marked by DB update (shortcut). Row 9
+  (Nozzle 1.5") deliberately left with no team for C.1.
+[A33] Script clicks on the dropdown options did nothing (only real mouse clicks work): the
+  Compliance dropdown ignores synthetic click events. Not a user bug; noted for test automation.
+C.1 RESULT: for the row with no team, Sherwin gets no dropdown at all (it shows "NO TEAM / NOT
+  JUDGED" chips), so he cannot even try. The sheet expects a refusal ("name the team first");
+  here the control is simply missing. (Better than a refusal, but the sheet should say so.)
+  Judged showed "11 of 12" then; I set team RRD and Complies on row 9 by DB to reach 12 of 12.
+5.4 OK: Grace approved the Evaluation ("EVALUATION APPROVED by Grace demo", "All 12 comply") with
+  the button "Approve the evaluation". 12 of 12 judged. (Grace had marked no rows.)
+5.6 gate "Costing settled" (SOR put back at For Bidding by DB, no Go on record): Dani's view says
+  "Can't move on yet - missing: PRICE SCHEDULE / PRICE OFFER, Costing settled, Purchasing involved,
+  Logistics Representative". "Costing settled" does block, as the sheet says.
+[A34] The same screen is inconsistent: header chip "Blocked: 4", sentence "Can't move on until 2
+  things are done", and "Needs attention" lists only 2 items (price schedule, costing settled).
+  The two fields (Purchasing involved, Logistics Representative) are in the red line but not in
+  the others (same pattern as A3).
+[C25] Sheet 5.6 does not mention the For Bidding attachment "PRICE SCHEDULE / PRICE OFFER" and the
+  two fields "Purchasing involved" / "Logistics Representative" that also block For Bidding.
+
+[A35] IMPORTANT - "Costing settled" can never pass with Odoo/Canvass costs.
+  After Grace approved the Evaluation (12 of 12 comply), the offer is under the ABC and Dani retook
+  the Go, the SOR at For Bidding STILL says "missing: ... Costing settled". The evidence the
+  screen loads (rpc costing_condition_inputs) was:
+    {over_abc:false, has_matrix:true, line_count:12, bid_verdict:"go", costed_rows:12,
+     settled_met:true, missing_cost:12, missing_offer:0, component_count:12, missing_acquire:0,
+     evaluation_approved:true, has_purchasing_incharge:true}
+  The database says settled_met = true, but "missing_cost" is 12 although every row has a cost
+  (Canvass winner or Odoo cost, "missing_acquire" is 0). The client rule in
+  src/utils/costingMath.js (costingSettled) fails on `incomplete_summary` whenever
+  missing_cost is not 0, so the gate stays blocked. "missing_cost" is the old "Final Acquire"
+  count (the words "Final Acquire" still appear in WORDING.incomplete_summary and in the cost
+  guide, A6/A29). The sheet says Final Acquire is retired, so this check should be removed or
+  mapped to missing_acquire.
+  Also seen on the same sheet: "Incomplete - 12 rows have no cost" next to filled costs.
+
+H. SCENARIOS (run on the same SOR, now back at For Bidding by DB, before NTP)
+E.1 / E.2 - the server refuses correctly, but the screen shows NOTHING:
+  odoo-po-verify answered {"refused":true,"message":"P01415 is cancelled in Odoo, so it can't be
+  attached."} and {"refused":true,"message":"No Odoo purchase order found matching \"P99999\"."},
+  yet the Attach P0 dialog showed no message at all (not within 10 seconds, not anywhere in the
+  page text). The sheet says "Refused: the P0 is cancelled in Odoo" / "Odoo has no purchase order
+  named P99999" - a person at the screen would think nothing happened.
+[A36] Attach P0 refusals for a cancelled or unknown P0 are silent on screen (same family as A1,
+  A28). The "buying opens at NTP" refusal DID show text, so some refusals are shown and some not.
+A (Order early): NOT RUNNABLE on this SOR. After the SOR went back to For Bidding by DB, Cjay's
+  Attach P01046 on a new line ("Magnetic roof mount", added with "Ask for a product") went through
+  with NO Order early prompt: line became Purchased with P01046 and a warning toast said
+  "TGIPAS_064 is already filed, so nothing was added to it." Buying seems to stay open once the
+  SOR has been at NTP (I had jumped past it). Needs a fresh SOR to test A.1 / A.2.
+[A37] A P0 can be attached to a new line even when the IPAS it belongs to is already Filed; the
+  toast only warns ("nothing was added to it"). The line shows Purchased on a P0 that will never
+  be received into that filed IPAS, which may confuse the "Purchasing settled" gate later.
+B.1 RESULT: with the Go active, Cjay's S0 Evaluation shows "The sheet is locked. Nobody can change
+  a number until it is unlocked." and the page has only 1 editable input (all number boxes are
+  gone), so he cannot even try to change a cost. The sheet expects a refusal message; the control
+  is simply not offered. Fine, but the sheet should say so.
+D.1 RESULT: Submit section 1 on TGIPAS_066 (P01047) was refused with "Section 1 needs Proforma
+  Invoice first", not with "the charges are blank" the sheet expects (blank charges only block
+  section 3, see A12c). D.2 (freight in CNY) not run: the freight currency control was not found
+  in Edit mode. D.3 / D.4 only read, not attempted: section 6 Logistics on TGIPAS_066 shows "Item
+  Location not set / No Transmittal carries this IPAS yet", and Section 4 buttons are not offered
+  until 1, 2, 3 and Logistics are signed.
+C.2 / C.3 not run (needed another login and a second marker; time).
+
+I. SCENARIO F (one IPAS for two projects): started
+F.1 OK: Dani registered S04081 (SOR-254, National Headquarters BFP) and S04602 (SOR-255, Barangay
+  Wack-Wack) on Project [FOR DEMO] with Fetch from Odoo (Odoo lookup worked for both).
+[A38] An older SOR with the same Sales Reference S04602 already exists in the data (SOR-73), and
+  registering again with the same reference is allowed with no duplicate warning.
+[A2c] Deal Owner was again left empty on both new SORs (see A2).
+F.2 / F.3 RESULT: OK. Cjay took PR_0174 (S04081) and PR_0175 (S04602), asked for "Magnetic roof mount"
+  on each and typed P02674. The line became Purchased ("Not received yet"). The database shows ONE
+  IPAS, TGIPAS_068 for P02674, linked to both SORs (serials 254 and 255): "one IPAS, both SORs"
+  works as the sheet says.
+[A39] The roof-mount line says "Not received yet - ETA Oct 8" while today is Oct 29 (ETA already
+  in the past) with no late flag on the line. Probably Odoo's planned date; the screen could mark
+  it late.
+[C26] F.1 says "move both past NTP (or use Order early)". I moved them by DB (Lead > NTP) because
+  the "Create" card for the Purchase Request only exists at Lead.
+F.4 (Pick PO line... 0 of 4 / 0 of 1) NOT run.
+
+======================================================================
+J. WHAT IS STILL NOT RUN AT THE END
+======================================================================
+- A.1 / A.2 (Order early), C.2 / C.3, D.2 / D.3 / D.4 attempts, F.4.
+- Sales stage moves with uploads between Qualified and NOA (done by DB jump, not in the app).
+- Anything about 8.1 "freight 8,000 with PDF" (charges were removed instead).
+- Step 4.2 ABC typing done by script, 4.4 Canvass done in the app, 4.5 typed costs not needed.

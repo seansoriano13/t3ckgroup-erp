@@ -1,3 +1,4 @@
+import BetaTag from "@/components/ui/BetaTag";
 import {
   Plus,
   Bell,
@@ -45,16 +46,19 @@ import BroadcastModal from "./BroadcastModal";
 import RoleSwitcher from "./RoleSwitcher";
 import { Clock } from "lucide-react";
 import ApplyLeaveModal from "./offsets/ApplyLeaveModal";
+import MeetingRequestDialog from "./calendar/MeetingRequestDialog";
 import OpportunityFormModal from "./sor/OpportunityFormModal";
+import NewPurchaseRequestDialog from "./purchase-request/NewPurchaseRequestDialog";
 import { opportunityService } from "../services/opportunityService";
 import {
   getFilteredNavigationGroups,
   getFilteredQuickActions,
 } from "../constants/navigation";
 import { useNavBadges } from "../hooks/useNavBadges";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 export default function SideNav() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   usePushNotificationClick(user, navigate);
   const badges = useNavBadges(user);
@@ -64,7 +68,9 @@ export default function SideNav() {
     if (actionId === "task") setIsLogTaskOpen(true);
     else if (actionId === "group-task") setIsCreateGroupOpen(true);
     else if (actionId === "offset") setIsApplyOffsetOpen(true);
+    else if (actionId === "meeting-request") setIsMeetingRequestOpen(true);
     else if (actionId === "sor") setIsOpportunityOpen(true);
+    else if (actionId === "purchase-request") setIsPurchaseRequestOpen(true);
   };
 
   // Mobile Toggle State
@@ -73,7 +79,9 @@ export default function SideNav() {
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [isApplyOffsetOpen, setIsApplyOffsetOpen] = useState(false);
+  const [isMeetingRequestOpen, setIsMeetingRequestOpen] = useState(false);
   const [isOpportunityOpen, setIsOpportunityOpen] = useState(false);
+  const [isPurchaseRequestOpen, setIsPurchaseRequestOpen] = useState(false);
 
   const getInitialExpandedState = (userId) => {
     const defaults = {
@@ -132,11 +140,19 @@ export default function SideNav() {
   // its drawer is a full overlay, not a rail — so the toggle only renders and
   // only changes layout at the md breakpoint.
   const getInitialCollapsed = (userId) => {
-    if (!userId) return false;
+    // Below 1024px the rail is the default (UI-167): an expanded 240px sidebar
+    // leaves ~430px of content at 768. A saved choice still wins; one tap on
+    // the rail toggle opens it.
+    const narrow =
+      typeof window !== "undefined" && window.innerWidth < 1024;
+    if (!userId) return narrow;
     try {
-      return localStorage.getItem(`erp_sidebar_collapsed_${userId}`) === "1";
+      const saved = localStorage.getItem(`erp_sidebar_collapsed_${userId}`);
+      if (saved === "1") return true;
+      if (saved === "0") return false;
+      return narrow;
     } catch {
-      return false;
+      return narrow;
     }
   };
   const [isCollapsed, setIsCollapsed] = useState(() => getInitialCollapsed(user?.id));
@@ -146,6 +162,19 @@ export default function SideNav() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsCollapsed(getInitialCollapsed(user.id));
     }
+  }, [user?.id]);
+
+  // With no saved choice the rail follows the viewport across 1024; a saved
+  // choice keeps winning.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const mq = window.matchMedia("(max-width: 1023.98px)");
+    const onChange = () => {
+      if (user?.id) setIsCollapsed(getInitialCollapsed(user.id));
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const toggleCollapsed = () => {
@@ -216,9 +245,15 @@ export default function SideNav() {
   const profileOptions = [
     { value: "profile", label: "Profile" },
     { value: "settings", label: "Settings" },
+    { value: "sign-out", label: "Sign out" },
   ];
 
   const handleProfileSelect = (selected) => {
+    if (selected?.value === "sign-out") {
+      setIsMobileOpen(false);
+      logout();
+      return;
+    }
     if (selected) {
       navigate(`/${selected.value}`);
       setIsMobileOpen(false);
@@ -375,7 +410,7 @@ export default function SideNav() {
                         {groupIdx > 0 && (
                           <div className="h-[1px] bg-border/60 my-1 -mx-0.5" />
                         )}
-                        <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <span className={`px-2.5 py-0.5 ${CAPTION_BASE} tracking-wider text-muted-foreground`}>
                           {catGroup.category}
                         </span>
                         {catGroup.items.map((item) => {
@@ -392,6 +427,7 @@ export default function SideNav() {
                             >
                               <Icon size={14} className="text-sidebar-foreground/70" />
                               <span>{item.label}</span>
+                              {item.beta && <BetaTag />}
                             </Button>
                           );
                         })}
@@ -427,6 +463,7 @@ export default function SideNav() {
                     <span className="text-[11px] font-black tracking-widest uppercase">
                       {group.label}
                     </span>
+                    {group.beta && <BetaTag className="mr-auto ml-2" />}
                     <div className="flex items-center gap-2">
                       {!isExpanded && groupBadgeCount > 0 && (
                         <span
@@ -479,6 +516,7 @@ export default function SideNav() {
                               >
                                 {navLink.label}
                               </span>
+                              {navLink.beta && <BetaTag className={collapsed ? "md:hidden" : ""} />}
                               {linkBadge > 0 && (
                                 <span
                                   data-testid={`link-badge-${navLink.label}`}
@@ -513,6 +551,8 @@ export default function SideNav() {
           variant="outline"
           size="icon"
           onClick={() => setIsMobileOpen(true)}
+          aria-label="Open navigation"
+          aria-expanded={isMobileOpen}
           className="h-auto w-auto text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-sidebar-border backdrop-blur-md p-1.5 rounded-lg shadow-sm transition-colors"
         >
           <PanelRight size={18} strokeWidth={2} />
@@ -589,11 +629,17 @@ export default function SideNav() {
           // You could optionally refetch globally here, or let the local pages handle their own refetch on mount/focus.
         }}
       />
+      <MeetingRequestDialog open={isMeetingRequestOpen} onClose={() => setIsMeetingRequestOpen(false)} />
       <OpportunityFormModal
         isOpen={isOpportunityOpen}
         onClose={() => setIsOpportunityOpen(false)}
         onSubmit={(payload) => createOpportunityMutation.mutate(payload)}
         isPending={createOpportunityMutation.isPending}
+      />
+      <NewPurchaseRequestDialog
+        open={isPurchaseRequestOpen}
+        onOpenChange={setIsPurchaseRequestOpen}
+        onOpened={(id) => navigate(`/purchasing?request=${id}`)}
       />
     </>
   );

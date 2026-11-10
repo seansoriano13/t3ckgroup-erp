@@ -35,28 +35,71 @@ describe("navigation registry", () => {
 
       const groups = getFilteredNavigationGroups(standardUser);
       // Two entries are deliberately visible to everyone, so a standard
-      // employee sees three groups rather than one:
+      // employee sees three groups rather than one. Flow Canvas (issue #36)
+      // is not among them: editing and publishing are for Super Admins and
+      // Flow editors (#884).
       //
-      // - Flow Canvas (issue #36) — its tables are writable by every signed-in
-      //   employee (see the policy tier).
       // - My SORs (ADR 0021) — anyone can be called into a deal, and the
       //   people ADR 0021 names (a purchaser, an engineer, a finance officer)
       //   are exactly the ones who may hold no sales flow. Gating it on
       //   `hasSalesFlow` would hide the only screen that lists the deals they
       //   already have enforced access to. The page shows an empty state.
+      // - Purchase Requests (#179) — anyone asks Purchasing to buy something
+      //   and follows their own requests; the database limits what they read.
       expect(groups).toHaveLength(3);
       expect(groups[0].key).toBe("workspace");
       expect(groups[0].label).toBe("Workspace");
       expect(groups[0].links.map((l) => l.label)).toEqual([
         "Dashboard",
         "My Requests",
+        "Calendar",
         // Open to everyone (ADR 0030).
         "Release Notes",
       ]);
       expect(groups[1].key).toBe("sales");
-      expect(groups[1].links.map((l) => l.label)).toEqual(["My SORs"]);
-      expect(groups[2].key).toBe("administration");
-      expect(groups[2].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
+      expect(groups[1].links.map((l) => l.label)).toEqual(["SORS"]);
+      expect(groups[2].key).toBe("purchasing");
+      expect(groups[2].links.map((l) => l.label)).toEqual(["Purchase Requests"]);
+      expect(groups.find((g) => g.key === "administration")).toBeUndefined();
+    });
+
+    it("offers Technical to a Technical in-charge, the Evaluation list and Super Admins only (#706, #908)", () => {
+      const technical = (user) =>
+        getFilteredNavigationGroups(user)
+          .flatMap((g) => g.links)
+          .some((l) => l.label === "Technical");
+
+      expect(technical({ id: "sa", isSuperAdmin: true })).toBe(true);
+      expect(technical({ id: "incharge", is_technical_incharge: true })).toBe(true);
+      // The Evaluation list approves from the Technical page, so it is their door to the sheet.
+      expect(technical({ id: "signer", is_on_evaluation_list: true })).toBe(true);
+
+      // The retired RRD and IOE team flag opens nothing.
+      expect(technical({ id: "team", is_evaluation_team: true })).toBe(false);
+
+      // Not Purchasing, the Deal Team (sales flow), the Closed Book's list, a Head, or a standard employee.
+      expect(technical({ id: "pu", has_purchasing_flow: true })).toBe(false);
+      expect(technical({ id: "sa-flow", has_sales_flow: true })).toBe(false);
+      expect(technical({ id: "fa", is_final_acquire: true })).toBe(false);
+      expect(technical({ id: "hd", isHead: true })).toBe(false);
+      expect(technical({ id: "emp" })).toBe(false);
+    });
+
+    it("offers the S0 Evaluation page to the Closed Book only (#606)", () => {
+      const costingMatrix = (user) =>
+        getFilteredNavigationGroups(user)
+          .flatMap((g) => g.links)
+          .some((l) => l.label === "S0 Evaluation");
+
+      expect(costingMatrix({ id: "sa", isSuperAdmin: true })).toBe(true);
+      expect(costingMatrix({ id: "fa", is_final_acquire: true })).toBe(true);
+
+      // Not Purchasing, Finance, the Deal Team (sales flow), a Head, HR, or a standard employee.
+      expect(costingMatrix({ id: "pu", has_purchasing_flow: true })).toBe(false);
+      expect(costingMatrix({ id: "fi", has_finance_flow: true })).toBe(false);
+      expect(costingMatrix({ id: "sa-flow", has_sales_flow: true })).toBe(false);
+      expect(costingMatrix({ id: "hd", isHead: true, isHr: true })).toBe(false);
+      expect(costingMatrix({ id: "st" })).toBe(false);
     });
 
     it("includes My Tasks in Workspace when user has task flow", () => {
@@ -71,6 +114,7 @@ describe("navigation registry", () => {
         "Dashboard",
         "My Tasks",
         "My Requests",
+        "Calendar",
         "Release Notes",
       ]);
     });
@@ -98,11 +142,12 @@ describe("navigation registry", () => {
       const approvalsGroup = groups.find((g) => g.key === "approvals");
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
         "Task Approvals",
-        "Leave Approvals",
+        "Time Off & Overtime",
+        "Meeting Requests",
       ]);
     });
 
-    it("returns Workspace, Approvals (HR Verifications), and Human Resources for HR users", () => {
+    it("returns Workspace, Approvals (Task Approvals), and Human Resources for HR users", () => {
       const hrUser = {
         id: "hr-1",
         isHr: true,
@@ -117,23 +162,25 @@ describe("navigation registry", () => {
       const hrGroup = groups.find((g) => g.key === "human_resources");
       expect(hrGroup.links.map((l) => l.label)).toEqual([
         "Employee Directory",
-        "Leaves Manager",
+        "Time Off & Overtime",
         "Activity Log",
       ]);
 
       const approvalsGroup = groups.find((g) => g.key === "approvals");
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
-        "HR Verifications",
+        "Task Approvals",
+        "Time Off & Overtime",
+        "Meeting Requests",
       ]);
 
       // The Administration copy of this link is Super Admin-only (#105) — HR
       // reaches the log through its own module, not a second sidebar entry
       // pointing at the same route.
       const adminGroup = groups.find((g) => g.key === "administration");
-      expect(adminGroup.links.map((l) => l.label)).not.toContain("Activity Log");
+      expect(adminGroup?.links.map((l) => l.label) ?? []).not.toContain("Activity Log");
     });
 
-    it("opens Leaves Manager for a leave-management capability holder without full HR access", () => {
+    it("opens Time Off & Overtime for a leave-management capability holder without full HR access", () => {
       const leaveManager = {
         id: "lm-1",
         canManageLeaves: true,
@@ -145,10 +192,10 @@ describe("navigation registry", () => {
       // Employee Directory and Activity Log stay hidden — the capability is
       // scoped to leave management, not the broader HR flag's access to the
       // directory or the org-wide activity trail (#105).
-      expect(hrGroup.links.map((l) => l.label)).toEqual(["Leaves Manager"]);
+      expect(hrGroup.links.map((l) => l.label)).toEqual(["Time Off & Overtime"]);
     });
 
-    it("hides Leaves Manager from an employee without the capability", () => {
+    it("hides Time Off & Overtime from an employee without the capability", () => {
       const standardUser = { id: "std-1" };
 
       const groups = getFilteredNavigationGroups(standardUser);
@@ -167,10 +214,6 @@ describe("navigation registry", () => {
       expect(salesGroup).toBeDefined();
       expect(salesGroup.links.map((l) => l.label)).toEqual([
         "SORS",
-        // ADR 0021: the SORs this person was called into, which `sor_read`
-        // keeps out of the register above. Ungated — see the standard
-        // employee case.
-        "My SORs",
         "Commission Dashboard",
         // Retail moved out of the register's tab strip onto its own screen,
         // gated by the Retail access right (on by default for SALES).
@@ -182,10 +225,10 @@ describe("navigation registry", () => {
       const taskUser = { id: "task-1", has_task_flow: true };
 
       const groups = getFilteredNavigationGroups(taskUser);
-      // The Sales group now survives for this user, but only for My SORs —
-      // Retail must still be absent from it.
+      // The Sales group survives for this user, but only for SORS (its My
+      // work view) — Retail must still be absent from it.
       const salesGroup = groups.find((g) => g.key === "sales");
-      expect(salesGroup.links.map((l) => l.label)).toEqual(["My SORs"]);
+      expect(salesGroup.links.map((l) => l.label)).toEqual(["SORS"]);
 
       // Asserted against the entry itself as well: checking only the group's
       // contents would not catch Retail's own gate being loosened.
@@ -216,6 +259,15 @@ describe("navigation registry", () => {
       expect(permitted({ id: "a", isSuperAdmin: true })).toBe(true);
     });
 
+    it("shows Flow Canvas only to a Super Admin or a Flow editor (#884)", () => {
+      const entry = NAV_MODULES.administration.links.find((l) => l.key === "admin.flowCanvas");
+      expect(entry).toBeDefined();
+      const permitted = (user) => entry.isPermitted(buildUserPermissionContext(user));
+      expect(permitted({ id: "e", has_sales_flow: true, is_hr: true })).toBe(false);
+      expect(permitted({ id: "h", is_head: true })).toBe(false);
+      expect(permitted({ id: "f", can_edit_sales_flows: true })).toBe(true);
+      expect(permitted({ id: "a", isSuperAdmin: true })).toBe(true);
+    });
     it("returns all 7 modules for Super Admin", () => {
       const superAdminUser = {
         id: "admin-1",
@@ -240,6 +292,7 @@ describe("navigation registry", () => {
         // Flow Plans / the Sandbox mode were removed by #186.
         // System Admin and Lead Sources moved into Settings (#177).
         // Commission Pool moved onto the Commission Dashboard's Formula tab (#441).
+        // Flow Access moved inside the Flow Canvas, per Sale Type.
         "Flow Canvas",
         // Release Notes moved to Workspace, open to everyone (ADR 0030).
         "Bug Reports",
@@ -264,11 +317,70 @@ describe("navigation registry", () => {
       const purchasingGroup = groups.find((g) => g.key === "purchasing");
       expect(purchasingGroup).toBeDefined();
       expect(purchasingGroup.links.map((l) => l.label)).toEqual([
-        "Purchasing Queue",
+        "Purchase Requests",
+        "Purchasing Dashboard",
+        "Canvasses",
+        "IPAS",
+        "Transmittals",
+        "Packing Lists",
       ]);
     });
 
-    it("hides Purchasing from an employee in a purchasing department without the flag", () => {
+    // IPAS (#242): reached by Purchasing access, Finance access, Super Admins
+    // and the sign-off lists. Nobody else sees the entry (the database refuses
+    // them anyway); the group still shows Purchase Requests to everyone.
+    // The Purchasing Dashboard (Order Monitoring's home since 2026-10-20) is for
+    // Purchasing access, Finance access and Super Admins only, so a sign-off
+    // list reaches IPAS without it.
+    it.each([
+      ["Finance access", { has_finance_flow: true }, ["Purchase Requests", "Purchasing Dashboard", "IPAS", "Transmittals", "Packing Lists"]],
+      ["a sign-off list", { isIpasSigner: true }, ["Purchase Requests", "IPAS", "Transmittals", "Packing Lists"]],
+      ["a Super Admin", { isSuperAdmin: true }, ["Purchase Requests", "Purchasing Dashboard", "Canvasses", "IPAS", "Transmittals", "Packing Lists"]],
+    ])("offers IPAS to someone with %s", (_, flags, labels) => {
+      const groups = getFilteredNavigationGroups({ id: "reader", ...flags });
+      const purchasing = groups.find((g) => g.key === "purchasing");
+      expect(purchasing.links.map((l) => l.label)).toEqual(labels);
+    });
+
+    // Transmittals (#252): the four Transmittal staff lists reach the slips, not the IPAS.
+    it("offers Transmittals, and not IPAS, to someone on a Transmittal staff list", () => {
+      const groups = getFilteredNavigationGroups({ id: "warehouse", isTransmittalStaff: true });
+      const purchasing = groups.find((g) => g.key === "purchasing");
+      expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests", "Transmittals"]);
+    });
+
+    // IPAS sign-offs (#247): the Approval Center link is for the people on a
+    // section 1 or 3 approval list, and a Super Admin gets no pass.
+    it("offers IPAS Sign-offs to someone on an approval list, and to no one else", () => {
+      const links = (flags) =>
+        getFilteredNavigationGroups({ id: "u", ...flags })
+          .find((g) => g.key === "approvals")
+          ?.links.map((l) => l.label) ?? [];
+
+      expect(links({ isIpasApprover: true })).toEqual(["IPAS Sign-offs"]);
+      expect(links({ isIpasApprover: true, isHr: true })).toEqual(["Task Approvals", "Time Off & Overtime", "Meeting Requests", "IPAS Sign-offs"]);
+      expect(links({ isIpasApprover: true, isHead: true })).toContain("IPAS Sign-offs");
+      expect(links({ isSuperAdmin: true })).not.toContain("IPAS Sign-offs");
+      expect(links({ isIpasSigner: true })).not.toContain("IPAS Sign-offs");
+      expect(links({})).toEqual([]);
+    });
+
+    it("keeps IPAS off the navigation of an employee who can't read one", () => {
+      const groups = getFilteredNavigationGroups({
+        id: "plain",
+        has_task_flow: true,
+        is_head: true,
+        is_hr: true,
+        has_sales_flow: true,
+      });
+      const purchasing = groups.find((g) => g.key === "purchasing");
+      expect(purchasing.links.map((l) => l.label)).toEqual(["Purchase Requests"]);
+    });
+
+    // Purchase Requests is open to everyone (#179), so the Purchasing group
+    // shows without the flag. What the flag grants (Take, Buyer pills) is the
+    // page's and the database's business, and stays off the department field.
+    it("shows Purchase Requests to an employee in a purchasing department without the flag", () => {
       const buyerWithoutAccess = {
         id: "buyer-2",
         department: "OPERATIONS",
@@ -277,10 +389,10 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(buyerWithoutAccess);
-      expect(groups.map((g) => g.key)).not.toContain("purchasing");
+      expect(groups.find((g) => g.key === "purchasing")?.links.map((l) => l.label)).toEqual(["Purchase Requests"]);
     });
 
-    it("does not grant Purchasing to sales or task flow", () => {
+    it("shows Purchase Requests to sales and task flow too", () => {
       const salesUser = {
         id: "sales-2",
         has_sales_flow: true,
@@ -288,7 +400,7 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(salesUser);
-      expect(groups.map((g) => g.key)).not.toContain("purchasing");
+      expect(groups.map((g) => g.key)).toContain("purchasing");
     });
 
     // Issue #133/#134 — the hidden_nav_keys override.
@@ -301,7 +413,6 @@ describe("navigation registry", () => {
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
           "SORS",
-          "My SORs",
           "Retail",
         ]);
       });
@@ -313,7 +424,6 @@ describe("navigation registry", () => {
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
           "SORS",
-          "My SORs",
           "Commission Dashboard",
           "Retail",
         ]);
@@ -337,7 +447,6 @@ describe("navigation registry", () => {
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
           "SORS",
-          "My SORs",
           "Commission Dashboard",
           "Retail",
         ]);
@@ -384,11 +493,15 @@ describe("navigation registry", () => {
       };
 
       const actions = getFilteredQuickActions(standardUser);
-      expect(actions).toHaveLength(1);
+      // New Purchase Request is open to everyone (#179), under Operations.
+      expect(actions).toHaveLength(2);
       expect(actions[0].category).toBe("Personal");
       expect(actions[0].items.map((i) => i.label)).toEqual([
-        "Apply Leave / Overtime",
+        "File Time Off / Overtime",
+        "New Meeting Request",
       ]);
+      expect(actions[1].category).toBe("Operations");
+      expect(actions[1].items.map((i) => i.label)).toEqual(["New Purchase Request"]);
     });
 
     it("returns Personal, Operations, and Sales categories for Super Admin", () => {

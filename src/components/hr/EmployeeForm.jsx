@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, Bug, ChevronDown, Clock, EyeOff, X } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, Bug, Landmark, ChevronDown, Clock, EyeOff, X, Workflow } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ export default function EmployeeForm({
   rawEmployees = [],
   rawCompanies = [],
   canGrantLeaveManagement = false,
+  canGrantFlowEditor = false,
 }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -28,9 +29,12 @@ export default function EmployeeForm({
     isHr: false,
     isSuperAdmin: false,
     canManageLeaves: false,
+    canEditSalesFlows: false,
     has_sales_flow: false,
     has_task_flow: true,
     has_purchasing_flow: false,
+    has_finance_flow: false,
+    call_sign: "",
     has_retail_access: false,
     has_bug_report_access: false,
     employment_status: "",
@@ -56,9 +60,12 @@ export default function EmployeeForm({
       isHr: false,
       isSuperAdmin: false,
       canManageLeaves: false,
+      canEditSalesFlows: false,
       has_sales_flow: false,
       has_task_flow: true,
       has_purchasing_flow: false,
+      has_finance_flow: false,
+      call_sign: "",
       has_retail_access: false,
       has_bug_report_access: false,
       hiddenNavKeys: [],
@@ -154,7 +161,7 @@ export default function EmployeeForm({
         />
       </div>
 
-      {/* 2. ROLE & EMAIL */}
+      {/* 2. ROLE, EMAIL & CALL SIGN */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
         <Input
           required
@@ -175,6 +182,18 @@ export default function EmployeeForm({
             setFormData((prev) => ({ ...prev, role: e.target.value }))
           }
           placeholder="e.g. Marketing Assistant"
+        />
+
+        <Input
+          type="text"
+          inputMode="numeric"
+          label="Call Sign"
+          value={formData.call_sign ?? ""}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, call_sign: e.target.value }))
+          }
+          placeholder="e.g. 101 (unique, optional)"
+          autoComplete="off"
         />
       </div>
 
@@ -415,6 +434,23 @@ export default function EmployeeForm({
             />
           )}
 
+          {/* Flow editor (#884) — Super Admin only; the database refuses this
+              change from anyone else regardless, and hiding it here keeps
+              other editors from seeing a switch they cannot use. */}
+          {canGrantFlowEditor && (
+            <AccessSwitch
+              label="Flow editor"
+              description="Edit and publish the Flow Canvas"
+              icon={Workflow}
+              checked={formData.canEditSalesFlows}
+              onChange={(val) =>
+                setFormData((prev) => ({ ...prev, canEditSalesFlows: val }))
+              }
+              activeColor="bg-violet-3 text-violet-10"
+              hoverColor="group-hover:bg-violet-2"
+            />
+          )}
+
           {/* Sales Opportunity access */}
           <AccessSwitch
             label="Sales Opportunities"
@@ -457,7 +493,7 @@ export default function EmployeeForm({
           {/* Purchasing — issue #39 */}
           <AccessSwitch
             label="Purchasing"
-            description="Access to the Purchasing Queue"
+            description="Take and buy Purchase Requests"
             icon={ShoppingCart}
             checked={formData.has_purchasing_flow}
             onChange={(val) =>
@@ -465,6 +501,19 @@ export default function EmployeeForm({
             }
             activeColor="bg-amber-3 text-amber-10"
             hoverColor="group-hover:bg-amber-2"
+          />
+
+          {/* Finance — IPAS (#242): bank details, payments, charges, filing */}
+          <AccessSwitch
+            label="Finance"
+            description="Read every IPAS, record payments and charges, see bank details"
+            icon={Landmark}
+            checked={formData.has_finance_flow}
+            onChange={(val) =>
+              setFormData((prev) => ({ ...prev, has_finance_flow: val }))
+            }
+            activeColor="bg-blue-3 text-blue-10"
+            hoverColor="group-hover:bg-blue-2"
           />
 
           {/* Task Flow */}
@@ -494,7 +543,7 @@ export default function EmployeeForm({
               type="button"
               variant="link"
               onClick={() => setFormData((prev) => ({ ...prev, hiddenNavKeys: [] }))}
-              className="h-auto p-0 text-[10px] font-bold text-muted-foreground hover:text-foreground uppercase tracking-widest flex items-center gap-1 cursor-pointer"
+              className="h-auto p-0 text-label font-bold text-muted-foreground hover:text-foreground uppercase tracking-widest flex items-center gap-1 cursor-pointer"
             >
               <X size={11} /> Clear all
             </Button>

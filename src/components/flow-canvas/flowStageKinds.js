@@ -16,15 +16,23 @@ import {
   User,
   ListChecks,
   ShoppingCart,
+  PackageCheck,
+  Calculator,
+  Boxes,
+  Tags,
+  ClipboardCheck,
+  FileCheck,
   Database,
   Type,
   Hash,
   CalendarDays,
 } from "lucide-react"
 
+import { ipasSectionNo } from "../../constants/ipas"
 import { CONDITION_KINDS } from "../../constants/stageGate"
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields"
 import { acceptsLabel } from "../../utils/attachments"
+import { packingListNotifySummary } from "../../utils/packingListAction"
 
 /**
  * "Purchasing (group)" / "Ana Reyes" for an assignment condition's `who`
@@ -73,6 +81,36 @@ export const CONDITION_KIND_META = {
     icon: ShoppingCart,
     hint: "At least one procurement request must exist.",
   },
+  [CONDITION_KINDS.PURCHASING_SETTLED]: {
+    label: "Purchasing settled",
+    icon: PackageCheck,
+    hint: "Every Requested Item is closed. Met when there is no Purchase Request.",
+  },
+  [CONDITION_KINDS.COSTING_SETTLED]: {
+    label: "Costing settled",
+    icon: Calculator,
+    hint: "The S0 Evaluation is finished (a Final Offer on every Tender Line, a complete summary, an approved evaluation, within ABC) and the Bid Decision is Go. Unmet when there is no matrix.",
+  },
+  [CONDITION_KINDS.COSTING_PRICED]: {
+    label: "Costing priced",
+    icon: Tags,
+    hint: "Purchasing has costed the matrix: at least one Component, an Acquire unit cost on every Component and cost-only row, and a Purchasing Incharge named. Unmet when there is no matrix.",
+  },
+  [CONDITION_KINDS.COSTING_EVALUATION_APPROVED]: {
+    label: "Evaluation of Specification approved",
+    icon: ClipboardCheck,
+    hint: "The S0 Evaluation's Evaluation of Specification is approved. Unmet when there is no matrix.",
+  },
+  [CONDITION_KINDS.GOODS_CHECKED]: {
+    label: "Goods checked",
+    icon: ClipboardCheck,
+    hint: "Every submitted Transmittal with a line naming this SOR is Closed or Cancelled. Drafts don't count, and an SOR with no Transmittal meets it.",
+  },
+  [CONDITION_KINDS.ORDERS_FILED]: {
+    label: "Orders filed",
+    icon: FileCheck,
+    hint: `Every IPAS naming this SOR that isn't cancelled has been filed (section ${ipasSectionNo(7)} approved). An SOR no IPAS names meets it.`,
+  },
 }
 
 export const ACTION_KIND_META = {
@@ -85,6 +123,34 @@ export const ACTION_KIND_META = {
     label: "Individual Task",
     icon: User,
     hint: "One assignee.",
+  },
+  open_purchase_request: {
+    label: "Open Purchase Request",
+    icon: ShoppingCart,
+    hint: "Starts buying for the SOR. One request per SOR.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
+  },
+  open_costing_matrix: {
+    label: "Open S0 Evaluation",
+    icon: Calculator,
+    hint: "Opens the SOR's S0 Evaluation. One per SOR.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
+  },
+  evaluate_specification: {
+    label: "Evaluation of Specification",
+    icon: ClipboardCheck,
+    hint: "Opens the S0 Evaluation for the Technical teams to judge, and holds the deal here until the evaluation is approved.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
+  },
+  request_packing_list: {
+    label: "Request Packing List",
+    icon: Boxes,
+    hint: "Starts a draft Packing List and tells the Warehouse to pack.",
+    // Saves no title of its own, so it is named by its label.
+    titled: false,
   },
 }
 
@@ -120,6 +186,8 @@ export function conditionDetail(condition) {
 export function actionTitle(action) {
   const config = action?.config ?? {}
   const named = config.title || config.projectTitle
+  const meta = ACTION_KIND_META[action?.kind]
+  if (!named && meta?.titled === false) return meta.label
   return (typeof named === "string" && named.trim()) || "Untitled action"
 }
 
@@ -153,6 +221,7 @@ function deciderSummary(decider, { employees = [], assigneeId = null } = {}) {
     const s = selectors[0]
     if (s.type === "role") return String(s.role || "").replace(/_/g, " ") || "someone"
     if (s.type === "team") return `${s.team} Team`
+    if (s.type === "department") return `${s.department} department`
     if (s.type === "group") return "the group"
     if (s.type === "employee") {
       if (assigneeId && s.id === assigneeId) return "the assignee"
@@ -171,6 +240,16 @@ export function actionSummary(action, { employees = [] } = {}) {
   if (action?.kind === "create_group_task") {
     const count = config.members?.length ?? 0
     summary = count > 0 ? `${label} · ${count} assignee${count === 1 ? "" : "s"}` : label
+  } else if (action?.kind === "open_costing_matrix" || action?.kind === "evaluate_specification") {
+    const buyer = config.purchasingIncharge?.id
+      ? employees.find((e) => e.id === config.purchasingIncharge.id)?.name ?? "someone no longer listed"
+      : null
+    summary = buyer ? `${label} · Purchasing: ${buyer}` : `${label} · no Purchasing Incharge named`
+  } else if (action?.kind === "request_packing_list") {
+    summary = `${label} · ${packingListNotifySummary(
+      config,
+      (id) => employees.find((e) => e.id === id)?.name ?? "someone no longer listed",
+    )}`
   } else if (config.priority) {
     summary = `${label} · ${String(config.priority).toLowerCase()} priority`
   }
@@ -213,4 +292,44 @@ export function fieldDetail(field) {
       ? `SOR field · ${SOR_STAGE_FIELDS[field.sor_field]?.label ?? field.sor_field}`
       : fieldMeta(field).label
   return field?.is_required ? `${kind} · blocks leaving` : kind
+}
+
+/**
+ * The document an attachment condition asks for, as one comparable string:
+ * its label, its `documentType` and its `accepts` list. Two attachment
+ * conditions are the same document only when all three match (#895).
+ */
+function attachmentDocumentKey(item) {
+  const config = item?.config ?? {}
+  const label = String(item?.label ?? "").trim().toLowerCase()
+  const accepts = Array.isArray(config.accepts) ? [...config.accepts].sort().join(",") : ""
+  return JSON.stringify([label, config.documentType ?? "", accepts])
+}
+
+/**
+ * Whether two items are the same check (#845, #895). Kind is the test for
+ * everything except attachments: "Purchasing settled" twice is a repeat, but
+ * "ITB" and "NOA" are two different documents even though both are attachments.
+ */
+function isSameCheck(a, b) {
+  if (a.kind !== b.kind) return false
+  if (a.kind !== CONDITION_KINDS.ATTACHMENT) return true
+  return attachmentDocumentKey(a) === attachmentDocumentKey(b)
+}
+
+/**
+ * Hover note for a Stage Condition or Action whose check also sits on other
+ * Stages of the same flow (#845). Allowed, never blocked: each Stage checks the
+ * whole SOR again, so the canvas only says where the other copies are.
+ *
+ * `itemsByStage` is the canvas's `{ [stageId]: items[] }` read. Returns null
+ * when the check sits on this Stage only.
+ */
+export function alsoCheckedNote(item, stageId, itemsByStage, stages, { prefix = "Also checked at" } = {}) {
+  const others = stages.filter(
+    (s) => s.id !== stageId && (itemsByStage[s.id] ?? []).some((x) => isSameCheck(x, item)),
+  );
+  if (others.length === 0) return null;
+  const names = others.map((s) => s.name).join(", ");
+  return `${prefix} ${others.length === 1 ? "Stage" : "Stages"} ${names}`;
 }

@@ -1,5 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
-import { CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare, UserPlus, FolderOpen } from "lucide-react";
+import { PackageCheck, ShoppingCart, Calculator, ClipboardCheck, FileCheck, Tags, CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare, UserPlus, FolderOpen } from "lucide-react";
 import Avatar from "../Avatar";
 import { CONDITION_KINDS, CONDITION_STATUS } from "../../constants/stageGate";
 import { formatDate } from "../../utils/formatDate";
@@ -9,6 +9,8 @@ import { acceptsLabel } from "../../utils/attachments";
 import { resolvePeople } from "../../utils/resolvePeople";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
+import SalesReferenceStageField, { SALES_REFERENCE_COLUMN } from "./SalesReferenceStageField";
+import { DateField } from "./SorField";
 
 /** PO Date and Expected Award Date are dates; every other writable field is text. */
 const DATE_FIELDS = new Set(["po_date", "expected_award_date"]);
@@ -18,6 +20,13 @@ const KIND_LABELS = {
   [CONDITION_KINDS.FIELD]: "Field on record",
   [CONDITION_KINDS.TICKBOX]: "Self-certified",
   [CONDITION_KINDS.ASSIGNMENT]: "Assignment",
+  [CONDITION_KINDS.PURCHASING]: "Purchasing",
+  [CONDITION_KINDS.PURCHASING_SETTLED]: "Purchasing settled",
+  [CONDITION_KINDS.COSTING_SETTLED]: "Costing settled",
+  [CONDITION_KINDS.COSTING_PRICED]: "Costing priced",
+  [CONDITION_KINDS.COSTING_EVALUATION_APPROVED]: "Evaluation of Specification approved",
+  [CONDITION_KINDS.GOODS_CHECKED]: "Goods checked",
+  [CONDITION_KINDS.ORDERS_FILED]: "Orders filed",
 };
 
 const KIND_ICONS = {
@@ -25,6 +34,13 @@ const KIND_ICONS = {
   [CONDITION_KINDS.FIELD]: ListChecks,
   [CONDITION_KINDS.TICKBOX]: CheckSquare,
   [CONDITION_KINDS.ASSIGNMENT]: UserCheck,
+  [CONDITION_KINDS.PURCHASING]: ShoppingCart,
+  [CONDITION_KINDS.PURCHASING_SETTLED]: PackageCheck,
+  [CONDITION_KINDS.COSTING_SETTLED]: Calculator,
+  [CONDITION_KINDS.COSTING_PRICED]: Tags,
+  [CONDITION_KINDS.COSTING_EVALUATION_APPROVED]: ClipboardCheck,
+  [CONDITION_KINDS.GOODS_CHECKED]: ClipboardCheck,
+  [CONDITION_KINDS.ORDERS_FILED]: FileCheck,
 };
 
 /**
@@ -42,6 +58,10 @@ export default function StageChecklistRow({
   status,
   satisfiedBy,
   satisfiedAt,
+  // Why a condition is unmet, where the kind can say (Costing settled, #272):
+  // { failing: [keys], messages: [plain sentences] }. Goods checked and Orders
+  // filed add `basis` ([{ number, state }]), the records they read, met or not.
+  detail = null,
   employees = [],
   groups = [],
   opportunity = null,
@@ -51,6 +71,7 @@ export default function StageChecklistRow({
   onFieldChange,
   onSaveField,
   savingField = false,
+  onFieldSaved,
   // Tickbox
   onTick,
   tickDisabled = false,
@@ -135,16 +156,19 @@ export default function StageChecklistRow({
         </div>
 
         {isSatisfied ? (
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {who || satisfiedAt ? (
-              <>
-                Satisfied{who ? ` by ${who}` : ""}
-                {satisfiedAt ? ` on ${formatDate(satisfiedAt)}` : ""}
-              </>
-            ) : (
-              "Satisfied."
-            )}
-          </p>
+          <>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {who || satisfiedAt ? (
+                <>
+                  Satisfied{who ? ` by ${who}` : ""}
+                  {satisfiedAt ? ` on ${formatDate(satisfiedAt)}` : ""}
+                </>
+              ) : (
+                "Satisfied."
+              )}
+            </p>
+            <ConditionBasis label={condition.label} basis={detail?.basis} />
+          </>
         ) : (
           <div className="mt-0.5 space-y-2">
             <p
@@ -154,20 +178,61 @@ export default function StageChecklistRow({
                   : "text-[11px] text-muted-foreground"
               }
             >
-              {isTickable ? "Not yet certified — tap to certify." : "Not yet satisfied."}
+              {isTickable
+                ? "Not yet certified — tap to certify."
+                : condition.is_required
+                  ? "Not yet satisfied."
+                  : "Optional. Not needed to move on."}
             </p>
 
-            {condition.kind === CONDITION_KINDS.FIELD && onSaveField && (
+            {detail?.messages?.length > 0 && (
+              <ul aria-label={`${condition.label}: what is missing`} className="list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
+                {detail.messages.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            )}
+
+            <ConditionBasis label={condition.label} basis={detail?.basis} />
+
+            {condition.kind === CONDITION_KINDS.FIELD &&
+              condition.config?.column === SALES_REFERENCE_COLUMN &&
+              opportunity?.id &&
+              !isPreview && (
+                <SalesReferenceStageField
+                  opportunityId={opportunity.id}
+                  value={opportunity.sales_reference || ""}
+                  readOnly={!onSaveField}
+                  onSaved={onFieldSaved}
+                />
+              )}
+
+            {condition.kind === CONDITION_KINDS.FIELD && onSaveField &&
+              !(condition.config?.column === SALES_REFERENCE_COLUMN && opportunity?.id && !isPreview) && (
               <div className="flex items-center gap-2 max-w-[240px]">
+                {DATE_FIELDS.has(condition.config?.column) ? (
+                  <DateField
+                    label={condition.label}
+                    value={fieldValue || ""}
+                    disabled={isPreview}
+                    onChange={(e) => onFieldChange?.(e.target.value)}
+                  />
+                ) : (
                 <Input
-                  type={DATE_FIELDS.has(condition.config?.column) ? "date" : "text"}
+                  type="text"
                   aria-label={condition.label}
                   value={fieldValue || ""}
                   disabled={isPreview}
                   onChange={(e) => onFieldChange?.(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" || isPreview || savingField || !(fieldValue || "").trim()) return;
+                    e.preventDefault();
+                    onSaveField?.();
+                  }}
                   placeholder={`Enter ${condition.config?.column || "value"}`}
                   containerClassName="flex w-full" className="h-7 rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                 />
+                )}
                 <Button
                   type="button"
                   size="sm"
@@ -261,5 +326,19 @@ export default function StageChecklistRow({
 
       {isSatisfied && who && <Avatar name={who} size="xs" className="mt-0.5 shrink-0" />}
     </div>
+  );
+}
+
+/** The records a condition read (Goods checked's Transmittals, Orders filed's IPAS), by number and state. */
+function ConditionBasis({ label, basis }) {
+  if (!basis?.length) return null;
+  return (
+    <ul aria-label={`${label}: based on`} className="mt-1 flex flex-wrap gap-1">
+      {basis.map((record) => (
+        <li key={record.number} className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          <span className="font-semibold text-foreground">{record.number}</span> · {record.state}
+        </li>
+      ))}
+    </ul>
   );
 }

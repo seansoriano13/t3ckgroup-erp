@@ -1,3 +1,4 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useState } from "react";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import { useAuth } from "../../../context/AuthContext";
@@ -16,13 +17,14 @@ import HrLogsPanel from "../../../components/hr/HrLogsPanel";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
 import TabGroup from "../../../components/ui/TabGroup";
-import Spinner from "../../../components/ui/Spinner";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/useTableSort";
 
 import { Activity, CheckSquare, Square } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge.jsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const PAGE_SIZE = 50;
 
@@ -98,7 +100,7 @@ function ContentDisplay({ content, search }) {
           </div>
         ))}
         {remaining > 0 && (
-          <div className="text-[10px] font-bold text-muted-foreground/60 pl-[22px] pt-0.5 uppercase tracking-wider">
+          <div className="text-label font-bold text-muted-foreground/60 pl-[22px] pt-0.5 uppercase tracking-wider">
             + {remaining} more item{remaining !== 1 ? "s" : ""}
           </div>
         )}
@@ -112,6 +114,14 @@ function ContentDisplay({ content, search }) {
     </span>
   );
 }
+
+// "HR_NOTE" -> "HR note": codes are for the database, not the reader.
+const humanizeCode = (code) =>
+  String(code || "")
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/^hr(?= |$)/, "HR")
+    .replace(/^./, (c) => c.toUpperCase());
 
 // Entity type badge colors for SYSTEM logs
 const ENTITY_TYPE_STYLES = {
@@ -150,7 +160,7 @@ function EntryTitle({ title, search }) {
         </span>
       ))}
       {remaining > 0 && (
-        <span className="block pl-5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+        <span className={`block pl-5 ${CAPTION_BASE} tracking-wider text-muted-foreground/60`}>
           + {remaining} more checklist item{remaining !== 1 ? "s" : ""}
         </span>
       )}
@@ -161,6 +171,15 @@ function EntryTitle({ title, search }) {
 // ═════════════════════════════════════════════════════════════════════════════
 //  PAGE COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
+const ACTIVITY_SORT = {
+  when: (e) => new Date(e.createdAt).getTime(),
+  type: (e) => e.type,
+  subject: (e) => e.taskDescription,
+  details: (e) => e.content,
+  by: (e) => e.authorName,
+  status: (e) => e.taskStatus,
+};
+
 export default function SuperAdminActivityLogPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -334,6 +353,7 @@ export default function SuperAdminActivityLogPage() {
 
     return consolidated;
   }, [entries, filters.dept, filters.subDept, activeTab]);
+  const { sorted: sortedEntries, sort, toggle } = useTableSort(filteredEntries, ACTIVITY_SORT);
 
   const hasActiveFilters = Object.keys(DEFAULT_LOG_FILTERS).some(
     (k) => filters[k] !== DEFAULT_LOG_FILTERS[k],
@@ -373,9 +393,7 @@ export default function SuperAdminActivityLogPage() {
     body = <HrLogsPanel />;
   } else if (isLoading) {
     body = (
-      <div className="flex justify-center py-20">
-        <Spinner size="md" />
-      </div>
+      <PageLoading label="activity log" />
     );
   } else if (isError) {
     body = <LogLoadError title="Failed to load activity log" message={error?.message} />;
@@ -395,19 +413,19 @@ export default function SuperAdminActivityLogPage() {
     body = (
       <>
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table>
+          <Table scrollCue tableId="activity-log">
             <TableHeader>
               <TableRow>
-                <TableHead>When</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Details</TableHead>
-                <TableHead>By</TableHead>
-                {showStatus && <TableHead>Status</TableHead>}
+                <SortHead id="when" sortKey="when" sort={sort} onSort={toggle}>When</SortHead>
+                <SortHead id="type" sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
+                <SortHead id="subject" sortKey="subject" sort={sort} onSort={toggle}>Subject</SortHead>
+                <SortHead id="details" sortKey="details" sort={sort} onSort={toggle}>Details</SortHead>
+                <SortHead id="by" sortKey="by" sort={sort} onSort={toggle}>By</SortHead>
+                {showStatus && <SortHead id="status" sortKey="status" sort={sort} onSort={toggle}>Status</SortHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEntries.map((e) => {
+              {sortedEntries.map((e) => {
                 const isClickable =
                   activeTab === "TASKS" ||
                   activeTab === "GROUP" ||
@@ -450,19 +468,19 @@ export default function SuperAdminActivityLogPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                          {e.type || "SYSTEM"}
+                        <span className="text-[10px] font-black tracking-widest text-muted-foreground">
+                          {humanizeCode(e.type || "SYSTEM")}
                         </span>
                         {e.isGroup && (
-                          <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-11">
+                          <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-label font-black uppercase tracking-wider text-violet-11">
                             Group Task
                           </span>
                         )}
                         {(activeTab === "SYSTEM" || activeTab === "SOR") && e.entityType && (
                           <span
-                            className={`rounded-sm border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${ENTITY_TYPE_STYLES[e.entityType] || "bg-mauve-a2 text-mauve-11 border-mauve-a4"}`}
+                            className={`rounded-sm border px-1.5 py-0.5 text-[10px] font-black tracking-wider ${ENTITY_TYPE_STYLES[e.entityType] || "bg-mauve-a2 text-mauve-11 border-mauve-a4"}`}
                           >
-                            {e.entityType}
+                            {humanizeCode(e.entityType)}
                           </span>
                         )}
                       </div>

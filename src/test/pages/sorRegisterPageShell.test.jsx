@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import OpportunitiesPage from "@/pages/sors/index";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
+import { stubRpc } from "@/test/msw/server";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -33,10 +34,48 @@ const renderRegister = () =>
     </MemoryRouter>,
   );
 
+describe("SORS opens on My work", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    // My work's own reads; nobody here was called into anything.
+    stubRpc("sor_my_deal_team_sor_ids", () => []);
+    stubRpc("sor_my_sors_facets", () => []);
+  });
+
+  it("opens a first visit on My work, with the register's views one click away", async () => {
+    mockUser.current = { ...makeEmployee({ name: "Sales Sam" }), has_sales_flow: true };
+    renderRegister();
+
+    expect(await screen.findByRole("tab", { name: /^My work/i, selected: true })).toBeInTheDocument();
+    expect(await screen.findByText(/Nothing on an SOR needs you/i)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /^List/i })).toBeInTheDocument();
+  });
+
+  it("remembers the List for someone who last used it", async () => {
+    mockUser.current = { ...makeEmployee({ name: "Sales Sam" }), has_sales_flow: true };
+    localStorage.setItem("opportunitiesView", "list");
+    renderRegister();
+
+    expect(await screen.findByRole("tab", { name: /^List/i, selected: true })).toBeInTheDocument();
+  });
+
+  it("gives someone without register access only My work: no views, no Register SOR", async () => {
+    mockUser.current = makeEmployee({ name: "Engineer Eve" });
+    // Even a saved List does not open the register for them.
+    localStorage.setItem("opportunitiesView", "list");
+    renderRegister();
+
+    expect(await screen.findByText(/Nothing on an SOR needs you/i)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /^List/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /register sor/i })).toBeNull();
+  });
+});
+
 describe("SOR Register on PageShell", () => {
   beforeEach(() => {
-    mockUser.current = makeEmployee({ name: "Reg Ister" });
-    sessionStorage.clear();
+    mockUser.current = { ...makeEmployee({ name: "Reg Ister" }), has_sales_flow: true };
+    localStorage.clear();
+    localStorage.setItem("opportunitiesView", "list");
   });
 
   it("renders through PageShell, full-width", async () => {

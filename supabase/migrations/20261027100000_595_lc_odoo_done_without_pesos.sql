@@ -1,0 +1,270 @@
+-- Feedback on spec #595: LC Odoo Done no longer waits for "Pesos taken from the bank".
+--
+-- The IPAS sheet never kept the pesos a payment took from the bank, so Purchasing can't be held
+-- up for it. A payment left blank keeps being taken at the Reference Rate of its payment date
+-- (_ipas_landed_cost, #604), and Landed Cost still says it is an estimate wherever it shows; the
+-- Computation status just isn't refused for it any more.
+--
+-- Redefines (from 20261026150000):
+--   _ipas_clean_payment  a payment may stay blank at LC Odoo Done too
+--   ipas_set_header      without the LC Odoo Done check
+-- _ipas_payments_missing_pesos stays, unused here, so nothing that reads it breaks.
+--
+-- SAFE TO RUN AT ANY TIME: function bodies only. Idempotent.
+
+create or replace function public._ipas_clean_payment(
+  p_fn text,
+  p_ipas public.ipas,
+  p_kind text,
+  p_paid_on date,
+  p_amount numeric,
+  p_php_debited numeric,
+  p_charge_fee_php numeric,
+  p_method_id uuid,
+  p_current_method uuid
+) returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_amount numeric := round(p_amount, 2);
+  v_php numeric := round(p_php_debited, 2);
+  v_fee numeric := round(coalesce(p_charge_fee_php, 0), 2);
+  v_label text;
+begin
+  if p_kind is null or p_kind not in ('down_payment', 'payment', 'full_payment', 'shipping_fee') then
+    raise exception '%: % isn''t a payment kind', p_fn, coalesce(p_kind, 'null') using errcode = '22023';
+  end if;
+  if p_paid_on is null then
+    raise exception '%: give the date of the payment', p_fn using errcode = '22023';
+  end if;
+  if v_amount is null or v_amount <= 0 then
+    raise exception '%: the amount must be more than zero', p_fn using errcode = '22023';
+  end if;
+  if v_fee < 0 then
+    raise exception '%: the charge fee can''t be negative', p_fn using errcode = '22023';
+  end if;
+
+  if public._ipas_is_php(p_ipas.odoo_copy) then
+    -- A PHP payment's PHP is its amount: no second figure to disagree with it.
+    v_php := null;
+  else
+    -- #604: the pesos taken from the bank may be left blank (Landed Cost is then an estimate);
+    -- a figure that is given has to make sense.
+    if v_php is not null and v_php <= 0 then
+      raise exception '%: the pesos taken from the bank must be more than zero, or left blank until the bank statement arrives', p_fn
+        using errcode = '22023';
+    end if;
+  end if;
+
+  v_label := public._ipas_check_option(p_fn, p_method_id, 'payment_method', p_current_method, 'payment method');
+
+  return jsonb_build_object(
+    'amount', v_amount,
+    'php_debited', v_php,
+    'charge_fee_php', v_fee,
+    'method_label', v_label
+  );
+end;
+$$;
+
+revoke all on function public._ipas_clean_payment(text, public.ipas, text, date, numeric, numeric, numeric, uuid, uuid)
+  from public, anon, authenticated;
+
+create or replace function public.ipas_set_header(p_ipas_id uuid, p_fields jsonb)
+returns public.ipas
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.ipas;
+  v_key text;
+  v_raw jsonb;
+  v_text text;
+  v_contact text;
+  v_pi text;
+  v_amount numeric;
+  v_freight uuid;
+  v_split text;
+  v_status text;
+  v_sheet boolean;
+  v_gantt boolean;
+  v_label text;
+  v_remarks text;
+  v_changes jsonb := '{}'::jsonb;
+begin
+  if v_actor is null then
+    raise exception 'ipas_set_header: not signed in' using errcode = '42501';
+  end if;
+  -- Only Purchasing changes an IPAS (#586: Checked by is gone, so there is no Finance
+  -- or Super Admin exception any more; section 3's sign-off is the check).
+  if not public.has_purchasing_access() then
+    raise exception 'ipas_set_header: only Purchasing changes an IPAS' using errcode = '42501';
+  end if;
+  if p_fields is null or jsonb_typeof(p_fields) <> 'object' then
+    raise exception 'ipas_set_header: the fields must be an object' using errcode = '22023';
+  end if;
+  for v_key in select jsonb_object_keys(p_fields) loop
+    if v_key not in (
+      'supplier_contact', 'pi_number', 'pi_qt_amount', 'freight_service_id', 'landed_cost_split', 'computation_status',
+      'google_sheet', 'gantt_chart', 'remarks'
+    ) then
+      raise exception 'ipas_set_header: % isn''t a header field you can type here', v_key using errcode = '22023';
+    end if;
+  end loop;
+
+  select * into v_row from public.ipas where id = p_ipas_id for update;
+  if v_row.id is null then
+    raise exception 'ipas_set_header: IPAS % not found', p_ipas_id using errcode = '22023';
+  end if;
+  if v_row.state = 'filed' then
+    raise exception 'ipas_set_header: % is filed; a Super Admin reopens it first', v_row.number using errcode = '22023';
+  end if;
+  if v_row.state = 'cancelled' then
+    raise exception 'ipas_set_header: % is cancelled', v_row.number using errcode = '22023';
+  end if;
+
+  -- Remarks: free text, blank clears. A non-text value is refused with a sentence.
+  v_remarks := v_row.remarks;
+  if jsonb_exists(p_fields, 'remarks') then
+    if jsonb_typeof(p_fields->'remarks') not in ('string', 'null') then
+      raise exception 'ipas_set_header: Remarks must be text' using errcode = '22023';
+    end if;
+    v_remarks := nullif(btrim(p_fields->>'remarks'), '');
+  end if;
+
+  v_contact := case when jsonb_exists(p_fields, 'supplier_contact') then nullif(btrim(p_fields->>'supplier_contact'), '') else v_row.supplier_contact end;
+  v_pi := case when jsonb_exists(p_fields, 'pi_number') then nullif(btrim(p_fields->>'pi_number'), '') else v_row.pi_number end;
+
+  -- P.I/QT Amount: a number, or blank to clear. Anything half-typed is refused
+  -- with a sentence, never a cast error.
+  v_amount := v_row.pi_qt_amount;
+  if jsonb_exists(p_fields, 'pi_qt_amount') then
+    v_raw := p_fields->'pi_qt_amount';
+    if jsonb_typeof(v_raw) = 'null' then
+      v_amount := null;
+    elsif jsonb_typeof(v_raw) = 'number' then
+      v_amount := round((p_fields->>'pi_qt_amount')::numeric, 2);
+    elsif jsonb_typeof(v_raw) = 'string' then
+      v_text := btrim(replace(p_fields->>'pi_qt_amount', ',', ''));
+      if v_text = '' then
+        v_amount := null;
+      elsif v_text ~ '^[0-9]+(\.[0-9]+)?$' then
+        v_amount := round(v_text::numeric, 2);
+      else
+        raise exception 'ipas_set_header: P.I/QT Amount must be a number' using errcode = '22023';
+      end if;
+    else
+      raise exception 'ipas_set_header: P.I/QT Amount must be a number' using errcode = '22023';
+    end if;
+    if v_amount is not null and v_amount < 0 then
+      raise exception 'ipas_set_header: P.I/QT Amount can''t be negative' using errcode = '22023';
+    end if;
+  end if;
+
+  v_freight := v_row.freight_service_id;
+  if jsonb_exists(p_fields, 'freight_service_id') then
+    v_raw := p_fields->'freight_service_id';
+    if jsonb_typeof(v_raw) = 'null' or nullif(btrim(p_fields->>'freight_service_id'), '') is null then
+      v_freight := null;
+    else
+      begin
+        v_freight := (p_fields->>'freight_service_id')::uuid;
+      exception when invalid_text_representation then
+        raise exception 'ipas_set_header: pick a freight service' using errcode = '22023';
+      end;
+      perform public._ipas_check_option(
+        'ipas_set_header', v_freight, 'freight_service', v_row.freight_service_id, 'freight service'
+      );
+    end if;
+  end if;
+
+  v_split := v_row.landed_cost_split;
+  if jsonb_exists(p_fields, 'landed_cost_split') then
+    v_split := p_fields->>'landed_cost_split';
+    if v_split is null or v_split not in ('value', 'quantity', 'equal') then
+      raise exception 'ipas_set_header: Landed Cost is spread by value, by quantity or equally' using errcode = '22023';
+    end if;
+  end if;
+
+  v_status := v_row.computation_status;
+  if jsonb_exists(p_fields, 'computation_status') then
+    v_status := p_fields->>'computation_status';
+    if v_status is null or v_status not in ('encoding', 'encoded', 'lc_gs_done', 'lc_odoo_done') then
+      raise exception 'ipas_set_header: the computation status is Encoding, Encoded, LC GS Done or LC Odoo Done'
+        using errcode = '22023';
+    end if;
+  end if;
+
+  if v_contact is distinct from v_row.supplier_contact then
+    v_changes := v_changes || jsonb_build_object('supplier_contact', jsonb_build_object('from', v_row.supplier_contact, 'to', v_contact));
+  end if;
+  if v_pi is distinct from v_row.pi_number then
+    v_changes := v_changes || jsonb_build_object('pi_number', jsonb_build_object('from', v_row.pi_number, 'to', v_pi));
+  end if;
+  if v_amount is distinct from v_row.pi_qt_amount then
+    v_changes := v_changes || jsonb_build_object('pi_qt_amount', jsonb_build_object('from', v_row.pi_qt_amount, 'to', v_amount));
+  end if;
+  if v_freight is distinct from v_row.freight_service_id then
+    v_changes := v_changes || jsonb_build_object('freight_service_id', jsonb_build_object(
+      'from', (select o.label from public.ipas_options o where o.id = v_row.freight_service_id),
+      'to', (select o.label from public.ipas_options o where o.id = v_freight)));
+  end if;
+  if v_split is distinct from v_row.landed_cost_split then
+    v_changes := v_changes || jsonb_build_object('landed_cost_split', jsonb_build_object('from', v_row.landed_cost_split, 'to', v_split));
+  end if;
+  if v_status is distinct from v_row.computation_status then
+    v_changes := v_changes || jsonb_build_object('computation_status', jsonb_build_object('from', v_row.computation_status, 'to', v_status));
+  end if;
+  -- The section 2 ticks: plain yes or no. JSON null and any other type are refused.
+  v_sheet := v_row.google_sheet;
+  if jsonb_exists(p_fields, 'google_sheet') then
+    if jsonb_typeof(p_fields->'google_sheet') <> 'boolean' then
+      raise exception 'ipas_set_header: Googlesheet must be ticked or not ticked' using errcode = '22023';
+    end if;
+    v_sheet := (p_fields->>'google_sheet')::boolean;
+  end if;
+
+  v_gantt := v_row.gantt_chart;
+  if jsonb_exists(p_fields, 'gantt_chart') then
+    if jsonb_typeof(p_fields->'gantt_chart') <> 'boolean' then
+      raise exception 'ipas_set_header: Gantt Chart must be ticked or not ticked' using errcode = '22023';
+    end if;
+    v_gantt := (p_fields->>'gantt_chart')::boolean;
+  end if;
+
+  if v_sheet is distinct from v_row.google_sheet then
+    v_changes := v_changes || jsonb_build_object('google_sheet', jsonb_build_object('from', v_row.google_sheet, 'to', v_sheet));
+  end if;
+  if v_gantt is distinct from v_row.gantt_chart then
+    v_changes := v_changes || jsonb_build_object('gantt_chart', jsonb_build_object('from', v_row.gantt_chart, 'to', v_gantt));
+  end if;
+  if v_remarks is distinct from v_row.remarks then
+    v_changes := v_changes || jsonb_build_object('remarks', jsonb_build_object('from', v_row.remarks, 'to', v_remarks));
+  end if;
+  if v_changes = '{}'::jsonb then
+    return v_row;
+  end if;
+
+  update public.ipas
+     set supplier_contact = v_contact,
+         pi_number = v_pi,
+         pi_qt_amount = v_amount,
+         freight_service_id = v_freight,
+         landed_cost_split = v_split,
+         computation_status = v_status,
+         google_sheet = v_sheet,
+         gantt_chart = v_gantt,
+         remarks = v_remarks
+   where id = v_row.id
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'header_changed', jsonb_build_object('fields', v_changes));
+
+  return v_row;
+end;
+$$;

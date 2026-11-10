@@ -6,7 +6,6 @@ import ManagementSection from "./ManagementSection"
 import StandardDetailsSection from "./StandardDetailsSection"
 import TaskBodySection from "./TaskBodySection"
 import TaskMetaDetails from "./TaskMetaDetails"
-import ProcurementResolutionPanel from "./ProcurementResolutionPanel"
 import TaskEvaluationSection from "./TaskEvaluationSection"
 import TaskActivityTimeline from "./TaskActivityTimeline"
 import { formatDate, toLocalDatetimeString } from "../utils/formatDate"
@@ -25,13 +24,13 @@ import { toast } from "react-hot-toast"
 import { confirmDeleteToast } from "./ui/CustomToast"
 import { activeChatService } from "../services/tasks/activeChatService"
 import { taskQueryService } from "@/services/tasks/taskQueryService"
-import { purchasingService } from "@/services/purchasingService"
-import { PROCUREMENT_OUTCOME, isRequisitionTitle } from "@/constants/procurement"
 import { Dialog } from "@/components/ui/dialog"
 import { RecordModalContent } from "@/components/ui/record-modal"
 import { useAppSettings } from "@/hooks/useAppSettings"
 import { cn } from "@/lib/utils"
 import { Button } from "./ui/button"
+import ConvertToGroupTaskDialog from "./ConvertToGroupTaskDialog"
+import { canManageGroupTasks, getPermissionContext } from "../utils/permissions"
 
 export default function TaskDetails({
   isOpen,
@@ -57,6 +56,7 @@ export default function TaskDetails({
   const [editGrade, setEditGrade] = useState(null)
   const [approvalRemarks, setApprovalRemarks] = useState("")
   const [showChecklist, setShowChecklist] = useState(false)
+  const [showConvert, setShowConvert] = useState(false)
 
   // 🔥 FULL TASK FETCH: Fetch complete details ONLY when drawer is open
   // This allows the main Dashboard/Task list to be lightweight (no attachments/large remarks)
@@ -68,16 +68,6 @@ export default function TaskDetails({
   })
 
   const activeTask = fullTask || task // Fallback to prop while loading
-
-  const isProcurement =
-    isRequisitionTitle(activeTask?.taskDescription) ||
-    isRequisitionTitle(activeTask?.task_description)
-
-  const { data: procurementRequests = [] } = useQuery({
-    queryKey: ["procurement", "task", activeTask?.id],
-    queryFn: () => purchasingService.listForTask(activeTask?.id),
-    enabled: isOpen && !!activeTask?.id && isProcurement,
-  })
 
   // Timeline message ref — used by the approval flow to grab the message
   // from the timeline input box when the head clicks Approve/Reject
@@ -180,6 +170,13 @@ export default function TaskDetails({
     task?.status === TASK_STATUS.CANCELLED ||
     isClosedOff
   const canEvaluate = !isReadOnly && (isHead || isSuperAdmin)
+  // #657: heads, HR and Super Admins turn an open, non-Stage-Action task into a Group Task.
+  const canConvert =
+    canManageGroupTasks(getPermissionContext(user)) &&
+    !isReadOnly &&
+    !activeTask?.stageActionId &&
+    !activeTask?.convertedToGroupTaskId &&
+    [TASK_STATUS.INCOMPLETE, TASK_STATUS.NOT_APPROVED].includes(task?.status)
 
   // Re-evaluation: head is editing a task already approved but not yet HR-verified.
   const canReEvalGrade =
@@ -268,15 +265,6 @@ export default function TaskDetails({
 
   const isComplete = task.status === TASK_STATUS.COMPLETE
 
-  const hasUndeliveredProcurement =
-    isProcurement &&
-    (procurementRequests.length === 0 ||
-      procurementRequests.some(
-        (r) =>
-          !r.outcome ||
-          r.outcome === PROCUREMENT_OUTCOME.IN_PROGRESS ||
-          r.outcome === PROCUREMENT_OUTCOME.PURCHASED,
-      ))
   const isNotApproved = task.status === TASK_STATUS.NOT_APPROVED
   const isFinalized = isComplete || isNotApproved
   const timelineLegacyRemarks = isCategoryMetadataRemarks(task?.remarks)
@@ -490,6 +478,18 @@ export default function TaskDetails({
   }
 
   return (
+    <>
+    <ConvertToGroupTaskDialog
+      open={showConvert}
+      onOpenChange={setShowConvert}
+      task={activeTask}
+      onConverted={(groupTaskId) => {
+        onClose()
+        window.dispatchEvent(
+          new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: groupTaskId, type: "GROUP_TASK" } }),
+        )
+      }}
+    />
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <RecordModalContent
         showCloseButton={false}
@@ -499,12 +499,12 @@ export default function TaskDetails({
         {/* CONTENT WRAPPER */}
         <div
           className={cn(
-            "flex flex-1 overflow-hidden",
+            "flex flex-1 min-h-0 overflow-hidden",
             isSplitScreen ? "flex-row" : "flex-col",
           )}
         >
           {/* TASK PANEL */}
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
             <TaskHeader
               isEditing={isEditing}
               isHrVerified={task.hrVerified}
@@ -524,6 +524,17 @@ export default function TaskDetails({
               }
               extraButtons={
                 <>
+                  {canConvert && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-xl"
+                      onClick={() => setShowConvert(true)}
+                    >
+                      Convert to Group Task
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
@@ -537,7 +548,7 @@ export default function TaskDetails({
                         : "Split Screen (Task + Chat)"
                     }
                     className={cn(
-                      "h-9 w-9 rounded-xl transition-all active:scale-95",
+                      "hidden lg:inline-flex h-9 w-9 rounded-xl transition-all active:scale-95",
                       isSplitScreen
                         ? "text-primary bg-primary/10 border-primary/20 hover:bg-primary/20"
                         : "text-muted-foreground border-transparent hover:bg-muted hover:border-border",
@@ -549,7 +560,7 @@ export default function TaskDetails({
               }
             />
 
-            <div className="p-6 flex-1 overflow-y-auto space-y-6 custom-scrollbar bg-card">
+            <div className="p-6 flex-1 min-h-0 overflow-y-auto space-y-6 custom-scrollbar bg-card">
               {task.status === "DELETED" && !isClosedOff && (
                 <div className="bg-destructive/5 border border-destructive/30 rounded-xl p-4 flex items-center gap-3 text-destructive shadow-sm mt-0 -mb-4">
                   <div className="bg-red-100 p-2 rounded-lg">
@@ -625,39 +636,6 @@ export default function TaskDetails({
                   onClose={onClose}
                 />
 
-                {/* Renders nothing unless this task carries procurement
-                    requests, so ordinary tasks are unaffected. */}
-                <ProcurementResolutionPanel
-                  taskId={activeTask?.id}
-                  userId={user?.id}
-                  user={user}
-                  // Mirrors sor_canvasses_write (0059): canvassing is
-                  // purchasing's job regardless of which subject a Canvass
-                  // hangs off.
-                  canEditCanvass={Boolean(
-                    user &&
-                      (user.has_purchasing_flow ||
-                        user.hasPurchasingFlow ||
-                        user.is_head ||
-                        user.isHead ||
-                        user.is_super_admin ||
-                        user.isSuperAdmin),
-                  )}
-                  onSubmittingChange={setIsSubmitting}
-                  onDeliveredComplete={() => {
-                    onClose?.()
-                    setTimeout(() => {
-                      if (activeTask?.id) {
-                        window.dispatchEvent(
-                          new CustomEvent("HIGHLIGHT_TASK", {
-                            detail: { id: activeTask.id },
-                          }),
-                        )
-                      }
-                    }, 200)
-                  }}
-                />
-
                 <TaskEvaluationSection
                   isEditing={isEditing}
                   canReEvalGrade={canReEvalGrade}
@@ -713,7 +691,7 @@ export default function TaskDetails({
                 {/* KEYBOARD SHORTCUTS HINT */}
                 {!isFinalized && !isEditing && canEvaluate && (
                   <div className="pt-2 flex justify-center opacity-70 mb-4 pb-4">
-                    <p className="text-[10px] text-muted-foreground font-bold tracking-widest uppercase flex items-center gap-2">
+                    <p className="text-label text-muted-foreground font-bold tracking-widest uppercase flex items-center gap-2">
                       Shortcuts:
                       {!isHr ? (
                         <>
@@ -728,7 +706,7 @@ export default function TaskDetails({
                           <span className="bg-muted/50 text-foreground px-1.5 py-0.5 rounded border border-border ml-2">
                             X
                           </span>{" "}
-                          Reject
+                          Return
                         </>
                       ) : (
                         <>
@@ -739,7 +717,7 @@ export default function TaskDetails({
                           <span className="bg-muted/50 text-foreground px-1.5 py-0.5 rounded border border-border ml-2">
                             X
                           </span>{" "}
-                          Reject
+                          Return
                         </>
                       )}
                     </p>
@@ -836,8 +814,6 @@ export default function TaskDetails({
                     : false),
                 canApprove: approvalGrade !== null && !hasUncheckedItems,
                 isMarketing,
-                isProcurement,
-                hasUndeliveredProcurement,
                 universalTaskSubmission:
                   appSettings?.universal_task_submission === true,
                 hasAttachments:
@@ -869,5 +845,6 @@ export default function TaskDetails({
         </div>
       </RecordModalContent>
     </Dialog>
+    </>
   )
 }

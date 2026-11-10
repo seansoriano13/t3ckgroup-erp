@@ -40,6 +40,19 @@ describe("schema registry", () => {
     ).toMatchObject({ fromColumn: "deal_owner_id", toTable: "employees" })
   })
 
+  it("reads each column of one ALTER TABLE that adds several", () => {
+    // 20261005130200_open_purchase_request_action.sql:
+    // `add column if not exists access_until text not null default 'stage_left',
+    //  add column if not exists access_until_stage_id uuid references public.flow_stages (id);`
+    const table = getTable("purchase_requests")
+    expect(table.columns.access_until).toMatchObject({ type: "text", notNull: true })
+    expect(table.columns.access_until_stage_id.notNull).toBe(false)
+    expect(
+      schema.relationsByConstraint.purchase_requests_access_until_stage_id_fkey,
+    ).toMatchObject({ fromColumn: "access_until_stage_id", toTable: "flow_stages" })
+    expect(schema.relationsByConstraint.purchase_requests_access_until_fkey).toBeUndefined()
+  })
+
   it("parses an inline REFERENCES even when followed by ON DELETE", () => {
     // 0003_sales_opportunity_items.sql:
     // `opportunity_id uuid not null references public.sales_opportunities(id) on delete cascade`

@@ -100,6 +100,23 @@ describe("useTaskTopology", () => {
     expect(result.current.filteredCategories.map((c) => c.category_id)).toEqual(["COMMITTEE-1"])
   })
 
+  it("keeps two departments with blank sub-departments apart", async () => {
+    makeCategory({ category_id: "HR-1", department: "HR", sub_department: "" })
+    makeCategory({ category_id: "ADMIN", department: "SALES", sub_department: "" })
+    makeCategory({ category_id: "CHECKLIST", department: "HR", sub_department: "" })
+
+    const hr = await load({ department: "HR", subDepartment: "" }, { isEditing: true })
+    const ids = hr.current.filteredCategories.map((c) => c.category_id)
+    expect(ids).toContain("HR-1")
+    expect(ids).toContain("CHECKLIST")
+    expect(ids).not.toContain("ADMIN")
+
+    const sales = await load({ department: "SALES", subDepartment: "" }, { isEditing: true })
+    const salesIds = sales.current.filteredCategories.map((c) => c.category_id)
+    expect(salesIds).toContain("ADMIN")
+    expect(salesIds).not.toContain("HR-1")
+  })
+
   it("identifies the person the task is being logged for", async () => {
     const ana = (await load()).current.topology.emps.find((e) => e.name === "Ana Reyes")
 

@@ -9,7 +9,7 @@
  *
  *   - CREATE TABLE  → columns, types, NOT NULL, DEFAULT, UNIQUE, PRIMARY KEY
  *   - CONSTRAINT    → PRIMARY KEY / FOREIGN KEY / CHECK, by name
- *   - ALTER TABLE   → ADD COLUMN, ADD CONSTRAINT, DROP CONSTRAINT
+ *   - ALTER TABLE   → ADD COLUMN, ADD CONSTRAINT, DROP CONSTRAINT, ALTER COLUMN SET DEFAULT
  *
  * Foreign keys are indexed by constraint name because that is exactly how
  * PostgREST disambiguates embedded selects
@@ -420,6 +420,11 @@ function applyAlterTable(sql, registry) {
         /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+drop\s+constraint\s+(?:if\s+exists\s+)?"?([a-z_0-9]+)"?/gi,
     },
     {
+      kind: "setDefault",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+alter\s+column\s+"?([a-z_0-9]+)"?\s+set\s+default\s+([^;]+);/gi,
+    },
+    {
       kind: "renameTable",
       regex:
         /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+rename\s+to\s+"?([a-z_0-9]+)"?\s*;/gi,
@@ -450,7 +455,13 @@ function applyAlterTable(sql, registry) {
     if (!table) continue
 
     if (statement.kind === "addColumn") {
-      parseColumn(table, statement.payload.trim(), registry)
+      // `add column a …, add column b …` is one statement: each clause is its
+      // own column (20261005130200 adds two to purchase_requests this way).
+      splitTopLevel(statement.payload).forEach((clause, i) => {
+        const addColumn = /^add\s+column\s+(?:if\s+not\s+exists\s+)?/i
+        if (i > 0 && !addColumn.test(clause)) return
+        parseColumn(table, clause.replace(addColumn, "").trim(), registry)
+      })
     } else if (statement.kind === "addConstraint") {
       parseConstraint(table, statement.payload.trim(), registry)
     } else if (statement.kind === "dropConstraint") {
@@ -468,6 +479,8 @@ function applyAlterTable(sql, registry) {
         table.unique = table.unique.filter((cols) => cols.join(",") !== key)
         delete table.uniqueByName[statement.payload]
       }
+    } else if (statement.kind === "setDefault") {
+      if (table.columns[statement.payload]) table.columns[statement.payload].default = parseDefault(statement.extra.trim())
     } else if (statement.kind === "renameTable") {
       const newTableName = statement.payload
       registry.tables[newTableName] = table

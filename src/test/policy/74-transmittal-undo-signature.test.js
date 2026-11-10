@@ -1,0 +1,418 @@
+/**
+ * Transmittals: undo a signature (#538 ticket 4), against the real database.
+ * Builds on 68 to 71 (the same cast, seeds and helpers).
+ *
+ * `warehouse` (also the preparer, and on the Check by list), `dealOwner`
+ * (Warehouse, Technical and Check by lists), `technical` (Technical list) and
+ * `checkByTwo` (Check by list) are as in 71. `ordinary` and `superAdmin` are on
+ * no list.
+ *
+ * Refusals are proven as the signed-in employee. The freeze that still holds on
+ * a closed slip is proven against the service role, which bypasses row level
+ * security but not a trigger.
+ */
+import { describe, it, expect, beforeAll, afterAll } from "vitest"
+import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
+import { createClient } from "@supabase/supabase-js"
+import { serviceClient, API_URL, ANON_KEY } from "./support/stack.js"
+import { raiseAsPurchaser } from "./support/ipas.js"
+
+const svc = () => serviceClient()
+const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
+
+let poSeq = 0
+const nextPo = () => `P7${String(30000 + (poSeq += 1)).padStart(6, "0")}`
+
+const odooCopy = (po) => ({
+    po: { id: 731000 + poSeq, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },
+    supplier: { id: 553, name: "Scorpe Technologies", contact: null },
+    lines: [
+        { line_id: 732000 + poSeq * 10, product_id: 5350, name: "Cutter", quantity: 6, unit: "Unit", price_unit: 1250, price_subtotal: 7500, taxes: [], analytic: [], brand: "SCORPE" },
+    ],
+    receipts: { status: "pending", done: 0, total: 1 },
+    bills: { count: 0, draft: 0 },
+})
+
+async function raiseIpas() {
+    const po = nextPo()
+    const { data, error } = await raiseAsPurchaser({
+        p_po_number: po,
+        p_priority: "high",
+        p_source: "local",
+        p_purpose: "inventory",
+        p_sor_ids: [],
+        p_remarks: null,
+        p_odoo_copy: odooCopy(po),
+    })
+    if (error) throw new Error(`ipas_create ${po}: ${error.message}`)
+    return data
+}
+
+const HEADER = { origin: "purchasing", check_warehouse: true, check_technical: true, priority: "high", entity: "T3ck Trading" }
+
+async function submittedSlip(header = {}) {
+    const ipas = await raiseIpas()
+    const { data: made, error } = await rpc("warehouse", "transmittal_create", {
+        p_fields: { ...HEADER, ...header },
+        p_product_ids: [],
+        p_reference_ids: [],
+        p_lines: [{ kind: "po_line", ipas_id: ipas.id, odoo_po_line_id: ipas.odoo_copy.lines[0].line_id, quantity: 6 }],
+    })
+    if (error) throw new Error(`transmittal_create: ${error.message}`)
+    const { error: submitError } = await rpc("warehouse", "transmittal_submit", { p_transmittal_id: made.id })
+    if (submitError) throw new Error(`transmittal_submit: ${submitError.message}`)
+    return made.id
+}
+
+const slipRow = async (slipId) => (await svc().from("transmittals").select("*").eq("id", slipId).single()).data
+const stageRow = async (slipId, stage) =>
+    (await svc().from("transmittal_stages").select("*").eq("transmittal_id", slipId).eq("stage", stage).single()).data
+const linesOf = async (slipId) =>
+    (await svc().from("transmittal_lines").select("*").eq("transmittal_id", slipId).order("position")).data
+const clearedOf = async (slipId) =>
+    (await svc().from("transmittal_cleared_signatures").select("*").eq("transmittal_id", slipId).order("cleared_at")).data
+
+async function rate(who, slipId, rating = "gc") {
+    const lines = await linesOf(slipId)
+    const { error } = await rpc(who, "transmittal_rate", {
+        p_transmittal_id: slipId,
+        p_line_ratings: lines.map((line) => ({ line_id: line.id, rating, remark: rating === "na" ? "Cracked" : null })),
+    })
+    if (error) throw new Error(`rate: ${error.message}`)
+}
+
+async function sign(who, slipId, stage, other, extra = {}) {
+    const { error } = await rpc(who, "transmittal_complete_stage", {
+        p_transmittal_id: slipId,
+        p_stage: stage,
+        p_other_signer_id: other,
+        p_other_signer_name: null,
+        p_remarks: `${stage} done`,
+        p_no_pictures_reason: "none",
+        ...extra,
+    })
+    if (error) throw new Error(`${stage}: ${error.message}`)
+}
+
+/** Warehouse checking and releasing signed; the slip is in Technical inspection. */
+async function toTechnical(slipId) {
+    await rate("warehouse", slipId)
+    await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
+    await sign("warehouse", slipId, "warehouse_releasing", ids.technical)
+}
+
+/** Technical inspection signed too; the slip is awaiting Check by. */
+async function toAwaitingCheck(slipId) {
+    await toTechnical(slipId)
+    await rate("technical", slipId)
+    await sign("technical", slipId, "technical_inspection", ids.dealOwner)
+}
+
+const undo = (who, slipId, args) =>
+    rpc(who, "transmittal_undo_signature", { p_transmittal_id: slipId, p_reason: "Signed by mistake", ...args })
+
+beforeAll(async () => {
+    await ensureCastLoaded()
+    const flag = await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider)
+    if (flag.error) throw flag.error
+    const lists = [
+        ["warehouse", "transmittal_warehouse"],
+        ["dealOwner", "transmittal_warehouse"],
+        ["dealOwner", "transmittal_technical"],
+        ["technical", "transmittal_technical"],
+        ["checkByTwo", "transmittal_check_by"],
+        ["dealOwner", "transmittal_check_by"],
+        ["warehouse", "transmittal_check_by"],
+    ]
+    for (const [who, listKey] of lists) {
+        const { error } = await svc()
+            .from("ipas_signer_lists")
+            .upsert({ list_key: listKey, employee_id: ids[who] }, { onConflict: "list_key,employee_id" })
+        if (error) throw new Error(`Seeding ${listKey}: ${error.message}`)
+    }
+})
+
+afterAll(async () => {
+    await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
+    await svc().from("ipas_signer_lists").delete().eq("list_key", "transmittal_technical").eq("employee_id", ids.dealOwner)
+    await svc().from("ipas_signer_lists").delete().eq("list_key", "transmittal_check_by").eq("employee_id", ids.dealOwner)
+    await svc().from("ipas_signer_lists").delete().eq("list_key", "transmittal_check_by").eq("employee_id", ids.warehouse)
+    await svc().from("ipas_signer_lists").delete().eq("list_key", "transmittal_warehouse").eq("employee_id", ids.dealOwner)
+})
+
+describe("undoing a stage signature", () => {
+    it("clears the signature, keeps ratings, remarks and the history, and reopens the stage", async () => {
+        const slipId = await submittedSlip()
+        await toAwaitingCheck(slipId)
+        const before = await stageRow(slipId, "technical_inspection")
+        expect(before.completed_at).toBeTruthy()
+
+        const done = await undo("technical", slipId, { p_kind: "stage", p_stage: "technical_inspection" })
+        expect(done.error).toBeNull()
+        expect(done.data).toMatchObject({ state: "technical_inspection", kind: "stage" })
+
+        const after = await stageRow(slipId, "technical_inspection")
+        expect(after).toMatchObject({
+            completed_at: null,
+            completed_by: null,
+            first_signer_id: null,
+            second_signer_id: null,
+            first_confirmed: false,
+            second_confirmed: false,
+        })
+        // Ratings and remarks are untouched.
+        expect(after.remarks).toBe("technical_inspection done")
+        expect((await linesOf(slipId))[0].tech_rating).toBe("gc")
+        expect((await slipRow(slipId)).state).toBe("technical_inspection")
+
+        const [cleared] = await clearedOf(slipId)
+        expect(cleared).toMatchObject({
+            kind: "stage",
+            stage: "technical_inspection",
+            signer_id: ids.technical,
+            cleared_by: ids.technical,
+            cleared_reason: "Signed by mistake",
+        })
+        expect(cleared.signed_at).toBeTruthy()
+        expect(cleared.cleared_at).toBeTruthy()
+
+        // The stage can be signed again.
+        await sign("technical", slipId, "technical_inspection", ids.dealOwner)
+        expect((await slipRow(slipId)).state).toBe("awaiting_check")
+    })
+
+    it("refuses a reason that is blank, and someone who may not sign that stage", async () => {
+        const slipId = await submittedSlip()
+        await toAwaitingCheck(slipId)
+
+        const blank = await undo("technical", slipId, { p_kind: "stage", p_stage: "technical_inspection", p_reason: "  " })
+        expect(blank.error?.message ?? "").toMatch(/give the reason/)
+
+        for (const who of ["warehouse", "ordinary", "superAdmin"]) {
+            const { error } = await undo(who, slipId, { p_kind: "stage", p_stage: "technical_inspection" })
+            expect(error, `${who} undid Technical inspection`).toBeTruthy()
+        }
+        expect((await stageRow(slipId, "technical_inspection")).completed_at).toBeTruthy()
+        expect(await clearedOf(slipId)).toHaveLength(0)
+    })
+
+    it("refuses an earlier stage while a later one is signed, then allows it latest first", async () => {
+        const slipId = await submittedSlip()
+        await toAwaitingCheck(slipId)
+
+        const early = await undo("warehouse", slipId, { p_kind: "stage", p_stage: "warehouse_checking" })
+        expect(early.error?.message ?? "").toMatch(/later stage/)
+
+        expect((await undo("technical", slipId, { p_kind: "stage", p_stage: "technical_inspection" })).error).toBeNull()
+        expect((await undo("warehouse", slipId, { p_kind: "stage", p_stage: "warehouse_releasing" })).error).toBeNull()
+        expect((await slipRow(slipId)).state).toBe("warehouse_releasing")
+        const checking = await undo("warehouse", slipId, { p_kind: "stage", p_stage: "warehouse_checking" })
+        expect(checking.error).toBeNull()
+        expect((await slipRow(slipId)).state).toBe("warehouse_checking")
+        expect(await clearedOf(slipId)).toHaveLength(3)
+    })
+
+    it("refuses an unsigned stage and a stage once a Check by is signed", async () => {
+        const slipId = await submittedSlip()
+        await toTechnical(slipId)
+        const unsigned = await undo("technical", slipId, { p_kind: "stage", p_stage: "technical_inspection" })
+        expect(unsigned.error?.message ?? "").toMatch(/isn't signed/)
+
+        await rate("technical", slipId)
+        await sign("technical", slipId, "technical_inspection", ids.dealOwner)
+        await rpc("warehouse", "transmittal_received_in_odoo", { p_transmittal_id: slipId, p_ref: "WH/IN/U-1" })
+        expect((await rpc("checkByTwo", "transmittal_check", { p_transmittal_id: slipId, p_slot: 1 })).error).toBeNull()
+
+        const blocked = await undo("technical", slipId, { p_kind: "stage", p_stage: "technical_inspection" })
+        expect(blocked.error?.message ?? "").toMatch(/Check by signed/)
+    })
+})
+
+describe("undoing Received in Odoo by", () => {
+    it("clears the receipt for the Warehouse list, and keeps it as history with its reference", async () => {
+        const slipId = await submittedSlip()
+        await rpc("warehouse", "transmittal_received_in_odoo", { p_transmittal_id: slipId, p_ref: "WH/IN/U-2" })
+
+        for (const who of ["ordinary", "technical"]) {
+            const { error } = await undo(who, slipId, { p_kind: "odoo" })
+            expect(error, `${who} undid the Odoo receipt`).toBeTruthy()
+        }
+        const done = await undo("warehouse", slipId, { p_kind: "odoo" })
+        expect(done.error).toBeNull()
+        expect(await slipRow(slipId)).toMatchObject({ odoo_received_at: null, odoo_received_by: null, odoo_receipt_ref: null })
+        const [cleared] = await clearedOf(slipId)
+        expect(cleared).toMatchObject({ kind: "odoo", signer_id: ids.warehouse, receipt_ref: "WH/IN/U-2", cleared_by: ids.warehouse })
+
+        const again = await undo("warehouse", slipId, { p_kind: "odoo" })
+        expect(again.error?.message ?? "").toMatch(/no Odoo receipt/)
+    })
+})
+
+describe("undoing a Check by", () => {
+    async function closedSlip() {
+        const slipId = await submittedSlip()
+        await toAwaitingCheck(slipId)
+        await rpc("warehouse", "transmittal_received_in_odoo", { p_transmittal_id: slipId, p_ref: "WH/IN/U-3" })
+        expect((await rpc("checkByTwo", "transmittal_check", { p_transmittal_id: slipId, p_slot: 1 })).error).toBeNull()
+        expect((await rpc("dealOwner", "transmittal_check", { p_transmittal_id: slipId, p_slot: 2 })).error).toBeNull()
+        expect((await slipRow(slipId)).state).toBe("closed")
+        return slipId
+    }
+
+    it("reopens a closed slip to Awaiting Check by, and keeps who signed and who cleared it", async () => {
+        const slipId = await closedSlip()
+
+        const done = await undo("checkByTwo", slipId, { p_kind: "check_by", p_slot: 2 })
+        expect(done.error).toBeNull()
+        expect(done.data).toMatchObject({ state: "awaiting_check" })
+        expect(await slipRow(slipId)).toMatchObject({
+            state: "awaiting_check",
+            closed_at: null,
+            check_by_second_id: null,
+            check_by_second_at: null,
+            check_by_first_id: ids.checkByTwo,
+        })
+        const [cleared] = await clearedOf(slipId)
+        expect(cleared).toMatchObject({ kind: "check_by", slot: 2, signer_id: ids.dealOwner, cleared_by: ids.checkByTwo })
+
+        // The slip can be closed again.
+        expect((await rpc("dealOwner", "transmittal_check", { p_transmittal_id: slipId, p_slot: 2 })).error).toBeNull()
+        expect((await slipRow(slipId)).state).toBe("closed")
+    })
+
+    it("refuses the preparer, someone off the Check by list, and an unsigned slot", async () => {
+        const slipId = await closedSlip()
+        for (const who of ["warehouse", "technical", "ordinary", "superAdmin"]) {
+            const { error } = await undo(who, slipId, { p_kind: "check_by", p_slot: 1 })
+            expect(error, `${who} undid a Check by`).toBeTruthy()
+        }
+        expect((await slipRow(slipId)).state).toBe("closed")
+
+        expect((await undo("checkByTwo", slipId, { p_kind: "check_by", p_slot: 2 })).error).toBeNull()
+        const unsigned = await undo("checkByTwo", slipId, { p_kind: "check_by", p_slot: 2 })
+        expect(unsigned.error?.message ?? "").toMatch(/isn't signed/)
+    })
+
+    it("keeps the closed freeze for every other write, from the service role", async () => {
+        const slipId = await closedSlip()
+        const { error } = await svc().from("transmittals").update({ priority: "low" }).eq("id", slipId)
+        expect(error?.message ?? "").toMatch(/closed/)
+        const stage = await svc().from("transmittal_stages").update({ remarks: "Edited" }).eq("transmittal_id", slipId).eq("stage", "technical_inspection")
+        expect(stage.error?.message ?? "").toMatch(/signed/)
+    })
+})
+
+describe("the history of cleared signatures", () => {
+    it("is read by those who read the slip, and can't be changed by anyone", async () => {
+        const slipId = await submittedSlip()
+        await rpc("warehouse", "transmittal_received_in_odoo", { p_transmittal_id: slipId, p_ref: "WH/IN/U-4" })
+        expect((await undo("warehouse", slipId, { p_kind: "odoo" })).error).toBeNull()
+        const [cleared] = await clearedOf(slipId)
+
+        const asPreparer = await (await clientFor("warehouse")).from("transmittal_cleared_signatures").select("id").eq("transmittal_id", slipId)
+        expect(asPreparer.data).toHaveLength(1)
+        const asOutsider = await (await clientFor("ordinary")).from("transmittal_cleared_signatures").select("id").eq("transmittal_id", slipId)
+        expect(asOutsider.data ?? []).toHaveLength(0)
+
+        const write = await (await clientFor("warehouse"))
+            .from("transmittal_cleared_signatures")
+            .update({ cleared_reason: "Rewritten" })
+            .eq("id", cleared.id)
+        expect(write.error ?? (await clearedOf(slipId))[0].cleared_reason === "Rewritten").toBeTruthy()
+        expect((await clearedOf(slipId))[0].cleared_reason).toBe("Signed by mistake")
+
+        const service = await svc().from("transmittal_cleared_signatures").delete().eq("id", cleared.id)
+        expect(service.error?.message ?? "").toMatch(/append-only/)
+    })
+})
+
+describe("quick undo right after signing (#935)", () => {
+    const quick = (who, slipId, stage = "warehouse_checking") =>
+        rpc(who, "transmittal_quick_undo", { p_transmittal_id: slipId, p_stage: stage })
+    const hold = (who, slipId, stage = "warehouse_checking") =>
+        rpc(who, "transmittal_hold_notices", { p_transmittal_id: slipId, p_stage: stage })
+    const pending = async (slipId) =>
+        (await svc().from("transmittal_pending_notices").select("*").eq("transmittal_id", slipId)).data
+
+    it("lets the signer undo inside the window with no reason, drops the held notices and keeps the history", async () => {
+        const slipId = await submittedSlip()
+        await rate("warehouse", slipId)
+        await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
+        const held = await hold("warehouse", slipId)
+        expect(held.error).toBeNull()
+        expect((await pending(slipId))[0].notices.length).toBeGreaterThan(0)
+
+        const done = await quick("warehouse", slipId)
+        expect(done.error).toBeNull()
+        expect(done.data.notify_ids).toBeUndefined()
+        expect((await stageRow(slipId, "warehouse_checking")).completed_at).toBeNull()
+        const [cleared] = await clearedOf(slipId)
+        expect(cleared.cleared_reason).toBe("Undone right after signing")
+
+        const [row] = await pending(slipId)
+        expect(row.cancelled_at).toBeTruthy()
+        // Flushing later sends nothing for it.
+        await svc().from("transmittal_pending_notices").update({ due_at: new Date(Date.now() - 1000).toISOString() }).eq("id", row.id)
+        await rpc("warehouse", "transmittal_flush_notices", {})
+        expect((await pending(slipId))[0].sent_at).toBeNull()
+    })
+
+    it("sends the held notices once the window has passed, and refuses a quick undo then", async () => {
+        const slipId = await submittedSlip()
+        await rate("warehouse", slipId)
+        await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
+        expect((await hold("warehouse", slipId)).error).toBeNull()
+        // A signed stage is frozen, so let the real window run out.
+        await new Promise((resolve) => setTimeout(resolve, 15_500))
+
+        const late = await quick("warehouse", slipId)
+        expect(late.error?.message ?? "").toMatch(/window has passed/)
+        expect((await stageRow(slipId, "warehouse_checking")).completed_at).toBeTruthy()
+
+        // Someone else's flush does not send another person's notices; the signer's does.
+        await rpc("ordinary", "transmittal_flush_notices", {})
+        expect((await pending(slipId))[0].sent_at).toBeNull()
+        await rpc("warehouse", "transmittal_flush_notices", {})
+        expect((await pending(slipId))[0].sent_at).toBeTruthy()
+        const sent = await svc().from("notifications").select("type").eq("reference_id", slipId).eq("recipient_id", ids.dealOwner)
+        expect(sent.data.map((n) => n.type)).toContain("TRANSMITTAL_CONFIRM_SIGNATURE")
+    }, 30_000)
+
+    it("builds the notices itself: the caller names no recipient, type or text, and a repeat hold adds nothing", async () => {
+        const slipId = await submittedSlip()
+        await rate("warehouse", slipId)
+        await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
+        const forged = await rpc("warehouse", "transmittal_hold_notices", {
+            p_transmittal_id: slipId,
+            p_stage: "warehouse_checking",
+            p_notices: [{ recipient_id: ids.ordinary, type: "SPOOF", title: "x", message: "x", reference_id: "x" }],
+        })
+        expect(forged.error).toBeTruthy()
+        expect((await hold("warehouse", slipId)).error).toBeNull()
+        expect((await hold("warehouse", slipId)).error).toBeNull()
+        const rows = await pending(slipId)
+        expect(rows).toHaveLength(1)
+        for (const n of rows[0].notices) {
+            expect(["TRANSMITTAL_STAGE_READY", "TRANSMITTAL_CONFIRM_SIGNATURE", "TRANSMITTAL_NA_RAISED"]).toContain(n.type)
+            expect(n.reference_id).toBe(slipId)
+            expect(n.recipient_id).not.toBe(ids.ordinary)
+        }
+    })
+
+    it("is not callable by anon", async () => {
+        const anon = createClient(API_URL, ANON_KEY, { auth: { persistSession: false } })
+        const { error } = await anon.rpc("transmittal_flush_notices")
+        expect(error).toBeTruthy()
+    })
+
+    it("refuses anyone but the signer, even on a list that may sign the stage", async () => {
+        const slipId = await submittedSlip()
+        await rate("warehouse", slipId)
+        await sign("warehouse", slipId, "warehouse_checking", ids.dealOwner)
+        for (const who of ["dealOwner", "ordinary", "superAdmin"]) {
+            const { error } = await quick(who, slipId)
+            expect(error, `${who} quick-undid the signature`).toBeTruthy()
+        }
+        expect((await stageRow(slipId, "warehouse_checking")).completed_at).toBeTruthy()
+    })
+})

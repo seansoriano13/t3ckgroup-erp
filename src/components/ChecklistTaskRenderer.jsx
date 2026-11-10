@@ -87,6 +87,8 @@ export default function ChecklistTaskRenderer({
         const flatItems = nextGroups[0].items.map((i) => ({
           text: i.text,
           checked: i.checked,
+          ...(i.dueDate ? { dueDate: i.dueDate } : {}),
+          ...(i.remarks ? { remarks: i.remarks } : {}),
         }));
         onInlineCheck(JSON.stringify(flatItems));
       } else {
@@ -305,6 +307,13 @@ function ChecklistItemRow({ item, disabled, isOwner, searchTerm, onToggle }) {
         }`}
       >
         <HighlightText text={item.text} search={searchTerm} />
+        {(item.dueDate || item.remarks) && (
+          <span className="block text-[11px] font-normal text-muted-foreground mt-0.5">
+            {item.dueDate && <span>Due {item.dueDate}</span>}
+            {item.dueDate && item.remarks && <span> · </span>}
+            {item.remarks && <span>{item.remarks}</span>}
+          </span>
+        )}
       </span>
     </div>
   );

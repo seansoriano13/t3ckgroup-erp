@@ -1,2 +1,5 @@
 # Byte offsets inside a PDF break if line endings are converted.
 *.pdf binary
+
+# Git hooks are bash scripts: Windows line endings would break them.
+scripts/hooks/* text eol=lf

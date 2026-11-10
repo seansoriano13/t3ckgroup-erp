@@ -12,7 +12,7 @@ colors:
   desk-hover: "#eae7ec"
   seam: "#e3dfe6"
   border: "#dbd8e0"
-  focus-ring: "#bcbac7"
+  focus-ring: "#65636d"
   ink-faint: "#8e8c99"
   ink-muted: "#65636d"
   ink: "#211f26"
@@ -44,7 +44,7 @@ typography:
     lineHeight: 1.5
   label:
     fontFamily: "Plus Jakarta Sans, sans-serif"
-    fontSize: "10px"
+    fontSize: "11px"
     fontWeight: 700
     letterSpacing: "0.05em"
   figure:
@@ -128,7 +128,7 @@ Light and dark themes are both first-class. Radix's `.dark` scale swaps every st
 **Key Characteristics:**
 - Mauve neutral field (Radix `mauve` 1–12) and a single brand accent (Radix `red`)
 - Plus Jakarta Sans throughout, with weight rather than family carrying hierarchy
-- Tiny uppercase tracked labels (10–11px bold) as the connective tissue of every record
+- Tiny uppercase tracked labels (11px bold) as the connective tissue of every record
 - Softly rounded geometry (12px base radius) and pill-shaped chips
 - Flat-leaning surfaces with borders first and small shadows as state
 - Dark mode via Radix scale swap, with no per-component color overrides
@@ -149,7 +149,7 @@ A cool-warm mauve ramp carries the whole interface. One saturated red is reserve
 - **Hover Desk** (`desk-hover`, mauve-4): sidebar item hover (`sidebar-accent`).
 - **Seam** (`seam`, mauve-5): card borders and sidebar border, the quietest structural line.
 - **Border** (`border`, mauve-6): input strokes and the global default `border` token.
-- **Focus Grey** (`focus-ring`, mauve-8): the `ring` token. Focus is neutral, never red.
+- **Focus Grey** (`focus-ring`, mauve-11): the `ring` token. Focus is neutral, never red.
 - **Faint Ink** (`ink-faint`, mauve-9): disabled glyphs, day-name headers.
 - **Muted Ink** (`ink-muted`, mauve-11): descriptions, inactive tabs, secondary text.
 - **Ink** (`ink`, mauve-12): primary text.
@@ -159,6 +159,8 @@ Green, amber, blue, violet, orange, and red Radix scales are imported for **Stat
 
 ### Named Rules
 **The One Red Object Rule.** Primary-color utilities (`bg-primary`, `text-primary`, `ring-primary`, `border-primary` and their state modifiers) belong only to components where red carries meaning: buttons, destructive confirmations, the selected canvas edge. Enforced by the `no-primary-decoration` ESLint rule (ADR 0009). If a focus ring, hover tint, or accent background is red, it is wrong.
+
+**The one colour exception.** The IPAS bill check keeps red text on the Odoo PO amount and green text on the P.I amount (text colour only, no fills), so finance still sees the difference at a glance. Every other amount and reference is mono in ink. This is the only written exception to amounts in text colour (spec #631, chosen 2026-10-22).
 
 **The Scale-Step Rule.** Color is written as a Radix step (`mauve-6`, `red-9`) or a semantic token (`border`, `muted`) and never as a hex literal. That is what makes dark mode free.
 
@@ -175,7 +177,7 @@ Green, amber, blue, violet, orange, and red Radix scales are imported for **Stat
 - **Headline** (900, 1.25rem → 1.5rem): section headers inside a page.
 - **Title** (500–600, 1rem): card titles, modal titles.
 - **Body** (500, 0.875rem; 13px in dense lists): record content, descriptions (max width ~42rem in headers).
-- **Label** (700–900, 10–11px, uppercase, `tracking-wider`/`tracking-widest`): field keys, status badges, sidebar group names, date-picker headers. This is the most-used style in the app and appears in roughly 150 files.
+- **Label** (700–900, 11px, uppercase, `tracking-wider`/`tracking-widest`): field keys, status badges, sidebar group names, date-picker headers. Set it with the `text-label` utility (`--text-label` in `src/index.css`), never a hardcoded `text-[10px]` for an uppercase key label. Other 10px text is out of scope for this rule and is not being migrated here. This is the most-used style in the app and appears in roughly 150 files.
 - **Figure** (mono, 12px): record numbers, amounts, and version badges (`vX.Y`) where a machine is accountable for the value.
 
 ### Named Rules
@@ -214,6 +216,7 @@ The shapes are soft rounded rectangles on a 12px base radius (`--radius: 0.75rem
 Compact, confident, and quiet unless they are *the* action.
 - **Shape:** gently rounded (12px), 32px tall by default (24 / 28 / 36px for xs / sm / lg), 14px medium text, 16px icons.
 - **Primary:** Signal Red fill with Desk text and `shadow-sm`. It lifts 2px on hover and presses 1px down on active.
+- **Page main action:** a Page's one New / Register / Add button is primary red, with nothing to add: a plain (default-variant) `Button` placed straight in PageShell's `action` slot turns red through the `[data-page-actions]` rule in `index.css`. Outline, ghost and pill controls beside it keep their look. The fill is the `--primary-action` token: red-11 under white text in light mode, since red-9 gives only 3.8:1 (WCAG AA needs 4.5:1), and red-9 in dark mode. Dialog Save / Make buttons use the `primary` Button variant, which uses the same token.
 - **Outline:** Desk fill with a mauve border, shifting to Muted Desk on hover.
 - **Ghost:** transparent, shifting to Muted Desk on hover.
 - **Destructive:** Red Wash at 10% with Consequence Red text. Red is carried by the text, not a solid fill.
@@ -221,8 +224,9 @@ Compact, confident, and quiet unless they are *the* action.
 - **Disabled:** 50% opacity with no pointer events.
 
 ### Chips and badges
-- **StatusBadge:** a pill (2px 8px) in the card color with a status-colored border and text, 10px bold uppercase tracked. Mauve is the fallback for unknown statuses.
+- **StatusBadge:** a pill (2px 8px) in the card color with a status-colored border and text, 11px bold uppercase tracked (`text-label`). Text uses Radix step 11 (step 12 for green, amber, and orange, which fall short of 4.5:1 at 11) so it passes 4.5:1 on the card. Mauve is the fallback for unknown statuses.
 - **PropertyPill:** a round pill with a border, 12px medium muted text. It darkens on hover, and its active state takes the muted fill and semibold text.
+- **State dot:** a small `Dot` (6–8px) may sit beside text in list rows and tabs to show state. It is never a pill: StatusBadge stays the only status pill. The dot always sits beside a visible state word and never carries the state alone.
 
 ### Cards / Containers
 - **Corner Style:** 16.8px (`xl`).
@@ -254,7 +258,7 @@ A **Primitive** is anything in `src/components/ui/`. Raw `<button>`, `<input>`, 
 Headings are stable anchors; a lint message links to the heading of the Primitive it asks for. Paths are under `src/components/`.
 
 #### Button
-`ui/button.jsx`. Replaces raw `<button>`. Props: `variant` (`default` | `outline` | `secondary` | `ghost` | `destructive` | `link`), `size` (`default` | `xs` | `sm` | `lg` | `icon` | `icon-xs` | `icon-sm` | `icon-lg`), `asChild`, `className`, plus native button props.
+`ui/button.jsx`. Replaces raw `<button>`. Props: `variant` (`default` | `primary` | `outline` | `secondary` | `ghost` | `destructive` | `link`; `primary` is a dialog's Save / Make, filled with the `--primary-action` token), `size` (`default` | `xs` | `sm` | `lg` | `icon` | `icon-xs` | `icon-sm` | `icon-lg`), `asChild`, `className`, plus native button props.
 
 #### Dialog
 `ui/dialog.jsx` (base-ui). Replaces hand-rolled full-screen modals. Parts: `Dialog`, `DialogTrigger`, `DialogPortal`, `DialogOverlay`, `DialogContent` (`showCloseButton`, `className`), `DialogHeader`, `DialogFooter` (`showCloseButton`), `DialogTitle`, `DialogDescription`, `DialogClose`.
@@ -268,11 +272,29 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### DetailParts
 `ui/DetailParts.jsx`. Record detail parts for slide-over bodies: `DetailSection` (`title`, `aside`), `DetailRow` (`label`), `NotePresets` (`presets`, `onPick`), `ApprovalChain` (`chain` of `{ label, who, note, at, state }`), `PersonChip` (`person`, `size`, `detail`).
 
+#### ModalShell
+`ui/ModalShell.jsx`, on Dialog. The one modal for every Purchasing tab (Canvass, IPAS, Transmittal, Packing List, and Purchase Requests): the LogTask layout as a shared shell. Header with a neutral "P" badge and a breadcrumb (`crumbs`: tab, then the action or record reference), `headerActions` (secondary actions such as Print, Edit, More), optional Expand and Close. A scrolling body. A gray footer with "Esc to cancel", Cancel (`cancelLabel`, `null` hides it) and the step's `actions`. Props: `open`, `onOpenChange`, `size` (`compact` 680px for a form or confirm step, `wide` 1100px for a larger form, `record` the record window), `expandable` (Expand grows the panel to the full window in width and height, 16px inset; the choice lasts for the session; only New Canvass, New Transmittal and Print preview set it), `onSubmit` (wraps body and footer in a form), `footerStart`, `className`, `bodyClassName`. The `record` size is the RecordModal size (16px inset, full height, up to 1400px wide) and the whole screen on a phone. **A record has no footer bar and no Expand**: the X and Esc close it, and the breadcrumb and `headerActions` (up to two outline buttons, then `RecordMoreMenu`, shown only when it has items) are its only chrome. Layers: a `record` or `wide` window sits at z-70, a `compact` dialog at z-80. The record windows (Transmittal, Packing List, IPAS) are route-driven: `/purchasing/<tab>/:id` renders the list with the record open on top, and Close returns to the list. Purchase Requests and Canvasses keep the query parameter that opens them. No "Create more".
+
 #### RecordModal
 `ui/record-modal.jsx`, on Dialog. The one-size modal for the records that carry a Chat (SOR, Individual Task, Group Task; DESIGN.md "Pages → Container rule"). `RecordModalContent` replaces `DialogContent` (`className`, plus DialogContent props); `RECORD_MODAL_CLASS` is its size. No size switcher.
 
+#### Record header
+`components/record/RecordHeader.jsx`. The top of every Purchasing record window. Props: `reference` (mono, or a word with `mono={false}`), `name`, `badge` (`{ label, theme?, status? }`: one StatusBadge, a record has exactly one), `line` (the one quiet line: who and when). The title reads "reference · name".
+
+#### Property pills
+`components/record/PropertyPills.jsx`. A record's headline facts as a row of round pills under the header. A pill the viewer may change opens a small picker (`options`, `onChange`); the rest are read-only. A second status (an IPAS's Paid) is a pill, never a second badge. Built on `PropertyPill` and `Dropdown`.
+
+#### Detail grid
+`components/record/DetailGrid.jsx`. A record's fields in an auto-fill grid: an 11px uppercase label above each value. Props: `items` (`{ label, value, mono? }`), `hideEmpty`, `min`. A missing value reads as a dash. It replaces label-beside-value and grey normal-case labels, so the read view matches the edit forms.
+
+#### Liner list
+`components/record/LinerList.jsx`. A record's children (items, lines, boxes, payments, documents) as one bordered box of one-line rows split by hairlines: main text, sub line, mono quantity, optional badge (or `actions` in its place) and a chevron. A row with `children` opens in place (the `.reveal` pattern in `record/Reveal.jsx`; content stays mounted) and several can be open. `groups` adds sub-headings inside the box. `empty` is one quiet sentence with no box. No tables or cards inside a record; the one exception is a Canvass's Offers, which stay side-by-side cards.
+
+#### Your move card
+`components/record/YourMoveCard.jsx`. The one sign-off card for IPAS, Transmittal, Packing List and Canvass, in a fixed order: the "Your move" heading, what is next, a signed count, the step list (circle, title, sub line, Now / Waiting / Done) and, inside the open step, its work and its green button (`APPROVE_CLASS`). Steps open in place like Liner list rows; the step that needs the viewer opens on arrival. It sits in the right rail from the wide breakpoint and under the record below it. A failed move shows `InlineError` where it was started. Take is an outline button; red is only for dialogs' Save / Make and a page's one New button.
+
 #### ConfirmDialog
-`ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `className`, `footerClassName`, `children`.
+`ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `className`, `footerClassName`, `children`. `ui/approveClass.js` exports `APPROVE_CLASS`, the green Approve style for a `Button` that approves outside a ConfirmDialog (record footers, the Decision card).
 
 #### Input
 `ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox and file inputs have their own Primitives.
@@ -287,22 +309,24 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/switch.jsx`. On/off toggle. Props: `size`, plus base-ui switch props (`checked`, `onCheckedChange`, `disabled`).
 
 #### Checkbox
-`ui/checkbox.jsx`. Replaces raw `<input type="checkbox">`; a tick box, not the on/off Switch. Props: base-ui checkbox props (`checked`, `onCheckedChange`, `disabled`). Wrap in a label for a text target, or pass `aria-label`.
+`ui/checkbox.jsx`. Replaces raw `<input type="checkbox">`; a tick box, not the on/off Switch. Props: `tone` (`primary`, the default; `neutral`, a mauve-12 tick for a neutral surface), plus base-ui checkbox props (`checked`, `onCheckedChange`, `disabled`). Wrap in a label for a text target, or pass `aria-label`.
 
 #### FileInput
 `ui/FileInput.jsx`. Replaces raw `<input type="file">`; owns the hidden input and its trigger. Props: `accept`, `multiple`, `disabled`, `onFiles(files[])`, `onCancel`, `variant`/`size`/`className` and any other props for the trigger Button. With `children` it renders a Button trigger; without, only the hidden input, opened via `ref.current.open()` from a trigger elsewhere.
 
 #### Select (base-ui building blocks)
+`ui/labeledCard.jsx`. The labelled-field card shared by Input, Textarea and SelectField: bold caption above the control in a rounded card. Props: `label`, `labelId`, `htmlFor`, `error`, `disabled`, `className`, `labelClassName`, `children`. Use the field Primitives; reach for it only to wrap a custom control the same way.
+
 `ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`, `SelectScrollUpButton`, `SelectScrollDownButton`. Building blocks for `SelectField`; use those directly only for custom triggers/items. Look matches the Category/Priority Dropdowns and `FilterTrigger`/`FilterOptionList`: bordered card trigger (`h-[46px]`, `size="sm"` is `h-9`) with rotating chevron and mauve ring when open; `bg-muted` rounded-xl popover; semibold items, selected item `bg-muted/80` bold with a muted check.
 
 #### SelectField
-`ui/SelectField.jsx`. Replaces raw `<select>`. Props: `options` (`{value,label,disabled?}`), `value`, `onChange(value)`, `placeholder`, `disabled`, `size`, `className`, `contentClassName`. Works inside Dropdown popovers: its list registers with the Dropdown nesting context (`useDropdownNestedPopoverRef` in `ui/dropdownNesting.js`), otherwise the outer popover closes on mousedown before the pick registers.
+`ui/SelectField.jsx`. Replaces raw `<select>`. Props: `options` (`{value,label,disabled?}`), `value`, `onChange(value)`, `placeholder`, `disabled`, `size`, `className`, `contentClassName`, `label`, `error`, `required`, `name`, `requiredMessage`. Tab reaches it; Enter or Space opens it; the arrows and Enter pick. With `required`, a blank one stops its form, turns red and says "Choose an option." (or `requiredMessage`) until something is picked. Works inside Dropdown popovers: its list registers with the Dropdown nesting context (`useDropdownNestedPopoverRef` in `ui/dropdownNesting.js`), otherwise the outer popover closes on mousedown before the pick registers.
 
 #### FieldBox
 `ui/FieldBox.jsx`. Form-field Primitive, label plus control. Replaces raw `<label>`. Props: `label`, `isEditing`, `noBorder`, `bare`, `inline`, `htmlFor`, `className`, `children`. Default: caption above a bordered control box; `bare`: caption above children, no box; no children: caption only (pass `htmlFor`); `inline`: label wraps children, for checkbox and switch rows. A lone child control is associated with the label automatically.
 
 #### Table
-`ui/table.jsx`. Replaces raw `<table>`. Styling-only set: `Table` (wraps in a horizontal scroll container), `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`. Native table props plus `className`. Sorting, pagination and selection stay in feature code.
+`ui/table.jsx`. Replaces raw `<table>`. Styling-only set: `Table` (wraps in a horizontal scroll container), `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`. Native table props plus `className`. Sorting, pagination and selection stay in feature code. Opt-in column resize: give `Table` a `tableId` and a `TableHead` an `id` and that column gets a drag handle (double-click resets it); widths are saved per user and table in localStorage. Use it on page-level Registers and Queues, not on small embedded tables. `SortHead` is a `TableHead` you tap to sort (up/down arrows, `aria-sort`); pair it with the `useTableSort` hook, which sorts ascending, then descending, then back to the original order. On touch screens the resize handle widens to 24px, and a "Reset columns" button shows once widths are saved. Opt-in `scrollCue` fades the edge that still has columns off-screen (none when the table fits); used on the admin tables that stay desktop-width.
 
 #### Dropdown
 `ui/Dropdown.jsx`. Trigger-plus-children popover or menu, no options or value, not a select. Props: `trigger`, `children`, `isOpen`, `onToggle`, `onClose`, `placement`, `className`, `popoverClassName`, `usePortal`, `disabled`. Nested Dropdowns are DOM siblings, handled by its nesting context (`ui/dropdownNesting.js`: `DropdownNestingContext`, `useDropdownNestedPopoverRef`, the hook for any popover portalled out of a Dropdown).
@@ -328,6 +352,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### Dot
 `ui/Dot.jsx`. Small status dot. Props: `size`, `color` (Tailwind classes), `className`, plus native span props.
 
+#### BetaTag
+`ui/BetaTag.jsx`. The small "Beta" badge for a screen or nav item that is live but not finished (CONTEXT.md, "Beta tag"). Its hover says why (`BETA_HOVER`). Props: `className`.
+
 #### Avatar
 `Avatar.jsx` (root). The Primitive for people images. Props: `name`, `src`, `size` (`xxs`..`xl`), `isSelected`, `showCheckOnSelect`, `onClick`. Replaces raw `<img>` of a person.
 
@@ -349,11 +376,14 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### EmptyState
 `ui/EmptyState.jsx`. The one empty state: muted icon, title, one line. Props: `icon`, `title`, `description`, `className`.
 
+#### QueryError
+`ui/QueryError.jsx`. The one query-failure block: short message plus Retry; never prints a raw error. Props: `title`, `onRetry`, `className`.
+
 #### Spinner
 `ui/Spinner.jsx`. Props: `size`, `text`, `fullScreen`, `className`.
 
 #### CustomToast
-`ui/CustomToast.jsx`. Toast body for react-hot-toast. `CustomToast` props: `t`, `title`, `description`, `variant` (`default` | `success` | `error` | `loading` | `info` | `confirm`), `onConfirm`, `onCancel`, `confirmText`, `cancelText`; renders `t.action` (`{ label, onClick }`) when set. Helpers: `confirmDeleteToast(title, description, onConfirm)`, `confirmActionToast(title, description, confirmText, actionType, onConfirm)`, `undoableSuccessToast(message, label, onUndo, duration)`.
+`ui/CustomToast.jsx`. Toast body for react-hot-toast. `CustomToast` props: `t`, `title`, `description`, `variant` (`default` | `success` | `error` | `warning` | `loading` | `info` | `confirm`), `onConfirm`, `onCancel`, `confirmText`, `cancelText`; renders `t.action` (`{ label, onClick }`) when set. Helpers: `warningToast(message, duration)` (done, but look again: amber), `confirmDeleteToast(title, description, onConfirm)`, `confirmActionToast(title, description, confirmText, actionType, onConfirm)`, `undoableSuccessToast(message, label, onUndo, duration)`.
 
 #### EmojiPicker
 `ui/EmojiPicker.jsx`. Emoji button plus popup grid with recents. Props: `onSelect(emoji)`, `className`, `align`, `disabled`.
@@ -385,6 +415,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### SaveDefaultButton
 `ui/SaveDefaultButton.jsx`. "Save filters as default" control for a filter bar: Save / Default saved (with clear) / Update default (with clear) once the filters drift. Pair with `useSavedFilters`. Props: `hasSavedDefault`, `isDirty`, `onSave`, `onClear`, `className`.
 
+#### NewOdooPoLink
+`ui/NewOdooPoLink.jsx`. Plain "Create a PO in Odoo" link to Odoo's blank purchase order form, in a new tab (on ExternalLink). No props. The app writes nothing to Odoo.
+
 #### Page structure
 `ui/PageContainer.jsx` (`maxWidth`, `spaceY`, `className`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `showGradient`, `lastWordColor`, `className`), `ui/SectionHeader.jsx` (Sentence-case `title`, `description`, `rangeLabel`, `children`, `className`), `ui/FilterBar.jsx` (one line: `search` `{value, onChange, placeholder}`, `chips` (up to three `FilterSelect`s), `filters` (the Filters popover body, a node or `({close}) =>`), `activeCount` (badge on Filters), `saveDefault` (SaveDefaultButton props), `actions`, `hasActiveFilters` + `onClearAll` (Clear all), `className`). Companions: `FilterSelect` and `FilterTriggerButton` in `ui/FilterDropdown.jsx` (a whole single-choice filter: `options`, `value`, `onChange`, `icon`, `label`, `allValue`, `disabled`), and `ui/PeriodFilter.jsx` (`timeframe`, `onTimeframeChange`, `value`, `onChange`; a Daily/Weekly/Monthly/Yearly chip with its date).
 
@@ -393,6 +426,18 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 
 #### ExternalLink
 `ui/external-link.jsx`. Anchor for outside URLs; always `target="_blank"` with `rel="noopener noreferrer"` (caller `rel` is merged). Internal links use the router `Link`.
+
+#### PageLoading
+`ui/PageLoading.jsx`. The one page/section loading state: spinner plus sentence-case "Loading X…". Props: `label` (the noun, e.g. "task approvals", not the sentence), `className`.
+
+#### ChatScroller
+`ui/ChatScroller.jsx`. Scrolling body of a Chat that loads older Messages at the top, keeps your place when they arrive, and parks new Messages behind a "New messages" pill unless you were at the bottom. Props: `firstKey`/`lastKey` (ids of oldest/newest loaded Message) plus paging callbacks; drive with `usePagedChat`.
+
+#### TablePager
+`ui/TablePager.jsx`. List footer: "Showing X to Y of N", rows-per-page select, Prev / Next. Drive with `usePaging`: `<TablePager {...paging} noun="tasks" />`. Props: `total`, `page`, `pageSize`, `totalPages`, `setPage`, `setPageSize`, `noun`, `children` (far end of the bar), `className`.
+
+#### DesktopNotice
+`ui/DesktopNotice.jsx`. "Best on desktop" note for admin and config surfaces not built for a phone; visible below `md` only. Props: `children` (default "This page is best on desktop."), `className`.
 
 ## Pages
 
@@ -410,10 +455,10 @@ Every routed screen is built from one skeleton (ADR 0029). This section is the r
 These are UI terms. They do not belong in CONTEXT.md.
 
 ### Route → page type
-- **Queue**: Task Approvals, HR Verifications, Leave Approvals (the three Approval Center routes), Procurement Queue, Bug Reports, Leaves Manager (level-1 tabs switch its views; Pending and Request History take the type pills as level 2).
-- **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log.
-- **Report**: Commission Dashboard, Retail, Dashboard, SOR Register → Overview view.
-- **Config**: Settings, Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
+- **Queue**: Task Approvals, HR Verifications, Leave Approvals, IPAS Sign-offs (`/approvals/ipas`), Transmittal Check by (`/approvals/transmittals`; the five Approval Center routes), Procurement Queue, Bug Reports, Leaves Manager (level-1 tabs switch its views; Pending and Request History take the type pills as level 2).
+- **Register**: SOR Register (List / Board), All Tasks, Group Tasks, Task Templates, HR Management → Employees, My Requests, My SORs, Activity Log, IPAS (`/purchasing/ipas`; each IPAS opens in the record window over the list at `/purchasing/ipas/[id]`, at full size, like every Purchasing record: Record header, Property pills (Paid is a pill), the Your move card, the headline figures (the money summary's place), then every section as a collapsible block that opens in place, several at once. The section that needs the viewer opens on arrival, Open all / Close all sit beside the Sections heading, and `?open=<section>` opens and scrolls to that section. A money or sign-off section keeps its Edit section button; a section's edit view replaces the overview in the window, at `?edit=`. Section bodies use the Detail grid, lines, payments and documents are Liner list rows, and Submit lives only in Your move; ADR 0040). Transmittals (`/purchasing/transmittals`; each slip opens as its own record page at `/purchasing/transmittals/[id]`, and Raise Transmittal at `/purchasing/transmittals/new` is that record page's draft form), Packing Lists (`/purchasing/packing-lists`, each list at `/purchasing/packing-lists/[id]`). Purchasing Dashboard (`/purchasing/dashboard`; the old `/purchasing/order-monitoring` redirects to it; one tracker with no tabs: a stat row of stage totals (To source, To price, To order, On order, To check, Filed, Late orders, Value open; a total narrows the list), then a table with a row per SOR, a circle per stage (a number is work outstanding, a tick is cleared), its one next move with who owes it, and the client deadline; a row opens that SOR in a slide-over (`?sor=`) that reads what is next, then the whole purchase stage by stage with every record as a one-line liner; a Purchase Request picked there opens in the record window, every other record opens the place that owns it).
+- **Report**: Commission Dashboard, Retail, Dashboard, SOR Register → Overview view, Costing Matrix (`/costing-matrix`; Closed Book only: every SOR with a matrix, its Planned and Actual Revenue side by side, a FilterBar, totals and a pager; a row opens that SOR's Costing Matrix tab).
+- **Config**: Settings (its Purchasing tab holds the IPAS option lists, the Ageing rules block (one number of days per step) and, for Super Admins, the sign-off lists and the history of who changed them; the old `/purchasing/ipas/settings` redirects there), Profile, HR Management's configuration tabs, the Commission Dashboard's Formula tab (the tab body follows Config rules inside a Report page).
 - **Tool**: Flow Canvas, Document Center (a view in the Leaves Manager), Release Notes.
 - Redirect-only routes (legacy CRM/opportunities paths, Approval Center index, HR index, Super Admin index, Lead Sources) have no type.
 
@@ -431,7 +476,7 @@ PageShell also owns phone behaviour (header stacks, level-1 tabs scroll sideways
 ### Frames
 - **Centred** (default): the `wrapper`, max 80rem.
 - **Narrow**: the Config type's column, max 56rem, centred; header, tabs and body all sit in it.
-- **Full-width**: SOR Register, Flow Canvas and flow version pages. Full-width stays an explicit per-route list in the app layout, so a new Page never becomes full-width by accident.
+- **Full-width**: SOR Register, Order Monitoring, Flow Canvas and flow version pages. Full-width stays an explicit per-route list in the app layout, so a new Page never becomes full-width by accident.
 - The Dashboard's greeting banner sits above the standard layout.
 
 ### Title
@@ -449,7 +494,9 @@ Pick by what the person is doing.
 - **Modal**: a short make or confirm step ending in Save/Cancel (Register SOR, New Template, Apply Leave / OT, Add Employee, confirmations).
 - **RecordModal**: SOR, Individual Task, Group Task, the records that carry a Chat. One size (16px inset, 1400px max width, rounded, dimmed backdrop), no size switcher. Reached from a slide-over's "Open full" or directly where that is the existing entry.
 
-Slide-over covers the Approval Center review, Leaves Manager pending review, SOR Quick View and the locked SOR summary, employee profile / leave balances, Purchase Request review. Slide-overs open full-screen on phones.
+- **Record window** (Purchasing): every Purchasing record (Purchase Request, Canvass, IPAS, Transmittal, Packing List) opens in `ModalShell size="record"` over its list, at every width, and Close returns to the list. Its parts are the Record header, Property pills, Detail grid, Liner list and Your move card (see the Primitive catalog). Purchase Request review is no longer a slide-over. See [ADR 0040](docs/adr/0040-every-purchasing-record-opens-in-one-full-window-record-window.md).
+
+Slide-over covers the Approval Center review, Leaves Manager pending review, SOR Quick View and the locked SOR summary, employee profile / leave balances, and the Purchasing Dashboard's SOR summary. Slide-overs open full-screen on phones.
 
 ### Filter bar
 FilterBar is the only filter surface, on one line: search, up to three inline dropdown chips, a Filters popover with an active count, Save as default. No large filter cards.
@@ -459,6 +506,17 @@ One red Button in the header action slot, standard 32px size, top right. No over
 
 ### List display
 Queue and Register bodies are tables (Table Primitive) by default. A card grid exists only as a display toggle, and only where cards carry something a row cannot (All Tasks, Group Tasks).
+
+### Purchasing list anatomy
+Every Purchasing list (Purchase Requests, Canvasses, IPAS, Transmittals, Packing Lists, and the Dashboard, which keeps its stage tracker and SOR side panel) is built the same way from `components/purchasing/list/` (spec #631):
+- **State pills** with counts in PageShell's toolbar (TabGroup `pill`): Open / Closed / All, named for the record.
+- **One filter bar** (FilterBar): search, up to three dropdowns, a Filters popover for the rest, and `ExportButton` as the last control. Buyer on Purchase Requests is a dropdown (Any buyer, Unassigned, Mine).
+- **One table frame** (Table, SortHead and `useTableSort`): headings that never wrap and sort on tap. A table wider than the screen gets a Columns picker.
+- **Identity cell** (`IdentityCell`): the reference in mono over the record's name, or a word ("Direct", "No SOR") that is not mono.
+- **State badge** (`StateCell`): a right-aligned StatusBadge; each list maps its states to tones in one place.
+- **Pager** (TablePager and `usePaging`) at the bottom.
+- Ages read "3d" and dates read "Oct 22", with the year only when it is not this year (`utils/listDates.js`). Times show only inside records.
+- Links are text colour with an underline on hover (the Button `link` variant, app-wide). References and amounts are mono in ink. Red text is only for a line that flags a real problem.
 
 ### Report layout
 One headline figure with its supporting stats beside the chart, then the breakdown. The time range control sits in the header's action slot (the Dashboard's uses `FloatingMonthPicker` `inline`). Built from `ReportFigure`. No gradient summary cards.
@@ -478,11 +536,11 @@ Sentence-case title with an optional one-line description. Uppercase tracked lab
 - **Do** write color as Radix steps or semantic tokens (`bg-muted`, `border-mauve-6`, `text-muted-foreground`) so dark mode follows for free.
 - **Do** reserve Signal Red for the primary or destructive action on a surface and for the selected canvas edge (ADR 0009, `no-primary-decoration`).
 - **Do** use a Primitive from the catalog above, never raw HTML for a covered element. If none fits, stop and ask.
-- **Do** label record fields with the 10–11px bold uppercase tracked label, and set audited figures (amounts, record numbers, `vX.Y`) in monospace.
-- **Do** keep motion between 150 and 400ms on `cubic-bezier(0.16, 1, 0.3, 1)`, and keep the global reduced-motion guard intact.
+- **Do** label record fields with the 11px bold uppercase tracked label, and set audited figures (amounts, record numbers, `vX.Y`) in monospace.
+- **Do** keep motion between 150 and 400ms on `cubic-bezier(0.16, 1, 0.3, 1)` (the `ease-out-expo` utility), and keep the global reduced-motion guard intact.
 
 ### Don't:
-- **Don't** use red for focus rings, hover tints, or decorative backgrounds. Focus is neutral grey (mauve-8).
+- **Don't** use red for focus rings, hover tints, or decorative backgrounds. Focus is neutral grey (mauve-11).
 - **Don't** copy the Card component's **indigo-tinted shadow** (`rgba(79,70,229,…)`). It is template drift from a stock theme and not part of this system; shadows here are neutral black.
 - **Don't** use `hover:bg-primary-hover`. That token is **not defined**, so the hover silently does nothing. Use the `Button` primary variant, or `hover:bg-red-10`.
 - **Don't** reach for **Russo One** or **Inter**. Both are imported in `src/index.css` but unused. Plus Jakarta Sans is the only screen face.

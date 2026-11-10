@@ -3,6 +3,13 @@ import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders, setupUser } from "../../test/support";
 import DeletedOpportunitiesView from "./DeletedOpportunitiesView";
 import { opportunityService } from "../../services/opportunityService";
+import toast from "react-hot-toast";
+
+vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
+// The confirm toast confirms at once, so the test goes straight to the restore call.
+vi.mock("../ui/CustomToast", () => ({
+  confirmActionToast: (_title, _description, _label, _type, onConfirm) => onConfirm(),
+}));
 
 const ROW = {
   id: "opp-1",
@@ -34,6 +41,32 @@ describe("DeletedOpportunitiesView", () => {
 
     expect(await screen.findByText("Acme Corp")).toBeInTheDocument();
     expect(screen.getByText("Cara Lim")).toBeInTheDocument();
+  });
+
+  it("searches by client and sorts the matches together", async () => {
+    const user = setupUser();
+    opportunityService.getDeletedOpportunities.mockResolvedValue([
+      ROW,
+      { ...ROW, id: "opp-2", client_name: "Beta Ltd", project_title: "Alarm", sales_reference: "S09999", deal_owner: { name: "Dana Ruiz" } },
+      { ...ROW, id: "opp-3", client_name: "Acme North", sales_reference: "S05555" },
+    ]);
+    renderWithProviders(<DeletedOpportunitiesView currentUserId="owner-1" isSuperAdmin={false} />);
+    await screen.findByText("Beta Ltd");
+
+    await user.type(screen.getByLabelText("Search register"), "acme");
+    expect(screen.queryByText("Beta Ltd")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/^acme$/i)).toHaveLength(2);
+
+    await user.click(screen.getByText("Company"));
+    const rowsText = screen.getAllByRole("row").slice(1).map((r) => r.textContent);
+    expect(rowsText).toHaveLength(2);
+    expect(rowsText[0]).toContain("Acme Corp");
+    await user.click(screen.getByText("Company"));
+    expect(screen.getAllByRole("row")[1].textContent).toContain("Acme North");
+
+    await user.clear(screen.getByLabelText("Search register"));
+    await user.type(screen.getByLabelText("Search register"), "dana");
+    expect(screen.getByText("Beta Ltd")).toBeInTheDocument();
   });
 
   it("shows an empty state when there is nothing deleted", async () => {
@@ -87,5 +120,18 @@ describe("DeletedOpportunitiesView", () => {
     await waitFor(() =>
       expect(opportunityService.purgeOpportunity).toHaveBeenCalledWith("opp-1", "S01234", "admin-1"),
     );
+  });
+
+  it("shows the refusal when the S0 is taken by another SOR (#819)", async () => {
+    const user = setupUser();
+    const refusal = 'S01234 is now on SOR "Rope Rescue" (Acme). One S0 per SOR; change one before restoring.';
+    opportunityService.restoreOpportunity.mockRejectedValueOnce(new Error(refusal));
+    renderWithProviders(<DeletedOpportunitiesView currentUserId="owner-1" isSuperAdmin={false} />);
+
+    await screen.findByText("Acme Corp");
+    await user.click(screen.getByText("Restore"));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(refusal));
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

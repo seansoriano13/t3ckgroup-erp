@@ -79,7 +79,7 @@ describe("ApproveUndertimeModal", () => {
     expect(screen.queryByLabelText(/approved hours/i)).not.toBeInTheDocument()
 
     const user = setupUser()
-    await user.click(screen.getByRole("button", { name: /confirm rejection/i }))
+    await user.click(screen.getByRole("button", { name: /confirm decline/i }))
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled())
     expect(db.rows("undertime_requests").find((r) => r.id === request.id).status).toBe("REJECTED")

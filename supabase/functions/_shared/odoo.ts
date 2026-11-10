@@ -30,6 +30,13 @@ export function isConfigured() {
   return !!(ODOO_URL && ODOO_DB && ODOO_USERNAME && ODOO_API_KEY);
 }
 
+// True only on the local Supabase stack, where the functions see SUPABASE_URL as
+// http://kong:8000 (or 127.0.0.1). Production and staging use https://*.supabase.co,
+// so this is never true there.
+export function isLocalStack() {
+  return /\/\/(kong|127\.0\.0\.1|localhost)(:|\/|$)/.test(Deno.env.get("SUPABASE_URL") ?? "");
+}
+
 export function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -99,7 +106,33 @@ export async function authenticate() {
   return uid;
 }
 
+// Odoo methods that only read. Anything else counts as a write.
+const ODOO_READ_METHODS = new Set([
+  "search",
+  "search_read",
+  "search_count",
+  "read",
+  "read_group",
+  "name_search",
+  "name_get",
+  "fields_get",
+  "check_access_rights",
+]);
+
+// The local stack's Odoo login points at the LIVE Odoo (there is no test Odoo),
+// so on the local stack every write is refused unless ODOO_ALLOW_LOCAL_WRITES
+// is "true". Staging and prod are never affected.
+export function assertOdooWriteAllowed(method) {
+  if (ODOO_READ_METHODS.has(method)) return;
+  if (!isLocalStack()) return;
+  if (Deno.env.get("ODOO_ALLOW_LOCAL_WRITES") === "true") return;
+  throw new Error(
+    `Odoo write "${method}" refused on the local stack because it would change the live Odoo. Set ODOO_ALLOW_LOCAL_WRITES=true in supabase/functions/.env and restart pnpm local:start to allow it.`,
+  );
+}
+
 export function executeKw(uid, model, method, args, kwargs = {}) {
+  assertOdooWriteAllowed(method);
   return odooCall("object", "execute_kw", [
     ODOO_DB,
     uid,
@@ -326,4 +359,45 @@ export async function fetchProductStock(uid, productIds) {
     warehouses: warehouses.map((w) => ({ id: w.id, name: w.name })),
     products,
   };
+}
+
+// Odoo numbers a confirmed purchase.order P0####. Kept permissive on width,
+// matching SALES_REFERENCE_PATTERN.
+export const PO_NUMBER_PATTERN = /^P\d+$/;
+
+/** A typed PO number as Odoo names it ("p01234 " -> "P01234"), or null if it isn't one. */
+export function normalizePoNumber(value: unknown) {
+  const ref = String(value ?? "").trim().toUpperCase();
+  return PO_NUMBER_PATTERN.test(ref) ? ref : null;
+}
+
+/**
+ * Finds a purchase order by its exact number. With `fuzzy`, falls back to an
+ * `ilike` match for the same reason findOrder does (references get typed
+ * without their leading zeroes): fine for confirming a typed number exists,
+ * but never for raising a record against it.
+ */
+export async function findPurchaseOrder(
+  uid,
+  ref,
+  fields = ["id", "name", "state", "partner_id"],
+  { fuzzy = false } = {},
+) {
+  const exact = await executeKw(
+    uid,
+    "purchase.order",
+    "search_read",
+    [[["name", "=", ref]], fields],
+    { limit: 1 },
+  );
+  if (exact.length || !fuzzy) return exact[0] || null;
+
+  const near = await executeKw(
+    uid,
+    "purchase.order",
+    "search_read",
+    [[["name", "ilike", ref]], fields],
+    { limit: 1 },
+  );
+  return near[0] || null;
 }

@@ -3,6 +3,7 @@ import {
   assertNotWeekend,
   applyLunchDeduction,
   deriveLeaveHours,
+  previewLeaveHours,
   deriveUndertimeHours,
   assertSilEligible,
   SIL_ELIGIBLE_STATUS,
@@ -39,13 +40,30 @@ describe("applyLunchDeduction", () => {
   })
 })
 
+describe("previewLeaveHours", () => {
+  it("takes lunch off by the clock, not by length", () => {
+    expect(previewLeaveHours("13:00", "18:00")).toBe(5) // after lunch, nothing to take off
+    expect(previewLeaveHours("10:00", "14:00")).toBe(3) // covers 12-1
+    expect(previewLeaveHours("08:00", "17:00")).toBe(8)
+  })
+
+  it("is 0 for an empty or backwards window instead of throwing", () => {
+    expect(previewLeaveHours("", "")).toBe(0)
+    expect(previewLeaveHours("17:00", "08:00")).toBe(0)
+  })
+
+  it("lets an overnight window through when asked", () => {
+    expect(previewLeaveHours("22:00", "02:00", { allowOvernight: true })).toBe(4)
+  })
+})
+
 describe("deriveLeaveHours", () => {
   it("derives net hours for a window, lunch already deducted", () => {
     expect(deriveLeaveHours("07:30", "18:00")).toBe(9.5) // 10.5-hour window minus 1 hour for lunch
   })
 
   it("does not deduct for a short window", () => {
-    expect(deriveLeaveHours("09:00", "13:00")).toBe(4)
+    expect(deriveLeaveHours("13:00", "17:00")).toBe(4)
   })
 })
 

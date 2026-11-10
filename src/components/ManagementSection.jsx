@@ -3,6 +3,7 @@ import Dot from "./ui/Dot";
 import Dropdown from "./ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
 import { FieldBox } from "./ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const ManagementSection = ({
   isEditing,
@@ -25,7 +26,7 @@ const ManagementSection = ({
 
   return (
     <div className="grid grid-cols-2 gap-3 bg-muted/30 p-4 rounded-2xl border border-border">
-      <div className="col-span-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1 flex items-center gap-2">
+      <div className={`col-span-2 ${CAPTION_BASE} tracking-[0.2em] text-muted-foreground mb-1 flex items-center gap-2`}>
         <Dot />
         Management Details
       </div>

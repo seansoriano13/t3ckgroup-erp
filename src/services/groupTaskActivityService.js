@@ -31,6 +31,70 @@ export const groupTaskActivityService = {
     }));
   },
 
+  /**
+   * One page of a task's Chat (its COMMENT entries), oldest first: the `limit`
+   * newest strictly older than `before`, or the newest overall when `before`
+   * is null. A full page means older ones may remain. `includeEvents` pages
+   * system entries in with the comments, for a Chat that shows them inline.
+   */
+  async getCommentsPage(taskId, { before = null, limit = 30, includeEvents = false } = {}) {
+    if (!taskId) return [];
+    let query = supabase
+      .from("committee_task_activity")
+      .select(`
+        *,
+        author:employees!committee_task_activity_author_id_fkey(name, is_head, is_hr, is_super_admin, avatar_path)
+      `)
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!includeEvents) query = query.eq("type", "COMMENT");
+    if (before) query = query.lt("created_at", before);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).reverse().map((entry) => ({
+      id: entry.id,
+      taskId: entry.task_id,
+      authorId: entry.author_id,
+      authorName: entry.author?.name || null,
+      authorIsHead: entry.author?.is_head || false,
+      authorIsHr: entry.author?.is_hr || false,
+      authorIsSuperAdmin: entry.author?.is_super_admin || false,
+      type: entry.type,
+      content: entry.content,
+      metadata: entry.metadata,
+      createdAt: entry.created_at,
+    }));
+  },
+
+  /** Every non-COMMENT entry (status changes, approvals…) — few, so never paged. */
+  async getEvents(taskId) {
+    if (!taskId) return [];
+    const { data, error } = await supabase
+      .from("committee_task_activity")
+      .select(`
+        *,
+        author:employees!committee_task_activity_author_id_fkey(name, is_head, is_hr, is_super_admin, avatar_path)
+      `)
+      .eq("task_id", taskId)
+      .neq("type", "COMMENT")
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data || []).map((entry) => ({
+      id: entry.id,
+      taskId: entry.task_id,
+      authorId: entry.author_id,
+      authorName: entry.author?.name || null,
+      authorIsHead: entry.author?.is_head || false,
+      authorIsHr: entry.author?.is_hr || false,
+      authorIsSuperAdmin: entry.author?.is_super_admin || false,
+      type: entry.type,
+      content: entry.content,
+      metadata: entry.metadata,
+      createdAt: entry.created_at,
+    }));
+  },
+
   async addComment(taskId, authorId, content, metadata = null) {
     if (!taskId || !authorId) return null;
     const hasContent = content?.trim();

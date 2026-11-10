@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { mealBreakService } from './mealBreakService';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { cleanAttachments, checkOverlap, checkDateTaken, stampApplication } from './offsetService';
@@ -72,6 +73,7 @@ export const silService = {
    * Apply for SIL Leave (Employee)
    */
   async applySilLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
+    await mealBreakService.refresh();
     const parsedHours = deriveLeaveHours(startTime, endTime);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
@@ -302,25 +304,6 @@ export const silService = {
     if (endDate) query = query.lt('date', endDate);
 
     const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    return data || [];
-  },
-
-  /**
-   * Fetch approved SIL leaves for the shared calendar — employee view.
-   *
-   * Projects only the fields the calendar needs (person, date, type, time
-   * window). Reason, hours balance, and signature path are omitted at the
-   * query level so they never reach a non-HR browser. HR uses getAllSilLeaves
-   * instead. See ADR 0012.
-   */
-  async getCalendarSilLeaves(startDate = null, endDate = null) {
-    // RPC (security definer): table RLS is own-row/HR only, so a direct select
-    // would hide colleagues' leaves. The function returns the projection only.
-    const { data, error } = await supabase.rpc('get_calendar_sil_leaves', {
-      p_start: startDate,
-      p_end: endDate,
-    });
     if (error) throw new Error(error.message);
     return data || [];
   },

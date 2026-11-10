@@ -194,7 +194,7 @@ export const PO_VERIFICATION = {
 export const PO_VERIFICATION_LABELS = {
   [PO_VERIFICATION.UNVERIFIED]: "Not checked",
   [PO_VERIFICATION.VERIFIED]: "Confirmed in Odoo",
-  [PO_VERIFICATION.PENDING]: "Odoo unreachable — will re-check",
+  [PO_VERIFICATION.PENDING]: "Not checked — Odoo did not answer",
   [PO_VERIFICATION.NOT_FOUND]: "Not found in Odoo",
 };
 
@@ -238,6 +238,12 @@ export function procurementAffinity(recipient) {
  * how many of what, and a free-text unit produces "pc"/"pcs"/"piece" in the
  * same column. Ordered by how often they come up rather than alphabetically.
  */
+/** What an Other request is for (#679): the client, or material for the job. */
+export const REQUEST_PURPOSES = [
+  { value: "client", label: "For the client" },
+  { value: "job", label: "Material for the job" },
+];
+
 export const REQUEST_UNITS = [
   "unit",
   "pc",
@@ -251,49 +257,14 @@ export const REQUEST_UNITS = [
 ];
 
 /**
- * The purchasing task's description.
- *
- * "PR" is Purchase Requisition — the standard term across SAP, Oracle and
- * NetSuite for the internal request to buy, distinct from the PO that follows.
- * Odoo calls a draft purchase.order an RFQ and numbers it P0#### once
- * confirmed, so [PR] reads unambiguously against it.
- *
- * The S-number leads because it is the only key shared with Odoo, and the
- * approvals screen searches tasks by substring over the description
- * (src/pages/approvals/tasks/index.jsx). A deal has no Sales Reference until it
- * leaves Lead, so before then it is named by client, matching how the audit log
- * labels an unquoted opportunity.
+ * The unit picker's options: the common units, plus a unit already saved on
+ * a row that is not one of them (a free-text unit from before the list), so
+ * that row still shows what it holds.
  */
-export function buildRequisitionTitle({ salesReference, clientName, itemCount, batchNumber }) {
-  const subject = salesReference || clientName || "Unreferenced opportunity";
-  const count = Number(itemCount) || 0;
-  const items = `${count} item${count === 1 ? "" : "s"} to source`;
-  const prefix = batchNumber && Number(batchNumber) > 1 ? `[PR #${batchNumber}]` : "[PR]";
-  return `${prefix} ${subject} — ${clientName || "Unknown client"} — ${items}`
-    // A missing client would otherwise leave the subject repeated either side
-    // of a dash.
-    .replace(`${subject} — ${subject} — `, `${subject} — `);
-}
-
-/**
- * Matches every prefix buildRequisitionTitle can produce.
- *
- * The batch form is why this exists as a shared pattern rather than a
- * `startsWith("[PR]")` at each call site: "[PR #2]" does not start with
- * "[PR]", so a second requisition read as an ordinary task and lost its
- * resolution panel entirely.
- */
-const REQUISITION_TITLE_PREFIX = /^\[PR(?: #(\d+))?\]/;
-
-/** Whether a task description was minted by buildRequisitionTitle. */
-export const isRequisitionTitle = (description) =>
-  REQUISITION_TITLE_PREFIX.test(String(description ?? ""));
-
-/** The batch a requisition title belongs to. Unnumbered titles are batch 1. */
-export function requisitionBatchNumber(description) {
-  const match = String(description ?? "").match(REQUISITION_TITLE_PREFIX);
-  return match?.[1] ? parseInt(match[1], 10) : 1;
-}
+export const unitOptionsWith = (current) => {
+  const units = current && !REQUEST_UNITS.includes(current) ? [...REQUEST_UNITS, current] : REQUEST_UNITS;
+  return units.map((u) => ({ value: u, label: u }));
+};
 
 /** A request is answered once purchasing has recorded a definitive outcome (Purchased, Delivered, or Alternative). */
 export const isResolved = (request) => {

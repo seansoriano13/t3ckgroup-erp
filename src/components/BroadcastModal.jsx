@@ -254,7 +254,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
           <div className="px-5 pt-4 pb-5 border-b border-border/40">
             {/* AI Generate Button */}
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              <p className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                 {editingId ? "Editing Broadcast" : "New Broadcast"}
               </p>
               <Button
@@ -340,7 +340,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                 className="h-auto p-0 flex items-center gap-2 group hover:bg-transparent"
                 onClick={() => setIsHistoryCollapsed((v) => !v)}
               >
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                <span className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                   History
                 </span>
                 {isHistoryCollapsed ? (
@@ -426,7 +426,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                   typeOpt?.color || "text-muted-foreground"
                                 }
                               />
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+                              <span className="text-label font-bold text-muted-foreground uppercase tracking-wide">
                                 {update.type}
                               </span>
                               <span className="text-[10px] text-muted-foreground/60">

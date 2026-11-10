@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
+import { routeTitle } from "../lib/routeTitle";
 import SideNav from "../components/SideNav";
 import { useAuth } from "../context/AuthContext";
 import { isResetPasswordPath } from "../lib/recoveryLink";
@@ -6,11 +8,15 @@ import ChangelogModal from "../components/ChangelogModal";
 import IssuedPasswordBanner from "../components/IssuedPasswordBanner";
 import BugReportButton from "../components/BugReportButton";
 
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 
 export default function AppLayout() {
   const { user, isAuthLoading } = useAuth();
   const location = useLocation();
+
+  useEffect(() => {
+    document.title = routeTitle(location.pathname);
+  }, [location.pathname]);
 
   // Editor screens fill the frame instead of sitting in the centred page
   // column: a canvas that pans and zooms wants every pixel of it, and its own
@@ -42,12 +48,7 @@ export default function AppLayout() {
   if (isAuthLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-mauve-2">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <Spinner size="md" />
-          <p className="text-sm font-bold uppercase tracking-widest animate-pulse">
-            Loading Portal...
-          </p>
-        </div>
+        <PageLoading label="portal" className="py-0" />
       </div>
     );
   }

@@ -60,8 +60,37 @@ still holds.
 Copy goes stale when a screen changes after the fact, and there is no
 generator to notice: a real component fed Sample Data renders the *current*
 screen, so a description written against an older one will contradict its
-own sample. Checking the page in a browser is part of changing a screen that
-has an entry.
+own sample. (Superseded 2026-11-10, see the amendment below: no one checks
+the page when changing a screen, and a sample that breaks is deleted.)
 
 A reader cannot click through a real Stage move. That is the price of
 keeping prod clean.
+
+## Amendment (2026-11-10): Release Notes code is throwaway; an Overview first
+
+From the grilling session for the 2026-11 release.
+
+**Release Notes code is throwaway.** Samples still render the app's real
+components, because copying screens for the page would bloat the code and the
+copies would go stale. But a real screen never bends to keep a sample alive.
+When a change to a real component breaks a sample (the release-notes test
+fails, or the sample stops rendering), delete that sample from
+`sampleRegistry.js` and its file, and the item shows as text only. Do not add
+props, `enabled` guards or comments to a real component for Release Notes, and
+do not check the page in a browser as part of changing a screen. This replaces
+the Consequences line saying that checking the page is part of changing a
+screen with an entry. The one test that stays strict is that no sample reads or
+writes a live record.
+
+Each release replaces `content.js` and deletes the samples the new content no
+longer uses. Git keeps the old ones.
+
+**An Overview tab, then folded rows.** The page opens on an Overview: every
+change in the release as one line, grouped by tab, each linking to its row.
+In each area tab, new things come first and fixes after; a row shows its title
+and who uses it, and unfolds to its text and sample. An "Open all" button
+unfolds a whole tab. Considered: a long scroll per tab (the 2026-09 page),
+which buried the list of changes under the samples.
+
+**Coming next is dropped while its items ship as Beta.** Purchasing has its own
+Purchasing (Beta) tab instead, which says it is still being built.

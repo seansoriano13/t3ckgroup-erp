@@ -80,6 +80,14 @@ export const notificationService = {
           onNotification(payload.new);
         }
       )
+      // #851: a merged status notification is an UPDATE (moved to top, unread again).
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${userId}` },
+        (payload) => {
+          onNotification(payload.new, 'UPDATE');
+        }
+      )
       .subscribe();
   },
 
@@ -96,6 +104,39 @@ export const notificationService = {
       
     if (error) throw new Error(error.message);
     return data;
+  },
+
+  /**
+   * Mark several notifications as read (a grouped chat row)
+   */
+  async markManyAsRead(ids) {
+    if (!ids?.length) return;
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .in('id', ids);
+
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * #901: resolve a Stage Action's "Create or Skip" notice for one Decider once
+   * the action is decided. Matches the notice on the SOR and its title; the
+   * already-read ones are left alone.
+   */
+  async resolveDecisionNotices(opportunityId, recipientId, title) {
+    if (!opportunityId || !recipientId) return;
+    let query = supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('recipient_id', recipientId)
+      .eq('type', 'OPPORTUNITY_ACTION_DECISION_DUE')
+      .eq('reference_id', opportunityId)
+      .eq('is_read', false);
+    if (title) query = query.eq('title', title);
+
+    const { error } = await query;
+    if (error) throw new Error(error.message);
   },
 
   /**

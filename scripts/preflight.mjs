@@ -5,16 +5,16 @@
  * database and deploys the staging site, so the point of this is that nothing
  * about the push is a surprise.
  *
- * It runs the mechanical gates locally, in the same order CI will, and stops at
- * the first failure. Then it prints the checklist CI can't cover — a real smoke
+ * It runs the mechanical gates locally, in the same order CI will. It runs every
+ * gate even when one fails, so all problems show up in one pass. Then it prints the checklist CI can't cover — a real smoke
  * test on seeded data, and the `[auth]` config in supabase/config.toml that
  * only drives the local stack and has a hand-maintained twin in the staging
  * dashboard.
  *
  *   pnpm preflight            # lint, affected tests, build, + conditional checks
  *
- * Lint is split the way ci.yml splits it: `lint:tests` fails the run, the
- * app-wide lint is reported but advisory.
+ * Lint is split the way ci.yml splits it: `lint:tests` and the lint ratchet fail
+ * the run (errors may fall below scripts/lint-baseline.json, never rise above it).
  *   pnpm preflight --quick    # skip `vite build`
  *   pnpm preflight --full     # run the whole test suite, whatever changed
  *   pnpm preflight --strict   # missing changelog entry fails instead of warning
@@ -90,12 +90,10 @@ const touchedAuthConfig =
   changed.some((f) => f.startsWith("supabase/templates/"))
 
 // --- always ---------------------------------------------------------------
-// ci.yml hard-gates on `lint:tests` but runs the app-wide `pnpm lint` with
-// continue-on-error, against a lint backlog that predates that workflow.
-// Mirror the split exactly: a preflight that is permanently red on known,
-// deliberately-tolerated debt is one people learn to ignore.
+// ci.yml hard-gates on `lint:tests` and on the lint ratchet (the app-wide backlog may
+// shrink, never grow). Mirror it, so preflight and CI agree.
 step("Lint tests (eslint on test files)", "pnpm lint:tests")
-step("Lint app (eslint .) — advisory, as in ci.yml", "pnpm lint", { soft: true })
+step("Lint app ratchet (no new errors above scripts/lint-baseline.json)", "pnpm lint:ratchet")
 // CI runs the full suite on every push, so locally only the tests this branch
 // can reach are run — unless the change is one the import graph cannot see.
 // The rule lives in scripts/lib/testSelection.mjs, where it is tested.

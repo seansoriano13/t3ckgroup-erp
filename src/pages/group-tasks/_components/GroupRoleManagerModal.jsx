@@ -16,12 +16,20 @@ import Spinner from "@/components/ui/Spinner";
 import toast from "react-hot-toast";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { parseChecklist } from "@/utils/checklist";
+
+// One item per line in the box; the role stores them as unticked items.
+const toLines = (checklist) => parseChecklist(checklist).map((i) => i.text).join("\n");
+const fromLines = (text) =>
+  text.split("\n").map((t) => t.trim()).filter(Boolean).map((t) => ({ text: t, checked: false }));
 
 export default function GroupRoleManagerModal({ isOpen, onClose }) {
   const queryClient = useQueryClient();
   const [newRole, setNewRole] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState("");
+  const [editChecklist, setEditChecklist] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -62,7 +70,7 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
   });
 
   const editMutation = useMutation({
-    mutationFn: ({ id, name }) => groupRoleService.updateRole(id, name),
+    mutationFn: ({ id, name, checklist }) => groupRoleService.updateRole(id, name, checklist),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupRoles"] });
       setEditingId(null);
@@ -107,7 +115,7 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
       return;
     }
 
-    editMutation.mutate({ id, name: trimmed });
+    editMutation.mutate({ id, name: trimmed, checklist: fromLines(editChecklist) });
   };
 
   return (
@@ -168,7 +176,8 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                     className="flex items-center justify-between bg-card border border-border rounded-xl p-2 group/item hover:bg-muted/30 transition-colors"
                   >
                     {editingId === role.id ? (
-                      <div className="flex-1 flex items-center gap-2">
+                      <div className="flex-1 flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
                         <Input
                           type="text"
                           value={editValue}
@@ -207,11 +216,24 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                           <X size={15} />
                         </Button>
                       </div>
+                      <Textarea
+                        value={editChecklist}
+                        onChange={(e) => setEditChecklist(e.target.value)}
+                        placeholder="Default checklist, one item per line (optional)"
+                        rows={4}
+                        className="text-xs"
+                      />
+                      </div>
                     ) : (
                       <>
                         <div className="px-2 py-0.5 rounded-full bg-mauve-3 text-mauve-11 text-[11px] font-bold tracking-wider">
                           {role.role_name}
                         </div>
+                        {parseChecklist(role.default_checklist).length > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {parseChecklist(role.default_checklist).length} default item(s)
+                          </span>
+                        )}
                         <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
                           {role.role_name === "OTHERS" && (
                             <div className="px-2 text-[10px] text-muted-foreground italic flex items-center gap-1">
@@ -226,6 +248,7 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                                 onClick={() => {
                                   setEditingId(role.id);
                                   setEditValue(role.role_name);
+                                  setEditChecklist(toLines(role.default_checklist));
                                 }}
                                 className="text-muted-foreground hover:text-foreground"
                                 title="Edit Role"

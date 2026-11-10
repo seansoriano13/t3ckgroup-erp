@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../test/support";
 import { employeeService } from "../services/employeeService";
+import { MemoryRouter } from "react-router"
 import GlobalDetailManager from "./GlobalDetailManager";
 
 // This lives beside GlobalDetailManager.test.jsx rather than inside it because
@@ -57,7 +58,7 @@ describe("GlobalDetailManager — mention roster", () => {
   });
 
   it("fetches the roster for a non-manager opening a group task", async () => {
-    renderWithProviders(<GlobalDetailManager />);
+    renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>);
     openEntity("GROUP_TASK", "gt-1");
 
     // The roster is what the detail modal hands the mention picker. Gated on
@@ -68,7 +69,7 @@ describe("GlobalDetailManager — mention roster", () => {
   });
 
   it("leaves the roster alone for entity types that never mention anyone", async () => {
-    renderWithProviders(<GlobalDetailManager />);
+    renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>);
     openEntity("TASK", "t-1");
 
     // The task and SOR views fetch their own roster; pulling every employee

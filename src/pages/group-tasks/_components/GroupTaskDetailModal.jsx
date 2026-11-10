@@ -39,6 +39,8 @@ import { activeChatService } from "../../../services/tasks/activeChatService";
 import { formatDateOnly, formatDueDate } from "@/utils/formatDate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskActivityService } from "@/services/groupTaskActivityService";
+import ChatScroller from "@/components/ui/ChatScroller";
+import { usePagedChat, patchPagedMessage } from "@/hooks/usePagedChat";
 import { groupTaskService } from "@/services/groupTaskService";
 import { storageService } from "@/services/storageService";
 import { MessageCircle } from "lucide-react";
@@ -53,6 +55,7 @@ import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
 import { groupTaskTemplateService } from "@/services/groupTaskTemplateService";
 import { computeDueDateOffsetDays } from "../utils/templateApply";
+import { getDueCountdown, dueDateInputValue } from "../utils/dueCountdown";
 import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
 import {
   hasChecklistContent,
@@ -62,6 +65,8 @@ import {
 import EmojiPicker from "@/components/ui/EmojiPicker";
 import ReplyPreviewBar from "@/components/ui/ReplyPreviewBar";
 import ReplyQuote from "@/components/ui/ReplyQuote";
+import { canUnsend, isMessageRemoved } from "@/utils/chatUnsend";
+import { chatUnsendService } from "@/services/chatUnsendService";
 import SwipeToReplyWrapper from "@/components/ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "@/utils/chatReply";
 import MentionTextarea from "@/components/ui/MentionTextarea";
@@ -69,6 +74,7 @@ import { supabase } from "@/lib/supabase";
 import { notificationService } from "@/services/notificationService";
 import { useFileAttachments } from "@/hooks/useFileAttachments";
 import SorLink from "@/components/sor/SorLink";
+import SorChatPane from "./SorChatPane";
 import { AttachmentPreviews, AttachmentList } from "@/components/ui/Attachments";
 import {
   ALLOWED_MIME_TYPES,
@@ -82,6 +88,7 @@ import ReadOnlyTaskBanner from "@/components/ReadOnlyTaskBanner";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 import { isGroupTaskEvaluator } from "../../../utils/groupTaskEvaluator";
 export default function GroupTaskDetailModal({
   isOpen,
@@ -98,6 +105,7 @@ export default function GroupTaskDetailModal({
   isSuperAdmin,
   isHead,
   isHr,
+  canManage = false,
   employees = [],
   onChangeEvaluator,
   isChangingEvaluator,
@@ -130,7 +138,7 @@ export default function GroupTaskDetailModal({
   // --- Inline chat state ---
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const chatScrollRef = useRef(null);
+  const [checklistOverrides, setChecklistOverrides] = useState({});
   const fileInputRef = useRef(null);
   const [messageContent, setMessageContent] = useState("");
   const [mentions, setMentions] = useState([]);
@@ -270,17 +278,23 @@ export default function GroupTaskDetailModal({
     setTaskEditDraft({
       title: task.title || "",
       description: task.description || "",
-      dueDate: task.due_date ? task.due_date.split("T")[0] : "",
+      dueDate: dueDateInputValue(task.due_date),
       startDate: task.start_date || "",
       leadTime: task.lead_time || "",
     });
     setIsEditingTask(true);
   };
 
+  const countdown = task?.status === "ACTIVE" ? getDueCountdown(task?.due_date) : null;
+
   const handleSaveTaskEdit = async () => {
     if (isReadOnly) return;
     if (!taskEditDraft.title.trim()) {
       toast.error("Title is required");
+      return;
+    }
+    if (!taskEditDraft.startDate || !taskEditDraft.dueDate) {
+      toast.error("Start Date and Due Date are required.");
       return;
     }
     await onUpdateTask(taskEditDraft);
@@ -338,11 +352,18 @@ export default function GroupTaskDetailModal({
   }, [isOpen, clearAttachments]);
 
   // --- Inline chat: fetch messages ---
-  const { data: rawMessages = [], isLoading: isLoadingChat } = useQuery({
-    queryKey: ["chatMessages", "GROUP_TASK", task?.id],
-    queryFn: () => groupTaskActivityService.getActivityForTask(task.id),
+  // Pages newest-first. The key extends ["chatMessages", "GROUP_TASK", id] so
+  // prefix invalidations still reach it, yet stays apart from the chat list's
+  // whole-thread query under the bare key.
+  const chatKey = ["chatMessages", "GROUP_TASK", task?.id, "paged"];
+  const chat = usePagedChat({
+    queryKey: chatKey,
+    fetchPage: ({ before, limit }) =>
+      groupTaskActivityService.getCommentsPage(task.id, { before, limit, includeEvents: true }),
     enabled: !!task?.id && isOpen && isSplitScreen,
   });
+  const rawMessages = chat.messages;
+  const isLoadingChat = chat.isLoading;
 
   const { data: readReceipts = [] } = useQuery({
     queryKey: ["chatReadReceipts", "GROUP_TASK", task?.id],
@@ -412,6 +433,22 @@ export default function GroupTaskDetailModal({
     }));
   }, [rawMessages, readReceipts, user, employees, avatarMap]);
 
+  const unsendMessage = async (message) => {
+    if (!message?.id || !task?.id) return;
+    const queryKey = ["chatMessages", "GROUP_TASK", task.id, "paged"];
+    patchPagedMessage(queryClient, queryKey, message.id, (m) => ({
+      ...m,
+      content: "Message removed",
+      metadata: { removed: true },
+    }));
+    try {
+      await chatUnsendService.unsend("committee_task_activity", message.id);
+    } catch (err) {
+      console.error("Failed to unsend message:", err);
+    }
+    queryClient.invalidateQueries({ queryKey });
+  };
+
   const toggleReaction = async (message, emoji) => {
     if (!message || !emoji || !task?.id) return;
     const currentReactions = message.metadata?.reactions || {};
@@ -428,11 +465,9 @@ export default function GroupTaskDetailModal({
       isAdding = true;
     }
     const newMetadata = { ...(message.metadata || {}), reactions: newReactions };
-    const queryKey = ["chatMessages", "GROUP_TASK", task.id];
+    const queryKey = ["chatMessages", "GROUP_TASK", task.id, "paged"];
 
-    queryClient.setQueryData(queryKey, (old = []) =>
-      old.map((m) => (m.id === message.id ? { ...m, metadata: newMetadata } : m)),
-    );
+    patchPagedMessage(queryClient, queryKey, message.id, (m) => ({ ...m, metadata: newMetadata }));
 
     try {
       const { error } = await supabase.rpc("toggle_chat_reaction", {
@@ -447,7 +482,7 @@ export default function GroupTaskDetailModal({
         notificationService.createNotification({
           recipient_id: message.authorId,
           sender_id: user.id,
-          type: "TASK_REACTION",
+          type: "GROUP_TASK_REACTION",
           title: "New Reaction",
           message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
           reference_id: task.id,
@@ -458,13 +493,6 @@ export default function GroupTaskDetailModal({
       queryClient.invalidateQueries({ queryKey });
     }
   };
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-    }
-  }, [chatMessages?.length]);
 
   // Real-time subscription for inline chat
   useEffect(() => {
@@ -688,6 +716,8 @@ export default function GroupTaskDetailModal({
     task.status === TASK_STATUS.CANCELLED || task.status === TASK_STATUS.ON_HOLD;
 
   const isCreator = task.created_by === currentUserId;
+  // Only heads, HR and Super Admins edit, add or remove members, and delete (#656).
+  const canManageTask = canManage;
   // Who rates is not always who created: a Stage Action task is rated by the
   // SOR's Deal Owner.
   const isEvaluator = isGroupTaskEvaluator(task, currentUserId);
@@ -747,10 +777,10 @@ export default function GroupTaskDetailModal({
         className="z-[70] flex flex-col transition-all duration-300"
       >
         {/* CONTENT WRAPPER — split when isSplitScreen */}
-        <div className={cn("flex flex-1 overflow-hidden", isSplitScreen ? "flex-row" : "flex-col")}>
+        <div className={cn("flex flex-1 min-h-0 overflow-hidden", isSplitScreen ? "flex-row" : "flex-col")}>
 
         {/* TASK PANEL (left in split, full in normal) */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
 
         {/* HEADER */}
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-mauve-3/40 shrink-0 relative overflow-hidden bg-card">
@@ -793,7 +823,7 @@ export default function GroupTaskDetailModal({
                     value={taskEditDraft.description}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, description: e.target.value }))}
                     className="h-20 min-h-0 resize-y rounded-lg px-3 py-2 text-[13px] md:text-[13px]"
-                    placeholder="Task Description..."
+                    placeholder="Task Description…"
                   />
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -819,7 +849,7 @@ export default function GroupTaskDetailModal({
                     Cancel
                   </Button>
                   <Button type="button" size="sm" onClick={handleSaveTaskEdit} disabled={isUpdatingTask} className="h-8 px-4 text-xs">
-                    {isUpdatingTask ? "Saving..." : "Save Changes"}
+                    {isUpdatingTask ? "Saving…" : "Save changes"}
                   </Button>
                 </div>
               </div>
@@ -839,6 +869,11 @@ export default function GroupTaskDetailModal({
                     <div className="flex items-center gap-1.5">
                       <Calendar size={14} className="text-mauve-9" /> Due{" "}
                       {formatDueDate(task.due_date)}
+                      {countdown && (
+                        <span className={countdown.overdue ? "text-destructive font-bold" : ""}>
+                          ({countdown.label})
+                        </span>
+                      )}
                     </div>
                   )}
                   {task.lead_time && (
@@ -885,7 +920,7 @@ export default function GroupTaskDetailModal({
                 setIsSplitScreen((prev) => !prev);
               }}
               className={cn(
-                "rounded-md",
+                "hidden lg:inline-flex rounded-md",
                 isSplitScreen
                   ? "text-primary bg-primary/10 hover:bg-primary/20"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
@@ -937,7 +972,7 @@ export default function GroupTaskDetailModal({
         </div>
 
         {/* TASK CONTENT */}
-        <div className="overflow-y-auto custom-scrollbar bg-card/50 p-6 space-y-8 flex-1">
+        <div className="overflow-y-auto min-h-0 custom-scrollbar bg-card/50 p-6 space-y-8 flex-1">
           {activeTab === "overview" ? (
             <>
               {isReadOnly && (
@@ -952,7 +987,7 @@ export default function GroupTaskDetailModal({
 
               {/* Who rates it. Up here because it decides who the rating waits on. */}
               <div className="animate-content-in stagger-1 flex flex-wrap items-center gap-x-3 gap-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
                   Evaluated by
                 </span>
                 {canChangeEvaluator ? (
@@ -1016,6 +1051,7 @@ export default function GroupTaskDetailModal({
                         isRolesLoading={isRolesLoading}
                         onManageRoles={() => setIsRoleManagerOpen(true)}
                         onChange={handleDraftChange}
+                        maxDueDate={task?.due_date}
                         canEditAssignment={!draft.id}
                       />
 
@@ -1044,7 +1080,7 @@ export default function GroupTaskDetailModal({
                           {draft.id
                             ? isUpdatingMember
                               ? "Saving…"
-                              : "Save Changes"
+                              : "Save changes"
                             : isAddingMember
                               ? "Adding…"
                               : "Add Member"}
@@ -1097,7 +1133,7 @@ export default function GroupTaskDetailModal({
                               </span>
                             </div>
 
-                            {!isReadOnly && (isCreator || isSuperAdmin || (isMe && isOpenForWork && member.status === "PENDING")) && (
+                            {!isReadOnly && (canManageTask || (isMe && isOpenForWork && member.status === "PENDING")) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <Button
                                   type="button"
@@ -1110,7 +1146,7 @@ export default function GroupTaskDetailModal({
                                 >
                                   <Edit3 size={14} />
                                 </Button>
-                                {(isCreator || isSuperAdmin) && (
+                                {canManageTask && (
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -1157,27 +1193,40 @@ export default function GroupTaskDetailModal({
                               </div>
                               <div className="bg-muted/30 rounded-xl p-3 border border-border/50">
                                 <ChecklistTaskRenderer
-                                  description={member.checklist || checklistItems}
+                                  description={checklistOverrides[member.id] ?? (member.checklist || checklistItems)}
                                   isOwner={isMe}
                                   disabled={!isMe || isDone || isReadOnly}
                                   searchTerm={searchTerm}
                                   onInlineCheck={(next) => {
                                     if (isReadOnly) return;
-                                    if (onInlineCheck) {
-                                      onInlineCheck(member.id, next);
-                                    } else {
-                                      groupTaskService
-                                        .updateMemberChecklist(
+                                    // Show the tick now; put it back if the save fails.
+                                    const previous = checklistOverrides[member.id];
+                                    setChecklistOverrides((o) => ({ ...o, [member.id]: next }));
+                                    const save = onInlineCheck
+                                      ? onInlineCheck(member.id, next)
+                                      : groupTaskService.updateMemberChecklist(
                                           member.id,
                                           next,
                                           task.id,
                                           currentUserId,
-                                        )
-                                        .catch(err => {
-                                          toast.error("Failed to update checklist");
-                                          console.error("Checklist update error:", err);
+                                        );
+                                    Promise.resolve(save)
+                                      .then(() =>
+                                        setChecklistOverrides((o) => {
+                                          const { [member.id]: _done, ...rest } = o;
+                                          return rest;
+                                        }),
+                                      )
+                                      .catch((err) => {
+                                        setChecklistOverrides((o) => {
+                                          const copy = { ...o };
+                                          if (previous === undefined) delete copy[member.id];
+                                          else copy[member.id] = previous;
+                                          return copy;
                                         });
-                                    }
+                                        toast.error(err?.message || "Could not save that change. Try again.");
+                                        console.error("Checklist update error:", err);
+                                      });
                                   }}
                                 />
                               </div>
@@ -1232,7 +1281,7 @@ export default function GroupTaskDetailModal({
                                     }
                                   }}>
                                   <Paperclip size={12} />
-                                  {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
+                                  {isUploadingAttachment || isUploadingMemberFile ? "Uploading…" : "Add File"}
                                 </FileInput>
                               )}
                             </div>
@@ -1290,7 +1339,7 @@ export default function GroupTaskDetailModal({
                                 >
                                   <CheckCircle2 size={16} />
                                   {isMarkingDone
-                                    ? "Marking..."
+                                    ? "Marking…"
                                     : "Submit for Review"}
                                 </Button>
                               )}
@@ -1300,9 +1349,9 @@ export default function GroupTaskDetailModal({
                                 variant="outline"
                                 onClick={() => onRevertDone(member.id)}
                                 disabled={isReverting}
-                                className="ml-auto h-auto gap-1.5 rounded-lg border-amber-500/20 bg-warning/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-amber-10 hover:bg-warning/20"
+                                className={`ml-auto h-auto gap-1.5 rounded-lg border-amber-500/20 bg-warning/10 px-4 py-2 ${CAPTION_BASE} tracking-widest text-amber-10 hover:bg-warning/20`}
                               >
-                                {isReverting ? "..." : "Revert"}
+                                {isReverting ? "…" : "Revert"}
                               </Button>
                             )}
                           </div>
@@ -1325,7 +1374,7 @@ export default function GroupTaskDetailModal({
                       setSelectedMemberId(id);
                     }}
                     onAdd={
-                      (isCreator || isSuperAdmin) && !isReadOnly ? handleStartAddMember : undefined
+                      canManageTask && !isReadOnly ? handleStartAddMember : undefined
                     }
                     currentUserId={currentUserId}
                     avatarMap={avatarMap}
@@ -1342,7 +1391,7 @@ export default function GroupTaskDetailModal({
               {/* HR Remarks */}
               {task.hr_remarks && (
                 <div className="bg-destructive/10 border border-red-500/20 p-5 rounded-2xl mt-6 shadow-sm animate-content-in stagger-3">
-                  <h4 className="text-[10px] font-bold text-destructive uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <h4 className="text-label font-bold text-destructive uppercase tracking-widest mb-2 flex items-center gap-1.5">
                     <FileText size={12} /> HR Remarks
                   </h4>
                   <p className="text-sm text-red-900 dark:text-red-200/90 leading-relaxed font-medium">
@@ -1354,7 +1403,7 @@ export default function GroupTaskDetailModal({
               {/* Who set it up — kept, but last: assignees open this to do
                   their part, not to see who filed it. */}
               <dl className="pt-5 border-t border-border">
-                <dt className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>
                   Created by
                 </dt>
                 <dd className="mt-1 text-[13px] font-semibold text-foreground">
@@ -1427,18 +1476,23 @@ export default function GroupTaskDetailModal({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-black truncate">Conversation</h3>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Group Task Chat</p>
+                <p className="text-label text-muted-foreground font-bold uppercase tracking-wider">Group Task Chat</p>
               </div>
             </div>
 
             {/* Messages Area */}
-            <div
-              ref={chatScrollRef}
-              className="flex-1 overflow-y-auto custom-scrollbar py-3 space-y-1"
+            <ChatScroller
+              firstKey={chatMessages[0]?.id}
+              lastKey={chatMessages[chatMessages.length - 1]?.id}
+              lastIsMine={chatMessages[chatMessages.length - 1]?.authorId === user?.id}
+              hasMore={chat.hasMore}
+              isFetchingMore={chat.isFetchingMore}
+              onLoadMore={chat.loadMore}
+              scrollClassName="py-3 space-y-1"
             >
               {isLoadingChat ? (
                 <div className="flex items-center justify-center h-full gap-2 text-muted-foreground italic text-xs">
-                  <Spinner size="sm" /> Fetching messages...
+                  <Spinner size="sm" /> Fetching messages…
                 </div>
               ) : chatMessages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full opacity-30 select-none gap-2">
@@ -1497,9 +1551,10 @@ export default function GroupTaskDetailModal({
                         </div>
                         <SwipeToReplyWrapper
                           isMe={isMe}
-                          copyText={m.content}
-                          onReply={() => setReplyingTo(buildReplySnapshot(m))}
-                          onReact={(emoji) => toggleReaction(m, emoji)}
+                          copyText={isMessageRemoved(m) ? undefined : m.content}
+                          onReply={isMessageRemoved(m) ? undefined : () => setReplyingTo(buildReplySnapshot(m))}
+                          onReact={isMessageRemoved(m) ? undefined : (emoji) => toggleReaction(m, emoji)}
+                          onUnsend={canUnsend(m, user?.id) ? () => unsendMessage(m) : undefined}
                         >
                           <div
                             className={cn(
@@ -1510,12 +1565,18 @@ export default function GroupTaskDetailModal({
                             )}
                             style={{ wordBreak: "break-word" }}
                           >
-                            <ReplyQuote replyTo={m.metadata?.replyTo} />
-                            {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
-                            {m.metadata?.attachments?.length > 0 && (
-                              <div className={cn(m.content ? "mt-2" : "")}>
-                                <AttachmentList attachments={m.metadata.attachments} />
-                              </div>
+                            {isMessageRemoved(m) ? (
+                              <p className="italic opacity-70">Message removed</p>
+                            ) : (
+                              <>
+                                <ReplyQuote replyTo={m.metadata?.replyTo} />
+                                {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
+                                {m.metadata?.attachments?.length > 0 && (
+                                  <div className={cn(m.content ? "mt-2" : "")}>
+                                    <AttachmentList attachments={m.metadata.attachments} />
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </SwipeToReplyWrapper>
@@ -1565,7 +1626,7 @@ export default function GroupTaskDetailModal({
                   );
                 })
               )}
-            </div>
+            </ChatScroller>
 
             {/* Input Area */}
             <form onSubmit={handleSendMessage} className="p-3 border-t border-border bg-muted/10 shrink-0">
@@ -1601,7 +1662,7 @@ export default function GroupTaskDetailModal({
                   people={employees}
                   mentions={mentions}
                   onMentionsChange={setMentions}
-                  placeholder="Write a message or paste a file..."
+                  placeholder="Write a message or paste a file…"
                   className="w-full bg-transparent resize-none border-none shadow-none focus-visible:ring-0 text-sm block px-3 py-1.5 outline-none custom-scrollbar disabled:opacity-50 min-h-[36px]"
                   rows={1}
                   disabled={sendMessageMutation.isPending || isUploading}
@@ -1639,7 +1700,7 @@ export default function GroupTaskDetailModal({
                     {isUploading ? (
                       <><Spinner size="sm" /> Uploading</>
                     ) : sendMessageMutation.isPending ? (
-                      "..."
+                      "…"
                     ) : (
                       <>Send <Send size={12} /></>
                     )}
@@ -1648,6 +1709,11 @@ export default function GroupTaskDetailModal({
               </div>
             </form>
           </div>
+        )}
+
+        {/* SOR CHAT PANEL (#753): only for SOR-sourced tasks the viewer may read */}
+        {isSplitScreen && task.opportunity_id && (
+          <SorChatPane opportunityId={task.opportunity_id} isOpen={isOpen} employees={employees} />
         )}
 
         </div>
@@ -1665,7 +1731,7 @@ export default function GroupTaskDetailModal({
 
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto ml-auto">
             {/* Delete Task Button */}
-            {(isCreator || isSuperAdmin) && !isReadOnly && (
+            {canManageTask && !isReadOnly && (
               <Button
                 type="button"
                 variant="ghost"
@@ -1675,7 +1741,7 @@ export default function GroupTaskDetailModal({
                 title="Delete Task"
               >
                 <Trash2 size={14} className={isDeleting ? "animate-pulse" : "sm:mr-1.5"} />
-                <span className="hidden sm:inline">{isDeleting ? "Deleting..." : "Delete Task"}</span>
+                <span className="hidden sm:inline">{isDeleting ? "Deleting…" : "Delete Task"}</span>
               </Button>
             )}
 
@@ -1690,7 +1756,7 @@ export default function GroupTaskDetailModal({
             </Button>
 
             {/* Edit Task Button */}
-            {(isCreator || isSuperAdmin) && !isEditingTask && !isReadOnly && (
+            {canManageTask && !isEditingTask && !isReadOnly && (
               <Button
                 type="button"
                 variant="outline"
@@ -1776,7 +1842,7 @@ export default function GroupTaskDetailModal({
                       type="text"
                       value={rejectRemarks}
                       onChange={(e) => setRejectRemarks(e.target.value)}
-                      placeholder="Reason for rejection..."
+                      placeholder="Reason for rejection…"
                       containerClassName="w-[220px]" className="h-9 px-3 bg-card border border-border rounded-xl text-xs text-foreground outline-none focus:border-red-400 transition-colors"
                     />
                     <Button
@@ -1800,7 +1866,7 @@ export default function GroupTaskDetailModal({
                       }}
                       className="h-9 px-5 rounded-xl text-xs bg-destructive hover:bg-destructive text-primary-foreground font-bold"
                     >
-                      {isRejecting ? "Rejecting..." : "Confirm Reject"}
+                      {isRejecting ? "Rejecting…" : "Confirm Reject"}
                     </Button>
                   </div>
                 ) : (
@@ -1820,7 +1886,7 @@ export default function GroupTaskDetailModal({
                       className="h-9 px-6 rounded-xl shadow-lg shadow-green-200 bg-green-9 hover:bg-green-9 text-primary-foreground flex items-center gap-2 font-bold text-xs"
                     >
                       <ShieldCheck size={16} />
-                      {isVerifying ? "Verifying..." : "Verify & Approve"}
+                      {isVerifying ? "Verifying…" : "Verify & Approve"}
                     </Button>
                   </>
                 )}

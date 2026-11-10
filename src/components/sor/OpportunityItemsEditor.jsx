@@ -7,7 +7,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 const emptyRow = () => ({ product_name: "", unit: "", quantity: 1, unit_price: "" });
 
 const lineTotal = (item) =>
-  (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
+  item.removed_from_s0 ? 0 : (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
 
 /**
  * The product list behind an opportunity's Expected Value. Controlled —
@@ -35,7 +35,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
           type="button"
           variant="link"
           onClick={addRow}
-          className="h-auto p-0 text-[12px] gap-1"
+          className="h-auto p-0 text-[12px] font-semibold gap-1"
         >
           <Plus size={13} /> Add Item
         </Button>
@@ -48,7 +48,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
       ) : (
         <div className="border border-border rounded-xl overflow-x-auto">
           <div className="min-w-[600px] divide-y divide-border">
-            <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
+            <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-label font-bold text-muted-foreground uppercase tracking-widest">
               <span className="col-span-5">Product</span>
               <span className="col-span-2">Unit</span>
               <span className="col-span-1">Qty</span>
@@ -89,8 +89,8 @@ export default function OpportunityItemsEditor({ items, onChange }) {
                   placeholder="0.00"
                   containerClassName="col-span-2 min-w-0" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
                 />
-                <div className="col-span-1 text-xs font-bold text-foreground text-right truncate">
-                  {formatPHP(lineTotal(item))}
+                <div className="col-span-1 text-xs font-bold text-foreground text-right truncate" title={item.removed_from_s0 ? "Removed from S0: left out of Estimated Value" : undefined}>
+                  {item.removed_from_s0 ? "Removed" : formatPHP(lineTotal(item))}
                 </div>
                 <Button
                   type="button"
@@ -109,7 +109,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
 
       {items.length > 0 && (
         <div className="flex items-center justify-end gap-2 pt-1 pr-1">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+          <span className="text-label font-bold text-muted-foreground uppercase tracking-widest">
             Product Line Total
           </span>
           <span className="text-sm font-black text-foreground">

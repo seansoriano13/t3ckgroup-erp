@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { generateId, ICON_MAP, ICON_NAMES, CATEGORY_COLORS } from "./faqData";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 
 // ─── Role definitions ─────────────────────────────────────────────────────────
 const ROLES = [
@@ -24,13 +25,16 @@ const ROLES = [
 ];
 import { loadFAQFromDB, saveFAQToDB } from "../../services/faqService";
 import PageShell from "../../components/ui/PageShell";
+import { confirmDeleteToast } from "../../components/ui/CustomToast";
 import { Navigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { canEditFAQ } from "../../utils/faqAccess";
 import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
   const ref = useRef(null);
@@ -71,8 +75,16 @@ function CategoryItem({ cat, isActive, onClick, onDelete, onLabelChange }) {
 
   return (
     <div
+      tabIndex={0}
+      aria-current={isActive ? "true" : undefined}
       onClick={onClick}
-      className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all ${
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
         isActive
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -106,7 +118,7 @@ function CategoryItem({ cat, isActive, onClick, onDelete, onLabelChange }) {
       )}
 
       <div
-        className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
         onClick={(e) => e.stopPropagation()}
       >
         <Button
@@ -178,8 +190,8 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
           <AutoTextarea
             value={item.q}
             onChange={(e) => onUpdate({ ...item, q: e.target.value })}
-            placeholder="Question..."
-            className="w-full text-sm font-semibold text-foreground bg-transparent outline-none placeholder:text-muted-foreground/50 leading-snug"
+            placeholder="Question…"
+            className="w-full text-sm font-semibold text-foreground bg-transparent outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 placeholder:text-muted-foreground/50 leading-snug"
           />
         </div>
 
@@ -248,14 +260,14 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
           <div className="px-4 pt-3 pb-4 pl-10">
             {activeTab === "all" ? (
               <>
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+                <p className="text-label font-semibold text-muted-foreground uppercase tracking-widest mb-2">
                   Shared answer (shown to all roles without a custom answer)
                 </p>
                 <AutoTextarea
                   value={item.a}
                   onChange={(e) => onUpdate({ ...item, a: e.target.value })}
-                  placeholder="Default answer for all roles... (use new lines for bullet lists)"
-                  className="w-full text-sm text-muted-foreground bg-transparent outline-none placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
+                  placeholder="Default answer for all roles… (use new lines for bullet lists)"
+                  className="w-full text-sm text-muted-foreground bg-transparent outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
                 />
               </>
             ) : (() => {
@@ -264,18 +276,12 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
               return (
                 <>
                   {/* Share toggle */}
-                  <FieldBox label={<><div
-                      onClick={() => toggleShared(activeTab)}
-                      className={`w-8 h-4 rounded-full relative transition-colors shrink-0 ${
-                        shared ? "bg-muted-foreground/30" : "bg-primary"
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${
-                          shared ? "left-0.5" : "left-4"
-                        }`}
-                      />
-                    </div>
+                  <FieldBox label={<><Switch
+                      size="sm"
+                      checked={!shared}
+                      onCheckedChange={() => toggleShared(activeTab)}
+                      aria-label={"Custom answer for " + role.label}
+                    />
                     <span className="text-xs font-medium text-muted-foreground group-hover/toggle:text-foreground transition-colors">
                       {shared ? "Using shared answer" : "Custom answer for " + role.label}
                     </span></>} className="gap-2 mb-3 cursor-pointer group/toggle" />
@@ -283,7 +289,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                   {shared ? (
                     /* Preview of shared answer */
                     <div className="bg-muted/40 rounded-lg px-3 py-2.5 border border-border/50">
-                      <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1">Shared preview</p>
+                      <p className="text-label text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1">Shared preview</p>
                       <p className="text-sm text-muted-foreground/60 leading-relaxed italic">
                         {item.a || "(No shared answer written yet — edit the All Roles tab)"}
                       </p>
@@ -293,8 +299,8 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                     <AutoTextarea
                       value={roleAnswers[activeTab] ?? ""}
                       onChange={(e) => setRoleAnswer(activeTab, e.target.value)}
-                      placeholder={`Custom answer for ${role.label}...`}
-                      className="w-full text-sm text-muted-foreground bg-transparent outline-none placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
+                      placeholder={`Custom answer for ${role.label}…`}
+                      className="w-full text-sm text-muted-foreground bg-transparent outline-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring/50 placeholder:text-muted-foreground/40 leading-relaxed min-h-[60px]"
                     />
                   )}
                 </>
@@ -334,7 +340,7 @@ function CategoryStylePicker({ cat, onChange }) {
 
       {open && (
         <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border rounded-xl shadow-xl p-3 w-56 animate-slide-down">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+          <p className={`${CAPTION_BASE} tracking-widest text-muted-foreground mb-2`}>
             Icon
           </p>
           <div className="grid grid-cols-4 gap-1.5 mb-3">
@@ -356,7 +362,7 @@ function CategoryStylePicker({ cat, onChange }) {
             })}
           </div>
 
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+          <p className={`${CAPTION_BASE} tracking-widest text-muted-foreground mb-2`}>
             Color
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -392,9 +398,10 @@ export default function FAQEditorPage() {
   const [categories, setCategories] = useState([]);
   const [activeCatId, setActiveCatId] = useState(null);
   const [saved, setSaved] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // JSON of the last loaded / saved categories; edits are "unsaved" when they differ.
+  const [baseline, setBaseline] = useState(null);
 
   // Load FAQ data from Supabase on mount
   useEffect(() => {
@@ -403,6 +410,7 @@ export default function FAQEditorPage() {
       .then((fresh) => {
         if (cancelled) return;
         setCategories(fresh);
+        setBaseline(JSON.stringify(fresh));
         setActiveCatId(fresh[0]?.id ?? null);
       })
       .catch((err) => console.error("[FAQEditor] load error:", err))
@@ -484,6 +492,7 @@ export default function FAQEditorPage() {
     try {
       setSaving(true);
       await saveFAQToDB(categories);
+      setBaseline(JSON.stringify(categories));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -494,22 +503,27 @@ export default function FAQEditorPage() {
     }
   };
 
-  const handleReset = async () => {
-    if (!confirmReset) {
-      setConfirmReset(true);
-      setTimeout(() => setConfirmReset(false), 3000);
-      return;
-    }
+  const handleReset = () => {
+    confirmDeleteToast(
+      "Clear all FAQs?",
+      "Every category and question is removed. This cannot be undone.",
+      doReset,
+    );
+  };
+
+  const doReset = async () => {
     try {
       await saveFAQToDB([]);
+      setBaseline("[]");
       setCategories([]);
       setActiveCatId(null);
     } catch (err) {
       toast.error("Failed to reset FAQs");
       console.error("[FAQEditor] reset error:", err);
     }
-    setConfirmReset(false);
   };
+
+  useUnsavedGuard(baseline !== null && !saving && JSON.stringify(categories) !== baseline);
 
   const totalItems = categories.reduce((acc, c) => acc + c.items.length, 0);
 
@@ -527,14 +541,10 @@ export default function FAQEditorPage() {
           <Button
             variant="outline"
             onClick={handleReset}
-            className={`h-auto gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
-              confirmReset
-                ? "border-red-300 bg-red-50 text-red-600 hover:bg-red-50"
-                : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
+            className="h-auto gap-1.5 rounded-lg border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <RotateCcw size={12} />
-            {confirmReset ? "Confirm Reset?" : "Clear all"}
+            Clear all
           </Button>
 
           {/* Save */}
@@ -574,7 +584,7 @@ export default function FAQEditorPage() {
           {/* Sidebar */}
           <div className="w-56 shrink-0 border-r border-border bg-muted/10 flex flex-col overflow-hidden">
             <div className="px-3 pt-4 pb-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground px-1 mb-2">
+              <p className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground px-1 mb-2">
                 Categories
               </p>
             </div>

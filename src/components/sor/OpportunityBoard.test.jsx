@@ -3,14 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import OpportunityBoard from "./OpportunityBoard";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makePipelineStage } from "@/test/factories";
+import toast from "react-hot-toast";
 import { opportunityService } from "../../services/opportunityService";
 
 vi.mock("../../services/opportunityService", () => ({
   opportunityService: {
     updateStatus: vi.fn(async (id, next) => ({ id, flow_stage_id: next })),
     getReturnStageIds: vi.fn(async () => []),
+    markLost: vi.fn(async () => ({})),
   },
 }));
+
+vi.mock("react-hot-toast", () => ({ default: { error: vi.fn(), success: vi.fn() } }));
 
 const opportunity = (overrides = {}) => ({
   id: "opp-1",
@@ -225,6 +229,31 @@ describe("OpportunityBoard", () => {
       expect(screen.queryByText("Move to")).not.toBeInTheDocument();
     });
 
+    it("a drop onto a Stage that is not next explains the allowed next Stage", async () => {
+      const three = {
+        ...flowStagesIndex,
+        stagesByFlow: { ...flowStagesIndex.stagesByFlow, "flow-outright": [stages.lead, stages.qualified, { id: "won", flow_id: "flow-outright", name: "Won Deal", pos_x: 2, pos_y: 0, is_terminal: false }] },
+      };
+      renderWithProviders(
+        <OpportunityBoard
+          opportunities={[flowDeal()]}
+          search=""
+          flowStagesIndex={three}
+          snapshotsById={snapshotsById}
+          saleTypes={saleTypes}
+          onCardClick={() => {}}
+        />,
+      );
+
+      const card = (await screen.findByText("Acme Corp")).closest("button");
+      const wonColumn = screen.getByText("Won Deal").closest("div");
+      fireEvent.dragStart(card);
+      fireEvent.drop(wonColumn);
+
+      expect(toast.error).toHaveBeenCalledWith("Lead can only move to Qualified next.");
+      expect(screen.queryByText(/^Move to/)).not.toBeInTheDocument();
+    });
+
     it("a drop onto an allowed Stage opens the move confirmation, listing a known blocker", async () => {
       renderWithProviders(
         <OpportunityBoard
@@ -285,6 +314,67 @@ describe("OpportunityBoard", () => {
         ),
       );
       await waitFor(() => expect(onMoved).toHaveBeenCalled());
+    });
+
+    describe("dragging to the Lost column (#814)", () => {
+      const lostStage = { id: "lost", flow_id: "flow-outright", name: "Closed Lost", pos_x: 2, pos_y: 0, is_terminal: true, terminal_outcome: "lost" };
+      const withLost = {
+        ...flowStagesIndex,
+        stagesByFlow: { ...flowStagesIndex.stagesByFlow, "flow-outright": [stages.lead, stages.qualified, lostStage] },
+      };
+      const renderBoard = () =>
+        renderWithProviders(
+          <OpportunityBoard
+            opportunities={[flowDeal()]}
+            search=""
+            flowStagesIndex={withLost}
+            snapshotsById={snapshotsById}
+            saleTypes={saleTypes}
+            currentUserId="actor-1"
+            onCardClick={() => {}}
+          />,
+        );
+      const dropOnLost = async () => {
+        const card = (await screen.findByText("Acme Corp")).closest("button");
+        const lostColumn = screen.getByText("Closed Lost").closest("div");
+        fireEvent.dragStart(card);
+        fireEvent.dragOver(lostColumn);
+        fireEvent.drop(lostColumn);
+      };
+
+      it("opens the reason picker instead of moving, even with no line drawn to Lost", async () => {
+        renderBoard();
+        await dropOnLost();
+
+        expect(await screen.findByRole("radiogroup", { name: "Why was the deal lost?" })).toBeInTheDocument();
+        expect(screen.queryByText(/^Move to/)).not.toBeInTheDocument();
+        expect(opportunityService.updateStatus).not.toHaveBeenCalled();
+      });
+
+      it("cancelling the picker moves nothing", async () => {
+        const user = setupUser();
+        renderBoard();
+        await dropOnLost();
+
+        await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+        expect(screen.queryByRole("radiogroup", { name: "Why was the deal lost?" })).not.toBeInTheDocument();
+        expect(opportunityService.markLost).not.toHaveBeenCalled();
+        expect(opportunityService.updateStatus).not.toHaveBeenCalled();
+      });
+
+      it("confirming a reason marks the deal Lost", async () => {
+        const user = setupUser();
+        renderBoard();
+        await dropOnLost();
+
+        await user.click(await screen.findByRole("radio", { name: "No response from client" }));
+        await user.click(screen.getAllByRole("button", { name: "Mark as Lost" }).at(-1));
+
+        await waitFor(() =>
+          expect(opportunityService.markLost).toHaveBeenCalledWith("deal-1", "NO_RESPONSE", null, null),
+        );
+      });
     });
 
     it("the legacy pipeline board is read-only — cards are not draggable", async () => {

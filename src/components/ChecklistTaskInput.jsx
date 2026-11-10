@@ -14,6 +14,7 @@ export default function ChecklistTaskInput({
   value,
   onChange,
   name = "taskDescription",
+  maxDueDate = null,
 }) {
   const prevPropRef = useRef(value);
   const lastEmittedRef = useRef(value);
@@ -64,6 +65,8 @@ export default function ChecklistTaskInput({
       const flatItems = nextGroups[0].items.map((i) => ({
         text: i.text,
         checked: Boolean(i.checked),
+        ...(i.dueDate ? { dueDate: i.dueDate } : {}),
+        ...(i.remarks ? { remarks: i.remarks } : {}),
       }));
       outputValue = JSON.stringify(flatItems);
     } else {
@@ -76,6 +79,8 @@ export default function ChecklistTaskInput({
             id: i.id,
             text: i.text,
             checked: Boolean(i.checked),
+            ...(i.dueDate ? { dueDate: i.dueDate } : {}),
+            ...(i.remarks ? { remarks: i.remarks } : {}),
           })),
         })),
       );
@@ -152,6 +157,18 @@ export default function ChecklistTaskInput({
     const group = { ...nextGroups[gIdx] };
     const items = [...group.items];
     items[iIdx] = { ...items[iIdx], text };
+    group.items = items;
+    nextGroups[gIdx] = group;
+
+    setGroups(nextGroups);
+    emitChange(nextGroups);
+  };
+
+  const handleItemFieldChange = (gIdx, iIdx, field, fieldValue) => {
+    const nextGroups = [...groups];
+    const group = { ...nextGroups[gIdx] };
+    const items = [...group.items];
+    items[iIdx] = { ...items[iIdx], [field]: fieldValue };
     group.items = items;
     nextGroups[gIdx] = group;
 
@@ -389,6 +406,30 @@ export default function ChecklistTaskInput({
                   }}
                   placeholder="List detailed condition..."
                   containerClassName="flex-1 min-w-0" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent border-none outline-none text-foreground font-medium text-xs py-1 placeholder:text-muted-foreground transition-all"
+                />
+
+                <Input
+                  type="date"
+                  aria-label="Item due date"
+                  title="Due date (optional)"
+                  value={item.dueDate || ""}
+                  max={maxDueDate ? String(maxDueDate).slice(0, 10) : undefined}
+                  onChange={(e) =>
+                    handleItemFieldChange(gIdx, iIdx, "dueDate", e.target.value)
+                  }
+                  containerClassName="w-32 shrink-0"
+                  className="h-7 text-[11px]"
+                />
+                <Input
+                  type="text"
+                  aria-label="Item remarks"
+                  value={item.remarks || ""}
+                  onChange={(e) =>
+                    handleItemFieldChange(gIdx, iIdx, "remarks", e.target.value)
+                  }
+                  placeholder="Remarks"
+                  containerClassName="w-32 shrink-0"
+                  className="h-7 text-[11px]"
                 />
 
                 <Button

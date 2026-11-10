@@ -34,6 +34,11 @@ export const DEAL_TEAM_ROLES = Object.freeze({
   registrar: { label: "Registrar", columns: ["registered_by"] },
 });
 
+/** An employee's Team: the database column, or the camelCase the app's employee service returns. */
+function teamOf(e) {
+  return e?.sub_department ?? e?.subDepartment;
+}
+
 /** The comparison both sides use: trimmed and upper-cased, blank means none. */
 export function normaliseTeam(value) {
   return String(value ?? "").trim().toUpperCase();
@@ -48,7 +53,7 @@ export function teamOptions(employees = []) {
   const teams = new Set();
   for (const e of employees) {
     if (e?.is_deleted) continue;
-    const team = normaliseTeam(e?.sub_department);
+    const team = normaliseTeam(teamOf(e));
     if (team && team !== "ALL") teams.add(team);
   }
   return [...teams].sort();
@@ -82,7 +87,7 @@ export function resolveGroupMemberIds(group, employees = []) {
   const teams = new Set((group.teams || []).map(normaliseTeam).filter(Boolean));
   return employees
     .filter((e) => !e.is_deleted)
-    .filter((e) => picked.has(String(e.id)) || teams.has(normaliseTeam(e.sub_department)))
+    .filter((e) => picked.has(String(e.id)) || teams.has(normaliseTeam(teamOf(e))))
     .map((e) => e.id);
 }
 
@@ -117,7 +122,7 @@ export function resolvePeople(selectors, { employees = [], groupMembersById = {}
         const team = normaliseTeam(selector.team);
         if (!team) break;
         for (const e of employees) {
-          if (normaliseTeam(e.sub_department) === team) wanted.add(String(e.id));
+          if (normaliseTeam(teamOf(e)) === team) wanted.add(String(e.id));
         }
         break;
       }

@@ -19,6 +19,7 @@ import Dropdown from "@/components/ui/Dropdown";
 import AddStagePopoverForm from "./AddStagePopoverForm";
 import { STAGE_H, STAGE_W } from "./flowCanvasLayout";
 import { initialsOf } from "@/utils/stageAudience";
+import { endsAsLost, endsAsWon } from "@/constants/salesFlow";
 
 /**
  * A Stage on the Flow Canvas.
@@ -176,7 +177,7 @@ const COLOR_BACKGROUNDS = {
 const Chip = ({ className, icon: Icon, children, ...rest }) => (
   <span
     className={cn(
-      "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-[0.12em]",
+      "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-label font-black uppercase tracking-[0.12em]",
       className || "bg-mauve-a3 text-mauve-11",
     )}
     {...rest}
@@ -292,7 +293,7 @@ const FACE_LIMIT = 4;
  * Clicking it opens the Stage's Access tab, which is the only place the
  * roster can actually be changed.
  */
-const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
+const AudienceStrip = ({ audience, lensState, viewAsLabel, stageName, onOpen }) => {
   const calledIn = audience?.calledIn ?? [];
   const faces = calledIn.slice(0, FACE_LIMIT);
   const shutOutCount =
@@ -324,7 +325,7 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
         type="button"
         variant="ghost"
         title={title}
-        aria-label={title}
+        aria-label={stageName ? `${stageName}: ${title}` : title}
         className={cn(
           "nodrag nopan -my-0.5 h-auto w-full justify-start gap-2 rounded-lg px-1 py-1 text-left hover:bg-transparent",
         )}
@@ -477,8 +478,12 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
             {stage.is_terminal && (
               <Chip className={ROLE.terminal.chip} icon={Octagon}>Terminal</Chip>
             )}
+            {endsAsWon(stage) && !isWon && <Chip className={ROLE.won.chip} icon={Flag}>Won</Chip>}
+            {endsAsLost(stage) && (
+              <Chip className="bg-red-a3 text-red-11" icon={Octagon}>Lost</Chip>
+            )}
             {!isEntry && !isWon && !stage.is_terminal && (
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="text-label font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Stage
               </span>
             )}
@@ -499,6 +504,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
         audience={audience}
         lensState={accessLensState}
         viewAsLabel={viewAsLabel}
+        stageName={stage.name}
         onOpen={onOpenAccess}
       />
 

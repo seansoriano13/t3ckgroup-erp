@@ -5,6 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import noPrimaryDecoration from './src/lib/linting/no-primary-decoration.js'
 import noRawHtml, { DISABLE_MESSAGE as NO_RAW_HTML_DISABLE, isExempt as isSharedUi } from './src/lib/linting/no-raw-html.js'
+import noIsoDateSlice from './src/lib/linting/no-iso-date-slice.js'
 import requirePageShell, { DISABLE_MESSAGE as PAGE_SHELL_DISABLE } from './src/lib/linting/require-page-shell.js'
 import { createRefuseDisableProcessor } from './src/lib/linting/refuse-disable.js'
 
@@ -45,6 +46,7 @@ export default defineConfig([
         rules: {
           'no-primary-decoration': noPrimaryDecoration,
           'no-raw-html': noRawHtml,
+          'no-iso-date-slice': noIsoDateSlice,
           'require-page-shell': requirePageShell,
         },
       },
@@ -63,6 +65,8 @@ export default defineConfig([
     processor: refuseDisableProcessor,
     rules: {
       'local/no-raw-html': 'error',
+      // ADR 0039: dates are Manila dates; use src/lib/manilaDate.js.
+      'local/no-iso-date-slice': 'error',
       'local/require-page-shell': 'error',
     },
   },

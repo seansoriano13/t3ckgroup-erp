@@ -65,7 +65,7 @@ describe("old SOR mention grant", () => {
         expect(direct.data?.length ?? 0).toBe(0)
     })
 
-    it("a Stage-scoped SOR grants the same read-only access, never Stage Visit data", async () => {
+    it("a Stage-scoped SOR grants participant access, never the SOR row itself", async () => {
         const owner = await clientFor("dealOwner")
         const { error } = await owner.rpc("sor_grant_mention_view", { p_opportunity_id: scopedSor, p_employee_ids: [ids.ordinary] })
         expect(error).toBeNull()

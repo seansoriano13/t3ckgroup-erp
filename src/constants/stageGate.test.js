@@ -6,7 +6,9 @@ import {
   evaluateCrossing,
   evaluateCondition,
   missingStageFields,
+  stageFieldShown,
   CONDITION_STATUS,
+  NEW_CONDITION_KINDS,
   stagesCrossed,
 } from "./stageGate"
 import { PIPELINE_STAGE_SEED } from "./sor"
@@ -270,6 +272,39 @@ describe("missingStageFields", () => {
     const field = makeField({ id: "f-4", archived_at: "2026-01-01T00:00:00.000Z" })
     expect(missingStageFields([field], { visitValues: {} })).toEqual([])
   })
+
+  // #900: a "Show only when" field counts as required only while its rule holds.
+  it("does not require a field whose Show only when rule is not met", () => {
+    const demo = makeField({ id: "demo", label: "Product Demo", field_type: "choice", options: ["Yes", "No"] })
+    const ifYes = makeField({ id: "if-yes", label: "If yes", show_when: { field_id: "demo", value: "Yes" } })
+    const stageFields = [demo, ifYes]
+    // Product Demo is answered "No": "If yes" is hidden, so nothing is missing.
+    expect(missingStageFields(stageFields, { visitValues: { demo: "No" } })).toEqual([])
+    expect(missingStageFields(stageFields, { visitValues: { demo: "Yes" } })).toEqual([ifYes])
+  })
+})
+
+describe("stageFieldShown", () => {
+  const makeField = (overrides = {}) => ({ id: "field-1", source: "custom", sor_field: null, is_required: true, archived_at: null, ...overrides })
+
+  it("shows a field with no rule, and one whose referenced field is missing", () => {
+    expect(stageFieldShown({ id: "a" }, { stageFields: [] })).toBe(true)
+    expect(stageFieldShown({ id: "a", show_when: { field_id: "gone", value: "Yes" } }, { stageFields: [] })).toBe(true)
+  })
+
+  it("shows only while a custom field holds the value", () => {
+    const demo = makeField({ id: "demo" })
+    const ifYes = makeField({ id: "if-yes", show_when: { field_id: "demo", value: "Yes" } })
+    expect(stageFieldShown(ifYes, { stageFields: [demo, ifYes], visitValues: { demo: "Yes" } })).toBe(true)
+    expect(stageFieldShown(ifYes, { stageFields: [demo, ifYes], visitValues: { demo: "No" } })).toBe(false)
+    expect(stageFieldShown(ifYes, { stageFields: [demo, ifYes], visitValues: {} })).toBe(false)
+  })
+
+  it("reads an SOR column from the opportunity", () => {
+    const sorField = makeField({ id: "s", source: "sor", sor_field: "po_date" })
+    const dependent = makeField({ id: "d", show_when: { field_id: "s", value: "2026-11-05" } })
+    expect(stageFieldShown(dependent, { stageFields: [sorField, dependent], opportunity: { po_date: "2026-11-05" } })).toBe(true)
+  })
 })
 
 describe("evaluateCondition — tickbox kind", () => {
@@ -283,6 +318,43 @@ describe("evaluateCondition — tickbox kind", () => {
     expect(ticked.status).toBe(CONDITION_STATUS.SATISFIED)
     expect(ticked.satisfiedBy).toBe("emp-4")
     expect(ticked.satisfiedAt).toBe("2026-05-01T00:00:00.000Z")
+  })
+})
+
+describe("evaluateCondition — purchasing_settled kind (#311)", () => {
+  const req = makeCondition({ kind: "purchasing_settled", label: "Purchasing settled" })
+
+  it("is satisfied when the SOR has no Purchase Request", () => {
+    expect(evaluateCondition(req, { purchaseRequestItems: null }).status).toBe(CONDITION_STATUS.SATISFIED)
+  })
+
+  it("is unsatisfied while any item is open, satisfied once every item is closed", () => {
+    const open = [{ status: "received" }, { status: "purchased" }]
+    const closed = [{ status: "received" }, { status: "cancelled" }]
+    expect(evaluateCondition(req, { purchaseRequestItems: open }).status).toBe(CONDITION_STATUS.UNSATISFIED)
+    expect(evaluateCondition(req, { purchaseRequestItems: closed }).status).toBe(CONDITION_STATUS.SATISFIED)
+  })
+
+  it("fails closed when nobody loaded the evidence", () => {
+    expect(evaluateCondition(req).status).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+
+  it("reads the items as they stood at a closed visit's end", () => {
+    const items = [{ status: "received", created_at: "2026-10-01T00:00:00Z", status_changed_at: "2026-10-06T00:00:00Z" }]
+    expect(
+      evaluateCondition(req, { purchaseRequestItems: items, purchaseRequestAsOf: "2026-10-05T00:00:00Z" }).status,
+    ).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+
+  it("leaves the old purchasing kind evaluating on whether a request exists", () => {
+    const old = makeCondition({ kind: "purchasing" })
+    expect(evaluateCondition(old, { hasPurchasing: true }).status).toBe(CONDITION_STATUS.SATISFIED)
+    expect(evaluateCondition(old, { hasPurchasing: false }).status).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+
+  it("is offered from the picker; the old purchasing kind is not", () => {
+    expect(NEW_CONDITION_KINDS).toContain("purchasing_settled")
+    expect(NEW_CONDITION_KINDS).not.toContain("purchasing")
   })
 })
 

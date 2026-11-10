@@ -4,7 +4,13 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+// Non-modal by default (#904): a modal Select locks page scroll and lays an
+// inert layer over the page on open, which repaints the whole page — about
+// 1 s per open on the S0 Evaluation and Canvass windows, against ~30 ms for
+// our own Dropdown. Pass `modal` to opt back in.
+function Select({ modal = false, ...props }) {
+  return <SelectPrimitive.Root modal={modal} {...props} />;
+}
 
 function SelectGroup({
   className,
@@ -41,7 +47,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "group/select-trigger flex w-fit items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 text-[13px] font-semibold text-foreground whitespace-nowrap transition-all outline-none select-none cursor-pointer hover:border-border/80 data-[popup-open]:bg-muted data-[popup-open]:ring-1 data-[popup-open]:ring-mauve-4 focus-visible:ring-1 focus-visible:ring-mauve-4 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/40 data-placeholder:text-muted-foreground data-[size=default]:h-[46px] data-[size=sm]:h-9 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "group/select-trigger flex w-fit items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 text-[13px] font-semibold text-foreground whitespace-nowrap transition-all outline-none select-none cursor-pointer hover:border-border/80 data-[popup-open]:bg-muted data-[popup-open]:ring-1 data-[popup-open]:ring-mauve-4 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/40 data-placeholder:text-muted-foreground data-[size=default]:h-[46px] data-[size=sm]:h-9 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className
       )}
       {...props}>

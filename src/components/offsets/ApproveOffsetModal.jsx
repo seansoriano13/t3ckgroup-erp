@@ -5,6 +5,7 @@ import { X, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { offsetService } from '../../services/offsetService';
 import { Input } from "@/components/ui/input";
+import { AttachmentList } from '../ui/Attachments';
 import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
@@ -42,11 +43,11 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
         approvedHours: parsedHours,
         hrId,
       });
-      toast.success('Offset leave approved.');
+      toast.success('Offset approved.');
       onSuccess?.();
       onClose();
     } catch (err) {
-      toast.error(err.message || 'Failed to approve offset leave request.');
+      toast.error(err.message || 'Failed to approve Offset request.');
     } finally {
       setSubmitting(false);
     }
@@ -57,7 +58,7 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
       <DialogContent showCloseButton={false} className="max-w-sm sm:max-w-sm flex flex-col overflow-hidden p-0 gap-0">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
-            Approve Offset Leave
+            Approve Offset
           </h2>
           <Button
             variant="ghost"
@@ -75,6 +76,10 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
             {request.dayCount > 1 ? ` across ${request.dayCount} days from ` : ' on '}
             {new Date(request.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.
           </p>
+
+          {request.attachments?.length > 0 && (
+            <AttachmentList attachments={request.attachments} />
+          )}
 
           <div>
             <FieldBox label="Approved Hours" htmlFor="approved-offset-hours" className="block mb-1.5" />

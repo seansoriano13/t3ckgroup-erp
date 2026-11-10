@@ -13,6 +13,8 @@ import { groupTaskActivityService } from "../services/groupTaskActivityService";
 import { taskService } from "../services/taskService";
 import { groupTaskService } from "../services/groupTaskService";
 import { useAuth } from "../context/AuthContext";
+import ChatScroller from "@/components/ui/ChatScroller";
+import { usePagedChat, patchPagedMessage } from "../hooks/usePagedChat";
 import {
   MessageCircle,
   X,
@@ -46,6 +48,8 @@ import ReplyPreviewBar from "./ui/ReplyPreviewBar";
 import ReplyQuote from "./ui/ReplyQuote";
 import SwipeToReplyWrapper from "./ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "../utils/chatReply";
+import { canUnsend, isMessageRemoved } from "../utils/chatUnsend";
+import { chatUnsendService } from "../services/chatUnsendService";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { AttachmentPreviews, AttachmentList } from "./ui/Attachments";
 import { ALLOWED_MIME_TYPES } from "../utils/attachments";
@@ -135,7 +139,8 @@ const entityLabel = (type) =>
 //  SUB-COMPONENTS
 // -------------------------------------------------------------
 
-function MessageBubble({ entry, currentUserId, onReply, onReact }) {
+function MessageBubble({ entry, currentUserId, onReply, onReact, onUnsend }) {
+  const removed = isMessageRemoved(entry);
   const isMe = entry.authorId === currentUserId;
   const avatarMap = useEmployeeAvatarMap();
 
@@ -231,7 +236,7 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
             isMe ? "flex-row-reverse" : "flex-row"
           )}
         >
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+          <span className="text-label font-bold text-muted-foreground uppercase tracking-tight">
             {isMe ? "You" : entry.authorName}
           </span>
           {entry.authorIsHead && (
@@ -277,9 +282,10 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
 
           <SwipeToReplyWrapper 
             isMe={isMe} 
-            copyText={entry.content}
-            onReply={() => onReply?.(entry)}
-            onReact={(emoji) => onReact && onReact(entry, emoji)}
+            copyText={removed ? undefined : entry.content}
+            onReply={removed ? undefined : () => onReply?.(entry)}
+            onReact={removed ? undefined : (emoji) => onReact && onReact(entry, emoji)}
+            onUnsend={canUnsend(entry, currentUserId) ? () => onUnsend?.(entry) : undefined}
           >
             <div
               className={cn(
@@ -294,16 +300,18 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
               )}
               style={{ wordBreak: "break-word" }}
             >
-              <ReplyQuote replyTo={entry.metadata?.replyTo} />
-              {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
-              {entry.metadata?.attachments?.length > 0 && (
-                <div
-                  className={cn(
-                    entry.content ? "mt-2" : "",
+              {removed ? (
+                <p className="italic opacity-70">Message removed</p>
+              ) : (
+                <>
+                  <ReplyQuote replyTo={entry.metadata?.replyTo} />
+                  {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
+                  {entry.metadata?.attachments?.length > 0 && (
+                    <div className={cn(entry.content ? "mt-2" : "")}>
+                      <AttachmentList attachments={entry.metadata.attachments} />
+                    </div>
                   )}
-                >
-                  <AttachmentList attachments={entry.metadata.attachments} />
-                </div>
+                </>
               )}
             </div>
           </SwipeToReplyWrapper>
@@ -370,7 +378,6 @@ export default function ComprehensiveChatModal({
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [selectedChat, setSelectedChat] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -453,20 +460,26 @@ export default function ComprehensiveChatModal({
   }, [activeChats]);
 
   // -- Data: Messages for Selected Chat ----------------------
-  const { data: rawMessages = [], isLoading: isLoadingMessages } = useQuery({
-    queryKey: [
-      "chatMessages",
-      selectedChat?.entity_type,
-      selectedChat?.entity_id,
-    ],
-    queryFn: () =>
-      selectedChat?.entity_type === "TASK"
-        ? taskActivityService.getActivityForTask(selectedChat.entity_id)
-        : groupTaskActivityService.getActivityForTask(
-            selectedChat.entity_id,
-          ),
+  // Pages newest-first. The key extends ["chatMessages", type, id] so prefix
+  // invalidations (send, realtime) still reach it, yet stays apart from the
+  // whole-thread query other screens keep under the bare key.
+  const chatKey = [
+    "chatMessages",
+    selectedChat?.entity_type,
+    selectedChat?.entity_id,
+    "paged",
+  ];
+  const chat = usePagedChat({
+    queryKey: chatKey,
+    fetchPage: ({ before, limit }) => {
+      const service =
+        selectedChat.entity_type === "TASK" ? taskActivityService : groupTaskActivityService;
+      return service.getCommentsPage(selectedChat.entity_id, { before, limit, includeEvents: true });
+    },
     enabled: !!selectedChat && internalOpen,
   });
+  const rawMessages = chat.messages;
+  const isLoadingMessages = chat.isLoading;
 
   // -- Data: Read Receipts for Selected Chat -------------------
   const { data: readReceipts = [] } = useQuery({
@@ -658,10 +671,7 @@ export default function ComprehensiveChatModal({
     const table = selectedChat?.entity_type === "TASK" ? "task_activity" : "committee_task_activity";
     
     // Optimistic update
-    queryClient.setQueryData(
-      ["chatMessages", selectedChat?.entity_type, selectedChat?.entity_id],
-      (old = []) => old.map(m => m.id === message.id ? { ...m, metadata: newMetadata } : m)
-    );
+    patchPagedMessage(queryClient, chatKey, message.id, (m) => ({ ...m, metadata: newMetadata }));
 
     try {
       const { error } = await supabase.rpc('toggle_chat_reaction', {
@@ -676,7 +686,7 @@ export default function ComprehensiveChatModal({
         notificationService.createNotification({
           recipient_id: message.authorId,
           sender_id: user.id,
-          type: "TASK_REACTION",
+          type: selectedChat?.entity_type === "TASK" ? "TASK_REACTION" : "GROUP_TASK_REACTION",
           title: "New Reaction",
           message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
           reference_id: selectedChat?.entity_id,
@@ -689,6 +699,25 @@ export default function ComprehensiveChatModal({
         queryKey: ["chatMessages", selectedChat?.entity_type, selectedChat?.entity_id],
       });
     }
+  };
+
+  const unsendMessage = async (message) => {
+    if (!message?.id) return;
+    const table = selectedChat?.entity_type === "TASK" ? "task_activity" : "committee_task_activity";
+    patchPagedMessage(queryClient, chatKey, message.id, (m) => ({
+      ...m,
+      content: "Message removed",
+      metadata: { removed: true },
+    }));
+    try {
+      await chatUnsendService.unsend(table, message.id);
+    } catch (err) {
+      console.error("Failed to unsend message:", err);
+    }
+    queryClient.invalidateQueries({
+      queryKey: ["chatMessages", selectedChat?.entity_type, selectedChat?.entity_id],
+    });
+    queryClient.invalidateQueries({ queryKey: ["activeChats", user?.id] });
   };
 
   // -- Effects -----------------------------------------------
@@ -815,13 +844,6 @@ export default function ComprehensiveChatModal({
       supabase.removeChannel(channel);
     };
   }, [selectedChat, internalOpen, queryClient]);
-
-  // Auto-scroll on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages.length, selectedChat, internalOpen]);
 
   // Bump the read receipt when the thread is open and the newest message changes.
   // Keyed on primitives only: depending on the `messages` array or the whole
@@ -1115,7 +1137,7 @@ export default function ComprehensiveChatModal({
                         <div className="flex items-center gap-1.5">
                           <span
                             className={cn(
-                              "text-[10px] font-black uppercase tracking-tighter opacity-70",
+                              "text-label font-black uppercase tracking-tighter opacity-70",
                               chat.entity_type === "TASK"
                                 ? "text-foreground"
                                 : canonicalEntityType(chat.entity_type) === "GROUP_TASK"
@@ -1195,7 +1217,7 @@ export default function ComprehensiveChatModal({
                     <h3 className="text-sm font-black truncate">
                       {selectedChat.title}
                     </h3>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                    <div className="flex items-center gap-2 text-label text-muted-foreground font-bold uppercase tracking-wider">
                       {entityLabel(selectedChat.entity_type)} •{" "}
                       {/* The RPC's group-task subtitle is the constant
                           "Committee Task" — the old name again. */}
@@ -1218,6 +1240,8 @@ export default function ComprehensiveChatModal({
                           detail: {
                             id: selectedChat.entity_id,
                             type: canonicalEntityType(selectedChat.entity_type),
+                            // A request's chat row opens the request on its Chat tab (#850).
+                            ...(canonicalEntityType(selectedChat.entity_type) === "PURCHASE_REQUEST" ? { tab: "chat" } : {}),
                           },
                         }),
                       );
@@ -1282,9 +1306,16 @@ export default function ComprehensiveChatModal({
               ) : null}
 
               {/* Messages Area */}
-              <div
-                ref={scrollRef}
-                className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 custom-scrollbar py-4 space-y-1"
+              <ChatScroller
+                key={`${selectedChat?.entity_type}-${selectedChat?.entity_id}`}
+                firstKey={messages[0]?.id}
+                lastKey={messages[messages.length - 1]?.id}
+                lastIsMine={messages[messages.length - 1]?.authorId === user?.id}
+                hasMore={chat.hasMore}
+                isFetchingMore={chat.isFetchingMore}
+                onLoadMore={chat.loadMore}
+                className="min-w-0"
+                scrollClassName="overflow-x-hidden min-w-0 py-4 space-y-1"
               >
                 {isLoadingMessages ? (
                   <div className="flex items-center justify-center h-full gap-2 text-muted-foreground italic text-xs">
@@ -1305,10 +1336,11 @@ export default function ComprehensiveChatModal({
                       currentUserId={user.id}
                       onReply={(entry) => setReplyingTo(buildReplySnapshot(entry))}
                       onReact={toggleReaction}
+                      onUnsend={unsendMessage}
                     />
                   ))
                 )}
-              </div>
+              </ChatScroller>
 
               {/* Input Area */}
               <form

@@ -10,10 +10,12 @@
  */
 
 import { TASK_STATUS } from "../constants/status.js";
+import { IPAS_PRIORITY, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "../constants/ipas.js";
+import { TRANSMITTAL_ORIGIN_LABELS, TRANSMITTAL_PRIORITY } from "../constants/transmittals.js";
 import { checklistProgressLabel, isChecklistDescription, isStaleSince } from "./approvalQueue.js";
 
-export const LEAVE_LABEL = { SIL: "SIL Leave", OFFSET: "Offset", OVERTIME: "Overtime", UNDERTIME: "Undertime" };
-const LEAVE_REF = { SIL: "SIL", OFFSET: "OFS", OVERTIME: "OT", UNDERTIME: "UT" };
+export const LEAVE_LABEL = { SIL: "SIL Leave", LWOP: "LWOP", OFFSET: "Offset", OVERTIME: "Overtime", UNDERTIME: "Undertime" };
+const LEAVE_REF = { SIL: "SIL", LWOP: "LWOP", OFFSET: "OFS", OVERTIME: "OT", UNDERTIME: "UT" };
 
 /** A short, stable, human-readable handle for a record: `TSK-3F2A1`. */
 export function shortRef(prefix, id) {
@@ -62,6 +64,59 @@ export function leaveChain(request) {
         { label: "Department head", who: "You", state: "current", at: null },
         { label: "HR approval", who: "HR", state: "next", at: null },
     ];
+}
+
+/**
+ * IPAS sign-offs: sections 1 and 3 are Prepared by Purchasing, then wait on this
+ * approver; section 7 is Received, Noted and Checked, then Approved, and the
+ * chain shows who has given each and which one is this person's.
+ */
+export function ipasChain(pending) {
+    if (pending?.section === 7 && Array.isArray(pending.steps)) {
+        return pending.steps.map((step) => {
+            if (step.signoff) {
+                return { label: step.label, who: step.signoff.signedBy?.name || "Someone", state: "done", at: step.signoff.signedAt || null };
+            }
+            if (step.role === pending.role) return { label: step.label, who: "You", state: "current", at: null };
+            return { label: step.label, who: `Section ${ipasSectionLabel(7)} list`, state: "next", at: null };
+        });
+    }
+    return [
+        { label: "Submitted", who: pending?.preparedBy?.name || "Purchasing", state: "done", at: pending?.preparedAt || null },
+        { label: "Approved", who: "You", state: "current", at: null },
+    ];
+}
+
+/**
+ * An IPAS section waiting on the signed-in approver (ipasService.pendingSignoffsFor)
+ * as an ApprovalItem. The clock runs from when it became ready for this person
+ * (Purchasing prepared the section; for section 7, the sign-off before theirs),
+ * and the "person" is whoever did that. A very high priority IPAS reads as high
+ * priority.
+ */
+export function ipasToItem(pending, now = Date.now()) {
+    const clockAt = pending.readyAt ?? pending.preparedAt;
+    return {
+        id: pending.id,
+        queue: "ipas",
+        ref: pending.number,
+        title: pending.supplier || pending.poNumber,
+        typeLabel: `${pending.poNumber} · Section ${ipasSectionLabel(pending.section)}${pending.section === 7 ? ` · ${IPAS_SIGNOFF_ROLE_LABELS[pending.role] ?? pending.role}` : ""}`,
+        person: {
+            id: pending.preparedBy?.id,
+            name: pending.preparedBy?.name || "Unknown",
+            avatarPath: pending.preparedBy?.avatarPath || null,
+            dept: pending.section === 7 ? "Filing" : "Purchasing",
+        },
+        submittedAt: clockAt,
+        clockAt,
+        isStale: isStaleSince(clockAt, now),
+        done: false,
+        isHighPriority: pending.priority === IPAS_PRIORITY.VERY_HIGH,
+        attachmentCount: 0,
+        chain: ipasChain(pending),
+        source: pending,
+    };
 }
 
 /**
@@ -115,6 +170,72 @@ export function leaveToItem(request, now = Date.now()) {
     };
 }
 
+/**
+ * A Transmittal slip awaiting Check by as an ApprovalItem (#254). The slip is
+ * the source; the row opens its page, where the Check by plates are signed.
+ */
+export function transmittalToItem(slip, now = Date.now()) {
+    const clockAt = slip.submittedAt ?? slip.createdAt;
+    return {
+        id: slip.id,
+        queue: "transmittals",
+        // The TG03 number leads, as staff quote it; the Company sits under it.
+        ref: slip.entity || "TG03",
+        title: slip.number,
+        typeLabel: "Check by",
+        // `list()` shapes the preparer as a plain name.
+        person: {
+            id: slip.preparedById,
+            name: slip.preparedBy || "Unknown",
+            avatarPath: null,
+            dept: TRANSMITTAL_ORIGIN_LABELS[slip.origin] ?? "",
+        },
+        submittedAt: clockAt,
+        clockAt,
+        isStale: isStaleSince(clockAt, now),
+        done: false,
+        isHighPriority: slip.priority === TRANSMITTAL_PRIORITY.HIGH,
+        attachmentCount: 0,
+        chain: [],
+        source: slip,
+    };
+}
+
+/**
+ * A matrix waiting for its Bid Decision (costingMatrixService.pendingBidDecisions, #320) as an
+ * ApprovalItem. The clock runs from the last Final Offer change (when it became ready), and the
+ * "person" is the Deal Owner who answers for the price. The decision itself is taken on the
+ * Costing Matrix, where the numbers are, so opening a row goes to the SOR.
+ */
+export function bidDecisionToItem(pending, now = Date.now()) {
+    const parts = [`Final Offer ${moneyLabel(pending.finalOfferTotal)}`];
+    if (pending.abcTotal !== null && pending.abcTotal !== undefined) parts.push(`ABC ${moneyLabel(pending.abcTotal)}`);
+    return {
+        id: pending.matrixId,
+        queue: "bid",
+        ref: shortRef("BID", pending.matrixId),
+        title: pending.projectTitle || pending.clientName || "Untitled deal",
+        typeLabel: parts.join(" · "),
+        person: {
+            id: pending.dealOwnerId,
+            name: pending.dealOwnerName || "No Deal Owner",
+            avatarPath: null,
+            dept: pending.clientName || "",
+        },
+        submittedAt: pending.waitingSince,
+        clockAt: pending.waitingSince,
+        isStale: isStaleSince(pending.waitingSince, now),
+        done: false,
+        isHighPriority: false,
+        attachmentCount: 0,
+        chain: [],
+        source: pending,
+    };
+}
+
+const moneyLabel = (value) =>
+    `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 /** "Mon, Sep 28, 2026 · 13:00–17:00 · 4 hrs" — the when of a leave or overtime request. */
 export function leaveWhen(request) {
     if (!request) return "";
@@ -159,4 +280,46 @@ export function shortDate(iso, now = Date.now()) {
     if (Number.isNaN(d.getTime())) return "—";
     const sameYear = d.getFullYear() === new Date(now).getFullYear();
     return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
+}
+
+/**
+ * A Meeting Request's approval chain: Requested -> HR approval (#748, HR is the only approver).
+ * An old request that went through a department head keeps that step as history.
+ */
+export function meetingChain(request) {
+    const hadHeadStep = Boolean(request?.head_decided_at || request?.hr_override);
+    return [
+        { label: "Requested", who: request?.applicant?.name || "Employee", state: "done", at: request?.created_at || null },
+        ...(hadHeadStep
+            ? [{
+                label: "Department head",
+                who: request?.hr_override ? "Skipped by HR" : "Department head",
+                state: "done",
+                at: request?.head_decided_at || null,
+            }]
+            : []),
+        { label: "HR approval", who: "HR", state: "current", at: null },
+    ];
+}
+
+/** A Meeting Request waiting on the signed-in reviewer as an ApprovalItem (#624). */
+export function meetingToItem(request, now = Date.now()) {
+    const a = request.applicant || {};
+    const clockAt = request.created_at || request.starts_at;
+    return {
+        id: request.id,
+        queue: "meetings",
+        ref: shortRef("MTG", request.id),
+        title: request.purpose,
+        typeLabel: "Waiting for HR",
+        person: { id: a.id, name: a.name || "Unknown", avatarPath: null, dept: a.department || "" },
+        submittedAt: clockAt,
+        clockAt,
+        isStale: isStaleSince(clockAt, now),
+        done: false,
+        isHighPriority: false,
+        attachmentCount: 0,
+        chain: meetingChain(request),
+        source: request,
+    };
 }

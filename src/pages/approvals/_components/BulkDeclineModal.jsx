@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { pluralize } from "@/utils/plural";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X, XSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,10 @@ export default function BulkDeclineModal({
 
   const handleSubmit = useCallback((e) => {
     if (e?.preventDefault) e.preventDefault();
+    if (isSubmitting) return;
     if (!remarks.trim()) return; // Require remarks for decline
     onConfirm({ remarks });
-  }, [remarks, onConfirm]);
+  }, [remarks, onConfirm, isSubmitting]);
 
   // Keyboard shortcut Ctrl+Enter to submit
   useEffect(() => {
@@ -54,7 +56,7 @@ export default function BulkDeclineModal({
             <div className="w-[18px] h-[18px] rounded flex items-center justify-center bg-destructive text-primary-foreground font-bold text-[9px] shrink-0">
               <XSquare size={10} />
             </div>
-            <span className="font-bold text-muted-foreground">Bulk Decline</span>
+            <span className="font-bold text-muted-foreground">Bulk return</span>
           </div>
           <Button
             type="button"
@@ -72,20 +74,21 @@ export default function BulkDeclineModal({
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-6">
           <div tabIndex={-1} ref={titleRef} className="outline-none">
             <h2 className="text-xl font-extrabold text-foreground tracking-tight">
-              Decline {selectedCount} Tasks
+              Return {pluralize(selectedCount, "task")}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Provide feedback for declining the {selectedCount} selected tasks. A remark is required.
+              Provide feedback for returning the {pluralize(selectedCount, "selected task")}. A remark is required.
             </p>
           </div>
 
           <div>
-            <FieldBox label="Decline Remarks (Required)" className="mb-2 block" />
+            <FieldBox label="Return remarks (required)" htmlFor="bulk-decline-remarks" className="mb-2 block" />
             <Input
+              id="bulk-decline-remarks"
               type="text"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="e.g. Please revise these tasks..."
+              placeholder="e.g. Please revise these tasks…"
               className="w-full bg-card mt-1 focus:ring-primary/50"
               required
             />
@@ -102,7 +105,7 @@ export default function BulkDeclineModal({
             disabled={isSubmitting || !remarks.trim()}
             className="bg-destructive hover:bg-red-700 text-primary-foreground font-bold tracking-wide shadow-sm"
           >
-            {isSubmitting ? "Processing..." : `Decline ${selectedCount} Tasks`}
+            {isSubmitting ? "Processing…" : `Return ${pluralize(selectedCount, "task")}`}
           </Button>
         </div>
       </DialogContent>

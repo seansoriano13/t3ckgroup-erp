@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, act } from "@testing-library/react";
 import { renderWithProviders } from "../test/support";
+import { MemoryRouter } from "react-router"
+import toast from "react-hot-toast";
 import GlobalDetailManager from "./GlobalDetailManager";
+
+vi.mock("react-hot-toast", () => ({ default: { error: vi.fn(), success: vi.fn() } }));
 
 const MOCK_OPP = {
   id: "opp-123",
@@ -66,12 +70,6 @@ vi.mock("../services/leadSourceService", () => ({
   },
 }));
 
-vi.mock("../services/purchasingService", () => ({
-  purchasingService: {
-    listForOpportunity: vi.fn(async () => []),
-  },
-}));
-
 vi.mock("../context/AuthContext", () => ({
   useAuth: () => ({
     user: { id: "user-1", name: "Alice", isSuperAdmin: true },
@@ -84,7 +82,7 @@ describe("GlobalDetailManager", () => {
   });
 
   it("opens OpportunityDetailsModal when OPEN_ENTITY_DETAILS is fired with type OPPORTUNITY", async () => {
-    renderWithProviders(<GlobalDetailManager />);
+    renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>);
 
     act(() => {
       window.dispatchEvent(
@@ -100,8 +98,32 @@ describe("GlobalDetailManager", () => {
     });
   });
 
+  it("opens the SOR named in a copied link", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/?open=sor:opp-123"]}>
+        <GlobalDetailManager />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Acme CCTV Rollout")).toBeInTheDocument();
+    });
+  });
+
+  it("says so when a linked task can't be opened", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/?open=task:gone"]}>
+        <GlobalDetailManager />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/have access to this record/i), expect.anything());
+    });
+  });
+
   it("opens Quick View, not the full modal, when OPEN_ENTITY_DETAILS is fired with type OPPORTUNITY_QUICK_VIEW", async () => {
-    renderWithProviders(<GlobalDetailManager />);
+    renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>);
 
     act(() => {
       window.dispatchEvent(

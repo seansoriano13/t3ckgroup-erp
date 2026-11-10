@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { flowLockBlockers, buildDraftSnapshotData, diffFlowSnapshots } from "../constants/salesFlow";
+import { flowLockBlockers, buildDraftSnapshotData, diffFlowSnapshots, TERMINAL_OUTCOME } from "../constants/salesFlow";
 import { stageActionService } from "./stageActionService";
 import { stageConditionService } from "./stageConditionService";
 import { followUpService } from "./followUpService";
@@ -141,8 +141,21 @@ async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
   const stageIdMap = {};
 
   for (const oldStage of snapshotData.stages || []) {
-    const newStage = await salesFlowService.addStage(flow.id, oldStage.name, actorId);
+    const newStage = await salesFlowService.addStage(
+      flow.id, oldStage.name, actorId, oldStage.pos_x ?? 0, oldStage.pos_y ?? 0,
+    );
     stageIdMap[oldStage.id] = newStage.id;
+
+    // The look and the outcome travel with the Stage (#756).
+    if (oldStage.color) await salesFlowService.updateStageColor(newStage.id, oldStage.color, actorId);
+    if (oldStage.bracket_label) await salesFlowService.updateStageBracket(newStage.id, oldStage.bracket_label, actorId);
+    if (oldStage.is_terminal) {
+      await salesFlowService.setStageTerminal(newStage.id, true, actorId);
+      if (oldStage.terminal_outcome) {
+        await salesFlowService.setStageTerminalOutcome(newStage.id, oldStage.terminal_outcome, actorId);
+      }
+    }
+    if (oldStage.buying_opens_here) await salesFlowService.setStageBuyingOpens(newStage.id, true, actorId);
   }
 
   if (snapshotData.wonStageId && stageIdMap[snapshotData.wonStageId]) {
@@ -154,6 +167,23 @@ async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
     const targetId = stageIdMap[oldEdge.to_stage_id];
     if (sourceId && targetId) {
       await salesFlowService.addEdge(flow.id, sourceId, targetId, actorId);
+    }
+  }
+
+  if (snapshotData.contractStageId && stageIdMap[snapshotData.contractStageId]) {
+    await salesFlowService.setContractStage(flow.id, stageIdMap[snapshotData.contractStageId], actorId);
+  }
+
+  if (snapshotData.awardStageId && stageIdMap[snapshotData.awardStageId]) {
+    await salesFlowService.setAwardStage(flow.id, stageIdMap[snapshotData.awardStageId], actorId);
+  }
+
+  // Auto-move needs its one next Stage, so it is set once the moves exist.
+  for (const oldStage of snapshotData.stages || []) {
+    if (oldStage.auto_move && stageIdMap[oldStage.id]) {
+      // An old file whose Stage no longer has exactly one next Stage skips Auto-move
+      // rather than failing the whole copy.
+      await salesFlowService.setStageAutoMove(stageIdMap[oldStage.id], true, actorId).catch(() => {});
     }
   }
 
@@ -668,14 +698,57 @@ export const salesFlowService = {
     return stagesOf(flowId);
   },
 
+  /**
+   * Auto-move (#757): a Stage with exactly one next Stage can move a deal on
+   * by itself once every condition is met. Refused on a Stage with any other
+   * number of next Stages.
+   */
+  async setStageAutoMove(stageId, autoMove, actorId) {
+    await requireSuperAdmin(actorId);
+    const { stage } = await requireDraftStage(stageId);
+
+    if (autoMove) {
+      const { data: outgoing, error: edgeError } = await supabase
+        .from("flow_edges")
+        .select("id")
+        .eq("from_stage_id", stageId);
+      if (edgeError) throw edgeError;
+      if ((outgoing || []).length !== 1) {
+        throw new Error(`"${stage.name}" needs exactly one next Stage to move on by itself.`);
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("flow_stages")
+      .update({ auto_move: Boolean(autoMove), updated_at: new Date().toISOString() })
+      .eq("id", stageId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "FLOW_STAGE",
+      stageId,
+      `Stage "${data.name}" auto-move turned ${data.auto_move ? "on" : "off"}.`,
+      { event: "FLOW_STAGE_AUTO_MOVE_SET", autoMove: data.auto_move, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
   /** Marks a Stage as one where deals stop. A flow may have many. */
   async setStageTerminal(stageId, isTerminal, actorId) {
     await requireSuperAdmin(actorId);
     await requireDraftStage(stageId);
 
+    // Only a Terminal Stage carries an outcome, so un-marking one drops it.
+    const patch = { is_terminal: Boolean(isTerminal), updated_at: new Date().toISOString() };
+    if (!isTerminal) patch.terminal_outcome = null;
+
     const { data, error } = await supabase
       .from("flow_stages")
-      .update({ is_terminal: Boolean(isTerminal), updated_at: new Date().toISOString() })
+      .update(patch)
       .eq("id", stageId)
       .select()
       .single();
@@ -686,6 +759,63 @@ export const salesFlowService = {
       stageId,
       `Stage "${data.name}" marked ${data.is_terminal ? "terminal" : "not terminal"}.`,
       { event: "FLOW_STAGE_TERMINAL_SET", isTerminal: data.is_terminal, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * Flags a Stage as "Buying opens here" (#724), or clears the flag. A flow has at most one:
+   * flagging a Stage moves the flag off any other. Purchasing may attach a P0 to a project
+   * line only once the SOR has entered this Stage, or with Order early and a reason.
+   */
+  async setStageBuyingOpens(stageId, on, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraftStage(stageId);
+
+    // One database function clears the flag on the flow's other Stage and sets this one, in one transaction.
+    const { data, error } = await supabase.rpc("flow_stage_set_buying_opens", { p_stage_id: stageId, p_on: Boolean(on) });
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "FLOW_STAGE",
+      stageId,
+      data.buying_opens_here
+        ? `Buying opens at Stage "${data.name}".`
+        : `Buying no longer opens at Stage "${data.name}".`,
+      { event: "FLOW_STAGE_BUYING_OPENS_SET", buyingOpensHere: data.buying_opens_here, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * How deals end on a Terminal Stage: TERMINAL_OUTCOME.WON (e.g. Closed Won,
+   * after the Won Stage) or TERMINAL_OUTCOME.LOST. Decides Realized vs lost.
+   */
+  async setStageTerminalOutcome(stageId, outcome, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraftStage(stageId);
+    if (!Object.values(TERMINAL_OUTCOME).includes(outcome)) {
+      throw new Error(`Unknown terminal outcome: ${outcome}`);
+    }
+
+    const { data, error } = await supabase
+      .from("flow_stages")
+      .update({ terminal_outcome: outcome, updated_at: new Date().toISOString() })
+      .eq("id", stageId)
+      .eq("is_terminal", true)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "FLOW_STAGE",
+      stageId,
+      `Deals on Stage "${data.name}" end as ${outcome}.`,
+      { event: "FLOW_STAGE_TERMINAL_OUTCOME_SET", outcome, employeeId: actorId },
       actorId,
     ).catch(console.error);
 
@@ -849,6 +979,83 @@ export const salesFlowService = {
     await salesFlowService.removeEdge(edge.id, actorId);
 
     return newStage;
+  },
+
+  /**
+   * Names the flow's Notice of Award Stage, the Stage whose first arrival fills
+   * in a blank Date of Award (ADR 0048). Like the Won Stage, it is a column on
+   * the flow, so a flow can name only one. Null clears it.
+   */
+  async setAwardStage(flowId, stageId, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraft(flowId);
+
+    let stageName = "None";
+    if (stageId !== null) {
+      const stages = await stagesOf(flowId);
+      const stage = stages.find((s) => s.id === stageId);
+      if (!stage) {
+        throw new Error("A flow's Notice of Award Stage must be one of its own Stages.");
+      }
+      stageName = stage.name;
+    }
+
+    const { data, error } = await supabase
+      .from("sales_flows")
+      .update({ award_stage_id: stageId, updated_at: new Date().toISOString() })
+      .eq("id", flowId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      flowId,
+      `Notice of Award Stage set to "${stageName}".`,
+      { event: "FLOW_AWARD_STAGE_SET", flowId, stageId, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * Names the flow's contract Stage, the Stage that holds the client's PO or
+   * contract (CA / PO on the Project flow). Its first arrival fills in a blank
+   * Contract Date (ADR 0048). A column on the flow, so a flow names only one.
+   * Null clears it.
+   */
+  async setContractStage(flowId, stageId, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraft(flowId);
+
+    let stageName = "None";
+    if (stageId !== null) {
+      const stages = await stagesOf(flowId);
+      const stage = stages.find((s) => s.id === stageId);
+      if (!stage) {
+        throw new Error("A flow's contract Stage must be one of its own Stages.");
+      }
+      stageName = stage.name;
+    }
+
+    const { data, error } = await supabase
+      .from("sales_flows")
+      .update({ contract_stage_id: stageId, updated_at: new Date().toISOString() })
+      .eq("id", flowId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      flowId,
+      `Contract Stage set to "${stageName}".`,
+      { event: "FLOW_CONTRACT_STAGE_SET", flowId, stageId, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
   },
 
   /**
@@ -1051,6 +1258,8 @@ export const salesFlowService = {
       .select("*, flow:sales_flows!flow_snapshots_flow_id_fkey(id, sale_type_id, state)")
       .eq("id", snapshotId)
       .maybeSingle();
+    // A malformed id (Postgres 22P02) is "no such version", not a failure.
+    if (error?.code === "22P02") return null;
     if (error) throw error;
     return data || null;
   },
@@ -1113,6 +1322,49 @@ export const salesFlowService = {
     await materializeSnapshotIntoFlow(flow, snapshotData, actorId);
 
     return this.getFlow(saleType.id);
+  },
+
+  /**
+   * The flow's current shape as a Flow Snapshot file (issue #756) — the same
+   * `snapshot_data` a publish would write, wrapped so an import can recognise
+   * it. Works on drafts and locked flows alike.
+   */
+  async exportFlow(flowId) {
+    const flow = await loadFlow(flowId);
+    const [stages, edges] = await Promise.all([stagesOf(flowId), edgesOf(flowId)]);
+    const snapshotData = await buildSnapshotData(flow, stages, edges);
+    return {
+      kind: "flow-snapshot",
+      exportedAt: new Date().toISOString(),
+      snapshotData,
+    };
+  },
+
+  /**
+   * Starts a new draft flow from an exported file (text or parsed object),
+   * through `importSnapshot`. A bare `snapshot_data` object is accepted too.
+   */
+  async importFlowFile(file, name, actorId) {
+    let parsed = file;
+    if (typeof file === "string") {
+      try {
+        parsed = JSON.parse(file);
+      } catch {
+        throw new Error("That file is not a Flow Snapshot.");
+      }
+    }
+    const snapshotData = parsed?.kind === "flow-snapshot" ? parsed.snapshotData : parsed;
+    if (!snapshotData || !Array.isArray(snapshotData.stages)) {
+      throw new Error("That file is not a Flow Snapshot.");
+    }
+    return this.importSnapshot(snapshotData, name, actorId);
+  },
+
+  /** Copies a flow into a new Sale Type draft named `name` (issue #756). */
+  async duplicateFlow(flowId, name, actorId) {
+    await requireSuperAdmin(actorId);
+    const exported = await this.exportFlow(flowId);
+    return this.importSnapshot(exported.snapshotData, name, actorId);
   },
 
   /**

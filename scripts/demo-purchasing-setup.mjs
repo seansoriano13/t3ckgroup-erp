@@ -1,0 +1,459 @@
+#!/usr/bin/env node
+/**
+ * Gets STAGING ready for the Purchasing demo (docs/demos/purchasing-demo-run-sheet.html).
+ * Staging only. Three jobs, in one transaction:
+ *
+ *   1. Demo cast: one-word logins `<first name>@demo`, password `demo`, for every
+ *      person the SOR happy path needs (sales, purchaser, finance, signers,
+ *      warehouse, technical). Idempotent, like seed-mock-employees.mjs.
+ *   2. Purchasing settings back to the demo's: IPAS sign-off lists, Transmittal
+ *      staff lists and S0 Evaluation lists are refilled with the cast (DEMO_LISTS),
+ *      the "Government" markup preset (1.30) is the only active one and ageing rules
+ *      are blank. Option lists (payment methods etc.) and costing rates are left as
+ *      they are: they are the defaults, not a choice.
+ *   3. Requested Items (#678): the demo Purchase Requests list every S0 line as a Not
+ *      checked item, the shape the app now keeps by itself.
+ *   4. "Project [FOR DEMO]": the production "Project" Sales Flow, copied from
+ *      its latest Flow Snapshot under NEW ids (staging already has the real
+ *      Project under the same ids), left as a draft so the demo can add the
+ *      purchasing Stage Actions and Conditions and Publish it. A copy from an
+ *      earlier run is renamed, archived, and its SORs soft-deleted. Any other SOR on
+ *      Scenario F's two S0s (S04081, S04602) is soft-deleted too, so both can be registered.
+ *
+ * Without --apply it rolls back at the end, so the default run is a rehearsal.
+ *
+ *   node scripts/demo-purchasing-setup.mjs           # dry run
+ *   node scripts/demo-purchasing-setup.mjs --apply
+ */
+import pg from "pg"
+import { randomUUID } from "crypto"
+import { fileURLToPath } from "url"
+import { dirname, join } from "path"
+import { loadDotEnvLocal } from "./lib/seedShared.mjs"
+import { prepareDemoActions, DEMO_LISTS } from "./lib/demoActions.mjs"
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..")
+
+export const DEMO_PASSWORD = "demo"
+export const DEMO_DOMAIN = "demo"
+export const DEMO_SALE_TYPE = "Project [FOR DEMO]"
+const PROD_SALE_TYPE = "Project"
+
+// Named after the real staff (first names and call signs) so the room recognises them, with
+// "demo" after the name so nobody mistakes a demo signature for the real person's.
+// `was`: earlier keys of the same login, renamed in place so their SORs and sign-offs follow.
+export const DEMO = {
+  "dani": { was: ["sales"], name: "Dani demo", department: "SALES", sub_department: "GOV", role: "SALES EXECUTIVE", has_sales_flow: true, has_retail_access: true },
+  "cjay": { was: ["purchaser"], name: "Cjay demo", department: "OPERATIONS", sub_department: "PURCHASING", role: "PURCHASER", has_purchasing_flow: true, has_task_flow: true },
+  "jelai": { was: ["finance"], name: "Jelai demo", department: "ADMIN", sub_department: "FINANCE", role: "ACCOUNTING STAFF", has_task_flow: true, has_finance_flow: true },
+  "jen": { was: ["admin"], name: "Jen demo", department: "ADMIN", sub_department: "ADMIN", role: "ADMIN MANAGER", is_head: true, has_task_flow: true },
+  "grace": { was: ["ops"], name: "Grace demo", department: "OPERATIONS", role: "OPERATIONS MANAGER", is_head: true, has_task_flow: true },
+  "201": { was: ["gm"], name: "201 demo", department: "ADMIN", sub_department: "ADMIN", role: "GENERAL MANAGER", is_head: true, has_task_flow: true },
+  // 101 is both the Sales Director and the Super Admin, so one login does both.
+  "101": { was: ["boss", "saleshead"], name: "101 demo", department: "SALES", role: "SALES DIRECTOR", is_head: true, has_sales_flow: true, has_retail_access: true, is_super_admin: true, can_edit_sales_flows: true },
+  "aldrin": { was: ["warehouse"], name: "Aldrin demo", department: "OPERATIONS", sub_department: "WAREHOUSE", role: "WAREHOUSE STAFF", has_task_flow: true },
+  "sherwin": { was: ["technical"], name: "Sherwin demo", department: "OPERATIONS", sub_department: "TECHNICAL", role: "TECHNICIAN", has_task_flow: true },
+}
+
+/** Moves a login to a new email, keeping its id (auth user, identity and employee row). */
+async function renameLogin(c, id, email) {
+  await c.query("update auth.users set email = $2, updated_at = now() where id = $1", [id, email])
+  await c.query("update auth.identities set identity_data = identity_data || jsonb_build_object('email', $2::text) where user_id = $1", [id, email])
+  await c.query("update public.employees set email = $2 where id = $1", [id, email])
+}
+
+export const DEMO_PRESET = { label: "Government", factor: 1.3 }
+
+const FLAGS = ["is_head", "is_hr", "is_super_admin", "can_manage_leaves", "can_edit_sales_flows", "has_sales_flow", "has_task_flow", "has_purchasing_flow", "has_finance_flow", "has_retail_access"]
+
+async function connect(url) {
+  const client = new pg.Client({ connectionString: url, ssl: url.includes("127.0.0.1") ? false : { rejectUnauthorized: false } })
+  await client.connect()
+  return client
+}
+
+async function seedCast(c) {
+  for (const [key, spec] of Object.entries(DEMO)) {
+    const email = `${key}@${DEMO_DOMAIN}`
+    const existing = await c.query("select id from auth.users where email = $1", [email])
+    let id = existing.rows[0]?.id
+    for (const old of id ? [] : spec.was ?? []) {
+      const { rows: [prev] } = await c.query("select id from auth.users where email = $1", [`${old}@${DEMO_DOMAIN}`])
+      if (!prev) continue
+      await renameLogin(c, prev.id, email)
+      console.log(`  renamed ${old}@${DEMO_DOMAIN} → ${email}`)
+      id = prev.id
+      break
+    }
+    if (id) {
+      await c.query(
+        "update auth.users set encrypted_password = crypt($2, gen_salt('bf')), email_confirmed_at = coalesce(email_confirmed_at, now()), updated_at = now() where id = $1",
+        [id, DEMO_PASSWORD],
+      )
+    } else {
+      id = (
+        await c.query(
+          `insert into auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, created_at, updated_at,
+             confirmation_token, recovery_token, email_change_token_new, email_change, phone_change, phone_change_token,
+             raw_app_meta_data, raw_user_meta_data, aud, role)
+           values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', $1, crypt($2, gen_salt('bf')), now(), now(), now(),
+             '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{}', 'authenticated', 'authenticated')
+           returning id`,
+          [email, DEMO_PASSWORD],
+        )
+      ).rows[0].id
+      await c.query(
+        `insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+         values (gen_random_uuid(), $1::uuid, $1::text, jsonb_build_object('sub', $1::text, 'email', $2::text), 'email', now(), now(), now())`,
+        [id, email],
+      )
+    }
+    const flags = FLAGS.map((f) => spec[f] ?? false)
+    await c.query(
+      `insert into public.employees (id, email, name, department, sub_department, role, employment_status, is_deleted, is_issued_password, ${FLAGS.join(", ")})
+       values ($1, $2, $3, $4, $5, $6, 'Regular', false, false, ${FLAGS.map((_, i) => `$${i + 7}`).join(", ")})
+       on conflict (id) do update set email = excluded.email, name = excluded.name, department = excluded.department,
+         sub_department = excluded.sub_department, role = excluded.role, is_deleted = false,
+         ${FLAGS.map((f) => `${f} = excluded.${f}`).join(", ")}`,
+      [id, email, spec.name, spec.department, spec.sub_department ?? null, spec.role, ...flags],
+    )
+    console.log(`  ok  ${email}`)
+  }
+  // A demo login no longer in the cast (folded into another) is switched off, not deleted:
+  // it may still hold a role on an earlier rehearsal's SOR.
+  const keep = Object.keys(DEMO).map((k) => `${k}@${DEMO_DOMAIN}`)
+  const { rows: stale } = await c.query(
+    "select id, email from public.employees where email like $1 and not (email = any($2::text[])) and is_deleted is not true",
+    [`%@${DEMO_DOMAIN}`, keep],
+  )
+  for (const row of stale) {
+    await c.query(`update public.employees set is_deleted = true, ${FLAGS.map((f) => `${f} = false`).join(", ")} where id = $1`, [row.id])
+    await c.query("update auth.users set encrypted_password = crypt(gen_random_uuid()::text, gen_salt('bf')), updated_at = now() where id = $1", [row.id])
+    console.log(`  off ${row.email} (no longer in the cast)`)
+  }
+}
+
+async function resetSettings(c) {
+  const n = async (sql) => (await c.query(sql)).rowCount
+  console.log(`  IPAS sign-off and Transmittal staff lists: ${await n("delete from public.ipas_signer_lists")} rows removed`)
+  console.log(`  S0 Evaluation lists: ${await n("delete from public.costing_signer_lists")} rows removed`)
+  for (const [table, lists] of Object.entries(DEMO_LISTS)) {
+    for (const [listKey, keys] of Object.entries(lists)) {
+      const emails = keys.map((k) => `${k}@${DEMO_DOMAIN}`)
+      const added = await c.query(
+        `insert into public.${table} (list_key, employee_id)
+         select $1, e.id from public.employees e where e.email = any($2::text[])
+         on conflict do nothing`,
+        [listKey, emails],
+      )
+      if (added.rowCount !== keys.length) throw new Error(`${table}.${listKey}: added ${added.rowCount} of ${keys.join(", ")}`)
+    }
+    console.log(`  ${table}: ${Object.keys(lists).length} lists filled with the cast`)
+  }
+  console.log(`  Ageing rules blanked: ${await n("update public.order_ageing_rules set days = null, updated_at = now() where days is not null")}`)
+  // A preset a matrix already used stays (deactivated); an unused one goes. Then the demo's one.
+  const used = await n("update public.costing_markup_presets p set active = false, updated_at = now() where exists (select 1 from public.costing_matrix_money m where m.default_preset_id = p.id)")
+  const gone = await n("delete from public.costing_markup_presets p where not exists (select 1 from public.costing_matrix_money m where m.default_preset_id = p.id)")
+  const revived = await n(`update public.costing_markup_presets set factor = ${DEMO_PRESET.factor}, active = true, updated_at = now() where label = '${DEMO_PRESET.label}'`)
+  if (!revived) await c.query("insert into public.costing_markup_presets (label, factor, sort, active) values ($1, $2, 0, true)", [DEMO_PRESET.label, DEMO_PRESET.factor])
+  console.log(`  Markup presets: ${gone} removed, ${used} deactivated (used by a matrix), "${DEMO_PRESET.label}" ${DEMO_PRESET.factor} is the active one`)
+}
+
+/** Every id the flow owns inside a snapshot, so the copy can live beside the real Project. */
+function ownedIds(snapshot, saleTypeId, flowId) {
+  const ids = new Set([saleTypeId, flowId])
+  const data = snapshot.snapshot_data
+  for (const key of ["stages", "edges", "actions", "conditions", "stageFields", "formFields"]) {
+    for (const row of data[key] ?? []) if (row?.id) ids.add(row.id)
+  }
+  return ids
+}
+
+async function cancelIpasRows(c, ipas, reason) {
+  if (ipas.length === 0) return
+  const actAs = async (key) => {
+    const email = `${key}@${DEMO_DOMAIN}`
+    const { rows: [who] } = await c.query("select id from public.employees where email = $1", [email])
+    await c.query("reset role")
+    await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: who.id, email, role: "authenticated" })])
+    await c.query("set local role authenticated")
+  }
+  for (const row of ipas) {
+    if (row.state === "filed") {
+      await actAs("101")
+      await c.query("select public.ipas_reopen($1, $2)", [row.id, "Demo reset"])
+    }
+    await actAs("cjay")
+    await c.query("select public.ipas_cancel($1, $2)", [row.id, reason])
+    console.log(`  cancelled ${row.number} (${row.po_number} is free again)`)
+  }
+  await c.query("reset role")
+  // The claims outlive the role for the rest of the transaction; left set, auth.uid() stays Cjay and
+  // the SOR guard refuses the soft-delete that follows.
+  await c.query("select set_config('request.jwt.claims', '', true)")
+}
+
+/**
+ * Frees the demo's Odoo POs for the next rehearsal: every IPAS naming an SOR of
+ * the old copy is reopened (if filed) by 101 (the demo Super Admin) and cancelled by
+ * Cjay (the demo Purchaser), through the same functions the screen uses. One live
+ * IPAS per PO is the rule.
+ */
+async function freeDemoPos(c, saleTypeId) {
+  const { rows: ipas } = await c.query(
+    `select distinct i.id, i.number, i.po_number, i.state from public.ipas i
+       join public.ipas_sors s on s.ipas_id = i.id
+       join public.sales_opportunities o on o.id = s.opportunity_id
+      where o.sale_type_id = $1 and i.state <> 'cancelled'`,
+    [saleTypeId],
+  )
+  await cancelIpasRows(c, ipas, "Demo reset: frees the PO for the next rehearsal")
+}
+
+async function retireOldCopies(c) {
+  const { rows } = await c.query("select id, name from public.sale_types where name = $1 and archived_at is null", [DEMO_SALE_TYPE])
+  for (const old of rows) {
+    await freeDemoPos(c, old.id)
+    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ")
+    const sors = await c.query("update public.sales_opportunities set is_deleted = true where sale_type_id = $1 and is_deleted is not true", [old.id])
+    await c.query("update public.sale_types set name = $2, archived_at = now() where id = $1", [old.id, `${DEMO_SALE_TYPE} (old ${stamp})`])
+    console.log(`  retired the earlier copy (${sors.rowCount} SORs soft-deleted)`)
+  }
+}
+
+// Scenario F tests one PO (P02674) shared by two SORs. One S0 per SOR (#819):
+// S04081 is registered fresh (as SOR-257), so any stray SOR on S04081 is soft-deleted.
+// For S04602, the existing SOR-73 on staging is moved onto Project [FOR DEMO] at the
+// entry stage, so the demo uses it without tripping the duplicate S0 check.
+async function freeScenarioFS0s(c, demoFlow) {
+  // Free P02674 if it still has an open or filed IPAS from an earlier run
+  const { rows: p02674Ipas } = await c.query(
+    "select id, number, po_number, state from public.ipas where po_number = 'P02674' and state <> 'cancelled'",
+  )
+  await cancelIpasRows(c, p02674Ipas, "Demo reset: frees P02674 for Scenario F")
+
+  // Soft-delete any stray SOR on S04081 so Scenario F can register it fresh
+  const { rows: strayS04081 } = await c.query(
+    `update public.sales_opportunities o set is_deleted = true
+      where o.sales_reference = 'S04081' and o.is_deleted is not true
+      returning o.sor_code, o.sales_reference`,
+  )
+  for (const row of strayS04081) console.log(`  soft-deleted ${row.sor_code} so Scenario F can register ${row.sales_reference}`)
+
+  // Soft-delete any stray SOR on S04602 that is not SOR-73
+  const { rows: strayS04602 } = await c.query(
+    `update public.sales_opportunities o set is_deleted = true
+      where o.sales_reference = 'S04602' and o.sor_code <> 'SOR-73' and o.is_deleted is not true
+      returning o.sor_code, o.sales_reference`,
+  )
+  for (const row of strayS04602) console.log(`  soft-deleted stray ${row.sor_code} on ${row.sales_reference}`)
+
+  let saleTypeId = demoFlow?.saleTypeId
+  if (!saleTypeId) {
+    const { rows: [found] } = await c.query(
+      "select id from public.sale_types where name = $1 and archived_at is null order by created_at desc limit 1",
+      [DEMO_SALE_TYPE],
+    )
+    saleTypeId = found?.id
+  }
+  if (!saleTypeId) throw new Error(`Active Sale Type "${DEMO_SALE_TYPE}" not found.`)
+
+  const { rows: [entryStage] } = await c.query(
+    `select s.id, s.flow_id from public.flow_stages s
+      where s.flow_id = (select f.id from public.sales_flows f where f.sale_type_id = $1 limit 1)
+      order by s.sort_order, s.name limit 1`,
+    [saleTypeId],
+  )
+  if (!entryStage) throw new Error(`No entry stage found for demo sale type ${saleTypeId}`)
+
+  let snapshotId = demoFlow?.snapshotId
+  if (!snapshotId) {
+    const { rows: [snap] } = await c.query(
+      "select id from public.flow_snapshots where flow_id = $1 order by version desc, version_minor desc limit 1",
+      [entryStage.flow_id],
+    )
+    snapshotId = snap?.id
+  }
+
+  const { rows: [dani] } = await c.query("select id from public.employees where email = $1", [`dani@${DEMO_DOMAIN}`])
+
+  // sor_guard_stage_move refuses a stage move unless the caller reads 'full' on the SOR. This
+  // connection has no JWT (cancelIpasRows also blanks the claims above), so run the move as
+  // service_role, which the guard exempts. Same approach as seed-stage-access-demo.mjs.
+  await c.query("select set_config('request.jwt.claims', '{\"role\":\"service_role\"}', true)")
+
+  // Move SOR-73 onto Project [FOR DEMO] at the entry stage and un-delete it
+  const { rows: sor73Rows } = await c.query(
+    `update public.sales_opportunities o
+        set is_deleted = false,
+            sales_reference = 'S04602',
+            sale_type_id = $1,
+            flow_stage_id = $2,
+            flow_snapshot_id = coalesce($3, o.flow_snapshot_id),
+            deal_owner_id = coalesce($4, o.deal_owner_id),
+            status = 'LEAD'
+      where (o.sor_code = 'SOR-73' or (o.sales_reference = 'S04602' and not exists (select 1 from public.sales_opportunities where sor_code = 'SOR-73')))
+      returning o.id, o.sor_code, o.sales_reference`,
+    [saleTypeId, entryStage.id, snapshotId ?? null, dani?.id ?? null],
+  )
+  if (sor73Rows.length === 0) {
+    console.log("  note: SOR-73 / S04602 not found on staging")
+    return
+  }
+  const sor73 = sor73Rows[0]
+
+  // Clean up any earlier rehearsal request and action runs so Scenario F can press Create cleanly
+  await c.query("delete from public.purchase_requests where opportunity_id = $1", [sor73.id])
+  await c.query("delete from public.sor_action_runs where opportunity_id = $1", [sor73.id])
+
+  const { rows: [prAction] } = await c.query(
+    "select id, config from public.flow_stage_actions where stage_id = $1 and kind = 'open_purchase_request' limit 1",
+    [entryStage.id],
+  )
+  if (prAction) {
+    const decider = prAction.config?.decider?.length
+      ? prAction.config.decider
+      : [{ type: "role", role: "deal_owner" }]
+    await c.query(
+      `insert into public.sor_action_runs (opportunity_id, stage_id, action_id, outcome, decider)
+       values ($1, $2, $3, 'pending', $4)`,
+      [sor73.id, entryStage.id, prAction.id, JSON.stringify(decider)],
+    )
+  }
+
+  console.log(`  moved ${sor73.sor_code} (${sor73.sales_reference || 'S04602'}) to "${DEMO_SALE_TYPE}" entry stage`)
+}
+
+/**
+ * #678: the demo's Requested Items in the new shape. Items on the Purchase Requests of the demo
+ * SORs (any copy of the demo Sale Type, old ones included) are cleared, then one Not checked
+ * item is made for every S0 line by the same function the database trigger uses. Staging only,
+ * demo SORs only.
+ */
+async function resetDemoItems(c) {
+  const { rows: requests } = await c.query(
+    `select r.id from public.purchase_requests r
+       join public.sales_opportunities o on o.id = r.opportunity_id
+       join public.sale_types t on t.id = o.sale_type_id
+      where t.name = $1 or t.name like $2`,
+    [DEMO_SALE_TYPE, `${DEMO_SALE_TYPE} (old %`],
+  )
+  for (const { id } of requests) {
+    await c.query("delete from public.purchase_request_items where request_id = $1", [id])
+    await c.query("select public._purchase_request_sync_sor_items($1)", [id])
+  }
+  console.log(`  ${requests.length} demo request(s) now list their S0 lines as Not checked items`)
+}
+
+async function copyProjectFlow(prod, c) {
+  const { rows: types } = await prod.query("select * from public.sale_types where name = $1 and archived_at is null", [PROD_SALE_TYPE])
+  if (types.length !== 1) throw new Error(`Prod has ${types.length} active Sale Types named "${PROD_SALE_TYPE}".`)
+  const saleType = types[0]
+  const { rows: [flow] } = await prod.query("select * from public.sales_flows where sale_type_id = $1", [saleType.id])
+  const { rows: [snapshot] } = await prod.query(
+    "select * from public.flow_snapshots where flow_id = $1 order by version desc, version_minor desc limit 1",
+    [flow.id],
+  )
+  if (!snapshot) throw new Error("Prod's Project flow has no Flow Snapshot to copy.")
+
+  const map = new Map([...ownedIds(snapshot, saleType.id, flow.id)].map((id) => [id, randomUUID()]))
+  let text = JSON.stringify(snapshot.snapshot_data)
+  for (const [from, to] of map) text = text.split(from).join(to)
+  const data = JSON.parse(text)
+
+  // What is left are people and groups. Groups the copy names must exist on staging.
+  const refs = [...new Set(text.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g) ?? [])]
+    .filter((id) => ![...map.values()].includes(id))
+  const known = new Set()
+  for (const table of ["employees", "employee_groups", "group_task_templates", "costing_markup_presets", "flow_stages"]) {
+    const { rows } = await c.query(`select id from public.${table} where id = any($1::uuid[])`, [refs])
+    rows.forEach((r) => known.add(r.id))
+  }
+  // #896: a Group Task member staging does not have would fail its action at the demo (the
+  // DELCOM action did). Those members are dropped from the copy, and a title with a literal
+  // "(Sales Order Number)"-style label gets its template token. The copy is changed here,
+  // not in production; production's Project flow keeps its own text.
+  const { droppedMembers, retitled } = prepareDemoActions(data.actions ?? [], known)
+  for (const { action, employeeId } of droppedMembers) console.log(`  dropped ${employeeId} from "${action}" (not on staging)`)
+  for (const { action, from, to } of retitled) console.log(`  retitled "${action}": "${from}" → "${to}"`)
+  const stillMissing = refs.filter((id) => !known.has(id) && JSON.stringify(data).includes(id))
+  if (stillMissing.length) console.log(`  note: ${stillMissing.length} id(s) in the copy are not on staging (left as they are): ${stillMissing.join(", ")}`)
+
+  const saleTypeId = map.get(saleType.id)
+  const flowId = map.get(flow.id)
+  await c.query("insert into public.sale_types (id, name) values ($1, $2)", [saleTypeId, DEMO_SALE_TYPE])
+  await c.query("insert into public.sales_flows (id, sale_type_id, state) values ($1, $2, 'draft')", [flowId, saleTypeId])
+  const snapshotId = randomUUID()
+  await c.query(
+    "insert into public.flow_snapshots (id, flow_id, version, version_minor, snapshot_data, note) values ($1, $2, $3, $4, $5, $6)",
+    [snapshotId, flowId, snapshot.version, snapshot.version_minor, JSON.stringify(data), `Copied from production "${PROD_SALE_TYPE}" v${snapshot.version}.${snapshot.version_minor} for the Purchasing demo`],
+  )
+  await c.query("select public.restore_flow_snapshot($1, $2)", [flowId, snapshotId])
+  // Prod's flow predates the Notice of Award and contract Stage roles, so the copy has neither.
+  // The demo needs both: NOA fills the Date of Award and tells Purchasing, CA / PO fills the Contract Date.
+  // The contract Stage (#745) is skipped on a database that does not have it yet.
+  const { rows: [{ has_contract: hasContract }] } = await c.query(
+    "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'sales_flows' and column_name = 'contract_stage_id') as has_contract",
+  )
+  const stageNamed = (pattern) => `(select s.id from public.flow_stages s where s.flow_id = f.id and s.name ilike '${pattern}' limit 1)`
+  const { rows: [roles] } = await c.query(
+    `update public.sales_flows f
+        set award_stage_id = coalesce(f.award_stage_id, ${stageNamed("NOA%")})
+            ${hasContract ? `, contract_stage_id = coalesce(f.contract_stage_id, ${stageNamed("CA%PO%")})` : ""}
+      where f.id = $1
+      returning award_stage_id is not null as award ${hasContract ? ", contract_stage_id is not null as contract" : ""}`,
+    [flowId],
+  )
+  if (!roles?.award) console.log("  note: no NOA Stage found, so the demo flow has no Notice of Award Stage")
+  if (!hasContract) console.log("  note: this database has no contract Stage yet (#745), so none was set")
+  else if (!roles?.contract) console.log("  note: no CA / PO Stage found, so the demo flow has no contract Stage")
+  const { rows: [counts] } = await c.query(
+    `select (select count(*) from public.flow_stages where flow_id = $1) stages,
+            (select count(*) from public.flow_edges where flow_id = $1) edges,
+            (select count(*) from public.flow_stage_actions a join public.flow_stages s on s.id = a.stage_id where s.flow_id = $1) actions,
+            (select count(*) from public.stage_conditions x join public.flow_stages s on s.id = x.stage_id where s.flow_id = $1) conditions`,
+    [flowId],
+  )
+  console.log(`  ✔ "${DEMO_SALE_TYPE}" from prod v${snapshot.version}.${snapshot.version_minor}: ${counts.stages} Stages, ${counts.edges} moves, ${counts.actions} actions, ${counts.conditions} conditions (draft)`)
+  return { saleTypeId, flowId, snapshotId }
+}
+
+async function main() {
+  const apply = process.argv.includes("--apply")
+  const env = loadDotEnvLocal(repoRoot)
+  const stagingUrl = env.STAGING_DB_URL ?? process.env.STAGING_DB_URL
+  const prodUrl = env.PROD_DB_URL ?? process.env.PROD_DB_URL
+  if (!stagingUrl || !prodUrl) throw new Error("STAGING_DB_URL and PROD_DB_URL must be set (.env.local or the environment).")
+  if (stagingUrl === prodUrl) throw new Error("STAGING_DB_URL and PROD_DB_URL are the same database.")
+  if (stagingUrl.includes("epqmberwewztzbrkhhss")) throw new Error("STAGING_DB_URL points at the production project. This script only writes to staging.")
+
+  const prod = await connect(prodUrl)
+  const c = await connect(stagingUrl)
+  console.log(apply ? "APPLYING to STAGING" : "DRY RUN on STAGING (rolls back; pass --apply to commit)")
+  try {
+    await c.query("begin")
+    console.log("1. Demo cast")
+    await seedCast(c)
+    console.log("2. Purchasing settings reset")
+    await resetSettings(c)
+    console.log(`3. ${DEMO_SALE_TYPE}`)
+    await retireOldCopies(c)
+    const demoFlow = await copyProjectFlow(prod, c)
+    await freeScenarioFS0s(c, demoFlow)
+    console.log("4. Demo Requested Items (one per S0 line)")
+    await resetDemoItems(c)
+    await c.query(apply ? "commit" : "rollback")
+    console.log(apply ? "\nCommitted." : "\nRolled back (dry run).")
+  } catch (e) {
+    await c.query("rollback").catch(() => {})
+    throw e
+  } finally {
+    await prod.end()
+    await c.end()
+  }
+}
+
+main().catch((e) => {
+  console.error(`\n✖ ${e.message}\n  Nothing was written.`)
+  process.exit(1)
+})

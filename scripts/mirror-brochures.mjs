@@ -26,7 +26,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -284,6 +284,9 @@ async function uploadToCloudinary(doc, bytes) {
   form.append("file", new Blob([bytes]), `${doc.id}.${brochureExtension(doc)}`);
   form.append("upload_preset", env.CLOUDINARY_UPLOAD_PRESET);
   form.append("public_id", brochurePublicId(doc));
+  // The readable name rides alongside the fixed public id as searchable
+  // context, so quotation downloads (which use the fixed id) are untouched.
+  if (doc.label) form.append("context", `label=${escapeContext(doc.label)}`);
 
   const res = await fetch(
     `https://api.cloudinary.com/v1_1/${CLOUD.cloudName}/raw/upload`,
@@ -294,6 +297,71 @@ async function uploadToCloudinary(doc, bytes) {
     throw new Error(json?.error?.message || `Cloudinary upload failed (HTTP ${res.status})`);
   }
   return json;
+}
+
+// ── readable names (#760) ───────────────────────────────────────────────────
+
+/** Cloudinary context values use | and = as separators, so they are escaped. */
+const escapeContext = (value) => String(value).replace(/([=|])/g, "\\$1");
+
+/** Optional Odoo field holding the brand on the product template, e.g. "brand_id". */
+const BRAND_FIELD = env.ODOO_BRAND_FIELD || "";
+
+/** "Brand - Model - Document type", built from the product the document hangs off. */
+async function attachLabels(uid, documents) {
+  const idsOf = (model) => [
+    ...new Set(documents.filter((d) => d.res_model === model).map((d) => d.res_id)),
+  ];
+  const templateIds = idsOf("product.template");
+  const variantIds = idsOf("product.product");
+  const fields = ["name", ...(BRAND_FIELD ? [BRAND_FIELD] : [])];
+
+  const variants = variantIds.length
+    ? await executeKw(uid, "product.product", "read", [variantIds, ["product_tmpl_id"]])
+    : [];
+  const parentIds = variants.map((v) => v.product_tmpl_id?.[0]).filter(Boolean);
+  const allIds = [...new Set([...templateIds, ...parentIds])];
+  const templates = allIds.length ? await executeKw(uid, "product.template", "read", [allIds, fields]) : [];
+  const templateById = new Map(templates.map((t) => [t.id, t]));
+  const variantParent = new Map(variants.map((v) => [v.id, templateById.get(v.product_tmpl_id?.[0])]));
+
+  for (const doc of documents) {
+    const product =
+      doc.res_model === "product.product" ? variantParent.get(doc.res_id) : templateById.get(doc.res_id);
+    const rawBrand = product?.[BRAND_FIELD];
+    const brand = Array.isArray(rawBrand) ? rawBrand[1] : rawBrand;
+    const type = String(doc.name || "").replace(/\.[A-Za-z][A-Za-z0-9]{0,7}$/, "").trim();
+    doc.label = [brand, product?.name, type].filter(Boolean).join(" - ");
+  }
+}
+
+/**
+ * Already-mirrored brochures keep their bytes and fixed name; only the readable
+ * label is added, through Cloudinary's signed context endpoint. Needs
+ * CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET in .env.mirror; without them
+ * only newly uploaded brochures get a label.
+ */
+async function backfillLabel(doc) {
+  if (!doc.label || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) return;
+  const folder = CLOUD.folder ? `${CLOUD.folder.replace(/^\/+|\/+$/g, "")}/` : "";
+  const params = {
+    command: "add",
+    context: `label=${escapeContext(doc.label)}`,
+    public_ids: `${folder}${brochurePublicId(doc)}`,
+    timestamp: String(Math.floor(Date.now() / 1000)),
+    type: "upload",
+  };
+  const toSign = Object.keys(params)
+    .sort()
+    .map((k) => `${k}=${params[k]}`)
+    .join("&");
+  const signature = createHash("sha1").update(toSign + env.CLOUDINARY_API_SECRET).digest("hex");
+  const form = new URLSearchParams({ ...params, api_key: env.CLOUDINARY_API_KEY, signature });
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD.cloudName}/raw/context`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw new Error(`Cloudinary label update failed (HTTP ${res.status})`);
 }
 
 // ── the run ─────────────────────────────────────────────────────────────────
@@ -313,7 +381,7 @@ async function main() {
     "search_read",
     [
       [["attached_on", "in", MERGEABLE_VISIBILITY]],
-      ["id", "name", "checksum", "write_date", "attached_on", "mimetype", "file_size"],
+      ["id", "name", "checksum", "write_date", "attached_on", "mimetype", "file_size", "res_model", "res_id"],
     ],
     { order: "id asc" },
   );
@@ -331,6 +399,8 @@ async function main() {
     console.log("");
   }
 
+  await attachLabels(uid, queue);
+
   if (!DRY_RUN) await preflight();
 
   const state = { skipped: 0, uploaded: 0, bytes: 0, failed: [], tooLarge: [], mismatched: [] };
@@ -341,6 +411,7 @@ async function main() {
     try {
       if (await existsOnCloudinary(doc)) {
         state.skipped += 1;
+        if (!DRY_RUN) await backfillLabel(doc);
         return;
       }
 

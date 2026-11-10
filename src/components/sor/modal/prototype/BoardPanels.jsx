@@ -60,7 +60,7 @@ export function StagePanel({ p, onOpen }) {
               <li key={c.condition.id} className="flex items-start gap-2 text-[13px]">
                 {met ? <Check size={14} className="mt-0.5 shrink-0 text-green-11" /> : <CircleDashed size={14} className="mt-0.5 shrink-0 text-amber-11" />}
                 <span className={cn("min-w-0 flex-1", met ? "text-muted-foreground line-through decoration-mauve-7" : "font-semibold text-foreground")}>{c.condition.label}</span>
-                {!met && c.condition.is_required && <span className="shrink-0 text-[10px] font-bold text-amber-11 uppercase">Required</span>}
+                {!met && c.condition.is_required && <span className="shrink-0 text-label font-bold text-amber-11 uppercase">Required</span>}
               </li>
             );
           })}
@@ -91,7 +91,7 @@ export function ProductsPanel({ p, onOpen }) {
       ) : (
         <>
           <ul className="divide-y divide-border/50">
-            {items.slice(0, 5).map((it) => (
+            {items.filter((it) => !it.removed_from_s0).slice(0, 5).map((it) => (
               <li key={it.id} className="flex items-baseline gap-3 py-1.5 text-[13px]">
                 <span className="min-w-0 flex-1 truncate font-semibold text-foreground">{it.product_name}</span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">×{it.quantity}</span>

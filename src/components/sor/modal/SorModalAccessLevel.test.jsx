@@ -63,6 +63,60 @@ describe("SorModal — access level", () => {
     expect(screen.queryByPlaceholderText("Add a note — type @ to mention someone")).not.toBeInTheDocument()
   })
 
+  it("tells someone with no access, and names the Deal Owner to ask (#474)", async () => {
+    const viewer = makeEmployee()
+    authUser = { id: viewer.id }
+    const deal = makeOpportunity({ status: "LEAD" })
+
+    stubRpc("sor_access_contact", () => [{ deal_owner_name: "Dana Owner" }])
+
+    renderWithProviders(
+      <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={null} opportunityId={deal.id} accessLevel="none" />,
+    )
+
+    await screen.findByText(/Ask Dana Owner, its Deal Owner/)
+    expect(screen.getByText("You're not on this SOR.")).toBeInTheDocument()
+    // Nothing about the deal itself.
+    expect(screen.queryByText(deal.project_title)).not.toBeInTheDocument()
+    expect(screen.queryByRole("tab", { name: "Now" })).not.toBeInTheDocument()
+  })
+
+  it("tells a mentioned viewer which Stage they see, who opened it, and when it ends (#475)", async () => {
+    const viewer = makeEmployee()
+    const sender = makeEmployee({ name: "Sean Sender" })
+    authUser = { id: viewer.id }
+    const saleType = makeSaleType({ name: "Flow for mention banner" })
+    const stage = makeFlowStage({ name: "Costing" })
+    const deal = makeOpportunity({ status: "LEAD", sale_type_id: saleType.id, flow_stage_id: stage.id })
+    const visit = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id)
+    db.seed("sor_mention_viewers", [
+      { opportunity_id: deal.id, employee_id: viewer.id, granted_by: sender.id, stage_visit_id: visit.id },
+    ])
+
+    stubRpc("sor_access_level", () => "participant")
+    stubRpc("sor_participant_record", () => [deal])
+    stubRpc("sor_visible_visit_ids", () => [visit.id])
+
+    renderWithProviders(
+      <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} opportunityId={deal.id} accessLevel="participant" />,
+    )
+
+    const banner = await screen.findByText(/because/)
+    expect(banner.closest("li").textContent).toContain("You're viewing Costing because Sean Sender mentioned you")
+    expect(banner.closest("li").textContent).toContain("this ends when the Stage moves")
+  })
+
+  it("says an SOR that does not exist cannot be found (#474)", async () => {
+    authUser = { id: makeEmployee().id }
+    stubRpc("sor_access_contact", () => [])
+
+    renderWithProviders(
+      <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={null} opportunityId="missing-sor" accessLevel="none" />,
+    )
+
+    await screen.findByText("This SOR doesn't exist or has been deleted.")
+  })
+
   it("disables Move and shows the restricted banner for a full-access viewer shut out of the current stage", async () => {
     const owner = makeEmployee()
     authUser = { id: owner.id, isSuperAdmin: true }

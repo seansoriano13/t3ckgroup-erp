@@ -167,38 +167,23 @@ describe("OpportunityDetailsModal — Odoo auto-sync on open (#53)", () => {
   })
 })
 
-describe("OpportunityDetailsModal — manual Product List fetch (#53)", () => {
-  it("refuses to replace stored items with an empty Odoo response", async () => {
+describe("OpportunityDetailsModal — no manual Fetch Items (#816)", () => {
+  it("has no Fetch Items button in the edit form: Odoo is read when the S0 is saved", async () => {
     stubRpc("sor_can_edit_opportunity", () => true)
     const owner = makeEmployee()
-    const opportunity = makeOpportunity({
-      registered_by: owner.id,
-      sales_reference: "S06070",
-    })
+    const opportunity = makeOpportunity({ registered_by: owner.id, sales_reference: "S06070" })
     makeOpportunityItem(opportunity.id, { product_name: "Existing Pumper" })
-    // The auto-sync's own request must not consume the one stub the manual
-    // fetch needs, so it is given the same empty response too.
-    stubEdgeFunction(
-      "odoo-sor-lookup",
-      found([], { message: "S06070 was found in Odoo but has no product lines yet." }),
-    )
+    stubEdgeFunction("odoo-sor-lookup", found([], { message: "S06070 was found in Odoo but has no product lines yet." }))
 
     renderModal(opportunity)
     await openItemsTab()
     await screen.findByText("Existing Pumper")
     await waitForNetworkIdle()
 
-    // "Fetch Items" (#53's manual edit-form fetch) lives on Details, not
-    // Items — Items' own empty-state fetch (#301) is a separate action.
     fireEvent.click(screen.getByRole("button", { name: /^edit( opportunity)?$/i }))
+    await screen.findByRole("button", { name: /^save$/i })
 
-    const fetchButton = await screen.findByRole("button", { name: /fetch items/i })
-    fireEvent.click(fetchButton)
-
-    await waitForNetworkIdle()
-
-    const items = await opportunityService.getItems(opportunity.id)
-    expect(items.map((i) => i.product_name)).toEqual(["Existing Pumper"])
+    expect(screen.queryByRole("button", { name: /fetch items/i })).not.toBeInTheDocument()
   })
 })
 

@@ -12,8 +12,9 @@ name: Mirror brochures
 
 on:
   schedule:
-    # 18:00 UTC = 02:00 Asia/Manila, well outside working hours.
-    - cron: "0 18 * * *"
+    # Sundays 18:00 UTC = Monday 02:00 Asia/Manila, well outside working hours.
+    # Weekly to save Actions minutes; run it by hand (workflow_dispatch) if needed sooner.
+    - cron: "0 18 * * 0"
   workflow_dispatch:
     inputs:
       dry_run:

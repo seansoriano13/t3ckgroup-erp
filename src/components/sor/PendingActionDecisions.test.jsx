@@ -46,6 +46,24 @@ describe("PendingActionDecisions", () => {
     expect(await screen.findByText(/An individual task assigned to Assignee Andy/)).toBeInTheDocument()
   })
 
+  it("says an S0 Evaluation for this SOR when the waiting action opens one", async () => {
+    opportunityService.getPendingActionsForActor.mockResolvedValue([
+      { runId: "run-1", stageName: "SO Evaluation", title: "S00462 · Rope rescue", target: { kind: "costing_matrix" } },
+    ])
+    renderWithProviders(<PendingActionDecisions opportunity={OPPORTUNITY} actorId="emp-1" />)
+
+    expect(await screen.findByText(/An S0 Evaluation for this SOR/)).toBeInTheDocument()
+  })
+
+  it("says a Packing List request when the waiting action asks the Warehouse to pack", async () => {
+    opportunityService.getPendingActionsForActor.mockResolvedValue([
+      { runId: "run-1", stageName: "Project Delivery", title: "S00464 · Rope rescue", target: { kind: "packing_list" } },
+    ])
+    renderWithProviders(<PendingActionDecisions opportunity={OPPORTUNITY} actorId="emp-1" />)
+
+    expect(await screen.findByText(/A Packing List request to the Warehouse for this SOR/)).toBeInTheDocument()
+  })
+
   it("falls back to 'assigned to you' when no assignee is configured", async () => {
     opportunityService.getPendingActionsForActor.mockResolvedValue([
       {

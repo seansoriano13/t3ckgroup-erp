@@ -258,7 +258,7 @@ export default function RoleSwitcher() {
               <Button
                 variant="outline"
                 onClick={handleReset}
-                className="h-auto text-[10px] text-muted-foreground hover:text-foreground font-bold transition-colors uppercase border-mauve-4 px-2 py-1 rounded-md hover:border-mauve-12"
+                className="h-auto text-label text-muted-foreground hover:text-foreground font-bold transition-colors uppercase border-mauve-4 px-2 py-1 rounded-md hover:border-mauve-12"
               >
                 Reset
               </Button>

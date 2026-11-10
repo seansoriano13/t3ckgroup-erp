@@ -29,6 +29,7 @@ import { employeeGroupService } from "./employeeGroupService"
 import { waitForNetworkIdle } from "@/test/network"
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { stubActionRunRpcs } from "@/test/stubs/actionRunRpc"
+import { stubRestoreOpportunityRpc, stubSalesReferenceSave } from "@/test/stubs/salesReferenceCard"
 
 /**
  * Sales Opportunity Registration, exercised end to end through the service's
@@ -47,6 +48,7 @@ describe("opportunityService", () => {
   beforeEach(() => {
     seedPipeline()
     stubActionRunRpcs()
+    stubSalesReferenceSave() // registration's S0 checks (#820); tests below override it
     registrar = makeEmployee({ name: "Ana Reyes" })
     owner = makeEmployee({ name: "Ben Cruz" })
   })
@@ -63,6 +65,21 @@ describe("opportunityService", () => {
   })
 
   describe("registering an opportunity", () => {
+    it("makes the registrar the Deal Owner when none is named (#793)", async () => {
+      const created = await opportunityService.createOpportunity(
+        payload({ deal_owner_id: "" }),
+        registrar.id,
+      )
+      const found = await opportunityService.getOpportunityById(created.id)
+      expect(found.deal_owner_id).toBe(registrar.id)
+    })
+
+    it("keeps a Deal Owner that is named (#793)", async () => {
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+      const found = await opportunityService.getOpportunityById(created.id)
+      expect(found.deal_owner_id).toBe(owner.id)
+    })
+
     it("makes the new opportunity retrievable by id", async () => {
       const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
@@ -166,6 +183,115 @@ describe("opportunityService", () => {
       )
 
       expect(created.sales_reference).toBe("S01237")
+    })
+
+    // #820: registering runs the same checks as the S0 save step.
+    describe("the S0 on the form (#820)", () => {
+      const sorCount = () => db.internal.rowsOf("sales_opportunities").length
+
+      it("refuses an S0 already on another SOR and registers nothing", async () => {
+        makeOpportunity({ registered_by: registrar.id, sales_reference: "S01237", project_title: "Rope Rescue" })
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toMatchObject({ hint: "duplicate", message: expect.stringMatching(/already on SOR "Rope Rescue".*One S0 per SOR/) })
+        expect(sorCount()).toBe(before)
+      })
+
+      it("refuses an S0 Odoo does not have and registers nothing", async () => {
+        stubSalesReferenceSave({ odoo: "not_found" })
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S09999" }), registrar.id),
+        ).rejects.toMatchObject({ hint: "not_found", message: "Odoo has no S09999. Check the number." })
+        expect(sorCount()).toBe(before)
+      })
+
+      it("registers as Not checked when Odoo does not answer", async () => {
+        stubSalesReferenceSave({ odoo: "unreachable" })
+
+        const created = await opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id)
+
+        expect(created.sales_reference).toBe("S01237")
+        expect(created.sales_reference_odoo_state).toBe("not_checked")
+      })
+
+      it("pulls Odoo's products on registration, in place of the form's list", async () => {
+        stubSalesReferenceSave({
+          odoo: "found",
+          odooItems: [{ product_name: "Rescue rope", quantity: 4, unit_price: 900, odoo_line_id: 9001 }],
+        })
+
+        const created = await opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id)
+
+        expect(created.sales_reference_odoo_state).toBe("found")
+        const items = await opportunityService.getItems(created.id)
+        expect(items.map((i) => i.product_name)).toEqual(["Rescue rope"])
+      })
+
+      it("checks before it writes, then saves through the save step's own edge function", async () => {
+        const calls = stubSalesReferenceSave()
+
+        const created = await opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id)
+
+        expect(calls.checks).toHaveLength(1)
+        expect(calls).toHaveLength(1)
+        expect(calls[0]).toMatchObject({ opportunityId: created.id, salesReference: "S01237" })
+      })
+
+      it("deletes the new SOR when the save step refuses after the check (a race)", async () => {
+        const live = () => db.internal.rowsOf("sales_opportunities").filter((r) => !r.is_deleted).length
+        const before = live()
+        stubEdgeFunction("sor-sales-reference", (body) =>
+          body.action === "check"
+            ? { success: true, sales_reference: "S01237", odoo_state: "not_checked" }
+            : { success: false, refused: true, message: 'S01237 is already on SOR "X" (Y). One S0 per SOR.', hint: "duplicate" },
+        )
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toMatchObject({ hint: "duplicate" })
+        expect(live()).toBe(before)
+        const created = db.internal.rowsOf("sales_opportunities").find((r) => r.is_deleted && r.deleted_by === registrar.id)
+        expect(created).toBeTruthy()
+      })
+
+      // #889: an edge function that is missing or down used to surface as the raw
+      // "Edge Function returned a non-2xx status code". It now names the step.
+      it("says which step failed when the S0 check cannot reach the function, and registers nothing (#889)", async () => {
+        stubEdgeFunction("sor-sales-reference", () => new Response("Function not found", { status: 404 }))
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toThrow("Couldn't check S01237 against Odoo. Try again, or register without a Sales Reference.")
+        expect(sorCount()).toBe(before)
+      })
+
+      it("shows the function's own message when it answers with one (#889)", async () => {
+        stubEdgeFunction(
+          "sor-sales-reference",
+          () => new Response(JSON.stringify({ message: "Odoo is paused for maintenance." }), { status: 503 }),
+        )
+        const before = sorCount()
+
+        await expect(
+          opportunityService.createOpportunity(payload({ sales_reference: "S01237" }), registrar.id),
+        ).rejects.toThrow("Odoo is paused for maintenance.")
+        expect(sorCount()).toBe(before)
+      })
+
+      it("makes no S0 call at all when the form has none", async () => {
+        const calls = stubSalesReferenceSave()
+
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        expect(created.sales_reference).toBeFalsy()
+        expect(calls.checks).toHaveLength(0)
+        expect(calls).toHaveLength(0)
+      })
     })
   })
 
@@ -433,16 +559,49 @@ describe("opportunityService", () => {
       expect(notes.at(-1).content).toBe("Stage moved: Lead → Closed Lost — Lost on price")
     })
 
-    it("records the sales reference separately from the stage move", async () => {
+    it("saves the sales reference through the save step, then moves (#822)", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
+      const calls = stubSalesReferenceSave()
 
       await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" })
 
+      // The S0 is not written by the move: the save step does it (and writes its own history).
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ opportunityId: lead.id, salesReference: "S01237" })
       const notes = await opportunityService.getNotes(lead.id)
-      expect(notes.map((n) => n.content)).toEqual([
-        "Sales Reference recorded: S01237",
-        "Stage moved: Lead → Proposal Submitted",
-      ])
+      expect(notes.map((n) => n.content)).toEqual(["Stage moved: Lead → Proposal Submitted"])
+    })
+
+    it("stops the move when the save step refuses the S0 (#822)", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id })
+      stubSalesReferenceSave({ refuse: { message: "S01237 is already on SOR \"Other\".", hint: "duplicate" } })
+
+      await expect(
+        opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" }),
+      ).rejects.toThrow(/already on SOR/)
+      expect((await opportunityService.getOpportunityById(lead.id)).status).toBe("LEAD")
+    })
+
+    it("ignores an unchanged S0 in a general update and routes a changed one (#822)", async () => {
+      const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      const calls = stubSalesReferenceSave()
+
+      await opportunityService.updateOpportunity(deal.id, { sales_reference: "s00999", contact_person: "Ana" }, registrar.id)
+      expect(calls).toHaveLength(0)
+
+      await opportunityService.updateOpportunity(deal.id, { sales_reference: "S01234" }, registrar.id)
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ opportunityId: deal.id, salesReference: "S01234" })
+    })
+
+    it("saves a Stage Field S0 through the save step, not into metadata (#822)", async () => {
+      const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      const calls = stubSalesReferenceSave()
+
+      await opportunityService.saveRecordField(deal.id, "sales_reference", "S01234", registrar.id)
+
+      expect(calls).toHaveLength(1)
+      expect((await opportunityService.getOpportunityById(deal.id)).metadata?.sales_reference).toBeUndefined()
     })
 
     it("does not re-record a sales reference that is already the one on file", async () => {
@@ -790,9 +949,53 @@ describe("opportunityService", () => {
       it("does not block a Return on the conditions of the Stage being left", async () => {
         const deal = dealOnLead()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Sign-off", config: {} })
+        const condition = makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Sign-off", config: {} })
+        const snap = db.internal.rowsOf("flow_snapshots").find((s) => s.id === deal.flow_snapshot_id)
+        snap.snapshot_data.conditions.push(condition)
         const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
         expect(moved.flow_stage_id).toBe(lead.id)
+      })
+
+      it("refuses a forward move to a visited Stage when current stage gates are unmet (#831)", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        const condition = makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Sign-off", config: {} })
+        const snap = db.internal.rowsOf("flow_snapshots").find((s) => s.id === deal.flow_snapshot_id)
+        snap.snapshot_data.conditions.push(condition)
+        const attempt = opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
+        await expect(attempt).rejects.toThrow(/Cannot leave Lead — missing: Sign-off/)
+      })
+
+      it("still asks Resume or Start fresh when a forward move revisits a Stage (#831)", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        const attempt = opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await expect(attempt).rejects.toThrow(/Resume previous work or Start fresh/)
+        await expect(attempt).rejects.toMatchObject({ needsReturnChoice: true })
+        const unchanged = await opportunityService.getOpportunityById(deal.id)
+        expect(unchanged.flow_stage_id).toBe(lead.id)
+      })
+
+      it("a forward revisit with Start fresh moves and records the choice (#831)", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, { returnChoice: "start_fresh" })
+        expect(moved.flow_stage_id).toBe(qualified.id)
+        const current = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id && v.left_at == null)
+        expect(current.return_choice).toBe("start_fresh")
+      })
+
+      it("a forward revisit with Resume moves and records the choice (#831)", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
+        expect(moved.flow_stage_id).toBe(qualified.id)
+        const current = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id && v.left_at == null)
+        expect(current.return_choice).toBe("resume")
       })
     })
 
@@ -1029,6 +1232,33 @@ describe("opportunityService", () => {
 
         const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
         expect(moved.flow_stage_id).toBe(qualified.id)
+      })
+    })
+
+    describe("auto-move (#757)", () => {
+      it("moves the SOR on when the last condition is met, and the history says so", async () => {
+        db.internal.rowsOf("flow_stages").find((st) => st.id === lead.id).auto_move = true
+        const condition = makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Sign-off" })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+
+        await opportunityService.satisfyCondition(created.id, condition.id, registrar.id)
+
+        const row = db.internal.rowsOf("sales_opportunities").find((o) => o.id === created.id)
+        expect(row.flow_stage_id).toBe(qualified.id)
+        const notes = (await opportunityService.getNotes(created.id)).map((n) => n.content)
+        expect(notes.some((n) => n.includes("(moved automatically)"))).toBe(true)
+      })
+
+      it("stays put when the Stage does not have Auto-move", async () => {
+        const condition = makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Sign-off" })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+
+        await opportunityService.satisfyCondition(created.id, condition.id, registrar.id)
+
+        const row = db.internal.rowsOf("sales_opportunities").find((o) => o.id === created.id)
+        expect(row.flow_stage_id).toBe(lead.id)
       })
     })
 
@@ -1673,6 +1903,18 @@ describe("opportunityService", () => {
       expect(created.flow_stage_id).toBe(lead.id)
     })
 
+    // SOR-245 (staging, 2026-10-22): a deal registered onto a Stage with an
+    // Action got no action run, so its Purchase Request never opened. Entering
+    // the entry Stage must run its Actions, the same as any other Stage entry.
+    it("runs the Actions of the Stage a newly registered deal starts at", async () => {
+      makeStageAction({ stage_id: lead.id, kind: "create_individual_task", config: { title: "Say hello" } })
+      const created = await register()
+
+      const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === created.id)
+      expect(run?.outcome).toBe("created")
+      expect(db.internal.rowsOf("tasks").some((t) => t.opportunity_id === created.id)).toBe(true)
+    })
+
     it("moves a deal along an edge that was drawn", async () => {
       const deal = await register()
 
@@ -1733,18 +1975,124 @@ describe("opportunityService", () => {
       expect(looped.flow_stage_id).toBe(qualified.id)
     })
 
-    it("stamps a Contract Date the first time the deal reaches its flow's Won Stage", async () => {
-      const deal = await register()
-      await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+    describe("Contract Date (#745, ADR 0048)", () => {
+      beforeEach(() => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = qualified.id
+      })
 
-      const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+      it("fills a blank Contract Date the first time the deal reaches the flow's contract Stage", async () => {
+        const deal = await register()
+        expect(deal.contract_date).toBeFalsy()
 
-      expect(won.contract_date).toBeTruthy()
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.contract_date).toBeTruthy()
+      })
+
+      it("no longer fills the Contract Date when the deal reaches the Won Stage", async () => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = null
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+        expect(won.contract_date).toBeFalsy()
+      })
+
+      it("never overwrites a Contract Date that was typed in earlier", async () => {
+        const deal = await register()
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).contract_date = "2026-01-15"
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.contract_date).toBe("2026-01-15")
+      })
+
+      it("fills a blank Contract Date on a Return into the contract Stage too", async () => {
+        makeFlowEdge(qualified, lead)
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00998", sale_type_id: saleType.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).contract_date = null
+
+        const back = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
+
+        expect(back.contract_date).toBeTruthy()
+      })
+
+      it("warns, but allows the move, when the deal reaches Won with no Contract Date", async () => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = null
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+        expect(won.flow_stage_id).toBe(awarded.id)
+        expect(won.wonWithoutContractDate).toBe(true)
+      })
+
+      it("does not warn when the deal reaches Won with a Contract Date", async () => {
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+        expect(won.contract_date).toBeTruthy()
+        expect(won.wonWithoutContractDate).toBe(false)
+      })
+    })
+
+    describe("Date of Award (#744, ADR 0048)", () => {
+      beforeEach(() => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).award_stage_id = qualified.id
+      })
+
+      it("fills a blank Date of Award the first time the deal reaches the flow's Notice of Award Stage", async () => {
+        const deal = await register()
+        expect(deal.date_of_award).toBeFalsy()
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.date_of_award).toBeTruthy()
+      })
+
+      it("never overwrites a Date of Award that was typed in earlier", async () => {
+        const deal = await register()
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).date_of_award = "2026-01-15"
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.date_of_award).toBe("2026-01-15")
+      })
+
+      it("fills a blank Date of Award on a Return into the Notice of Award Stage too", async () => {
+        makeFlowEdge(qualified, lead)
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999", sale_type_id: saleType.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
+        db.internal.rowsOf("sales_opportunities").find((o) => o.id === deal.id).date_of_award = null
+
+        const back = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
+
+        expect(back.date_of_award).toBeTruthy()
+      })
+
+      it("leaves the Date of Award blank on a Stage that is not the Notice of Award Stage", async () => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).award_stage_id = null
+        const deal = await register()
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.date_of_award).toBeFalsy()
+      })
     })
 
     it("keeps the Contract Date when the deal loops back out of the Won Stage", async () => {
       // ADR 0006 — Realized is a fact about the deal, and a later move cannot
       // unsay that it was won. The positional rule needed a special case here.
+      db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = qualified.id
       const deal = await register()
       await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
       const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
@@ -1954,6 +2302,50 @@ describe("opportunityService", () => {
         expect(decided.task_id).toBe(task.id)
       })
 
+      it("Create can be tried again on a failed task run (#788)", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register({ sales_reference: "S09912" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        run.outcome = "failed"
+
+        const pending = await opportunityService.getPendingActionsForActor(deal.id, decider.id)
+        expect(pending).toHaveLength(1)
+        expect(pending[0].failed).toBe(true)
+
+        const result = await opportunityService.decideAction(run.id, "create", decider.id)
+        expect(result.outcome).toBe("created")
+        expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(1)
+      })
+
+      it("deciding resolves the Decider's decision notice (#901)", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register({ sales_reference: "S09913" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        const noticeOf = () =>
+          db.internal
+            .rowsOf("notifications")
+            .find((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE" && n.recipient_id === decider.id)
+        expect(noticeOf().is_read).toBeFalsy()
+
+        await opportunityService.decideAction(run.id, "skip", decider.id)
+
+        expect(noticeOf().is_read).toBe(true)
+      })
+
       it("Skip creates nothing and logs the skip", async () => {
         const decider = makeEmployee({ name: "Decider Dana" })
         makeStageAction({
@@ -2032,6 +2424,32 @@ describe("opportunityService", () => {
 
         const result = await opportunityService.decideAction(run.id, "skip", member.id)
         expect(result.outcome).toBe("skipped")
+      })
+
+      it("resolves an Everyone-in-a-department Decider to that department, not the same-named Team", async () => {
+        const salesRep = makeEmployee({ name: "Sales Sam", department: "SALES", sub_department: "GOV" })
+        const outsider = makeEmployee({ name: "Ops Olive", department: "OPERATIONS", sub_department: "SALES" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "department", department: "Sales" }] },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const recipients = db.internal
+          .rowsOf("notifications")
+          .filter((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE")
+          .map((n) => n.recipient_id)
+        expect(recipients).toContain(salesRep.id)
+        expect(recipients).not.toContain(outsider.id)
+
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        expect(await opportunityService.getPendingActionsForActor(deal.id, salesRep.id)).toHaveLength(1)
+        await expect(opportunityService.decideAction(run.id, "create", outsider.id)).rejects.toThrow()
+        const result = await opportunityService.decideAction(run.id, "create", salesRep.id)
+        expect(result.outcome).toBe("created")
       })
 
       it("defaults an unconfigured Decider to the Deal Owner", async () => {
@@ -2179,6 +2597,25 @@ describe("opportunityService", () => {
         expect(moved.failedStageActions).toEqual(["Broken action"])
         expect(db.internal.rowsOf("committee_tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(1)
         expect((await opportunityService.getOpportunityById(deal.id)).flow_stage_id).toBe(qualified.id)
+      })
+
+      it("says why an action failed when a Group Task member no longer exists (#896)", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_group_task",
+          config: {
+            title: "DELCOM - Kickoff",
+            members: [{ employeeId: "00000000-0000-4000-8000-00000000dead", taskDescription: "Check" }],
+          },
+          sort_order: 1,
+        })
+
+        const deal = await register()
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.failedStageActions).toEqual(["DELCOM - Kickoff"])
+        expect(moved.failedStageActionReasons).toEqual([{ name: "DELCOM - Kickoff", reason: "member no longer exists" }])
+        expect(db.internal.rowsOf("committee_tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(0)
       })
 
       it("reports no failures when every action runs", async () => {
@@ -2473,6 +2910,7 @@ describe("opportunityService", () => {
       })
 
       it("keeps an existing SOR's Contract Date and snapshot after the Won Stage moves on a later snapshot", async () => {
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).contract_stage_id = qualified.id
         const deal = await register()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
         const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
@@ -2730,6 +3168,56 @@ describe("opportunityService", () => {
         })
       })
 
+      it("moves in batches and reports progress after each, so a long move can show how far it got", async () => {
+        const v1 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
+        const v2 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 1 })
+        for (let i = 0; i < 5; i += 1) {
+          makeOpportunity({
+            registered_by: registrar.id,
+            sale_type_id: saleType.id,
+            flow_snapshot_id: v1.id,
+            flow_stage_id: lead.id,
+          })
+        }
+
+        const progress = []
+        const result = await opportunityService.moveOpportunitiesToVersion(v2.id, registrar.id, {
+          chunkSize: 2,
+          onProgress: (p) => progress.push(p),
+        })
+
+        expect(progress).toEqual([
+          { done: 0, total: 5 },
+          { done: 2, total: 5 },
+          { done: 4, total: 5 },
+          { done: 5, total: 5 },
+        ])
+        expect(result.succeeded).toHaveLength(5)
+        expect(result.failed).toEqual([])
+      })
+
+      it("picks up where an earlier, interrupted move stopped", async () => {
+        const v1 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
+        const v2 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 1 })
+        const deals = [0, 1, 2, 3].map(() =>
+          makeOpportunity({
+            registered_by: registrar.id,
+            sale_type_id: saleType.id,
+            flow_snapshot_id: v1.id,
+            flow_stage_id: lead.id,
+          }),
+        )
+
+        // The page was closed after the first batch of two.
+        await opportunityService.moveOpportunitySnapshot(deals[0].id, v2.id, registrar.id)
+        await opportunityService.moveOpportunitySnapshot(deals[1].id, v2.id, registrar.id)
+
+        expect(await opportunityService.countOpportunitiesEligibleForVersionMove(v2.id)).toBe(2)
+        const result = await opportunityService.moveOpportunitiesToVersion(v2.id, registrar.id)
+        expect(result.succeeded.map((d) => d.id).sort()).toEqual([deals[2].id, deals[3].id].sort())
+        expect(await opportunityService.countOpportunitiesEligibleForVersionMove(v2.id)).toBe(0)
+      })
+
       it("returns nothing to move when there is no earlier version", async () => {
         const onlyVersion = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
         makeOpportunity({
@@ -2977,6 +3465,79 @@ describe("opportunityService", () => {
       expect(content).toContain("Added product(s): Drill")
       expect(content).toContain("Removed product(s): Saw")
       expect(content).not.toContain("renamed")
+    })
+
+    describe("S0 lines keep Odoo's line id (#677)", () => {
+      const s0 = (over = {}) => [
+        { product_name: "Rope", odoo_product_id: 7, odoo_line_id: 501, quantity: 10, unit_price: 100, ...over.rope },
+        { product_name: "Rope", odoo_product_id: 7, odoo_line_id: 502, quantity: 4, unit_price: 90, ...over.rope2 },
+        { product_name: "Harness", odoo_product_id: 8, odoo_line_id: 503, quantity: 2, unit_price: 500, ...over.harness },
+      ]
+      const notesAbout = async (id) =>
+        (await opportunityService.getNotes(id)).filter((n) => n.content?.startsWith("Details updated"))
+
+      it("opening twice with no change in Odoo keeps every line id and logs nothing", async () => {
+        const created = await opportunityService.createOpportunity(payload({ items: s0() }), registrar.id)
+        const first = (await opportunityService.getItems(created.id)).map((i) => i.id)
+        const logged = (await notesAbout(created.id)).length
+
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0() }), registrar.id, { bySystem: true })
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0() }), registrar.id, { bySystem: true })
+
+        expect((await opportunityService.getItems(created.id)).map((i) => i.id)).toEqual(first)
+        expect((await notesAbout(created.id)).length).toBe(logged)
+      })
+
+      it("a quantity change in Odoo updates the same line in place", async () => {
+        const created = await opportunityService.createOpportunity(payload({ items: s0() }), registrar.id)
+        const [rope] = await opportunityService.getItems(created.id)
+
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0({ rope: { quantity: 12 } }) }), registrar.id, { bySystem: true })
+
+        const after = await opportunityService.getItems(created.id)
+        expect(after).toHaveLength(3)
+        expect(after.find((i) => i.id === rope.id)).toMatchObject({ odoo_line_id: 501, quantity: 12 })
+      })
+
+      it("the same product on two lines stays two lines", async () => {
+        const created = await opportunityService.createOpportunity(payload({ items: s0() }), registrar.id)
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0({ rope2: { quantity: 6 } }) }), registrar.id, { bySystem: true })
+        const ropes = (await opportunityService.getItems(created.id)).filter((i) => i.product_name === "Rope")
+        expect(ropes.map((i) => [i.odoo_line_id, Number(i.quantity)])).toEqual([[501, 10], [502, 6]])
+      })
+
+      it("keeps a line the S0 dropped, marks it removed, and leaves it out of Estimated Value", async () => {
+        const created = await opportunityService.createOpportunity(payload({ items: s0() }), registrar.id)
+        const harness = (await opportunityService.getItems(created.id)).find((i) => i.odoo_line_id === 503)
+
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0().slice(0, 2) }), registrar.id, { bySystem: true })
+
+        const after = await opportunityService.getItems(created.id)
+        expect(after).toHaveLength(3)
+        expect(after.find((i) => i.id === harness.id)).toMatchObject({ removed_from_s0: true })
+        expect(Number((await opportunityService.getOpportunityById(created.id)).expected_value)).toBe(10 * 100 + 4 * 90)
+        const note = (await notesAbout(created.id)).at(-1)
+        expect(note.content).toContain("Removed product(s): Harness")
+
+        // Reading the S0 again: the removed line is not "removed" a second time.
+        const logged = (await notesAbout(created.id)).length
+        await opportunityService.updateOpportunity(created.id, payload({ items: s0().slice(0, 2) }), registrar.id, { bySystem: true })
+        expect((await notesAbout(created.id)).length).toBe(logged)
+      })
+
+      it("matches an older line with no Odoo line id once, by Odoo product id", async () => {
+        const created = await opportunityService.createOpportunity(
+          payload({ items: [{ product_name: "Harness", odoo_product_id: 8, quantity: 2, unit_price: 500 }] }),
+          registrar.id,
+        )
+        const [old] = await opportunityService.getItems(created.id)
+
+        await opportunityService.updateOpportunity(created.id, payload({ items: [s0()[2]] }), registrar.id, { bySystem: true })
+
+        const after = await opportunityService.getItems(created.id)
+        expect(after).toHaveLength(1)
+        expect(after[0]).toMatchObject({ id: old.id, odoo_line_id: 503 })
+      })
     })
 
     it("writes the change note as the System when the save is automatic", async () => {
@@ -3320,6 +3881,20 @@ describe("opportunityService", () => {
       expect(journey.map((v) => v.id)).toEqual([v3.id, v2.id, v1.id])
       expect(journey.map((v) => v.stage.name)).toEqual(["Lead", "Qualified", "Lead"])
       expect(journey[0]).toMatchObject({ leftAt: null, requestedItems: [] })
+    })
+
+    it("lists requested items under the visit they were raised on, by the visit's window (#310)", async () => {
+      const raised = (id, created_at) => ({ id, name: id, status: "not_checked", source: "sor_line", created_at })
+      stubRpc("sor_purchase_request_overview", [
+        { request_id: "r", buyer_id: null, items: [raised("in-v1", "2026-01-05T00:00:00Z"), raised("in-v2", "2026-01-10T00:00:00Z"), raised("in-v3", "2026-01-25T00:00:00Z")] },
+      ])
+      const journey = await opportunityService.getJourney(deal.id)
+      expect(journey.map((v) => v.requestedItems.map((i) => i.id))).toEqual([["in-v3"], ["in-v2"], ["in-v1"]])
+    })
+
+    it("a Purchase Request that can't be read leaves the Journey without items (#310)", async () => {
+      const journey = await opportunityService.getJourney(deal.id)
+      expect(journey.every((v) => v.requestedItems.length === 0)).toBe(true)
     })
 
     it("judges a tickbox per visit, so a loop back asks again", async () => {
@@ -4051,11 +4626,16 @@ describe("opportunityService", () => {
     })
 
     describe("restoring", () => {
+      const restoreAs = (actor, id) => {
+        stubRestoreOpportunityRpc({ actorId: actor.id })
+        return opportunityService.restoreOpportunity(id, actor.id)
+      }
+
       it("lets a Super Admin restore, clearing the delete stamp", async () => {
         const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
-        const restored = await opportunityService.restoreOpportunity(opportunity.id, superAdmin.id)
+        const restored = await restoreAs(superAdmin, opportunity.id)
 
         expect(restored.is_deleted).toBe(false)
         const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
@@ -4067,7 +4647,7 @@ describe("opportunityService", () => {
         const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
-        const restored = await opportunityService.restoreOpportunity(opportunity.id, owner.id)
+        const restored = await restoreAs(owner, opportunity.id)
 
         expect(restored.is_deleted).toBe(false)
       })
@@ -4077,8 +4657,19 @@ describe("opportunityService", () => {
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
         await expect(
-          opportunityService.restoreOpportunity(opportunity.id, registrar.id),
+          restoreAs(registrar, opportunity.id),
         ).rejects.toThrow(/Super Admin or this SOR's Deal Owner/i)
+
+        const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
+        expect(stored.is_deleted).toBe(true)
+      })
+
+      it("refuses when another SOR now has the S0, naming it, and leaves the SOR deleted", async () => {
+        const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id, sales_reference: "S01300" })
+        await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
+        makeOpportunity({ registered_by: registrar.id, sales_reference: "S01300", project_title: "Rope Rescue", client_name: "Acme" })
+
+        await expect(restoreAs(owner, opportunity.id)).rejects.toThrow(/S01300 is now on SOR "Rope Rescue" \(Acme\)/)
 
         const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
         expect(stored.is_deleted).toBe(true)
@@ -4088,7 +4679,7 @@ describe("opportunityService", () => {
         const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
         await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
 
-        await opportunityService.restoreOpportunity(opportunity.id, owner.id)
+        await restoreAs(owner, opportunity.id)
         await waitForNetworkIdle()
 
         const notes = await opportunityService.getNotes(opportunity.id)
@@ -4222,6 +4813,8 @@ describe("getMySors", () => {
     // No flow_stage_id: the insert trigger would record visit sequence 1 and
     // collide with the visits these tests place by hand.
     deal = makeOpportunity({ sale_type_id: saleType.id })
+    stubRpc("sor_my_deal_team_sor_ids", () => [])
+    stubRpc("sor_my_sors_facets", () => [])
     stubRpc("sor_locked_summary", () => [
       {
         sales_reference: "S01234",
@@ -4272,6 +4865,34 @@ describe("getMySors", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ opportunityId: deal.id, isOpen: true })
     expect(rows[0].windows[0]).toMatchObject({ source: "mention", mentionedBy: "Deal Owner Dan" })
+    // A mention is Watching, not work: it does not count toward the badge.
+    expect(rows[0].moves).toEqual([])
+    expect(await opportunityService.countMyOpenSors(me.id)).toBe(0)
+  })
+
+  it("puts an open task on the SOR as its move, and counts it on the badge", async () => {
+    db.seed("tasks", {
+      opportunity_id: deal.id,
+      logged_by: me.id,
+      project_title: "Draft the BOQ",
+      status: "INCOMPLETE",
+      created_at: new Date().toISOString(),
+    })
+    db.seed("tasks", {
+      opportunity_id: deal.id,
+      logged_by: me.id,
+      project_title: "Already done",
+      status: "COMPLETED",
+      created_at: new Date().toISOString(),
+    })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ opportunityId: deal.id, isOpen: true })
+    expect(rows[0].moves).toEqual([
+      expect.objectContaining({ entityType: "TASK", kind: "Task", label: "Draft the BOQ" }),
+    ])
     expect(await opportunityService.countMyOpenSors(me.id)).toBe(1)
   })
 

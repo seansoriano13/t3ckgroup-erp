@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, rlsStatus } from "./support/stack.js"
-import { makeSor, makeTask, makeGroupTask, sorPayload, MARKER } from "./support/rows.js"
+import { makeSor, makeTask, makeGroupTask, sorPayload, liveSaleTypeFields, dropLiveSaleType, MARKER } from "./support/rows.js"
 import { canRead, tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
 
 /** Everyone the fixture signs in. */
@@ -335,9 +335,11 @@ describe("reading an SOR's items through an embedded select", () => {
 })
 
 describe("registering an SOR", () => {
+    afterAll(dropLiveSaleType)
+
     it.each(EVERYONE)("%s can register an SOR in their own name", async (key) => {
         const client = await clientFor(key)
-        const result = await tryInsert(client, "sales_opportunities", sorPayload(ids[key]))
+        const result = await tryInsert(client, "sales_opportunities", sorPayload(ids[key], undefined, await liveSaleTypeFields()))
         expect(result.ok, `${key} was refused: ${result.message}`).toBe(true)
         await serviceClient().from("sales_opportunities").delete().eq("id", result.id)
     })
@@ -345,7 +347,7 @@ describe("registering an SOR", () => {
     it.each(EVERYONE)("%s cannot register an SOR in somebody else's name", async (key) => {
         const impersonated = key === "superAdmin" ? ids.ordinary : ids.superAdmin
         const client = await clientFor(key)
-        const result = await tryInsert(client, "sales_opportunities", sorPayload(impersonated))
+        const result = await tryInsert(client, "sales_opportunities", sorPayload(impersonated, undefined, await liveSaleTypeFields()))
         expect(result.ok, `${key} was allowed to register in another name`).toBe(false)
         expect(result.code).toBe(RLS_VIOLATION)
     })
@@ -354,7 +356,7 @@ describe("registering an SOR", () => {
         const result = await tryInsert(
             anonymousClient(),
             "sales_opportunities",
-            sorPayload(ids.ordinary),
+            sorPayload(ids.ordinary, undefined, await liveSaleTypeFields()),
         )
         expect(result.ok).toBe(false)
     })
@@ -512,14 +514,23 @@ describe("Group Tasks", () => {
         },
     )
 
-    it("anybody can create a Group Task in their own name", async () => {
-        const client = await clientFor("ordinary")
+    it("a department head can create a Group Task in their own name", async () => {
+        const client = await clientFor("head")
         const result = await tryInsert(client, "committee_tasks", {
             title: `${MARKER} Created honestly`,
-            created_by: ids.ordinary,
+            created_by: ids.head,
         })
         expect(result.ok, result.message).toBe(true)
         await serviceClient().from("committee_tasks").delete().eq("id", result.id)
+    })
+
+    it("a non-manager cannot create a Group Task, even in their own name (#656)", async () => {
+        const client = await clientFor("ordinary")
+        const result = await tryInsert(client, "committee_tasks", {
+            title: `${MARKER} Created by a non-manager`,
+            created_by: ids.ordinary,
+        })
+        expect(result.ok, "ordinary was allowed to create a Group Task").toBe(false)
     })
 
     it.each(EVERYONE)(
@@ -537,7 +548,18 @@ describe("Group Tasks", () => {
         },
     )
 
-    it.each(MAY_SEE_THE_GROUP_TASK)("%s can edit a Group Task they created, belong to, or administer", async (key) => {
+    it.each(["ordinary", "support"])(
+        "%s cannot edit a Group Task's details, though they can see it, because only managers may (#656)",
+        async (key) => {
+            const client = await clientFor(key)
+            const result = await tryUpdate(client, "committee_tasks", group.taskId, {
+                description: `${MARKER} edited by ${key}`,
+            })
+            expect(result.affected, `${key} was allowed to edit it`).toBe(0)
+        },
+    )
+
+    it.each(["superAdmin"])("%s can edit a Group Task they created, belong to, or administer", async (key) => {
         // #131 scopes read and insert only; the update policy itself stays
         // `using (true)`, unnarrowed. It does not need to change: Postgres
         // requires a row to be visible under the table's SELECT policy before
@@ -598,15 +620,28 @@ describe("Group Task members", () => {
         },
     )
 
-    it("the creator of a Group Task can add a member to it", async () => {
+    it("a manager who created a Group Task can add a member to it", async () => {
+        const own = (await serviceClient().from("committee_tasks")
+            .insert({ title: `${MARKER} head's own`, created_by: ids.head }).select("id").single()).data.id
+        const client = await clientFor("head")
+        const result = await tryInsert(client, "committee_task_members", {
+            committee_task_id: own,
+            employee_id: ids.deleted,
+            task_description: `${MARKER} added by the creator`,
+        })
+        expect(result.ok, result.message).toBe(true)
+        await serviceClient().from("committee_task_members").delete().eq("id", result.id)
+        await serviceClient().from("committee_tasks").delete().eq("id", own)
+    })
+
+    it("a non-manager who created a Group Task cannot add a member to it (#656)", async () => {
         const client = await clientFor("ordinary")
         const result = await tryInsert(client, "committee_task_members", {
             committee_task_id: group.taskId,
             employee_id: ids.deleted,
             task_description: `${MARKER} added by the creator`,
         })
-        expect(result.ok, result.message).toBe(true)
-        await serviceClient().from("committee_task_members").delete().eq("id", result.id)
+        expect(result.ok, "ordinary was allowed to add a member").toBe(false)
     })
 
     it.each(["outsider", "support", "hr", "leaveManager"])(

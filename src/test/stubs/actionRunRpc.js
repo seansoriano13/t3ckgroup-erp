@@ -1,8 +1,155 @@
 import { stubRpc } from "@/test/msw/server"
 import { db, insertRow, updateRow } from "@/test/db/store"
+import { DEAL_TEAM_ROLES, SELECTOR_TYPES, resolvePeople } from "@/utils/resolvePeople"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
+
+/**
+ * Issue #462 — `sor_open_costing_matrix` + `costing_open_matrix`
+ * (supabase/migrations/20261018160000_open_costing_matrix_action.sql) re-implemented on the fake
+ * database. Reads the action's config from its `flow_stage_actions` row (the real function reads the
+ * Flow Snapshot's copy of the same config) and does what the plpgsql does: creates the SOR's one
+ * matrix, or tops it up (blank Incharges, a missing default factor, members with no open window) and
+ * never replaces anything, tells "who assigns it" when it opens with no Purchasing Incharge, and marks
+ * the run created with its matrix. Returns the matrix id.
+ */
+function openCostingMatrixOnFake(run, action) {
+  const config = action?.config ?? {};
+  const opportunity = findRow("sales_opportunities", run.opportunity_id);
+  const employees = rowsOf("employees");
+  const alive = (id) => (id && employees.some((e) => e.id === id && !e.is_deleted) ? id : null);
+
+  const sel = config.salesIncharge ?? { type: SELECTOR_TYPES.ROLE, role: "deal_owner" };
+  const sales = alive(
+    sel.type === SELECTOR_TYPES.EMPLOYEE
+      ? sel.id
+      : (DEAL_TEAM_ROLES[sel.role]?.columns ?? []).map((column) => opportunity?.[column]).find(Boolean),
+  );
+  const buyer = config.purchasingIncharge?.type === SELECTOR_TYPES.EMPLOYEE ? alive(config.purchasingIncharge.id) : null;
+
+  let matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === run.opportunity_id);
+  const created = !matrix;
+  if (created) {
+    matrix = insertRow("costing_matrices", {
+      opportunity_id: run.opportunity_id,
+      sales_incharge_id: sales,
+      purchasing_incharge_id: buyer,
+    });
+  } else {
+    const patch = {};
+    if (!matrix.sales_incharge_id && sales) patch.sales_incharge_id = sales;
+    if (!matrix.purchasing_incharge_id && buyer) patch.purchasing_incharge_id = buyer;
+    if (Object.keys(patch).length > 0) matrix = updateRow("costing_matrices", matrix, patch);
+  }
+
+  // insertRow returns a copy; updateRow wants the stored row, so read it back.
+  if (!rowsOf("costing_matrix_money").some((m) => m.matrix_id === matrix.id)) {
+    insertRow("costing_matrix_money", { matrix_id: matrix.id });
+  }
+  const money = rowsOf("costing_matrix_money").find((m) => m.matrix_id === matrix.id);
+  const preset = config.markupPresetId
+    ? rowsOf("costing_markup_presets").find((p) => p.id === config.markupPresetId && p.active !== false)
+    : null;
+  if (preset && money.default_factor == null) {
+    updateRow("costing_matrix_money", money, { default_preset_id: preset.id, default_factor: preset.factor });
+  }
+
+  const groupMembersById = {};
+  for (const member of rowsOf("employee_group_members")) {
+    (groupMembersById[member.group_id] ??= { employeeIds: [] }).employeeIds.push(member.employee_id);
+  }
+  const resolveAll = (selectors) => resolvePeople(selectors, { employees, groupMembersById, opportunity });
+
+  const until = config.access?.until || "stage_left";
+  for (const employeeId of resolveAll(config.extras)) {
+    const open = rowsOf("sor_stage_participants").some(
+      (p) => p.source === "costing_matrix" && p.source_id === matrix.id && p.employee_id === employeeId && !p.closed_at,
+    );
+    if (open || !run.stage_visit_id) continue;
+    insertRow("sor_stage_participants", {
+      opportunity_id: run.opportunity_id,
+      employee_id: employeeId,
+      source: "costing_matrix",
+      source_id: matrix.id,
+      opened_visit_id: run.stage_visit_id,
+      until_rule: until,
+      until_stage_id: ["stage_entered", "later_stage_left"].includes(until) ? config.access?.stageId ?? null : null,
+    });
+  }
+
+  if (created && !matrix.purchasing_incharge_id) {
+    for (const recipientId of resolveAll(config.assigners)) {
+      insertRow("notifications", {
+        recipient_id: recipientId,
+        sender_id: null,
+        type: "OPPORTUNITY_COSTING_INCHARGE_NEEDED",
+        title: "S0 Evaluation needs a Purchasing Incharge",
+        message: "The S0 Evaluation opened with no Purchasing Incharge. Please name one.",
+        reference_id: run.opportunity_id,
+      });
+    }
+  }
+
+  const live = rowsOf("sor_action_runs").find((r) => r.id === run.id);
+  updateRow("sor_action_runs", live, { outcome: "created", costing_matrix_id: matrix.id });
+  return matrix.id;
+}
+
+/**
+ * Issue #464 — `sor_request_packing_list`
+ * (supabase/migrations/20261022100000_request_packing_list.sql) re-implemented on the fake database.
+ * Creates one draft Packing List for the SOR unless it already has an open (draft) one, tells the
+ * action's `notify` people (or the Warehouse staff list, `ipas_signer_lists` key `transmittal_warehouse`),
+ * and marks the run created. Returns the new list's id, or null when it created nothing.
+ */
+function requestPackingListOnFake(run, action, actorId = null) {
+  const config = action?.config ?? {};
+  const opportunity = findRow("sales_opportunities", run.opportunity_id);
+  const live = rowsOf("sor_action_runs").find((r) => r.id === run.id);
+  const open = rowsOf("packing_lists").some((p) => p.opportunity_id === run.opportunity_id && p.state === "draft");
+  if (open) {
+    updateRow("sor_action_runs", live, { outcome: "created" });
+    return null;
+  }
+  const employees = rowsOf("employees");
+  const number = `PKL_${String(rowsOf("packing_lists").length + 1).padStart(3, "0")}`;
+  const list = insertRow("packing_lists", {
+    number,
+    opportunity_id: run.opportunity_id,
+    state: "draft",
+    // The real function stamps the caller; the stub does not know who called, so the Deal Owner stands in.
+    created_by: actorId ?? opportunity?.deal_owner_id ?? null,
+  });
+
+  let recipients;
+  if (Array.isArray(config.notify) && config.notify.length > 0) {
+    const groupMembersById = {};
+    for (const member of rowsOf("employee_group_members")) {
+      (groupMembersById[member.group_id] ??= { employeeIds: [] }).employeeIds.push(member.employee_id);
+    }
+    recipients = resolvePeople(config.notify, { employees, groupMembersById, opportunity });
+  } else {
+    recipients = rowsOf("ipas_signer_lists")
+      .filter((l) => l.list_key === "transmittal_warehouse")
+      .map((l) => l.employee_id);
+  }
+  for (const recipientId of new Set(recipients)) {
+    if (recipientId === actorId) continue;
+    if (!employees.some((e) => e.id === recipientId && !e.is_deleted)) continue;
+    insertRow("notifications", {
+      recipient_id: recipientId,
+      sender_id: actorId,
+      type: "PACKING_LIST_REQUESTED",
+      title: "Packing List requested",
+      message: `Please pack "${opportunity?.project_title ?? "this deal"}": draft Packing List ${number} is ready.`,
+      reference_id: list.id,
+    });
+  }
+
+  updateRow("sor_action_runs", live, { outcome: "created", packing_list_id: list.id });
+  return list.id;
+}
 
 /**
  * Issue #204 Part 2 — `sor_action_runs` and its three RPCs live in Postgres
@@ -68,6 +215,10 @@ export function stubActionRunRpcs() {
         const actor = findRow("employees", args.p_actor_id)
         return Boolean(actor) && normaliseTeam(actor.sub_department) === normaliseTeam(s.team)
       }
+      if (s.type === "department") {
+        const actor = findRow("employees", args.p_actor_id)
+        return Boolean(actor) && Boolean(normaliseTeam(actor.department)) && normaliseTeam(actor.department) === normaliseTeam(s.department)
+      }
       if (s.type === "role" && opportunity) {
         const columns = dealTeamColumnsByRole[s.role] || []
         return columns.some((column) => opportunity[column] === args.p_actor_id)
@@ -82,6 +233,32 @@ export function stubActionRunRpcs() {
       outcome: args.p_decision === "create" ? "created" : "skipped",
     })
   })
+
+  // Issue #462 — the Decider's Create on an Optional Open Costing Matrix.
+  stubRpc("sor_open_costing_matrix", (args) => {
+    const run = findRow("sor_action_runs", args.p_run_id);
+    if (!run) throw new Error("sor_open_costing_matrix: run not found");
+    if (run.costing_matrix_id) throw new Error("sor_open_costing_matrix: run already opened its matrix");
+    if (!(run.outcome === "pending" || (run.outcome === "created" && run.decided_by))) {
+      throw new Error("sor_open_costing_matrix: run is not pending");
+    }
+    const action = findRow("flow_stage_actions", run.action_id);
+    if (action?.kind !== "open_costing_matrix") throw new Error("sor_open_costing_matrix: not an Open S0 Evaluation action");
+    return openCostingMatrixOnFake(run, action);
+  });
+
+  // Issue #464 — the Decider's Create on an Optional Request Packing List.
+  stubRpc("sor_request_packing_list", (args) => {
+    const run = findRow("sor_action_runs", args.p_run_id);
+    if (!run) throw new Error("sor_request_packing_list: run not found");
+    if (run.packing_list_id) throw new Error("sor_request_packing_list: run already created its Packing List");
+    if (!(run.outcome === "pending" || (run.outcome === "created" && run.decided_by))) {
+      throw new Error("sor_request_packing_list: run is not pending");
+    }
+    const action = findRow("flow_stage_actions", run.action_id);
+    if (action?.kind !== "request_packing_list") throw new Error("sor_request_packing_list: not a Request Packing List action");
+    return requestPackingListOnFake(run, action, run.decided_by ?? null);
+  });
 
   // Issue #404 — sor_create_stage_action_task
   // (supabase/migrations/20260930230000_stage_action_task_via_rpc.sql)
@@ -185,6 +362,7 @@ export function stubActionRunRpcs() {
    */
   stubRpc("sor_run_stage_actions", (args) => {
     const failed = []
+    const failedReasons = []
     const created = []
 
     for (const action of args.p_actions || []) {
@@ -253,6 +431,11 @@ export function stubActionRunRpcs() {
           updateRow("sor_action_runs", run, { outcome: "created", task_id: task.id })
           created.push({ action_id: action.action_id, kind: "create_individual_task", task_id: task.id })
         } else if (action.kind === "create_group_task") {
+          // #896: as the migration does, a member who is no longer an employee fails the action.
+          const employeeIds = rowsOf("employees").map((e) => e.id)
+          if ((action.members || []).some((m) => m.employee_id && !employeeIds.includes(m.employee_id))) {
+            throw new Error("member no longer exists")
+          }
           const groupTask = insertRow("committee_tasks", {
             title: action.group_title,
             description: action.group_description ?? "",
@@ -281,15 +464,23 @@ export function stubActionRunRpcs() {
           }
           updateRow("sor_action_runs", run, { outcome: "created", group_task_id: groupTask.id })
           created.push({ action_id: action.action_id, kind: "create_group_task", group_task_id: groupTask.id })
+        } else if (action.kind === "open_costing_matrix") {
+          const matrixId = openCostingMatrixOnFake(run, findRow("flow_stage_actions", action.action_id));
+          created.push({ action_id: action.action_id, kind: "open_costing_matrix", matrix_id: matrixId });
+        } else if (action.kind === "request_packing_list") {
+          const packingListId = requestPackingListOnFake(run, findRow("flow_stage_actions", action.action_id));
+          created.push({ action_id: action.action_id, kind: "request_packing_list", packing_list_id: packingListId });
         } else {
           throw new Error(`sor_run_stage_actions: no builder for kind ${action.kind}`)
         }
-      } catch {
-        updateRow("sor_action_runs", run, { outcome: "failed" })
+      } catch (err) {
+        const reason = String(err?.message || "unknown error").slice(0, 300)
+        updateRow("sor_action_runs", run, { outcome: "failed", failure_reason: reason })
         failed.push(action.name || "Stage Action")
+        failedReasons.push({ action_id: action.action_id, name: action.name || "Stage Action", reason })
       }
     }
 
-    return { failed, created }
+    return { failed, created, failed_reasons: failedReasons }
   })
 }

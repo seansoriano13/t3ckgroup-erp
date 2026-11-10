@@ -1,4 +1,6 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useRef, useState } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Star, Users } from "lucide-react";
 import toast from "react-hot-toast";
@@ -7,7 +9,6 @@ import { useAuth } from "../../../context/AuthContext";
 import { useRecordParam } from "../../../hooks/useRecordParam";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import Spinner from "@/components/ui/Spinner";
 import HighlightText from "../../../components/HighlightText";
 import { formatDate } from "../../../utils/formatDate.js";
 import { relativeAge, shortRef } from "../../../utils/approvalItems.js";
@@ -16,7 +17,8 @@ import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from
 import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import { ApprovalTable } from "./ApprovalTable";
 import { ApprovalSheet } from "./ApprovalSheet";
-import { APPROVE_CLASS, NOTE_PRESETS } from "./approvalUi";
+import { NOTE_PRESETS } from "./approvalUi";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
 
 const QUEUE = { label: "Group Tasks", icon: Users };
 
@@ -162,6 +164,7 @@ function GroupTaskReview({ item, onVerify, onReturn, isSubmitting, onDecided, se
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
+          aria-label="HR audit notes"
           placeholder="Add HR audit notes (required to return)"
           className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]"
         />
@@ -180,12 +183,12 @@ function GroupTaskReview({ item, onVerify, onReturn, isSubmitting, onDecided, se
 }
 
 /** HR verification for group tasks: the Approval Center's table and slide-over, same as every other queue. */
-export default function GroupTaskApprovalSection({ searchTerm = "" }) {
+export default function GroupTaskApprovalSection({ searchTerm = "", onClearSearch }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { recordId, open: openRecord, step: stepRecord, close: closeRecord } = useRecordParam();
 
-  const { data: groupTasks = [], isLoading } = useQuery({
+  const { data: groupTasks = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["groupTasksForHR"],
     queryFn: () => groupTaskService.getGroupTasks(user.id, false, true), // HR sees all
     enabled: !!user?.id,
@@ -212,11 +215,11 @@ export default function GroupTaskApprovalSection({ searchTerm = "" }) {
     onSuccess: refresh,
   });
 
+  if (isError) return <QueryError title="Group tasks could not be loaded." onRetry={refetch} />;
+
   if (isLoading) {
     return (
-      <div className="flex justify-center py-20">
-        <Spinner />
-      </div>
+      <PageLoading label="group tasks" />
     );
   }
 
@@ -228,13 +231,15 @@ export default function GroupTaskApprovalSection({ searchTerm = "" }) {
         personLabel="Created by"
         onOpen={(item) => openRecord(item.id)}
         searchTerm={searchTerm}
+        filtered={groupTasks.some((t) => t.status === "HR_PENDING")}
+        onClearFilters={onClearSearch}
         keyboard={!open}
         renderRowAction={(item) => (
           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openRecord(item.id)}>
             Verify
           </Button>
         )}
-        empty={{ title: "No Group Tasks Pending", description: "Graded group tasks awaiting HR verification will appear here." }}
+        empty={{ title: "No group tasks pending", description: "Graded group tasks awaiting HR verification will appear here." }}
       />
 
       <ApprovalSheet

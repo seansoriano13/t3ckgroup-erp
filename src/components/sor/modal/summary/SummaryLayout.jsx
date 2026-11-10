@@ -1,7 +1,8 @@
 /**
  * The SOR modal layout: summary, two columns. The same picks as
  * "Summary · stacked", arranged to fit one screen: the numbers across the top, what to do and
- * where the money is on the left, time per stage, team and facts on the right.
+ * where the money is (and the Purchase Request, when there is one) on the left,
+ * time per stage, team and facts on the right.
  * The crumb also lists the sibling views, so any section is one click from
  * any other.
  */
@@ -31,6 +32,7 @@ function Summary({ p, go, open, openNotes }) {
               <MoneyBars p={p} onOpen={() => open("items")} />
             </div>
           </section>
+          {/* #267, #268: the Purchase Request card (#310), the IPAS summaries (#249) and the Transmittals (#257) live on the PMS tab now. */}
         </div>
 
         <div className="space-y-6 lg:col-span-5">

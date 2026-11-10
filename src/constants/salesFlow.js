@@ -88,6 +88,45 @@ export function flowStageTone(stage, flow, stagesOfFlow = []) {
 }
 
 /**
+ * The Stage a deal sits on and the color it renders with (#930), read from the
+ * Flow Snapshot the deal runs (`snapshotData`, a flow_snapshots.snapshot_data):
+ * that version's Stage, colored by that version's own color and Won Stage. The
+ * live flow (`liveCanvas`, salesFlowService.getFlow's `{ flow, stages }`) is the
+ * fallback while the snapshot is loading or when it lacks the Stage. Returns
+ * `{ stage, tone }`; with neither, no Stage and the neutral mauve.
+ */
+export function dealStageAndTone(stageId, snapshotData, liveCanvas) {
+  const snapshotStages = Array.isArray(snapshotData?.stages) ? snapshotData.stages : []
+  const fromSnapshot = stageId ? snapshotStages.find((s) => s.id === stageId) : null
+  if (fromSnapshot) {
+    return {
+      stage: fromSnapshot,
+      tone: flowStageTone(fromSnapshot, { won_stage_id: snapshotData.wonStageId ?? null }, snapshotStages),
+    }
+  }
+  if (!liveCanvas) return { stage: null, tone: "mauve" }
+  const live = (stageId && liveCanvas.stages?.find((s) => s.id === stageId)) || null
+  return { stage: live, tone: flowStageTone(live, liveCanvas.flow, liveCanvas.stages ?? []) }
+}
+
+/**
+ * Each Stage name's tone, for a row that carries only the Stage's name (the
+ * Purchase Requests list). Names repeat across flows; when Stages sharing a
+ * name disagree on tone, that name gets none (null) rather than a guess.
+ * Takes `getAllStagesIndex`'s `{ flowsById, stagesByFlow }`.
+ */
+export function flowStageTonesByName({ flowsById = {}, stagesByFlow = {} } = {}) {
+  const tones = new Map()
+  for (const [flowId, stages] of Object.entries(stagesByFlow)) {
+    for (const stage of stages) {
+      const tone = flowStageTone(stage, flowsById[flowId], stages)
+      tones.set(stage.name, tones.has(stage.name) && tones.get(stage.name) !== tone ? null : tone)
+    }
+  }
+  return tones
+}
+
+/**
  * Every Stage reachable from the entry by following edges, entry included.
  *
  * Breadth-first over the edges she actually drew, so a Stage reachable only by
@@ -146,7 +185,61 @@ export function flowLockBlockers({ stages = [], edges = [], wonStageId = null } 
     }
   }
 
+  // #757 — Auto-move needs exactly one next Stage.
+  for (const s of [...stages].sort(byFlowOrder)) {
+    if (!s.auto_move) continue
+    if (edges.filter((e) => e.from_stage_id === s.id).length !== 1) {
+      blockers.push(`${s.name} is set to move on by itself, so it needs exactly one next Stage.`)
+    }
+  }
+
   return blockers
+}
+
+/**
+ * What to say before publishing, that is not a reason to refuse (#463). The first warning the
+ * canvas has; blockers (`flowLockBlockers`) stop a lock, warnings only tell.
+ *
+ * A costing condition (Costing priced or Costing settled) reads a matrix that exists only once an
+ * Open Costing Matrix action ran. A Stage that some path from the entry reaches without passing a
+ * Stage mounting that action can be sat on with no matrix: warned, once per such Stage. A Stage
+ * that itself mounts the action is covered (the action runs on entry, before the condition is
+ * read). `conditionsByStage` / `actionsByStage` are the canvas's live (unarchived) rows by Stage id.
+ */
+export function flowPublishWarnings({ stages = [], edges = [], conditionsByStage = {}, actionsByStage = {} } = {}) {
+  const entry = entryStage(stages)
+  if (!entry) return []
+
+  const opensMatrix = (id) => (actionsByStage[id] ?? []).some((a) => a.kind === "open_costing_matrix" || a.kind === "evaluate_specification")
+  const costingKinds = ["costing_priced", "costing_settled", "costing_evaluation_approved"]
+
+  // Walk from the entry, never through (or onto) a Stage that opens the matrix.
+  const seen = new Set()
+  const queue = []
+  if (!opensMatrix(entry.id)) {
+    seen.add(entry.id)
+    queue.push(entry.id)
+  }
+  while (queue.length > 0) {
+    const current = queue.shift()
+    for (const e of edges) {
+      if (e.from_stage_id === current && !seen.has(e.to_stage_id) && !opensMatrix(e.to_stage_id)) {
+        seen.add(e.to_stage_id)
+        queue.push(e.to_stage_id)
+      }
+    }
+  }
+
+  const warnings = []
+  for (const s of [...stages].sort(byFlowOrder)) {
+    if (!seen.has(s.id)) continue
+    const kinds = (conditionsByStage[s.id] ?? []).map((c) => c.kind).filter((k) => costingKinds.includes(k))
+    if (kinds.length === 0) continue
+    warnings.push(
+      `${s.name} checks the S0 Evaluation, but a path to it skips every Open S0 Evaluation action, so a deal can reach it with no matrix.`,
+    )
+  }
+  return warnings
 }
 
 /** Whether this flow is fit to be locked — see `flowLockBlockers` for why not. */
@@ -171,30 +264,53 @@ export function isAtEntryStage(opportunity, stages = []) {
 }
 
 /**
- * Whether a deal sitting on `flowStage` counts as lost.
+ * How deals end on a Terminal Stage (`flow_stages.terminal_outcome`). The Won
+ * Stage usually sits mid-flow, so a flow ends on Terminal Stages like Closed
+ * Won and Closed Lost; each says which it is. Unset is not Lost.
+ */
+export const TERMINAL_OUTCOME = { WON: "won", LOST: "lost" }
+
+/** Whether a Terminal Stage is explicitly set to end deals as lost. An unset outcome is not Lost. */
+export function endsAsLost(flowStage) {
+  return Boolean(flowStage?.is_terminal) && flowStage.terminal_outcome === TERMINAL_OUTCOME.LOST
+}
+
+/** Whether a Terminal Stage ends deals as won (e.g. Closed Won). */
+export function endsAsWon(flowStage) {
+  return Boolean(flowStage?.is_terminal) && flowStage.terminal_outcome === TERMINAL_OUTCOME.WON
+}
+
+/**
+ * Whether a deal sitting on `flowStage` counts as lost: a Terminal Stage whose
+ * outcome is explicitly Lost and that is not the flow's Won Stage
+ * (`won_stage_id`, on the flow). A Terminal Stage with no outcome set (like
+ * "BG CHECKING") is not lost.
  *
- * A flow Stage carries no `is_lost` flag — the global pipeline's kind of
- * terminal is `is_won` / `is_lost` as two separate flags, but a flow only
- * designates one special Stage (`won_stage_id`, on the flow, not the Stage —
- * see 0047/0048). So "lost" here is a terminal Stage that is not that one:
- * the deal has stopped moving somewhere other than where it was won.
- *
- * This is what `isRealizedOpportunity` (constants/sor.js) asks for a
- * flow-built deal instead of `isLostCode`, which only knows
- * `crm_pipeline_stages` codes a flow deal never carries.
+ * The flow twin of `isLostCode`, which only knows `crm_pipeline_stages` codes
+ * a flow deal never carries.
  */
 export function isLostFlowStage(flowStage, wonStageId) {
   if (!flowStage?.is_terminal) return false
-  return flowStage.id !== wonStageId
+  return flowStage.id !== wonStageId && endsAsLost(flowStage)
+}
+
+/**
+ * The Lost Stages of a flow: every Stage a deal can be marked Lost into.
+ * One list for the Mark as Lost picker, the Board's Lost columns and the
+ * "can this deal be lost" checks.
+ */
+export function lostStagesOfFlow(stages, wonStageId) {
+  return (stages || []).filter((s) => isLostFlowStage(s, wonStageId ?? null))
 }
 
 /**
  * Classifies a Stage within a Sales Flow graph:
  * - "WON": the designated Won Stage
- * - "POST_WON": an active Stage strictly downstream of the Won Stage
+ * - "POST_WON": an active Stage strictly downstream of the Won Stage, or a
+ *   Terminal Stage that ends as won (Closed Won)
  * - "PRE_WON": an active Stage preceding the Won Stage (open pipeline)
- * - "LOST": a terminal Stage that is not the Won Stage
- * - null: unknown or unresolvable Stage
+ * - "LOST": a Terminal Stage that is not the Won Stage and ends as lost
+ * - null: unknown or unresolvable Stage, or a Terminal Stage with no outcome
  */
 export function classifyFlowStage(stageId, { stages = [], edges = [], wonStageId = null } = {}) {
   if (!stageId) return null
@@ -202,7 +318,8 @@ export function classifyFlowStage(stageId, { stages = [], edges = [], wonStageId
   if (!stage) return null
 
   if (stage.is_terminal && stage.id !== wonStageId) {
-    return "LOST"
+    if (endsAsWon(stage)) return "POST_WON"
+    return endsAsLost(stage) ? "LOST" : null
   }
 
   if (wonStageId && stage.id === wonStageId) {
@@ -329,9 +446,7 @@ export function actionsForSnapshotStage(snapshotActions, stageId) {
  *
  * A deal with no Sales Reference yet (it has none until it leaves Lead)
  * prints a stated placeholder rather than collapsing to a blank, so the
- * `[ref] [project]` shape stays parseable either way. This is unrelated to
- * `buildRequisitionTitle` (constants/procurement.js) — that prefix is
- * matched by a recogniser and a batch-number pattern and is untouched here.
+ * `[ref] [project]` shape stays parseable either way.
  */
 export function stageActionTaskTitle({ salesReference, projectTitle } = {}) {
   const ref = salesReference || "No Sales Reference"
@@ -377,6 +492,8 @@ export function buildDraftSnapshotData({
     followUps,
     access,
     wonStageId: flow?.won_stage_id ?? null,
+    awardStageId: flow?.award_stage_id ?? null,
+    contractStageId: flow?.contract_stage_id ?? null,
     saleTypeId: flow?.sale_type_id ?? null,
   }
 }
@@ -390,7 +507,13 @@ export function buildDraftSnapshotData({
  *   explicit nulls.
  * - Recursively sorts object keys so key order differences (e.g. from Postgres
  *   JSONB normalization) never cause false diffs.
+ * - Omits `false` on the boolean Stage flags whose column default is false
+ *   (issue #887). A Snapshot taken before a flag existed has no key for it,
+ *   while the live row always carries `false`. Both mean "not set", so a
+ *   restored Snapshot must not read as every Stage changed.
  */
+const DEFAULT_FALSE_FLAG_KEYS = new Set(["buying_opens_here", "auto_move", "is_terminal"]);
+
 function canonicalItemForDiff(item) {
   if (item === null || typeof item !== "object") return item;
   if (Array.isArray(item)) return item.map(canonicalItemForDiff);
@@ -401,6 +524,7 @@ function canonicalItemForDiff(item) {
     if (ignoredKeys.has(key)) continue;
     const val = item[key];
     if (val === null || val === undefined || val === "") continue;
+    if (val === false && DEFAULT_FALSE_FLAG_KEYS.has(key)) continue;
     sorted[key] = canonicalItemForDiff(val);
   }
   return sorted;
@@ -457,9 +581,15 @@ export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
   const accessFlow = diffById(accessFlowA, accessFlowB)
   const accessStages = diffById(snapshotDataA.access?.stages, snapshotDataB.access?.stages)
   const wonStageChanged = (snapshotDataA.wonStageId ?? null) !== (snapshotDataB.wonStageId ?? null)
+  // The Notice of Award and contract Stages are role pointers on the flow, like
+  // the Won Stage. They must count too, or naming one alone reads as no change.
+  const awardStageChanged = (snapshotDataA.awardStageId ?? null) !== (snapshotDataB.awardStageId ?? null)
+  const contractStageChanged = (snapshotDataA.contractStageId ?? null) !== (snapshotDataB.contractStageId ?? null)
 
   const hasChanges =
     wonStageChanged ||
+    awardStageChanged ||
+    contractStageChanged ||
     [stages, edges, actions, conditions, stageFields, formFields, followUps, accessFlow, accessStages].some(
       (d) => d.added.length > 0 || d.removed.length > 0 || (d.changed?.length || 0) > 0,
     )
@@ -475,6 +605,8 @@ export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
     accessFlow,
     accessStages,
     wonStageChanged,
+    awardStageChanged,
+    contractStageChanged,
     hasChanges,
   }
 }
@@ -500,6 +632,14 @@ export function countFlowSnapshotChanges(diffResult) {
     byGroup(diffResult.followUps) +
     byGroup(diffResult.accessFlow) +
     byGroup(diffResult.accessStages) +
-    (diffResult.wonStageChanged ? 1 : 0)
+    (diffResult.wonStageChanged ? 1 : 0) +
+    (diffResult.awardStageChanged ? 1 : 0) +
+    (diffResult.contractStageChanged ? 1 : 0)
   )
 }
+
+/**
+ * The Legacy Pipeline Sale Type (#856), known by its fixed system_key so a
+ * rename doesn't lift the block. The database trigger makes the same match.
+ */
+export const isLegacyPipelineSaleType = (saleType) => saleType?.system_key === "legacy_pipeline";

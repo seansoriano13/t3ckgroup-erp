@@ -10,8 +10,15 @@
  */
 
 import { buildTG11ViewModel, buildTG12ViewModel, buildTG13ViewModel } from './formViewModel';
+import { buildCanvassViewModel } from './canvassViewModel';
+import { buildCostingMatrixViewModel } from './costingMatrixViewModel';
+import { buildIpasViewModel } from './ipasViewModel';
+import { buildPackingListViewModel } from './packingListViewModel';
+import { buildTransmittalViewModel } from './transmittalViewModel';
+import { buildTsrViewModel } from './tsrViewModel';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
+import { lwopService } from '../../services/lwopService';
 
 const FORM_TYPES = {
   SIL: {
@@ -22,6 +29,11 @@ const FORM_TYPES = {
     buildViewModel: buildTG11ViewModel,
     markPrinted: (record, hrId) => offsetService.markOffsetLeavesPrinted({ id: record.id, groupId: record.leave_group_id, hrId }),
   },
+  // #621: LWOP prints on the same TG-11 and keeps the LV prefix; it stamps its own table.
+  LWOP: {
+    buildViewModel: buildTG11ViewModel,
+    markPrinted: (record, hrId) => lwopService.markLwopLeavesPrinted({ id: record.id, groupId: record.leave_group_id, hrId }),
+  },
   OVERTIME: {
     buildViewModel: buildTG12ViewModel,
     markPrinted: (record, hrId) => offsetService.markOvertimeRequestsPrinted({ id: record.id, hrId }),
@@ -29,6 +41,47 @@ const FORM_TYPES = {
   UNDERTIME: {
     buildViewModel: buildTG13ViewModel,
     markPrinted: (record, hrId) => offsetService.markUndertimeRequestsPrinted({ id: record.id, hrId }),
+  },
+  // Issue #250: the IPAS prints on two A4 pages through its own composer
+  // (ipasDocument.js), not the paired Letter half-sheets, so its builder takes
+  // `ipasService.get`'s result and a `{ filingCopy }` option. Printing an IPAS
+  // stamps nothing: there is no "printed" state to move, so markPrinted is a
+  // no-op that keeps the registry's contract (every type has one).
+  IPAS: {
+    buildViewModel: buildIpasViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #260: the Packing List prints as one A4 sheet (packingListDocument.js)
+  // from `packingListService.get`'s shape. Printing stamps nothing, so markPrinted
+  // is a no-op, as for the IPAS.
+  PACKING_LIST: {
+    buildViewModel: buildPackingListViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #258: the Transmittal prints as TG03 (transmittalDocument.js) from
+  // `transmittalService.get`'s shape. Printing stamps nothing, so markPrinted is a no-op.
+  TRANSMITTAL: {
+    buildViewModel: buildTransmittalViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #274: the Costing Matrix prints on landscape A4 (costingMatrixDocument.js) from
+  // `costingMatrixService.get`'s shape, with the money sheet for the Closed Book tier only. Printing
+  // stamps nothing, so markPrinted is a no-op.
+  costing_matrix: {
+    buildViewModel: buildCostingMatrixViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #282: the Canvass prints on portrait A4 (canvassDocument.js) from `canvassService.get`'s shape,
+  // for a reader with the money tier only. Printing stamps nothing, so markPrinted is a no-op.
+  canvass: {
+    buildViewModel: buildCanvassViewModel,
+    markPrinted: async () => {},
+  },
+  // Issue #259: the TSR prints as one A4 sheet (tsrDocument.js) from a TSR record.
+  // Printing stamps nothing, so markPrinted is a no-op.
+  TSR: {
+    buildViewModel: buildTsrViewModel,
+    markPrinted: async () => {},
   },
 };
 

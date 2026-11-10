@@ -1,6 +1,8 @@
 import { FileInput } from "@/components/ui/FileInput";
 import { ExternalLink } from "@/components/ui/external-link";
 import { buildReplySnapshot } from "../utils/chatReply";
+import { canUnsend, isMessageRemoved } from "../utils/chatUnsend";
+import { chatUnsendService } from "../services/chatUnsendService";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { notificationService } from "../services/notificationService";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +10,8 @@ import { taskActivityService } from "../services/tasks/taskActivityService";
 import { groupTaskActivityService } from "../services/groupTaskActivityService";
 import { activeChatService } from "../services/tasks/activeChatService";
 import { useAuth } from "../context/AuthContext";
+import ChatScroller from "@/components/ui/ChatScroller";
+import { usePagedChat, patchPagedMessage } from "../hooks/usePagedChat";
 import { supabase } from "../lib/supabase";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -102,8 +106,9 @@ const formatTime = (isoString) => {
 /**
  * Renders a single activity entry based on its type
  */
-function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
+function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact, onUnsend }) {
   const isMe = entry.authorId === currentUserId;
+  const removed = isMessageRemoved(entry);
 
   const reactions = entry.metadata?.reactions || {};
   const hasReactions = Object.keys(reactions).length > 0;
@@ -127,12 +132,12 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
       <div className={`max-w-[85%] min-w-0 relative flex flex-col ${isMe ? "items-end" : "items-start"}`}>
         <div className="flex items-center gap-2 mb-1 px-1">
           {!isMe && (
-            <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">
+            <span className="text-label font-extrabold text-muted-foreground uppercase tracking-widest">
               {entry.authorName}
             </span>
           )}
           {isMe && (
-            <span className="text-[10px] font-extrabold text-mauve-11  uppercase tracking-widest ml-auto">
+            <span className="text-label font-extrabold text-mauve-11  uppercase tracking-widest ml-auto">
               You
             </span>
           )}
@@ -160,9 +165,10 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
 
           <SwipeToReplyWrapper 
             isMe={isMe} 
-            copyText={entry.content}
-            onReply={() => onReply?.(entry)}
-            onReact={(emoji) => onReact?.(entry, emoji)}
+            copyText={removed ? undefined : entry.content}
+            onReply={removed ? undefined : () => onReply?.(entry)}
+            onReact={removed ? undefined : (emoji) => onReact?.(entry, emoji)}
+            onUnsend={canUnsend(entry, currentUserId) ? () => onUnsend?.(entry) : undefined}
           >
             <div
               className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-words min-w-0 ${isMe
@@ -171,6 +177,10 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
                 }`}
               style={{ wordBreak: "break-word" }}
             >
+              {removed ? (
+                <p className="italic opacity-70">Message removed</p>
+              ) : (
+              <>
               <ReplyQuote replyTo={entry.metadata?.replyTo} />
               {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
               {entry.metadata?.attachments?.length > 0 && (
@@ -178,6 +188,8 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
                   attachments={entry.metadata.attachments} 
                   className={entry.content ? "mt-2" : ""} 
                 />
+              )}
+              </>
               )}
             </div>
           </SwipeToReplyWrapper>
@@ -282,13 +294,11 @@ export default function TaskActivityTimeline({
   evaluatedByName,
   grade,
   disabled = false,
-  inputType = "textarea",
   isSplitScreen = false,
 }) {
   const { user } = useAuth();
   const avatarMap = useEmployeeAvatarMap();
   const queryClient = useQueryClient();
-  const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [message, setMessage] = useState("");
   const [mentions, setMentions] = useState([]);
@@ -318,25 +328,24 @@ export default function TaskActivityTimeline({
     `-timeline-${Math.random().toString(36).substring(2, 9)}`,
   );
 
-  // Fetch activity
-  const { data: activity = [], isLoading } = useQuery({
-    queryKey: ["taskActivity", taskId, entityType],
-    queryFn: () =>
-      entityType === "GROUP_TASK"
-        ? groupTaskActivityService.getActivityForTask(taskId)
-        : taskActivityService.getActivityForTask(taskId),
+  // The Chat pages in newest-first; the non-comment events are few, so they load whole.
+  const activityService =
+    entityType === "GROUP_TASK" ? groupTaskActivityService : taskActivityService;
+  const commentsKey = ["taskActivity", taskId, entityType, "comments"];
+  const chat = usePagedChat({
+    queryKey: commentsKey,
+    fetchPage: ({ before, limit }) =>
+      activityService.getCommentsPage(taskId, { before, limit }),
+    enabled: !!taskId,
+  });
+  const { messages: comments } = chat;
+  const { data: history = [], isLoading: isLoadingHistory } = useQuery({
+    queryKey: ["taskActivity", taskId, entityType, "events"],
+    queryFn: () => activityService.getEvents(taskId),
     enabled: !!taskId,
     staleTime: 30_000,
   });
-
-  const comments = useMemo(
-    () => activity.filter(e => e.type === "COMMENT"),
-    [activity],
-  );
-  const history = useMemo(
-    () => activity.filter(e => e.type !== "COMMENT"),
-    [activity],
-  );
+  const isLoading = chat.isLoading || isLoadingHistory;
 
   // Stable primitive for the auto-bump effect below: the array identity changes
   // on every render, the timestamp only when the thread actually moves.
@@ -515,13 +524,6 @@ export default function TaskActivityTimeline({
     };
   }, [taskId, entityType, queryClient]);
 
-  // Auto-scroll on new entries
-  useEffect(() => {
-    if (scrollRef.current && activeTab === "ACTIVITY") {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [activity, activeTab]);
-
 
 
   const handleSend = useCallback(async () => {
@@ -547,6 +549,22 @@ export default function TaskActivityTimeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message, attachments, taskId, user?.id, isUploading, replyingTo, uploadAttachments]);
 
+  const unsendMessage = async (message) => {
+    if (!message?.id) return;
+    const table = entityType === "GROUP_TASK" ? "committee_task_activity" : "task_activity";
+    patchPagedMessage(queryClient, commentsKey, message.id, (m) => ({
+      ...m,
+      content: "Message removed",
+      metadata: { removed: true },
+    }));
+    try {
+      await chatUnsendService.unsend(table, message.id);
+    } catch (err) {
+      console.error("Failed to unsend message:", err);
+    }
+    queryClient.invalidateQueries({ queryKey: commentsKey });
+  };
+
   const toggleReaction = async (message, emoji) => {
     if (!message || !emoji) return;
     const currentReactions = message.metadata?.reactions || {};
@@ -567,10 +585,7 @@ export default function TaskActivityTimeline({
     const table = entityType === "GROUP_TASK" ? "committee_task_activity" : "task_activity";
 
     // Optimistic update
-    queryClient.setQueryData(
-      ["taskActivity", taskId, entityType],
-      (old = []) => old.map(m => m.id === message.id ? { ...m, metadata: newMetadata } : m)
-    );
+    patchPagedMessage(queryClient, commentsKey, message.id, (m) => ({ ...m, metadata: newMetadata }));
 
     try {
       const { error } = await supabase.rpc('toggle_chat_reaction', {
@@ -607,7 +622,7 @@ export default function TaskActivityTimeline({
   return (
     <div className={
       isSplitScreen
-        ? "w-[380px] shrink-0 flex flex-col bg-card border-l border-border h-full"
+        ? "w-[380px] max-w-[50vw] shrink-0 flex flex-col bg-card border-l border-border h-full"
         : "flex flex-col border border-border rounded-xl overflow-hidden bg-card mt-4"
     }>
       <div className={
@@ -626,10 +641,17 @@ export default function TaskActivityTimeline({
         />
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 custom-scrollbar px-4 py-4"
-        style={!isSplitScreen ? { maxHeight: "500px", minHeight: "200px" } : {}}
+      <ChatScroller
+        key={activeTab}
+        firstKey={activeTab === "ACTIVITY" ? comments[0]?.id : undefined}
+        lastKey={activeTab === "ACTIVITY" ? comments[comments.length - 1]?.id : undefined}
+        lastIsMine={comments[comments.length - 1]?.authorId === user?.id}
+        hasMore={activeTab === "ACTIVITY" && chat.hasMore}
+        isFetchingMore={chat.isFetchingMore}
+        onLoadMore={chat.loadMore}
+        className="flex-1 min-w-0"
+        scrollClassName="overflow-x-hidden min-w-0 px-4 py-4"
+        scrollStyle={!isSplitScreen ? { maxHeight: "500px", minHeight: "200px" } : {}}
       >
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -661,13 +683,14 @@ export default function TaskActivityTimeline({
                 avatarMap={avatarMap}
                 onReply={(e) => setReplyingTo(buildReplySnapshot(e))}
                 onReact={toggleReaction}
+                onUnsend={unsendMessage}
               />
             ))}
           </div>
         ) : (
           <HistoryTimeline logs={history} type="TASK" />
         )}
-      </div>
+      </ChatScroller>
 
       {activeTab === "ACTIVITY" && !disabled && (
         <form onSubmit={handleSend} className="bg-muted/30 border-t border-border p-3 min-w-0 w-full flex-none">
@@ -698,7 +721,7 @@ export default function TaskActivityTimeline({
             </div>
           )}
 
-          <div className="flex items-start gap-2">
+          <div className="flex w-full min-w-0 max-w-full flex-col rounded-2xl border border-border bg-card p-1.5 ring-mauve-8/20 transition-shadow focus-within:ring-2">
             <MentionTextarea
               value={message}
               onChange={setMessage}
@@ -708,21 +731,12 @@ export default function TaskActivityTimeline({
               mentions={mentions}
               onMentionsChange={setMentions}
               placeholder="Send a message or paste an image..."
-              containerClassName="flex-1"
-              className={`w-full bg-card border border-border rounded-xl px-4 text-sm shadow-sm custom-scrollbar resize-none focus:outline-none focus:ring-1 ring-mauve-7 disabled:opacity-50 ${inputType === "textarea" ? "py-3 min-h-[50px] max-h-[150px]" : "h-11 py-2.5"}`}
+              className="custom-scrollbar block w-full resize-none border-none bg-transparent px-3 py-2.5 text-sm shadow-none outline-none focus-visible:ring-0 disabled:opacity-50"
               rows={1}
               disabled={postCommentMutation.isPending || isUploading}
             />
-            <div className="flex flex-col gap-1 shrink-0">
-              <Button
-                onClick={handleSend}
-                disabled={(!message.trim() && attachments.length === 0) || postCommentMutation.isPending || isUploading}
-                className="w-11 h-11 rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 active:scale-90 transition-all"
-                size="icon"
-              >
-                {isUploading ? <Spinner size="sm" /> : <Send size={18} />}
-              </Button>
-              <div className="w-11 h-11 rounded-xl border border-border flex items-center justify-center gap-1.5">
+            <div className="flex items-center justify-between px-2 pb-0.5 pt-1">
+              <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="ghost"
@@ -735,11 +749,27 @@ export default function TaskActivityTimeline({
                   <Paperclip size={15} />
                 </Button>
                 <EmojiPicker
-                  align="end"
                   onSelect={(emoji) => setMessage((prev) => prev + emoji)}
                   disabled={postCommentMutation.isPending || isUploading}
                 />
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <Clock size={10} /> Enter to send
+                </span>
               </div>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={(!message.trim() && attachments.length === 0) || postCommentMutation.isPending || isUploading}
+                className="h-8 gap-2 rounded-xl px-4 font-bold"
+              >
+                {isUploading ? (
+                  <><Spinner size="sm" /> Uploading</>
+                ) : postCommentMutation.isPending ? (
+                  "..."
+                ) : (
+                  <>Send <Send size={14} /></>
+                )}
+              </Button>
             </div>
           </div>
         </form>

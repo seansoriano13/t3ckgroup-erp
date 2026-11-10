@@ -325,21 +325,23 @@ export function chaseList(orders) {
 }
 
 /**
- * This calendar month against the last one, whatever date range is on screen —
- * the question "are we up or down" does not change with the range. The caller
+ * This calendar month so far against the same days of the last one (day 1 to
+ * today's day-of-month), whatever date range is on screen — the question "are
+ * we up or down" does not change with the range. The caller
  * passes the orders that pass the other filters (`applyFilters` without a
  * range). `deltaPct` is null when last month had nothing to compare against.
  */
 export function monthOverMonth(orders, now = new Date()) {
   const thisKey = monthKey(now)
   const lastKey = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+  const dayOfMonth = now.getDate()
   let thisMonth = 0
   let lastMonth = 0
   for (const order of orders) {
     if (!isCountedOrder(order) || !order.ordered_at) continue
     const key = monthKey(order.ordered_at)
     if (key === thisKey) thisMonth += incomeOf(order)
-    else if (key === lastKey) lastMonth += incomeOf(order)
+    else if (key === lastKey && new Date(order.ordered_at).getDate() <= dayOfMonth) lastMonth += incomeOf(order)
   }
   return {
     thisMonth,

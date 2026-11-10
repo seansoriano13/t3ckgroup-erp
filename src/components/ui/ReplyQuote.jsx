@@ -14,7 +14,9 @@ export default function ReplyQuote({ replyTo, className }) {
       )}
     >
       <p className="font-bold truncate">{replyTo.authorName}</p>
-      <p className="truncate">{replyTo.content}</p>
+      <p className={cn("truncate", replyTo.removed && "italic")}>
+        {replyTo.removed ? "Message removed" : replyTo.content}
+      </p>
     </div>
   );
 }

@@ -28,10 +28,13 @@ export default function PeoplePicker({
   allowDepartments = false,
   types = [SELECTOR_TYPES.GROUP, SELECTOR_TYPES.TEAM, SELECTOR_TYPES.EMPLOYEE],
   disabled = false,
+  // One selector at most: once one is chosen, the add button is hidden (remove it to choose another).
+  single = false,
   placeholder = "Add people",
   className,
 }) {
   const [search, setSearch] = useState("");
+  const full = single && value.length > 0;
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
@@ -164,7 +167,7 @@ export default function PeoplePicker({
         );
       })}
 
-      {!disabled && (
+      {!disabled && !full && (
         <Dropdown
           usePortal
           placement="bottom-start"
@@ -204,7 +207,7 @@ export default function PeoplePicker({
                   return (
                     <div key={selectorKey(option.selector)}>
                       {heading && (
-                        <p className="px-2.5 pb-1 pt-2 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+                        <p className="px-2.5 pb-1 pt-2 text-label font-black uppercase tracking-[0.15em] text-muted-foreground">
                           {heading}
                         </p>
                       )}
@@ -212,6 +215,7 @@ export default function PeoplePicker({
                         type="button"
                         onClick={() => {
                           add(option.selector);
+                          setSearch("");
                           close();
                         }}
                         className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted"

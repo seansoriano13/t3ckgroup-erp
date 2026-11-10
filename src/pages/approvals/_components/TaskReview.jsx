@@ -13,7 +13,9 @@ import { relativeAge } from "../../../utils/approvalItems.js";
 import { checklistProgressLabel, isChecklistDescription, resolveApprovalShortcut } from "../../../utils/approvalQueue.js";
 import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
 import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
-import { APPROVE_CLASS, NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
+import { NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * Reviewing one task inside the sheet: the head grades it (queue "tasks"), or
@@ -226,7 +228,7 @@ export function TaskReview({ item, currentUserId, onProcess, isSubmitting, onDec
             {!isHr && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Grade</span>
+                  <span className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>Grade</span>
                   <span className="text-[10px] text-muted-foreground">Keys 1–5</span>
                 </div>
                 <GradeSelector grade={grade} onSelect={setGrade} canEvaluate />
@@ -237,6 +239,7 @@ export function TaskReview({ item, currentUserId, onProcess, isSubmitting, onDec
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
+              aria-label={isHr ? "HR audit notes" : "Evaluation remarks"}
               placeholder={isHr ? "Add HR audit notes (required to return)" : "Add evaluation remarks (required to return)"}
               className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]"
             />

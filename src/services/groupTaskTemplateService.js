@@ -142,6 +142,17 @@ export const groupTaskTemplateService = {
   },
 
   async deleteTemplate(id) {
+    // #933: refuse early with the flows and stages that use it. The database
+    // trigger group_task_templates_block_delete_in_use enforces the same rule.
+    const { data: usage, error: usageError } = await supabase.rpc("group_task_template_usage", {
+      p_template_id: id,
+    });
+    if (usageError) throw usageError;
+    if (usage?.length > 0) {
+      const where = usage.map((u) => `${u.flow_name} > ${u.stage_name}`).join("; ");
+      throw new Error(`This template is used by a Stage Action in: ${where}. Remove it from those stages first.`);
+    }
+
     const { error } = await supabase
       .from("group_task_templates")
       .delete()

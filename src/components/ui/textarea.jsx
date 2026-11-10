@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { LabeledCard } from "./labeledCard"
 
 // "bare" strips the field chrome for inline-edit textareas that sit inside a
 // card or row that already draws the border.
@@ -10,8 +11,27 @@ const BARE =
 function Textarea({
   className,
   variant,
+  label,
+  error,
+  containerClassName,
   ...props
 }) {
+  const generatedId = React.useId();
+  if (label) {
+    const id = props.id ?? generatedId;
+    return (
+      <LabeledCard label={label} htmlFor={id} error={error} disabled={props.disabled} className={containerClassName}>
+        <textarea
+          data-slot="textarea"
+          className={cn(
+            "w-full min-h-[60px] resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium",
+            className
+          )}
+          {...props}
+          id={id} />
+      </LabeledCard>
+    );
+  }
   return (
     <textarea
       data-slot="textarea"

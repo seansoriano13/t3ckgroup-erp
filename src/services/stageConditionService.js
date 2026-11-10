@@ -2,10 +2,10 @@ import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { CONDITION_KINDS, NEW_CONDITION_KINDS } from "../constants/stageGate";
 
-// Issue #203: the picker only offers these four kinds for a *new* condition.
+// Issue #203: the picker only offers NEW_CONDITION_KINDS for a *new* condition.
 // `field` and `project_evaluation` are removed (Stage Fields replace the
 // first, nobody used the second); `inclusions` and the old `purchasing` kind
-// are hidden pending the Purchase Requests spec, but every stored kind still
+// are hidden (#311 replaced the latter with `purchasing_settled`), but every stored kind still
 // evaluates and can still be `update`d, so an SOR built against an older
 // flow version is never stranded.
 const VALID_KINDS = NEW_CONDITION_KINDS;

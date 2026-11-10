@@ -22,12 +22,12 @@ vi.mock("@/context/AuthContext", () => ({
 
 describe("SORS Overview drill-down", () => {
   beforeEach(() => {
-    mockUser.current = makeEmployee({ name: "Drill Down" });
-    sessionStorage.clear();
+    mockUser.current = { ...makeEmployee({ name: "Drill Down" }), has_sales_flow: true };
+    localStorage.clear();
   });
 
   it("remembers List, not the Overview it left", async () => {
-    sessionStorage.setItem("opportunitiesView", "overview");
+    localStorage.setItem("opportunitiesView", "overview");
 
     renderWithProviders(
       <MemoryRouter
@@ -38,6 +38,6 @@ describe("SORS Overview drill-down", () => {
     );
 
     expect(await screen.findByRole("tab", { name: /^List/i, selected: true })).toBeInTheDocument();
-    expect(sessionStorage.getItem("opportunitiesView")).toBe("list");
+    expect(localStorage.getItem("opportunitiesView")).toBe("list");
   });
 });

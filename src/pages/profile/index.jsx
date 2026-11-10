@@ -14,6 +14,7 @@ import {
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "../../context/AuthContext";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -140,7 +141,7 @@ export default function ProfilePage() {
         ? bannerUrlInput.trim()
         : user?.dashboardBannerUrl || "/leaf-background.jpg";
 
-  const { data: stats, isLoading: isStatsLoading } = useQuery({
+  const { data: stats, isLoading: isStatsLoading, isError: isStatsError } = useQuery({
     queryKey: ["profileStats", user?.id],
     queryFn: async () => {
       if (user?.isSuperAdmin) return null;
@@ -326,6 +327,8 @@ export default function ProfilePage() {
     customQuote.trim() !== initialQuote ||
     bannerUrlInput.trim() !== initialBannerUrl;
 
+  useUnsavedGuard(hasChanges && !isSaving);
+
   return (
     <PageShell
       frame="narrow"
@@ -358,12 +361,12 @@ export default function ProfilePage() {
               {(user?.isHead || user?.isHr) && (
                 <div className="flex gap-2 mb-1">
                   {user?.isHead && (
-                    <span className="bg-transparent text-amber-11 border border-amber-6 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest">
+                    <span className="bg-transparent text-amber-11 border border-amber-6 text-label font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest">
                       Head
                     </span>
                   )}
                   {user?.isHr && (
-                    <span className="bg-transparent text-violet-11 border border-violet-6 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest">
+                    <span className="bg-transparent text-violet-11 border border-violet-6 text-label font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest">
                       HR
                     </span>
                   )}
@@ -373,10 +376,10 @@ export default function ProfilePage() {
 
             <div>
               <h2 className="text-xl font-black text-foreground">
-                {user?.name || "Employee Name"}
+                {user?.name || "—"}
               </h2>
               <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2 justify-center">
-                <Mail size={13} /> {user?.email || "email@t3ckgroup.com"}
+                <Mail size={13} className="shrink-0" /> <span className="break-all">{user?.email || "—"}</span>
               </p>
               <Button
                 type="button"
@@ -385,7 +388,7 @@ export default function ProfilePage() {
                 disabled={isSendingPasswordReset}
                 className="mt-3 h-auto p-0 text-xs font-bold text-foreground disabled:opacity-60"
               >
-                {isSendingPasswordReset ? "Sending..." : "Change Password"}
+                {isSendingPasswordReset ? "Sending…" : "Change Password"}
               </Button>
             </div>
           </div>
@@ -405,7 +408,7 @@ export default function ProfilePage() {
                   <Building2 size={20} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     Department
                   </p>
                   <p className="text-foreground font-black mt-0.5 text-sm">
@@ -419,7 +422,7 @@ export default function ProfilePage() {
                   <Briefcase size={20} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     Sub-Department
                   </p>
                   <p className="text-foreground font-black mt-0.5 text-sm">
@@ -433,11 +436,11 @@ export default function ProfilePage() {
                   <ShieldCheck size={20} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     System ID
                   </p>
                   <p className="text-muted-foreground font-mono text-xs mt-1 break-all select-all">
-                    {user?.id || "UUID_PENDING"}
+                    {user?.id || "—"}
                   </p>
                 </div>
               </div>
@@ -454,7 +457,7 @@ export default function ProfilePage() {
                 type="button"
                 variant="outline"
                 onClick={() => setSignatureModalOpen(true)}
-                className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+                className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest hover:bg-muted"
               >
                 <PenLine size={14} /> {user?.signaturePath ? "Replace" : "Add Signature"}
               </Button>
@@ -479,9 +482,9 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-2xl font-black text-foreground">
-                    {isStatsLoading ? <Spinner size="sm" /> : stats?.primary}
+                    {isStatsLoading ? <Spinner size="sm" /> : isStatsError ? "—" : stats?.primary}
                   </p>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     {stats?.primaryLabel || "Metrics"}
                   </p>
                 </div>
@@ -492,9 +495,9 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-2xl font-black text-green-10">
-                    {isStatsLoading ? <Spinner size="sm" /> : stats?.secondary}
+                    {isStatsLoading ? <Spinner size="sm" /> : isStatsError ? "—" : stats?.secondary}
                   </p>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                  <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     {stats?.secondaryLabel || "Completed"}
                   </p>
                 </div>
@@ -565,7 +568,7 @@ export default function ProfilePage() {
                     type="button"
                     variant="outline"
                     onClick={() => avatarInputRef.current?.open()}
-                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest hover:bg-muted"
                   >
                     <UploadCloud size={14} /> Upload
                   </Button>
@@ -577,7 +580,7 @@ export default function ProfilePage() {
                       setRemoveAvatar(true);
                     }}
                     disabled={isUsingDefaultAvatar}
-                    className="h-auto rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
+                    className="h-auto rounded-full px-3 py-1.5 text-label font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
                   >
                     Reset
                   </Button>
@@ -616,12 +619,12 @@ export default function ProfilePage() {
                     {bannerFile ? bannerFile.name : "URL, upload, or random"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => bannerInputRef.current?.open()}
-                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest hover:bg-muted"
                   >
                     <UploadCloud size={14} /> Upload
                   </Button>
@@ -639,7 +642,7 @@ export default function ProfilePage() {
                       setBannerFile(null);
                       setRemoveBanner(false);
                     }}
-                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+                    className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest hover:bg-muted"
                   >
                     Random
                   </Button>
@@ -652,7 +655,7 @@ export default function ProfilePage() {
                       setRemoveBanner(true);
                     }}
                     disabled={isUsingDefaultBanner}
-                    className="h-auto rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
+                    className="h-auto rounded-full px-3 py-1.5 text-label font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
                   >
                     Reset
                   </Button>
@@ -674,6 +677,7 @@ export default function ProfilePage() {
               />
               <Input
                 type="url"
+                aria-label="Banner image URL"
                 value={bannerUrlInput}
                 onChange={(e) => {
                   setBannerUrlInput(e.target.value);
@@ -705,7 +709,7 @@ export default function ProfilePage() {
                   variant="outline"
                   onClick={() => generateQuoteMutation.mutate()}
                   disabled={generateQuoteMutation.isPending}
-                  className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-foreground hover:bg-muted disabled:opacity-70"
+                  className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-label font-black uppercase tracking-widest text-foreground hover:bg-muted disabled:opacity-70"
                 >
                   {generateQuoteMutation.isPending ? (
                     <Spinner size="sm" />
@@ -722,13 +726,14 @@ export default function ProfilePage() {
                     setRemoveQuote(true);
                   }}
                   disabled={isUsingDefaultQuote}
-                  className="h-auto rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
+                  className="h-auto rounded-full px-3 py-1.5 text-label font-black uppercase tracking-widest enabled:hover:bg-muted/50 disabled:opacity-50"
                 >
                   Reset
                 </Button>
               </div>
             </div>
             <Textarea
+              aria-label="Custom quote"
               value={customQuote}
               maxLength={100}
               onChange={(e) => {
@@ -736,7 +741,7 @@ export default function ProfilePage() {
                 setRemoveQuote(false);
               }}
               className="min-h-[70px] resize-none p-4 text-sm md:text-sm"
-              placeholder="Write your 7-word motivational quote (all users)..."
+              placeholder="Write your 7-word motivational quote (all users)…"
             />
           </div>
         </div>

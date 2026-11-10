@@ -1,7 +1,10 @@
 # ADR 0015 — The cutoff for withdrawing an approved leave
 
 ## Status
-Accepted
+Accepted — its UTC comparison is superseded by ADR 0039: "today" is now the
+date in Manila on both the database and the browser side, so the rule is exact
+rather than one day lenient before 8 AM. The cutoff itself (the leave's first
+date) stands.
 
 ## Context
 

@@ -67,15 +67,47 @@ export const OPPORTUNITY_STATUS_THEME = {
   LEAD: STATUS_THEME.MAUVE,
   QUALIFIED: STATUS_THEME.AMBER,
   PROPOSAL_SUBMITTED: STATUS_THEME.BLUE,
+  // #930: these two were missing and read as mauve; they take the color they are seeded with.
+  FOR_BIDDING: STATUS_THEME.AMBER,
   BID_SUBMITTED: STATUS_THEME.BLUE,
   NEGOTIATION: STATUS_THEME.VIOLET,
   AWARDED: STATUS_THEME.GREEN,
+  PAYMENT_VERIFICATION: STATUS_THEME.AMBER,
   PO_RECEIVED: STATUS_THEME.GREEN,
   PROJECT_DELIVERY: STATUS_THEME.ORANGE,
   COLLECTION: STATUS_THEME.ORANGE,
   CLOSED_WON: STATUS_THEME.GREEN,
   RETENTION: STATUS_THEME.VIOLET,
   CLOSED_LOST: STATUS_THEME.RED,
+};
+
+// IPAS (Integrated Purchasing & Shipping): its lifecycle, sign-off, filing and
+// Landed Cost words, and the done / now / waiting ladder the record page draws
+// on its chain and section rows. Keys are the stored values upper-cased, as
+// getStatusTheme looks them up. A cancelled IPAS reads like every other
+// cancelled thing (red, from TASK_STATUS_THEME); it has no key of its own.
+export const IPAS_STATUS_THEME = {
+  // ipas.state
+  OPEN: STATUS_THEME.AMBER,
+  FILED: STATUS_THEME.GREEN,
+  // Sign-off status of a section (utils/ipasSignoffs SIGNOFF_STATUS).
+  NOT_PREPARED: STATUS_THEME.MAUVE,
+  AWAITING_APPROVAL: STATUS_THEME.AMBER,
+  APPROVED: STATUS_THEME.GREEN,
+  // Filing (FILING_STATUS): FILED is above.
+  WAITING: STATUS_THEME.MAUVE,
+  READY: STATUS_THEME.AMBER,
+  IN_PROGRESS: STATUS_THEME.AMBER,
+  // Landed Cost (IPAS_LANDED_COST_STATUS). Not "UNAVAILABLE": that is a
+  // procurement outcome and reads red there.
+  PROVISIONAL: STATUS_THEME.AMBER,
+  FINAL: STATUS_THEME.GREEN,
+  NOT_AVAILABLE: STATUS_THEME.MAUVE,
+  // The record page's progress ladder (record/statePalette.js) and the SOR
+  // summary's tracks: done, the one thing that is next, partly done, not yet.
+  DONE: STATUS_THEME.GREEN,
+  CURRENT: STATUS_THEME.AMBER,
+  PARTIAL: STATUS_THEME.AMBER,
 };
 
 // "My Requests" stage ladder (issue #158, #160): submitted -> waiting on a
@@ -115,6 +147,8 @@ export const getStatusTheme = (status) => {
   if (PROCUREMENT_LABEL_THEME[safeStatus])
     return PROCUREMENT_LABEL_THEME[safeStatus];
 
+  if (IPAS_STATUS_THEME[safeStatus]) return IPAS_STATUS_THEME[safeStatus];
+
   // Legacy / other supports
   switch (safeStatus) {
     case "WON":
@@ -145,6 +179,22 @@ export const getStatusDotColor = (status) => {
     case STATUS_THEME.VIOLET: return "bg-violet-9 shadow-[0_0_8px_rgba(139,92,246,0.3)]";
     case STATUS_THEME.ORANGE: return "bg-orange-9 shadow-[0_0_8px_rgba(249,115,22,0.3)]";
     default: return "bg-mauve-9 shadow-[0_0_8px_rgba(158,158,158,0.3)]";
+  }
+};
+
+// The dot, the word and the ring of a theme, for a status drawn as a mark beside
+// its word instead of a pill (the IPAS chain and section rows). Text uses the
+// Radix step that clears 4.5:1 on the card, as StatusBadge does; mauve reads as
+// the muted foreground. Literal class names, so Tailwind sees every one.
+export const getStatusToneClasses = (theme) => {
+  switch (theme) {
+    case STATUS_THEME.GREEN: return { dot: "bg-green-9", text: "text-green-12", ring: "border-green-9" };
+    case STATUS_THEME.AMBER: return { dot: "bg-amber-9", text: "text-amber-12", ring: "border-amber-9" };
+    case STATUS_THEME.BLUE: return { dot: "bg-blue-9", text: "text-blue-11", ring: "border-blue-9" };
+    case STATUS_THEME.RED: return { dot: "bg-red-9", text: "text-red-11", ring: "border-red-9" };
+    case STATUS_THEME.VIOLET: return { dot: "bg-violet-9", text: "text-violet-11", ring: "border-violet-9" };
+    case STATUS_THEME.ORANGE: return { dot: "bg-orange-9", text: "text-orange-12", ring: "border-orange-9" };
+    default: return { dot: "bg-mauve-7", text: "text-muted-foreground", ring: "border-mauve-7" };
   }
 };
 

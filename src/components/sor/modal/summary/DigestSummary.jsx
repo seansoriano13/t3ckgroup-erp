@@ -10,6 +10,7 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Avatar from "../../../Avatar";
+import StatusBadge from "../../../StatusBadge";
 import { useDigest } from "./useDigest";
 import { LABEL, QuoteActions, detailRows, formatShort, showMoney, teamRows } from "./shared";
 
@@ -36,12 +37,22 @@ function Stat({ label, value, sub, tone }) {
 
 export function StatusLine({ p, dg }) {
   const m = dg.moves;
+  const unmetGateCount = Math.max(
+    dg.blocked?.length || 0,
+    (p.checklist || []).filter(
+      ({ condition, status }) =>
+        condition?.is_required !== false &&
+        status !== "satisfied" &&
+        status !== "not_applicable",
+    ).length,
+  );
+  const isBlocked = unmetGateCount > 0;
   const nextLine = m.isTerminal
     ? "Deals stop here."
     : p.moveDisabled
       ? p.moveDisabledReason
-      : dg.blocked.length
-        ? `Can't move on until ${dg.blocked.length === 1 ? "one thing is" : `${dg.blocked.length} things are`} done.`
+      : isBlocked
+        ? `Can't move on until ${unmetGateCount === 1 ? "one thing is" : `${unmetGateCount} things are`} done.`
         : m.isFlow && m.destinations.length
           ? `Ready to move to ${m.destinations.map((d) => d.label).join(" or ")}.`
           : "Ready to move on.";
@@ -51,7 +62,7 @@ export function StatusLine({ p, dg }) {
         In {m.currentLabel}
         {dg.days != null && <span className="text-muted-foreground"> · {dg.days === 0 ? "since today" : `${dg.days} day${dg.days === 1 ? "" : "s"}`}</span>}
       </p>
-      <p className={cn("mt-1 text-sm", dg.blocked.length && !m.isTerminal ? "font-semibold text-amber-11" : "text-muted-foreground")}>{nextLine}</p>
+      <p className={cn("mt-1 text-sm", isBlocked && !m.isTerminal ? "font-semibold text-amber-11" : "text-muted-foreground")}>{nextLine}</p>
     </section>
   );
 }
@@ -74,7 +85,7 @@ export function StatsBand({ p, dg, className }) {
   );
 }
 
-/** `go(target)` gets "now" | "items" | "details"; a caller without a Details view maps "details" itself. */
+/** `go(target)` gets "now" | "items" | "details" | "pms"; a caller without a Details view maps "details" itself. */
 export function AttentionList({ dg, go }) {
   return (
     <section>
@@ -119,6 +130,33 @@ export function KeyFacts({ p, cols = 2 }) {
   );
 }
 
+/**
+ * #477: who has been mentioned into this SOR, by whom, on which Stage, and
+ * whether that window is still open. Mentions chain, so the Deal Team needs to
+ * see who is in. Read-only; renders nothing when no one has been. `shares`
+ * comes from `sor_mention_shares`, read by SorModal (full access only).
+ */
+export function SharedWithList({ shares = [] }) {
+  if (shares.length === 0) return null;
+  return (
+    <div>
+      <SectionTitle>Shared with</SectionTitle>
+      <ul className="space-y-1.5">
+        {shares.map((s) => (
+          <li key={s.id} className="flex items-baseline gap-2 text-[12px]">
+            <span className="truncate font-semibold text-foreground">{s.employee_name}</span>
+            <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+              {s.stage_name ? `at ${s.stage_name}` : "this SOR"}
+              {s.granted_by_name ? ` · by ${s.granted_by_name}` : ""}
+            </span>
+            <StatusBadge theme={s.is_open ? "violet" : "mauve"} label={s.is_open ? "Open" : "Ended"} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function TeamAndQuote({ p }) {
   const { people } = teamRows(p.opportunity);
   return (
@@ -139,6 +177,7 @@ export function TeamAndQuote({ p }) {
           </ul>
         )}
       </div>
+      <SharedWithList shares={p.mentionShares} />
       <QuoteActions p={p} stacked={false} />
     </section>
   );

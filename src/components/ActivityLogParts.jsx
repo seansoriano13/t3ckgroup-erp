@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Dot from "./ui/Dot";
 import { Button } from "@/components/ui/button";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /** Lights up for two seconds when a realtime entry lands. */
 export function LiveIndicator({ active }) {
@@ -13,7 +14,7 @@ export function LiveIndicator({ active }) {
         color={active ? "bg-green-9 shadow-[0_0_8px_var(--green-9)]" : "bg-muted-foreground/40"}
         className={active ? "animate-pulse" : ""}
       />
-      <span className="text-[10px] font-bold uppercase tracking-wider">{active ? "New Update" : "Live"}</span>
+      <span className={`${CAPTION_BASE} tracking-wider`}>{active ? "New Update" : "Live"}</span>
     </div>
   );
 }

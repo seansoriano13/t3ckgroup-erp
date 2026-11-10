@@ -3,7 +3,7 @@
  * owner-visibility.md) — what a Stage owes, shown before a move is tried,
  * not discovered one refusal at a time.
  *
- * `opportunityService` is mocked wholesale (prior art: PurchasingPanel.test.jsx)
+ * `opportunityService` is mocked wholesale
  * — per-kind evaluation already has its own coverage in stageGate.test.js and
  * opportunityService.test.js; what this file protects is what the Deal Owner
  * actually sees and can do: which items still block, who satisfied what, and
@@ -72,6 +72,65 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+// Issue #885 — the box must never claim "clear" before the conditions (and the
+// Stage Fields the header counts) have loaded, and must agree with the header.
+describe("while the Stage's conditions are still loading", () => {
+  it("renders no clear wording, only a checking state", async () => {
+    opportunityService.getStageChecklist.mockReturnValue(new Promise(() => {}))
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect(await screen.findByText("Checking what this stage owes…")).toBeInTheDocument()
+    expect(screen.queryByText("Nothing blocks this stage.")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Stage requirements met/)).not.toBeInTheDocument()
+  })
+
+  it("waits for the Stage Fields before claiming nothing blocks", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" blockersPending />,
+    )
+
+    expect(await screen.findByText("Checking what this stage owes…")).toBeInTheDocument()
+    expect(screen.queryByText("Nothing blocks this stage.")).not.toBeInTheDocument()
+  })
+})
+
+describe("a required Stage Field that is still empty", () => {
+  it("is named as blocking, so the box does not say nothing blocks", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    renderWithProviders(
+      <StageChecklist
+        opportunity={OPPORTUNITY}
+        employees={EMPLOYEES}
+        actorId="emp-1"
+        missingRequiredStageFields={[{ label: "Brochure From Client" }, { label: "Project GS" }]}
+      />,
+    )
+
+    expect(
+      await screen.findByText("Still needed before this stage can move: Brochure From Client, Project GS."),
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Nothing blocks this stage.")).not.toBeInTheDocument()
+  })
+
+  it("keeps the all-met message off while a field is still missing", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({ status: CONDITION_STATUS.SATISFIED, satisfiedBy: null, satisfiedAt: null }),
+    ])
+    renderWithProviders(
+      <StageChecklist
+        opportunity={OPPORTUNITY}
+        employees={EMPLOYEES}
+        actorId="emp-1"
+        missingRequiredStageFields={[{ label: "Expected Award Date" }]}
+      />,
+    )
+
+    await screen.findByText("Satisfied.")
+    expect(screen.queryByText(/Stage requirements met/)).not.toBeInTheDocument()
+  })
+})
+
 describe("nothing configured", () => {
   it("says nothing blocks the stage when the current Stage has no conditions", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([])
@@ -97,6 +156,145 @@ describe("what's outstanding", () => {
     renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
 
     expect(await screen.findByText("Optional")).toBeInTheDocument()
+  })
+
+  it("does not say an optional item is not yet satisfied (#900)", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({ condition: { ...item().condition, is_required: false } }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect(await screen.findByText("Optional. Not needed to move on.")).toBeInTheDocument()
+    expect(screen.queryByText(/not yet satisfied/i)).not.toBeInTheDocument()
+  })
+})
+
+// Issue #900 — a single-line field on the record saves when Enter is pressed, as the Canvass offers do.
+describe("a single-line field on the record saves on Enter", () => {
+  const fieldCondition = {
+    id: "f-1",
+    kind: "field",
+    label: "Contact person",
+    is_required: true,
+    sort_order: 0,
+    config: { column: "contact_person" },
+  }
+
+  it("saves the typed value on Enter", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([item({ condition: fieldCondition })])
+    const onSaveField = vi.fn(async () => {})
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" onSaveField={onSaveField} />,
+    )
+    const user = setupUser()
+
+    await user.type(await screen.findByLabelText("Contact person"), "Ana Reyes{Enter}")
+
+    await waitFor(() => expect(onSaveField).toHaveBeenCalledWith("contact_person", "Ana Reyes"))
+  })
+
+  it("does nothing on Enter while the field is empty", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([item({ condition: fieldCondition })])
+    const onSaveField = vi.fn(async () => {})
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" onSaveField={onSaveField} />,
+    )
+    const user = setupUser()
+
+    await user.click(await screen.findByLabelText("Contact person"))
+    await user.keyboard("{Enter}")
+
+    expect(onSaveField).not.toHaveBeenCalled()
+  })
+})
+
+describe("what the stage owes count (A22)", () => {
+  it("counts only required items, not the ones labelled Optional", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item(),
+      item({ condition: { ...item().condition, id: "opt-1", label: "Contract", is_required: false } }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    await screen.findByText("Contract")
+    expect(screen.getByText("0 of 1")).toBeInTheDocument()
+  })
+})
+
+describe("Costing settled (#272)", () => {
+  const costing = (overrides = {}) =>
+    item({
+      condition: { id: "cs-1", kind: "costing_settled", label: "Costing settled", is_required: true, sort_order: 0 },
+      ...overrides,
+    })
+
+  it("lists which checks fail, in plain words", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      costing({
+        detail: {
+          failing: ["missing_final_offer", "evaluation_not_approved", "bid_not_go"],
+          messages: [
+            "2 Tender Lines have no Final Offer.",
+            "The Evaluation of Specification is not approved.",
+            "There is no Bid Decision yet.",
+          ],
+        },
+      }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    const list = await screen.findByRole("list", { name: "Costing settled: what is missing" })
+    expect(list).toHaveTextContent("2 Tender Lines have no Final Offer.")
+    expect(list).toHaveTextContent("The Evaluation of Specification is not approved.")
+    expect(list).toHaveTextContent("There is no Bid Decision yet.")
+  })
+
+  it("lists nothing once it is met", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([costing({ status: CONDITION_STATUS.SATISFIED })])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect((await screen.findAllByText("Costing settled")).length).toBeGreaterThan(0)
+    expect(screen.queryByRole("list", { name: /what is missing/ })).not.toBeInTheDocument()
+  })
+})
+
+describe("Goods checked shows its basis", () => {
+  const goods = (overrides = {}) =>
+    item({
+      condition: { id: "gc-1", kind: "goods_checked", label: "Goods checked", is_required: true, sort_order: 0 },
+      ...overrides,
+    })
+
+  it("names each Transmittal and its state while it is unmet", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      goods({
+        detail: {
+          failing: ["slips_not_closed"],
+          messages: ["1 Transmittal naming this SOR is not Closed yet."],
+          basis: [
+            { number: "TG03-581", state: "Closed" },
+            { number: "TG03-590", state: "Waiting on Technical" },
+          ],
+        },
+      }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    const basis = await screen.findByRole("list", { name: "Goods checked: based on" })
+    expect(basis).toHaveTextContent("TG03-581 · Closed")
+    expect(basis).toHaveTextContent("TG03-590 · Waiting on Technical")
+  })
+
+  it("still names them once it is met", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([
+      goods({
+        status: CONDITION_STATUS.SATISFIED,
+        detail: { failing: [], messages: [], basis: [{ number: "TG03-581", state: "Closed" }] },
+      }),
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect(await screen.findByRole("list", { name: "Goods checked: based on" })).toHaveTextContent("TG03-581 · Closed")
   })
 })
 
@@ -202,6 +400,28 @@ describe("attachment — pick an existing SOR file (issue #203, story 13)", () =
         ],
       ),
     )
+  })
+})
+
+describe("attachment — a picked file is not listed twice", () => {
+  it("lists a file once even when a pick already linked it into a second note", async () => {
+    const user = setupUser()
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({ condition: { ...item().condition, kind: "attachment", label: "Notice of Award", config: {} } }),
+    ])
+    const file = { url: "https://files/x.pdf", name: "Award.pdf", type: "pdf" }
+    opportunityService.getNotes.mockResolvedValue([
+      { metadata: { attachments: [file] } },
+      // what a previous pick leaves behind: same file, stamped for a condition
+      { metadata: { attachments: [{ ...file, linked: true, conditionId: "req-1", stageVisitId: "visit-1" }] } },
+    ])
+
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    await screen.findByText("Notice of Award")
+    await user.click(screen.getByRole("button", { name: /Pick existing file/i }))
+
+    expect(await screen.findAllByRole("button", { name: "Award.pdf" })).toHaveLength(1)
   })
 })
 

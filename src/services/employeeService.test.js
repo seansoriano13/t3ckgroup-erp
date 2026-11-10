@@ -57,6 +57,48 @@ describe("employeeService", () => {
       expect(found.has_bug_report_access).toBe(true)
     })
 
+    it("maps Finance access, defaulting to off", async () => {
+      makeEmployee({ email: "fin@t3ckgroup.test", has_finance_flow: true })
+      makeEmployee({ email: "plain@t3ckgroup.test" })
+
+      expect((await employeeService.getEmployeeByEmail("fin@t3ckgroup.test")).has_finance_flow).toBe(true)
+      expect((await employeeService.getEmployeeByEmail("plain@t3ckgroup.test")).has_finance_flow).toBe(false)
+      const all = await employeeService.getAllEmployees()
+      expect(all.find((e) => e.email === "fin@t3ckgroup.test").has_finance_flow).toBe(true)
+    })
+
+    it("maps the call sign, null when none", async () => {
+      makeEmployee({ email: "boss@t3ckgroup.test", call_sign: "101" })
+      makeEmployee({ email: "nobody@t3ckgroup.test" })
+
+      expect((await employeeService.getEmployeeByEmail("boss@t3ckgroup.test")).call_sign).toBe("101")
+      expect((await employeeService.getEmployeeByEmail("nobody@t3ckgroup.test")).call_sign).toBeNull()
+      const all = await employeeService.getAllEmployees()
+      expect(all.find((e) => e.email === "boss@t3ckgroup.test").call_sign).toBe("101")
+      expect(all.find((e) => e.email === "nobody@t3ckgroup.test").call_sign).toBeNull()
+    })
+
+    it("marks an employee who is on an IPAS sign-off list, and nobody else", async () => {
+      const signer = makeEmployee({ email: "signer@t3ckgroup.test" })
+      makeEmployee({ email: "bystander@t3ckgroup.test" })
+      db.seed("ipas_signer_lists", { list_key: "s1_approved", employee_id: signer.id })
+
+      expect((await employeeService.getEmployeeByEmail("signer@t3ckgroup.test")).isIpasSigner).toBe(true)
+      expect((await employeeService.getEmployeeByEmail("bystander@t3ckgroup.test")).isIpasSigner).toBe(false)
+    })
+
+    it("marks anyone on a sign-off list as an IPAS approver, section 7's lists included", async () => {
+      const received = makeEmployee({ email: "received@t3ckgroup.test" })
+      const approver = makeEmployee({ email: "approver@t3ckgroup.test" })
+      makeEmployee({ email: "nobody@t3ckgroup.test" })
+      db.seed("ipas_signer_lists", { list_key: "s7_received", employee_id: received.id })
+      db.seed("ipas_signer_lists", { list_key: "s3_approved", employee_id: approver.id })
+
+      expect((await employeeService.getEmployeeByEmail("received@t3ckgroup.test")).isIpasApprover).toBe(true)
+      expect((await employeeService.getEmployeeByEmail("approver@t3ckgroup.test")).isIpasApprover).toBe(true)
+      expect((await employeeService.getEmployeeByEmail("nobody@t3ckgroup.test")).isIpasApprover).toBe(false)
+    })
+
     it("maps hidden_nav_keys onto hiddenNavKeys, defaulting to empty", async () => {
       makeEmployee({ email: "hidden@t3ckgroup.test", hidden_nav_keys: ["sales.commissionDashboard"] })
       makeEmployee({ email: "unhidden@t3ckgroup.test" })
@@ -138,6 +180,18 @@ describe("employeeService", () => {
         name: "Ana Reyes",
         department: "IT",
       })
+    })
+
+    it("stores a typed call sign, and none for a blank one", async () => {
+      const base = { department: "OPERATIONS", role: "EMPLOYEE", updatedBy: actor.id }
+      await employeeService.createEmployee({ ...base, name: "Cs", email: "cs@t3ckgroup.test", call_sign: " 1203 " })
+      await employeeService.createEmployee({ ...base, name: "None", email: "none@t3ckgroup.test", call_sign: "" })
+      await employeeService.createEmployee({ ...base, name: "Unset", email: "unset@t3ckgroup.test" })
+
+      const sign = (email) => db.rows("employees").find((e) => e.email === email).call_sign
+      expect(sign("cs@t3ckgroup.test")).toBe("1203")
+      expect(sign("none@t3ckgroup.test")).toBeNull()
+      expect(sign("unset@t3ckgroup.test")).toBeNull()
     })
 
     it("opens Bug Reports by default for the IT Team, and an explicit choice wins", async () => {
@@ -319,6 +373,35 @@ describe("employeeService", () => {
       )
 
       expect(db.rows("employees").find((e) => e.id === employee.id).has_bug_report_access).toBe(true)
+    })
+
+    it("saves a grant of Finance access", async () => {
+      const employee = makeEmployee({ name: "Fe", has_finance_flow: false })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Fe", email: null, has_finance_flow: true },
+        actor.id,
+      )
+
+      expect(db.rows("employees").find((e) => e.id === employee.id).has_finance_flow).toBe(true)
+    })
+
+    it("saves a call sign trimmed, turns blank into none, and leaves it alone when the caller says nothing", async () => {
+      const employee = makeEmployee({ name: "Cal", call_sign: null })
+      const callSign = () => db.rows("employees").find((e) => e.id === employee.id).call_sign
+
+      await employeeService.updateEmployee(employee.id, { name: "Cal", email: null, call_sign: "  1203 " }, actor.id)
+      expect(callSign()).toBe("1203")
+
+      await employeeService.updateEmployee(employee.id, { name: "Cal", email: null }, actor.id)
+      expect(callSign()).toBe("1203")
+
+      await employeeService.updateEmployee(employee.id, { name: "Cal", email: null, call_sign: "   " }, actor.id)
+      expect(callSign()).toBeNull()
+
+      await employeeService.updateEmployee(employee.id, { name: "Cal", email: null, call_sign: "" }, actor.id)
+      expect(callSign()).toBeNull()
     })
 
     it("saves a grant of the leave-management capability", async () => {

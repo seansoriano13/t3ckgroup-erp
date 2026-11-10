@@ -90,6 +90,22 @@ describe("StageConditionManager", () => {
     });
   });
 
+  it("offers Costing settled as a kind for a new condition (#272)", async () => {
+    const stage = makeFlowStage();
+
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageConditionManager stageId={stage.id} />
+      </FlowDataProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Add$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Attachment/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Costing settled/ }));
+
+    expect(screen.getByRole("button", { name: /Costing settled/ })).toBeInTheDocument();
+  });
+
   // Issue #203, story 1/3: Kind comes first in the form, and the live
   // preview renders the same row the SOR's checklist shows — so typing a
   // label updates the exact same component the salesperson will see.

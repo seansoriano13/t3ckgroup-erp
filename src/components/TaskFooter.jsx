@@ -111,8 +111,8 @@ const TaskFooter = ({ actions, permissions, state }) => {
               </Button>
             )}
 
-            {/* --- SUBMIT FOR REVIEW (Marketing always / Procurement / All when setting enabled) --- */}
-            {(state.isMarketing || state.universalTaskSubmission || state.isProcurement) &&
+            {/* --- SUBMIT FOR REVIEW (Marketing always / All when setting enabled) --- */}
+            {(state.isMarketing || state.universalTaskSubmission) &&
               isOwner &&
               (task.status === TASK_STATUS.INCOMPLETE ||
                 task.status === TASK_STATUS.NOT_APPROVED) && (
@@ -122,16 +122,9 @@ const TaskFooter = ({ actions, permissions, state }) => {
                   disabled={
                     isSubmitting ||
                     state.task.status === TASK_STATUS.AWAITING_APPROVAL ||
-                    state.hasUncheckedItems ||
-                    state.hasUndeliveredProcurement
+                    state.hasUncheckedItems
                   }
-                  title={
-                    state.hasUndeliveredProcurement
-                      ? "All procurement products must be delivered or resolved before submitting for review"
-                      : state.hasUncheckedItems
-                        ? "Check all items first"
-                        : ""
-                  }
+                  title={state.hasUncheckedItems ? "Check all items first" : ""}
                   className="h-9 rounded-xl px-5 text-[13px] font-bold shadow-sm gap-1.5 bg-blue-9 text-white hover:bg-blue-10 border-none"
                 >
                   {isSubmitting ? (
@@ -143,7 +136,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                 </Button>
               )}
 
-            {(state.isMarketing || state.universalTaskSubmission || state.isProcurement) &&
+            {(state.isMarketing || state.universalTaskSubmission) &&
               isOwner &&
               task.status === TASK_STATUS.AWAITING_APPROVAL && (
                 <div className="flex flex-wrap items-center gap-2.5">
@@ -168,7 +161,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                     <Undo2 size={15} /> Recall
                   </Button>
 
-                  <div className="text-[10px] uppercase tracking-widest font-bold text-blue-10 flex items-center gap-1.5 px-2">
+                  <div className="text-label uppercase tracking-widest font-bold text-blue-10 flex items-center gap-1.5 px-2">
                     <Clock size={16} />
                     {state.isDelayed && state.enableVisualShaming ? (
                       <span className="text-destructive animate-pulse">
@@ -192,7 +185,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                     disabled={isSubmitting}
                     className="h-9 rounded-xl px-4 text-[13px] font-bold border border-red-6 bg-red-3 text-red-11 hover:bg-red-4 hover:text-red-11 shadow-sm gap-1.5"
                   >
-                    <XCircle size={15} /> Not Approve
+                    <XCircle size={15} /> Return
                   </Button>
 
                   <Button
@@ -226,7 +219,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                   ) : (
                     <ShieldCheck size={15} />
                   )}
-                  Verify & Sign
+                  Verify & sign
                 </Button>
               )}
 

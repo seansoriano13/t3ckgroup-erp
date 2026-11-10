@@ -4,22 +4,21 @@ import { cleanChoiceOptions } from "./choiceOptions";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * How a Stage field will look on the SOR, drawn from the draft being edited.
- * Shared by the Stage Fields form and the Release Notes deck, so the deck shows
- * the real thing instead of a picture of it.
  */
 export default function StageFieldPreview({ draft }) {
   return (
     <div className="rounded-xl border border-dashed border-mauve-7 p-3">
-      <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+      <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
         Preview — how this looks on the SOR
       </span>
       <div className="space-y-1 rounded-lg bg-card/60 p-3 outline outline-1 -outline-offset-1 outline-mauve-5">
         <FieldBox label={<>{draft.label.trim() || (draft.source === "sor" ? SOR_STAGE_FIELDS[draft.sorField]?.label : "Untitled field")}
           {draft.isRequired ? (
-            <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
+            <span className="text-label font-black uppercase text-amber-600 dark:text-amber-400">
               Required
             </span>
           ) : (
@@ -38,6 +37,23 @@ export default function StageFieldPreview({ draft }) {
               placeholder="Select…"
               className="w-full"
             />
+          ) : draft.source === "custom" && draft.fieldType === "employee" ? (
+            <SelectField
+              disabled
+              options={[]}
+              placeholder="Select an employee…"
+              className="w-full"
+            />
+          ) : draft.source === "custom" && draft.fieldType === "currency" ? (
+            <div className="flex w-full items-center gap-1.5">
+              <span className="text-xs font-semibold text-muted-foreground" aria-hidden="true">₱</span>
+              <Input
+                disabled
+                type="number"
+                placeholder="0.00"
+                containerClassName="flex w-full" className="h-8 cursor-not-allowed rounded-md border border-input bg-background/50 px-2.5 py-1 text-xs opacity-90 shadow-sm"
+              />
+            </div>
           ) : (
             <Input
               disabled

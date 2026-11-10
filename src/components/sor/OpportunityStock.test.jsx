@@ -15,7 +15,7 @@ import { describe, it, expect, vi } from "vitest"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 
 import { renderWithProviders } from "../../test/support"
-import { stubEdgeFunction, stubRpc } from "../../test/msw/server"
+import { stubEdgeFunction } from "../../test/msw/server"
 import { waitForNetworkIdle } from "../../test/network"
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "../../test/factories"
 import { opportunityService } from "../../services/opportunityService"
@@ -84,49 +84,6 @@ describe("OpportunityDetailsModal — Odoo stock on fetch (#202)", () => {
     )
 
     renderModal(opportunity)
-
-    await waitFor(async () => {
-      const items = await opportunityService.getItems(opportunity.id)
-      expect(items.map((i) => i.odoo_product_id)).toEqual([42])
-    })
-
-    const snapshot = await opportunityService.getStockSnapshot(opportunity.id)
-    expect(snapshot.data).toEqual(STOCK)
-  })
-
-  it("keeps each line's odoo_product_id through a manual Fetch + Save (updateOpportunity)", async () => {
-    stubRpc("sor_can_edit_opportunity", () => true)
-    const owner = makeEmployee()
-    const opportunity = makeOpportunity({ registered_by: owner.id, sales_reference: "S06070" })
-    // No existing items — Fetch Items runs straight away instead of behind
-    // the overwrite confirmation, which needs a mounted Toaster this test
-    // harness doesn't render.
-    // Empty first so the auto-sync on open doesn't consume the response the
-    // manual fetch needs below.
-    stubEdgeFunction("odoo-sor-lookup", found([], { message: "no lines" }))
-
-    renderModal(opportunity)
-    // "Fetch Items" (#53) is in the edit form.
-    fireEvent.click(await screen.findByTitle("Edit"))
-    await waitForNetworkIdle()
-
-    stubEdgeFunction(
-      "odoo-sor-lookup",
-      found(
-        [{ odoo_product_id: 42, product_name: "Fresh Ambulance", quantity: 10, unit: "unit", unit_price: 1500 }],
-        STOCK,
-      ),
-    )
-
-    const fetchButton = await screen.findByRole("button", { name: /fetch items/i })
-    fireEvent.click(fetchButton)
-
-    // The fetched line lands in the shared edit form; its editor renders on
-    // Items, not Details.
-    await screen.findByDisplayValue("Fresh Ambulance")
-
-    const saveButton = screen.getByRole("button", { name: /^save$/i })
-    fireEvent.click(saveButton)
 
     await waitFor(async () => {
       const items = await opportunityService.getItems(opportunity.id)

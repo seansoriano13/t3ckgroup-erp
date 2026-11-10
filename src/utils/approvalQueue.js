@@ -1,8 +1,8 @@
 /**
  * Queue logic for the approval pages.
  *
- * Both approval queues — the manager queue at `/approvals` and HR verification
- * at `/approvals/hr-verification` — shape the same dataset the same way: split
+ * Both steps of the task queue at `/approvals/tasks` — the head's grade and
+ * HR verification — shape the same dataset the same way: split
  * pending work by age, count it per employee, narrow it by the filter bar, and
  * order it. Keeping that here rather than in each page means the two queues
  * cannot drift apart, and it means the rules are testable without rendering a

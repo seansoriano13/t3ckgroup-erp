@@ -116,3 +116,30 @@ describe("Bug Reports page", () => {
     expect(within(sheet).queryByRole("button", { name: "Mark resolved" })).not.toBeInTheDocument();
   });
 });
+
+describe("Bug Reports paging", () => {
+  it("pages through reports with the shared pager", async () => {
+    const reader = makeEmployee({ name: "Ian", has_bug_report_access: true });
+    const reporter = makeEmployee({ name: "Ana Reyes" });
+    mockUser.current = reader;
+    for (let i = 0; i < 30; i++) {
+      db.seed("bug_reports", {
+        reporter_id: reporter.id,
+        description: `Paged bug ${i}`,
+        page_url: "/tasks",
+        environment: "staging",
+      });
+    }
+    const user = setupUser();
+
+    renderPage();
+
+    expect(await screen.findByText("Page 1 of 2")).toBeInTheDocument();
+    expect(screen.getAllByText(/^Paged bug /)).toHaveLength(25);
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+
+    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+    expect(screen.getAllByText(/^Paged bug /)).toHaveLength(5);
+  });
+});

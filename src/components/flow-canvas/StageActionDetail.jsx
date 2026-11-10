@@ -5,6 +5,9 @@ import AccessWindowConfig from "./AccessWindowConfig";
 import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
 import { Switch } from "../ui/switch";
+import { extraRequesters, purchaseRequestSummary } from "../../utils/purchaseRequestAction";
+import { costingMatrixSummary } from "../../utils/costingMatrixAction";
+import { packingListSummary } from "../../utils/packingListAction";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -22,7 +25,7 @@ import { Switch } from "../ui/switch";
 
 const Field = ({ label, children }) => (
   <div className="min-w-0">
-    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+    <p className="text-label font-black uppercase tracking-[0.16em] text-muted-foreground">
       {label}
     </p>
     <div className="mt-1.5 text-xs leading-relaxed text-foreground">{children}</div>
@@ -50,6 +53,7 @@ const Checklist = ({ value }) => {
 const deciderLabel = (selector, nameOf) => {
   if (selector.type === "employee") return nameOf(selector.id);
   if (selector.type === "team") return `Everyone in ${selector.team}`;
+  if (selector.type === "department") return `Everyone in ${selector.department} department`;
   if (selector.type === "role") return String(selector.role || "").replace(/_/g, " ");
   if (selector.type === "group") return "an Employee Group";
   return "someone";
@@ -72,8 +76,15 @@ export default function StageActionDetail({
     .map((member) => member?.employeeId)
     .filter(Boolean)
     .map(nameOf);
+  const requesters = extraRequesters(config.requesters);
   const subjectLabel =
-    assigneeNames.length === 0
+    action.kind === "open_purchase_request"
+      ? "Purchasing members"
+      : action.kind === "open_costing_matrix" || action.kind === "evaluate_specification"
+      ? "Extra members"
+      : action.kind === "request_packing_list"
+      ? "Told to pack"
+      : assigneeNames.length === 0
       ? null
       : assigneeNames.length <= 2
         ? assigneeNames.join(" and ")
@@ -98,7 +109,36 @@ export default function StageActionDetail({
         )}
       </Field>
 
-      {action.kind === "create_group_task" ? (
+      {action.kind === "request_packing_list" ? (
+        <Field label="Packing List">{packingListSummary(config, nameOf)}</Field>
+      ) : action.kind === "open_costing_matrix" || action.kind === "evaluate_specification" ? (
+        <>
+          <Field label="S0 Evaluation">{costingMatrixSummary(config, nameOf)}</Field>
+          {config.purchasingIncharge?.id ? null : (
+            <Field label="Who assigns the Purchasing Incharge">
+              {(config.assigners ?? []).length === 0
+                ? "Nobody is told"
+                : config.assigners.map((s) => deciderLabel(s, nameOf)).join(", ")}
+            </Field>
+          )}
+          <Field label="Extra members">
+            {(config.extras ?? []).length === 0
+              ? "None"
+              : config.extras.map((s) => deciderLabel(s, nameOf)).join(", ")}
+          </Field>
+        </>
+      ) : action.kind === "open_purchase_request" ? (
+        <>
+          <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
+          <Field label="Who can request items">
+            {requesters.length === 0
+              ? "The Deal Team"
+              : `The Deal Team, plus ${requesters
+                  .map((s) => deciderLabel(s, nameOf))
+                  .join(", ")}`}
+          </Field>
+        </>
+      ) : action.kind === "create_group_task" ? (
         <>
           {config.description?.trim() && (
             <Field label="Objective">{config.description}</Field>
@@ -138,7 +178,7 @@ export default function StageActionDetail({
                           {nameOf(member.employeeId)}
                         </p>
                         {(member.customRole || member.role) && (
-                          <span className="inline-block rounded bg-mauve-a3 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-mauve-11">
+                          <span className="inline-block rounded bg-mauve-a3 px-2 py-0.5 text-label font-black uppercase tracking-[0.1em] text-mauve-11">
                             {member.customRole || member.role}
                           </span>
                         )}

@@ -18,7 +18,7 @@ major_version = 17
 
 [db.seed]
 # Seeding is a deliberate, separate step (scripts/seed-restore.mjs, from a
-# sanitized staging dump) rather than a committed seed.sql — see AGENTS.md.
+# sanitized staging dump) rather than a committed seed.sql — see docs/local-development.md.
 enabled = false
 
 [studio]
@@ -82,6 +82,13 @@ enabled = false
 enabled = true
 file_size_limit = "50MiB"
 
+# Local-only upload bucket (ticket #894). `pnpm dev` sends attachments here
+# instead of Cloudinary. config.toml is read only by the local CLI, so this
+# bucket never exists on staging or production. Public so the stored URL can
+# be shown in an <img> like a Cloudinary one.
+[storage.buckets.attachments]
+public = true
+
 [local_smtp]
 enabled = true
 port = 54324
@@ -95,11 +102,11 @@ port = 54324
 [analytics]
 enabled = false
 
-# The edge runtime is disabled locally: the seven odoo-* functions below need
-# live Odoo credentials to do anything meaningful, so a local copy would test
-# nothing (see AGENTS.md and docs/adr/0011). They stay declared so "Deploy to
-# production" keeps auto-shipping function changes — that's their only job
-# in this file.
+# The edge runtime runs locally (`pnpm local:start` starts it with the rest of
+# the stack). Without Odoo credentials, odoo-sor-lookup returns sample data on
+# this stack only (see _shared/odoo.ts isLocalStack). The other odoo-* functions
+# still need live Odoo credentials (see AGENTS.md and docs/adr/0011). They stay
+# declared so "Deploy to production" keeps auto-shipping function changes.
 [edge_runtime]
 enabled = true
 
@@ -119,10 +126,21 @@ verify_jwt = false
 [functions.odoo-sor-sync]
 verify_jwt = false
 
+[functions.currency-rates-fetch]
+verify_jwt = false
+
+[functions.odoo-costing-costs]
 [functions.odoo-document-admin]
+[functions.odoo-po-ipas]
 [functions.odoo-po-rollup]
+[functions.odoo-po-suggest]
+[functions.odoo-po-sync]
 [functions.odoo-po-verify]
+[functions.brochure-search]
+[functions.odoo-product-search]
 [functions.odoo-quotation-file]
 [functions.odoo-quotation-link]
 [functions.odoo-quotation-manifest]
 [functions.odoo-sor-lookup]
+[functions.sor-sales-reference]
+[functions.odoo-supplier-search]

@@ -1,13 +1,12 @@
 import { cn } from "@/lib/utils";
+import S0Card from "../S0Card";
 import DatePicker from "react-datepicker";
-import { Download, ExternalLink, FileDown, Link2 } from "lucide-react";
+import { ExternalLink, FileDown, Link2 } from "lucide-react";
 import Spinner from "../../ui/Spinner";
 import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
 import Dropdown from "../../ui/Dropdown";
 import { FilterOptionList } from "../../ui/FilterDropdown";
-import PurchasingPanel from "../PurchasingPanel";
-import InclusionsPanel from "../InclusionsPanel";
 import OpportunityCommissionFooter from "../OpportunityCommissionFooter";
 import {
   PROJECT_TYPE_LABELS,
@@ -17,6 +16,7 @@ import {
 } from "../../../constants/sor";
 import { deriveProjectType } from "../../../utils/commission";
 import { Button } from "../../ui/button";
+import { useAuth } from "../../../context/AuthContext";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
 
@@ -31,11 +31,56 @@ function Detail({ label, children, isEditing, control, wrapperClass = "w-full" }
   }
   return (
     <div>
-      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
       <div className="text-sm font-semibold text-foreground break-words">
         {children || <span className="text-muted-foreground/60">—</span>}
       </div>
     </div>
+  );
+}
+
+// Manila dates (ADR 0039) — one date picker in the Detail box shape.
+function DateDetail({ label, field, isEditing, editForm, setEditForm, readValue }) {
+  const value = editForm?.[field];
+  return (
+    <Detail
+      label={label}
+      isEditing={isEditing}
+      control={
+        <Dropdown
+          usePortal
+          placement="bottom-start"
+          className="w-full"
+          trigger={() => (
+            <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
+              <span className={value ? "text-foreground" : "text-muted-foreground/50"}>{value || "Select date..."}</span>
+            </div>
+          )}
+        >
+          {({ close }) => (
+            <div className="p-1">
+              <DatePicker
+                selected={value ? new Date(value) : null}
+                onChange={(date) => {
+                  if (!date) {
+                    setEditForm((f) => ({ ...f, [field]: "" }));
+                  } else {
+                    const y = date.getFullYear();
+                    const m = String(date.getMonth() + 1).padStart(2, "0");
+                    const d = String(date.getDate()).padStart(2, "0");
+                    setEditForm((f) => ({ ...f, [field]: `${y}-${m}-${d}` }));
+                  }
+                  close();
+                }}
+                inline
+              />
+            </div>
+          )}
+        </Dropdown>
+      }
+    >
+      {readValue}
+    </Detail>
   );
 }
 
@@ -118,6 +163,8 @@ function formatLongDate(dateString) {
  * shell. The panels inside fetch their own data, only once rendered here.
  */
 export default function DetailsTab({ ctx }) {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.is_super_admin === true || user?.isSuperAdmin === true;
   const {
     opportunity,
     isEditing,
@@ -125,8 +172,6 @@ export default function DetailsTab({ ctx }) {
     setEditForm,
     employees,
     activeLeadSources,
-    requiresInclusions,
-    requiresPurchasing,
     estimatedValueDisplay,
     estimatedValueSize,
     buildingLink,
@@ -134,8 +179,6 @@ export default function DetailsTab({ ctx }) {
     handleCopyQuotationLink,
     downloadStep,
     handleDownloadQuotation,
-    fetchingOdoo,
-    handleFetchFromOdoo,
     onClose,
     accessLevel,
   } = ctx;
@@ -154,7 +197,7 @@ export default function DetailsTab({ ctx }) {
             {showMoney && (
               <div className="p-5 bg-gradient-to-b from-muted/40 to-transparent">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Estimated Value</span>
+                  <span className="text-label font-bold tracking-widest text-muted-foreground uppercase">Estimated Value</span>
                   {opportunity.status && <StatusBadge status={opportunity.status} />}
                 </div>
                 {isEditing ? (
@@ -214,8 +257,8 @@ export default function DetailsTab({ ctx }) {
               </div>
             )}
 
-            <div className="p-5">
-              <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Team & Assignees</p>
+            <div className="p-5" id="sor-team-assignees">
+              <p className="mb-3 text-label font-bold tracking-widest text-muted-foreground uppercase">Team & Assignees</p>
               {isEditing ? (
                 <div className="space-y-3">
                   <Detail
@@ -380,7 +423,7 @@ export default function DetailsTab({ ctx }) {
 
         <div className="flex flex-col gap-6 lg:col-span-8">
           <div className="rounded-2xl border border-border/70 bg-card p-6 shadow-xs">
-            <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Deal Details</p>
+            <p className="mb-4 text-label font-bold tracking-widest text-muted-foreground uppercase">Deal Details</p>
             <div className={cn("grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3",)}>
               <Detail
                 label="Lead Source"
@@ -555,6 +598,44 @@ export default function DetailsTab({ ctx }) {
                 {formatLongDate(opportunity.expected_award_date)}
               </Detail>
 
+              {/* The Contract Date (the client's PO or contract) follows the same rule:
+                  the Deal Team may type it while blank; once set, only a Super Admin. */}
+              <DateDetail
+                label="Contract Date"
+                field="contract_date"
+                isEditing={isEditing && (!opportunity.contract_date || isSuperAdmin)}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                readValue={formatLongDate(opportunity.contract_date)}
+              />
+
+              {/* Once the Date of Award is set, only a Super Admin changes it (the
+                  database enforces it too). PDI and Delivery stay open to the Deal Team. */}
+              <DateDetail
+                label="Date of Award"
+                field="date_of_award"
+                isEditing={isEditing && (!opportunity.date_of_award || isSuperAdmin)}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                readValue={formatLongDate(opportunity.date_of_award)}
+              />
+              <DateDetail
+                label="Date of PDI"
+                field="date_of_pdi"
+                isEditing={isEditing}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                readValue={formatLongDate(opportunity.date_of_pdi)}
+              />
+              <DateDetail
+                label="Date of Delivery"
+                field="date_of_delivery"
+                isEditing={isEditing}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                readValue={formatLongDate(opportunity.date_of_delivery)}
+              />
+
               <Detail
                 label="Contact Person"
                 isEditing={isEditing}
@@ -572,42 +653,15 @@ export default function DetailsTab({ ctx }) {
                 {opportunity.contact_person}
               </Detail>
 
-              {isEditing ? (
-                <div className="flex gap-2 items-stretch col-span-1 sm:col-span-2 md:col-span-1 lg:col-span-2 xl:col-span-1 2xl:col-span-2">
-                  <Detail
-                    label="Sales Reference"
-                    isEditing={true}
-                    wrapperClass="flex-1"
-                    control={
-                      <Input
-                        type="text"
-                        value={editForm.sales_reference}
-                        onChange={(e) => setEditForm((f) => ({ ...f, sales_reference: e.target.value.toUpperCase() }))}
-                        containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground/50 outline-none font-medium uppercase"
-                        placeholder="e.g. S01237"
-                      />
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={fetchingOdoo || !editForm.sales_reference}
-                    onClick={handleFetchFromOdoo}
-                    className="h-full min-h-[66px] shrink-0 gap-2 rounded-xl px-4 text-[13px]"
-                  >
-                    {fetchingOdoo ? <Spinner size="sm" /> : <Download size={16} />}
-                    <span className="hidden sm:inline">Fetch Items</span>
-                  </Button>
-                </div>
-              ) : (
-                <Detail label="Sales Reference">
-                  {opportunity.sales_reference ? (
-                    <span className="font-mono text-primary font-bold">{opportunity.sales_reference}</span>
-                  ) : opportunity.status === "LEAD" ? (
-                    <span className="text-xs font-medium text-amber-11">Required to qualify</span>
-                  ) : null}
-                </Detail>
-              )}
+              <Detail label="Sales Reference">
+                {isEditing && opportunity.id ? (
+                  <S0Card opportunityId={opportunity.id} />
+                ) : opportunity.sales_reference ? (
+                  <span className="font-mono text-primary font-bold">{opportunity.sales_reference}</span>
+                ) : opportunity.status === "LEAD" ? (
+                  <span className="text-xs font-medium text-amber-11">Required to qualify</span>
+                ) : null}
+              </Detail>
 
               {itbGateSatisfiedBy(opportunity) && (
                 <Detail label="ITB Number (Invitation to Bid)">
@@ -619,8 +673,6 @@ export default function DetailsTab({ ctx }) {
         </div>
       </div>
 
-      {!isEditing && <InclusionsPanel opportunity={opportunity} isRequired={requiresInclusions} />}
-      {!isEditing && <PurchasingPanel opportunity={opportunity} isRequired={requiresPurchasing} />}
 
       {!isEditing && showMoney && <OpportunityCommissionFooter opportunity={opportunity} onClose={onClose} />}
     </div>

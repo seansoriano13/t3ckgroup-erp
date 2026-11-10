@@ -1,7 +1,7 @@
 ﻿# ADR 0012 — Server-Side Projection for the Employee Leave Calendar
 
 ## Status
-Accepted
+Superseded by ADR 0037 (the Calendar reads one server projection, `calendar_entries()`). The per-table queries and the leave calendar component described here were removed in #623.
 
 ## Context
 

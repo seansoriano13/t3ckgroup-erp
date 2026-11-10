@@ -366,15 +366,15 @@ export default function RetailOrdersQueue() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <Table>
+            <Table tableId="retail-queue">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="whitespace-nowrap">SO #</TableHead>
-                  <TableHead>Client / Buyer</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Amount</TableHead>
-                  <TableHead className="whitespace-nowrap">Assigned To</TableHead>
-                  <TableHead className="whitespace-nowrap">Order Date</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead id="so" className="whitespace-nowrap">SO #</TableHead>
+                  <TableHead id="client-buyer">Client / Buyer</TableHead>
+                  <TableHead id="amount" className="text-right whitespace-nowrap">Amount</TableHead>
+                  <TableHead id="assigned-to" className="whitespace-nowrap">Assigned To</TableHead>
+                  <TableHead id="order-date" className="whitespace-nowrap">Order Date</TableHead>
+                  <TableHead id="actions">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -421,15 +421,15 @@ export default function RetailOrdersQueue() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <Table>
+                <Table tableId="retail-history">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>SO #</TableHead>
-                      <TableHead>Client / Buyer</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Assigned To</TableHead>
-                      <TableHead>Order Date</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead id="so">SO #</TableHead>
+                      <TableHead id="client-buyer">Client / Buyer</TableHead>
+                      <TableHead id="amount" className="text-right">Amount</TableHead>
+                      <TableHead id="assigned-to">Assigned To</TableHead>
+                      <TableHead id="order-date">Order Date</TableHead>
+                      <TableHead id="status">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

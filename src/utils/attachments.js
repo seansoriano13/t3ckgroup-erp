@@ -187,3 +187,13 @@ export function formatBytes(bytes) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/**
+ * Attachments to show in a file list. Picking an existing SOR file onto a
+ * Stage Condition adds a `linked: true` entry (the same file, stamped as
+ * evidence for that condition). It counts for the condition but is not a
+ * second file, so lists skip it.
+ */
+export function listableAttachments(attachments) {
+  return (attachments || []).filter((a) => !a?.linked);
+}

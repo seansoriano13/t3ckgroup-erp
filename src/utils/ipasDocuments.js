@@ -1,0 +1,376 @@
+/**
+ * Documents, Supplier Origin and the buyer track of an IPAS, as the screens read
+ * them (spec #241, #246). Pure helpers: no network, no React.
+ */
+
+import {
+  IPAS_DOCUMENT_APPLIES_TO,
+  IPAS_DOCUMENT_USED_FOR,
+  IPAS_OPTION_LIST,
+  IPAS_SOURCE,
+  IPAS_STATUS_SOURCE,
+  IPAS_SUPPLIER_ORIGIN_FIELDS,
+  ODOO_PO_STATE_LABELS,
+} from "../constants/ipas";
+
+const clean = (value) => {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text === "" ? null : text;
+};
+
+/** Why the Purchase Order line is not ticked, from Odoo's PO state. */
+function purchaseOrderReason({ ticked, state }) {
+  if (ticked) return null;
+  const label = ODOO_PO_STATE_LABELS[state];
+  return label ? `Not confirmed in Odoo yet (${label})` : "Not confirmed in Odoo yet";
+}
+
+/** Why the Received in Odoo line is not ticked: receipts done out of total. */
+function receivedReason({ ticked, partial, receiptsDone, receiptsTotal }) {
+  if (ticked) return null;
+  if (receiptsTotal <= 0) return "No receipts in Odoo yet";
+  const done = `${receiptsDone} of ${receiptsTotal} receipts done`;
+  return partial ? `Partly received · ${done}` : done;
+}
+
+/** Why the Create Bill line is not ticked. */
+const billReason = ({ ticked }) => (ticked ? null : "No bill yet");
+
+/** Whether a document kind is suggested for a Source (its own, or Both). */
+export function kindMatchesSource(kind, source) {
+  if (!kind || kind.list !== IPAS_OPTION_LIST.DOCUMENT_KIND) return false;
+  return kind.applies_to === source || kind.applies_to === IPAS_DOCUMENT_APPLIES_TO.BOTH;
+}
+
+/** Whether a kind is a filing item (section 7's checklist reads it): filing or both. */
+export function kindIsFiling(kind) {
+  return kind?.used_for === IPAS_DOCUMENT_USED_FOR.FILING || kind?.used_for === IPAS_DOCUMENT_USED_FOR.BOTH;
+}
+
+/**
+ * A document row as the page reads it. `options` is a Map of ipas_options id ->
+ * row (inactive ones included: a row keeps the kind it was given).
+ *
+ *   label        the kind's label, or the hand-added row's own
+ *   byHand       a hand-added row (no kind)
+ *   isFiling     the kind is a filing item. A hand-added row never is: nothing
+ *                says it is required at Filing.
+ *   purchasingHas, financeHas   the two ticks
+ *   ticked       either tick. That is what section 7's checklist reads: a
+ *                Waybill ticked in section 3 by either department is already
+ *                ticked at Filing.
+ */
+export function shapeDocument(row, options = new Map()) {
+  const kind = row.kind_id ? (options.get(row.kind_id) ?? null) : null;
+  const purchasingHas = Boolean(row.purchasing_has);
+  const financeHas = Boolean(row.finance_has);
+  return {
+    ...row,
+    kind,
+    label: clean(row.label) ?? kind?.label ?? "Document",
+    byHand: !row.kind_id,
+    appliesTo: kind?.applies_to ?? null,
+    usedFor: kind?.used_for ?? null,
+    isFiling: kindIsFiling(kind),
+    purchasingHas,
+    financeHas,
+    ticked: purchasingHas || financeHas || Boolean(clean(row.attachment_url)),
+    attachmentUrl: clean(row.attachment_url),
+  };
+}
+
+/**
+ * An IPAS's documents in a stable order: kind rows in the list's order, then
+ * hand-added ones as they were added.
+ */
+export function shapeDocuments(rows = [], options = []) {
+  const byId = new Map(options.map((option) => [option.id, option]));
+  return rows
+    .map((row) => shapeDocument(row, byId))
+    .sort((a, b) => {
+      if (a.byHand !== b.byHand) return a.byHand ? 1 : -1;
+      if (!a.byHand) return (a.kind?.sort ?? 0) - (b.kind?.sort ?? 0) || a.label.localeCompare(b.label);
+      return String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""));
+    });
+}
+
+/**
+ * The active document kinds matching this Source that the IPAS has no row for:
+ * what `ipas_suggest_documents` would add. Kinds added to the list after the
+ * IPAS was raised show up here.
+ */
+export function missingSuggestions(options = [], documents = [], source) {
+  const held = new Set(documents.map((doc) => doc.kind_id).filter(Boolean));
+  return options
+    .filter((option) => option.active && kindMatchesSource(option, source) && !held.has(option.id))
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || String(a.label).localeCompare(String(b.label)));
+}
+
+/**
+ * Document kinds Purchasing may add by hand: active kinds the IPAS doesn't have a
+ * row for yet, whatever their Source (the suggestion is only a start).
+ */
+export function kindsToAdd(options = [], documents = []) {
+  const held = new Set(documents.map((doc) => doc.kind_id).filter(Boolean));
+  return options
+    .filter((option) => option.list === IPAS_OPTION_LIST.DOCUMENT_KIND && option.active && !held.has(option.id))
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || String(a.label).localeCompare(String(b.label)));
+}
+
+/**
+ * The documents section 7's checklist reads: the filing items (filing or both
+ * kinds), each with whether it is ticked. `ticked` is either tick.
+ */
+export function filingChecklist(documents = []) {
+  return documents.filter((doc) => doc.isFiling).map((doc) => ({ ...doc, ticked: Boolean(doc.purchasingHas || doc.financeHas || doc.attachmentUrl) }));
+}
+
+/** The filing items still unticked (section 7's checklist reads these). */
+export function unfiledDocuments(documents = []) {
+  return filingChecklist(documents).filter((doc) => !doc.ticked);
+}
+
+/**
+ * The documents Filing expects for a Source: the kind rows whose kind matches it
+ * (Import, Local or Both), whether the kind is for documentation, filing or
+ * both. A hand-added row isn't a kind, so nothing says it is required; a kind
+ * the preparer removed isn't either (they judged it not to apply).
+ */
+export function requiredDocuments(documents = [], source) {
+  return documents.filter((doc) => !doc.byHand && doc.kind && kindMatchesSource(doc.kind, source));
+}
+
+/**
+ * The document kinds each part needs a file for before its first sign-off (#711),
+ * by Source. Part 2 (finance) is proof of payment on every payment, handled apart.
+ * Mirrors _ipas_missing_documents in the database, which is the real check.
+ */
+export const SECTION_DOCUMENT_KINDS = {
+  purchasing: { import: ["Proforma Invoice"], local: ["Quotation (Local)"] },
+  costing: { import: ["BL or Waybill", "Packing List", "Commercial Invoice", "Freight Billing"], local: [] },
+  filing: { import: ["BIR 2307"], local: ["BIR 2307"] },
+};
+
+const dateText = (iso) => {
+  const date = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? String(iso) : date.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+};
+
+/** The payments with no proof of payment attached: the one rule behind the rail, the edit bar and the 2 · Payments row. */
+export function paymentsLackingProof(payments = []) {
+  return payments.filter((payment) => !payment.proof_url);
+}
+
+/** A charge with no amount yet (0 counts as filled). The database's Landed Cost final check mirrors this (#919). */
+export function isBlankCharge(charge) {
+  return charge?.amount_php === null || charge?.amount_php === undefined;
+}
+
+/** The charges that have an amount but no file attached. */
+export function chargesLackingFile(ipas) {
+  return (ipas?.charges ?? []).filter((charge) => !isBlankCharge(charge) && !charge.attachment_url);
+}
+
+/**
+ * The documents each part still lacks a file for: { purchasing, finance, costing,
+ * filing } of label lists. A document counts once its row for that kind has an
+ * attachment; the landed cost sheet is never asked for.
+ */
+export function missingDocumentsByPart(documents = [], payments = [], source) {
+  const has = (label) =>
+    documents.some((doc) => !doc.byHand && doc.attachmentUrl && String(doc.kind?.label ?? "").trim().toLowerCase() === label.toLowerCase());
+  const lacking = (part) => (SECTION_DOCUMENT_KINDS[part]?.[source] ?? []).filter((label) => !has(label));
+  return {
+    purchasing: lacking("purchasing"),
+    finance: paymentsLackingProof(payments).map((payment) => `Proof of payment of ${dateText(payment.paid_on)}`),
+    costing: lacking("costing"),
+    filing: lacking("filing"),
+  };
+}
+
+/**
+ * Each part's required document kinds for a Source, as { part, label, missing }
+ * (#936), so the read view can list them with an asterisk and say which lack a file.
+ * Finance's proofs of payment are listed per payment, only when one is missing.
+ */
+export function requiredFilesByPart(documents = [], payments = [], source) {
+  const lacking = missingDocumentsByPart(documents, payments, source);
+  const rows = [];
+  for (const part of ["purchasing", "costing", "filing"]) {
+    for (const label of SECTION_DOCUMENT_KINDS[part]?.[source] ?? []) {
+      rows.push({ part, label, missing: lacking[part].includes(label) });
+    }
+  }
+  for (const label of lacking.finance) rows.push({ part: "finance", label, missing: true });
+  return rows;
+}
+
+/**
+ * The required documents nobody has ticked: what Filing warns about, each as
+ * { id, label, usedFor, appliesTo } and nothing more, so a warning never carries
+ * a file or an attachment link.
+ */
+export function unfiledRequiredDocuments(documents = [], source) {
+  return requiredDocuments(documents, source)
+    .filter((doc) => !(doc.purchasingHas || doc.financeHas || doc.attachmentUrl))
+    .map((doc) => ({ id: doc.id, label: doc.label, usedFor: doc.usedFor, appliesTo: doc.appliesTo }));
+}
+
+/**
+ * Supplier Origin as the page reads it: the four dates, or null on a Local IPAS
+ * (hidden there; the database refuses them too).
+ */
+export function supplierOriginOf(row) {
+  if (row?.source !== IPAS_SOURCE.IMPORT) return null;
+  return Object.fromEntries(IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, column }) => [field, row?.[column] ?? null]));
+}
+
+const person = (embed) => (embed?.id ? { id: embed.id, name: embed.name ?? null } : null);
+
+/**
+ * The buyer track in the sheet's order, each item saying where it came from:
+ *
+ *   Purchase Order     odoo    the PO's state is purchase or done
+ *   With P.O.P         derived a payment on this IPAS carries proof of payment
+ *   Import Clearance   typed   Import only (absent on a Local IPAS)
+ *   Delivered          typed
+ *   Received in Odoo   odoo    "Partly received" while only some receipts are done
+ *   Create Bill        odoo    drafts count
+ *   Actual Checking    stamped by Purchasing
+ *
+ * Every item is `{ key, label, ticked, partial, source, detail, on, by, at }`:
+ * `by` is `{ id, name }` and `at` a timestamp for typed and stamped items.
+ * `odoo` is `odooStatuses(copy)`, `hasProof` is `paymentSummary.hasProof`, and
+ * `row` is the ipas row with its typist embeds.
+ */
+export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0, transmittal = null } = {}) {
+  const isImport = row?.source === IPAS_SOURCE.IMPORT;
+
+  const items = [
+    {
+      key: "purchase_order",
+      label: "Purchase Order",
+      ticked: odoo.purchaseOrder.ticked,
+      partial: false,
+      source: IPAS_STATUS_SOURCE.ODOO,
+      detail: null,
+      reason: purchaseOrderReason(odoo.purchaseOrder),
+    },
+    {
+      key: "with_pop",
+      label: "With P.O.P",
+      ticked: hasProof,
+      partial: false,
+      source: IPAS_STATUS_SOURCE.DERIVED,
+      detail: hasProof
+        ? `${proofCount} ${proofCount === 1 ? "payment carries" : "payments carry"} proof of payment`
+        : "No payment carries proof of payment yet",
+    },
+  ];
+
+  if (isImport) {
+    items.push({
+      key: "import_clearance",
+      label: "Import Clearance",
+      ticked: Boolean(row.import_clearance_on),
+      partial: false,
+      source: IPAS_STATUS_SOURCE.TYPED,
+      detail: null,
+      on: row.import_clearance_on ?? null,
+      by: person(row.import_clearance_typer),
+      at: row.import_clearance_typed_at ?? null,
+    });
+  }
+
+  items.push(
+    deliveredItem(row, transmittal),
+    {
+      key: "received_in_odoo",
+      label: "Received in Odoo",
+      ticked: odoo.receivedInOdoo.ticked,
+      partial: odoo.receivedInOdoo.partial,
+      source: IPAS_STATUS_SOURCE.ODOO,
+      detail: null,
+      reason: receivedReason(odoo.receivedInOdoo),
+    },
+    {
+      key: "create_bill",
+      label: "Create Bill",
+      ticked: odoo.createBill.ticked,
+      partial: false,
+      source: IPAS_STATUS_SOURCE.ODOO,
+      detail: null,
+      reason: billReason(odoo.createBill),
+    },
+    actualCheckingItem(row, transmittal),
+  );
+
+  return items;
+}
+
+/**
+ * Delivered (#256): the typed date when one is typed, else the earliest
+ * first-stage completion over the Transmittals (stamped from them), else typed.
+ */
+function deliveredItem(row, transmittal) {
+  const derived = transmittal?.delivered;
+  if (derived && derived.source !== IPAS_STATUS_SOURCE.TYPED) {
+    return {
+      key: "delivered",
+      label: "Delivered",
+      ticked: Boolean(derived.on),
+      partial: false,
+      source: IPAS_STATUS_SOURCE.DERIVED,
+      via: "transmittals",
+      detail: null,
+      on: derived.on,
+      by: null,
+      at: derived.on,
+    };
+  }
+  return {
+    key: "delivered",
+    label: "Delivered",
+    ticked: Boolean(row?.delivered_on),
+    partial: false,
+    source: IPAS_STATUS_SOURCE.TYPED,
+    detail: null,
+    on: row?.delivered_on ?? null,
+    by: person(row?.delivered_typer),
+    at: row?.delivered_typed_at ?? null,
+  };
+}
+
+/**
+ * Actual Checking (#256): with no Transmittal, the hand stamp (Purchasing). With
+ * one, pending (n of m) until every slip has completed its checking stage, then
+ * stamped at the latest completion. The hand stamp is refused by then.
+ */
+function actualCheckingItem(row, transmittal) {
+  const checking = transmittal?.actualChecking;
+  if (checking && checking.status !== "none") {
+    const stamped = checking.status === "stamped";
+    return {
+      key: "actual_checking",
+      label: "Actual Checking",
+      ticked: stamped,
+      partial: !stamped,
+      source: IPAS_STATUS_SOURCE.DERIVED,
+      via: "transmittals",
+      detail: stamped ? null : `pending (${checking.done} of ${checking.total})`,
+      on: stamped ? checking.at : null,
+      by: null,
+      at: stamped ? checking.at : null,
+    };
+  }
+  return {
+    key: "actual_checking",
+    label: "Actual Checking",
+    ticked: Boolean(row?.actual_checking_by),
+    partial: false,
+    source: IPAS_STATUS_SOURCE.STAMPED,
+    detail: null,
+    by: person(row?.actual_checker),
+    at: row?.actual_checking_at ?? null,
+  };
+}

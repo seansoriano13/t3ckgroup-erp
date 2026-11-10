@@ -146,6 +146,24 @@ describe("salesFlowService", () => {
       expect(stages.map((s) => s.name)).toEqual(["Qualified", "Lead"])
     })
 
+    it("sets Auto-move only on a Stage with exactly one next Stage (#757)", async () => {
+      const flow = makeSalesFlow()
+      const a = await salesFlowService.addStage(flow.id, "A", admin.id)
+      const b = await salesFlowService.addStage(flow.id, "B", admin.id)
+      const c = await salesFlowService.addStage(flow.id, "C", admin.id)
+
+      await expect(salesFlowService.setStageAutoMove(a.id, true, admin.id)).rejects.toThrow(/exactly one next Stage/)
+
+      await salesFlowService.addEdge(flow.id, a.id, b.id, admin.id)
+      const on = await salesFlowService.setStageAutoMove(a.id, true, admin.id)
+      expect(on.auto_move).toBe(true)
+
+      await salesFlowService.addEdge(flow.id, a.id, c.id, admin.id)
+      await expect(salesFlowService.setStageAutoMove(b.id, true, admin.id)).rejects.toThrow(/exactly one next Stage/)
+      const off = await salesFlowService.setStageAutoMove(a.id, false, admin.id)
+      expect(off.auto_move).toBe(false)
+    })
+
     it("marks a Stage terminal, so the flow records where deals stop", async () => {
       const flow = makeSalesFlow()
       const lost = await salesFlowService.addStage(flow.id, "Lost", admin.id)
@@ -154,6 +172,27 @@ describe("salesFlowService", () => {
 
       const { stages } = await salesFlowService.getFlow(flow.sale_type_id)
       expect(stages.find((s) => s.id === lost.id).is_terminal).toBe(true)
+    })
+
+    it("records whether a Terminal Stage ends deals as won, and drops it when the Stage stops being terminal", async () => {
+      const flow = makeSalesFlow()
+      const closed = await salesFlowService.addStage(flow.id, "Closed Won", admin.id)
+      await salesFlowService.setStageTerminal(closed.id, true, admin.id)
+
+      await salesFlowService.setStageTerminalOutcome(closed.id, "won", admin.id)
+      let { stages } = await salesFlowService.getFlow(flow.sale_type_id)
+      expect(stages.find((s) => s.id === closed.id).terminal_outcome).toBe("won")
+
+      await salesFlowService.setStageTerminal(closed.id, false, admin.id)
+      ;({ stages } = await salesFlowService.getFlow(flow.sale_type_id))
+      expect(stages.find((s) => s.id === closed.id).terminal_outcome ?? null).toBeNull()
+    })
+
+    it("refuses an outcome that isn't won or lost", async () => {
+      const flow = makeSalesFlow()
+      const closed = await salesFlowService.addStage(flow.id, "Closed", admin.id)
+      await salesFlowService.setStageTerminal(closed.id, true, admin.id)
+      await expect(salesFlowService.setStageTerminalOutcome(closed.id, "maybe", admin.id)).rejects.toThrow(/Unknown terminal outcome/)
     })
 
     it("deletes a Stage and every edge that touched it", async () => {
@@ -560,6 +599,67 @@ describe("salesFlowService", () => {
       expect(imported.saleType.id).not.toBe(sourceSaleType.id)
       expect(imported.flow.id).not.toBe(sourceFlow.id)
       expect(imported.stages[0].id).not.toBe(lead.id)
+    })
+  })
+
+  describe("export, import file and duplicate (issue #756)", () => {
+    async function buildSource(name) {
+      const st = await salesFlowService.createSaleType(name, admin.id)
+      const flow = (await salesFlowService.getFlow(st.id)).flow
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const won = await salesFlowService.addStage(flow.id, "Awarded", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
+      await salesFlowService.setWonStage(flow.id, won.id, admin.id)
+      return flow
+    }
+
+    it("export then import gives a draft with the same stages and moves", async () => {
+      const flow = await buildSource("Export Source")
+      const file = JSON.stringify(await salesFlowService.exportFlow(flow.id))
+      const imported = await salesFlowService.importFlowFile(file, "Export Copy", admin.id)
+      expect(imported.flow.state).toBe("draft")
+      expect(imported.stages.map((s) => s.name)).toEqual(["Lead", "Awarded"])
+      expect(imported.edges.length).toBe(1)
+      expect(imported.flow.won_stage_id).toBeTruthy()
+    })
+
+    it("rejects a file that is not a Flow Snapshot", async () => {
+      await expect(salesFlowService.importFlowFile("nope", "X", admin.id)).rejects.toThrow(/not a Flow Snapshot/)
+      await expect(salesFlowService.importFlowFile({ a: 1 }, "X", admin.id)).rejects.toThrow(/not a Flow Snapshot/)
+    })
+
+    it("a copy keeps stage colour, canvas position, bracket and won/lost outcome", async () => {
+      const st = await salesFlowService.createSaleType("Look Source", admin.id)
+      const flow = (await salesFlowService.getFlow(st.id)).flow
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id, 120, 40)
+      const won = await salesFlowService.addStage(flow.id, "Closed Won", admin.id, 480, 40)
+      const lost = await salesFlowService.addStage(flow.id, "Closed Lost", admin.id, 480, 200)
+      await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
+      await salesFlowService.updateStageColor(lead.id, "blue", admin.id)
+      await salesFlowService.updateStageBracket(lead.id, "Pre-Sales", admin.id)
+      await salesFlowService.setStageTerminal(won.id, true, admin.id)
+      await salesFlowService.setStageTerminalOutcome(won.id, "won", admin.id)
+      await salesFlowService.setStageTerminal(lost.id, true, admin.id)
+      await salesFlowService.setStageTerminalOutcome(lost.id, "lost", admin.id)
+
+      const copy = await salesFlowService.duplicateFlow(flow.id, "Look Copy", admin.id)
+      const byName = Object.fromEntries(copy.stages.map((s) => [s.name, s]))
+      expect([byName.Lead.pos_x, byName.Lead.pos_y]).toEqual([120, 40])
+      expect([byName["Closed Lost"].pos_x, byName["Closed Lost"].pos_y]).toEqual([480, 200])
+      expect(byName.Lead.color).toBe("blue")
+      expect(byName.Lead.bracket_label).toBe("Pre-Sales")
+      expect(byName["Closed Won"].is_terminal).toBe(true)
+      expect(byName["Closed Won"].terminal_outcome).toBe("won")
+      expect(byName["Closed Lost"].terminal_outcome).toBe("lost")
+    })
+
+    it("duplicate makes a new draft Sale Type", async () => {
+      const flow = await buildSource("Dup Source")
+      const copy = await salesFlowService.duplicateFlow(flow.id, "Dup Copy", admin.id)
+      expect(copy.saleType.name).toBe("Dup Copy")
+      expect(copy.flow.id).not.toBe(flow.id)
+      expect(copy.flow.state).toBe("draft")
+      expect(copy.stages.length).toBe(2)
     })
   })
 

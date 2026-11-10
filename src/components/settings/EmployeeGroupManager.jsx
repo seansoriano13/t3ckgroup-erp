@@ -5,6 +5,7 @@ import { Plus, Archive, ArchiveRestore, Trash2, Users, ChevronDown, ChevronUp } 
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import PageLoading from "@/components/ui/PageLoading";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { useAuth } from "@/context/AuthContext";
@@ -129,7 +130,7 @@ export default function EmployeeGroupManager() {
       )}
 
       {isLoading ? (
-        <p className="py-6 text-center text-sm text-muted-foreground animate-pulse">Loading Employee Groups...</p>
+        <PageLoading label="employee groups" className="py-6" />
       ) : groups.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">No Employee Groups yet.</p>
       ) : (
@@ -188,7 +189,7 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-foreground">
               {group.name}
-              {isArchived && <span className="ml-2 text-[10px] font-semibold uppercase text-muted-foreground">Archived</span>}
+              {isArchived && <span className="ml-2 text-label font-semibold uppercase text-muted-foreground">Archived</span>}
             </p>
             <p className="truncate text-xs text-muted-foreground">
               {group.memberIds.length} {group.memberIds.length === 1 ? "person" : "people"}

@@ -1,7 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
+import { lwopService } from '../../../services/lwopService';
+import { mealBreakService } from '../../../services/mealBreakService';
 import { employeeService } from '../../../services/employeeService';
 import { companyService, matchesCompanyFilter } from '../../../services/companyService';
 import { useAuth } from '../../../context/AuthContext';
@@ -32,7 +35,8 @@ import PendingList from './_components/PendingList';
 import LeaveSheet from './_components/LeaveSheet';
 import ProfileSheet from './_components/ProfileSheet';
 import HistoryView from './_components/HistoryView';
-import CalendarTab from './_components/CalendarTab';
+import Calendar from '@/components/calendar/Calendar';
+import { TIME_OFF_OVERTIME_LAYERS } from '@/components/calendar/entryKinds.jsx';
 import BalancesTable from './_components/BalancesTable';
 import DocumentCenterTab from './_components/DocumentCenterTab';
 import { LEAVE_TYPES, LEAVE_VIEWS, TYPE_META } from './_components/leaveDisplay';
@@ -62,7 +66,7 @@ export default function HrLeavesManagerPage() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL'
+  const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL', 'LWOP'
   const [pendingPeriodFilter, setPendingPeriodFilter] = useState('ALL'); // 'ALL', 'THIS_MONTH', 'NEXT_MONTH', 'OVERDUE'
   const [companyFilter, setCompanyFilter] = useState('ALL'); // company id, 'ALL', or 'NONE'
   const [pendingAsc, setPendingAsc] = useState(true); // Pending sorts soonest-first
@@ -72,12 +76,13 @@ export default function HrLeavesManagerPage() {
     queryFn: () => companyService.getCompanies(),
   });
 
-  const { data, isLoading: loading } = useQuery({
+  const { data, isLoading: loading, isError, refetch } = useQuery({
     queryKey: ['hrLeaves', dateRange.startDate, dateRange.endDate],
     queryFn: async () => {
       // 1. Fetch Balances
       const allEmps = await employeeService.getAllEmployees();
       const undertimeTotals = await offsetService.getMonthlyUndertimeTotals();
+      const lwopTotals = await lwopService.getMonthlyLwopTotals();
       const empData = allEmps.map(emp => ({
         id: emp.id,
         name: emp.name,
@@ -87,6 +92,7 @@ export default function HrLeavesManagerPage() {
         sil_hours_balance: emp.sil_hours_balance,
         // Derived, read-only — never a stored balance (issue #148).
         undertime_this_month: undertimeTotals[emp.id] || 0,
+        lwop_this_month: lwopTotals[emp.id] || 0,
         company: emp.company,
       })).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -95,19 +101,23 @@ export default function HrLeavesManagerPage() {
         allOt,
         allOffset,
         allSil,
+        allLwop,
         allUndertime,
         pendingOt,
         pendingOffset,
         pendingSil,
+        pendingLwop,
         pendingUndertime
       ] = await Promise.all([
         offsetService.getAllOvertimeRequests(dateRange.startDate, dateRange.endDate),
         offsetService.getAllOffsetLeaves(dateRange.startDate, dateRange.endDate),
         silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate),
+        lwopService.getAllLwopLeaves(dateRange.startDate, dateRange.endDate),
         offsetService.getAllUndertimeRequests(dateRange.startDate, dateRange.endDate),
         offsetService.getAllPendingOvertimeRequests(),
         offsetService.getAllPendingOffsetLeaves(),
         silService.getAllPendingSilLeaves(),
+        lwopService.getAllPendingLwopLeaves(),
         offsetService.getAllPendingUndertimeRequests()
       ]);
 
@@ -115,18 +125,20 @@ export default function HrLeavesManagerPage() {
       const taggedOt = allOt.map(l => ({ ...l, type: 'OVERTIME' }));
       const taggedOffset = allOffset.map(l => ({ ...l, type: 'OFFSET' }));
       const taggedSil = allSil.map(l => ({ ...l, type: 'SIL' }));
+      const taggedLwop = allLwop.map(l => ({ ...l, type: 'LWOP' }));
       const taggedUndertime = allUndertime.map(l => ({ ...l, type: 'UNDERTIME' }));
-      const combined = [...taggedOt, ...taggedOffset, ...taggedSil, ...taggedUndertime];
+      const combined = [...taggedOt, ...taggedOffset, ...taggedSil, ...taggedLwop, ...taggedUndertime];
 
       // Tag types for dateless pending requests
       const taggedPendingOt = pendingOt.map(l => ({ ...l, type: 'OVERTIME' }));
       const taggedPendingOffset = pendingOffset.map(l => ({ ...l, type: 'OFFSET' }));
       const taggedPendingSil = pendingSil.map(l => ({ ...l, type: 'SIL' }));
+      const taggedPendingLwop = pendingLwop.map(l => ({ ...l, type: 'LWOP' }));
       const taggedPendingUndertime = pendingUndertime.map(l => ({ ...l, type: 'UNDERTIME' }));
       // A range writes one row per day (see ticket #63), so rows sharing a
       // leave_group_id are collapsed into one entry before the queue is built —
       // otherwise a 3-day leave would show as three separate pending requests.
-      const pendingCombined = groupLeaveRows([...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil, ...taggedPendingUndertime])
+      const pendingCombined = groupLeaveRows([...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil, ...taggedPendingLwop, ...taggedPendingUndertime])
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
       // Processed (from period-scoped) — grouped the same way as pending.
@@ -134,8 +146,7 @@ export default function HrLeavesManagerPage() {
         combined.filter(req => req.status !== 'PENDING' && req.status !== 'CANCELLED')
       ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
-      // Approved feeds the calendar, which plots one card per day — left
-      // ungrouped so every day in a range still gets its own cell.
+      // Approved feeds "Who is out" only; the Calendar reads its own projection.
       const approved = combined.filter(req => ['APPROVED', 'APPROVED_OFFSET', 'APPROVED_PAID'].includes(req.status) && (req.type === 'OFFSET' || req.type === 'SIL'));
 
       return {
@@ -159,6 +170,7 @@ export default function HrLeavesManagerPage() {
     const isOT = request.type === 'OVERTIME';
     const isOffset = request.type === 'OFFSET';
     const isSIL = request.type === 'SIL';
+    const isLWOP = request.type === 'LWOP';
     const isUndertime = request.type === 'UNDERTIME';
 
     // Approving overtime lets HR edit the hours actually rendered before
@@ -183,7 +195,8 @@ export default function HrLeavesManagerPage() {
       return;
     }
 
-    let actionLabel = actionType === 'reject' ? 'Reject' : 'Approve';
+    let actionLabel = actionType === 'reject' ? 'Decline' : 'Approve';
+    const pastTense = actionType === 'reject' ? 'declined' : 'approved';
 
     const rangeNote = request.dayCount > 1 ? ` (${request.dayCount} days, ${request.startDate} to ${request.endDate})` : '';
     let title = `${actionLabel} Request`;
@@ -198,8 +211,11 @@ export default function HrLeavesManagerPage() {
         } else if (isSIL) {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
           await silService.handleSilLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
+        } else if (isLWOP) {
+          const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
+          await lwopService.handleLwopLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
         }
-        toast.success(`Request ${actionLabel.toLowerCase()}d successfully.`);
+        toast.success(`Request ${pastTense} successfully.`);
         queryClient.invalidateQueries({ queryKey: ['hrLeaves'] });
       } catch (err) {
         toast.error(err.message || `Failed to ${actionLabel.toLowerCase()} request.`);
@@ -207,15 +223,29 @@ export default function HrLeavesManagerPage() {
     });
   }, [user?.id, queryClient]);
 
+  // HR's meal windows decide which requests offer "keep the hour in".
+  useEffect(() => { mealBreakService.refresh(); }, []);
+
+  const keepMealIn = async (request, reason) => {
+    try {
+      await mealBreakService.keepHourIn({ type: request.type, request, reason, hrId: user?.id });
+      toast.success('Meal hour kept in.');
+      queryClient.invalidateQueries({ queryKey: ['hrLeaves'] });
+    } catch (err) {
+      toast.error(err.message || 'Could not keep the meal hour in.');
+    }
+  };
+
   const handleUndo = useCallback((request) => {
     const isOT = request.type === 'OVERTIME';
     const isOffset = request.type === 'OFFSET';
     const isSIL = request.type === 'SIL';
+    const isLWOP = request.type === 'LWOP';
     const isUndertime = request.type === 'UNDERTIME';
 
     confirmActionToast(
       'Undo Decision',
-      `Are you sure you want to undo this decision? The request will return to PENDING status${isUndertime ? '' : ' and balances will be restored'}.`,
+      `Are you sure you want to undo this decision? The request will return to PENDING status${isUndertime || isLWOP ? '' : ' and balances will be restored'}.`,
       'Undo Decision',
       'destructive',
       async () => {
@@ -226,6 +256,8 @@ export default function HrLeavesManagerPage() {
             await offsetService.undoOffsetLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           } else if (isSIL) {
             await silService.undoSilLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
+          } else if (isLWOP) {
+            await lwopService.undoLwopLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           } else if (isUndertime) {
             await offsetService.undoUndertimeDecision({ requestId: request.id, hrId: user?.id });
           }
@@ -372,12 +404,24 @@ export default function HrLeavesManagerPage() {
 
   // A shared link lands on the view its record belongs to (the first time one opens).
   const [landed, setLanded] = useState(false);
-  if (!landed && sheet.view) {
-    setLanded(true);
-    if (sheet.view !== activeTab) setActiveTab(sheet.view);
-  }
+  useEffect(() => {
+    if (!landed && sheet.view) {
+      setLanded(true);
+      if (sheet.view !== activeTab) setActiveTab(sheet.view);
+    }
+  }, [landed, sheet.view, activeTab]);
+
+  // Otherwise open on the work: Pending when anything waits (else Calendar), once data is in.
+  const [picked, setPicked] = useState(false);
+  useEffect(() => {
+    if (!picked && !landed && !sheet.view && data) {
+      setPicked(true);
+      if (pendingLeaves.length > 0) setActiveTab('pending');
+    }
+  }, [picked, landed, sheet.view, data, pendingLeaves.length]);
   // Switching view closes the open slide-over, so `?record=` never outlives its list.
   const changeView = (view) => {
+    setPicked(true);
     sheet.close();
     setActiveTab(view);
   };
@@ -399,7 +443,7 @@ export default function HrLeavesManagerPage() {
       />
     );
   } else if (activeTab === 'calendar') {
-    view = <CalendarTab approvedLeaves={approvedLeaves} pendingLeaves={pendingLeaves} monthStart={dateRange.startDate} />;
+    view = <Calendar presetLayers={TIME_OFF_OVERTIME_LAYERS} />;
   } else if (activeTab === 'history') {
     view = <HistoryView rows={filteredProcessed} loading={loading} onOpen={openFrom} />;
   } else if (activeTab === 'documents') {
@@ -420,10 +464,13 @@ export default function HrLeavesManagerPage() {
       />
     );
   }
+  if (isError) {
+    view = <QueryError title="Leave requests could not be loaded." onRetry={refetch} />;
+  }
 
   // Level 1 switches the view; level 2 slices the list by type. Search and
   // company narrow the lists (and the level-2 counts), Pending adds a period
-  // and a sort. Calendar (Month | People) and Documents bring their own controls.
+  // and a sort. Calendar (Calendar | Gantt) and Documents bring their own controls.
   const isList = activeTab === 'pending' || activeTab === 'history';
   const typeScope = activeTab === 'history' ? processedScoped : pendingScoped;
   const typeCounts = LEAVE_TYPES.reduce((m, t) => ({ ...m, [t]: typeScope.filter(r => r.type === t).length }), {});
@@ -513,7 +560,7 @@ export default function HrLeavesManagerPage() {
     <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
       {overlays}
       <PageShell
-        title="Leaves Manager"
+        title="Time Off & Overtime"
         description="Review leave applications, approve overtime, and manage employee balances."
         action={action}
         tabs={
@@ -539,7 +586,7 @@ export default function HrLeavesManagerPage() {
         total={sheet.stepList.length}
         onStep={sheet.stepBy}
         onClose={sheet.closeRequest}
-        actions={{ decide: handleAction, undo: handleUndo, preview: setPreviewToken }}
+        actions={{ decide: handleAction, undo: handleUndo, preview: setPreviewToken, keepMealIn }}
         availableHoursFor={availableHoursFor}
       />
       <ProfileSheet

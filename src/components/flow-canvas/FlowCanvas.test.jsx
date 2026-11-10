@@ -9,6 +9,7 @@ import {
   makeOpportunity,
   makeSaleType,
   makeSalesFlow,
+  makeStageAction,
   makeStageCondition,
   makeStageField,
   makeSuperAdmin,
@@ -17,6 +18,8 @@ import {
 import { supabase } from "@/lib/supabase"
 import { stubLockSalesFlowRpc } from "@/test/stubs/lockFlowRpc"
 import { stubRestoreFlowSnapshotRpc } from "@/test/stubs/restoreFlowSnapshotRpc"
+import { moveOpportunitiesToFlowSnapshot } from "@/test/stubs/moveOpportunitiesToSnapshotRpc"
+import { stubRpc } from "@/test/msw/server"
 import toast from "react-hot-toast"
 
 // Mock ResizeObserver for React Flow
@@ -69,6 +72,26 @@ describe("FlowCanvas", () => {
     expect(await screen.findByText("No Sale Types yet")).toBeInTheDocument()
   })
 
+  it("reopens the Sale Type the person last picked, and ignores one that no longer exists", async () => {
+    seedFlow()
+    const secondType = makeSaleType({ name: "Private Sale" })
+    const secondFlow = makeSalesFlow({ sale_type_id: secondType.id })
+    makeFlowStage({ flow_id: secondFlow.id, name: "Inquiry", sort_order: 0 })
+    const key = `flow_canvas_sale_type:${mockUser.current.id}`
+
+    localStorage.setItem(key, secondType.id)
+    const { unmount } = renderWithProviders(<FlowCanvas />)
+    expect(await screen.findByText("Inquiry")).toBeInTheDocument()
+    unmount()
+
+    localStorage.setItem(key, "gone")
+    renderWithProviders(<FlowCanvas />)
+    // Falls back to the first Sale Type instead of showing nothing.
+    expect((await screen.findAllByText(/^(Lead|Inquiry)$/)).length).toBeGreaterThan(0)
+    expect(screen.queryByText("No Sale Types yet")).not.toBeInTheDocument()
+    localStorage.removeItem(key)
+  })
+
   it("renders a flow's Stages, marking where deals enter and where they are won", async () => {
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
@@ -89,6 +112,28 @@ describe("FlowCanvas", () => {
 
     const awardedNode = screen.getByText("Awarded").closest(".react-flow__node")
     expect(within(awardedNode).getByText(/Won/)).toBeInTheDocument()
+  })
+
+  it("warns when a flow has no Lost Stage, and stops once one is set", async () => {
+    const { saleType, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setStageTerminal(awarded.id, true, mockUser.current.id)
+    await salesFlowService.setStageTerminalOutcome(awarded.id, "won", mockUser.current.id)
+
+    const { unmount } = renderWithProviders(<FlowCanvas />)
+    await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
+    expect(await screen.findByText("This flow has no Lost Stage.")).toBeInTheDocument()
+    const awardedNode = screen.getByText("Awarded").closest(".react-flow__node")
+    expect(within(awardedNode).getByText("Won")).toBeInTheDocument()
+    unmount()
+
+    await salesFlowService.setStageTerminal(awarded.id, true, mockUser.current.id)
+    await salesFlowService.setStageTerminalOutcome(awarded.id, "lost", mockUser.current.id)
+    renderWithProviders(<FlowCanvas />)
+    await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
+    const node = (await screen.findByText("Awarded")).closest(".react-flow__node")
+    expect(within(node).getByText("Lost")).toBeInTheDocument()
+    expect(screen.queryByText("This flow has no Lost Stage.")).not.toBeInTheDocument()
   })
 
   it("names the handles a move runs between", async () => {
@@ -181,7 +226,48 @@ describe("FlowCanvas", () => {
     })
   })
 
-  it("offers to move deals up after a minor publish, naming how many", async () => {
+  it("warns at publish about a costing condition no Open S0 Evaluation precedes, and still publishes (#463)", async () => {
+    const user = setupUser()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id)
+    await salesFlowService.unlockFlow(flow.id, "Costing gate", mockUser.current.id)
+    makeStageCondition({ stage_id: awarded.id, kind: "costing_priced", label: "Costing priced" })
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await user.click(await screen.findByRole("button", { name: /Publish v1.1/ }))
+
+    expect(await screen.findByText(/Awarded checks the S0 Evaluation, but a path to it skips every Open S0 Evaluation action/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Publish" })).not.toBeDisabled()
+
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+    await waitFor(async () => {
+      const history = await salesFlowService.listSnapshots(flow.id)
+      expect(history).toHaveLength(2)
+    })
+  })
+
+  it("does not warn when a Stage on the way opens the S0 Evaluation (#463)", async () => {
+    const user = setupUser()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id)
+    await salesFlowService.unlockFlow(flow.id, "Costing gate", mockUser.current.id)
+    makeStageCondition({ stage_id: awarded.id, kind: "costing_priced", label: "Costing priced" })
+    makeStageAction({ stage_id: lead.id, kind: "open_costing_matrix", config: {} })
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await user.click(await screen.findByRole("button", { name: /Publish v1.1/ }))
+    await screen.findByText("Changes since the latest version")
+
+    expect(screen.queryByText(/skips every Open S0 Evaluation action/)).not.toBeInTheDocument()
+  })
+
+  it("offers to update SORs after a minor publish, naming how many", async () => {
     const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
@@ -207,16 +293,69 @@ describe("FlowCanvas", () => {
     await screen.findByText("Changes since the latest version")
     await user.click(screen.getByRole("button", { name: "Publish" }))
 
-    expect(await screen.findByText("Move 1 SOR on 1.x up to v1.1?")).toBeInTheDocument()
+    expect(await screen.findByText("Update 1 SOR on 1.x to v1.1?")).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "Move deals" }))
-    expect(await screen.findByText("Deals moved")).toBeInTheDocument()
-    expect(screen.getByText("1 moved successfully.")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: /^Update \d+ SORs?$/ }))
+    expect(await screen.findByText("SORs updated")).toBeInTheDocument()
+    expect(screen.getByText("1 updated successfully.")).toBeInTheDocument()
+    // Issue #900 — a result to acknowledge offers Done only, no Cancel.
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Done" }))
-    expect(screen.queryByText("Deals moved")).not.toBeInTheDocument()
+    expect(screen.queryByText("SORs updated")).not.toBeInTheDocument()
   })
 
-  it("offers to move deals after a major publish too, warning that the Won Stage changed", async () => {
+  it("shows how far the move has got, and cannot be dismissed until it finishes", async () => {
+    const user = setupUser()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0
+    const [v1] = await salesFlowService.listSnapshots(flow.id)
+    for (let i = 0; i < 2; i += 1) {
+      makeOpportunity({
+        registered_by: mockUser.current.id,
+        sale_type_id: saleType.id,
+        flow_snapshot_id: v1.id,
+        flow_stage_id: lead.id,
+      })
+    }
+    await salesFlowService.unlockFlow(flow.id, "One more pass", mockUser.current.id)
+    await salesFlowService.renameStage(awarded.id, "Won", mockUser.current.id)
+
+    // Hold the database call open so the dialog can be read mid-move.
+    let release
+    const gate = new Promise((resolve) => {
+      release = resolve
+    })
+    stubRpc("update_sor_versions", async (args) => {
+      await gate
+      return moveOpportunitiesToFlowSnapshot(args)
+    })
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await waitFor(() => expect(screen.getAllByText("Won").length).toBeGreaterThan(0))
+    await user.click(await screen.findByRole("button", { name: /Publish v1\.1/ }))
+    await screen.findByText("Changes since the latest version")
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+    await user.click(await screen.findByRole("button", { name: /^Update \d+ SORs?$/ }))
+
+    expect(await screen.findByText("Updating 2 SORs to v1.1")).toBeInTheDocument()
+    expect(screen.getByText("Updated 0 of 2")).toBeInTheDocument()
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0")
+    expect(screen.getByText(/Keep this page open/)).toBeInTheDocument()
+
+    // Escape must not dismiss it — closing would hide the only sign the move is running.
+    await user.keyboard("{Escape}")
+    expect(screen.getByText("Updating 2 SORs to v1.1")).toBeInTheDocument()
+
+    release()
+    expect(await screen.findByText("SORs updated")).toBeInTheDocument()
+    expect(screen.getByText("2 updated successfully.")).toBeInTheDocument()
+    expect(screen.queryByText("Updating 2 SORs to v1.1")).not.toBeInTheDocument()
+  })
+
+  it("offers to update deals after a major publish too, warning that the Won Stage changed", async () => {
     const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
@@ -247,11 +386,8 @@ describe("FlowCanvas", () => {
       const history = await salesFlowService.listSnapshots(flow.id)
       expect(history[0].version).toBe(2)
     })
-    expect(await screen.findByText("Move 1 SOR on older versions up to v2.0?")).toBeInTheDocument()
+    expect(await screen.findByText("Update 1 SOR on older versions to v2.0?")).toBeInTheDocument()
     expect(screen.getByText(/The Won Stage is different in the new version/)).toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: "Move deals" }))
-    expect(await screen.findByText("1 moved successfully.")).toBeInTheDocument()
   })
 
   it("hides every edit control once the flow is locked", async () => {

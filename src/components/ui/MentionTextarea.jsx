@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { activeMentionQuery } from "../../utils/mentions";
 
 // Eight rows overflow the list's own 200px cap, so the scroll container below
@@ -33,8 +33,14 @@ export default function MentionTextarea({
   disabled,
   maxLength,
   onEnterSubmit,
+  autoFocus,
+  "aria-label": ariaLabel,
 }) {
   const areaRef = useRef(null);
+  // Closing the list on blur waits a beat so a click on a name still lands.
+  // The wait is cleared on unmount so it never sets state on a gone component.
+  const blurTimer = useRef(null);
+  useEffect(() => () => clearTimeout(blurTimer.current), []);
   const [query, setQuery] = useState(null);
   const [active, setActive] = useState(0);
 
@@ -118,8 +124,10 @@ export default function MentionTextarea({
         ref={areaRef}
         rows={rows}
         value={value}
+        autoFocus={autoFocus}
         disabled={disabled}
         placeholder={placeholder}
+        aria-label={ariaLabel}
         maxLength={maxLength}
         onPaste={onPaste}
         onChange={(e) => {
@@ -156,7 +164,10 @@ export default function MentionTextarea({
             setQuery(null);
           }
         }}
-        onBlur={() => setTimeout(() => setQuery(null), 120)}
+        onBlur={() => {
+          clearTimeout(blurTimer.current);
+          blurTimer.current = setTimeout(() => setQuery(null), 120);
+        }}
         className={className}
       />
     </div>

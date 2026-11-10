@@ -3,10 +3,10 @@ import { ArrowDown, ArrowUp, ChevronRight, ChevronsUpDown, Scale } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { SelectField } from '@/components/ui/SelectField';
 import Avatar from '../../../../components/Avatar';
-import { EmptyState } from './LeaveParts';
+import EmptyState from '@/components/ui/EmptyState';
 import { TYPE_META, num, usePendingByEmployee } from './leaveDisplay';
 
-const COLS = 'grid-cols-[minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_90px_120px_16px]';
+const COLS = 'grid-cols-[minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_90px_120px_130px_16px]';
 const GROUP_KEY = {
   none: () => '',
   company: (e) => e.company?.name || 'No company set',
@@ -27,6 +27,7 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
     sil: (e) => num(e.sil_hours_balance),
     held,
     ut: (e) => num(e.undertime_this_month),
+    lwop: (e) => num(e.lwop_this_month),
   };
 
   const sorted = [...employees].sort((a, b) => {
@@ -55,6 +56,7 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
           size="sm"
           className="h-9"
           value={group}
+          aria-label="Group by"
           onChange={setGroup}
           options={[{ value: 'none', label: 'No grouping' }, { value: 'company', label: 'Group: Company' }, { value: 'department', label: 'Group: Department' }]}
         />
@@ -62,7 +64,7 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="overflow-x-auto">
-          <div className="min-w-[760px]">
+          <div className="min-w-[900px]">
             <div className={`grid ${COLS} h-12 items-center gap-6 border-b border-border bg-muted/40 px-6`}>
               <SortHead label="Employee" k="name" sort={sort} setSort={setSort} />
               <SortHead label="Company" k="company" sort={sort} setSort={setSort} />
@@ -70,6 +72,7 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
               <SortHead label="SIL hrs" k="sil" sort={sort} setSort={setSort} />
               <SortHead label="Pending" k="held" sort={sort} setSort={setSort} right />
               <SortHead label="Undertime (mo)" k="ut" sort={sort} setSort={setSort} right />
+              <SortHead label="LWOP this month" k="lwop" sort={sort} setSort={setSort} right />
               <span />
             </div>
             {groups.map(([label, rows]) => (
@@ -98,19 +101,21 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
                       </span>
                     </span>
                     <span className="truncate text-muted-foreground">
-                      {e.company?.name || <span className="font-semibold text-amber-11">No company</span>}
+                      {e.company?.name || <span className="font-semibold text-amber-11">No company set</span>}
                     </span>
                     <Bar value={get.offset(e)} max={maxOffset} tone={TYPE_META.OFFSET.solid} />
                     <Bar value={get.sil(e)} max={maxSil} tone={TYPE_META.SIL.solid} />
                     <span className={`text-right font-mono tabular-nums ${held(e) ? 'text-foreground' : 'text-muted-foreground'}`}>{held(e) || '—'}</span>
                     {/* Derived from approved undertime this month; never a stored balance (#148). */}
                     <span className="text-right font-mono tabular-nums text-muted-foreground">{get.ut(e) || '—'}</span>
+                    {/* Derived from approved LWOP this Manila month, in hours; never a stored balance (#620). */}
+                    <span className="text-right font-mono tabular-nums text-muted-foreground">{get.lwop(e) || '—'}</span>
                     <ChevronRight size={16} className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
                   </div>
                 ))}
               </div>
             ))}
-            {employees.length === 0 && <EmptyState icon={Scale} title="No employees match">Clear the search or company filter.</EmptyState>}
+            {employees.length === 0 && <EmptyState icon={Scale} title="No employees match" description="Clear the search or company filter." />}
           </div>
         </div>
       </div>
@@ -127,7 +132,7 @@ function SortHead({ label, k, right, sort, setSort }) {
       size="xs"
       onClick={() => setSort((s) => ({ key: k, dir: s.key === k ? -s.dir : 1 }))}
       aria-sort={on ? (sort.dir > 0 ? 'ascending' : 'descending') : undefined}
-      className={`-mx-2 gap-1 text-[10px] font-bold uppercase tracking-wider ${right ? 'justify-end' : 'justify-start'} ${on ? 'text-foreground' : 'text-muted-foreground'}`}
+      className={`-mx-2 gap-1 text-label font-bold uppercase tracking-wider ${right ? 'justify-end' : 'justify-start'} ${on ? 'text-foreground' : 'text-muted-foreground'}`}
     >
       {label}
       {on ? (sort.dir > 0 ? <ArrowUp /> : <ArrowDown />) : <ChevronsUpDown className="opacity-40" />}

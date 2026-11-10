@@ -132,7 +132,7 @@ function HistoryItem({ log, type = "TASK" }) {
         <div className="mt-3 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 px-1">
+              <span className="text-label font-black uppercase tracking-widest text-muted-foreground/60 px-1">
                 Before
               </span>
               <div className="p-3 rounded-xl border border-border bg-muted/30 opacity-60 scale-[0.98] origin-top">
@@ -143,7 +143,7 @@ function HistoryItem({ log, type = "TASK" }) {
               </div>
             </div>
             <div className="space-y-1.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-blue-9 px-1">
+              <span className="text-label font-black uppercase tracking-widest text-blue-9 px-1">
                 After
               </span>
               <div className="p-3 rounded-xl border border-blue-500/20 bg-blue-50/30 dark:bg-blue-950/10 shadow-sm">
@@ -168,7 +168,7 @@ function HistoryItem({ log, type = "TASK" }) {
         <div className="mt-3 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 px-1">
+              <span className="text-label font-black uppercase tracking-widest text-muted-foreground/60 px-1">
                 Before
               </span>
               <div className="p-3 rounded-xl border border-border bg-muted/30">
@@ -198,7 +198,7 @@ function HistoryItem({ log, type = "TASK" }) {
               </div>
             </div>
             <div className="space-y-1.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-blue-9 px-1">
+              <span className="text-label font-black uppercase tracking-widest text-blue-9 px-1">
                 After
               </span>
               <div className="p-3 rounded-xl border border-blue-500/20 bg-blue-50/30 dark:bg-blue-950/10 shadow-sm">
@@ -241,7 +241,7 @@ function HistoryItem({ log, type = "TASK" }) {
       return (
         <div className="mt-3 flex items-center gap-3 bg-muted/30 p-3 rounded-lg border border-border/50 overflow-hidden">
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
+            <p className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1">
               Before
             </p>
             <p className="text-xs text-muted-foreground line-through truncate">
@@ -253,7 +253,7 @@ function HistoryItem({ log, type = "TASK" }) {
             className="text-muted-foreground/40 shrink-0"
           />
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold text-blue-9 uppercase tracking-widest mb-1">
+            <p className="text-label font-bold text-blue-9 uppercase tracking-widest mb-1">
               After
             </p>
             <p className="text-xs text-foreground font-bold truncate">
@@ -268,7 +268,7 @@ function HistoryItem({ log, type = "TASK" }) {
     if (details.ratings && Array.isArray(details.ratings)) {
       return (
         <div className="mt-3 space-y-2">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">
+          <p className="text-label font-bold text-muted-foreground uppercase tracking-widest px-1">
             Evaluations
           </p>
           <div className="flex flex-col gap-1.5 pl-3 border-l-2 border-primary/20">
@@ -294,7 +294,7 @@ function HistoryItem({ log, type = "TASK" }) {
     if (details.members && Array.isArray(details.members)) {
       return (
         <div className="mt-3 space-y-2">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">
+          <p className="text-label font-bold text-muted-foreground uppercase tracking-widest px-1">
             Member Updates
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -328,7 +328,7 @@ function HistoryItem({ log, type = "TASK" }) {
         ) {
           return (
             <div className="mt-2 bg-muted/30 p-3 rounded-xl border border-border/50">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">
+              <p className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-2 px-1">
                 Task Assignment
               </p>
               <ChecklistTaskRenderer description={val} disabled={true} />
@@ -368,13 +368,13 @@ function HistoryItem({ log, type = "TASK" }) {
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border border-current/20",
+                "text-label font-black uppercase tracking-widest px-2 py-0.5 rounded-full border border-current/20",
                 colorClass,
               )}
             >
               {action.replace(/_/g, " ")}
             </span>
-            <time className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+            <time className="text-label text-muted-foreground font-bold uppercase tracking-widest">
               {formatTime(createdAt)}
             </time>
           </div>

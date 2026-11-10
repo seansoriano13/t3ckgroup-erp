@@ -61,7 +61,7 @@ function TaskRow({ task, onOpen }) {
 }
 
 const identity = (opportunity) => ({
-  ref: opportunity.sales_reference || "SOR",
+  ref: opportunity.sales_reference || opportunity.sor_code || "SOR",
   title: opportunity.project_title || opportunity.client_name || "This deal",
   subtitle: opportunity.project_title ? opportunity.client_name : null,
 });
@@ -94,7 +94,7 @@ export default function OpportunityQuickView({
   });
 
   const { data: checklist = [], isLoading: isLoadingChecklist } = useQuery({
-    queryKey: ["quickViewChecklist", opportunityId, opportunity?.flow_stage_id || opportunity?.status],
+    queryKey: ["quickViewChecklist", opportunityId, opportunity?.flow_stage_id || opportunity?.status, opportunity?.flow_snapshot_id ?? null],
     queryFn: () => opportunityService.getStageChecklist(opportunityId, opportunity),
     enabled: isOpen && !!opportunityId && !!opportunity,
   });
@@ -114,8 +114,8 @@ export default function OpportunityQuickView({
       {() => (
         <SlideOverBody>
           <section className="space-y-3">
-            <h3 className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-              <ClipboardList size={12} /> Your open tasks
+            <h3 className="flex items-center gap-1.5 text-label font-bold tracking-widest text-muted-foreground uppercase">
+              <ClipboardList size={12} /> Tasks on this SOR
             </h3>
             {isLoadingTasks ? (
               <div className="flex justify-center py-6">
@@ -139,7 +139,7 @@ export default function OpportunityQuickView({
           </section>
 
           <section className="space-y-3">
-            <h3 className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            <h3 className="flex items-center gap-1.5 text-label font-bold tracking-widest text-muted-foreground uppercase">
               <ListChecks size={12} /> Open on this stage
             </h3>
             {isLoadingChecklist ? (

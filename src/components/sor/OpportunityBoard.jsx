@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Clock, ChevronDown, LayoutGrid, Rows3, GitBranch } from "lucide-react";
 import Avatar from "../Avatar";
 import Dropdown from "../ui/Dropdown";
 import MoveConfirmDialog from "./MoveConfirmDialog";
+import MarkLostDialogHost from "./MarkLostDialogHost";
 import { PROJECT_TYPE_SHORT, formatPHP } from "../../constants/sor";
 import { flowBoardColumns, legacyBoardColumns } from "../../constants/board";
-import { outgoingStages, isLostFlowStage } from "../../constants/salesFlow";
+import { outgoingStages, isLostFlowStage, lostStagesOfFlow } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { getStatusTheme } from "../../constants/status";
 import HighlightText from "../HighlightText";
@@ -212,17 +214,48 @@ export default function OpportunityBoard({
   // after this deal registered doesn't change what a drag offers it.
   const [dragging, setDragging] = useState(null); // { opportunity, allowedStageIds }
   const [pendingMove, setPendingMove] = useState(null); // { opportunity, targetStage }
+  // #814: a drop on a Lost column opens the Mark as Lost reason picker instead
+  // of moving directly, so a drag never skips the reason.
+  const [pendingLost, setPendingLost] = useState(null); // { opportunity }
+
+  const lostColumnKeys = useMemo(
+    () =>
+      new Set(
+        columns
+          .filter((c) => activeFlow && c.stage && isLostFlowStage(c.stage, activeFlow.won_stage_id))
+          .map((c) => c.key),
+      ),
+    [columns, activeFlow],
+  );
+  const flowLostStages = useMemo(
+    () => (activeFlow ? lostStagesOfFlow(activeFlowStages, activeFlow.won_stage_id) : []),
+    [activeFlowStages, activeFlow],
+  );
+  // Mark as Lost works from any open Stage, so a Lost column is a target
+  // whether or not a line was drawn to it.
+  const canLoseFrom = (opportunity) => {
+    if (lostColumnKeys.size === 0 || lostColumnKeys.has(opportunity.flow_stage_id)) return false;
+    const current = activeFlowStages.find((s) => s.id === opportunity.flow_stage_id);
+    return Boolean(current) && !current.is_terminal;
+  };
 
   const handleDragStart = (opportunity) => {
     const snapshotData = snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data;
+    const lostKeys = canLoseFrom(opportunity) ? [...lostColumnKeys] : [];
     if (!snapshotData) {
-      setDragging({ opportunity, allowedStageIds: new Set() });
+      setDragging({ opportunity, allowedStageIds: new Set(lostKeys) });
       return;
     }
     const targets = outgoingStages(opportunity.flow_stage_id, snapshotData.stages, snapshotData.edges);
+    const current = snapshotData.stages.find((s) => s.id === opportunity.flow_stage_id);
     setDragging({
       opportunity,
-      allowedStageIds: new Set(targets.map((s) => s.id).filter((id) => columnKeys.has(id))),
+      currentName: current?.name || "This stage",
+      allowedNames: targets.filter((s) => columnKeys.has(s.id)).map((s) => s.name),
+      allowedStageIds: new Set([
+        ...targets.map((s) => s.id).filter((id) => columnKeys.has(id)),
+        ...lostKeys,
+      ]),
     });
   };
 
@@ -230,10 +263,19 @@ export default function OpportunityBoard({
 
   const handleDrop = (column) => {
     if (!dragging || !dragging.allowedStageIds.has(column.key)) {
+      if (dragging?.allowedNames?.length) {
+        toast.error(
+          `${dragging.currentName} can only move to ${dragging.allowedNames.join(" or ")} next.`,
+        );
+      }
       setDragging(null);
       return;
     }
-    setPendingMove({ opportunity: dragging.opportunity, targetStage: column.stage });
+    if (lostColumnKeys.has(column.key)) {
+      setPendingLost({ opportunity: dragging.opportunity });
+    } else {
+      setPendingMove({ opportunity: dragging.opportunity, targetStage: column.stage });
+    }
     setDragging(null);
   };
 
@@ -414,6 +456,16 @@ export default function OpportunityBoard({
         </div>
       )}
 
+      {pendingLost && (
+        <MarkLostDialogHost
+          opportunity={pendingLost.opportunity}
+          lostStages={flowLostStages}
+          isOpen
+          onClose={() => setPendingLost(null)}
+          onDone={() => onMoved?.()}
+        />
+      )}
+
       <MoveConfirmDialog
         isOpen={Boolean(pendingMove)}
         onClose={() => setPendingMove(null)}
@@ -450,13 +502,13 @@ function BoardColumn({
   return (
     <div className="flex min-w-[264px] w-[264px] shrink-0 flex-col">
       {bracketHeader && (
-        <p className="mb-1 truncate px-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+        <p className="mb-1 truncate px-1 text-label font-black uppercase tracking-widest text-muted-foreground">
           {bracketHeader}
         </p>
       )}
       <div
         onDragOver={(e) => {
-          if (isDragTarget) e.preventDefault();
+          if (isDragging) e.preventDefault();
         }}
         onDrop={(e) => {
           e.preventDefault();

@@ -80,7 +80,7 @@ function BannerItem({ update }) {
           onClick={handleToggle}
         >
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+            <span className="text-label font-bold text-muted-foreground uppercase tracking-wide">
               {typeOpt.label}
             </span>
             <span className="text-[10px] text-muted-foreground/60">

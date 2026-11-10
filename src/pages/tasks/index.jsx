@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import QueryError from "@/components/ui/QueryError";
 import { useLocation, useNavigate } from "react-router";
 import { LayoutGrid, ListChecks, Table as TableIcon } from "lucide-react";
 import { TASK_STATUS } from "../../constants/status.js";
@@ -22,7 +23,7 @@ import { employeeService } from "../../services/employeeService.js";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
 import TabGroup from "../../components/ui/TabGroup";
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 import Dot from "../../components/ui/Dot";
 
 // Every mutation and the realtime hook below need the page's own list and the
@@ -78,7 +79,8 @@ const COMPANY_SCOPE = { deptFilter: "ALL", subDeptFilter: "ALL", employeeFilter:
 /**
  * The Tasks page's saved-default filter set: its keys and where each starts.
  * Whose tasks to show starts on real values, never a null placeholder: HR
- * company-wide, heads their own department, staff only themselves.
+ * and staff on their own tasks (the sidebar says "My Tasks"), heads their own
+ * department.
  */
 function taskFilterDefaults(user, { isHr, isManagement }) {
   const own = ownScope(user);
@@ -88,7 +90,7 @@ function taskFilterDefaults(user, { isHr, isManagement }) {
     sortBy: "NEWEST",
     timeframe: "YEARLY",
     selectedDateFilter: `${new Date().getFullYear()}`,
-    ...(isHr ? COMPANY_SCOPE : own),
+    ...own,
     ...(isManagement && !isHr && { employeeFilter: "ALL" }),
     reportedToFilter: "ALL",
     crmOnly: false,
@@ -116,9 +118,6 @@ export default function TasksPage() {
 
   const setGroupPage = (key, page) =>
     setGroupPages((prev) => ({ ...prev, [key]: page }));
-
-  // HR Specific Toggle
-  const [hrViewMode, setHrViewMode] = useState("ALL"); // "ALL" or "PERSONAL"
 
   // View Switcher Mode (Table vs Grid). Table is the Register default; the grid
   // stays as a display toggle because a card carries progress a row cannot.
@@ -157,6 +156,11 @@ export default function TasksPage() {
     };
   });
   const { deptFilter, subDeptFilter } = filters;
+  // HR Specific Toggle: opens on "My Tasks" to match the sidebar label; the
+  // company view is one click away. "ALL" or "PERSONAL".
+  const [hrViewMode, setHrViewMode] = useState(() =>
+    (filters.employeeFilter || user?.id) === user?.id ? "PERSONAL" : "ALL",
+  );
   const [searchTerm, setSearchTerm] = useState("");
   // Clear nav state so back-nav doesn't re-apply deep-link filters
   useEffect(() => {
@@ -238,6 +242,7 @@ export default function TasksPage() {
     data,
     isLoading,
     isError,
+    refetch,
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
@@ -278,9 +283,16 @@ export default function TasksPage() {
             taskQueryService
               .getTaskById(openId)
               .then((task) => {
-                if (task) setViewTask(task);
+                if (task?.convertedToGroupTaskId) {
+                  // #657: converted into a Group Task
+                  window.dispatchEvent(
+                    new CustomEvent("OPEN_ENTITY_DETAILS", {
+                      detail: { id: task.convertedToGroupTaskId, type: "GROUP_TASK" },
+                    }),
+                  );
+                } else if (task) setViewTask(task);
               })
-              .catch((err) => toast.error(err.message || "Something went wrong"));
+              .catch((err) => toast.error(err.message || "Could not open that task. Try again."));
           },
         );
         navigate(location.pathname, { replace: true, state: {} });
@@ -296,7 +308,7 @@ export default function TasksPage() {
     },
     onError: (error) => {
       console.error("Failed to update task:", error);
-      toast.error("Database error: Could not update task.");
+      toast.error("Could not update the task. Check your connection and try again.");
     },
   });
 
@@ -368,22 +380,15 @@ export default function TasksPage() {
   // --- LOADING / ERROR STATES ---
   if (isLoading) {
     return (
-      <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
-        <Spinner size="md" />
-        <p className="font-bold animate-pulse tracking-wider uppercase text-sm">
-          Fetching Directory...
-        </p>
-      </div>
+      <PageLoading label="tasks" className="h-[60vh]" />
     );
   }
 
   if (isError)
     return (
-      <div className="py-10 text-center bg-red-a2 border border-red-a5 rounded-xl">
-        <p className="text-red-11 font-bold">
-          Connection Error: Failed to load task directory.
-        </p>
-      </div>
+      <PageShell title="Tasks">
+        <QueryError title="Tasks could not be loaded." onRetry={refetch} />
+      </PageShell>
     );
 
   const isPersonalView = isHr && hrViewMode === "PERSONAL";
@@ -482,6 +487,8 @@ export default function TasksPage() {
           <TaskTableView
             tasks={sortedAndFilteredTasks}
             searchTerm={searchTerm}
+            filtered={rawTasks.length > 0}
+            onClearFilters={clearAllFilters}
             onView={(task) => setViewTask(task)}
             onSilentUpdate={(payload) => editTaskMutation.mutateAsync(payload)}
           />
@@ -544,7 +551,7 @@ export default function TasksPage() {
                             : "bg-amber-9"
                   }
                 />
-                <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                <h3 className="text-label font-black text-muted-foreground uppercase tracking-[0.2em]">
                   {statusKey === "COMPLETE_VERIFIED"
                     ? "Verified"
                     : statusKey === "COMPLETE_UNVERIFIED"
@@ -581,7 +588,7 @@ export default function TasksPage() {
               {/* Per-Group Mini Pagination */}
               {totalGroupPages > 1 && (
                 <div className="flex items-center justify-end gap-3 pt-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  <span className="text-label font-bold text-muted-foreground uppercase tracking-widest">
                     Page {currentGroupPage} / {totalGroupPages}
                   </span>
                   <div className="flex gap-1">
@@ -597,6 +604,7 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
+                      aria-label="Previous page"
                       className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       ←
@@ -630,33 +638,40 @@ export default function TasksPage() {
                         pages.push(totalGroupPages);
                       }
 
-                      return pages.map((p, idx) => (
+                      return pages.map((p, idx) =>
+                        p === "..." ? (
+                          <span
+                            key={idx}
+                            aria-hidden="true"
+                            className="inline-flex h-7 w-7 items-center justify-center text-xs font-bold text-muted-foreground/80 opacity-50"
+                          >
+                            ...
+                          </span>
+                        ) : (
                         <Button
                           key={idx}
                           variant="outline"
                           size="icon"
-                          disabled={p === "..."}
+                          aria-label={`Page ${p}`}
+                          aria-current={p === currentGroupPage ? "page" : undefined}
                           onClick={(e) => {
-                            if (p !== "...") {
-                              setGroupPage(statusKey, p);
-                              e.target
-                                .closest(".group-container")
-                                ?.scrollIntoView({
-                                  behavior: "smooth",
-                                  block: "nearest",
-                                });
-                            }
+                            setGroupPage(statusKey, p);
+                            e.target
+                              .closest(".group-container")
+                              ?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "nearest",
+                              });
                           }}
                           className={`h-7 w-7 text-xs font-bold ${p === currentGroupPage
                             ? "bg-primary text-primary-foreground border-primary hover:bg-primary"
-                            : p === "..."
-                              ? "bg-transparent text-muted-foreground/80 border-transparent cursor-default"
-                              : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
+                            : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
                             }`}
                         >
                           {p}
                         </Button>
-                      ));
+                        ),
+                      );
                     })()}
                     <Button
                       variant="outline"
@@ -670,6 +685,7 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
+                      aria-label="Next page"
                       className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       →
@@ -685,7 +701,14 @@ export default function TasksPage() {
           <EmptyState
             icon={ListChecks}
             title="No tasks found"
-            description="Try adjusting your filters or search term."
+            description={rawTasks.length > 0 ? "No tasks match these filters." : undefined}
+            action={
+              rawTasks.length > 0 ? (
+                <Button variant="outline" size="sm" className="mt-2" onClick={clearAllFilters}>
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
           />
         )}
       </div>

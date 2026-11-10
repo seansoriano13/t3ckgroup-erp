@@ -3,6 +3,7 @@ import { CalendarDays, History, Inbox, Printer, Scale } from 'lucide-react';
 import { formatWindow } from '../../../../utils/time';
 import { STATUS_THEME } from '../../../../constants/statusTheme';
 import { recordKey } from './useDocumentCenter';
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /** Formatting and small derived views shared by the Leaves Manager's views. */
 
@@ -17,11 +18,12 @@ export const LEAVE_VIEWS = [
   { value: 'balances', label: 'Employee Balances', icon: Scale },
 ];
 
-export const LEAVE_TYPES = ['OFFSET', 'SIL', 'OVERTIME', 'UNDERTIME'];
+export const LEAVE_TYPES = ['OFFSET', 'SIL', 'LWOP', 'OVERTIME', 'UNDERTIME'];
 
 export const TYPE_META = {
   OFFSET: { label: 'Offset', chip: 'bg-blue-2 text-blue-11 border-blue-6', dot: 'bg-blue-9', solid: 'bg-blue-9', bar: 'bg-blue-5' },
   SIL: { label: 'SIL', chip: 'bg-green-2 text-green-11 border-green-6', dot: 'bg-green-9', solid: 'bg-green-9', bar: 'bg-green-5' },
+  LWOP: { label: 'LWOP', chip: 'bg-orange-2 text-orange-11 border-orange-6', dot: 'bg-orange-9', solid: 'bg-orange-9', bar: 'bg-orange-5' },
   OVERTIME: { label: 'Overtime', chip: 'bg-muted text-foreground border-border', dot: 'bg-mauve-10', solid: 'bg-mauve-10', bar: 'bg-mauve-5' },
   UNDERTIME: { label: 'Undertime', chip: 'bg-amber-2 text-amber-11 border-amber-6', dot: 'bg-amber-9', solid: 'bg-amber-9', bar: 'bg-amber-5' },
 };
@@ -40,7 +42,7 @@ const STATUS_META = {
   APPROVED: status('Approved', STATUS_THEME.GREEN),
   APPROVED_OFFSET: status('Approved · Offset', STATUS_THEME.GREEN),
   APPROVED_PAID: status('Approved · Paid OT', STATUS_THEME.BLUE),
-  REJECTED: status('Rejected', STATUS_THEME.RED),
+  REJECTED: status('Declined', STATUS_THEME.RED),
 };
 
 export const todayIso = () => {
@@ -121,4 +123,4 @@ export function useWhoIsOut(approvedLeaves) {
   }, [approvedLeaves]);
 }
 
-export const LABEL = 'text-[10px] font-bold uppercase tracking-wider text-muted-foreground';
+export const LABEL = `${CAPTION_BASE} tracking-wider text-muted-foreground`;

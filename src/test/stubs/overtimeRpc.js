@@ -6,9 +6,8 @@ const findRow = (table, id) => db.internal.rowsOf(table).find((row) => row.id ==
 /**
  * `decide_overtime_request` / `undo_overtime_decision` (issue #108, ADR 0013)
  * live in Postgres, which the fake database does not execute — so this
- * re-implements their logic in JS against the same in-memory store, the
- * pattern `purchasingService.test.js` established for
- * `sor_raise_procurement_task`. Shared between `offsetService.test.js` and
+ * re-implements their logic in JS against the same in-memory store (the usual
+ * fake-database RPC stub pattern). Shared between `offsetService.test.js` and
  * any component test that exercises an overtime decision (e.g.
  * `ApproveOvertimeModal.test.jsx`) so the two never drift apart.
  *
@@ -57,6 +56,7 @@ export function stubOvertimeDecisionRpcs() {
       hr_signature_timestamp: null,
       approval_credits_snapshot: creditsSnapshot,
       hr_processed_by: args.p_hr_id || null,
+      hr_processed_at: new Date().toISOString(),
     })
   })
 
@@ -89,6 +89,7 @@ export function stubOvertimeDecisionRpcs() {
       hr_signature_timestamp: null,
       approval_credits_snapshot: null,
       hr_processed_by: null,
+      hr_processed_at: null,
     })
   })
 }

@@ -1,10 +1,13 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
+import QueryError from "@/components/ui/QueryError";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bug, CheckCircle2, RotateCcw, SendHorizontal } from "lucide-react";
 import toast from "react-hot-toast";
 import PageShell from "../../components/ui/PageShell";
 import EmptyState from "../../components/ui/EmptyState";
-import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/StatusBadge";
 import SlideOver, { SlideOverBody, SlideOverFooter } from "../../components/ui/SlideOver";
 import Avatar from "../../components/Avatar";
@@ -12,19 +15,31 @@ import { AttachmentList } from "../../components/ui/Attachments";
 import { Button } from "../../components/ui/button";
 import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import { SortHead, Table, TableBody, TableCell, TableHeader, TableRow } from "../../components/ui/table";
+import { useTableSort } from "../../hooks/useTableSort";
 import { useAuth } from "../../context/AuthContext";
 import { useEmployeeAvatarMap } from "../../hooks/useEmployeeAvatarMap";
 import { useRecordParam } from "../../hooks/useRecordParam";
 import { bugReportService } from "../../services/bugReportService";
 import { getPermissionContext } from "../../utils/permissions";
-import { APPROVE_CLASS } from "../approvals/_components/approvalUi";
+import { APPROVE_CLASS } from "@/components/ui/approveClass";
+import { formatDateWith } from "../../utils/formatDate";
+import { FieldBox } from "@/components/ui/FieldBox";
 
-const HEAD = "text-[10px] font-bold uppercase tracking-wider";
+const REPORT_SORT = {
+  report: (r) => r.description,
+  "sent-by": (r) => r.reporter?.name,
+  page: (r) => r.page_url,
+  files: (r) => r.attachments?.length || 0,
+  sent: (r) => new Date(r.created_at).getTime(),
+  status: (r) => (r.resolved_at ? 1 : 0),
+};
+
+const HEAD = "text-label font-bold uppercase tracking-wider";
 
 const firstLine = (text) => (text || "").split("\n")[0];
 const formatWhen = (iso) =>
-  new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  formatDateWith(iso, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }, { time: true });
 
 function Status({ report }) {
   return report.resolved_at ? (
@@ -50,10 +65,10 @@ function ReportRow({ report, onOpen, showSender }) {
       <TableCell className="max-w-[28rem]">
         <span className="block truncate text-sm font-semibold text-foreground">{firstLine(report.description)}</span>
       </TableCell>
-      {showSender && <TableCell className="text-xs text-foreground">{report.reporter?.name || "—"}</TableCell>}
-      <TableCell className="max-w-[12rem] truncate font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
-      <TableCell className="text-xs tabular-nums text-muted-foreground">{report.attachments?.length || ""}</TableCell>
-      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
+      {showSender && <TableCell className="hidden text-xs md:table-cell text-foreground">{report.reporter?.name || "—"}</TableCell>}
+      <TableCell className="hidden max-w-[12rem] truncate md:table-cell font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
+      <TableCell className="hidden text-xs tabular-nums md:table-cell text-muted-foreground">{report.attachments?.length || "—"}</TableCell>
+      <TableCell className="hidden whitespace-nowrap text-xs md:table-cell text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
       <TableCell className="text-right">
         <Status report={report} />
       </TableCell>
@@ -101,10 +116,10 @@ function Byline({ name, tag, at }) {
 /** The technical facts sent with a report, small, under its text. */
 function ReportMeta({ report }) {
   const facts = [
-    ["Page", report.page_url, "font-mono"],
+    ["Page", report.page_url, "font-mono break-all"],
     ["Environment", report.environment],
     ["Version", report.app_version],
-    ["Browser", report.user_agent, "truncate"],
+    ["Browser", report.user_agent, "break-words"],
   ].filter(([, value]) => value);
   if (!facts.length) return null;
   return (
@@ -222,7 +237,7 @@ function ThreadComposer({ report, isReader, onSent }) {
       await queryClient.invalidateQueries({ queryKey: ["bugReportNotes", report.id] });
       onSent();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Could not send the note.");
     } finally {
       setSending(false);
     }
@@ -236,7 +251,7 @@ function ThreadComposer({ report, isReader, onSent }) {
       await queryClient.invalidateQueries({ queryKey: ["bugReportNotes", report.id] });
       onSent();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Could not update the report.");
     } finally {
       setSaving(false);
     }
@@ -261,7 +276,7 @@ function ThreadComposer({ report, isReader, onSent }) {
         className="min-h-0 resize-none bg-card text-[13px] md:text-[13px]"
       />
       <div className="flex items-center gap-2">
-        <span className="mr-auto hidden text-[11px] text-muted-foreground sm:inline">Ctrl + Enter to send</span>
+        <span className="mr-auto hidden text-[11px] text-muted-foreground sm:inline">{/Mac|iPhone|iPad/i.test(navigator.platform || "") ? "⌘ Enter" : "Ctrl + Enter"} to send</span>
         {isReader && (
           <Button
             variant={isResolved ? "outline" : "default"}
@@ -332,7 +347,7 @@ function BugReportsList({ isReader, meId }) {
   const [showResolved, setShowResolved] = useState(false);
 
   const queryClient = useQueryClient();
-  const { data: reports = [], isLoading, isError, error } = useQuery({
+  const { data: reports = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["bugReports"],
     queryFn: () => bugReportService.list(),
   });
@@ -348,10 +363,12 @@ function BugReportsList({ isReader, meId }) {
     });
   }, [isReader, isLoading, isError, reports, queryClient]);
 
-  const shown = useMemo(
+  const unsorted = useMemo(
     () => (showResolved ? reports : reports.filter((r) => !r.resolved_at)),
     [reports, showResolved],
   );
+  const { sorted: shown, sort, toggle } = useTableSort(unsorted, REPORT_SORT);
+  const paging = usePaging(shown);
   // A deep link (notification) opens its report even when the filter hides it.
   const index = shown.findIndex((r) => String(r.id) === recordId);
   const openReport = index >= 0 ? shown[index] : reports.find((r) => String(r.id) === recordId) || null;
@@ -366,23 +383,18 @@ function BugReportsList({ isReader, meId }) {
             : "Bugs you reported with the bug button, and IT's notes on them."
         }
         toolbar={
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Switch checked={showResolved} onCheckedChange={setShowResolved} aria-label="Show resolved" />
-            <span aria-hidden="true">Show resolved</span>
-          </div>
+          <FieldBox inline label="Show resolved" className="gap-2 text-xs font-medium normal-case tracking-normal text-muted-foreground">
+            <Switch checked={showResolved} onCheckedChange={setShowResolved} />
+            <span>Show resolved</span>
+          </FieldBox>
         }
       >
         {isLoading && (
-          <div className="flex justify-center py-12">
-            <Spinner />
-          </div>
+          <PageLoading label="bug reports" />
         )}
 
         {isError && (
-          <div className="rounded-xl border border-red-6 bg-red-a2 px-5 py-8 text-center">
-            <p className="text-sm font-semibold text-red-11">Bug reports could not be loaded.</p>
-            <p className="mt-1 text-xs text-muted-foreground">{error?.message}</p>
-          </div>
+          <QueryError title="Bug reports could not be loaded." onRetry={refetch} />
         )}
 
         {!isLoading && !isError && shown.length === 0 && (
@@ -396,25 +408,30 @@ function BugReportsList({ isReader, meId }) {
 
         {!isLoading && !isError && shown.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <Table className="min-w-[48rem]">
+            <Table tableId="bug-reports" className="md:min-w-[48rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {["Report", ...(isReader ? ["Sent by"] : []), "Page", "Files", "Sent", "Status"].map((heading) => (
-                    <TableHead key={heading} className={`${HEAD} ${heading === "Status" ? "text-right" : ""}`}>
+                    <SortHead
+                      key={heading}
+                      id={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+                      sortKey={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+                      sort={sort}
+                      onSort={toggle}
+                      className={`${HEAD} ${heading === "Status" ? "text-right" : ""} ${heading !== "Report" && heading !== "Status" ? "hidden md:table-cell" : ""}`}
+                    >
                       {heading}
-                    </TableHead>
+                    </SortHead>
                   ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {shown.map((report) => (
+                {paging.rows.map((report) => (
                   <ReportRow key={report.id} report={report} onOpen={open} showSender={isReader} />
                 ))}
               </TableBody>
             </Table>
-            <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-              {shown.length} {shown.length === 1 ? "report" : "reports"}
-            </div>
+            <TablePager {...paging} noun={shown.length === 1 ? "report" : "reports"} />
           </div>
         )}
       </PageShell>

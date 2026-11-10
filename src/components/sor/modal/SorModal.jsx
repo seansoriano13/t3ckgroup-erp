@@ -6,18 +6,16 @@ import { RecordModalContent } from "@/components/ui/record-modal";
 import { opportunityService } from "../../../services/opportunityService";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../context/AuthContext";
-import { confirmActionToast } from "../../ui/CustomToast";
+import { usePagedChat } from "../../../hooks/usePagedChat";
 import { useFileAttachments } from "../../../hooks/useFileAttachments";
 import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { employeeService } from "../../../services/employeeService";
 import { odooService } from "../../../services/odooService";
 import { quotationService } from "../../../services/quotationService";
-import { purchasingService } from "../../../services/purchasingService";
 import { salesFlowService } from "../../../services/salesFlowService";
 import { stageFieldService } from "../../../services/stageFieldService";
 import { missingStageFields } from "../../../constants/stageGate";
-import { flowStageTone } from "../../../constants/salesFlow";
-import { openRequests } from "../../../constants/procurement";
+import { dealStageAndTone } from "../../../constants/salesFlow";
 import { usePipelineStages } from "../../../hooks/usePipelineStages";
 import {
   isJudgedByStageCode,
@@ -26,16 +24,21 @@ import {
   isValidSalesReference,
   normalizeSalesReference,
   requiresSalesReference,
-  SALES_REFERENCE_HINT,
 } from "../../../constants/sor";
 import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
+import SorWindowSkeleton from "./SorWindowSkeleton";
 import LockedSorSlideOver from "../LockedSorSlideOver";
+import NoAccessSorSlideOver from "../NoAccessSorSlideOver";
+import { hiddenVisits } from "../../../utils/sorHiddenVisits";
+import { liveMentionIds, mentionWindowHint } from "../../../utils/mentionWindowHint";
+import { formatActionFailures } from "../../../utils/sorVersionUpdate";
 import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
 import SorChatColumn from "./SorChatColumn";
+import { costingKeys } from "../../costing/costingKeys";
 import { pullOdooLines, saveOdooLines, toRow } from "./odooLines";
 import SummaryLayout from "./summary/SummaryLayout";
 
@@ -67,9 +70,20 @@ export default function SorModal({
   lockedSummary: lockedSummaryProp,
   siblingIds,
   onNavigate,
+  initialView = null,
 }) {
   const { user } = useAuth();
   const id = rawOpportunity?.id || opportunityId;
+
+  // The parent's row can go stale after a save; this refetch shares the ["opportunity", id] key, so an
+  // invalidate from anywhere (e.g. SorVersionUpdate) refreshes it. Read the SOR through activeOpportunity.
+  const { data: liveOpportunity } = useQuery({
+    queryKey: ["opportunity", id],
+    queryFn: () => opportunityService.getOpportunityById(id),
+    enabled: !!id && isOpen,
+    initialData: rawOpportunity,
+  });
+  const activeOpportunity = liveOpportunity || rawOpportunity;
 
   // ADR 0021 / #297: full | participant | locked | none. The register and
   // Board already pass a full-access-only opportunity (RLS filters them out
@@ -93,6 +107,12 @@ export default function SorModal({
   });
   const lockedSummary = lockedSummaryProp ?? fetchedLockedSummary ?? null;
   const isRestricted = !!lockedSummary?.is_restricted;
+
+  const { data: accessContact = null } = useQuery({
+    queryKey: ["sorAccessContact", id],
+    queryFn: () => opportunityService.getAccessContact(id),
+    enabled: !!id && isOpen && accessLevel === "none",
+  });
 
   const { data: myVisits = [] } = useQuery({
     queryKey: ["sorMyVisits", id],
@@ -119,10 +139,26 @@ export default function SorModal({
     queryFn: () => opportunityService.getMyWindowsOn(id, user.id),
     enabled: !!id && isOpen && !!user?.id && (accessLevel === "participant" || accessLevel === "locked"),
   });
+  const { data: myMentionWindows = [] } = useQuery({
+    queryKey: ["myMentionWindowsOn", id, user?.id],
+    queryFn: () => opportunityService.getMyMentionWindowsOn(id, user.id),
+    enabled: !!id && isOpen && !!user?.id && accessLevel === "participant",
+  });
+  // #475: the visits this viewer cannot read, marked in the timeline rather
+  // than left as a silent gap.
+  const { data: visitVisibility } = useQuery({
+    queryKey: ["sorVisitVisibility", id],
+    queryFn: () => opportunityService.getVisitVisibility(id),
+    enabled: !!id && isOpen && (accessLevel === "full" || accessLevel === "participant"),
+  });
+  const hiddenStageVisits = useMemo(
+    () => (visitVisibility ? hiddenVisits(visitVisibility.visits, visitVisibility.visibleIds, accessLevel) : []),
+    [visitVisibility, accessLevel],
+  );
   const { stages: allStages } = usePipelineStages({ includeInactive: true });
   const pipelineStages = useMemo(
-    () => allStages.filter((s) => s.is_active || s.code === rawOpportunity?.status),
-    [allStages, rawOpportunity?.status],
+    () => allStages.filter((s) => s.is_active || s.code === activeOpportunity?.status),
+    [allStages, activeOpportunity?.status],
   );
   const stageLabel = useCallback(
     (code) => pipelineStages.find((s) => s.code === code)?.label || code,
@@ -131,13 +167,31 @@ export default function SorModal({
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
   const [noteMentions, setNoteMentions] = useState([]);
+  // #476: who the note being written would open a Mention Window for, so the
+  // writer sees the consequence before posting. Only names still in the text.
+  const liveMentions = useMemo(() => liveMentionIds(noteMentions, note, user?.id), [noteMentions, note, user?.id]);
+  const { data: mentionWindowIds = [] } = useQuery({
+    queryKey: ["sorMentionWindowCandidates", id, [...liveMentions].sort().join(",")],
+    queryFn: () => opportunityService.getMentionWindowCandidates(id, liveMentions),
+    enabled: !!id && isOpen && liveMentions.length > 0 && (accessLevel === "full" || accessLevel === "participant"),
+    staleTime: 30_000,
+  });
+  const mentionAccessHint = useMemo(
+    () => mentionWindowHint(noteMentions, mentionWindowIds, { hasVisits: !!visitVisibility?.visits?.length }),
+    [noteMentions, mentionWindowIds, visitVisibility],
+  );
+  // #477: who this SOR has been shared with by Mention, for the Deal Team.
+  const { data: mentionShares = [] } = useQuery({
+    queryKey: ["sorMentionShares", id],
+    queryFn: () => opportunityService.getMentionShares(id),
+    enabled: !!id && isOpen && accessLevel === "full",
+  });
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
-  const [fetchingOdoo, setFetchingOdoo] = useState(false);
   const [buildingLink, setBuildingLink] = useState(false);
   const [shareUrl, setShareUrl] = useState(null);
   const [downloadStep, setDownloadStep] = useState(null);
@@ -174,13 +228,16 @@ export default function SorModal({
     setActiveTab(tab);
   };
 
-  const { data: notes = [], isLoading: loadingNotes } = useQuery({
-    queryKey: ["opportunityNotes", id],
-    queryFn: () => opportunityService.getNotes(id),
+  // Pages newest-first. The key extends ["opportunityNotes", id] so the many
+  // invalidations of that prefix still refresh it, but stays distinct from the
+  // whole-list query the checklist's file picker keeps under the bare key.
+  const notesChat = usePagedChat({
+    queryKey: ["opportunityNotes", id, "chat"],
+    fetchPage: ({ before, limit }) => opportunityService.getNotesPage(id, { before, limit }),
     enabled: !!id && isOpen,
   });
-
-  const notesContainerRef = useRef(null);
+  const notes = notesChat.messages;
+  const loadingNotes = notesChat.isLoading;
 
   useEffect(() => {
     if (!id || !isOpen) return;
@@ -195,12 +252,6 @@ export default function SorModal({
     return () => supabase.removeChannel(channel);
   }, [id, isOpen, queryClient]);
 
-  useEffect(() => {
-    if (notesContainerRef.current) {
-      notesContainerRef.current.scrollTop = notesContainerRef.current.scrollHeight;
-    }
-  }, [notes.length, loadingNotes, isOpen]);
-
   // The Product List is Items' to load (#301), and edit mode's — the form
   // carries the whole list into Save. `handleEditToggle` fetches it before
   // the form opens, so this staying idle until then can't empty the list.
@@ -211,28 +262,33 @@ export default function SorModal({
     enabled: !!id && isOpen && accessLevel !== "locked" && (hasOpened("items") || isEditing),
   });
 
-  const { data: checklist = [] } = useQuery({
-    queryKey: ["stageChecklist", id, rawOpportunity?.flow_stage_id || rawOpportunity?.status],
-    queryFn: () => opportunityService.getStageChecklist(id, rawOpportunity),
+  // Issue #885 — `isLoading` (not `isPending`): a query that is switched off
+  // stays pending forever, and must not read as "still checking".
+  const { data: checklist = [], isLoading: checklistLoading } = useQuery({
+    queryKey: ["stageChecklist", id, activeOpportunity?.flow_stage_id || activeOpportunity?.status, activeOpportunity?.flow_snapshot_id ?? null],
+    queryFn: () => opportunityService.getStageChecklist(id, activeOpportunity),
     enabled: !!id && isOpen && accessLevel !== "locked",
   });
 
   const { data: flowCanvas } = useQuery({
-    queryKey: ["salesFlow", rawOpportunity?.sale_type_id],
-    queryFn: () => salesFlowService.getFlow(rawOpportunity.sale_type_id),
-    enabled: !!rawOpportunity?.sale_type_id && isOpen,
+    queryKey: ["salesFlow", activeOpportunity?.sale_type_id],
+    queryFn: () => salesFlowService.getFlow(activeOpportunity.sale_type_id),
+    enabled: !!activeOpportunity?.sale_type_id && isOpen,
   });
-  const currentFlowStage = flowCanvas?.stages?.find((s) => s.id === rawOpportunity?.flow_stage_id) || null;
-  const currentFlowStageTone = flowCanvas ? flowStageTone(currentFlowStage, flowCanvas.flow, flowCanvas.stages) : "mauve";
-
-  const requiresInclusions = checklist.some((c) => c.condition.kind === "inclusions");
-  const requiresPurchasing = checklist.some((c) => c.condition.kind === "purchasing");
-
-  const { data: procurementRequests = [] } = useQuery({
-    queryKey: ["procurementRequests", id],
-    queryFn: () => purchasingService.listForOpportunity(id),
-    enabled: !!id && isOpen && accessLevel !== "locked",
+  // The deal runs the Flow Snapshot it was registered under: its current Stage and that
+  // Stage's color come from there, the live flow only until it loads (#930). A snapshot
+  // never changes, so it is read once.
+  const { data: flowSnapshot } = useQuery({
+    queryKey: ["flowSnapshot", activeOpportunity?.flow_snapshot_id],
+    queryFn: () => salesFlowService.getSnapshot(activeOpportunity.flow_snapshot_id),
+    enabled: !!activeOpportunity?.flow_snapshot_id && isOpen,
+    staleTime: Infinity,
   });
+  const { stage: currentFlowStage, tone: currentFlowStageTone } = dealStageAndTone(
+    activeOpportunity?.flow_stage_id,
+    flowSnapshot?.snapshot_data,
+    flowCanvas,
+  );
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
@@ -247,19 +303,19 @@ export default function SorModal({
   // Resolved from `employees`, which every signed-in caller can already read
   // regardless of SOR access.
   const opportunity = useMemo(() => {
-    if (!rawOpportunity) return rawOpportunity;
-    if (accessLevel !== "participant") return rawOpportunity;
+    if (!activeOpportunity) return activeOpportunity;
+    if (accessLevel !== "participant") return activeOpportunity;
     const byId = (empId) => employees.find((e) => e.id === empId) || null;
     return {
-      ...rawOpportunity,
-      registrar: byId(rawOpportunity.registered_by),
-      deal_owner: byId(rawOpportunity.deal_owner_id),
-      closing_sales: byId(rawOpportunity.closing_sales_id),
-      support_1: byId(rawOpportunity.support_sales_1_id),
-      support_2: byId(rawOpportunity.support_sales_2_id),
-      sales_director: byId(rawOpportunity.sales_director_id),
+      ...activeOpportunity,
+      registrar: byId(activeOpportunity.registered_by),
+      deal_owner: byId(activeOpportunity.deal_owner_id),
+      closing_sales: byId(activeOpportunity.closing_sales_id),
+      support_1: byId(activeOpportunity.support_sales_1_id),
+      support_2: byId(activeOpportunity.support_sales_2_id),
+      sales_director: byId(activeOpportunity.sales_director_id),
     };
-  }, [rawOpportunity, accessLevel, employees]);
+  }, [activeOpportunity, accessLevel, employees]);
 
   // A mention is an invitation (it grants read-only access to the record), so
   // the SOR chat's roster offers every employee, on any SOR.
@@ -280,7 +336,7 @@ export default function SorModal({
 
   // A Legacy Pipeline deal with no version on record (#414) moves by stage
   // code, as SORs always did: its live flow Stage's gate never applies to it.
-  const runsFlow = Boolean(rawOpportunity) && !isJudgedByStageCode(rawOpportunity);
+  const runsFlow = Boolean(activeOpportunity) && !isJudgedByStageCode(activeOpportunity);
 
   // Issue #407 — the header's "Clear to move"/"Blocked" badge (and the
   // "Can't move on yet" message under the ribbon) used to be judged on
@@ -289,10 +345,10 @@ export default function SorModal({
   // either), so a required, empty Stage Field read as "clear" right up until
   // the move itself came back refused. Fetched here, not just inside Now's
   // Stage Fields form, so the header can name it before the click.
-  const { data: stageFields = [] } = useQuery({
-    queryKey: ["stageFields", rawOpportunity?.flow_stage_id],
-    queryFn: () => stageFieldService.getForStage(rawOpportunity.flow_stage_id),
-    enabled: runsFlow && !!rawOpportunity?.flow_stage_id && isOpen,
+  const { data: stageFields = [], isLoading: stageFieldsLoading } = useQuery({
+    queryKey: ["stageFields", activeOpportunity?.flow_stage_id],
+    queryFn: () => stageFieldService.getForStage(activeOpportunity.flow_stage_id),
+    enabled: runsFlow && !!activeOpportunity?.flow_stage_id && isOpen,
   });
 
   const { data: currentVisitFieldValues = {} } = useQuery({
@@ -304,11 +360,16 @@ export default function SorModal({
   const missingRequiredStageFields = useMemo(
     () =>
       missingStageFields(runsFlow ? stageFields : [], {
-        opportunity: rawOpportunity || {},
+        opportunity: activeOpportunity || {},
         visitValues: currentVisitFieldValues,
       }),
-    [runsFlow, stageFields, rawOpportunity, currentVisitFieldValues],
+    [runsFlow, stageFields, activeOpportunity, currentVisitFieldValues],
   );
+
+  // Issue #885 — while the conditions or the Stage Fields are still loading,
+  // nothing may say "Clear to move" or "Nothing blocks": the header shows a
+  // checking state and the Stage box waits too.
+  const blockersPending = checklistLoading || stageFieldsLoading;
 
   // Only Details shows or edits a Lead Source (#302), so it waits for Details.
   const { data: activeLeadSources = [] } = useQuery({
@@ -344,6 +405,9 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityAutomations", id] });
     queryClient.invalidateQueries({ queryKey: ["stageChecklist", id] });
+    queryClient.invalidateQueries({ queryKey: ["quickViewChecklist", id] });
+    // The banner's Stage Field values (#791): refresh with every save.
+    queryClient.invalidateQueries({ queryKey: ["stageFieldValues"] });
     // A move can hold, resume or cancel the Stage's tasks; the Activity task
     // cards (#399) read each task's live status under these keys.
     queryClient.invalidateQueries({ queryKey: ["globalTask"] });
@@ -354,7 +418,13 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["revertVisits", id] });
     queryClient.invalidateQueries({ queryKey: ["stageVisitId", id] });
     queryClient.invalidateQueries({ queryKey: ["currentStageVisit", id] });
+    queryClient.invalidateQueries({ queryKey: ["sorCurrentVisitId", id] });
+    queryClient.invalidateQueries({ queryKey: ["sorVisitAudience", id] });
     queryClient.invalidateQueries({ queryKey: ["followUpStatus", id] });
+    // #310: the Now card, Items statuses and Journey read the Purchase Request.
+    queryClient.invalidateQueries({ queryKey: ["sor-purchase-request", id] });
+    // #791: the PMS tab's S0 Evaluation card ("Lines") reads the matrix; a move or save can add its lines.
+    queryClient.invalidateQueries({ queryKey: costingKeys.all(id) });
   }, [queryClient, id]);
 
   const handleMentionClick = (person) => {
@@ -426,8 +496,12 @@ export default function SorModal({
       setSalesRef("");
       invalidate();
       toast.success("Stage updated.");
+      if (data?.wonWithoutContractDate) {
+        toast("Moved to Won, but this SOR has no Contract Date yet. Type it in on the Details tab so the right commission rate is used.", { icon: "⚠️", duration: 8000 });
+      }
       if (data?.failedStageActions?.length > 0) {
-        toast(`Moved, but these automations failed — create them by hand: ${data.failedStageActions.join(", ")}.`, { icon: "⚠️", duration: 8000 });
+        const failures = data.failedStageActions.map((name) => ({ name, reason: data.failedStageActionReasons?.find((r) => r.name === name)?.reason }));
+        toast(`Moved, but these automations failed — create them by hand: ${formatActionFailures(failures)}.`, { icon: "⚠️", duration: 8000 });
       }
       const isLeavingLead = opportunity?.status === "LEAD" && variables?.next !== "LEAD";
       if (isLeavingLead) {
@@ -447,7 +521,7 @@ export default function SorModal({
   // Issue #390 — every stage control in the modal (the header, and the staging
   // layouts) moves through this, so a Return always reaches the prompt.
   const returnPrompt = useReturnPrompt({
-    opportunity: rawOpportunity,
+    opportunity: activeOpportunity,
     stages: flowCanvas?.stages,
     enabled: runsFlow,
     move: stageMutation.mutate,
@@ -455,7 +529,7 @@ export default function SorModal({
   const stageMover = { ...stageMutation, mutate: returnPrompt.request };
   // A Return is never blocked by the Stage being left, so a stage control
   // leaves these destinations open even while the current Stage is blocked.
-  const returnStageIds = useReturnStageIds(rawOpportunity, runsFlow && isOpen);
+  const returnStageIds = useReturnStageIds(activeOpportunity, runsFlow && isOpen);
 
   const deleteMutation = useMutation({
     mutationFn: () => opportunityService.deleteOpportunity(id, user?.id),
@@ -499,6 +573,30 @@ export default function SorModal({
     };
   }, [isOpen, id, opportunity, user?.id, invalidate]);
 
+  // #817: re-check a Not checked / Found S0 against Odoo once per SOR window, in the background.
+  // Only the Odoo state moves; the card is refreshed after.
+  const hasRechecked = useRef(new Set());
+  useEffect(() => {
+    if (!isOpen || !id || !opportunity?.sales_reference) return;
+    if (hasRechecked.current.has(id)) return;
+    hasRechecked.current.add(id);
+    (async () => {
+      try {
+        const cardKey = ["salesReferenceCard", id];
+        const card = await queryClient.fetchQuery({
+          queryKey: cardKey,
+          queryFn: () => opportunityService.getSalesReferenceCard(id),
+          staleTime: 5000,
+        });
+        if (card?.odoo_state && card.odoo_state !== "found" && card.odoo_state !== "not_checked") return;
+        const result = await opportunityService.recheckSalesReference(id);
+        if (result) queryClient.invalidateQueries({ queryKey: cardKey });
+      } catch (err) {
+        console.error("S0 re-check failed", err);
+      }
+    })();
+  }, [isOpen, id, opportunity?.sales_reference, queryClient]);
+
   // ←/→ step to siblingIds' neighbour, skipped while a text field is focused
   // so it doesn't fight with normal cursor movement while typing.
   useEffect(() => {
@@ -535,24 +633,6 @@ export default function SorModal({
     addNoteMutation.mutate({ content, attachments: uploaded, mentions: noteMentions });
   };
 
-  const executeOdooFetch = async (ref) => {
-    setFetchingOdoo(true);
-    try {
-      const { problem, rows, stock, quotation } = await pullOdooLines(ref);
-      if (problem) {
-        toast.error(problem);
-        return;
-      }
-      setEditForm((f) => ({ ...f, items: rows }));
-      pendingStockRef.current = stock;
-      toast.success(`Pulled ${rows.length} item(s) from ${quotation}.`);
-    } catch (err) {
-      toast.error(err.message || "Could not reach Odoo — enter items manually.");
-    } finally {
-      setFetchingOdoo(false);
-    }
-  };
-
   const handleRefreshStock = async () => {
     const productIds = items.map((it) => it.odoo_product_id).filter((pid) => Number.isInteger(pid));
     if (!productIds.length) {
@@ -573,26 +653,6 @@ export default function SorModal({
       toast.error(err.message || "Could not reach Odoo to refresh stock.");
     } finally {
       setRefreshingStock(false);
-    }
-  };
-
-  const handleFetchFromOdoo = () => {
-    const ref = normalizeSalesReference(editForm.sales_reference);
-    if (!isValidSalesReference(ref)) {
-      toast.error(SALES_REFERENCE_HINT);
-      return;
-    }
-    const hasItems = editForm.items?.some((it) => (it.product_name || "").trim());
-    if (hasItems) {
-      confirmActionToast(
-        "Overwrite Products?",
-        "This replaces the current Product List with the items from Odoo. Continue?",
-        "Continue",
-        "warning",
-        () => executeOdooFetch(ref),
-      );
-    } else {
-      executeOdooFetch(ref);
     }
   };
 
@@ -707,8 +767,11 @@ export default function SorModal({
       registration_date: opportunity.registration_date || "",
       expected_award_date: opportunity.expected_award_date || "",
       po_date: opportunity.po_date || "",
+      contract_date: opportunity.contract_date || "",
+      date_of_award: opportunity.date_of_award || "",
+      date_of_pdi: opportunity.date_of_pdi || "",
+      date_of_delivery: opportunity.date_of_delivery || "",
       contact_person: opportunity.contact_person || "",
-      sales_reference: opportunity.sales_reference || "",
       deal_owner_id: opportunity.deal_owner_id || "",
       closing_sales_id: opportunity.closing_sales_id || "",
       sales_director_id: opportunity.sales_director_id || "",
@@ -723,11 +786,15 @@ export default function SorModal({
   // every hook above has run unconditionally, so the branch never changes
   // this component's hook order.
   if (!id) return null;
+  if (accessLevel === "none") {
+    return <NoAccessSorSlideOver isOpen={isOpen} onClose={onClose} contact={accessContact} />;
+  }
   if (accessLevel === "locked") {
     return <LockedSorSlideOver isOpen={isOpen} onClose={onClose} lockedSummary={lockedSummary} myVisits={myVisits} />;
   }
 
-  if (!opportunity) return null;
+  // The record is still on the way: show the window's frame at once, not a blank panel (#904).
+  if (!opportunity) return <SorWindowSkeleton isOpen={isOpen} onClose={onClose} />;
 
   // ADR 0021 / #297: only a full-access caller may move the Stage — a
   // Participant never could (`sor_guard_stage_move` requires 'full'), and a
@@ -736,7 +803,7 @@ export default function SorModal({
   // 'full'. Both are surfaced here rather than left to a server error.
   const moveDisabled = accessLevel !== "full" || isRestricted;
 
-  const editItemsSum = (editForm.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
+  const editItemsSum = (editForm.items || []).reduce((sum, it) => (it.removed_from_s0 ? sum : sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
   const estimatedValueDisplay = isEditing ? formatPHP(editItemsSum) : formatPHP(opportunity.expected_value);
   const estimatedValueSize = estimatedValueSizeClass(estimatedValueDisplay);
 
@@ -756,19 +823,6 @@ export default function SorModal({
       setPendingStage(next);
       // The confirm step lives on Now — bring it into view, wherever the Move was started.
       handleTabChange("now");
-      return;
-    }
-    const stillOpen = openRequests(procurementRequests);
-    if (stillOpen.length && !isLostCode(next)) {
-      confirmActionToast(
-        "Purchasing hasn't answered yet",
-        `${stillOpen.length} product${stillOpen.length === 1 ? " is" : "s are"} still with purchasing. Moving to ${stageLabel(next)} means quoting ${
-          stillOpen.length === 1 ? "it" : "them"
-        } before anyone has confirmed ${stillOpen.length === 1 ? "it" : "they"} can be sourced.`,
-        "Move anyway",
-        "warning",
-        () => stageMutation.mutate({ next, reason: null, salesReference: null }),
-      );
       return;
     }
     stageMutation.mutate({ next, reason: null, salesReference: null });
@@ -802,8 +856,8 @@ export default function SorModal({
     employees,
     activeLeadSources,
     checklist,
-    requiresInclusions,
-    requiresPurchasing,
+    missingRequiredStageFields,
+    blockersPending,
     automationTasks,
     invalidate,
     handleSaveField,
@@ -825,8 +879,6 @@ export default function SorModal({
     handleCopyQuotationLink,
     downloadStep,
     handleDownloadQuotation,
-    fetchingOdoo,
-    handleFetchFromOdoo,
     items,
     itemsLoading,
     autoSyncingOdoo,
@@ -854,6 +906,7 @@ export default function SorModal({
     handleStageChange,
     checklist,
     missingRequiredStageFields,
+    blockersPending,
     isOpen,
     hasPrev,
     hasNext,
@@ -869,13 +922,18 @@ export default function SorModal({
   const chatColumn = (
     <SorChatColumn
       notes={notes}
+      hiddenVisits={hiddenStageVisits}
       loadingNotes={loadingNotes}
-      notesContainerRef={notesContainerRef}
+      currentUserId={user?.id}
+      hasMoreNotes={notesChat.hasMore}
+      isFetchingMoreNotes={notesChat.isFetchingMore}
+      onLoadMoreNotes={notesChat.loadMore}
       handleMentionClick={handleMentionClick}
       note={note}
       setNote={setNote}
       noteMentions={noteMentions}
       setNoteMentions={setNoteMentions}
+      mentionAccessHint={mentionAccessHint}
       employees={mentionableEmployees}
       attachments={attachments}
       fileInputRef={fileInputRef}
@@ -884,9 +942,30 @@ export default function SorModal({
     />
   );
 
-  const windowsBanner = myWindows.length > 0 && (
+  // #475: a Mention Window says who opened it and when it ends.
+  const windowsBanner = (myWindows.length > 0 || myMentionWindows.length > 0) && (
       <div className="shrink-0 border-b border-border/60 bg-violet-a2 px-6 py-2">
         <ul className="space-y-0.5">
+          {myMentionWindows.map((m) => (
+            <li key={m.id} className="text-xs leading-relaxed text-violet-11">
+              {!m.hasVisit ? (
+                <>
+                  <span className="font-bold">{m.mentionedBy || "Someone"}</span> mentioned you. You see this SOR, read-only.
+                </>
+              ) : m.closed ? (
+                <>
+                  <span className="font-bold">{m.mentionedBy || "Someone"}</span> mentioned you at{" "}
+                  <span className="font-bold">{m.stageName || "an earlier Stage"}</span>. That Stage has moved on.
+                </>
+              ) : (
+                <>
+                  You're viewing <span className="font-bold">{m.stageName || "this Stage"}</span> because{" "}
+                  <span className="font-bold">{m.mentionedBy || "someone"}</span> mentioned you. Other Stages are hidden;
+                  this ends when the Stage moves.
+                </>
+              )}
+            </li>
+          ))}
           {myWindows.map((w) => (
             <li key={w.id} className="text-xs leading-relaxed text-violet-11">
               Called in at{" "}
@@ -907,8 +986,10 @@ export default function SorModal({
     ctx: tabCtx,
     chatColumn,
     windowsBanner,
+    mentionShares,
     notes,
     canViewJourney,
+    initialView,
     isWide,
     hasOpened,
     markOpened,
@@ -950,7 +1031,9 @@ export default function SorModal({
     >
       <RecordModalContent
         showCloseButton={false}
-        className="flex flex-col shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)]"
+        // z-[70] is the record layer (ModalShell's record window, e.g. the S0 Evaluation).
+        // The SOR is a record too, so opened over one it stacks on top of it (#886).
+        className="z-[70] flex flex-col shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)]"
       >
         {PrototypeShell ? (
           <Suspense fallback={null}>

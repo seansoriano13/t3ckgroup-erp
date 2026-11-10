@@ -1,0 +1,408 @@
+import { stubRpc, stubEdgeFunction } from "@/test/msw/server"
+import { db, insertRow, updateRow } from "@/test/db/store"
+import { pgrstError } from "@/test/db/schema"
+import { ITEM_STATUS_LABELS, allowedTransitions } from "@/constants/purchaseRequest"
+
+const rowsOf = (table) => db.internal.rowsOf(table)
+const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
+
+/**
+ * Issue #305 — the Requested Item RPCs (supabase/migrations/
+ * 20261005130400_purchase_request_add_items.sql) live in Postgres, which the
+ * fake database does not execute. Re-implemented here against the in-memory
+ * store, as stubReplaceItemsRpc does for sor_replace_items, so a service test
+ * can run a real `updateOpportunity` between adding an item and reading it.
+ *
+ * The fake has no signed-in identity, so `actorId` stands in for
+ * get_employee_id(). Who may add is proven in the policy tier
+ * (39-purchase-request-items.test.js), not here.
+ *
+ * #306's status RPCs (20261005130500_purchase_request_item_status.sql) too:
+ * `side` is the actor's side (default: their stored member side, or null),
+ * and `canSubstitute` stands in for purchase_request_can_add_substitute. The transition
+ * rule is the client's `allowedTransitions`, the one the SQL mirrors; who may
+ * move what is proven in 40-purchase-request-item-status.test.js.
+ *
+ * #312's PO RPCs (20261005130800_purchase_request_item_po.sql): Ordered stores
+ * `details.po_number` / `po_verification`; `ipasLines` (`{ [poNumber]: [lineId] }`)
+ * stands in for the `_ipas_po_line_ids` seam, empty by default as it ships.
+ *
+ * #684: attaching a P0 is the `odoo-po-verify` edge function's "attach" action, with Odoo faked as
+ * `odoo` and the P0s it holds as `p0s` (`{ [poNumber]: { state, ordered, received, bought_as } }`;
+ * a P0 not listed is confirmed, for the item's quantity, none received).
+ * The rules are proven in 43-purchase-request-item-po.test.js.
+ *
+ * #273's Costing Matrix RPCs (20261018150000_costing_purchase_request_items.sql): `purchasing`
+ * stands in for has_purchasing_access(); the Component labels are served. The items of an S0 line
+ * are not made by an RPC but by triggers: see sorItemSync.js.
+ */
+export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = false, ipasLines = {}, purchasing = false, odoo = null, p0s = {} }) {
+  const postAdded = (item) => {
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: item.requested_by,
+      content: `Requested ${item.name}.`,
+      metadata: { event: "item_added", item_id: item.id, source: item.source },
+    })
+  }
+
+  stubRpc("purchase_request_can_add_items", () => true)
+
+  stubRpc("has_purchasing_access", () => purchasing)
+
+  const matrixOf = (componentId) => {
+    const component = findRow("costing_components", componentId)
+    const line = component && findRow("costing_tender_lines", component.tender_line_id)
+    return line && findRow("costing_matrices", line.matrix_id)
+  }
+
+  // The Component's number as the grid numbers it: its line's place in the matrix, then its own place under the line.
+  stubRpc("purchase_request_component_labels", (args) => {
+    const items = rowsOf("purchase_request_items").filter((i) => i.request_id === args.p_request_id && i.component_id)
+    return items.flatMap((item) => {
+      const component = findRow("costing_components", item.component_id)
+      const matrix = matrixOf(item.component_id)
+      if (!component || !matrix) return []
+      const lines = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrix.id).sort((a, b) => a.position - b.position)
+      const siblings = rowsOf("costing_components").filter((c) => c.tender_line_id === component.tender_line_id).sort((a, b) => a.position - b.position)
+      const number = `${lines.findIndex((l) => l.id === component.tender_line_id) + 1}.${siblings.findIndex((c) => c.id === component.id) + 1}`
+      return [{ item_id: item.id, component_id: component.id, number, name: component.name }]
+    })
+  })
+
+  stubRpc("purchase_request_add_new_item", (args) => {
+    const item = insertRow("purchase_request_items", {
+      request_id: args.p_request_id,
+      source: "new",
+      name: args.p_name.trim(),
+      unit: args.p_unit || null,
+      quantity: args.p_quantity,
+      description: args.p_description || null,
+      images: args.p_images || [],
+      purpose: args.p_purpose || "client",
+      requested_by: actorId,
+    })
+    postAdded(item)
+    return item.id
+  })
+
+  // #501 (20261012100500_purchase_request_stock_snapshot.sql): the request's
+  // SOR stock snapshot, or null. Who may read it is can_read_purchase_request.
+  stubRpc("purchase_request_stock_snapshot", (args) => {
+    const request = findRow("purchase_requests", args.p_request_id)
+    const snapshot = rowsOf("sor_stock_snapshots").find((s) => request?.opportunity_id && s.opportunity_id === request.opportunity_id)
+    return snapshot ? { fetched_at: snapshot.fetched_at, data: snapshot.data } : null
+  })
+
+  const sideOf = (requestId) =>
+    side !== undefined
+      ? side
+      : rowsOf("purchase_request_members").find((m) => m.request_id === requestId && m.employee_id === actorId)?.side ?? null
+
+  const refuse = (message, code) => {
+    throw pgrstError(code, message)
+  }
+
+  const move = (item, to, details, fn) => {
+    const from = item.status
+    if (!allowedTransitions(from, sideOf(item.request_id)).includes(to)) {
+      refuse(`${fn}: can't move from ${ITEM_STATUS_LABELS[from]} to ${ITEM_STATUS_LABELS[to]}`, "42501")
+    }
+    const changedAt = new Date().toISOString()
+    // Any status choice clears a "Now x free of y" warning (#681), as the database does.
+    const updated = updateRow("purchase_request_items", item, {
+      status: to,
+      status_changed_by: actorId,
+      status_changed_at: changedAt,
+      stock_short_free: null,
+      stock_short_needed: null,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `${item.name}: ${ITEM_STATUS_LABELS[from]} → ${ITEM_STATUS_LABELS[to]}.`,
+      metadata: {
+        event: "item_status_changed",
+        item_id: item.id,
+        from,
+        to,
+        changed_by: actorId,
+        changed_at: changedAt,
+        ...(details && Object.keys(details).length ? { details } : {}),
+      },
+    })
+    return updated
+  }
+
+  stubRpc("purchase_request_actor_side", (args) => sideOf(args.p_request_id))
+  stubRpc("purchase_request_can_add_substitute", () => canSubstitute)
+
+  // 20261024103700_undo_item_status.sql, reduced to its rule: only the last
+  // change, by its status_changed_at, and back along the one event. The window
+  // and the notification clean-up are proven in 106-purchase-request-undo-status.
+  stubRpc("purchase_request_undo_item_status", (args) => {
+    const item = findRow("purchase_request_items", args.p_item_id)
+    if (!item || item.status_changed_at !== args.p_changed_at) {
+      refuse("purchase_request_undo_item_status: that item has changed since, so there is nothing to undo", "22023")
+    }
+    const event = rowsOf("purchase_request_messages").find(
+      (m) => m.metadata?.event === "item_status_changed" && m.metadata.item_id === item.id && m.metadata.changed_at === args.p_changed_at,
+    )
+    return updateRow("purchase_request_items", item, { status: event.metadata.from, status_changed_by: null, status_changed_at: null })
+  })
+
+  stubRpc("purchase_request_set_item_status", (args) => {
+    const item = findRow("purchase_request_items", args.p_item_id)
+    if (!item) refuse(`purchase_request_set_item_status: item ${args.p_item_id} not found`, "P0002")
+    const details = args.p_details || {}
+    // #548: a signed-in caller never sets the Odoo check.
+    if ("po_verification" in details) {
+      refuse("purchase_request_set_item_status: only the server may record a PO check", "42501")
+    }
+    // A PO number is saved only by the server path, after it asks Odoo.
+    if ((details.po_number || "").toString().trim()) {
+      refuse("purchase_request_set_item_status: a PO number is saved by the server after Odoo is asked; use the Order / Correct PO action", "42501")
+    }
+    if (args.p_status === "available") return setAvailable(item, details)
+    return setStatus(item, args.p_status, details, false)
+  })
+
+  // #803: Available on short stock needs a reason. The latest stock check for the request's SOR
+  // decides: its free count for the item's Odoo product, against the quantity. Mirrors the
+  // Available branch of purchase_request_set_item_status (20261118020000_803_available_short_stock_reason.sql).
+  function setAvailable(item, details) {
+    const extra = Object.keys(details).find((key) => key !== "reason")
+    if (extra) refuse(`purchase_request_set_item_status: Available takes a reason, not ${extra}`, "22023")
+    const reason = (details.reason || "").toString().trim() || null
+    const request = findRow("purchase_requests", item.request_id)
+    const snapshot = rowsOf("sor_stock_snapshots").find((s) => request?.opportunity_id && s.opportunity_id === request.opportunity_id)
+    const product = item.odoo_product_id ? snapshot?.data?.products?.[item.odoo_product_id] : null
+    const free = Number(product?.free ?? 0)
+    const needed = Number(item.quantity)
+    const short = product?.type === "product" && free < needed ? { free, needed } : null
+    if (short && !reason) {
+      refuse(`purchase_request_set_item_status: Now ${free} free of ${needed}. Give a short reason to mark it Available`, "22023")
+    }
+    // Choosing Available again is allowed only to clear a warning (#681).
+    if (item.status === "available" && item.stock_short_free == null) {
+      refuse("purchase_request_set_item_status: the item is already Available", "22023")
+    }
+    const moved = move(item, "available", null, "purchase_request_set_item_status")
+    if (!short) return moved
+    // updateRow writes into the stored row, so flag the stored row, not the copy move returned.
+    const flagged = updateRow("purchase_request_items", findRow("purchase_request_items", item.id), {
+      stock_short_free: free,
+      stock_short_needed: needed,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `${item.name}: Available on short stock, now ${free} free of ${needed}. Reason: ${reason}`,
+      metadata: { event: "item_short_stock_reason", item_id: item.id, reason, free, needed },
+    })
+    return flagged
+  }
+
+  function setStatus(item, status, details, server) {
+    const po = (details.po_number || "").trim().toUpperCase() || null
+    if (Object.keys(details).length && status !== "purchased") {
+      refuse(`purchase_request_set_item_status: ${ITEM_STATUS_LABELS[status]} takes no details`, "22023")
+    }
+    if (po && !/^P\d+$/.test(po)) refuse(`purchase_request_set_item_status: ${po} isn't an Odoo PO number`, "22023")
+    const poFields = po ? { po_number: po, po_verification: (server && details.po_verification) || "UNVERIFIED" } : null
+    const moved = move(item, status, poFields, "purchase_request_set_item_status")
+    return poFields ? updateRow("purchase_request_items", item, poFields) : moved
+  }
+
+  // #852 (20261120020000_852_bulk_item_status.sql): the batch is the single-line rule for every line,
+  // all or none; Cancelled and Cannot source need one shared reason, posted for each line.
+  stubRpc("purchase_request_bulk_set_item_status", (args) => {
+    const reason = (args.p_reason || "").trim() || null
+    if (["cancelled", "cannot_source"].includes(args.p_status) && !reason) {
+      refuse("purchase_request_bulk_set_item_status: give a reason", "22023")
+    }
+    const before = (args.p_item_ids || []).map((id) => ({ ...findRow("purchase_request_items", id) }))
+    try {
+      return before.map((item) => {
+        const live = findRow("purchase_request_items", item.id)
+        const updated =
+          args.p_status === "available" ? setAvailable(live, reason ? { reason } : {}) : setStatus(live, args.p_status, {}, false)
+        if (reason && args.p_status !== "available") {
+          insertRow("purchase_request_messages", {
+            request_id: item.request_id,
+            author_id: actorId,
+            content: `${item.name}: ${ITEM_STATUS_LABELS[args.p_status]}. Reason: ${reason}`,
+            metadata: { event: "item_status_reason", item_id: item.id, reason },
+          })
+        }
+        return updated
+      })
+    } catch (error) {
+      for (const item of before) updateRow("purchase_request_items", findRow("purchase_request_items", item.id), item)
+      throw error
+    }
+  })
+
+  stubRpc("purchase_request_bulk_undo_item_status", (args) =>
+    args.p_changes.map((change) => {
+      const item = findRow("purchase_request_items", change.item_id)
+      if (!item || item.status_changed_at !== change.changed_at) {
+        refuse("purchase_request_undo_item_status: that item has changed since, so there is nothing to undo", "22023")
+      }
+      const event = rowsOf("purchase_request_messages").find(
+        (m) => m.metadata?.event === "item_status_changed" && m.metadata.item_id === item.id && m.metadata.changed_at === change.changed_at,
+      )
+      return updateRow("purchase_request_items", item, { status: event.metadata.from, status_changed_by: null, status_changed_at: null })
+    }),
+  )
+
+  // #548: the `odoo-po-verify` edge function in save mode, with Odoo faked as
+  // `odoo` ('found' | 'not_found' | 'unreachable'). Mirrors
+  // purchase_request_item_apply_po_check; the verdicts are proven in
+  // 103-purchase-request-po-check.test.js.
+  if (odoo) {
+    stubEdgeFunction("odoo-po-verify", (body) => {
+      const item = findRow("purchase_request_items", body.itemId)
+      const po = (body.poNumber || "").trim().toUpperCase()
+      if (!item) return { success: false, refused: true, message: `item ${body.itemId} not found` }
+      if (odoo === "not_found") {
+        return { success: false, refused: true, message: `Odoo has no purchase order ${po}; check the number and try again` }
+      }
+      const verification = odoo === "found" ? "VERIFIED" : "PENDING_VERIFICATION"
+      if (body.action === "correct") {
+        if (sideOf(item.request_id) !== "purchasing") return { success: false, refused: true, message: "purchase_request_correct_po: only Purchasing corrects an item's PO".replace(/^[a-z_]+: /, "") }
+        if (item.status !== "purchased") return { success: false, refused: true, message: `${item.name} is ${item.status}, not Ordered; a PO can only be corrected while the item is Ordered` }
+        const corrected = updateRow("purchase_request_items", item, { po_number: po, po_verification: verification, odoo_po_line_ids: [] })
+        insertRow("purchase_request_messages", {
+          request_id: item.request_id,
+          author_id: actorId,
+          content: `${item.name}: PO ${item.po_number || "none"} → ${po}.`,
+          metadata: { event: "item_po_corrected", item_id: item.id, from_po: item.po_number, to_po: po },
+        })
+        return { success: true, verdict: odoo === "found" ? "verified" : "not_checked", item: corrected }
+      }
+      if (body.action === "attach") {
+        if (odoo === "unreachable") return { success: false, message: "Odoo didn't answer. The P0 was not attached; try again." }
+        if (sideOf(item.request_id) !== "purchasing") return { success: false, refused: true, message: "only Purchasing attaches a P0" }
+        if (item.status === "cancelled") return { success: false, refused: true, message: "nothing to attach to this line" }
+        if (item.status === "received") return { success: false, refused: true, message: "This line is already received, so it can't take another P0." }
+        const facts = { state: "confirmed", ordered: item.quantity, received: 0, bought_as: null, ...(p0s[po] || {}) }
+        const to = facts.state === "rfq" ? "to_purchase" : facts.ordered > 0 && facts.received >= facts.ordered ? "received" : "purchased"
+        const attached = updateRow("purchase_request_items", item, {
+          status: to,
+          status_changed_by: actorId,
+          status_changed_at: new Date().toISOString(),
+          po_number: po,
+          po_verification: "VERIFIED",
+          po_state: facts.state,
+          po_ordered: facts.ordered,
+          po_received: facts.received,
+          bought_as: facts.bought_as,
+          bought_product_id: facts.bought_product_id ?? null,
+          odoo_po_line_ids: item.po_number === po ? item.odoo_po_line_ids : [],
+        })
+        insertRow("purchase_request_messages", {
+          request_id: item.request_id,
+          author_id: actorId,
+          content: `${item.name}: P0 ${po} attached.`,
+          metadata: { event: "item_po_attached", item_id: item.id, to, po_number: po, po_state: facts.state },
+        })
+        return { success: true, verdict: "verified", item: attached }
+      }
+      return { success: false, refused: true, message: `${body.action} is not a PO action` }
+    })
+  }
+
+  // #804: an ipasLines entry is a list of line ids, or of `{ line_id, product_name, quantity }` rows.
+  const ipasRowsOf = (poNumber) =>
+    ((poNumber && ipasLines[poNumber]) || []).map((l) =>
+      typeof l === "number" ? { line_id: l, product_name: `Product ${l}`, quantity: 1 } : { quantity: 1, ...l },
+    )
+  const ipasOf = (poNumber) => ipasRowsOf(poNumber).map((l) => l.line_id)
+
+  stubRpc("purchase_request_item_po_lines", (args) => ipasOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
+
+  // #804: 20261118030000_804_attach_po_line_ids.sql. The lines of the IPAS copy with their product and quantity.
+  stubRpc("purchase_request_item_po_line_rows", (args) => ipasRowsOf(findRow("purchase_request_items", args.p_item_id)?.po_number))
+
+  // #688: 20261105000000_is_this_yours_on_s0.sql. The rules are proven in 240-is-this-yours.test.js.
+  stubRpc("purchase_request_answer_yours", (args) => {
+    const s0 = findRow("purchase_request_items", args.p_item_id)
+    if (!s0) refuse(`purchase_request_answer_yours: item ${args.p_item_id} not found`, "P0002")
+    if (!["purchasing", "sales"].includes(sideOf(s0.request_id))) refuse("purchase_request_answer_yours: only Purchasing or the sales side answers this", "42501")
+    if (!s0.new_on_s0) refuse(`purchase_request_answer_yours: ${s0.name} has no open question`, "22023")
+    if (!args.p_same) return updateRow("purchase_request_items", s0, { new_on_s0: false, yours_item_id: null })
+    const other = { ...findRow("purchase_request_items", s0.yours_item_id) }
+    updateRow("purchase_request_items", findRow("purchase_request_items", other.id), {
+      status: "cancelled",
+      po_number: null,
+      po_state: null,
+      po_ordered: null,
+      po_received: null,
+      bought_as: null,
+      bought_product_id: null,
+      closed_note: `Closed · ${other.po_number} and its delivery moved onto ${s0.name}`,
+    })
+    return updateRow("purchase_request_items", s0, {
+      status: other.status,
+      po_number: other.po_number,
+      po_verification: other.po_verification,
+      po_state: other.po_state,
+      po_ordered: other.po_ordered,
+      po_received: other.po_received,
+      bought_as: other.bought_as,
+      bought_product_id: other.bought_product_id,
+      new_on_s0: false,
+      yours_item_id: null,
+    })
+  })
+
+  stubRpc("purchase_request_pick_po_lines", (args) => {
+    const item = findRow("purchase_request_items", args.p_item_id)
+    if (!item) refuse(`purchase_request_pick_po_lines: item ${args.p_item_id} not found`, "P0002")
+    if (sideOf(item.request_id) !== "purchasing") refuse("purchase_request_pick_po_lines: only Purchasing picks an item's P0 line", "42501")
+    const ipas = ipasOf(item.po_number)
+    if (!ipas.length) refuse(`purchase_request_pick_po_lines: P0 ${item.po_number} has no IPAS yet; pick its line once it has one`, "22023")
+    const lines = [...new Set(args.p_line_ids || [])].sort((a, b) => a - b)
+    const stray = lines.filter((l) => !ipas.includes(l))
+    if (!lines.length || stray.length) refuse(`purchase_request_pick_po_lines: line ${stray.join(", ")} isn't on P0 ${item.po_number}'s IPAS copy`, "22023")
+    const updated = updateRow("purchase_request_items", item, { odoo_po_line_ids: lines })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `${item.name}: P0 line picked on ${item.po_number}.`,
+      metadata: { event: "item_po_lines_picked", item_id: item.id, po_number: item.po_number, line_ids: lines },
+    })
+    return updated
+  })
+
+  stubRpc("purchase_request_replace_item", (args) => {
+    const original = findRow("purchase_request_items", args.p_item_id)
+    if (!original) refuse(`purchase_request_replace_item: item ${args.p_item_id} not found`, "P0002")
+    if (sideOf(original.request_id) !== "purchasing") refuse("purchase_request_replace_item: only Purchasing can replace a product", "42501")
+    if (["cancelled", "received"].includes(original.status)) refuse(`purchase_request_replace_item: ${original.name} is already ${original.status}, so it can't be replaced`, "22023")
+    if (!String(args.p_name || "").trim()) refuse("purchase_request_replace_item: say which product replaces it", "22023")
+    if (!String(args.p_reason || "").trim()) refuse("purchase_request_replace_item: give a short reason for the replacement", "22023")
+    const item = insertRow("purchase_request_items", {
+      request_id: original.request_id,
+      source: "new",
+      name: args.p_name.trim(),
+      unit: original.unit,
+      quantity: original.quantity,
+      substitute_for_item_id: original.id,
+      requested_by: actorId,
+    })
+    updateRow("purchase_request_items", original, {
+      status: "cancelled",
+      replaced_reason: args.p_reason.trim(),
+      s0_still_lists: !!original.sor_item_id && !original.removed_from_s0,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: original.request_id,
+      author_id: actorId,
+      content: `${original.name} replaced by ${item.name} — ${args.p_reason.trim()}.`,
+      metadata: { event: "item_replaced", item_id: original.id, replacement_item_id: item.id },
+    })
+    return item.id
+  })
+}

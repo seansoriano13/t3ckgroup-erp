@@ -15,10 +15,11 @@ import Avatar from "../../../Avatar";
 import Spinner from "../../../ui/Spinner";
 import { AttachmentList, AttachmentPreviews } from "../../../ui/Attachments";
 import MentionTextarea, { NoteText } from "../../../ui/MentionTextarea";
-import { ALLOWED_EXTENSIONS_STRING } from "../../../../utils/attachments";
+import { ALLOWED_EXTENSIONS_STRING, listableAttachments } from "../../../../utils/attachments";
 import NowTab from "../NowTab";
 import Sheet from "./Sheet";
-import StageStrip, { MoveButtons, TONE_BG, useJourneyVisits } from "../summary/StageStrip";
+import StageStrip, { MoveButtons, useJourneyVisits } from "../summary/StageStrip";
+import { stageColorFill } from "../../../../constants/stageColors";
 import { useDigest } from "../summary/useDigest";
 import { EditBody, HeaderActions, Identity, LABEL, QuoteActions, TeamList, ValueFigure, detailRows, formatShort, showMoney, useWarmTabs } from "../summary/shared";
 
@@ -40,7 +41,7 @@ function NoteRow({ n, onMention }) {
               {l}
             </p>
           ))}
-          <AttachmentList attachments={n.metadata?.attachments} className="mt-1" compact />
+          <AttachmentList attachments={listableAttachments(n.metadata?.attachments)} className="mt-1" compact />
         </div>
         <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/80">{when(n.created_at)}</span>
       </li>
@@ -61,7 +62,7 @@ function NoteRow({ n, onMention }) {
           <span className="ml-2 tabular-nums">{when(n.created_at)}</span>
         </p>
         {n.content && <NoteText content={n.content} mentions={n.metadata?.mentions} onMentionClick={onMention} className="text-sm break-words text-foreground" />}
-        <AttachmentList attachments={n.metadata?.attachments} className={n.content ? "mt-2" : "mt-1"} />
+        <AttachmentList attachments={listableAttachments(n.metadata?.attachments)} className={n.content ? "mt-2" : "mt-1"} />
       </div>
     </li>
   );
@@ -79,7 +80,7 @@ function Chapter({ p, chapter, expanded, onExpand }) {
       <span
         className={cn(
           "absolute top-[5px] left-[4px] size-[11px] rounded-full ring-4 ring-popover",
-          isCurrent ? TONE_BG[p.currentFlowStageTone] || "bg-foreground" : "bg-mauve-8",
+          isCurrent ? stageColorFill(p.currentFlowStageTone) : "bg-mauve-8",
         )}
         aria-hidden
       />

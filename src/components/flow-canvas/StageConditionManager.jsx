@@ -22,6 +22,7 @@ import { CONDITION_KIND_META, conditionDetail } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
 import StageChecklistRow from "../sor/StageChecklistRow";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
 const emptyConfigFor = (kind) => {
   switch (kind) {
@@ -228,7 +229,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
       className="space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6"
     >
       <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+        <h4 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
           {editingId ? "Edit condition" : "New condition"}
         </h4>
         <Button type="button" variant="ghost" size="icon-xs" onClick={resetForm} aria-label="Cancel">
@@ -238,7 +239,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
 
       {/* Story 1: Kind comes first. */}
       <div className="rounded-xl border border-border bg-muted/30 p-3">
-        <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <span className={`mb-1 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
           Kind
         </span>
         <Dropdown
@@ -260,7 +261,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
           }
         >
           {({ close }) => (
-            <div className="flex flex-col">
+            <div className="flex max-h-[min(22rem,60vh)] flex-col overflow-y-auto overscroll-contain">
               {NEW_CONDITION_KINDS.map((value) => {
                 const meta = CONDITION_KIND_META[value];
                 return (
@@ -311,7 +312,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
 
       {kind === CONDITION_KINDS.ATTACHMENT && (
         <div className="rounded-xl border border-border bg-muted/30 p-3">
-          <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
             Accepts — Any, if none chosen
           </span>
           <div className="flex flex-wrap gap-2">
@@ -345,7 +346,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
 
       {kind === CONDITION_KINDS.ASSIGNMENT && (
         <div className="rounded-xl border border-border bg-muted/30 p-3">
-          <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
             Who — a specific employee, an Employee Group, or a Team
           </span>
           <PeoplePicker
@@ -394,7 +395,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
       {/* Story 3: a live preview of the exact row the SOR's checklist
           will show, fed a sample opportunity matching the draft. */}
       <div className="rounded-xl border border-dashed border-mauve-7 p-3">
-        <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <span className={`mb-2 block ${CAPTION_BASE} tracking-widest text-muted-foreground`}>
           Preview — how this looks on the SOR
         </span>
         <StageChecklistRow

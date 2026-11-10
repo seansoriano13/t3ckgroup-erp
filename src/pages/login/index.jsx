@@ -1,5 +1,6 @@
+import PageLoading from "@/components/ui/PageLoading";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import { useNavigate, useLocation, Navigate } from "react-router";
 import toast from "react-hot-toast";
@@ -9,6 +10,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
+import { getDevLoginPrefill } from "../../utils/devLoginPrefill.js";
 import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function Login() {
@@ -19,27 +21,32 @@ export default function Login() {
 
   const redirectTo = resolvePostLoginPath(location.state?.from);
 
-  const [email, setEmail] = useState(
-    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_EMAIL || "" : "")
-  );
-  const [password, setPassword] = useState(
-    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || "" : "")
-  );
+  const [email, setEmail] = useState(() => getDevLoginPrefill().email);
+  const [password, setPassword] = useState(() => getDevLoginPrefill().password);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [errors, setErrors] = useState({});
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
 
   // If the user is already authenticated (e.g. swiped back to /login, or
   // the session was restored on reload), redirect immediately.
   // Show nothing while auth is still resolving to prevent a flash of the form.
-  if (isAuthLoading) return null;
+  if (isAuthLoading) return <PageLoading className="min-h-screen" />;
   if (user) {
     return <Navigate to={redirectTo} replace />;
   }
 
   const handleManualLogin = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
 
-    if (!email || !password) {
-      toast.error("Please enter your email and password.");
+    const next = {};
+    if (!email) next.email = "Enter your email address.";
+    if (!password) next.password = "Enter your password.";
+    setErrors(next);
+    if (next.email || next.password) {
+      (next.email ? emailRef : passwordRef).current?.focus();
       return;
     }
 
@@ -74,15 +81,21 @@ export default function Login() {
 
   const handleForgotPassword = async () => {
     if (!email) {
-      toast.error("Enter your email address first.");
+      setErrors({ email: "Enter your email address first." });
+      emailRef.current?.focus();
       return;
     }
+    setErrors({});
+    if (isResetting) return;
+    setIsResetting(true);
     try {
       await passwordService.requestPasswordReset(email);
       toast.success("Check your email for a link to reset your password.");
     } catch (error) {
       console.error("Password reset request failed:", error);
       toast.error(error.message || "Could not send reset email.");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -117,14 +130,14 @@ export default function Login() {
   };
 
   return (
-    <div className="bg-white grid grid-cols-1 lg:grid-cols-2 min-h-screen font-sans">
+    <div className="bg-card grid grid-cols-1 lg:grid-cols-2 min-h-screen font-sans">
       {/* LEFT: Form Panel */}
       <div className="flex flex-col justify-center px-8 sm:px-16 lg:px-24 xl:px-32 py-12 relative z-10">
         <div className="max-w-md w-full mx-auto space-y-8">
           {/* Header */}
           <div>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-mauve-12">
-              Welcome to <span className="text-primary">T3ckgroup</span>
+              Welcome to <span className="text-primary">T3CKGROUP</span>
             </h1>
             <p className="text-mauve-10 mt-2 font-medium">
               Sign in to access the employee portal.
@@ -134,37 +147,62 @@ export default function Login() {
           {/* Email + password form */}
           <form className="grid gap-5" onSubmit={handleManualLogin}>
             <div className="grid gap-2">
-              <FieldBox label="Email Address" />
+              <FieldBox label="Email Address" htmlFor="login-email" />
               <Input
+                id="login-email"
+                ref={emailRef}
+                aria-invalid={errors.email ? true : undefined}
+                aria-describedby={errors.email ? "login-email-error" : undefined}
                 className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="email"
                 autoComplete="username"
                 placeholder="name@t3ckgroup.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
               />
+              {errors.email && (
+                <p id="login-email-error" role="alert" className="text-xs font-medium text-destructive">
+                  {errors.email}
+                </p>
+              )}
             </div>
 
             <div className="grid gap-2">
-              <div className="flex justify-between items-center">
-                <FieldBox label="Password" />
+              <FieldBox label="Password" htmlFor="login-password" />
+              <Input
+                id="login-password"
+                ref={passwordRef}
+                aria-invalid={errors.password ? true : undefined}
+                aria-describedby={errors.password ? "login-password-error" : undefined}
+                className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setErrors((prev) => ({ ...prev, password: undefined }));
+                }}
+              />
+              <div className="flex justify-end">
                 <Button
                   type="button"
                   variant="link"
+                  disabled={isResetting}
                   onClick={handleForgotPassword}
                   className="h-auto p-0 text-xs font-medium text-mauve-11 hover:underline"
                 >
                   Forgot password?
                 </Button>
               </div>
-              <Input
-                className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              {errors.password && (
+                <p id="login-password-error" role="alert" className="text-xs font-medium text-destructive">
+                  {errors.password}
+                </p>
+              )}
             </div>
 
             {/* Action Area */}
@@ -174,8 +212,8 @@ export default function Login() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <Button type="submit" className={`h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}>
-{isSubmitting ? "Logging in..." : "Log In"}
+                <Button type="submit" disabled={isSubmitting} className="h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto">
+{isSubmitting ? "Signing in…" : "Sign in"}
 </Button>
 
                 <div className="w-full sm:w-auto flex justify-center drop-shadow-md hover:scale-105 transition-transform">

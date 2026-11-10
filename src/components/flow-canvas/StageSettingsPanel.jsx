@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUpCircle, Check, Flag, Octagon, Pencil, Tag, Trash2, X } from "lucide-react";
+import { ArrowUpCircle, Check, Flag, Octagon, ShoppingCart, Pencil, Tag, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import StageFieldManager from "./StageFieldManager";
 import StageAccessManager from "./StageAccessManager";
 import FollowUpCadenceEditor from "./FollowUpCadenceEditor";
 import { SelectField } from "@/components/ui/SelectField";
+import { TERMINAL_OUTCOME } from "@/constants/salesFlow";
+import { stageColorFill } from "@/constants/stageColors";
 
 /**
  * Everything a single Stage is, opened beside the canvas.
@@ -28,33 +30,35 @@ const ROLE_BUTTON =
 // Compete purples, Award golds, Fulfil teals, Cash greens. The hint names the
 // Stage each color already means, so a new Stage picks by phase, not by taste.
 const COLOR_SWATCHES = [
-  { value: null, dot: "bg-mauve-8", label: "Default (by role)" },
-  { value: "tomato", dot: "bg-tomato-9", label: "Tomato", hint: "Closed Lost" },
-  { value: "red", dot: "bg-red-9", label: "Red", hint: "Reserved for the brand, avoid" },
-  { value: "crimson", dot: "bg-crimson-9", label: "Crimson", hint: "Compete · Negotiation" },
-  { value: "pink", dot: "bg-pink-9", label: "Pink", hint: "Compete · Post Qualification" },
-  { value: "plum", dot: "bg-plum-9", label: "Plum", hint: "Compete · Bid Submitted" },
-  { value: "violet", dot: "bg-violet-9", label: "Violet", hint: "Compete · For Bidding" },
-  { value: "indigo", dot: "bg-indigo-9", label: "Indigo", hint: "Compete · Proposal Submitted" },
-  { value: "blue", dot: "bg-blue-9", label: "Blue", hint: "Pursue · Qualified" },
-  { value: "sky", dot: "bg-sky-9", label: "Sky", hint: "Pursue · Lead" },
-  { value: "cyan", dot: "bg-cyan-9", label: "Cyan", hint: "Fulfil · PMS Sourcing" },
-  { value: "teal", dot: "bg-teal-9", label: "Teal", hint: "Fulfil · Delivery" },
-  { value: "jade", dot: "bg-jade-9", label: "Jade", hint: "Cash · Collection" },
-  { value: "green", dot: "bg-green-9", label: "Green", hint: "Cash · Closed Won" },
-  { value: "lime", dot: "bg-lime-9", label: "Lime", hint: "Cash · Payment Verification" },
-  { value: "yellow", dot: "bg-yellow-9", label: "Yellow", hint: "Award · Notice to Proceed" },
-  { value: "amber", dot: "bg-amber-9", label: "Amber", hint: "Award · Awarded / NOA" },
-  { value: "orange", dot: "bg-orange-9", label: "Orange", hint: "Award · Performance Bond" },
-  { value: "gold", dot: "bg-gold-9", label: "Gold", hint: "Award · CA / PO Received" },
-  { value: "brown", dot: "bg-brown-9", label: "Brown", hint: "Retention" },
-  { value: "mauve", dot: "bg-mauve-9", label: "Mauve", hint: "SO Evaluation" },
+  { value: null, label: "Default (by role)" },
+  { value: "tomato", label: "Tomato", hint: "Closed Lost" },
+  { value: "red", label: "Red", hint: "Reserved for the brand, avoid" },
+  { value: "crimson", label: "Crimson", hint: "Compete · Negotiation" },
+  { value: "pink", label: "Pink", hint: "Compete · Post Qualification" },
+  { value: "plum", label: "Plum", hint: "Compete · Bid Submitted" },
+  { value: "violet", label: "Violet", hint: "Compete · For Bidding" },
+  { value: "indigo", label: "Indigo", hint: "Compete · Proposal Submitted" },
+  { value: "blue", label: "Blue", hint: "Pursue · Qualified" },
+  { value: "sky", label: "Sky", hint: "Pursue · Lead" },
+  { value: "cyan", label: "Cyan", hint: "Fulfil · PMS Sourcing" },
+  { value: "teal", label: "Teal", hint: "Fulfil · Delivery" },
+  { value: "jade", label: "Jade", hint: "Cash · Collection" },
+  { value: "green", label: "Green", hint: "Cash · Closed Won" },
+  { value: "lime", label: "Lime", hint: "Cash · Payment Verification" },
+  { value: "yellow", label: "Yellow", hint: "Award · Notice to Proceed" },
+  { value: "amber", label: "Amber", hint: "Award · Awarded / NOA" },
+  { value: "orange", label: "Orange", hint: "Award · Performance Bond" },
+  { value: "gold", label: "Gold", hint: "Award · CA / PO Received" },
+  { value: "brown", label: "Brown", hint: "Retention" },
+  { value: "mauve", label: "Mauve", hint: "SO Evaluation" },
 ];
 
 export default function StageSettingsPanel({
   stage,
   isEntry,
   isWon,
+  isAward,
+  isContract,
   disabled,
   bracketOptions = [],
   activeTab = "settings",
@@ -65,8 +69,15 @@ export default function StageSettingsPanel({
   onBracketChange,
   onDelete,
   onToggleTerminal,
+  onToggleAutoMove,
+  onSetTerminalOutcome,
+  onToggleBuyingOpens,
+  // The value a Buying toggle is saving (true or false), while its write is in flight (#904).
+  buyingOpensPending = null,
   onSetEntry,
   onSetWon,
+  onSetAward,
+  onSetContract,
   outgoingMoves = [],
   moveTargets = [],
   onAddMove,
@@ -86,6 +97,8 @@ export default function StageSettingsPanel({
   const isEditingName = draft?.stageId === stage.id;
   const isEditingBracket = bracketDraft?.stageId === stage.id;
   const bracketValue = isEditingBracket ? bracketDraft.value : stage.bracket_label || "";
+  // While the Buying write is in flight, the button already shows the value it is saving (#904).
+  const buyingShown = buyingOpensPending ?? Boolean(stage.buying_opens_here);
 
   const handleSaveName = () => {
     const next = (draft?.value ?? "").trim();
@@ -121,7 +134,7 @@ export default function StageSettingsPanel({
     >
       <header className="flex items-start gap-3 border-b border-mauve-5 px-5 py-4">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
             Stage
           </p>
           {isEditingName && !disabled ? (
@@ -178,7 +191,7 @@ export default function StageSettingsPanel({
         {activeTab === "settings" && (
           <div className="space-y-5 p-5">
             <section className="space-y-2.5">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+              <h3 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                 Role in the flow
               </h3>
               <div className="grid grid-cols-2 gap-2">
@@ -212,6 +225,34 @@ export default function StageSettingsPanel({
 
                 <Button
                   variant="ghost"
+                  onClick={onSetAward}
+                  disabled={disabled}
+                  className={cn(
+                    ROLE_BUTTON,
+                    isAward
+                      ? "bg-gold-a3 text-gold-11 outline-gold-a6 hover:bg-gold-a3 hover:text-gold-11"
+                      : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                  )}
+                >
+                  <Flag size={14} /> {isAward ? "Notice of Award is here" : "Make it the Notice of Award"}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  onClick={onSetContract}
+                  disabled={disabled}
+                  className={cn(
+                    ROLE_BUTTON,
+                    isContract
+                      ? "bg-gold-a3 text-gold-11 outline-gold-a6 hover:bg-gold-a3 hover:text-gold-11"
+                      : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                  )}
+                >
+                  <Flag size={14} /> {isContract ? "The client's contract is here" : "Make it the contract"}
+                </Button>
+
+                <Button
+                  variant="ghost"
                   onClick={onToggleTerminal}
                   disabled={disabled}
                   className={cn(
@@ -223,6 +264,41 @@ export default function StageSettingsPanel({
                 >
                   {stage.is_terminal ? <Check size={14} /> : <Octagon size={14} />}
                   {stage.is_terminal ? "Deals end here" : "Make it terminal"}
+                </Button>
+
+                {onToggleBuyingOpens && (
+                  <Button
+                    variant="ghost"
+                    onClick={onToggleBuyingOpens}
+                    disabled={disabled || buyingOpensPending !== null}
+                    aria-busy={buyingOpensPending !== null || undefined}
+                    aria-pressed={buyingShown}
+                    className={cn(
+                      ROLE_BUTTON,
+                      buyingShown
+                        ? "bg-blue-a3 text-blue-11 outline-blue-a6 hover:bg-blue-a3 hover:text-blue-11"
+                        : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                    )}
+                  >
+                    {buyingShown ? <Check size={14} /> : <ShoppingCart size={14} />}
+                    {buyingShown ? "Buying opens here" : "Buying opens here?"}
+                  </Button>
+                )}
+
+                <Button
+                  variant="ghost"
+                  onClick={onToggleAutoMove}
+                  disabled={disabled || !onToggleAutoMove || (!stage.auto_move && outgoingMoves.length !== 1)}
+                  title={outgoingMoves.length !== 1 ? "Needs exactly one next Stage" : undefined}
+                  className={cn(
+                    ROLE_BUTTON,
+                    stage.auto_move
+                      ? "bg-blue-a3 text-blue-11 outline-blue-a6 hover:bg-blue-a3 hover:text-blue-11"
+                      : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
+                  )}
+                >
+                  {stage.auto_move ? <Check size={14} /> : <Flag size={14} />}
+                  {stage.auto_move ? "Moves on by itself" : "Auto-move"}
                 </Button>
 
                 <Button
@@ -240,11 +316,45 @@ export default function StageSettingsPanel({
               </div>
             </section>
 
+            {/* The Won Stage usually sits mid-flow, so the flow ends on Terminal
+                Stages like Closed Won and Closed Lost: each says which it is.
+                It decides whether a deal there counts as Realized or lost. */}
+            {stage.is_terminal && !isWon && onSetTerminalOutcome && (
+              <section className="space-y-2.5">
+                <h3 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
+                  Deals here end as
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { outcome: TERMINAL_OUTCOME.WON, label: "Won", on: "bg-green-a3 text-green-11 outline-green-a6 hover:bg-green-a3 hover:text-green-11" },
+                    { outcome: TERMINAL_OUTCOME.LOST, label: "Lost", on: "bg-red-a3 text-red-11 outline-red-a6 hover:bg-red-a3 hover:text-red-11" },
+                  ].map(({ outcome, label, on }) => {
+                    const selected = (stage.terminal_outcome || TERMINAL_OUTCOME.LOST) === outcome;
+                    return (
+                      <Button
+                        key={outcome}
+                        variant="ghost"
+                        aria-pressed={selected}
+                        onClick={() => !selected && onSetTerminalOutcome(outcome)}
+                        disabled={disabled}
+                        className={cn(ROLE_BUTTON, selected ? on : "text-foreground outline-mauve-6 hover:bg-mauve-a3")}
+                      >
+                        {label}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Won counts the deal as booked (Realized). Lost takes it out of the pipeline.
+                </p>
+              </section>
+            )}
+
             {/* The form twin of dragging a connection on the canvas, so a move can be
                 made (and read back) without a pointer. */}
             {onAddMove && (
               <section className="space-y-2.5">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                <h3 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                   Deals can move to
                 </h3>
                 {outgoingMoves.length === 0 ? (
@@ -286,7 +396,7 @@ export default function StageSettingsPanel({
             )}
 
             <section className="space-y-2.5">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+              <h3 className="text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                 Color
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -305,14 +415,14 @@ export default function StageSettingsPanel({
                       (stage.color ?? null) === swatch.value && "outline-2 outline-primary",
                     )}
                   >
-                    <span className={cn("size-4 rounded-full", swatch.dot)} />
+                    <span className={cn("size-4 rounded-full", swatch.value ? stageColorFill(swatch.value) : "bg-mauve-8")} />
                   </Button>
                 ))}
               </div>
             </section>
 
             <section className="space-y-2.5">
-              <h3 className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+              <h3 className="flex items-center gap-1.5 text-label font-black uppercase tracking-[0.18em] text-muted-foreground">
                 <Tag size={11} /> Bracket
               </h3>
               <p className="text-xs leading-relaxed text-muted-foreground">

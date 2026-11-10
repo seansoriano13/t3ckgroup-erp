@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import MySorsPage from "@/pages/my-sors/index";
+import MySorsPage from "@/components/sor/MySorWork";
 import { renderWithProviders } from "@/test/support";
 import {
   makeEmployee,
@@ -14,6 +14,7 @@ import {
   makeStageVisit,
 } from "@/test/factories";
 import { stubRpc } from "@/test/msw/server";
+import { db } from "@/test/db/store";
 
 /**
  * My SORs — the screen that exists because the SORS register structurally
@@ -30,15 +31,21 @@ vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: mockUser.current, isAuthLoading: false }),
 }));
 
+/** Hover the info mark beside an SOR and return the "why you can see this" text. */
+async function whyText(user) {
+  await user.hover(await screen.findByLabelText("Why you can see this SOR"));
+  return (await screen.findByText("Why you can see this")).parentElement.textContent;
+}
+
 function renderPage() {
   return renderWithProviders(
-    <MemoryRouter initialEntries={["/my-sors"]}>
+    <MemoryRouter initialEntries={["/sors"]}>
       <MySorsPage />
     </MemoryRouter>,
   );
 }
 
-describe("My SORs", () => {
+describe("SORS: My work view", () => {
   let me, technical, bid, deal;
 
   beforeEach(() => {
@@ -51,6 +58,8 @@ describe("My SORs", () => {
     bid = makeFlowStage({ flow_id: flow.id, name: "Bid Submitted" });
     deal = makeOpportunity({ sale_type_id: saleType.id });
 
+    stubRpc("sor_my_deal_team_sor_ids", () => []);
+    stubRpc("sor_my_sors_facets", () => []);
     stubRpc("sor_locked_summary", () => [
       {
         sales_reference: "S01234",
@@ -65,7 +74,7 @@ describe("My SORs", () => {
     renderPage();
 
     expect(
-      await screen.findByText(/Nobody has called you into an SOR yet/i),
+      await screen.findByText(/Nothing on an SOR needs you/i),
     ).toBeInTheDocument();
   });
 
@@ -80,16 +89,19 @@ describe("My SORs", () => {
     });
 
     renderPage();
+    const user = userEvent.setup();
 
     expect(await screen.findByText("S01234")).toBeInTheDocument();
     expect(screen.getByText("Supply of Equipment")).toBeInTheDocument();
-    // The Stage that pulled them in, not the Stage the SOR is on now.
-    expect(screen.getByRole("columnheader", { name: "Called in at" })).toBeInTheDocument();
-    expect(screen.getByText("Technical Review")).toBeInTheDocument();
+    // Now on is the Stage the SOR is on today.
     expect(screen.getByText("Bid Submitted")).toBeInTheDocument();
-    expect(screen.getByText("Task")).toBeInTheDocument();
-    // The reach, in the Flow Canvas's own words.
-    expect(screen.getByText(/this Stage only/)).toBeInTheDocument();
+    // Called in with nothing owed: Watching, not Needs you.
+    expect(screen.getByTestId("my-sors-group-watching")).toBeInTheDocument();
+    expect(screen.getByText("Nothing owed")).toBeInTheDocument();
+    // Why they can see it is hover detail: the Stage that pulled them in, how, and the reach.
+    const why = await whyText(user);
+    expect(why).toMatch(/Task at Technical Review/);
+    expect(why).toMatch(/this Stage only/);
   });
 
   it("names the later Stage a longer window reaches through", async () => {
@@ -103,11 +115,12 @@ describe("My SORs", () => {
     });
 
     renderPage();
+    const user = userEvent.setup();
 
-    expect(await screen.findByText(/through Bid Submitted/)).toBeInTheDocument();
+    expect(await whyText(user)).toMatch(/through Bid Submitted/);
   });
 
-  it("keeps a closed window listed, under the Closed pill", async () => {
+  it("keeps an ended window listed behind the Access filter, tagged Access ended (#478)", async () => {
     const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
     makeStageParticipant({
       opportunity_id: deal.id,
@@ -117,11 +130,18 @@ describe("My SORs", () => {
     });
 
     renderPage();
+    const user = userEvent.setup();
+
+    // Hidden by default, but never silently: the empty state says how many ended.
+    expect(await screen.findByText("No open access right now")).toBeInTheDocument();
+    expect(screen.getByText(/1 SOR where your access has ended/)).toBeInTheDocument();
+
+    await user.click(screen.getByText("Current access"));
+    await user.click(await screen.findByRole("button", { name: "Access ended" }));
 
     // The SOR someone worked last month is what they come here looking for.
     expect(await screen.findByText("S01234")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Closed 1/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Open 0/ })).toBeInTheDocument();
+    expect(screen.getByTestId("my-sors-group-ended")).toHaveTextContent("Access ended");
   });
 
   it("opens a row through the one shared entry path, not a modal of its own", async () => {
@@ -153,14 +173,17 @@ describe("My SORs", () => {
     makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: second.id, source: "assignment" });
 
     renderPage();
+    const user = userEvent.setup();
 
     expect(await screen.findAllByText("S01234")).toHaveLength(1);
-    expect(screen.getAllByRole("row")).toHaveLength(2); // header + one SOR
-    // Two call-ins stay two answers: one on the row, the other behind the chip.
-    expect(screen.getByLabelText("1 more windows")).toHaveTextContent("+1");
+    expect(screen.getAllByRole("row")).toHaveLength(3); // header + group + one SOR
+    // Two call-ins stay two answers, both in the hover.
+    const why = await whyText(user);
+    expect(why).toMatch(/Task at Technical Review/);
+    expect(why).toMatch(/Assignment at Bid Submitted/);
   });
 
-  it("splits Open and Closed with counts, and shows — when there is no Sales Reference", async () => {
+  it("shows — when there is no Sales Reference", async () => {
     stubRpc("sor_locked_summary", () => [
       { sales_reference: null, project_title: "Unreferenced job", current_stage_name: "Bid Submitted", is_restricted: false },
     ]);
@@ -168,26 +191,63 @@ describe("My SORs", () => {
     makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id });
 
     renderPage();
-    const user = userEvent.setup();
 
     expect(await screen.findByText("Unreferenced job")).toBeInTheDocument();
     const cell = screen.getByText("Unreferenced job").closest("td");
     expect(cell).toHaveTextContent("—");
-    expect(screen.getByRole("tab", { name: /Open 1/ })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: /Closed 0/ }));
-    expect(screen.queryByText("Unreferenced job")).toBeNull();
-    expect(screen.getByText("Nothing closed")).toBeInTheDocument();
   });
 
-  it("searches Sales Reference and project", async () => {
+  it("lists a Mention Window with who mentioned them and on which Stage (#478)", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
+    const sender = makeEmployee({ name: "Sean Sender" });
+    db.seed("sor_mention_viewers", [
+      { opportunity_id: deal.id, employee_id: me.id, granted_by: sender.id, stage_visit_id: visit.id },
+    ]);
+
+    renderPage();
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("S01234")).toBeInTheDocument();
+    expect(await whyText(user)).toMatch(/Mention by Sean Sender at Technical Review/);
+  });
+
+  it("lists an SOR I am on the Deal Team of as Deal Team with Full access, and filters by it (#478)", async () => {
+    stubRpc("sor_my_deal_team_sor_ids", () => [deal.id]);
+    stubRpc("sor_my_sors_facets", () => [
+      { opportunity_id: deal.id, sor_code: "SOR-1", sale_type_name: "Government", last_activity_at: "2026-10-06T02:00:00Z" },
+    ]);
+
+    renderPage();
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("S01234")).toBeInTheDocument();
+    const row = screen.getByText("S01234").closest("tr");
+    expect(await whyText(user)).toMatch(/Deal Team · sees the whole SOR \(Full access\)/);
+    // The Deal Team window has no start date: a dash, never "Invalid Date".
+    expect(row).not.toHaveTextContent("Invalid Date");
+    expect(row.querySelector("td:last-child")).toHaveTextContent("—");
+
+    // Access: Full keeps it; Why I'm here: Mentioned drops it.
+    await user.click(screen.getByText("Current access"));
+    await user.click(await screen.findByRole("button", { name: "Full" }));
+    expect(screen.getByText("S01234")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Any reason"));
+    await user.click(await screen.findByRole("button", { name: "Mentioned" }));
+    expect(screen.queryByText("S01234")).toBeNull();
+  });
+
+  it("searches Sales Reference, client and project", async () => {
+    stubRpc("sor_my_sors_facets", () => [
+      { opportunity_id: deal.id, sor_code: "SOR-1", sale_type_name: "Government", last_activity_at: null, client_name: "Metro Hospital Corp" },
+    ]);
     const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
     makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id });
 
     renderPage();
     const user = userEvent.setup();
     await screen.findByText("S01234");
-    const box = screen.getByRole("searchbox", { name: "Search SORs" });
+    const box = screen.getByRole("textbox", { name: "Search reference, SOR code, client or project" });
 
     await user.type(box, "equipment");
     expect(screen.getByText("S01234")).toBeInTheDocument();
@@ -197,8 +257,27 @@ describe("My SORs", () => {
     expect(screen.getByText("S01234")).toBeInTheDocument();
 
     await user.clear(box);
+    await user.type(box, "metro hosp");
+    expect(screen.getByText("S01234")).toBeInTheDocument();
+
+    await user.clear(box);
     await user.type(box, "zzz");
     expect(screen.queryByText("S01234")).toBeNull();
-    expect(screen.getByText(/No SOR matches your search/)).toBeInTheDocument();
+    expect(screen.getByText(/No SOR matches these filters/)).toBeInTheDocument();
+  });
+
+  it("reads a default saved before Current access existed (access OPEN) as Current access (#478)", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: technical.id, sequence: 1 });
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id });
+    localStorage.setItem(
+      `erp_saved_filters_my_sors_${me.id}`,
+      JSON.stringify({ search: "", access: "OPEN", via: "ALL", stage: "ALL", flow: "ALL", timeframe: "MONTHLY", period: "" }),
+    );
+    try {
+      renderPage();
+      expect(await screen.findByText("Current access")).toBeInTheDocument();
+    } finally {
+      localStorage.removeItem(`erp_saved_filters_my_sors_${me.id}`);
+    }
   });
 });

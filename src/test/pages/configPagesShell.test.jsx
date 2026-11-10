@@ -1,5 +1,5 @@
 import { screen, within, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, RouterProvider, createMemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "@/pages/settings/index";
 import ProfilePage from "@/pages/profile/index";
@@ -96,11 +96,10 @@ describe("Profile on PageShell", () => {
     };
   });
 
+  // Profile uses useUnsavedGuard (useBlocker), which needs a data router.
   const renderProfile = () =>
     renderWithProviders(
-      <MemoryRouter initialEntries={["/profile"]}>
-        <ProfilePage />
-      </MemoryRouter>,
+      <RouterProvider router={createMemoryRouter([{ path: "/profile", element: <ProfilePage /> }], { initialEntries: ["/profile"] })} />,
     );
 
   it("puts Save settings in the header as the standard button, off until something changes", async () => {

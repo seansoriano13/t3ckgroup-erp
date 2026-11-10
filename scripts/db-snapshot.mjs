@@ -11,19 +11,26 @@
  *   node scripts/db-snapshot.mjs staging       # regenerate supabase/schema/staging.sql
  *   node scripts/db-snapshot.mjs prod --check  # exit 1 if live schema != committed file
  *
+ *   # A PR that adds a migration: regenerate the staging mirror from the local
+ *   # stack after `supabase db reset` (pnpm db:snapshot:local), so the PR gate
+ *   # compares against what the migrations will make of staging.
+ *   node scripts/db-snapshot.mjs staging --from-local
+ *
  *   # Arbitrary database (the PR gate's throwaway Postgres, or a local one):
  *   # never writes a mirror file, only compares.
  *   node scripts/db-snapshot.mjs --db-url <url> --check --against supabase/schema/staging.sql
  *
  * Reads the connection string from PROD_DB_URL or STAGING_DB_URL (.env.local
  * locally, repo secrets in CI) for the named targets, or from --db-url /
- * DATABASE_URL for an arbitrary one. This queries pg_catalog directly rather
+ * DATABASE_URL for an arbitrary one, or the local stack (LOCAL_DB_URL, else the
+ * CLI default) with --from-local. This queries pg_catalog directly rather
  * than shelling out to pg_dump, so it has no Docker dependency of its own.
  */
 import pg from 'pg';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { DEFAULT_LOCAL_DB_URL } from './lib/seedShared.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
@@ -36,6 +43,7 @@ const flag = (name) => {
 
 const target = args[0]?.startsWith('--') ? null : args[0];
 const checkOnly = args.includes('--check');
+const fromLocal = args.includes('--from-local');
 const explicitUrl = flag('--db-url') ?? process.env.DATABASE_URL ?? null;
 const against = flag('--against');
 
@@ -48,6 +56,10 @@ if (target && !['prod', 'staging'].includes(target)) {
   console.error('Usage: node scripts/db-snapshot.mjs <prod|staging> [--check]');
   process.exit(1);
 }
+if (fromLocal && (target !== 'staging' || explicitUrl)) {
+  console.error('--from-local writes the staging mirror only: node scripts/db-snapshot.mjs staging --from-local');
+  process.exit(1);
+}
 if (explicitUrl && !checkOnly) {
   console.error('--db-url is for comparison only; pass --check --against <file>.');
   process.exit(1);
@@ -57,7 +69,9 @@ if (explicitUrl && !against) {
   process.exit(1);
 }
 
-const dbUrl = explicitUrl ?? process.env[target === 'prod' ? 'PROD_DB_URL' : 'STAGING_DB_URL'];
+const dbUrl =
+  explicitUrl ??
+  (fromLocal ? process.env.LOCAL_DB_URL ?? DEFAULT_LOCAL_DB_URL : process.env[target === 'prod' ? 'PROD_DB_URL' : 'STAGING_DB_URL']);
 if (!dbUrl) {
   const envVar = target === 'prod' ? 'PROD_DB_URL' : 'STAGING_DB_URL';
   console.error(`Missing ${envVar}. Set it in .env.local (local) or as a repo secret (CI).`);
@@ -82,7 +96,10 @@ section('Extensions');
 const extensions = await q(`
   select extname, n.nspname as schema
   from pg_extension e join pg_namespace n on n.oid = e.extnamespace
-  where extname not in ('plpgsql')
+  -- pg_graphql: newer Supabase CLIs install it on the local stack, while
+  -- staging and prod don't have it; listing it would put a spurious line in
+  -- every mirror regenerated --from-local.
+  where extname not in ('plpgsql', 'pg_graphql')
   order by extname;
 `);
 for (const e of extensions) {

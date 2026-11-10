@@ -2,6 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
 import { headApprovalService } from "../services/headApprovalService";
 import { opportunityService } from "../services/opportunityService";
+import { meetingRequestService } from "../services/meetingRequestService";
+import { ipasService } from "../services/ipasService";
+import { ipasPendingKey } from "../components/ipas/ipasKeys";
 
 
 /**
@@ -37,10 +40,9 @@ export function useNavBadges(user) {
     }).length;
   }
 
-  // Compute HR Verifications count
-  let hrVerifications = 0;
+  // HR verification shares the Task Approvals page, so its count joins that badge.
   if (canSeeHr) {
-    hrVerifications = allTasks.filter((t) => {
+    taskApprovals += allTasks.filter((t) => {
       const isPendingVerification =
         t.status === "VERIFICATION_PENDING" ||
         (t.status === "COMPLETED" && !t.hr_verified && !t.hrVerified);
@@ -51,11 +53,21 @@ export function useNavBadges(user) {
   // 2. Pending leave/overtime requests routed to this head, awaiting decision.
   const { data: pendingHeadApprovals = [] } = useQuery({
     queryKey: ["navHeadPendingApprovals", user?.id],
-    queryFn: () => headApprovalService.getPendingForHead(user.id, { all: isSuperAdmin }),
-    enabled: !!user?.id && (isSuperAdmin || isHead),
+    queryFn: () => headApprovalService.getPendingForHead(user.id, { all: isSuperAdmin || isHr }),
+    enabled: !!user?.id && (isSuperAdmin || isHead || isHr),
     staleTime: 30000,
   });
-  const leaveApprovals = isSuperAdmin || isHead ? pendingHeadApprovals.length : 0;
+  const leaveApprovals = isSuperAdmin || isHead || isHr ? pendingHeadApprovals.length : 0;
+
+  // 2b. Meeting Requests waiting on HR (#748): only HR / Super Admin decide them.
+  const canSeeMeetings = isSuperAdmin || isHr;
+  const { data: pendingMeetings = [] } = useQuery({
+    queryKey: ["meeting-requests", "nav-badge", user?.id, isHr, isSuperAdmin],
+    queryFn: () => meetingRequestService.listPendingForApprover({ employeeId: user.id, isHr, isSuperAdmin }),
+    enabled: !!user?.id && canSeeMeetings,
+    staleTime: 30000,
+  });
+  const meetingApprovals = canSeeMeetings ? pendingMeetings.length : 0;
 
   // 3. My SORs — deals this person was called into and still has an open
   // window on. Every employee can hold one, so this is not gated on a role.
@@ -66,10 +78,22 @@ export function useNavBadges(user) {
     staleTime: 30000,
   });
 
+  // 4. IPAS sections 1 and 3 waiting on this person's signature (#247). Only
+  // asked for someone on an approval list.
+  const isIpasApprover = !!(user?.is_ipas_approver || user?.isIpasApprover);
+  const { data: pendingIpas = [] } = useQuery({
+    queryKey: ipasPendingKey(user?.id),
+    queryFn: () => ipasService.pendingSignoffsFor(user.id),
+    enabled: !!user?.id && isIpasApprover,
+    staleTime: 30000,
+  });
+  const ipasSignoffs = isIpasApprover ? pendingIpas.length : 0;
+
   return {
     taskApprovals,
-    hrVerifications,
     leaveApprovals,
+    meetingApprovals,
+    ipasSignoffs,
     mySors,
   };
 }

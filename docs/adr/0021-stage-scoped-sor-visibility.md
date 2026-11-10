@@ -165,3 +165,131 @@ is unrelated and still grants nothing beyond that task.
 
 The grant is permanent; there is no revoke. If that proves too loose, the
 natural next step is closing it with the Stage like a Stage Participant window.
+
+### 2026-10-07 — a note Mention opens the current Stage Visit until it is left
+
+Decided by the product owner after a purchasing employee, mentioned on an SOR,
+opened it to an empty timeline and no explanation. Replaces the 2026-10-01
+amendment's "a Mention opens no Stage Visit data" and its permanent grant.
+
+A Mention in an SOR's notes opens a **Mention Window** on the Stage Visit the
+SOR is on at that moment: its notes, tasks, Stage Fields and attachments, to
+read and reply to. Expected Value and commission stay Deal Team only. When the
+SOR leaves that visit the window closes and the person drops to `locked`,
+keeping a read-only look at the visit they were mentioned in. A Mention on a
+later visit opens another window. An SOR with no Stage Visit keeps the
+2026-10-01 behaviour: the record header, permanently. Grants made before this
+amendment are tied to the visit the SOR was on when they were made.
+
+Two deliberate relaxations, because the business is not yet ready for the
+strict form and asked to be able to restore it quickly:
+
+- A Mention Window opens **even on a Restricted Stage**.
+- **Anyone inside a Mention Window can mention others in**, so invitations chain.
+
+Both strict forms are kept in the code, commented, under a `TIGHTEN(mention)`
+marker. `grep -rn "TIGHTEN(mention)" supabase src` finds every place to change.
+
+The silences are closed in the UI too: someone with no access sees a
+prohibited screen naming the Deal Owner to ask, partial access carries a banner
+and a placeholder for each Stage hidden from them, the composer says when a
+Mention will open a window, the SOR lists who it is shared with, and My SORs
+tags windows that have ended.
+
+### 2026-10-17 — the Costing Matrix's money read is split by side (Closed Book)
+
+From [Closed Book: the database serves each side its own columns](https://github.com/seansoriano13/t3ckgroup-erp/issues/319),
+amended on 2026-10-05 for Always sees (#461). **Replaces the money-read rule in
+the 2026-09-15 amendment above**, which let Purchasing access, Finance access
+and the Final Acquire list read the whole matrix on every SOR. It no longer
+holds: that reading is what made the margin visible to anyone on the deal.
+
+The caller's tier is resolved in the database (`costing_tier`), never passed in,
+first match wins:
+
+1. **Closed Book** — a Super Admin, or on the Final Acquire list: every column,
+   the markup factor, the summary and the Bid Decision's stamped figures.
+2. **Purchasing access** — the cost side: Acquire, Odoo unit, ABC. No Final
+   Offer, no Final Acquire, no markup factor, no summary, no Bid Decision.
+3. **Deal Team or Always sees** — the price side: ABC, the peso Markup Price,
+   Final Offer, Compliance, and a Bid Decision's verdict and reason. No Acquire,
+   no factor, no Final Acquire, no Marketing or OPEX, no stamped bid figures.
+4. **Stage Participant with an open window** — the matrix without money.
+5. **Anyone else, Finance access alone included** — nothing. Finance gets Landed
+   Cost and the IPAS, not the matrix.
+
+A column a tier may not read is absent from the response, not null, in both the
+matrix read and the history. The money tables and the event history can be
+selected directly by Closed Book only. The write bands in the 2026-09-15
+amendment's source (#225) are unchanged. Everyone else called into an SOR still
+sees the matrix without money, as that amendment said.
+
+### 2026-10-18 — Costing conditions keep peso figures in the database (#266 review)
+
+Code review of the Costing Matrix (#266) found three ways the Closed Book
+could be read around, and fixed them:
+
+- **The over-ABC and missing-cost checks are computed in SQL**
+  (`costing_bid_totals`, `costing_condition_inputs`, `costing_settled_met`), so
+  no peso figure leaves the database. `costingMath` then turns the booleans and
+  counts into the verdict (`costingSettled`, `costingPriced`). That is the one
+  deliberate second implementation of the rule: SQL decides from the figures,
+  JavaScript decides from the booleans, and both must agree (policy 86 and the
+  unit tests hold them to it).
+- **Who sees the reasons.** The price and Closed Book tiers get the full
+  evidence (`bid_verdict`, `over_abc`, the counts). Everyone else who can see
+  the SOR gets only the server's `settled_met` for Costing settled, so the
+  Stage checklist says "Costing not settled" and nothing about the Bid Decision
+  or the offer against the ABC. Costing priced counts hold no money and go to
+  all of them.
+- **A cost-only row's Markup Price** is not served to the price tier: with no
+  factor of its own it is Acquire x1.00, which is Purchasing's cost to the
+  centavo.
+
+Also: `costing_mark_bid_submitted` checks for itself that the Stage just left
+carries an active Costing settled condition and that it is met, and the legacy
+`sor_inclusions` backfill into a matrix is removed (a matrix exists only once
+Open Costing Matrix runs). The PMS tab shows for everyone who can see the SOR
+(Finance reads the IPAS there); only its Costing Matrix section needs a tier.
+
+### 2026-10-23 — the Final Acquire and Evaluation lists are a second way into an SOR
+
+From #545 (spec #544), after the first full purchasing run found people on both lists
+stuck at "You're not on this SOR".
+
+Everything above is the stage-scoped way in: Deal Team, Always sees, Stage Participants,
+Mention Windows. **Being on the Final Acquire list or the Evaluation list is a second,
+list-based way in.** Either list opens any SOR that has a Costing Matrix, from the Bid
+Decisions or Evaluation queue, at any stage. It needs no Mention and no Stage Participant
+window, and it does not end when the stage moves. `sor_access_level` answers `participant`
+for it, so the SOR modal and its PMS tab open on the money-free record.
+
+Why: both lists exist to sign the matrix off, and the queues already show them the SOR.
+Making the Deal Owner mention the approver, with access that ends at the next stage, left
+the Bid Decision waiting on someone else. The Evaluation list had no way in at all unless
+it was also in Purchasing.
+
+What does not change:
+
+- **It is not Deal Team or Stage Participant membership.** No Stage Visit data opens, and
+  Expected Value and commission stay Deal Team only.
+- **An SOR with no Costing Matrix stays closed** to both lists, so a list is not access to
+  every deal.
+- **Tiers.** The Final Acquire list keeps the Closed Book tier. The Evaluation list reads
+  the matrix at the participant tier (no money), checked last in `costing_tier`, so a
+  caller who already holds a higher tier keeps it.
+- The Evaluation approval rule (on the list, every Component has a verdict) is untouched.
+
+### 2026-11-05 — the Evaluation list's door is the Technical page
+
+From spec #907, after a demo account on the Evaluation list could read the matrix in the database but had nowhere in
+the app to open it. The 2026-10-23 amendment above says the list gets in "from the Bid Decisions or Evaluation
+queue"; there is no Evaluation queue, and Bid Decisions is for the people who decide bids.
+
+**The Evaluation list opens the S0 Evaluations waiting for it on the Technical page**, on a "Waiting for approval"
+filter, and approves from the sheet there. The Technical page's list (`costing_technical_list`) serves a list member
+every SOR that has a Technical in-charge, as it does a Super Admin, with names and counts and no money. Nothing about
+the tiers changes: the list still reads the matrix at the participant tier. No Approval Center tab was added.
+
+Also: the evaluation task template setting is retired, so a group task grants no Technical status; the SOR's
+Technical in-charge, or Purchasing access, is Technical.

@@ -12,6 +12,7 @@ export function resolveLeaveCategory(record) {
   if (record.type === 'OVERTIME') return 'Overtime';
   if (record.type === 'OFFSET') return 'Offset';
   if (record.type === 'SIL') return 'Service Incentive Leave';
+  if (record.type === 'LWOP') return 'Leave Without Pay';
   return 'Unknown';
 }
 
@@ -80,13 +81,6 @@ export function pairIntoSheets(records) {
     sheets.push({ top: records[i], bottom: records[i + 1] ?? null });
   }
   return sheets;
-}
-
-export function getOvertimeOutcome(status) {
-  if (status === 'APPROVED_PAID') return 'PAID OVERTIME';
-  if (status === 'APPROVED_OFFSET') return 'OFFSET CREDIT';
-  if (status === 'REJECTED') return 'REJECTED';
-  return 'PENDING';
 }
 
 export function getOvertimeHoursDisplay(record) {

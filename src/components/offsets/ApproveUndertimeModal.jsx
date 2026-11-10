@@ -11,7 +11,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
  * HR decides an undertime request, editing the hours actually charged
  * before they're recorded — mirrors ApproveOvertimeModal, but there is no
  * paid/offset choice to make here (undertime never moves a balance either
- * way): just Approve or Reject, with an editable approved-hours field on
+ * way): just Approve or Decline, with an editable approved-hours field on
  * approval.
  */
 export default function ApproveUndertimeModal({ isOpen, onClose, request, status, hrId, onSuccess }) {
@@ -43,7 +43,7 @@ export default function ApproveUndertimeModal({ isOpen, onClose, request, status
         approvedHours: isApprove ? parsedHours : null,
         hrId,
       });
-      toast.success(isApprove ? 'Undertime approved.' : 'Undertime rejected.');
+      toast.success(isApprove ? 'Undertime approved.' : 'Undertime declined.');
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -58,7 +58,7 @@ export default function ApproveUndertimeModal({ isOpen, onClose, request, status
       <DialogContent showCloseButton={false} className="max-w-sm sm:max-w-sm flex flex-col overflow-hidden p-0 gap-0">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
-            {isApprove ? 'Approve Undertime' : 'Reject Undertime'}
+            {isApprove ? 'Approve undertime' : 'Decline undertime'}
           </h2>
           <Button
             variant="ghost"
@@ -101,7 +101,7 @@ export default function ApproveUndertimeModal({ isOpen, onClose, request, status
             className="w-full h-11 rounded-xl font-bold shadow-md cursor-pointer"
           >
             {isApprove ? <CheckCircle2 size={16} className="mr-1.5" /> : <XCircle size={16} className="mr-1.5" />}
-            {submitting ? 'Saving...' : isApprove ? 'Confirm Approval' : 'Confirm Rejection'}
+            {submitting ? 'Saving...' : isApprove ? 'Confirm Approval' : 'Confirm decline'}
           </Button>
         </form>
       </DialogContent>

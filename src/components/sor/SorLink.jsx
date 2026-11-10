@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Briefcase } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
+import { Link } from "react-router";
 import { Button } from "../ui/button";
+import { sorHref } from "../../utils/sorLink";
 
 /**
  * The link from a task back to the SOR it was created for (issue #199), shared
@@ -23,14 +25,10 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
 
   if (!opportunityId || !label) return null;
 
-  const open = () => {
-    onClose?.();
-    // Quick View, not the full modal — every entry point into an SOR
-    // from a task lands there first, whatever the viewer's access level.
-    window.dispatchEvent(
-      new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: opportunityId, type: "OPPORTUNITY_QUICK_VIEW" } }),
-    );
-  };
+  // A real link to the SOR's page: following it leaves the task window, so the
+  // SOR never opens underneath it, and Ctrl-click opens it in a new tab.
+  const href = sorHref(opportunityId);
+  const open = () => onClose?.();
 
   if (variant === "inline") {
     return (
@@ -39,12 +37,11 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
       // actions (Rate, Delete) — ADR 0009. Verb up front, the reference as a
       // quieter tail after a divider.
       <Button
-        type="button"
+        asChild
         size="lg"
-        onClick={open}
-        title={`Open SOR ${label}`}
         className="h-9 max-w-full gap-2 rounded-lg bg-foreground px-3.5 text-[13px] font-bold text-background shadow-md hover:bg-foreground/85"
       >
+        <Link to={href} onClick={open} title={`Open SOR ${label}`}>
         <Briefcase size={15} />
         <span>Open SOR</span>
         <span aria-hidden className="h-4 w-px shrink-0 bg-background/35" />
@@ -52,26 +49,28 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
           {label}
         </span>
         <ArrowUpRight size={15} className="transition-transform group-hover/button:translate-x-0.5 group-hover/button:-translate-y-0.5" />
+        </Link>
       </Button>
     );
   }
 
   return (
     <div className="flex flex-col gap-1.5 pt-2">
-      <span className="flex items-center gap-1.5 pl-1 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+      <span className="flex items-center gap-1.5 pl-1 text-label font-bold tracking-wider text-muted-foreground uppercase">
         <Briefcase size={12} /> Sales Opportunity
       </span>
       <Button
-        type="button"
+        asChild
         variant="ghost"
-        onClick={open}
         className="h-auto justify-between gap-2 rounded-xl border border-border/50 bg-muted px-4 py-3 text-left text-sm font-bold text-foreground shadow-sm hover:bg-muted/70"
       >
-        <span className="flex items-center gap-2">
-          <Briefcase size={14} />
-          {label}
-        </span>
-        <ArrowUpRight size={14} className="text-muted-foreground" />
+        <Link to={href} onClick={open}>
+          <span className="flex items-center gap-2">
+            <Briefcase size={14} />
+            {label}
+          </span>
+          <ArrowUpRight size={14} className="text-muted-foreground" />
+        </Link>
       </Button>
     </div>
   );

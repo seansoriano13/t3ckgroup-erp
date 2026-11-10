@@ -98,7 +98,7 @@ export default function SaveGroupTaskTemplateModal({
 
             {/* Snapshot Summary Preview */}
             <div className="bg-muted/40 border border-border/80 rounded-xl p-3.5 flex flex-col gap-2.5">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+              <span className="text-label font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
                 <Layers size={11} /> Included in Template
               </span>
 

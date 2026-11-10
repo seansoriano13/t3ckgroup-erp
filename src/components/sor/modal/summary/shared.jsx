@@ -14,12 +14,14 @@ import Spinner from "../../../ui/Spinner";
 import Avatar from "../../../Avatar";
 import StatusBadge from "../../../StatusBadge";
 import { confirmDeleteToast } from "../../../ui/CustomToast";
+import { sorCodeOf } from "../../../../utils/sorCode";
 import { outgoingStages } from "../../../../constants/salesFlow";
 import { PROJECT_TYPE_LABELS, formatLeadSource, itbGateSatisfiedBy, ITB_EXEMPT_LABEL, formatPHP } from "../../../../constants/sor";
 import DetailsTab from "../DetailsTab";
 import ItemsTab from "../ItemsTab";
+import { CAPTION_BASE } from "@/lib/captionStyle";
 
-export const LABEL = "text-[10px] font-bold tracking-widest text-muted-foreground uppercase";
+export const LABEL = `${CAPTION_BASE} tracking-widest text-muted-foreground`;
 
 /** Variants show data the baseline only loads when its tab opens — warm those queries once. */
 export function useWarmTabs(p, tabs) {
@@ -62,6 +64,11 @@ export function detailRows(p) {
       ) : null,
     },
   ];
+  rows.push(
+    { label: "Date of Award", value: formatLongDate(o.date_of_award) },
+    { label: "Date of PDI", value: formatLongDate(o.date_of_pdi) },
+    { label: "Date of Delivery", value: formatLongDate(o.date_of_delivery) },
+  );
   if (o.po_date) rows.push({ label: "PO Date", value: formatLongDate(o.po_date) });
   if (itbGateSatisfiedBy(o)) {
     rows.push({ label: "ITB Number", value: o.itb_number || <span className="text-xs font-bold text-amber-11">{ITB_EXEMPT_LABEL}</span> });
@@ -115,8 +122,20 @@ export function TeamList({ opportunity, compact = false }) {
   );
 }
 
-export function blockedLabels(checklist) {
-  return checklist.filter(({ condition, status }) => condition?.is_required && status === "unsatisfied").map(({ condition }) => condition.label);
+// One list for every "blocked" count (#791): unsatisfied required Conditions
+// plus required, empty Stage Fields, the same two things the move refuses on.
+export function blockedLabels(checklist = [], missingFields = []) {
+  return [
+    ...(checklist || [])
+      .filter(
+        ({ condition, status }) =>
+          condition?.is_required !== false &&
+          status !== "satisfied" &&
+          status !== "not_applicable",
+      )
+      .map(({ condition }) => condition.label),
+    ...(missingFields || []).map((field) => field.label),
+  ];
 }
 
 /**
@@ -126,7 +145,7 @@ export function blockedLabels(checklist) {
  * Sales Reference confirm steps).
  */
 export function stageMoves(p) {
-  const blockedBy = blockedLabels(p.checklist);
+  const blockedBy = blockedLabels(p.checklist, p.missingRequiredStageFields);
   const isMoving = p.stageMutation.isPending;
   if (p.isFlowDeal) {
     const canvas = p.flowCanvas;
@@ -275,7 +294,7 @@ export function HeaderActions({ p, extra = null }) {
                     variant="ghost"
                     onClick={() => {
                       close();
-                      confirmDeleteToast(`Delete ${p.opportunity.opportunity_no}?`, "The record is archived, not erased.", () => p.deleteMutation.mutate());
+                      confirmDeleteToast(`Delete ${sorCodeOf(p.opportunity) || "this SOR"}?`, "The record is archived, not erased.", () => p.deleteMutation.mutate());
                     }}
                     className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-red-9/10 hover:text-red-11"
                   >
@@ -337,7 +356,7 @@ export function QuoteActions({ p, stacked = true }) {
 }
 
 export function itemsTotal(items) {
-  return items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
+  return items.reduce((sum, it) => (it.removed_from_s0 ? sum : sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
 }
 export { formatPHP };
 

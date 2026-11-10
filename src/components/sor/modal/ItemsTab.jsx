@@ -1,20 +1,59 @@
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Download, PackageSearch, RefreshCw, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, PackageSearch, RefreshCw, Search } from "lucide-react";
 import Spinner from "../../ui/Spinner";
 import StatusBadge from "../../StatusBadge";
 import OpportunityItemsEditor from "../OpportunityItemsEditor";
 import TabSkeleton from "./TabSkeleton";
 import { useSorModalData } from "./useSorModalData";
+import { useSorPurchaseRequest } from "./useSorPurchaseRequest";
+import { requestedItemForLine, p0ForLine, showsStockBadge } from "../../../utils/sorPurchaseRequest";
+import { odooPurchaseOrderUrl } from "../../../utils/odooLinks";
+import { ExternalLink } from "@/components/ui/external-link";
+import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../../../constants/purchaseRequest";
 import { opportunityService } from "../../../services/opportunityService";
 import { stockBadge, STOCK_BADGE_THEME } from "../../../constants/stock";
-import { formatPHP, isValidSalesReference, normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
+import { formatPHP } from "../../../constants/sor";
 import { formatDate } from "../../../utils/formatDate";
-import { pullOdooLines, saveOdooLines } from "./odooLines";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
+
+/**
+ * A Product List line's Requested Item status (#310): a badge when the SOR's
+ * Purchase Request has an item picked from this line, nothing otherwise.
+ */
+function RequestedItemStatus({ line, requested }) {
+  const item = requestedItemForLine(line, requested);
+  if (!item) return null;
+  return (
+    <span className="mt-1 block">
+      <StatusBadge
+        label={ITEM_STATUS_LABELS[item.status] || item.status}
+        theme={ITEM_STATUS_THEME[item.status]}
+        title="Requested Item status"
+      />
+    </span>
+  );
+}
+
+/** The P0 a bought line was ordered on (#747), linked to Odoo when its order id is known. Nothing before it is bought. */
+function LineP0({ line, requested }) {
+  const p0 = p0ForLine(line, requested);
+  if (!p0) return null;
+  const href = odooPurchaseOrderUrl(p0.odooPoId);
+  return (
+    <span className="mt-0.5 block text-[11px] font-medium text-muted-foreground" data-testid="line-p0">
+      P0:{" "}
+      {href ? (
+        <ExternalLink href={href} className="font-mono font-semibold text-foreground underline underline-offset-2">
+          {p0.poNumber}
+        </ExternalLink>
+      ) : (
+        <span className="font-mono font-semibold text-foreground">{p0.poNumber}</span>
+      )}
+    </span>
+  );
+}
 
 export function ItemStockRow({ item, snapshotData }) {
   const [expanded, setExpanded] = useState(false);
@@ -61,7 +100,7 @@ export function ItemStockRow({ item, snapshotData }) {
  * different next steps (#301): with a Sales Reference there is a quotation
  * in Odoo to pull from, without one there is nothing to pull yet.
  */
-function EmptyItems({ opportunity, onFetch, fetching }) {
+function EmptyItems({ opportunity }) {
   const hasSalesReference = !!opportunity?.sales_reference;
 
   return (
@@ -71,23 +110,14 @@ function EmptyItems({ opportunity, onFetch, fetching }) {
         <>
           <p className="text-sm font-semibold text-foreground">No products on this SOR yet</p>
           <p className="max-w-xs text-xs text-muted-foreground">
-            Pull the lines from <span className="font-mono font-semibold text-primary">{opportunity.sales_reference}</span> in Odoo.
+            <span className="font-mono font-semibold text-primary">{opportunity.sales_reference}</span> has no product lines in Odoo yet. They come in when the S0 is saved or Odoo is read again.
           </p>
-          <Button
-            type="button"
-            onClick={onFetch}
-            disabled={fetching}
-            className="mt-1"
-          >
-            {fetching ? <Spinner size="sm" /> : <Download size={14} />}
-            Fetch from Odoo
-          </Button>
         </>
       ) : (
         <>
           <p className="text-sm font-semibold text-foreground">Add a Sales Reference first</p>
           <p className="max-w-xs text-xs text-muted-foreground">
-            The Product List comes from the Odoo quotation. Add this SOR&apos;s Sales Reference in Details to pull it.
+            The Product List comes from the Odoo quotation. Set this SOR&apos;s S0 on the S0 card to pull it.
           </p>
         </>
       )}
@@ -115,8 +145,6 @@ export default function ItemsTab({ ctx, hasOpened }) {
     isEditing,
     editForm,
     setEditForm,
-    user,
-    invalidate,
     autoSyncingOdoo,
     handleRefreshStock,
     refreshingStock,
@@ -130,30 +158,15 @@ export default function ItemsTab({ ctx, hasOpened }) {
 
   const [search, setSearch] = useState("");
 
+  // #310: a line with a Requested Item shows that item's status. Lines are
+  // matched by product, never line id (ids change on every save).
+  const { data: purchaseRequest } = useSorPurchaseRequest(id);
+
   const { data: stockSnapshot, isLoading } = useSorModalData({
     tab: "items",
     opportunityId: id,
     queryFn: () => opportunityService.getStockSnapshot(id),
     hasOpened,
-  });
-
-  // The empty state's Fetch from Odoo (#301). Unlike the edit form's Fetch
-  // Items, there is no form open to hold the lines until a Save, so they go
-  // straight to the SOR — and with nothing on the list, nothing is replaced.
-  const pullMutation = useMutation({
-    mutationFn: async () => {
-      const ref = normalizeSalesReference(opportunity.sales_reference);
-      if (!isValidSalesReference(ref)) throw new Error(SALES_REFERENCE_HINT);
-      const { problem, rows, stock, quotation } = await pullOdooLines(ref);
-      if (problem) throw new Error(problem);
-      await saveOdooLines({ opportunity, rows, stock, actorId: user?.id });
-      return { count: rows.length, quotation };
-    },
-    onSuccess: ({ count, quotation }) => {
-      invalidate();
-      toast.success(`Pulled ${count} item(s) from ${quotation}.`);
-    },
-    onError: (err) => toast.error(err.message || "Could not reach Odoo — enter items manually."),
   });
 
   const visible = useMemo(() => {
@@ -164,8 +177,9 @@ export default function ItemsTab({ ctx, hasOpened }) {
     );
   }, [items, search]);
 
-  const total = visible.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
-  const isSyncing = autoSyncingOdoo || pullMutation.isPending;
+  // A line the S0 dropped stays on the list, marked, and is left out of the total (#677).
+  const total = visible.reduce((sum, it) => (it.removed_from_s0 ? sum : sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
+  const isSyncing = autoSyncingOdoo;
 
   if (isEditing) {
     return (
@@ -178,7 +192,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
   if (isLoading || itemsLoading) return <TabSkeleton />;
 
   if (!items.length && !isSyncing) {
-    return <EmptyItems opportunity={opportunity} onFetch={() => pullMutation.mutate()} fetching={pullMutation.isPending} />;
+    return <EmptyItems opportunity={opportunity} />;
   }
 
   return (
@@ -220,13 +234,13 @@ export default function ItemsTab({ ctx, hasOpened }) {
           </Button>
         </div>
 
-        <div className="grid grid-cols-12 gap-3 border-t border-border/60 bg-muted/40 px-6 py-2.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-          <span className={showMoney ? "col-span-6" : "col-span-10"}>Product &amp; Unit</span>
+        <div className="grid grid-cols-12 gap-3 border-t border-border/60 bg-muted/40 px-6 py-2.5 text-label font-bold tracking-widest text-muted-foreground uppercase">
+          <span className={showMoney ? "col-span-5" : "col-span-10"}>Product &amp; Unit</span>
           <span className="col-span-2 text-right">Quantity</span>
           {showMoney && (
             <>
               <span className="col-span-2 text-right">Unit Price</span>
-              <span className="col-span-2 text-right">Line Total</span>
+              <span className="col-span-3 text-right">Line Total</span>
             </>
           )}
         </div>
@@ -237,9 +251,16 @@ export default function ItemsTab({ ctx, hasOpened }) {
           <p className="px-6 py-12 text-center text-sm text-muted-foreground">No product matches that search.</p>
         ) : (
           visible.map((it) => (
-            <div key={it.id} className="grid grid-cols-12 items-center gap-3 px-6 py-3 text-sm transition-colors hover:bg-muted/25">
-              <div className={cn("min-w-0 pr-2", showMoney ? "col-span-6" : "col-span-10")}>
-                <span className="block truncate font-semibold text-foreground">{it.product_name}</span>
+            <div key={it.id} className={cn("grid grid-cols-12 items-center gap-3 px-6 py-3 text-sm transition-colors hover:bg-muted/25", it.removed_from_s0 && "opacity-70")}>
+              <div className={cn("min-w-0 pr-2", showMoney ? "col-span-5" : "col-span-10")}>
+                <span className={cn("block truncate font-semibold text-foreground", it.removed_from_s0 && "line-through")}>{it.product_name}</span>
+                {it.removed_from_s0 && (
+                  <span className="mt-1 block">
+                    <StatusBadge label="Removed from S0" theme="amber" title="The S0 no longer lists this product. It is kept here and left out of Estimated Value." />
+                  </span>
+                )}
+                <RequestedItemStatus line={it} requested={purchaseRequest?.items} />
+                <LineP0 line={it} requested={purchaseRequest?.items} />
                 {it.unit && <span className="mt-0.5 inline-block text-[11px] font-medium text-muted-foreground">Unit: {it.unit}</span>}
               </div>
               <div className="col-span-2 text-right">
@@ -250,12 +271,12 @@ export default function ItemsTab({ ctx, hasOpened }) {
               {showMoney && (
                 <>
                   <span className="col-span-2 text-right font-medium tabular-nums text-muted-foreground">{formatPHP(it.unit_price)}</span>
-                  <span className="col-span-2 text-right font-bold tabular-nums text-foreground">
-                    {formatPHP(Number(it.quantity) * Number(it.unit_price))}
+                  <span className="col-span-3 whitespace-nowrap text-right font-bold tabular-nums text-foreground">
+                    {it.removed_from_s0 ? "—" : formatPHP(Number(it.quantity) * Number(it.unit_price))}
                   </span>
                 </>
               )}
-              <ItemStockRow item={it} snapshotData={stockSnapshot?.data} />
+              {showsStockBadge(it, purchaseRequest?.items) && <ItemStockRow item={it} snapshotData={stockSnapshot?.data} />}
             </div>
           ))
         )}
@@ -263,10 +284,10 @@ export default function ItemsTab({ ctx, hasOpened }) {
 
       {showMoney && (
         <div className="grid shrink-0 grid-cols-12 items-center gap-3 border-t border-border/80 bg-muted/30 px-6 py-3 text-sm">
-          <span className="col-span-8 text-right text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+          <span className="col-span-9 text-right text-label font-bold tracking-widest text-muted-foreground uppercase">
             {search.trim() ? "Filtered Line Total" : "Product Line Total"}
           </span>
-          <span className="col-span-4 text-right text-base font-black tabular-nums text-foreground">{formatPHP(total)}</span>
+          <span className="col-span-3 whitespace-nowrap text-right text-base font-black tabular-nums text-foreground">{formatPHP(total)}</span>
         </div>
       )}
     </div>

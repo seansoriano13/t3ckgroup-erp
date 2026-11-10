@@ -49,4 +49,34 @@ describe("TabGroup", () => {
     fireEvent.click(detailsTab);
     expect(handleChange).toHaveBeenCalledWith("Details");
   });
+
+  it("fades only the clipped edge and scrolls the active tab into view", () => {
+    const tabs = ["One", "Two", "Three", "Four"];
+    const spies = [
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100),
+      vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(400),
+      vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80),
+    ];
+    const { rerender } = render(
+      <TabGroup tabs={tabs} activeTab="One" onChange={() => {}} />,
+    );
+    const list = screen.getByRole("tablist");
+    expect(list).toHaveAttribute("data-fade-right", "true");
+    expect(list).not.toHaveAttribute("data-fade-left");
+    // jsdom has no layout, so scrollLeft would silently clamp to 0.
+    let left = 0;
+    Object.defineProperty(list, "scrollLeft", {
+      get: () => left,
+      set: (v) => {
+        left = v;
+      },
+      configurable: true,
+    });
+    Object.defineProperty(screen.getByRole("tab", { name: "Four" }), "offsetLeft", {
+      value: 300,
+    });
+    rerender(<TabGroup tabs={tabs} activeTab="Four" onChange={() => {}} />);
+    expect(list.scrollLeft).toBeGreaterThan(0);
+    spies.forEach((s) => s.mockRestore());
+  });
 });

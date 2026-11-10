@@ -148,10 +148,10 @@ describe("Flow Canvas versioning journey", () => {
             })
 
             // 5. Accept the move-deals offer.
-            expect(await screen.findByText("Move 1 SOR on 1.x up to v1.1?")).toBeInTheDocument()
-            await user.click(screen.getByRole("button", { name: "Move deals" }))
-            expect(await screen.findByText("Deals moved")).toBeInTheDocument()
-            expect(screen.getByText("1 moved successfully.")).toBeInTheDocument()
+            expect(await screen.findByText("Update 1 SOR on 1.x to v1.1?")).toBeInTheDocument()
+            await user.click(screen.getByRole("button", { name: /^Update \d+ SORs?$/ }))
+            expect(await screen.findByText("SORs updated")).toBeInTheDocument()
+            expect(screen.getByText("1 updated successfully.")).toBeInTheDocument()
             await user.click(screen.getByRole("button", { name: "Done" }))
 
             const [v1_1] = await salesFlowService.listSnapshots(flow.id)

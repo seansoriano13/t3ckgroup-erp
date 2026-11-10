@@ -6,6 +6,18 @@ const NONE = { marketplaceOrderId: null, marketplaceFee: null, orderIncome: null
 describe("parseIncomeNote", () => {
   const cases = [
     {
+      name: "SHIPPING FEE is not the Marketplace Fee",
+      note: "ORDER ID: 12345\nSHIPPING FEE: 50\nFEE: 100\nOI: 900",
+      amount: 1000,
+      want: { marketplaceOrderId: "12345", marketplaceFee: 100, orderIncome: 900 },
+    },
+    {
+      name: "only a SHIPPING FEE gives no Marketplace Fee",
+      note: "ORDER ID: 12345\nSHIPPING FEE: 50\nOI: 900",
+      amount: 1000,
+      want: { marketplaceOrderId: "12345", marketplaceFee: null, orderIncome: 900 },
+    },
+    {
       name: "Shopee template with fee + income",
       note: "<p>NAME: Juan Dela Cruz</p><p>DATE OF PAYMENT: 09/02/2026</p><p>ORDER ID: 2609020BTB5E8F</p><p>FEE: 123.45</p><p>ORDER INCOME: 1,376.55</p>",
       amount: 1500,

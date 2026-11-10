@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router"
 import { server } from "@/test/msw/server"
 import { createTestQueryClient } from "@/test/support"
 import { QueryClientProvider } from "@tanstack/react-query"
-import ReleaseNotesSection from "./ReleaseNotesView"
+import ReleaseNotesSection, { ReleaseNotesOverview } from "./ReleaseNotesView"
 import { SECTIONS } from "./content"
 import { SAMPLES, SAMPLE_MODE } from "./sampleRegistry"
 import { SAMPLE_EMPLOYEES } from "./sampleData"
@@ -13,6 +13,10 @@ import { SAMPLE_EMPLOYEES } from "./sampleData"
 // is what would go wrong in front of all of them: a screen that reads or
 // writes real records, a sample that blanks its section, an item pointing at
 // a sample that does not exist, or a real colleague's name in the Sample Data.
+//
+// Throwaway code (ADR 0030, 2026-11 amendment): when a change to a real
+// component makes a sample fail here, delete the sample. Never change the
+// real component to keep it passing.
 
 // Signed in as a viewer, unless a sample signs in its own made-up employee
 // with SampleAuthProvider, as it does on the real page.
@@ -42,10 +46,11 @@ afterEach(() => {
 function renderSection(section) {
   // The app's own query client sits outside, as it does on the real page: a
   // sample that escaped its sandbox would fetch through this one and be seen.
+  // Every row is opened, so every sample mounts.
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
       <MemoryRouter>
-        <ReleaseNotesSection section={section} />
+        <ReleaseNotesSection section={section} defaultOpen="all" />
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -78,6 +83,14 @@ describe("Release Notes content", () => {
     }
   })
 
+  it("lists new things before fixes in every tab, as the page groups them", () => {
+    for (const section of SECTIONS) {
+      const firstFix = section.items.findIndex((i) => i.kind === "fix")
+      if (firstFix === -1) continue
+      expect(section.items.slice(firstFix).every((i) => i.kind === "fix"), section.key).toBe(true)
+    }
+  })
+
   it("uses no item id twice, so a link to one lands on one", () => {
     const ids = items.map((i) => i.id)
     expect(new Set(ids).size).toBe(ids.length)
@@ -100,7 +113,7 @@ describe("Release Notes sections", () => {
       await flush()
 
       for (const item of section.items) {
-        expect(screen.getByRole("heading", { name: item.title })).toBeInTheDocument()
+        expect(screen.getByText(item.title).closest("button")).toHaveAttribute("aria-expanded", "true")
       }
       expect(screen.queryByText("This example could not be shown.")).not.toBeInTheDocument()
       expect(requests).toEqual([])
@@ -108,10 +121,31 @@ describe("Release Notes sections", () => {
   }
 })
 
+describe("Release Notes overview", () => {
+  it("lists every new thing as one line, and counts each tab's fixes", () => {
+    const onOpen = vi.fn()
+    render(<ReleaseNotesOverview sections={SECTIONS} onOpen={onOpen} />)
+
+    for (const section of SECTIONS) {
+      const card = screen.getByRole("region", { name: section.label })
+      for (const item of section.items.filter((i) => i.kind !== "fix")) {
+        expect(within(card).getByRole("button", { name: item.title })).toBeInTheDocument()
+      }
+      const fixes = section.items.filter((i) => i.kind === "fix").length + (section.alsoFixed?.length ?? 0)
+      if (fixes > 0) expect(within(card).getByRole("button", { name: new RegExp(`and ${fixes} fix`) })).toBeInTheDocument()
+    }
+
+    const [first] = SECTIONS
+    fireEvent.click(screen.getByRole("button", { name: first.items[0].title }))
+    expect(onOpen).toHaveBeenCalledWith(first.key, first.items[0].id)
+  })
+})
+
 describe("Release Notes samples", () => {
   // Click everything a sample offers, including what its pop-ups offer once
   // open, and submit every form. Sample Data has no rows behind it, and the
   // viewer is on prod: nothing may be read or saved.
+  if (Object.keys(SAMPLES).length === 0) it.todo("no samples this release")
   for (const [key, Sample] of Object.entries(SAMPLES)) {
     it(`${key}: clicking everything reaches no database`, async () => {
       render(
@@ -119,6 +153,7 @@ describe("Release Notes samples", () => {
           <MemoryRouter>
             <ReleaseNotesSection
               section={{ key, label: key, intro: "", items: [{ id: key, title: key, body: key, who: ["Test"], sample: key }] }}
+              defaultOpen="all"
             />
           </MemoryRouter>
         </QueryClientProvider>,

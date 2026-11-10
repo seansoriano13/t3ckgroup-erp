@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
+import { pluralize } from "@/utils/plural";
+import QueryError from "@/components/ui/QueryError";
+import { formatDateWith } from "../../utils/formatDate";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -32,11 +37,15 @@ import SaleTypeFilter from "../../components/sor/SaleTypeFilter";
 import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
 import DeletedOpportunitiesView from "../../components/sor/DeletedOpportunitiesView";
+import { useMySorWork } from "../../components/sor/useMySorWork";
+import { canReadSorRegister, getPermissionContext } from "../../utils/permissions";
 import { opportunityService } from "../../services/opportunityService";
 import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 import {
   isOpenPipelineOpportunity,
+  isLostOpportunity,
+  formatLostReason,
   isStillMovingOpportunity,
   isOnTerminalStage,
   isRealizedOpportunity,
@@ -52,7 +61,7 @@ import { flowStageTone } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
 import HighlightText from "../../components/HighlightText";
-import { sorCodeOf, matchesSorCode } from "../../utils/sorCode";
+import { sorCodeOf, matchesSorSearch } from "../../utils/sorCode";
 import { Building2, Users, Layers, Tag } from "lucide-react";
 import {
   Table,
@@ -88,26 +97,50 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
   const { cell, inner } = TH_ALIGN[align] ?? TH_ALIGN.left;
 
   const icon = !active ? (
-    <ArrowUpDown size={11} className="opacity-40 ml-1 inline-block shrink-0" />
+    <ArrowUpDown size={11} className="size-[11px] opacity-40 ml-1 inline-block shrink-0" />
   ) : sortOrder === "asc" ? (
-    <ArrowUp size={11} className="text-primary ml-1 inline-block shrink-0" />
+    <ArrowUp size={11} className="size-[11px] text-primary ml-1 inline-block shrink-0" />
   ) : (
-    <ArrowDown size={11} className="text-primary ml-1 inline-block shrink-0" />
+    <ArrowDown size={11} className="size-[11px] text-primary ml-1 inline-block shrink-0" />
   );
 
   return (
     <TableHead
+      id={field}
       scope="col"
-      onClick={() => onSort(field)}
       aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
-      className={`${cell} px-2.5 py-2.5 whitespace-nowrap cursor-pointer hover:text-foreground transition-colors ${className}`}
+      className={`${cell} px-2.5 py-2.5 whitespace-nowrap overflow-hidden hover:text-foreground transition-colors ${className}`}
     >
-      <span className={`flex items-center ${inner}`}>
-        {children}
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={() => onSort(field)}
+        className={`h-auto p-0 font-[inherit] text-[length:inherit] [text-transform:inherit] [letter-spacing:inherit] hover:bg-transparent aria-expanded:bg-transparent w-full gap-0 ${inner || "justify-start"}`}
+      >
+        <span className="min-w-0 truncate">{children}</span>
         {icon}
-      </span>
+      </Button>
     </TableHead>
   );
+}
+
+// The view a person last used, kept across visits so Sales staff who live in
+// the List are not sent back to My work every time. Storage can be missing or
+// refuse (private windows), so every touch is guarded.
+const VIEW_KEY = "opportunitiesView";
+function readSavedView() {
+  try {
+    return localStorage.getItem(VIEW_KEY);
+  } catch {
+    return null;
+  }
+}
+function saveView(view) {
+  try {
+    localStorage.setItem(VIEW_KEY, view);
+  } catch {
+    // Not remembered; the page still works.
+  }
 }
 
 export default function OpportunitiesPage() {
@@ -134,24 +167,50 @@ export default function OpportunitiesPage() {
   const [employeeFilter, setEmployeeFilter] = useState(
     () => location.state?.filterEmployeeId || "ALL",
   );
-  const [view, setView] = useState(() => {
+  // Who can read the register itself (`sor_read`). Everyone else, someone
+  // called into an SOR from another team, gets only My work: the register's
+  // list would come back empty for them.
+  const hasRegister = canReadSorRegister(getPermissionContext(user));
+  const [chosenView, setView] = useState(() => {
+    if (location.state?.view === "mine") return "mine";
     if (location.state?.filterEmployeeId) return "list";
-    const saved = sessionStorage.getItem("opportunitiesView");
-    // "retailQueue" and "retail" moved to /retail. A session that still names
-    // one of them would otherwise restore a tab that no longer exists, leaving
-    // the strip with nothing selected.
+    const saved = readSavedView();
+    // "retailQueue" and "retail" moved to /retail. A saved view that still
+    // names one of them would otherwise restore a tab that no longer exists,
+    // leaving the strip with nothing selected.
     if (saved === "retailQueue" || saved === "retail") return "list";
-    return saved || "list";
+    // First visit opens on My work: what this person owes leads.
+    return saved || "mine";
   });
+  const view = hasRegister ? chosenView : "mine";
+  const mySorWork = useMySorWork();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   // notificationRouter sends every OPPORTUNITY_* notification here with the
   // record's id, so the deep link has to actually open it — otherwise clicking
   // a stage-change or procurement notification lands on an unfiltered list and
   // the user has to find the deal by hand.
+  // `?record=<id>` opens that SOR, so a link to one can be shared or reloaded.
+  // The open SOR is written back to the URL, so the address always matches what
+  // is on screen.
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState(
-    () => location.state?.openOpportunityId || null,
+    () => location.state?.openOpportunityId || searchParams.get("record") || null,
   );
+
+  useEffect(() => {
+    const inUrl = searchParams.get("record") || null;
+    if (inUrl === (selectedId || null)) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (selectedId) next.set("record", selectedId);
+        else next.delete("record");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [selectedId, searchParams, setSearchParams]);
 
   // Synchronise deep-link nav state whenever location.state updates (e.g. from
   // notification drawer, toast popup, or overview clicks), and clear nav state
@@ -176,7 +235,11 @@ export default function OpportunitiesPage() {
       // remember: otherwise a reload restores the "overview" that was saved
       // before the click and the register jumps back to a screen the user
       // already left.
-      sessionStorage.setItem("opportunitiesView", "list");
+      saveView("list");
+      hasHandledState = true;
+    }
+    if (navState.view === "mine") {
+      setView("mine");
       hasHandledState = true;
     }
     if (navState.filterStatus) {
@@ -191,12 +254,13 @@ export default function OpportunitiesPage() {
 
   const changeView = (next) => {
     setView(next);
-    sessionStorage.setItem("opportunitiesView", next);
+    saveView(next);
   };
 
-  const { data: opportunities = [], isLoading } = useQuery({
+  const { data: opportunities = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["opportunities"],
     queryFn: () => opportunityService.getOpportunities(),
+    enabled: hasRegister,
   });
 
   // Someone else moving or editing an SOR redraws the Board and the list here
@@ -226,7 +290,10 @@ export default function OpportunitiesPage() {
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
       setFormOpen(false);
-      toast.success(`Opportunity ${created.opportunity_no} registered.`);
+      // #888: the human number is sor_code (the legacy opportunity_no is null
+      // now). The new SOR opens so the user lands on the deal they just made.
+      toast.success(`${created.sor_code} registered.`);
+      setSelectedId(created.id);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -363,7 +430,16 @@ export default function OpportunitiesPage() {
       // Open Pipeline (CONTEXT.md): the same rule the Open pipeline value
       // adds up, so the filter lists exactly the rows behind the figure.
       if (stageFilter === "OPEN" && !isOpenPipelineOpportunity(o, stageContext)) return false;
-      if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter) return false;
+      // #814: Lost deals stay in reports but out of the working list, for both
+      // kinds of deal (a flow deal's status never changes, so a status Stage
+      // filter cannot be trusted to leave it out). Only the Lost filter brings
+      // them back; the Board keeps them, since Lost is one of its columns.
+      if (stageFilter === "LOST") {
+        if (!isLostOpportunity(o, stageContext)) return false;
+      } else if (view !== "board" && isLostOpportunity(o, stageContext)) {
+        return false;
+      }
+      if (stageFilter !== "ALL" && stageFilter !== "OPEN" && stageFilter !== "LOST" && o.status !== stageFilter) return false;
       if (leadSourceFilter !== "ALL" && o.lead_source !== leadSourceFilter) return false;
       if (projectTypeFilter !== "ALL" && o.project_type !== projectTypeFilter) return false;
       if (!matchesSaleType(o, effectiveSaleTypeFilter)) return false;
@@ -395,23 +471,14 @@ export default function OpportunitiesPage() {
       }
       if (blockedOnly && !blockedDeals[o.id]?.length) return false;
       if (!q) return true;
-      if (matchesSorCode(o, q)) return true;
-      return [
-        o.opportunity_no,
-        o.sales_reference,
-        o.client_name,
-        o.project_title,
-        o.deal_owner?.name,
-        o.lead_source_detail,
-      ]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
+      return matchesSorSearch(o, q);
     });
   }, [
     opportunities,
     employees,
     search,
     stageFilter,
+    view,
     leadSourceFilter,
     projectTypeFilter,
     effectiveSaleTypeFilter,
@@ -509,6 +576,7 @@ export default function OpportunitiesPage() {
       return (Number(b.serial_no) || 0) - (Number(a.serial_no) || 0);
     });
   }, [filtered, sortField, sortOrder, stageRank, activeLeadSources, stageContext, hasExplicitSort]);
+  const paging = usePaging(sorted);
 
   const totals = useMemo(() => {
     const open = filtered.filter((o) => isOpenPipelineOpportunity(o, stageContext));
@@ -520,11 +588,25 @@ export default function OpportunitiesPage() {
     };
   }, [filtered, stageContext, pipelineStages]);
 
-  const { data: directOpportunity } = useQuery({
+  const { data: directOpportunity, isError: directOpportunityRefused } = useQuery({
     queryKey: ["opportunity", selectedId],
     queryFn: () => opportunityService.getOpportunityById(selectedId),
     enabled: !!selectedId && !opportunities.some((o) => o.id === selectedId),
+    retry: false,
   });
+
+  // #474: RLS returns no row below full access, so a deep link to an SOR the
+  // viewer cannot fully read used to open nothing. Hand it to the global modal,
+  // which branches on access level and shows the participant, locked or
+  // no-access view instead.
+  useEffect(() => {
+    if (!directOpportunityRefused || !selectedId) return;
+    window.dispatchEvent(
+      new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: selectedId, type: "OPPORTUNITY", view: searchParams.get("view") || undefined } }),
+    );
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedId(null);
+  }, [directOpportunityRefused, selectedId]);
 
   const selected = useMemo(() => {
     if (!selectedId) return null;
@@ -534,8 +616,11 @@ export default function OpportunitiesPage() {
   const stageOptions = [
     { value: "ALL", label: "All Stages" },
     { value: "OPEN", label: "Open Only" },
+    { value: "LOST", label: "Lost" },
     ...pipelineStages.map((s) => ({ value: s.code, label: s.label })),
   ];
+
+  const showLostReason = stageFilter === "LOST";
 
   const currentStageLabel =
     stageOptions.find((o) => o.value === stageFilter)?.label || "All Stages";
@@ -649,6 +734,7 @@ export default function OpportunitiesPage() {
         <Search size={15} className="shrink-0 text-muted-foreground" />
         <Input
           value={search}
+          aria-label="Search register"
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search number, client, project, deal owner…"
           containerClassName="w-full"
@@ -930,18 +1016,24 @@ export default function OpportunitiesPage() {
         title="SOR Register"
         frame="full"
         action={
-          <>
-            <SorsViewTabs view={view} onChange={changeView} />
-            <Button onClick={() => setFormOpen(true)}>
-              <Plus size={16} strokeWidth={2.5} />
-              Register SOR
-            </Button>
-          </>
+          hasRegister && (
+            <>
+              <SorsViewTabs view={view} onChange={changeView} />
+              <Button onClick={() => setFormOpen(true)}>
+                <Plus size={16} strokeWidth={2.5} />
+                Register SOR
+              </Button>
+            </>
+          )
         }
-        toolbar={toolbar}
+        toolbar={view === "mine" ? mySorWork.toolbar : toolbar}
       >
-        {view === "deleted" ? (
+        {view === "mine" ? (
+          mySorWork.body
+        ) : view === "deleted" ? (
           <DeletedOpportunitiesView currentUserId={user?.id} isSuperAdmin={isSuperAdmin} />
+        ) : isError ? (
+          <QueryError title="The SOR register could not be loaded." onRetry={refetch} />
         ) : view === "overview" ? (
           <div>
             {isLoading ? (
@@ -1005,36 +1097,42 @@ export default function OpportunitiesPage() {
               <p className="text-xs text-muted-foreground mt-1 max-w-sm">
                 {opportunities.length === 0
                   ? "Register a lead to claim ownership of it."
-                  : "Try clearing the search or stage filter."}
+                  : "A search or filter is hiding every opportunity."}
               </p>
+              {opportunities.length > 0 && (
+                <Button variant="outline" size="sm" className="mt-3" onClick={handleClearAll}>
+                  Clear filters
+                </Button>
+              )}
             </div>
           </div>
         ) : (
           <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <Table className="table-fixed">
+              <Table tableId="sor-register" className="table-fixed min-w-[1120px]">
                 <TableHeader>
                   {/* Sortable headers. The interaction styling is
                       TaskTableView's — cursor-pointer hover:text-foreground
                       transition-colors — but the padding stays at this
-                      table's own px-2.5/py-2.5: ten columns already overflow
-                      the fixed layout, and px-4 gutters would push Status out
-                      of view. */}
+                      table's own px-2.5/py-2.5: ten columns fill the 1120px the
+                      content gets at 1440 px, and px-4 gutters would push Status
+                      out of view. */}
                   <TableRow>
-                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[80px]">SOR</SortableTh>
-                    <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">Sales Ref.</SortableTh>
+                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">SOR</SortableTh>
+                    <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[72px]">Sales Ref.</SortableTh>
                     <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
-                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Lead Source</SortableTh>
-                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[18%]">Company</SortableTh>
-                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[20%]">Project</SortableTh>
-                    <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[114px]">Expected Value</SortableTh>
+                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[112px]">Lead Source</SortableTh>
+                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[168px]">Company</SortableTh>
+                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[176px]">Project</SortableTh>
+                    <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[128px]">Expected Value</SortableTh>
                     <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
-                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Deal Owner</SortableTh>
-                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[150px]">Status</SortableTh>
+                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[120px]">Deal Owner</SortableTh>
+                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Status</SortableTh>
+                    {showLostReason && <TableHead className="w-[220px] px-2.5 py-2.5">Reason</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sorted.map((o) => {
+                  {paging.rows.map((o) => {
                     const deadline = deadlineStatuses[o.id];
                     const leadSourceText = formatLeadSource(
                       o.lead_source,
@@ -1044,7 +1142,7 @@ export default function OpportunitiesPage() {
                     const dateFormatted = o.registration_date
                       ? (() => {
                         const d = new Date(o.registration_date);
-                        const m = d.toLocaleDateString("en-US", { month: "short" });
+                        const m = formatDateWith(d, { month: "short" });
                         const day = d.getDate();
                         const yr = String(d.getFullYear()).slice(-2);
                         return `${m} ${day}, '${yr}`;
@@ -1054,8 +1152,15 @@ export default function OpportunitiesPage() {
                     return (
                       <TableRow
                         key={o.id}
+                        tabIndex={0}
                         onClick={() => setSelectedId(o.id)}
-                        className="cursor-pointer"
+                        onKeyDown={(e) => {
+          if (e.key === "Enter" && e.target === e.currentTarget) {
+            e.preventDefault();
+            setSelectedId(o.id);
+          }
+        }}
+                        className="cursor-pointer outline-none focus-visible:bg-muted"
                       >
                         <TableCell className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
                           <HighlightText text={sorCodeOf(o)} search={search} />
@@ -1125,7 +1230,7 @@ export default function OpportunitiesPage() {
                                   label={display.label}
                                   status={display.code}
                                   theme={display.tone}
-                                  className="min-w-0 max-w-full truncate"
+                                  className="min-w-0"
                                   title={display.label}
                                 />
                               ) : (
@@ -1137,7 +1242,8 @@ export default function OpportunitiesPage() {
                                 title={`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}
                                 className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
                               >
-                                <AlertTriangle size={10} />
+                                <AlertTriangle size={10} aria-hidden="true" />
+                                <span className="sr-only">{`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}</span>
                               </span>
                             )}
                             {/* Deadline kind (ticket 7, story 26) — deadlines
@@ -1145,7 +1251,7 @@ export default function OpportunitiesPage() {
                                 separate from the "Blocked" badge above. */}
                             {deadline?.isBreached && (
                               <span
-                                title={`Deadline passed: "${deadline.condition.label}"`}
+                                title={`Deadline passed: “${deadline.condition.label}”`}
                                 className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
                               >
                                 <Clock size={10} />
@@ -1153,7 +1259,7 @@ export default function OpportunitiesPage() {
                             )}
                             {deadline && !deadline.isBreached && deadline.isApproaching && (
                               <span
-                                title={`"${deadline.condition.label}" — ${deadline.daysRemaining} day(s) left`}
+                                title={`“${deadline.condition.label}” — ${pluralize(deadline.daysRemaining, "day")} left`}
                                 className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400"
                               >
                                 <Clock size={10} />
@@ -1161,12 +1267,18 @@ export default function OpportunitiesPage() {
                             )}
                           </div>
                         </TableCell>
+                        {showLostReason && (
+                          <TableCell className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap" title={formatLostReason(o)}>
+                            {formatLostReason(o) || <span className="text-muted-foreground/50">—</span>}
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
             </div>
+            <TablePager {...paging} noun="SORs" />
           </div>
         )}
       </PageShell>
@@ -1190,6 +1302,8 @@ export default function OpportunitiesPage() {
         isOpen={!!selected}
         onClose={() => setSelectedId(null)}
         opportunity={selected}
+        // `?view=pms` (from an IPAS or another record's SOR link) opens the SOR on that tab.
+        initialView={searchParams.get("view") || undefined}
         onEdit={(o) => {
           setSelectedId(null);
           setEditing(o);

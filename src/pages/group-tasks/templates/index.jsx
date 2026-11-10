@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import QueryError from "@/components/ui/QueryError";
+import { formatDateWith } from "@/utils/formatDate";
 import { Navigate } from "react-router";
 import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +12,8 @@ import TabGroup from "../../../components/ui/TabGroup";
 import { confirmActionToast, confirmDeleteToast } from "../../../components/ui/CustomToast";
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useTableSort } from "@/hooks/useTableSort";
 import toast from "react-hot-toast";
 import { LayoutTemplate, Plus, Pencil, Archive, RotateCcw, Users, Trash2 } from "lucide-react";
 import TemplateEditorModal from "./_components/TemplateEditorModal";
@@ -34,7 +37,7 @@ export default function GroupTaskTemplatesPage() {
     }
   }, [canManage]);
 
-  const { data: templates = [], isLoading } = useQuery({
+  const { data: templates = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["groupTaskTemplates", "manage", statusFilter],
     queryFn: () =>
       groupTaskTemplateService.getTemplates({
@@ -51,13 +54,23 @@ export default function GroupTaskTemplatesPage() {
     enabled: canManage,
   });
 
+  const templateSort = useMemo(
+    () => ({
+      template: (t) => t.name,
+      slots: (t) => (t.members || []).length,
+      usage: (t) => usageStats[t.id]?.count ?? 0,
+    }),
+    [usageStats],
+  );
+  const { sorted: sortedTemplates, sort, toggle } = useTableSort(templates, templateSort);
+
   const archiveMutation = useMutation({
     mutationFn: (id) => groupTaskTemplateService.archiveTemplate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTaskTemplates"] });
       toast.success("Template archived.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not update the template."),
   });
 
   const restoreMutation = useMutation({
@@ -66,7 +79,7 @@ export default function GroupTaskTemplatesPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTaskTemplates"] });
       toast.success("Template restored.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not restore the template."),
   });
 
   const deleteMutation = useMutation({
@@ -75,7 +88,7 @@ export default function GroupTaskTemplatesPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTaskTemplates"] });
       toast.success("Template deleted permanently.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not delete the template."),
   });
 
   if (!user) return null;
@@ -102,7 +115,9 @@ export default function GroupTaskTemplatesPage() {
         />
       }
     >
-      {isLoading ? (
+      {isError ? (
+        <QueryError title="Templates could not be loaded." onRetry={refetch} />
+      ) : isLoading ? (
         <div className="py-20 flex justify-center">
           <Spinner size="md" />
         </div>
@@ -118,17 +133,17 @@ export default function GroupTaskTemplatesPage() {
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table>
+          <Table scrollCue tableId="task-templates">
             <TableHeader>
               <TableRow>
-                <TableHead>Template</TableHead>
-                <TableHead>Slots</TableHead>
-                <TableHead>Usage</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <SortHead id="template" sortKey="template" sort={sort} onSort={toggle}>Template</SortHead>
+                <SortHead id="slots" sortKey="slots" sort={sort} onSort={toggle}>Slots</SortHead>
+                <SortHead id="usage" sortKey="usage" sort={sort} onSort={toggle}>Usage</SortHead>
+                <TableHead id="actions" className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {templates.map((t) => {
+              {sortedTemplates.map((t) => {
                 const stats = usageStats[t.id];
                 const slotCount = (t.members || []).length;
                 return (
@@ -141,9 +156,9 @@ export default function GroupTaskTemplatesPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {stats
-                        ? `Used ${stats.count} time${stats.count === 1 ? "" : "s"} · last ${new Date(
+                        ? `Used ${stats.count} time${stats.count === 1 ? "" : "s"} · last ${formatDateWith(
                             stats.lastUsedAt,
-                          ).toLocaleDateString()}`
+                          )}`
                         : "Never used"}
                     </TableCell>
                     <TableCell>

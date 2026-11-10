@@ -1,8 +1,10 @@
+import { manilaToday } from "@/lib/manilaDate.js";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import HRFormModal from "../hr/HRFormModal";
-import { TextField, SelectField } from "./SorField";
+import { SelectField, DateField, SorFieldGroup } from "./SorField";
+import { useAuth } from "../../context/AuthContext";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import { employeeService } from "../../services/employeeService";
 import { opportunityService } from "../../services/opportunityService";
@@ -26,7 +28,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 const FORM_ID = "opportunity-form";
 
 const blankForm = () => ({
-  registration_date: new Date().toISOString().slice(0, 10),
+  registration_date: manilaToday(),
   lead_source: "",
   lead_source_detail: "",
   client_name: "",
@@ -66,10 +68,15 @@ const fromRecord = (o) => ({
 });
 
 const toRow = (item) => ({
+  // A stored line keeps its own id and its Odoo line id through an edit, so the save updates it in place (#677).
+  ...(item.id ? { id: item.id } : {}),
   product_name: item.product_name || "",
   unit: item.unit || "",
   quantity: item.quantity ?? 1,
   unit_price: item.unit_price ?? "",
+  odoo_product_id: item.odoo_product_id ?? null,
+  odoo_line_id: item.odoo_line_id ?? null,
+  removed_from_s0: item.removed_from_s0 ?? false,
 });
 
 export default function OpportunityFormModal({
@@ -104,8 +111,8 @@ export default function OpportunityFormModal({
 
   // Issue #36 — the Sale Type a deal is registered against decides which
   // Sales Flow it runs. The list is whatever the Operations Manager has drawn
-  // on the Flow Canvas, and is empty until she has drawn one; the field hides
-  // itself in that case rather than offering an empty picker.
+  // on the Flow Canvas. The field is required (#856), so it always shows, even
+  // while the list is loading or empty; Save then says why it cannot go on.
   const { data: saleTypes = [] } = useQuery({
     queryKey: ["saleTypes"],
     queryFn: () => salesFlowService.getSaleTypes(),
@@ -194,6 +201,18 @@ export default function OpportunityFormModal({
   const salesDirectorId =
     employees.find((e) => /sales\s*director/i.test(e.role || ""))?.id || "";
   const effectiveSalesDirectorId = form.sales_director_id || salesDirectorId;
+
+  // The registrant is the usual Deal Owner, so a new registration starts with
+  // them picked when they are on the employee list (the people who can own a
+  // deal). Seeded once per open form, and only while Deal Owner is still empty,
+  // so a choice the salesperson makes, or clears, is never overwritten.
+  const { user } = useAuth();
+  const registrantCanOwn = !!user?.id && employees.some((e) => e.id === user.id);
+  const [ownerSeedKey, setOwnerSeedKey] = useState("");
+  if (!isEdit && isOpen && registrantCanOwn && ownerSeedKey !== currentKey) {
+    setOwnerSeedKey(currentKey);
+    setForm((prev) => (prev.deal_owner_id ? prev : { ...prev, deal_owner_id: user.id }));
+  }
 
   const [fetchingOdoo, setFetchingOdoo] = useState(false);
 
@@ -354,6 +373,8 @@ export default function OpportunityFormModal({
   // rather than passed one prop at a time so the builder's inert equivalent
   // (SAMPLE_FIELD_CTX) is obviously the same shape.
   const fieldCtx = {
+    // Editing a SOR never writes the S0: it changes on the S0 card (#822).
+    s0ReadOnly: isEdit,
     form,
     set,
     odooFilled,
@@ -367,19 +388,34 @@ export default function OpportunityFormModal({
       setCustomValues((prev) => ({ ...prev, [fieldId]: value })),
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isEdit && !form.sale_type_id) {
+      toast.error("Choose a Sale Type before saving.");
+      return;
+    }
+    // A date field is no longer a native input, so the browser cannot stop a
+    // blank required one. Check it here instead.
+    const blankDate = customFields.find(
+      (f) => f.isRequired && f.inputType === "date" && !customValues[f.id],
+    );
+    if (blankDate) {
+      toast.error(`${blankDate.label} is required.`);
+      return;
+    }
     const sales_reference = normalizeSalesReference(form.sales_reference);
     if (sales_reference && !isValidSalesReference(sales_reference)) {
       toast.error(SALES_REFERENCE_HINT);
       return;
     }
+    // Duplicates, Odoo and the product pull are checked when the SOR is registered
+    // (createOpportunity, #820). A refusal comes back as the error toast.
     const derivedType = deriveProjectType({
       supportSales1Id: form.support_sales_1_id,
       supportSales2Id: form.support_sales_2_id,
       currentProjectType: form.project_type,
     });
-    onSubmit({
+    const payload = {
       ...form,
       project_type: derivedType,
       sale_type_id: form.sale_type_id || null,
@@ -389,7 +425,10 @@ export default function OpportunityFormModal({
       // Only the custom fields still on this form — see the Sale Type switch
       // above. `createOpportunity` writes these to sor_form_values.
       formValues: customValues,
-    });
+    };
+    // Editing never sends the S0 (#822): it changes only through the S0 card's save step.
+    if (isEdit) delete payload.sales_reference;
+    onSubmit(payload);
   };
 
   return (
@@ -404,9 +443,9 @@ export default function OpportunityFormModal({
       badge="OPP"
       formId={FORM_ID}
       isPending={isPending}
-      submitLabel={isEdit ? "Save Changes" : "Register"}
+      submitLabel={isEdit ? "Save changes" : "Register"}
     >
-      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-4 transition-[padding] duration-300 ease-in-out [&:has([data-state=open])]:pb-64">
+      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-5 transition-[padding] duration-300 ease-in-out [&:has([data-state=open])]:pb-64">
         {!isEdit && (
           <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/40 border border-border rounded-xl px-3 py-2.5">
             Register before bid, proposal, or quotation issuance. The
@@ -415,63 +454,46 @@ export default function OpportunityFormModal({
           </p>
         )}
 
-        {/* Issue #36 — chosen at registration, and changeable afterwards only
-            while the deal is still on its flow's first Stage, which is why the
-            edit form does not offer it.
+        {/* #871: fields sit in titled sections (one card each) rather than a
+            stack of separate boxes, so the form reads as a few blocks. */}
+        <SorFieldGroup label="Deal Classification">
+          {/* Issue #36 — chosen at registration, and changeable afterwards
+              only while the deal is still on its flow's first Stage, which is
+              why the edit form does not offer it.
 
-            It leads the form because it now *chooses* the form: the flow's
-            builder decides which fields appear below, their labels and their
-            order. Left mid-form, the page visibly grew under the cursor of
-            someone who had already started filling it in. */}
-        {!isEdit && saleTypes.length > 0 && (
-          <SelectField
-            label="Sale Type"
-            placeholder="Select sale type…"
-            options={saleTypeOptions}
-            value={form.sale_type_id}
-            onChange={set("sale_type_id")}
-          />
-        )}
+              It leads the form because it *chooses* the form: the flow's
+              builder decides which fields appear below, their labels and
+              their order. Left mid-form, the page visibly grew under the
+              cursor of someone who had already started filling it in. */}
+          {!isEdit && (
+            <SelectField
+              label="Sale Type"
+              required
+              placeholder={saleTypes.length > 0 ? "Select sale type…" : "No Sale Types yet"}
+              options={saleTypeOptions}
+              value={form.sale_type_id}
+              onChange={set("sale_type_id")}
+            />
+          )}
 
-        {!isEdit && saleTypes.length > 0 && (
-          <p className="-mt-2 text-xs leading-snug text-muted-foreground">
-            {form.sale_type_id
-              ? `Showing ${visibleFields.length} field${visibleFields.length === 1 ? "" : "s"} for ${
-                  saleTypes.find((t) => t.id === form.sale_type_id)?.name || "this Sale Type"
-                }. Change the Sale Type and the fields below change with it.`
-              : "The fields below depend on the Sale Type you choose."}
-          </p>
-        )}
+          {!isEdit && (
+            <DateField
+              label="Registration Date"
+              required
+              disabled
+              value={form.registration_date}
+            />
+          )}
 
-        {!isEdit && (
-          <TextField
-            label="Registration Date"
-            type="date"
-            required
-            disabled
-            value={form.registration_date}
-            onChange={set("registration_date")}
-          />
-        )}
-
-        {/* Drawn by the same component the Flow Canvas builder draws, so what
-            the builder shows and what a salesperson fills in cannot drift
-            apart. The builder decides order and presence; RegistrationField
-            decides appearance. */}
-        {visibleFields.map((field) => (
-          <RegistrationField key={field.key} field={field} ctx={fieldCtx} />
-        ))}
-
-        <div className="grid grid-cols-1 gap-3">
-          <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col justify-between">
-            <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="rounded-lg p-3 flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
               <FieldBox label="Sales Division" className="block" />
               <Button
                 type="button"
                 variant="ghost"
                 onClick={toggleStrategic}
-                className={`h-auto text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors ${form.project_type === "STRATEGIC"
-                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                className={`h-auto text-label font-semibold px-2 py-0.5 rounded-md border transition-colors ${form.project_type === "STRATEGIC"
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
                     : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
                   }`}
                 title="Toggle Strategic project override"
@@ -483,76 +505,91 @@ export default function OpportunityFormModal({
               <span
                 data-testid="project-type-badge"
                 className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg border ${form.project_type === "STRATEGIC"
-                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                    ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
                     : form.project_type === "CP"
-                      ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
-                      : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+                      : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
                   }`}
               >
                 {PROJECT_TYPE_LABELS[form.project_type] || form.project_type}
               </span>
             </div>
           </div>
-          {/* Expected Award Date is NOT rendered here any more — it is one of
-              the builder-ordered fields above, and leaving a second copy here
-              put it on the form twice. PO Date is no longer offered at all;
-              its column, its writer and every value already recorded are
-              untouched, and the form still round-trips the value it loaded so
-              editing an SOR never blanks it. */}
-        </div>
+        </SorFieldGroup>
 
-        <div className="pt-2 border-t border-border/50">
-          <OpportunityItemsEditor items={items} onChange={setItems} />
-        </div>
+        {!isEdit && saleTypes.length > 0 && (
+          <p className="-mt-2 px-1 text-xs leading-snug text-muted-foreground">
+            {form.sale_type_id
+              ? `Showing ${visibleFields.length} field${visibleFields.length === 1 ? "" : "s"} for ${
+                  saleTypes.find((t) => t.id === form.sale_type_id)?.name || "this Sale Type"
+                }. Change the Sale Type and the fields below change with it.`
+              : "The fields below depend on the Sale Type you choose."}
+          </p>
+        )}
 
-        <div className="pt-2 border-t border-border/50 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-              Ownership
-            </p>
-            {(!form.deal_owner_id || !effectiveSalesDirectorId || (form.project_type === "STRATEGIC" && !form.closing_sales_id)) && (
-              <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+        {/* Drawn by the same component the Flow Canvas builder draws, so what
+            the builder shows and what a salesperson fills in cannot drift
+            apart. The builder decides order and presence; RegistrationField
+            decides appearance. Expected Award Date is one of these; PO Date
+            is no longer offered at all — its column, its writer and every
+            value already recorded are untouched, and the form still
+            round-trips the value it loaded so editing an SOR never blanks it. */}
+        {visibleFields.length > 0 && (
+          <SorFieldGroup label="Details">
+            {visibleFields.map((field) => (
+              <RegistrationField key={field.key} field={field} ctx={fieldCtx} />
+            ))}
+          </SorFieldGroup>
+        )}
+
+        <OpportunityItemsEditor items={items} onChange={setItems} />
+
+        <SorFieldGroup
+          label="Assignment"
+          columns={2}
+          aside={
+            (!form.deal_owner_id || !effectiveSalesDirectorId || (form.project_type === "STRATEGIC" && !form.closing_sales_id)) && (
+              <span className="text-label font-medium normal-case tracking-normal text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
                 Advisory: Unassigned roles leave shares unattributed
               </span>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            )
+          }
+        >
+          <SelectField
+            label={form.project_type === "STRATEGIC" ? "Deal Owner / Originator" : "Deal Owner"}
+            required
+            options={employeeOptions}
+            value={form.deal_owner_id}
+            onChange={set("deal_owner_id")}
+          />
+          {form.project_type === "STRATEGIC" && (
             <SelectField
-              label={form.project_type === "STRATEGIC" ? "Deal Owner / Originator" : "Deal Owner"}
-              required
+              label="Closing Salesperson"
               options={employeeOptions}
-              value={form.deal_owner_id}
-              onChange={set("deal_owner_id")}
+              value={form.closing_sales_id}
+              onChange={set("closing_sales_id")}
             />
-            {form.project_type === "STRATEGIC" && (
-              <SelectField
-                label="Closing Salesperson"
-                options={employeeOptions}
-                value={form.closing_sales_id}
-                onChange={set("closing_sales_id")}
-              />
-            )}
-            <SelectField
-              label="Sales Director"
-              disabled
-              options={employeeOptions}
-              value={effectiveSalesDirectorId}
-              onChange={set("sales_director_id")}
-            />
-            <SelectField
-              label="Support Sales 1"
-              options={employeeOptions}
-              value={form.support_sales_1_id}
-              onChange={set("support_sales_1_id")}
-            />
-            <SelectField
-              label="Support Sales 2"
-              options={employeeOptions}
-              value={form.support_sales_2_id}
-              onChange={set("support_sales_2_id")}
-            />
-          </div>
-        </div>
+          )}
+          <SelectField
+            label="Sales Director"
+            disabled
+            options={employeeOptions}
+            value={effectiveSalesDirectorId}
+            onChange={set("sales_director_id")}
+          />
+          <SelectField
+            label="Support Sales 1"
+            options={employeeOptions}
+            value={form.support_sales_1_id}
+            onChange={set("support_sales_1_id")}
+          />
+          <SelectField
+            label="Support Sales 2"
+            options={employeeOptions}
+            value={form.support_sales_2_id}
+            onChange={set("support_sales_2_id")}
+          />
+        </SorFieldGroup>
       </form>
     </HRFormModal>
   );

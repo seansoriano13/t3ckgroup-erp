@@ -18,7 +18,7 @@ function Section({ title, count, children }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">{title}</p>
+        <p className="text-label font-bold tracking-widest text-muted-foreground uppercase">{title}</p>
         {count != null && <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">{count}</span>}
       </div>
       {children}
@@ -65,6 +65,8 @@ export default function NowTab({ ctx }) {
     cancelPendingStage,
     stageMutation,
     isRestricted,
+    missingRequiredStageFields,
+    blockersPending,
   } = ctx;
 
   // A flow SOR's `status` never changes (it stays LEAD), so anything keyed
@@ -170,7 +172,7 @@ export default function NowTab({ ctx }) {
 
       {opportunity.lost_reason && (
         <div className="rounded-xl border border-red-7 bg-red-9/5 px-3 py-2.5">
-          <p className="mb-1 text-[10px] font-bold tracking-widest text-red-11 uppercase">Lost Reason</p>
+          <p className="mb-1 text-label font-bold tracking-widest text-red-11 uppercase">Lost Reason</p>
           <p className="text-sm text-foreground">{opportunity.lost_reason}</p>
         </div>
       )}
@@ -182,6 +184,8 @@ export default function NowTab({ ctx }) {
           actorId={user?.id}
           onChanged={invalidate}
           onSaveField={handleSaveField}
+          missingRequiredStageFields={missingRequiredStageFields}
+          blockersPending={blockersPending}
         />
       </Section>
 
@@ -226,7 +230,7 @@ export default function NowTab({ ctx }) {
         </Section>
       )}
 
-      {/* #209's Purchase Request card goes here, after follow-up. */}
+      {/* #267, #268: the Purchase Request card (#310), the IPAS summaries (#249) and the Transmittals (#257) live on the PMS tab now. */}
     </div>
   );
 }

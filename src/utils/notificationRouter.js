@@ -42,7 +42,37 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
 
   if (notif.type === "BUG_REPORT_SUBMITTED" || notif.type === "BUG_REPORT_NOTE") {
     navigate(`/bug-reports?record=${encodeURIComponent(notif.reference_id)}`);
-  } else if (notif.type === "GROUP_TASK_COMMENT") {
+  } else if (notif.type.startsWith("PURCHASE_REQUEST_")) {
+    // Purchase Request notifications (#307): reference_id is the request.
+    // Before the generic `includes("TASK")` branch, though no type here may
+    // contain "TASK" anyway. The Purchase Requests list opens the request named
+    // by `?request=`.
+    // #309: a modal over the current page, no navigation.
+    // A mention lands the cursor in the request's Chat, where it was made.
+    const isChat = notif.type === "PURCHASE_REQUEST_MESSAGE" || notif.type === "PURCHASE_REQUEST_MENTION";
+    window.dispatchEvent(
+      new CustomEvent("OPEN_ENTITY_DETAILS", {
+        detail: {
+          id: notif.reference_id,
+          type: "PURCHASE_REQUEST",
+          focusChat: notif.type === "PURCHASE_REQUEST_MENTION",
+          // #850: chat notifications open the Chat tab, item status ones the product lines.
+          ...(isChat ? { tab: "chat" } : notif.type === "PURCHASE_REQUEST_ITEM_STATUS" ? { tab: "items" } : {}),
+        },
+      }),
+    );
+  } else if (notif.type === "COSTING_EVALUATION_ASSIGNED") {
+    // #706: rows were given to the caller's team; reference_id is the SOR. Opens the Technical sheet.
+    navigate(`/technical/${encodeURIComponent(notif.reference_id)}`);
+  } else if (notif.type.startsWith("IPAS_")) {
+    // IPAS notifications (#243): reference_id is the IPAS. The page itself
+    // decides what the reader may see (the database returns nothing to someone
+    // who can't read IPAS), so every IPAS_* type lands there.
+    navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
+  } else if (
+    notif.type === "GROUP_TASK_COMMENT" ||
+    notif.type === "GROUP_TASK_REACTION"
+  ) {
     navigate("/group-tasks");
     window.dispatchEvent(
       new CustomEvent("OPEN_CHAT_MODAL", {
@@ -91,16 +121,9 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
   } else if (notif.type.includes("TASK")) {
     const { isHr: isHrUser, isHead: isHeadUser, isSuperAdmin: isSA } = getPermissionContext(user);
 
-    if (notif.type === "TASK_APPROVED_BY_HEAD" && isHrUser) {
-      navigate("/approvals/hr-verification", {
-        state: { openTaskId: notif.reference_id },
-      });
-    } else if (isHeadUser || isSA) {
+    // Both steps of a task, head grade and HR verification, share one queue.
+    if (isHeadUser || isSA || isHrUser) {
       navigate("/approvals/tasks", {
-        state: { openTaskId: notif.reference_id },
-      });
-    } else if (isHrUser) {
-      navigate("/approvals/hr-verification", {
         state: { openTaskId: notif.reference_id },
       });
     } else {
@@ -122,11 +145,10 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     // page) opens the modal through `getOpportunityForModal`, which branches on
     // access level and reads `sor_participant_record` / `sor_locked_summary`
     // instead. Same event `SorLink` uses to open an SOR from a task.
-    window.dispatchEvent(
-      new CustomEvent("OPEN_ENTITY_DETAILS", {
-        detail: { id: notif.reference_id, type: "OPPORTUNITY" },
-      }),
-    );
+    // #941: a Bid Decision opens the SOR on its PMS tab, where the S0 Evaluation and its Bid Decision are.
+    const detail = { id: notif.reference_id, type: "OPPORTUNITY" };
+    if (notif.type === "SOR_BID_DECISION") detail.view = "pms";
+    window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail }));
   } else if (notif.type === "OPPORTUNITY_MENTION") {
     // Same reason as SOR_* above: the register's deep-link fetch is a plain
     // `.single()` that RLS empties for anyone outside the deal team (an old

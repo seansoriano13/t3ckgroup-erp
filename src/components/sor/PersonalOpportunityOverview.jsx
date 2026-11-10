@@ -1,11 +1,13 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { Target } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ReportFigure from "../ui/ReportFigure";
 import { getStatusTheme } from "../../constants/status";
-import { formatPHP, isLostCode, isWonCode } from "../../constants/sor";
+import { formatPHP, isLostOpportunity, isWonCode } from "../../constants/sor";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
+import { salesFlowService } from "../../services/salesFlowService";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -41,23 +43,35 @@ export default function PersonalOpportunityOverview({ opportunities }) {
     occupiedCodes: occupiedStageCodes,
   });
 
+  // Flow deals are lost by their own Flow Snapshot's Stage, so load the
+  // snapshots they sit on (same query key as the SOR register shares).
+  const snapshotIds = useMemo(
+    () => [...new Set(mine.map((o) => o.flow_snapshot_id).filter(Boolean))].sort(),
+    [mine],
+  );
+  const { data: snapshotsById = {} } = useQuery({
+    queryKey: ["flowSnapshotsById", snapshotIds.join(",")],
+    queryFn: () => salesFlowService.getSnapshotsByIds(snapshotIds),
+    enabled: snapshotIds.length > 0,
+  });
+
   // The won/lost tiles link to the register filtered by those stages, so they
-  // follow the flags rather than assuming the policy codes.
+  // follow the flags rather than assuming the policy codes; Lost uses the register's Lost filter, which covers both kinds of deal.
   const wonCode = pipelineStages.find((s) => s.is_won)?.code;
-  const lostCode = pipelineStages.find((s) => s.is_lost)?.code;
 
   const stats = useMemo(() => {
     const total = mine.length;
     const value = mine.reduce((sum, o) => sum + Number(o.expected_value || 0), 0);
     const won = mine.filter((o) => isWonCode(o.status, pipelineStages)).length;
-    const lost = mine.filter((o) => isLostCode(o.status, pipelineStages)).length;
+    const lostContext = { snapshotsById, stages: pipelineStages };
+    const lost = mine.filter((o) => isLostOpportunity(o, lostContext)).length;
     const open = total - won - lost;
     const stageCounts = {};
     mine.forEach((o) => {
       stageCounts[o.status] = (stageCounts[o.status] || 0) + 1;
     });
     return { total, value, won, lost, open, stageCounts };
-  }, [mine, pipelineStages]);
+  }, [mine, pipelineStages, snapshotsById]);
 
   const goToStage = (status) => {
     navigate("/sors", {
@@ -86,7 +100,7 @@ export default function PersonalOpportunityOverview({ opportunities }) {
           { label: "Open", value: stats.open, sub: "In progress", onClick: () => navigate("/sors", { state: { filterEmployeeId: user?.id } }) },
           { label: "Value", value: formatPHP(stats.value), sub: "Total pipeline" },
           { label: "Won", value: stats.won, sub: "Closed won", onClick: () => goToStage(wonCode) },
-          { label: "Lost", value: stats.lost, sub: "Closed lost", onClick: () => goToStage(lostCode) },
+          { label: "Lost", value: stats.lost, sub: "Closed lost", onClick: () => goToStage("LOST") },
         ]}
       />
 

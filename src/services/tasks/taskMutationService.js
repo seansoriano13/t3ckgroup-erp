@@ -2,7 +2,6 @@ import { supabase } from "../../lib/supabase";
 import { notificationService } from "../notificationService";
 import { taskActivityService } from "./taskActivityService";
 import { TASK_STATUS } from "../../constants/status";
-import { procurementDeletionBlock } from "../procurementTaskLinks";
 import { parseChecklist } from "../../utils/checklist";
 
 /**
@@ -21,6 +20,20 @@ function formatTaskDescription(desc, maxLen = 30) {
 }
 
 export const taskMutationService = {
+  /**
+   * Turn an open task into a Group Task (#657). The database does the whole move in one call and
+   * refuses non-managers, Stage Action tasks and submitted/approved/cancelled tasks.
+   * @returns {Promise<string>} the new Group Task's id
+   */
+  async convertToGroupTask(taskId, memberIds = []) {
+    const { data, error } = await supabase.rpc("convert_task_to_group_task", {
+      p_task_id: taskId,
+      p_member_ids: memberIds,
+    });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
   // 3. CREATE
   //
   // Issue #404 — a Stage Action's Individual Task is created by the mover on
@@ -1096,9 +1109,6 @@ export const taskMutationService = {
     if (task.hr_verified === true && !userRole?.is_super_admin) {
       throw new Error("Cannot delete tasks that are already verified by HR.");
     }
-
-    const procurementBlock = await procurementDeletionBlock(taskId);
-    if (procurementBlock) throw new Error(procurementBlock);
 
     // NOTE: Attachments are intentionally preserved during soft deletes
     // to maintain audit trail integrity. Physical cleanup should only

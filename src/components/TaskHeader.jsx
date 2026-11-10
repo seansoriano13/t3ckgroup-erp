@@ -15,7 +15,7 @@ const TaskHeader = ({ isEditing, isHrVerified, title, status, onClose, onOpenCha
         <div className="flex items-center gap-2 mb-2.5">
           {status && <StatusBadge status={status} />}
           {isHrVerified && (
-            <span className="flex items-center gap-1.5 text-[10px] font-bold text-green-10 bg-green-2 px-2.5 py-1 rounded-full border border-green-6 uppercase tracking-widest">
+            <span className="flex items-center gap-1.5 text-label font-bold text-green-10 bg-green-2 px-2.5 py-1 rounded-full border border-green-6 uppercase tracking-widest">
               <ShieldCheck size={12} /> Verified
             </span>
           )}

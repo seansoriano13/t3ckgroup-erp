@@ -115,6 +115,22 @@ describe("useTableRealtime", () => {
     expect(supabase.channel).not.toHaveBeenCalled()
   })
 
+  it("shares one channel between two consumers of a table, until the last one leaves", () => {
+    const first = renderHookWithQuery(() => useTableRealtime("tasks", { invalidateKeys: [["tasks"]] }))
+    const second = renderHookWithQuery(() => useTableRealtime("tasks", { invalidateKeys: [["dashboardTasks"]] }))
+    const spy = vi.spyOn(second.client, "invalidateQueries")
+
+    expect(supabase.channel).toHaveBeenCalledTimes(1)
+    first.unmount()
+    expect(supabase.removeChannel).not.toHaveBeenCalled()
+
+    channelState.handlers[0]({ event: "UPDATE" })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["dashboardTasks"] })
+
+    second.unmount()
+    expect(supabase.removeChannel).toHaveBeenCalledTimes(1)
+  })
+
   it("tears the channel down on unmount", () => {
     const { unmount } = renderHookWithQuery(() =>
       useTableRealtime("tasks", { invalidateKeys: [["tasks"]] }),

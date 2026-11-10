@@ -42,7 +42,8 @@ function Stat({ label, value, sub, tone, onClick, large, divided }) {
 /**
  * The Report layout's headline figure (DESIGN.md "Pages → Report layout"): one
  * big figure with its note, the supporting stats beside the chart. Every part
- * is optional, so a row of counts is `stats` alone. `stats` items are
+ * is optional, so a row of counts is `stats` alone. `listClassName` overrides the
+ * stats grid (a row that must hold a fixed number of cells on one line). `stats` items are
  * `{ label, value, sub, tone, onClick }`; one with `onClick` is a button (with
  * an arrow), a zero dims, and `tone: "attention"` turns a non-zero value amber.
  * A row of counts gets larger numerals and hairline dividers. `chart` is
@@ -50,13 +51,14 @@ function Stat({ label, value, sub, tone, onClick, large, divided }) {
  *
  * It is the only figure form on a Report. No gradient card, no icon tile.
  */
-export default function ReportFigure({ label, figure, note, stats = [], chart, className }) {
+export default function ReportFigure({ label, figure, note, stats = [], chart, className, listClassName }) {
   const hasHeadline = figure != null;
   const list = stats.length > 0 && (
     <dl
       className={cn(
         "grid gap-x-6 gap-y-4",
         hasHeadline ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]",
+        listClassName,
       )}
     >
       {stats.map((s) => (

@@ -13,18 +13,10 @@ import Dropdown from "../../../ui/Dropdown";
 import { useSorModalData } from "../useSorModalData";
 import { opportunityService } from "../../../../services/opportunityService";
 import { getStatusTheme } from "../../../../constants/status";
+import { stageColorFill } from "../../../../constants/stageColors";
 import { bracketRuns } from "../../../flow-canvas/flowCanvasLayout";
 import { LABEL, stageMoves } from "./shared";
 
-export const TONE_BG = {
-  green: "bg-green-9",
-  amber: "bg-amber-9",
-  blue: "bg-blue-9",
-  red: "bg-red-9",
-  violet: "bg-violet-9",
-  orange: "bg-orange-9",
-  mauve: "bg-mauve-10",
-};
 
 export function useJourneyVisits(p) {
   const { data: visits = [] } = useSorModalData({
@@ -147,7 +139,7 @@ export default function StageStrip({ p, visits, showMoves = true, className }) {
             aria-current={s.state === "current" ? "step" : undefined}
             className={cn(
               "min-w-[6px] flex-1 rounded-full transition-colors",
-              s.state === "current" ? TONE_BG[s.tone] || "bg-foreground" : s.state === "visited" ? "bg-mauve-8" : s.isDestination ? "bg-mauve-4 ring-1 ring-mauve-9 ring-inset" : "bg-mauve-4",
+              s.state === "current" ? stageColorFill(s.tone) : s.state === "visited" ? "bg-mauve-8" : s.isDestination ? "bg-mauve-4 ring-1 ring-mauve-9 ring-inset" : "bg-mauve-4",
             )}
           />
         ))}
@@ -155,7 +147,7 @@ export default function StageStrip({ p, visits, showMoves = true, className }) {
       <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="text-sm font-black text-foreground">
           {current?.label || "—"}
-          {current?.bracket && <span className="ml-2 text-[10px] font-bold tracking-wider text-violet-11 uppercase">{current.bracket}</span>}
+          {current?.bracket && <span className="ml-2 text-label font-bold tracking-wider text-violet-11 uppercase">{current.bracket}</span>}
         </p>
         {showMoves && <MoveButtons p={p} align="end" />}
       </div>

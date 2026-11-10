@@ -20,7 +20,7 @@ export const toLocalDatetimeString = (isoString) => {
 export const getCurrentLocalTime = () => {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+  return new Date(now.getTime() - offset).toISOString().slice(0, 16); // eslint-disable-line local/no-iso-date-slice -- shifted by the local offset first (browser-local time on purpose)
 };
 
 /** Today's date in the caller's local timezone, as `YYYY-MM-DD`. */
@@ -82,4 +82,10 @@ export const formatDateOnly = (ymd) => {
     day: "numeric",
     year: "numeric",
   });
+};
+
+/** Locale-pinned (en-US) date/time formatter with caller options. */
+export const formatDateWith = (value, options, { time = false } = {}) => {
+  const d = new Date(value);
+  return time ? d.toLocaleString("en-US", options) : d.toLocaleDateString("en-US", options);
 };

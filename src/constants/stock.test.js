@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stockBadge, STOCK_BADGE } from "./stock";
+import { isStockStale, stockBadge, STOCK_BADGE } from "./stock";
 
 const trackedProduct = (overrides = {}) => ({ type: "product", free: 0, ...overrides });
 
@@ -52,5 +52,23 @@ describe("stockBadge", () => {
     expect(
       stockBadge({ quantity: 2.5, product: trackedProduct({ free: 2 }) }),
     ).toMatchObject({ kind: STOCK_BADGE.PARTIAL, label: "Partial · 2 of 2.5" });
+  });
+});
+
+describe("isStockStale (#501)", () => {
+  const fetchedAt = "2026-10-07T01:00:00Z";
+  const at = (iso) => new Date(iso).getTime();
+
+  it("keeps a reading from the last day fresh", () => {
+    expect(isStockStale(fetchedAt, at("2026-10-08T01:00:00Z"))).toBe(false);
+  });
+
+  it("marks a reading older than a day stale", () => {
+    expect(isStockStale(fetchedAt, at("2026-10-08T01:00:01Z"))).toBe(true);
+  });
+
+  it("never calls a missing reading stale", () => {
+    expect(isStockStale(null)).toBe(false);
+    expect(isStockStale("not a date")).toBe(false);
   });
 });

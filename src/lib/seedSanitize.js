@@ -58,7 +58,7 @@ export function sanitizeRetailQueueRow(row) {
 }
 
 /**
- * Shared shape of `offset_leaves`, `sil_leaves`, `overtime_requests` and `undertime_requests`
+ * Shared shape of `offset_leaves`, `sil_leaves`, `lwop_leaves`, `overtime_requests` and `undertime_requests`
  * (issue #87, resolved in the HR Document Center comment): the leave/overtime
  * record itself is what gets rendered to PDF at print time, so it — not a
  * separate documents table — is what carries the sensitive content.
@@ -95,6 +95,7 @@ export const SANITIZERS = {
   sales_opportunities: sanitizeSalesOpportunity,
   offset_leaves: (row) => sanitizeLeaveRecord(row, { reasonRequired: false }),
   sil_leaves: (row) => sanitizeLeaveRecord(row, { reasonRequired: true }),
+  lwop_leaves: (row) => sanitizeLeaveRecord(row, { reasonRequired: true }),
   overtime_requests: (row) => sanitizeLeaveRecord(row, { reasonRequired: false }),
   undertime_requests: (row) => sanitizeLeaveRecord(row, { reasonRequired: false }),
   odoo_retail_queue: sanitizeRetailQueueRow,

@@ -2,7 +2,8 @@
  * TabGroup — Unified reusable tab bar component.
  *
  * Props:
- *  tabs       - array of strings OR { value, label, icon?, badge? } objects
+ *  tabs       - array of strings OR { value, label, icon?, badge?, hint? } objects.
+ *               `hint` is shown on hover only, for detail too long for the label.
  *  activeTab  - currently active value (string)
  *  onChange   - (value: string) => void
  *  variant    - "pill" | "primary" | "underline"  (default: "pill")
@@ -25,7 +26,9 @@
 import { cn } from "@/lib/utils";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
-import { useId } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+const FADE = 24;
 
 export default function TabGroup({
   tabs = [],
@@ -45,12 +48,61 @@ export default function TabGroup({
     typeof t === "string" ? { value: t, label: t } : t,
   );
 
+  const scrollerRef = useRef(null);
+  const [fade, setFade] = useState({ left: false, right: false });
+
+  // Edge fade shows only on a side that has more tabs hidden behind it.
+  const measure = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const left = el.scrollLeft > 1;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setFade((f) => (f.left === left && f.right === right ? f : { left, right }));
+  }, []);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return undefined;
+    measure();
+    window.addEventListener("resize", measure);
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(el);
+    }
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+    };
+  }, [measure, tabs.length]);
+
+  // Keep the active tab visible inside the strip (not the page) when it changes.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    const tab = el?.querySelector('[role="tab"][aria-selected="true"]');
+    if (!el || !tab) return;
+    const pad = FADE + 4;
+    const left = tab.offsetLeft - el.offsetLeft;
+    const right = left + tab.offsetWidth;
+    if (left - pad < el.scrollLeft) {
+      el.scrollLeft = Math.max(0, left - pad);
+    } else if (right + pad > el.scrollLeft + el.clientWidth) {
+      el.scrollLeft = right + pad - el.clientWidth;
+    }
+    measure();
+  }, [activeTab, measure]);
+
+  const mask =
+    fade.left || fade.right
+      ? `linear-gradient(to right, ${fade.left ? "transparent" : "#000"}, #000 ${FADE}px, #000 calc(100% - ${FADE}px), ${fade.right ? "transparent" : "#000"})`
+      : undefined;
+
   const hasActive = normalised.some((t) => t.value === activeTab);
 
   // Wrapper classes
   const wrapperCls = cn(
     "flex overflow-x-auto shrink-0 relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
-    variant === "pill" && "bg-muted p-1 rounded-xl w-fit",
+    variant === "pill" && "bg-muted p-1 rounded-xl w-fit max-w-full",
     (variant === "primary" ||
       variant === "success" ||
       variant === "violet" ||
@@ -110,6 +162,11 @@ export default function TabGroup({
 
   return (
     <div
+      ref={scrollerRef}
+      onScroll={measure}
+      data-fade-left={fade.left || undefined}
+      data-fade-right={fade.right || undefined}
+      style={mask ? { maskImage: mask, WebkitMaskImage: mask } : undefined}
       className={wrapperCls}
       role="tablist"
       onKeyDown={(e) => {
@@ -132,6 +189,7 @@ export default function TabGroup({
           icon: Icon,
           badge,
           activeClass,
+          hint,
           variant: tabVariant,
         }) => {
           const isActive = activeTab === value;
@@ -142,6 +200,7 @@ export default function TabGroup({
               type="button"
               role="tab"
               aria-selected={isActive}
+              title={hint}
               // Only when a caller hides the label: a display:none label leaves
               // the accessibility tree, not just the screen, so the tab would
               // lose its name. Left alone otherwise, because the computed name

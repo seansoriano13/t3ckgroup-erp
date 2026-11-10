@@ -66,7 +66,7 @@ describe("handleNotificationRoute", () => {
       })
     })
 
-    it("sends HR to verification", () => {
+    it("sends HR to Task Approvals, where verification lives", () => {
       handleNotificationRoute(
         { type: "TASK_SUBMITTED", reference_id: "task-4" },
         hr,
@@ -74,14 +74,14 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/hr-verification", {
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
         state: { openTaskId: "task-4" },
       })
     })
 
-    it("routes an HR user who is also a head to verification for a head-approved task", () => {
-      // The head branch would otherwise swallow it and leave the task
-      // unverified in HR's queue.
+    it("routes an HR user who is also a head to the one queue holding both steps", () => {
+      // Head grade and HR verification share Task Approvals, so a head-approved
+      // task opens there, at its HR step.
       handleNotificationRoute(
         { type: "TASK_APPROVED_BY_HEAD", reference_id: "task-5" },
         { isHr: true, isHead: true },
@@ -89,7 +89,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/hr-verification", {
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
         state: { openTaskId: "task-5" },
       })
     })
@@ -109,6 +109,36 @@ describe("handleNotificationRoute", () => {
   })
 
   describe("group notifications", () => {
+    it("opens the group task chat for a group task reaction", () => {
+      handleNotificationRoute(
+        { type: "GROUP_TASK_REACTION", reference_id: "ct-2" },
+        head,
+        navigate,
+        onClose,
+      )
+
+      expect(navigate).toHaveBeenCalledWith("/group-tasks")
+      expect(dispatched).toEqual([
+        {
+          type: "OPEN_CHAT_MODAL",
+          detail: { entityId: "ct-2", entityType: "GROUP_TASK" },
+        },
+      ])
+    })
+
+    it("still opens a personal task for a personal task reaction", () => {
+      handleNotificationRoute(
+        { type: "TASK_REACTION", reference_id: "task-9" },
+        head,
+        navigate,
+        onClose,
+      )
+
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
+        state: { openTaskId: "task-9" },
+      })
+    })
+
     it("opens the chat modal for a group comment", () => {
       handleNotificationRoute(
         { type: "GROUP_TASK_COMMENT", reference_id: "ct-1" },
@@ -253,6 +283,47 @@ describe("handleNotificationRoute", () => {
       dispatch.mockRestore()
     })
 
+    it("opens the SOR a Bid Decision notification names (#320)", () => {
+      // The Deal Team may only reach the matrix through the modal; a No-go or Revise carries the SOR id.
+      const dispatch = vi.spyOn(window, "dispatchEvent")
+
+      handleNotificationRoute({ type: "SOR_BID_DECISION", reference_id: "opp-3" }, employee, navigate, onClose)
+
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "OPEN_ENTITY_DETAILS", detail: { id: "opp-3", type: "OPPORTUNITY", view: "pms" } }),
+      )
+      dispatch.mockRestore()
+    })
+
+    it.each([
+      "PURCHASE_REQUEST_OPENED",
+      "PURCHASE_REQUEST_BUYER",
+      "PURCHASE_REQUEST_BUYER_SET",
+      "PURCHASE_REQUEST_ITEM_STATUS",
+      "PURCHASE_REQUEST_ITEM_ADDED",
+      "PURCHASE_REQUEST_MESSAGE",
+      "PURCHASE_REQUEST_MENTION",
+    ])("opens the Purchase Request a %s names", (type) => {
+      // #307. None of these may contain "TASK": the generic branch below
+      // would send them to the task pages.
+      expect(type).not.toContain("TASK")
+      handleNotificationRoute({ type, reference_id: "pr-1" }, employee, navigate, onClose)
+
+      // #309: a modal over the current page, not a navigation.
+      const dispatch = vi.spyOn(window, "dispatchEvent")
+      handleNotificationRoute({ type, reference_id: "pr-1" }, employee, navigate, onClose)
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "OPEN_ENTITY_DETAILS",
+          detail: { id: "pr-1", type: "PURCHASE_REQUEST", focusChat: type === "PURCHASE_REQUEST_MENTION", ...(type === "PURCHASE_REQUEST_MESSAGE" || type === "PURCHASE_REQUEST_MENTION" ? { tab: "chat" } : type === "PURCHASE_REQUEST_ITEM_STATUS" ? { tab: "items" } : {}) },
+        }),
+      )
+      dispatch.mockRestore()
+      expect(onClose).toHaveBeenCalled()
+    })
+
     it("sends procurement notifications to the deal, not to purchasing's task", () => {
       // The naming is load-bearing. The branch above this one is
       // `type.includes("TASK")`, so calling these PROCUREMENT_TASK_* would
@@ -332,6 +403,42 @@ describe("handleNotificationRoute", () => {
     )
 
     expect(navigate).toHaveBeenCalledWith("/bug-reports?record=bug-1")
+  })
+
+  it("opens the IPAS a PO-changed notification names", () => {
+    handleNotificationRoute(
+      { type: "IPAS_PO_CHANGED", reference_id: "ipas-1" },
+      employee,
+      navigate,
+      onClose,
+    )
+
+    expect(navigate).toHaveBeenCalledWith("/purchasing/ipas/ipas-1")
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("opens the IPAS an account-flagged notification names", () => {
+    handleNotificationRoute(
+      { type: "IPAS_ACCOUNT_FLAGGED", reference_id: "ipas-2" },
+      employee,
+      navigate,
+      onClose,
+    )
+
+    expect(navigate).toHaveBeenCalledWith("/purchasing/ipas/ipas-2")
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("opens the Technical sheet of the SOR a rows-waiting notification names (#706)", () => {
+    handleNotificationRoute(
+      { type: "COSTING_EVALUATION_ASSIGNED", reference_id: "sor-1" },
+      employee,
+      navigate,
+      onClose,
+    )
+
+    expect(navigate).toHaveBeenCalledWith("/technical/sor-1")
+    expect(onClose).toHaveBeenCalled()
   })
 
   it("closes the drawer after every successful route", () => {

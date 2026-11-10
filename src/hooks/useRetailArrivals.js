@@ -9,7 +9,7 @@ export const ARRIVAL_HIGHLIGHT_MS = 6000;
  * pair with `data-arrived={arrivals.has(id) || undefined}`.
  */
 export const ARRIVAL_HIGHLIGHT_CLASS =
-  "duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] data-[arrived]:bg-green-a4";
+  "duration-300 ease-out-expo data-[arrived]:bg-green-a4";
 
 /**
  * Keeps the Retail screen current without anyone touching it (#455).

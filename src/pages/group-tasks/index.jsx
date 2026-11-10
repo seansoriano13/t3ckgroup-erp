@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { canManageGroupTasks, getPermissionContext } from "../../utils/permissions";
+import QueryError from "@/components/ui/QueryError";
 import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskService } from "../../services/groupTaskService";
@@ -9,7 +11,7 @@ import toast from "react-hot-toast";
 import { Users, Plus, LayoutGrid, Table as TableIcon } from "lucide-react";
 import TabGroup from "../../components/ui/TabGroup";
 import { Button } from "@/components/ui/button";
-import Spinner from "@/components/ui/Spinner";
+import PageLoading from "@/components/ui/PageLoading";
 
 import GroupTaskCard from "./_components/GroupTaskCard";
 import GroupTaskTableView from "./_components/GroupTaskTableView";
@@ -21,6 +23,8 @@ import GroupTaskFilterBar from "../../components/GroupTaskFilterBar";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
 import { useMemo } from "react";
+import { usePaging } from "@/hooks/usePaging";
+import { TablePager } from "@/components/ui/TablePager";
 import { isGroupTaskEvaluator } from "../../utils/groupTaskEvaluator";
 
 const GROUP_TASK_FILTER_DEFAULTS = {
@@ -72,10 +76,10 @@ export default function GroupTasksPage() {
     user?.is_super_admin === true || user?.isSuperAdmin === true;
   const isHead = user?.is_head === true || user?.isHead === true;
   const isHr = user?.is_hr === true || user?.isHr === true;
-  const canManage = isHead || isSuperAdmin;
+  const canManage = canManageGroupTasks(getPermissionContext(user));
 
   // --- Data Fetching ---
-  const { data: groupTasks = [], isLoading } = useQuery({
+  const { data: groupTasks = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["groupTasks", user?.id],
     queryFn: () =>
       groupTaskService.getGroupTasks(user?.id, isHead, isSuperAdmin, user?.department),
@@ -150,6 +154,7 @@ export default function GroupTasksPage() {
       crmOnly,
     },
   );
+  const gridPaging = usePaging(filteredTasks);
 
   const currentFilters = {
     statusFilter,
@@ -226,10 +231,10 @@ export default function GroupTasksPage() {
     mutationFn: (payload) => groupTaskService.createGroupTask(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group Task created!");
+      toast.success("Group Task created.");
       setIsCreateOpen(false);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const markDoneMutation = useMutation({
@@ -237,11 +242,11 @@ export default function GroupTasksPage() {
       groupTaskService.updateMemberStatus(memberId, "DONE", user.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Task marked as done!");
+      toast.success("Task marked as done.");
       // If the selected task was auto-completed, let's close or refresh it
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const updateTaskMutation = useMutation({
@@ -250,7 +255,7 @@ export default function GroupTasksPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Group Task updated.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const sendToEvaluationMutation = useMutation({
@@ -260,16 +265,6 @@ export default function GroupTasksPage() {
       toast.success("Sent to the evaluator.");
     },
     onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const reopenMutation = useMutation({
-    mutationFn: () => groupTaskService.reopenGroupTask(selectedTask.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group task reopened.");
-      setSelectedTaskId(null);
-    },
-    onError: (err) => toast.error(err.message || "Could not reopen that group task. Try again."),
   });
 
   const changeEvaluatorMutation = useMutation({
@@ -282,6 +277,16 @@ export default function GroupTasksPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const reopenMutation = useMutation({
+    mutationFn: () => groupTaskService.reopenGroupTask(selectedTask.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group task reopened.");
+      setSelectedTaskId(null);
+    },
+    onError: (err) => toast.error(err.message || "Could not reopen that group task. Try again."),
+  });
+
   const addMemberAttachmentMutation = useMutation({
     mutationFn: ({ memberId, url }) =>
       groupTaskService.addMemberAttachment(memberId, url, user.id),
@@ -291,9 +296,9 @@ export default function GroupTasksPage() {
       // button clears before the list re-renders and it looks like the
       // upload vanished.
       await queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Attachment uploaded successfully!");
+      toast.success("Attachment uploaded.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const revertDoneMutation = useMutation({
@@ -303,7 +308,7 @@ export default function GroupTasksPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Task reverted to pending.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const rateMutation = useMutation({
@@ -311,11 +316,11 @@ export default function GroupTasksPage() {
       groupTaskService.rateMembers(selectedTask.id, ratings, user.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Ratings submitted and task completed!");
+      toast.success("Ratings submitted and task completed.");
       setIsRateOpen(false);
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const deleteMutation = useMutation({
@@ -325,7 +330,7 @@ export default function GroupTasksPage() {
       toast.success("Group Task deleted.");
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const addMemberMutation = useMutation({
@@ -333,9 +338,9 @@ export default function GroupTasksPage() {
       groupTaskService.addMemberToTask(selectedTask.id, payload, user.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Member added successfully!");
+      toast.success("Member added.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const updateMemberMutation = useMutation({
@@ -348,9 +353,9 @@ export default function GroupTasksPage() {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Member task updated!");
+      toast.success("Member task updated.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const removeMemberMutation = useMutation({
@@ -364,7 +369,7 @@ export default function GroupTasksPage() {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Member removed from task.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   // Ticking a checklist item writes the checklist column, not
@@ -382,7 +387,6 @@ export default function GroupTasksPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
     },
-    onError: (err) => toast.error(err.message),
   });
 
   const verifyMutation = useMutation({
@@ -390,10 +394,10 @@ export default function GroupTasksPage() {
       groupTaskService.verifyGroupTask(id, user.id, remarks),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group Task verified!");
+      toast.success("Group Task verified.");
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
   const rejectMutation = useMutation({
@@ -404,17 +408,14 @@ export default function GroupTasksPage() {
       toast.success("Group Task rejected and sent back.");
       setSelectedTaskId(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
+
+  if (isError) return <QueryError className="m-6" title="Group tasks could not be loaded." onRetry={refetch} />;
 
   if (isLoading) {
     return (
-      <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
-        <Spinner size="md" />
-        <p className="font-bold animate-pulse tracking-wider uppercase text-sm">
-          Loading Group Tasks...
-        </p>
-      </div>
+      <PageLoading label="group tasks" className="h-[60vh]" />
     );
   }
 
@@ -439,10 +440,12 @@ export default function GroupTasksPage() {
             onChange={handleViewModeChange}
             className="shrink-0"
           />
-          <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus size={16} className="mr-1.5" />
-            Create Group Task
-          </Button>
+          {canManage && (
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <Plus size={16} className="mr-1.5" />
+              Create Group Task
+            </Button>
+          )}
         </>
       }
       toolbar={
@@ -476,6 +479,8 @@ export default function GroupTasksPage() {
         <div className="pb-10">
           <GroupTaskTableView
             tasks={filteredTasks}
+            hasAnyTasks={groupTasks.length > 0}
+            onClearFilters={clearAllFilters}
             searchTerm={searchTerm}
             onView={(task) => setSelectedTaskId(task.id)}
             currentUserId={user?.id}
@@ -485,27 +490,37 @@ export default function GroupTasksPage() {
       ) : (
         /* GRID */
         filteredTasks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredTasks.map((task) => (
-              <GroupTaskCard
-                key={task.id}
-                task={task}
-                currentUserId={user?.id}
-                isSuperAdmin={isSuperAdmin}
-                onView={() => setSelectedTaskId(task.id)}
-                searchTerm={searchTerm}
-                // demoProgress={index === 0 ? demoProgress : undefined}
-              />
-            ))}
+          <div className="pb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {gridPaging.rows.map((task) => (
+                <GroupTaskCard
+                  key={task.id}
+                  task={task}
+                  currentUserId={user?.id}
+                  isSuperAdmin={isSuperAdmin}
+                  onView={() => setSelectedTaskId(task.id)}
+                  searchTerm={searchTerm}
+                  // demoProgress={index === 0 ? demoProgress : undefined}
+                />
+              ))}
+            </div>
+            <TablePager {...gridPaging} noun="tasks" className="mt-4 rounded-xl border" />
           </div>
         ) : (
           <EmptyState
             icon={Users}
-            title="No Group Tasks Found"
+            title="No group tasks found"
             description={
-              searchTerm
-                ? "Try adjusting your search criteria."
+              groupTasks.length > 0
+                ? "No group tasks match these filters."
                 : "There are no active group tasks at the moment."
+            }
+            action={
+              groupTasks.length > 0 ? (
+                <Button variant="outline" size="sm" className="mt-2" onClick={clearAllFilters}>
+                  Clear filters
+                </Button>
+              ) : undefined
             }
           />
         )
@@ -530,6 +545,7 @@ export default function GroupTasksPage() {
         isSuperAdmin={isSuperAdmin}
         isHead={isHead}
         isHr={isHr}
+        canManage={canManage}
         employees={employees}
         onSendToEvaluation={() => sendToEvaluationMutation.mutate()}
         isSendingToEvaluation={sendToEvaluationMutation.isPending}
@@ -551,7 +567,7 @@ export default function GroupTasksPage() {
           removeMemberMutation.mutateAsync(memberId)
         }
         onInlineCheck={(memberId, checklist) =>
-          updateMemberChecklistMutation.mutate({ memberId, checklist })
+          updateMemberChecklistMutation.mutateAsync({ memberId, checklist })
         }
         onVerify={() =>
           verifyMutation.mutate({ id: selectedTaskId, remarks: "" })

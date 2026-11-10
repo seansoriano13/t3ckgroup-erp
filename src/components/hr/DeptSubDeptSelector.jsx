@@ -69,7 +69,7 @@ export default function DeptSubDeptSelector({
           {({ close }) => (
             <div className="p-1">
               <div className="px-3 py-2 border-b border-border mb-1">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                <p className="text-label font-black text-muted-foreground uppercase tracking-widest">
                   Select Department
                 </p>
               </div>
@@ -115,7 +115,7 @@ export default function DeptSubDeptSelector({
           {({ close }) => (
             <div className="p-1">
               <div className="px-3 py-2 border-b border-border mb-1">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                <p className="text-label font-black text-muted-foreground uppercase tracking-widest">
                   Select Sub-Dept
                 </p>
               </div>

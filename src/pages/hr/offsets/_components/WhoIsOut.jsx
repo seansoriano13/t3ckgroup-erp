@@ -21,12 +21,12 @@ export default function WhoIsOut({ approvedLeaves }) {
       trigger={
         <Button type="button" variant="outline" size="lg" aria-haspopup="dialog" className="gap-2">
           <Icon />
-          {out.today.length > 0 ? `${out.today.length} out today` : "Everyone's in"}
+          {out.today.length > 0 ? `${out.today.length} out today` : "Everyone’s in"}
         </Button>
       }
     >
       <div className="flex w-64 flex-col gap-5 p-3">
-        <OutList label="Out today" rows={out.today} empty="Everyone's in." />
+        <OutList label="Out today" rows={out.today} empty="Everyone’s in." />
         <OutList label="Out tomorrow" rows={out.tomorrow} empty="No one." />
       </div>
     </Dropdown>
@@ -45,7 +45,9 @@ function OutList({ label, rows, empty }) {
             <li key={`${r.employee_id}_${r.type}`} className="flex items-center gap-2.5">
               <Avatar name={r.employee?.name} src={r.employee?.avatar_path} size="xs" />
               <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{r.employee?.name}</span>
-              <span className={`size-2 shrink-0 rounded-full ${TYPE_META[r.type].dot}`} title={TYPE_META[r.type].label} />
+              <span className={`size-2 shrink-0 rounded-full ${TYPE_META[r.type].dot}`} title={TYPE_META[r.type].label}>
+                <span className="sr-only">{TYPE_META[r.type].label}</span>
+              </span>
             </li>
           ))}
         </ul>

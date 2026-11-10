@@ -30,14 +30,16 @@ const ENTITY_CONFIG = {
   EMPLOYEE: { label: "Employee", icon: UserCog, style: "bg-blue-a2 text-blue-11 border-blue-a4" },
   CATEGORY: { label: "Category", icon: Tags, style: "bg-orange-a2 text-orange-11 border-orange-a4" },
   OVERTIME: { label: "Overtime", icon: Timer, style: "bg-mauve-a2 text-mauve-11 border-mauve-a4" },
-  OFFSET_LEAVE: { label: "Offset Leave", icon: CalendarClock, style: "bg-blue-2 text-blue-11 border-blue-6" },
+  OFFSET_LEAVE: { label: "Offset", icon: CalendarClock, style: "bg-blue-2 text-blue-11 border-blue-6" },
   SIL_LEAVE: { label: "SIL Leave", icon: CalendarHeart, style: "bg-green-2 text-green-11 border-green-6" },
+  LWOP_LEAVE: { label: "LWOP", icon: CalendarHeart, style: "bg-amber-2 text-amber-11 border-amber-6" },
+  MEETING_REQUEST: { label: "Meeting", icon: Users, style: "bg-teal-2 text-teal-11 border-teal-6" },
   HR_SETTINGS: { label: "Settings", icon: Settings, style: "bg-purple-a2 text-purple-11 border-purple-a4" },
 };
 
 const ACTION_OPTIONS = [
   { value: "ALL", label: "All actions" },
-  { value: "APPROVAL", label: "Decisions (Approve/Reject)" },
+  { value: "APPROVAL", label: "Decisions (Approve/Decline)" },
   { value: "SYSTEM", label: "Updates (Apply/Undo/Withdraw)" },
 ];
 
@@ -216,12 +218,12 @@ export default function HrLogsPanel() {
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span
-                            className={`rounded-sm border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${cfg.style}`}
+                            className={`rounded-sm border px-1.5 py-0.5 text-label font-black uppercase tracking-wider ${cfg.style}`}
                           >
                             {cfg.label}
                           </span>
                           {e.type === "APPROVAL" && (
-                            <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-11">
+                            <span className="rounded-sm border border-violet-5 bg-violet-3 px-1.5 py-0.5 text-label font-black uppercase tracking-wider text-violet-11">
                               Decision
                             </span>
                           )}
