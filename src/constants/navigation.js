@@ -109,7 +109,8 @@ export const NAV_MODULES = {
         label: "SORS",
         link: "/sors",
         icon: Target,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
+        // Purchasing reads the register too: their buying starts from an SOR.
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow || ctx.hasPurchasingFlow,
         exactMatch: true,
       },
       // The Costing Matrix page (#606): every SOR's matrix with Planned and
