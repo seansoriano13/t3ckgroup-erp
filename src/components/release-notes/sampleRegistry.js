@@ -1,3 +1,4 @@
+import { RetailIncomeSample, RetrySample } from "./everydaySamples"
 import { CalendarSample, LeaveRangeSample, MeetingRequestSample } from "./timeOffSamples"
 import { GroupTaskDatesSample, GroupTaskEvaluationSample, TaskApprovalsSample } from "./taskSamples"
 import { ChangeNotesSample, MarkLostSample, MyWorkSample, NeedsAttentionSample, S0CardSample } from "./sorSamples"
@@ -26,6 +27,10 @@ export const SAMPLES = {
   calendar: CalendarSample,
   "meeting-requests": MeetingRequestSample,
   "leave-range": LeaveRangeSample,
+  // Everywhere
+  retry: RetrySample,
+  // Retail
+  "retail-income": RetailIncomeSample,
 }
 
 /**

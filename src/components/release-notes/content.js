@@ -229,6 +229,7 @@ export const SECTIONS = [
         title: "A list that fails to load says so",
         body: "If a list cannot load, you see a message with a Retry button instead of an empty page. When your filters hide everything, the page says so and offers Clear filters. An address that does not exist shows Page not found.",
         who: ["Everyone"],
+        sample: "retry",
       },
       {
         id: "phones",
@@ -255,6 +256,7 @@ export const SECTIONS = [
         title: "Retail shows your real income, kept current",
         body: "Each order shows its Marketplace Order ID, the marketplace fee and the Order Income from its Income Note in Odoo. The Shopee and Lazada breakdown shows income, orders, average, fees and fee rate for each. Orders sync every 5 minutes, and a new one appears on an open Retail screen, highlighted.",
         who: ["Sales"],
+        sample: "retail-income",
       },
     ],
   },
