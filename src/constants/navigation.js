@@ -426,6 +426,8 @@ export function getFilteredNavigationGroups(user) {
         key: module.key,
         label: module.label,
         defaultExpanded: module.defaultExpanded,
+        // #946: the group's Beta tag (Purchasing) rides along to the sidebar.
+        beta: module.beta,
         links: visibleLinks,
       };
     })
