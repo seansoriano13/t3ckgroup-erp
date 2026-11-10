@@ -39,7 +39,7 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
   // A long flow overflows the ribbon; bring the current Stage into view.
   // Two frames so the modal's open animation settles before measuring.
   // Scrolls the ribbon only: scrollIntoView would also scroll every ancestor,
-  // jumping a page that shows the ribbon inline (Release Notes) down to it.
+  // jumping a page that shows the ribbon inline down to it.
   const currentRef = useRef(null);
   useEffect(() => {
     let raf = requestAnimationFrame(() => {

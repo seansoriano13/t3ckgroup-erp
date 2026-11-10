@@ -21,8 +21,7 @@ import { REQUEST_TYPE_BADGE } from './requestTypes';
 
 /**
  * Every request an employee filed, one row each, with the stage it has
- * reached (issue #158, #160). Split from My Requests so Release Notes can
- * show the same table filled with Sample Data (ADR 0030).
+ * reached (issue #158, #160).
  */
 const REQUEST_SORT = {
   "applied-on": (r) => new Date(r.created_at).getTime(),

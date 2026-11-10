@@ -13,9 +13,7 @@ export function useSorPurchaseRequest(opportunityId, { enabled } = {}) {
   return useQuery({
     queryKey: sorPurchaseRequestKey(opportunityId),
     queryFn: () => purchaseRequestService.getSorOverview(opportunityId),
-    // Leave `enabled` unset when the caller does not say, so the Release Notes
-    // SampleProvider's off-by-default queries keep this off the network.
-    ...(opportunityId ? (enabled === undefined ? {} : { enabled }) : { enabled: false }),
+    enabled: Boolean(opportunityId) && enabled !== false,
     staleTime: 0,
   });
 }

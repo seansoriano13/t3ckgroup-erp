@@ -46,9 +46,9 @@ describe("Flow Canvas on PageShell", () => {
 })
 
 describe("Release Notes on PageShell", () => {
-  it("renders the PageShell title over one level-1 tab per section", async () => {
+  it("renders the PageShell title over the Overview and one level-1 tab per section", async () => {
     renderWithProviders(
-      <MemoryRouter initialEntries={["/release-notes?tab=next"]}>
+      <MemoryRouter initialEntries={["/release-notes"]}>
         <ReleaseNotesPage />
       </MemoryRouter>,
     )
@@ -58,7 +58,8 @@ describe("Release Notes on PageShell", () => {
     const headings = await screen.findAllByRole("heading", { level: 1 })
     expect(headings[0]).toHaveTextContent(/release\s*notes/i)
     const tabs = within(screen.getByTestId("page-tabs"))
+    expect(tabs.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true")
     expect(tabs.getByRole("tab", { name: "SORs" })).toBeInTheDocument()
-    expect(tabs.getByRole("tab", { name: "Coming next" })).toBeInTheDocument()
+    expect(tabs.getByRole("tab", { name: "Purchasing (Beta)" })).toBeInTheDocument()
   })
 })
