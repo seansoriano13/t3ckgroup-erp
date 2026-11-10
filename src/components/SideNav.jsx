@@ -1,3 +1,4 @@
+import BetaTag from "@/components/ui/BetaTag";
 import {
   Plus,
   Bell,
@@ -426,6 +427,7 @@ export default function SideNav() {
                             >
                               <Icon size={14} className="text-sidebar-foreground/70" />
                               <span>{item.label}</span>
+                              {item.beta && <BetaTag />}
                             </Button>
                           );
                         })}
@@ -461,6 +463,7 @@ export default function SideNav() {
                     <span className="text-[11px] font-black tracking-widest uppercase">
                       {group.label}
                     </span>
+                    {group.beta && <BetaTag className="mr-auto ml-2" />}
                     <div className="flex items-center gap-2">
                       {!isExpanded && groupBadgeCount > 0 && (
                         <span
@@ -513,6 +516,7 @@ export default function SideNav() {
                               >
                                 {navLink.label}
                               </span>
+                              {navLink.beta && <BetaTag className={collapsed ? "md:hidden" : ""} />}
                               {linkBadge > 0 && (
                                 <span
                                   data-testid={`link-badge-${navLink.label}`}

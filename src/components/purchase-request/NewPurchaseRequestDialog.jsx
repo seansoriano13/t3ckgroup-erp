@@ -1,3 +1,4 @@
+import BetaTag from "@/components/ui/BetaTag";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -155,6 +156,7 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
       }
     >
       <p className="text-sm text-muted-foreground">
+        <BetaTag className="mr-2 align-middle" />
         For something to buy outside a project. Purchasing picks it up; you follow it here.
       </p>
       <div className="space-y-4">

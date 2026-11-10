@@ -24,6 +24,7 @@ import VenueManager from "../../components/settings/VenueManager";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
 import LeadSourceManager from "../../components/settings/LeadSourceManager";
 import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager";
+import BetaTag from "@/components/ui/BetaTag";
 import PurchasingSettings from "../../components/settings/PurchasingSettings";
 import CostingMatrixSettings from "../../components/costing/settings/CostingMatrixSettings";
 import SystemUpdateBanner from "../../components/SystemUpdateBanner";
@@ -324,7 +325,13 @@ function SalesPanel() {
 function PurchasingPanel() {
   const { user } = useAuth();
   const { isSuperAdmin } = getPermissionContext(user);
-  return <PurchasingSettings isSuperAdmin={isSuperAdmin} />;
+  return (
+    <div className="space-y-3">
+      {/* #946: purchasing settings ship as Beta. */}
+      <BetaTag />
+      <PurchasingSettings isSuperAdmin={isSuperAdmin} />
+    </div>
+  );
 }
 
 /**

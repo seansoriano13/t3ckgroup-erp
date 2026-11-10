@@ -125,6 +125,7 @@ export const NAV_MODULES = {
       // refuses the read.
       {
         key: "sales.costingMatrix",
+        beta: true,
         label: "S0 Evaluation",
         link: "/costing-matrix",
         icon: Calculator,
@@ -136,6 +137,7 @@ export const NAV_MODULES = {
       // list and Super Admins; the database refuses anyone else.
       {
         key: "sales.technical",
+        beta: true,
         label: "Technical",
         link: "/technical",
         icon: ClipboardCheck,
@@ -171,6 +173,8 @@ export const NAV_MODULES = {
   purchasing: {
     key: "purchasing",
     label: "Purchasing",
+    // #946: Purchasing ships as Beta.
+    beta: true,
     defaultExpanded: true,
     links: [
       {
@@ -294,6 +298,7 @@ export const NAV_MODULES = {
         // Received, Noted, Checked and Approved, for the people on those
         // lists. A Super Admin signs only when on a list, so no pass here.
         key: "approvals.ipas",
+        beta: true,
         label: "IPAS Sign-offs",
         link: "/approvals/ipas",
         icon: ReceiptText,
@@ -305,6 +310,7 @@ export const NAV_MODULES = {
         // Transmittal Check by (#254): slips awaiting the two Check by
         // signatures, for the Check by list only.
         key: "approvals.transmittals",
+        beta: true,
         label: "Transmittal Check by",
         link: "/approvals/transmittals",
         icon: PackageCheck,
@@ -315,6 +321,7 @@ export const NAV_MODULES = {
         // Costing Matrix Bid Decisions (#320): matrices waiting for Go, No-go
         // or Revise, for Super Admins and the Final Acquire list.
         key: "approvals.bidDecisions",
+        beta: true,
         label: "Bid Decisions",
         link: "/approvals/bid-decisions",
         icon: Gavel,
@@ -469,6 +476,7 @@ export const QUICK_ACTIONS = [
         // Every employee may open a Purchase Request (#179), as in the nav.
         id: "purchase-request",
         key: "quick.purchaseRequest",
+        beta: true,
         label: "New Purchase Request",
         icon: ShoppingCart,
         isPermitted: () => true,

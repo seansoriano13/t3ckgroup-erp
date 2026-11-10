@@ -1,3 +1,4 @@
+import BetaTag from "@/components/ui/BetaTag";
 import CostingMatrixSection from "../../costing/CostingMatrixSection";
 import { useCostingMatrix, useCostingTier } from "../../costing/useCostingMatrix";
 import IpasSorSection from "../../ipas/IpasSorSection";
@@ -22,6 +23,8 @@ export default function PmsTab({ opportunityId, opportunity }) {
   useCostingMatrix(opportunityId);
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8 p-6">
+      {/* #946: the purchasing panel ships as Beta. */}
+      <div className="flex justify-end -mb-6"><BetaTag /></div>
       {/* #267: the grid once the SOR's S0 Evaluation has been opened (#462); until then one plain line. */}
       {costingTier && <CostingMatrixSection opportunityId={opportunityId} opportunity={opportunity} />}
 
