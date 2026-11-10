@@ -2572,8 +2572,8 @@ describe("opportunityService", () => {
       })
     })
 
-    describe("moving deals to a version after a minor publish (issue #190)", () => {
-      it("moves only same-major SORs on an earlier minor, excludes soft-deleted, and includes Scratch", async () => {
+    describe("moving deals to a version after a publish (issue #190)", () => {
+      it("moves SORs on any earlier version, older majors included, excludes soft-deleted and newer, includes Scratch", async () => {
         const v1 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
         const v2 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 1 })
 
@@ -2604,21 +2604,28 @@ describe("opportunityService", () => {
           flow_stage_id: lead.id,
         })
 
-        const otherMajor = makeFlowSnapshot({ flow_id: flow.id, version: 2, version_minor: 3 })
-        const onDifferentMajor = makeOpportunity({
+        const olderMajor = makeFlowSnapshot({ flow_id: flow.id, version: 2, version_minor: 3 })
+        const onOlderMajor = makeOpportunity({
           registered_by: registrar.id,
           sale_type_id: saleType.id,
-          flow_snapshot_id: otherMajor.id,
+          flow_snapshot_id: olderMajor.id,
+          flow_stage_id: lead.id,
+        })
+        const newerMajor = makeFlowSnapshot({ flow_id: flow.id, version: 4, version_minor: 0 })
+        const onNewerMajor = makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: newerMajor.id,
           flow_stage_id: lead.id,
         })
 
         const count = await opportunityService.countOpportunitiesEligibleForVersionMove(v2.id)
-        expect(count).toBe(2)
+        expect(count).toBe(3)
 
         const result = await opportunityService.moveOpportunitiesToVersion(v2.id, registrar.id)
 
         expect(result.succeeded.map((d) => d.id).sort()).toEqual(
-          [onEarlierMinor.id, scratchOnEarlierMinor.id].sort(),
+          [onEarlierMinor.id, scratchOnEarlierMinor.id, onOlderMajor.id].sort(),
         )
         expect(result.failed).toEqual([])
 
@@ -2631,8 +2638,10 @@ describe("opportunityService", () => {
         expect(untouchedDeleted.flow_snapshot_id).toBe(v1.id)
         const untouchedAlready = await opportunityService.getOpportunityById(alreadyOnTarget.id)
         expect(untouchedAlready.flow_snapshot_id).toBe(v2.id)
-        const untouchedOtherMajor = await opportunityService.getOpportunityById(onDifferentMajor.id)
-        expect(untouchedOtherMajor.flow_snapshot_id).toBe(otherMajor.id)
+        const movedOlderMajor = await opportunityService.getOpportunityById(onOlderMajor.id)
+        expect(movedOlderMajor.flow_snapshot_id).toBe(v2.id)
+        const untouchedNewer = await opportunityService.getOpportunityById(onNewerMajor.id)
+        expect(untouchedNewer.flow_snapshot_id).toBe(newerMajor.id)
 
         const note = (await opportunityService.getNotes(onEarlierMinor.id)).find(
           (n) => n.metadata?.event === "FLOW_SNAPSHOT_MOVED",
@@ -2641,7 +2650,7 @@ describe("opportunityService", () => {
         expect(note.content).toContain("v3.1")
       })
 
-      it("reports a partial failure without stopping the rest of the batch", async () => {
+      it("leaves out a deal whose Stage the new version dropped, instead of stranding it", async () => {
         const v1 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
         const v2 = makeFlowSnapshot({
           flow_id: flow.id,
@@ -2663,15 +2672,65 @@ describe("opportunityService", () => {
           flow_stage_id: qualified.id,
         })
 
+        expect(await opportunityService.countOpportunitiesEligibleForVersionMove(v2.id)).toBe(1)
         const result = await opportunityService.moveOpportunitiesToVersion(v2.id, registrar.id)
 
         expect(result.succeeded.map((d) => d.id)).toEqual([movable.id])
-        expect(result.failed).toEqual([
-          { id: strandable.id, reason: expect.stringContaining("does not exist in Flow Snapshot") },
-        ])
+        expect(result.failed).toEqual([])
+        expect((await opportunityService.getOpportunityById(strandable.id)).flow_snapshot_id).toBe(v1.id)
       })
 
-      it("returns nothing to move when there is no earlier minor within the same major", async () => {
+      it("says when the offer crosses a major and the Won Stage changed (Project 5.9 -> 6.1 on prod)", async () => {
+        const v59 = makeFlowSnapshot({ flow_id: flow.id, version: 5, version_minor: 9 })
+        const v60 = makeFlowSnapshot({
+          flow_id: flow.id,
+          version: 6,
+          version_minor: 0,
+          snapshot_data: { ...v59.snapshot_data, wonStageId: qualified.id },
+        })
+        const v61 = makeFlowSnapshot({
+          flow_id: flow.id,
+          version: 6,
+          version_minor: 1,
+          snapshot_data: { ...v60.snapshot_data },
+        })
+        makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: v59.id,
+          flow_stage_id: lead.id,
+        })
+
+        expect(await opportunityService.getVersionMoveOffer(v61.id)).toEqual({
+          count: 1,
+          crossesMajor: true,
+          wonStageChanged: true,
+        })
+        expect(await opportunityService.getVersionMoveOffer(v60.id)).toEqual({
+          count: 1,
+          crossesMajor: true,
+          wonStageChanged: true,
+        })
+      })
+
+      it("says nothing changed when every candidate shares the major", async () => {
+        const v1 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
+        const v2 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 1 })
+        makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: v1.id,
+          flow_stage_id: lead.id,
+        })
+
+        expect(await opportunityService.getVersionMoveOffer(v2.id)).toEqual({
+          count: 1,
+          crossesMajor: false,
+          wonStageChanged: false,
+        })
+      })
+
+      it("returns nothing to move when there is no earlier version", async () => {
         const onlyVersion = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
         makeOpportunity({
           registered_by: registrar.id,

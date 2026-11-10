@@ -216,7 +216,7 @@ describe("FlowCanvas", () => {
     expect(screen.queryByText("Deals moved")).not.toBeInTheDocument()
   })
 
-  it("does not offer to move deals after a major publish", async () => {
+  it("offers to move deals after a major publish too, warning that the Won Stage changed", async () => {
     const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
@@ -232,8 +232,8 @@ describe("FlowCanvas", () => {
     })
 
     await salesFlowService.unlockFlow(flow.id, "Rework", mockUser.current.id)
-    // Changing the Won Stage forces a major bump (ADR 0020) — no earlier
-    // version can be safely assumed to share it.
+    // Changing the Won Stage forces a major bump (ADR 0020). Prod hit this
+    // with Project 5.9 -> 6.0: the deals were never offered a move.
     await salesFlowService.setWonStage(flow.id, lead.id, mockUser.current.id)
 
     renderWithProviders(<FlowCanvas />)
@@ -247,7 +247,11 @@ describe("FlowCanvas", () => {
       const history = await salesFlowService.listSnapshots(flow.id)
       expect(history[0].version).toBe(2)
     })
-    expect(screen.queryByText(/Move .* SOR.* up to/)).not.toBeInTheDocument()
+    expect(await screen.findByText("Move 1 SOR on older versions up to v2.0?")).toBeInTheDocument()
+    expect(screen.getByText(/The Won Stage is different in the new version/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Move deals" }))
+    expect(await screen.findByText("1 moved successfully.")).toBeInTheDocument()
   })
 
   it("hides every edit control once the flow is locked", async () => {
