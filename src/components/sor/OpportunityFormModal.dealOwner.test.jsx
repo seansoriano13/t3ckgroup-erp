@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../../test/support";
+import { screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { renderWithProviders, setupUser } from "../../test/support";
 import OpportunityFormModal from "./OpportunityFormModal";
 
 const DIRECTOR_ID = "7a223a36-16b3-4842-a6e0-88798459b653";
@@ -70,9 +70,16 @@ function renderForm() {
   return onSubmit;
 }
 
+// The Sale Type select is the keyboard-ready one (#870), which opens on a
+// real pointer press, so pick through user-event rather than fireEvent.
+async function pickSaleType() {
+  const user = setupUser();
+  await user.click(await screen.findByRole("combobox", { name: /Sale Type/ }));
+  await user.click(await screen.findByRole("option", { name: "Flow A" }));
+}
+
 async function chooseSaleType() {
-  fireEvent.click(await screen.findByText("Select sale type…"));
-  fireEvent.click(await screen.findByText("Flow A"));
+  await pickSaleType();
 }
 
 function submitForm() {
@@ -86,7 +93,7 @@ describe("OpportunityFormModal: Deal Owner defaults to the registrant", () => {
     const onSubmit = renderForm();
 
     // The Deal Owner box shows the registrant once the employee list is in.
-    expect(await screen.findByText("Maey Zausa")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Deal Owner/ })).toHaveTextContent("Maey Zausa"));
     await chooseSaleType();
     submitForm();
 
@@ -98,13 +105,13 @@ describe("OpportunityFormModal: Deal Owner defaults to the registrant", () => {
     authUser.id = "not-on-the-employee-list";
     try {
       const onSubmit = renderForm();
-      await screen.findByText("101");
+      await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
       await chooseSaleType();
       submitForm();
 
       await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
       expect(onSubmit.mock.calls[0][0].deal_owner_id).toBe("");
-      expect(screen.queryByText("Maey Zausa")).not.toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /Deal Owner/ })).not.toHaveTextContent("Maey Zausa");
     } finally {
       authUser.id = OWNER_ID;
     }

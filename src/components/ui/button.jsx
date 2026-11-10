@@ -12,6 +12,12 @@ const buttonVariants = cva(
         default:
           // Neutral, not the brand red (2026-11-06): red is kept for danger only, so a main button never reads as a warning.
           "bg-foreground text-background shadow-sm hover:bg-foreground/85 [a]:hover:opacity-90",
+        // The page's one main action and a dialog's Save / Make, in brand red.
+        // Light mode uses red-11 under white text: red-9 gives only 3.8:1 there,
+        // short of WCAG AA's 4.5:1 (#871). Dark mode keeps red-9 under dark
+        // text, which already passes (4.7:1).
+        primary:
+          "bg-red-11 text-primary-foreground shadow-sm hover:bg-red-11/90 dark:bg-primary dark:hover:bg-primary/90 [a]:hover:opacity-90",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
         secondary:

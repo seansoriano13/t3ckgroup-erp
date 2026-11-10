@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../../test/support";
+import { screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { renderWithProviders, setupUser } from "../../test/support";
 import OpportunityFormModal from "./OpportunityFormModal";
 import toast from "react-hot-toast";
 
@@ -99,9 +99,16 @@ vi.mock("../../context/AuthContext", () => ({
 }));
 
 // Sale Type is required to register (#856): pick it unless the test does so itself.
+// The Sale Type select is the keyboard-ready one (#870), which opens on a
+// real pointer press, so pick through user-event rather than fireEvent.
+async function pickSaleType() {
+  const user = setupUser();
+  await user.click(await screen.findByRole("combobox", { name: /Sale Type/ }));
+  await user.click(await screen.findByRole("option", { name: "Flow A" }));
+}
+
 async function chooseSaleType() {
-  fireEvent.click(await screen.findByText("Select sale type\u2026"));
-  fireEvent.click(await screen.findByText("Flow A"));
+  await pickSaleType();
 }
 
 function renderForm(props = {}) {
@@ -123,7 +130,7 @@ describe("OpportunityFormModal — Sales Director", () => {
     const onSubmit = renderForm();
 
     // The locked field shows the resolved director once employees load.
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
 
     const form = document.getElementById("opportunity-form");
@@ -159,10 +166,9 @@ describe("OpportunityFormModal — Sales Director", () => {
 describe("OpportunityFormModal — Assignment conditions", () => {
   it("does not offer an entry-Stage Assignment condition on the registration form", async () => {
     const onSubmit = renderForm();
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
 
-    fireEvent.click(screen.getByText("Select sale type…"));
-    fireEvent.click(await screen.findByText("Flow A"));
+    await pickSaleType();
 
     await screen.findByText(/Showing \d+ fields? for Flow A/);
     expect(screen.queryByText("Buyer assigned")).not.toBeInTheDocument();
@@ -175,6 +181,28 @@ describe("OpportunityFormModal — Assignment conditions", () => {
   });
 });
 
+// #871: related fields sit together in titled sections, not one card each.
+describe("OpportunityFormModal - sections", () => {
+  it("groups the registration form into Deal Classification, Details and Assignment", async () => {
+    renderForm();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
+    await chooseSaleType();
+    const classification = screen.getByRole("group", { name: "Deal Classification" });
+    expect(within(classification).getByRole("combobox", { name: /Sale Type/ })).toBeInTheDocument();
+    expect(within(classification).getByTestId("project-type-badge")).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: "Details" })).toBeInTheDocument();
+    const assignment = screen.getByRole("group", { name: /Assignment/ });
+    expect(within(assignment).getByRole("combobox", { name: /Deal Owner/ })).toBeInTheDocument();
+    expect(within(assignment).getByRole("combobox", { name: /Support Sales 2/ })).toBeInTheDocument();
+  });
+
+  it("marks Sale Type and Deal Owner as required for the browser's form check", async () => {
+    renderForm();
+    expect(await screen.findByRole("combobox", { name: /Sale Type/ })).toHaveAttribute("aria-required", "true");
+    expect(screen.getByRole("combobox", { name: /Deal Owner/ })).toHaveAttribute("aria-required", "true");
+  });
+});
+
 describe("OpportunityFormModal — Project Type Auto-derivation & Strategic Toggle", () => {
   it("displays SSP badge by default on a blank registration form", async () => {
     renderForm();
@@ -184,7 +212,7 @@ describe("OpportunityFormModal — Project Type Auto-derivation & Strategic Togg
 
   it("submits with project_type SSP by default", async () => {
     const onSubmit = renderForm();
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
 
     const form = document.getElementById("opportunity-form");
@@ -196,7 +224,7 @@ describe("OpportunityFormModal — Project Type Auto-derivation & Strategic Togg
 
   it("toggles to Strategic when Mark as Strategic is clicked", async () => {
     const onSubmit = renderForm();
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
 
     const toggleButton = screen.getByRole("button", { name: /mark as strategic/i });
@@ -214,7 +242,7 @@ describe("OpportunityFormModal — Project Type Auto-derivation & Strategic Togg
 
   it("unsets Strategic back to auto-derived SSP when clicked again", async () => {
     renderForm();
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
 
     const toggleButton = screen.getByRole("button", { name: /mark as strategic/i });
@@ -233,7 +261,7 @@ describe("OpportunityFormModal — Project Type Auto-derivation & Strategic Togg
 
   it("shows Closing Salesperson selector and Deal Owner / Originator label when Strategic", async () => {
     renderForm();
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
 
     // Initially no Closing Salesperson field
@@ -267,7 +295,7 @@ describe("OpportunityFormModal � the S0 box", () => {
 
   it("has a Fetch from Odoo button", async () => {
     renderForm();
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
     expect(screen.getByRole("button", { name: /fetch from odoo/i })).toBeInTheDocument();
   });
@@ -275,7 +303,7 @@ describe("OpportunityFormModal � the S0 box", () => {
   it("hands a typed S0 to registration, normalised, and never asks to go ahead anyway", async () => {
     const confirm = vi.spyOn(window, "confirm");
     const onSubmit = renderForm();
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
     type(REFERENCE, " so01237 ");
     submit();
@@ -288,7 +316,7 @@ describe("OpportunityFormModal � the S0 box", () => {
 
   it("refuses a number that is not an S0 before registering", async () => {
     const onSubmit = renderForm();
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
     type(REFERENCE, "not-a-quote");
     submit();
@@ -299,7 +327,7 @@ describe("OpportunityFormModal � the S0 box", () => {
 
   it("lets a blank S0 register (it can be added later)", async () => {
     const onSubmit = renderForm();
-    await screen.findByText("101");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
     submit();
 

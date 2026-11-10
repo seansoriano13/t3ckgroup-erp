@@ -94,7 +94,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
               </Button>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
+          <p className="px-3 pb-1 text-[11px] text-muted-foreground leading-relaxed">
             {ctx.s0ReadOnly
               ? "Change the S0 on the S0 card at the top of the SOR window."
               : "Fetching fills the Company, the Contact Person and the Product List from the quotation. Odoo is checked again when this is saved. No quotation yet? Leave it blank."}

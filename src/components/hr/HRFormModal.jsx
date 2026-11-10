@@ -30,7 +30,7 @@ export default function HRFormModal({
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/60 shrink-0">
           <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
             {badge ? (
-              <div className="w-[18px] h-[18px] rounded flex items-center justify-center bg-primary text-[9px] font-bold text-primary-foreground shrink-0">
+              <div className="h-[18px] min-w-[18px] px-1 rounded flex items-center justify-center bg-primary text-label leading-none font-bold text-primary-foreground shrink-0">
                 {badge.toUpperCase()}
               </div>
             ) : (
@@ -73,8 +73,8 @@ export default function HRFormModal({
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <kbd className="px-1.5 py-0.5 bg-muted/80 border border-border rounded font-sans text-[9px]">
+          <div className="flex items-center gap-1.5 text-label text-muted-foreground">
+            <kbd className="px-1.5 py-0.5 bg-muted/80 border border-border rounded font-sans text-label">
               Esc
             </kbd>
             <span>to close</span>
@@ -92,7 +92,8 @@ export default function HRFormModal({
               type="submit"
               form={formId}
               disabled={isPending}
-              className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary-hover text-primary-foreground font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-[13px]"
+              variant="primary"
+              className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20 font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-[13px]"
             >
               {isPending ? <Spinner size="sm" /> : null}
               {isPending ? "Saving..." : submitLabel}

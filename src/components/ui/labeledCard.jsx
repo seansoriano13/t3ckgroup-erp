@@ -18,7 +18,7 @@ export function LabeledCard({
   return (
     <div
       className={cn(
-        "bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all w-full",
+        "bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 has-[:focus-visible]:ring-2 ring-mauve-7 has-[:focus-visible]:ring-ring transition-all w-full",
         error &&
           "border-destructive focus-within:border-destructive ring-destructive/20",
         disabled && "opacity-50 pointer-events-none",
@@ -38,7 +38,7 @@ export function LabeledCard({
       </label>
       {children}
       {error && (
-        <span className="text-[10px] font-bold text-destructive mt-1">
+        <span role="alert" className="text-label font-bold text-destructive mt-1">
           {error}
         </span>
       )}

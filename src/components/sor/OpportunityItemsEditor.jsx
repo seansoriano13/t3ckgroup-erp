@@ -48,7 +48,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
       ) : (
         <div className="border border-border rounded-xl overflow-x-auto">
           <div className="min-w-[600px] divide-y divide-border">
-            <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
+            <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-label font-bold text-muted-foreground uppercase tracking-widest">
               <span className="col-span-5">Product</span>
               <span className="col-span-2">Unit</span>
               <span className="col-span-1">Qty</span>
