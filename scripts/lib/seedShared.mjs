@@ -203,6 +203,8 @@ export const SEED_EXCLUDED_TABLES = {
     "Suppliers' bank account numbers (#245). Narrow read policy by design (Purchasing, Finance, Super Admins and the section 1 and 3 approvers), and a local stack or a colleague's seed has no business carrying real account numbers. Type fresh ones locally on an IPAS.",
   sor_action_runs:
     "A fire-once ledger derived from Stage Actions actually firing (issue #204), not a fact to seed — a local stack regenerates it the first time a seeded deal moves through a Flow Stage.",
+  transmittal_pending_notices:
+    "Notices held for the 15 second quick-undo window after a Transmittal signature (#935), then sent or cancelled. Short-lived queue state, not a fact to seed — a local stack fills it the first time someone signs.",
 }
 
 export const DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"

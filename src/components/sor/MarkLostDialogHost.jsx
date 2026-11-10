@@ -8,7 +8,7 @@ import { invalidateOpportunityQueries } from "./invalidateOpportunityQueries";
  * #814 — the reason picker plus the call behind it, controlled by whoever
  * opens it (the header button, the More-actions menu, a board drop).
  */
-export default function MarkLostDialogHost({ opportunity, lostStages = [], isOpen, onClose, onDone }) {
+export default function MarkLostDialogHost({ opportunity, lostStages = [], isOpen, onClose, onDone, initialReasonCode, initialNote }) {
   const queryClient = useQueryClient();
 
   const markLost = useMutation({
@@ -28,6 +28,8 @@ export default function MarkLostDialogHost({ opportunity, lostStages = [], isOpe
       isOpen={isOpen}
       lostStages={lostStages}
       isPending={markLost.isPending}
+      initialReasonCode={initialReasonCode}
+      initialNote={initialNote}
       onCancel={onClose}
       onConfirm={(args) => markLost.mutate(args)}
     />

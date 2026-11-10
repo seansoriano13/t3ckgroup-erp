@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { summaryLineShown } from "../constants/costing";
-import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
+import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -599,6 +599,34 @@ describe("the Actual cost wins in the totals (#686)", () => {
     expect(componentTotals({ quantity: 2, acquire_unit: 100, p0_unit_price: null }).acquireTotal).toBe(200);
     expect(componentTotals({ quantity: 2, p0_unit_price: 50 }).acquireTotal).toBe(100);
     expect(lineTotals({ quantity: 1 }, [component, { quantity: 1, acquire_unit: 10 }]).acquireTotal).toBe(250);
+  });
+});
+
+describe("offerVsAbc (#942)", () => {
+  it("is low when the offer total is under 50% of the ABC total, and lists the low lines", () => {
+    const r = offerVsAbc([
+      { id: "a", number: "1", tender_specification: "Pump", quantity: 2, abc_unit: 1000, final_offer_unit: 200 },
+      { id: "b", number: "2", tender_specification: "Hose", quantity: 1, abc_unit: 100, final_offer_unit: 90 },
+    ]);
+    expect(r.low).toBe(true);
+    expect(r.percent).toBe(23);
+    expect(r.lines).toEqual([{ id: "a", number: "1", name: "Pump", percent: 20 }]);
+  });
+
+  it("is not low at exactly 50%, and lists no line at 50%", () => {
+    const r = offerVsAbc([{ id: "a", quantity: 1, abc_unit: 1000, final_offer_unit: 500 }]);
+    expect(r.low).toBe(false);
+    expect(r.lines).toEqual([]);
+  });
+
+  it("does not warn on totals while an ABC is blank, but still lists lines it can judge", () => {
+    const r = offerVsAbc([
+      { id: "a", quantity: 1, abc_unit: 1000, final_offer_unit: 100 },
+      { id: "b", quantity: 1, abc_unit: null, final_offer_unit: 100 },
+    ]);
+    expect(r.low).toBe(false);
+    expect(r.lines.map((l) => l.id)).toEqual(["a"]);
+    expect(offerVsAbc([]).low).toBe(false);
   });
 });
 

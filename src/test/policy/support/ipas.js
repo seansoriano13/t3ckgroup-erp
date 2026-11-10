@@ -175,12 +175,12 @@ async function giveWhatTheSignoffAsks(ipasId, section, role) {
     const { rows } = await sql().query(`select source from public.ipas where id = $1`, [ipasId])
     if (!rows.length) return
     const source = rows[0].source
-    if (section === 1 && role === "prepared") {
+    if (section === 1) {
         await attachDocument(ipasId, source === "import" ? "Proforma Invoice" : "Quotation (Local)")
-    } else if (section === 3 && role === "prepared") {
+    } else if (section === 3) {
         await sql().query(`update public.ipas_payments set proof_url = $2 where ipas_id = $1 and proof_url is null`, [ipasId, FIXTURE_FILE])
         await sql().query(`delete from public.ipas_charges where ipas_id = $1 and amount_php is null`, [ipasId])
-    } else if (section === 6 && role === "prepared") {
+    } else if (section === 6) {
         if (source === "import") {
             for (const label of ["BL or Waybill", "Packing List", "Commercial Invoice", "Freight Billing"]) {
                 await attachDocument(ipasId, label)
@@ -191,7 +191,7 @@ async function giveWhatTheSignoffAsks(ipasId, section, role) {
             `update public.ipas_charges set attachment_url = $2 where ipas_id = $1 and amount_php is not null and attachment_url is null`,
             [ipasId, FIXTURE_FILE],
         )
-    } else if (section === 7 && role === "received") {
+    } else if (section === 7) {
         await attachDocument(ipasId, "BIR 2307")
     } else if (section === 8 && role === "approved") {
         await placeGoods(ipasId, source)

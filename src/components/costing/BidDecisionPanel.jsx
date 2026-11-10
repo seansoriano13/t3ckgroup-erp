@@ -1,11 +1,17 @@
 import { useState } from "react";
-import { Check, Gavel, Lock, RotateCcw, Unlock, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Check, CircleX, Gavel, Lock, RotateCcw, Unlock, X } from "lucide-react";
 
 import { Button } from "../ui/button";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { APPROVE_CLASS } from "../ui/approveClass";
 import { Textarea } from "../ui/textarea";
 import StatusBadge from "../StatusBadge";
+import MarkLostDialogHost from "../sor/MarkLostDialogHost";
+import { useAuth } from "../../context/AuthContext";
+import { lostStagesOfFlow } from "../../constants/salesFlow";
+import { LOST_REASON_OTHER } from "../../constants/sor";
+import { salesFlowService } from "../../services/salesFlowService";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import {
   BID_VERDICT,
@@ -16,6 +22,7 @@ import {
 } from "../../constants/costing";
 import { formatDate } from "../../utils/formatDate";
 import { pesos } from "./gridFormat";
+import { offerVsAbc } from "../../utils/costingMath";
 
 /** The badge colour of each verdict: Go green, Revise amber, No-go red. */
 const VERDICT_THEME = {
@@ -46,6 +53,62 @@ const CHOICES = [
   },
 ];
 
+/**
+ * #941: next to a live No-go, the Deal Owner's "Move to Closed Lost". It opens the normal Mark as Lost
+ * picker (the same database rules and confirmation as a manual move) with the No-go reason pre-filled as
+ * the loss note. Other people are told who can close it. Nothing here moves a deal by itself, and it
+ * draws nothing when the flow has no Closed Lost stage.
+ */
+export function MoveToClosedLost({ opportunity, reason, nameOf }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const { data: canvas } = useQuery({
+    queryKey: ["salesFlow", opportunity?.sale_type_id],
+    queryFn: () => salesFlowService.getFlow(opportunity.sale_type_id),
+    enabled: Boolean(opportunity?.sale_type_id),
+  });
+  const lostStages = canvas ? lostStagesOfFlow(canvas.stages, canvas.flow?.won_stage_id) : [];
+  if (lostStages.length === 0) return null;
+  // Already closed: nothing left to move.
+  const current = canvas.stages.find((stage) => stage.id === opportunity.flow_stage_id);
+  if (current?.is_terminal) return null;
+
+  const ownerId = opportunity.deal_owner_id ?? null;
+  const isOwner = Boolean(ownerId) && user?.id === ownerId;
+  if (!isOwner) {
+    const owner = ownerId ? nameOf(ownerId) : null;
+    return (
+      <p className="text-sm font-semibold text-foreground" data-testid="bid-decision-close-owner-only">
+        Only the Deal Owner{owner ? ` (${owner})` : ""} can move this deal to Closed Lost.
+      </p>
+    );
+  }
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full justify-start gap-2"
+        onClick={() => setOpen(true)}
+        data-testid="bid-decision-move-closed-lost"
+      >
+        <CircleX size={16} aria-hidden="true" />
+        Move to Closed Lost
+      </Button>
+      {open && (
+        <MarkLostDialogHost
+          opportunity={opportunity}
+          lostStages={lostStages}
+          isOpen
+          onClose={() => setOpen(false)}
+          initialReasonCode={LOST_REASON_OTHER}
+          initialNote={reason ?? ""}
+        />
+      )}
+    </>
+  );
+}
+
 function Verdict({ verdict }) {
   return (
     <StatusBadge
@@ -64,14 +127,15 @@ function Verdict({ verdict }) {
  * the panel then shows who decided, the figures and "The sheet is locked", and an Unlock that takes its
  * own reason, is recorded, and clears the Go so it has to be taken again.
  *
- * A No-go or a Revise tells the Deal Team and moves nothing on the SOR; taking the deal to Closed
- * Lost stays the Deal Owner's move on the Sales Flow. This panel draws nothing for Purchasing or a
+ * A No-go or a Revise tells the Deal Team and moves nothing on the SOR. After a No-go the Deal
+ * Owner gets a "Move to Closed Lost" button (#941): a click, never automatic. This panel draws nothing for Purchasing or a
  * Stage Participant: the matrix read gives them no decision to show.
  */
 export default function BidDecisionPanel({
   matrix,
   writes,
   nameOf = () => null,
+  opportunity = null,
 }) {
   const {
     tier,
@@ -102,6 +166,8 @@ export default function BidDecisionPanel({
   const canUnlock = Boolean(matrix.canDecideLoss);
   const marginPercent =
     revenue === null || !Number(totals.finalOfferTotal) ? null : (Number(revenue) / Number(totals.finalOfferTotal)) * 100;
+
+  const offerCheck = offerVsAbc(tenderLines);
 
   const decide = (verdict) =>
     writes.run(async () => {
@@ -162,6 +228,11 @@ export default function BidDecisionPanel({
           >
             {bidDecision.reason}
           </p>
+          {bidDecision.verdict === BID_VERDICT.NO_GO && opportunity && (
+            <div className="pt-1">
+              <MoveToClosedLost opportunity={opportunity} reason={bidDecision.reason} nameOf={nameOf} />
+            </div>
+          )}
           {"finalOfferTotal" in bidDecision && (
             <p
               className="text-xs text-muted-foreground"
@@ -208,6 +279,35 @@ export default function BidDecisionPanel({
                 : ` and an ABC of ${pesos(totals.abcTotal)}`}
               .
             </p>
+          )}
+        </div>
+      )}
+
+      {showFigures && ready && revenue !== null && (
+        <p className="text-xs text-muted-foreground" data-testid="bid-decision-revenue-breakdown">
+          Planned revenue: Final Offer {pesos(totals.finalOfferTotal)} − Cost{" "}
+          {pesos(matrix.summary?.operationalExpenses)} − ITR {pesos(matrix.summary?.itr)} = {pesos(revenue)}
+          {marginPercent === null ? "" : ` (${marginPercent.toFixed(1)}% of the Final Offer)`}
+        </p>
+      )}
+      {showFigures && offerCheck.low && (
+        <div
+          className="space-y-1 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-sm text-foreground"
+          role="alert"
+          data-testid="bid-decision-low-offer"
+        >
+          <p className="font-semibold">
+            The offer is {offerCheck.percent}% of the ABC — check each ABC is per unit, and the offer prices.
+          </p>
+          {offerCheck.lines.length > 0 && (
+            <ul className="list-disc pl-5 text-xs" data-testid="bid-decision-low-offer-lines">
+              {offerCheck.lines.map((l, i) => (
+                <li key={l.id ?? i}>
+                  {l.number ? `${l.number} ` : ""}
+                  {l.name || "Line"}: {l.percent}% of its ABC
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}

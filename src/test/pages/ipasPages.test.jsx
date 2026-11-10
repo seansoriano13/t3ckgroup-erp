@@ -634,7 +634,7 @@ describe("IPAS pages", () => {
       const costs = screen.getByRole("button", { name: /^3 · Costs/ });
       expect(costs).toHaveTextContent("Waiting");
       expect(costs).toHaveTextContent("Provisional");
-      expect(screen.getByRole("button", { name: /^4 · Delivery/ })).toHaveTextContent("Needs the Logistics sign-off");
+      expect(screen.getByRole("button", { name: /^4 · Delivery/ })).toHaveTextContent("Not delivered yet");
       expect(screen.getByRole("button", { name: /^5 · Documents/ })).toHaveTextContent(/\d+ missing/);
       expect(screen.getByRole("button", { name: /^6 · Sign-offs/ })).toHaveTextContent("0 of 4 signed");
     });
@@ -723,16 +723,17 @@ describe("IPAS pages", () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       renderDetail(row.id);
 
-      // A purchaser with nothing sent for signing yet owes the files in 5 · Documents, or Order.
-      await waitFor(() => expect(screen.getByRole("button", { name: /^1 · Order/ })).toHaveAttribute("aria-expanded", "true"));
+      // A purchaser with nothing sent for signing yet owes the files, the rail's first item (#937): 5 · Documents opens.
+      await waitFor(() => expect(screen.getByRole("button", { name: /^5 · Documents/ })).toHaveAttribute("aria-expanded", "true"));
+      expect(screen.getByRole("button", { name: /^1 · Order/ })).toHaveAttribute("aria-expanded", "false");
       expect(screen.getByRole("button", { name: /^4 · Delivery/ })).toHaveAttribute("aria-expanded", "false");
     });
 
     it("expands Order in place with its header facts, read-only until Edit", async () => {
       const row = ipas({ po_number: "P02552", remarks: "For the Capas deal", created_by: purchaser.id });
-      renderDetail(row.id);
+      renderDetail(row.id, "order");
 
-      // A purchaser with work in Order finds it open on arrival.
+      // The link names Order, so it is open on arrival.
       const trigger = await screen.findByRole("button", { name: /^1 · Order/ });
       await waitFor(() => expect(trigger).toHaveAttribute("aria-expanded", "true"));
       expect(queryOtherDialog()).not.toBeInTheDocument();

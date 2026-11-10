@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -6,6 +7,8 @@ import PageLoading from "../ui/PageLoading";
 import EvaluationBar from "../costing/EvaluationBar";
 import TechnicalVerdict from "../costing/TechnicalVerdict";
 import ItemVerdict from "./ItemVerdict";
+import BulkVerdictBar from "./BulkVerdictBar";
+import { Checkbox } from "../ui/checkbox";
 import { useCostingWrites, useInchargeOptions } from "../costing/useCostingWrites";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { useAuth } from "../../context/AuthContext";
@@ -24,6 +27,7 @@ const HEAD = "text-label font-bold uppercase tracking-wider";
 export default function TechnicalSheet({ opportunityId }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [checked, setChecked] = useState(() => new Set());
 
   const sheet = useQuery({
     queryKey: technicalKeys.sheet(opportunityId),
@@ -47,6 +51,17 @@ export default function TechnicalSheet({ opportunityId }) {
   const header = sheet.data?.header ?? null;
   const lines = matrix?.tenderLines ?? [];
   const canWriteVerdict = Boolean(user?.id) && user.id === (matrix?.matrix?.technical_incharge_id ?? null);
+  const allIds = lines.flatMap((line) => line.components.map((component) => component.id));
+  const checkedIds = allIds.filter((id) => checked.has(id));
+  const allChecked = allIds.length > 0 && checkedIds.length === allIds.length;
+  const toggle = (id) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleAll = () => setChecked(allChecked ? new Set() : new Set(allIds));
 
   return (
     <div className="space-y-4 pb-2">
@@ -74,7 +89,15 @@ export default function TechnicalSheet({ opportunityId }) {
 
           <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={user?.id ?? null} nameOf={nameOf} writes={approvalWrites} />
 
-          <TechnicalVerdict matrix={matrix} actorId={user?.id ?? null} writes={{ refresh }} />
+          {canWriteVerdict && checkedIds.length > 0 && (
+            <BulkVerdictBar
+              ids={checkedIds}
+              onDone={async () => {
+                setChecked(new Set());
+                await refresh();
+              }}
+            />
+          )}
 
           {lines.length === 0 ? (
             <p className="text-sm text-muted-foreground">This S0 Evaluation has no rows yet.</p>
@@ -84,6 +107,11 @@ export default function TechnicalSheet({ opportunityId }) {
                 <Table tableId="technical-sheet" className="md:min-w-[56rem]">
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      {canWriteVerdict && (
+                        <TableHead className="w-8">
+                          <Checkbox aria-label="Check all products" checked={allChecked} onCheckedChange={toggleAll} />
+                        </TableHead>
+                      )}
                       <TableHead className={HEAD}>Item</TableHead>
                       <TableHead className={HEAD}>Qty</TableHead>
                       <TableHead className={HEAD}>Client asks for</TableHead>
@@ -95,6 +123,11 @@ export default function TechnicalSheet({ opportunityId }) {
                     {lines.flatMap((line) =>
                       line.components.map((component, index) => (
                         <TableRow key={component.id} data-testid="technical-component">
+                          {canWriteVerdict && (
+                            <TableCell className="align-top">
+                              <Checkbox aria-label={`Check ${component.number}`} checked={checked.has(component.id)} onCheckedChange={() => toggle(component.id)} />
+                            </TableCell>
+                          )}
                           <TableCell className="align-top text-xs font-medium text-foreground">
                             {component.number} · {component.name || line.tender_specification}
                           </TableCell>
@@ -123,6 +156,8 @@ export default function TechnicalSheet({ opportunityId }) {
               </div>
             </div>
           )}
+          <TechnicalVerdict matrix={matrix} actorId={user?.id ?? null} writes={{ refresh }} />
+
           <p className="text-xs text-muted-foreground">No prices or costs are shown here.</p>
         </>
       )}

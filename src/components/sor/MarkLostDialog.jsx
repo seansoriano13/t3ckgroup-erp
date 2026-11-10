@@ -10,12 +10,14 @@ import { LOST_REASONS, LOST_REASON_OTHER } from "../../constants/sor";
  * a note rides along with any reason and is required for "Other". The database
  * checks the same rules, this only keeps Confirm honest.
  *
+ * `initialReasonCode` / `initialNote` pre-fill the picker (#941: the No-go reason); the person can still change them.
+ *
  * `lostStages` is the flow's Lost Stages. Only with more than one does the
  * person pick, otherwise the database uses the one there is.
  */
-export default function MarkLostDialog({ isOpen, lostStages = [], isPending = false, onCancel, onConfirm }) {
-  const [reasonCode, setReasonCode] = useState(null);
-  const [note, setNote] = useState("");
+export default function MarkLostDialog({ isOpen, lostStages = [], isPending = false, onCancel, onConfirm, initialReasonCode = null, initialNote = "" }) {
+  const [reasonCode, setReasonCode] = useState(initialReasonCode);
+  const [note, setNote] = useState(initialNote);
   const [lostStageId, setLostStageId] = useState(null);
 
   const mustPickStage = lostStages.length > 1;

@@ -1000,7 +1000,7 @@ async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId, 
         const payload = {
           action_id: action.id,
           kind: action.kind,
-          name: stageActionName(action),
+          name: stageActionName(action, templateContext),
           confirm: isConfirm,
         };
 
@@ -1087,7 +1087,7 @@ async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId, 
         // same as the pre-#409 "reading the guard failed" case below.
         console.error("sor_run_stage_actions failed:", runError);
         for (const action of actions) {
-          const name = stageActionName(action);
+          const name = stageActionName(action, templateContext);
           if (!failedStageActions.includes(name)) failedStageActions.push(name);
         }
       } else {
@@ -1189,8 +1189,16 @@ async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId, 
     // every action on this Stage is then unaccounted for.
     console.error("Failed to execute stage actions:", err);
     if (!actionsAttempted) {
+      const entryContext = {
+        salesReference: existing.sales_reference,
+        projectTitle: existing.project_title,
+        company: existing.client_name,
+        stageName: to.name,
+        dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
+        saleType: existing.sale_type || null,
+      };
       for (const action of actionsForSnapshotStage(snapshotActions, to.id)) {
-        const name = stageActionName(action);
+        const name = stageActionName(action, entryContext);
         if (!failedStageActions.includes(name)) failedStageActions.push(name);
       }
     }
@@ -1457,7 +1465,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
 
     const groupTask = await groupTaskService.createGroupTask(payload).catch((err) => {
       console.error("Stage Action failed:", err);
-      failedStageActions?.push(stageActionName(action));
+      failedStageActions?.push(stageActionName(action, templateContext));
       return null;
     });
 
@@ -1541,7 +1549,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
     // with the insert; only a failure still needs sor_finish_action_run here.
     const task = await taskService.createTask(payload).catch((err) => {
       console.error("Stage Action failed:", err);
-      failedStageActions?.push(stageActionName(action));
+      failedStageActions?.push(stageActionName(action, templateContext));
       return null;
     });
 
@@ -1593,7 +1601,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
     // implement is a defect, so it fails loudly and lands in the same "create
     // them by hand" toast a failed create already uses.
     console.error("Stage Action has no builder for kind:", action.kind);
-    failedStageActions?.push(stageActionName(action));
+    failedStageActions?.push(stageActionName(action, templateContext));
     const { error: finishError } = await supabase.rpc("sor_finish_action_run", {
       p_run_id: runRow.id,
       p_outcome: "failed",
@@ -1646,10 +1654,13 @@ function notePackingListRequested(opportunityId, stage, actionId, packingListId,
 }
 
 /** How a failed Stage Action is named to the person who moved the SOR. */
-function stageActionName(action) {
+function stageActionName(action, templateContext) {
   const config = action?.config ?? {};
   const named = config.title || config.projectTitle;
-  if (typeof named === "string" && named.trim()) return named.trim();
+  // #933: fill {{...}} the same way the task title is filled.
+  if (typeof named === "string" && named.trim()) {
+    return (templateContext ? renderTemplate(named, templateContext) : named).trim();
+  }
   if (action?.kind === "open_purchase_request") return "Purchase Request";
   if (action?.kind === "open_costing_matrix") return "S0 Evaluation";
   if (action?.kind === "evaluate_specification") return "Evaluation of Specification";

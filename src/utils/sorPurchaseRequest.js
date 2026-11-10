@@ -13,6 +13,16 @@ const time = (value) => (value ? new Date(value).getTime() : null);
 export const openItems = (items) => (items ?? []).filter((item) => !isClosedStatus(item?.status));
 
 /**
+ * Whether a Product List line shows its Odoo stock badge (#934). Once
+ * Purchasing sets any Purchase Request status other than "Not checked", that
+ * status alone speaks for the line.
+ */
+export function showsStockBadge(line, items) {
+  const item = requestedItemForLine(line, items);
+  return !item || !item.status || item.status === "not_checked";
+}
+
+/**
  * The Requested Item for a Product List line, or null. An item remembers the
  * line it was picked from by the line's fixed id (#677), and that id is the
  * match. An item with no line id yet (picked before that) falls back to Odoo
