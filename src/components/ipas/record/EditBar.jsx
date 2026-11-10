@@ -25,7 +25,15 @@ export default function EditBar({ editor, canSave, saving, onDone, reveal, show,
     if (show) show(file.section);
     else reveal(file.section);
     // Scroll to the first empty file slot of that section (slots carry data-missing-file).
-    const scroll = () => scrollIntoViewGently(document.querySelector(`[data-missing-file="${file.section}"]`));
+    // A document slot is matched by its label, so an optional document's slot is never the target.
+    const exact =
+      file.section === "documents"
+        ? `[data-missing-file="documents"][aria-label="${CSS.escape(`Attach a file to ${file.label}`)}"]`
+        : null;
+    const scroll = () =>
+      scrollIntoViewGently(
+        (exact && document.querySelector(exact)) || document.querySelector(`[data-missing-file="${file.section}"]`),
+      );
     requestAnimationFrame(() => requestAnimationFrame(scroll));
   };
 
