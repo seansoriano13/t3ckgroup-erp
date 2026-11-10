@@ -1,3 +1,4 @@
+import { CalendarSample, LeaveRangeSample, MeetingRequestSample } from "./timeOffSamples"
 import { GroupTaskDatesSample, GroupTaskEvaluationSample, TaskApprovalsSample } from "./taskSamples"
 import { ChangeNotesSample, MarkLostSample, MyWorkSample, NeedsAttentionSample, S0CardSample } from "./sorSamples"
 
@@ -21,6 +22,10 @@ export const SAMPLES = {
   "group-task-evaluation": GroupTaskEvaluationSample,
   "group-task-dates": GroupTaskDatesSample,
   "task-approvals": TaskApprovalsSample,
+  // Time Off & Calendar
+  calendar: CalendarSample,
+  "meeting-requests": MeetingRequestSample,
+  "leave-range": LeaveRangeSample,
 }
 
 /**

@@ -147,18 +147,21 @@ export const SECTIONS = [
         title: "A new Calendar, with a Gantt beside it",
         body: "Calendar in the menu shows time off, overtime, LWOP and meetings by month, week, day or person. Click a day to see who is out and each Venue's day, and click a free slot to book it. Switch to Gantt for two or four weeks across: Venues first, then people by department, with how many are out each day.",
         who: ["Everyone"],
+        sample: "calendar",
       },
       {
         id: "meeting-requests",
         title: "Book a Venue with a Meeting Request",
         body: "Book a Venue from the Calendar and add a Facilitator, Participants and guests. A meeting is Onsite, Online or Hybrid, with a link and guest emails. HR approves it in Approvals, under Meeting Requests. You can edit, send again or cancel before it starts, and everyone invited gets a reminder.",
         who: ["Everyone", "HR"],
+        sample: "meeting-requests",
       },
       {
         id: "leave-range",
         title: "Leave over several days follows your work schedule",
         body: "A date range skips weekends and other days off, so a Friday-to-Monday leave is one request. Each day starts at your scheduled hours, such as 07:30 to 18:00, instead of a flat 8, and you can still change them. Remove a day, such as a holiday, and add it back if you need to.",
         who: ["Everyone"],
+        sample: "leave-range",
       },
       {
         id: "meal-break",
