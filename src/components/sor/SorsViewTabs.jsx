@@ -1,8 +1,18 @@
-import { List, Kanban, LayoutDashboard, Trash2 } from "lucide-react";
+import { List, Kanban, LayoutDashboard, Trash2, Handshake } from "lucide-react";
 import TabGroup from "../ui/TabGroup";
 
+const MINE_TAB = { value: "mine", label: "My work", icon: Handshake };
+const REGISTER_TABS = [
+  { value: "list", label: "List", icon: List },
+  { value: "board", label: "Board", icon: Kanban },
+  { value: "overview", label: "Overview", icon: LayoutDashboard },
+  { value: "deleted", icon: Trash2, label: "Deleted" },
+];
+
 /**
- * The register's view strip: List, Board, Overview, Deleted. Retail left this
+ * The register's view strip: My work, List, Board, Overview, Deleted. My work
+ * (the SORs this person owes something on) leads and is where the page opens
+ * the first time; it used to be its own My SOR Work screen. Retail left this
  * strip for its own screen at /retail — the strip was the crowded thing, and a
  * retail order is not something you scan the register for.
  *
@@ -16,12 +26,7 @@ import TabGroup from "../ui/TabGroup";
 export default function SorsViewTabs({ view, onChange }) {
   return (
     <TabGroup
-      tabs={[
-        { value: "list", label: "List", icon: List },
-        { value: "board", label: "Board", icon: Kanban },
-        { value: "overview", label: "Overview", icon: LayoutDashboard },
-        { value: "deleted", icon: Trash2, label: "Deleted" },
-      ]}
+      tabs={[MINE_TAB, ...REGISTER_TABS]}
       activeTab={view}
       onChange={onChange}
       variant="pill"

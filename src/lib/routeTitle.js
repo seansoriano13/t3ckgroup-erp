@@ -22,7 +22,6 @@ const TITLES = [
   ["/hr/offsets", "HR Offsets"],
   ["/hr", "HR"],
   ["/login", "Sign in"],
-  ["/my-sors", "My SORs"],
   ["/offsets", "Offsets"],
   ["/profile", "Profile"],
   ["/purchasing/ipas", "IPAS"],

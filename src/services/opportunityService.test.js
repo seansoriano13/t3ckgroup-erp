@@ -4806,6 +4806,34 @@ describe("getMySors", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ opportunityId: deal.id, isOpen: true })
     expect(rows[0].windows[0]).toMatchObject({ source: "mention", mentionedBy: "Deal Owner Dan" })
+    // A mention is Watching, not work: it does not count toward the badge.
+    expect(rows[0].moves).toEqual([])
+    expect(await opportunityService.countMyOpenSors(me.id)).toBe(0)
+  })
+
+  it("puts an open task on the SOR as its move, and counts it on the badge", async () => {
+    db.seed("tasks", {
+      opportunity_id: deal.id,
+      logged_by: me.id,
+      project_title: "Draft the BOQ",
+      status: "INCOMPLETE",
+      created_at: new Date().toISOString(),
+    })
+    db.seed("tasks", {
+      opportunity_id: deal.id,
+      logged_by: me.id,
+      project_title: "Already done",
+      status: "COMPLETED",
+      created_at: new Date().toISOString(),
+    })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ opportunityId: deal.id, isOpen: true })
+    expect(rows[0].moves).toEqual([
+      expect.objectContaining({ entityType: "TASK", kind: "Task", label: "Draft the BOQ" }),
+    ])
     expect(await opportunityService.countMyOpenSors(me.id)).toBe(1)
   })
 

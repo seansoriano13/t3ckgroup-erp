@@ -59,8 +59,8 @@ const renderRegister = () =>
 
 describe("SOR Register: toast and open after Register SOR", () => {
   beforeEach(() => {
-    mockUser.current = makeEmployee({ name: "Reg Ister" });
-    sessionStorage.clear();
+    mockUser.current = { ...makeEmployee({ name: "Reg Ister" }), has_sales_flow: true };
+    localStorage.clear();
     vi.clearAllMocks();
     vi.spyOn(opportunityService, "getOpportunities").mockResolvedValue([]);
     vi.spyOn(opportunityService, "createOpportunity").mockResolvedValue({ ...CREATED });

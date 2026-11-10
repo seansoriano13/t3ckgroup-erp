@@ -8,9 +8,9 @@ vi.mock("../../services/opportunityService", () => ({ opportunityService: { getM
 vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
 vi.mock("../../components/ProtectedRoute", () => ({ default: ({ children }) => children }));
 
-import MySors from "../../pages/my-sors/index";
+import MySors from "../../components/sor/MySorWork";
 
-describe("My SORs query failure", () => {
+describe("My work query failure", () => {
   it("shows the error block (not the empty state) and Retry recovers", async () => {
     getMySors.mockRejectedValueOnce(new Error("boom")).mockResolvedValue([]);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -22,9 +22,9 @@ describe("My SORs query failure", () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect(screen.queryByText(/Nobody has called you/)).toBeNull();
+    expect(screen.queryByText(/Nothing on an SOR needs you/)).toBeNull();
     expect(screen.queryByText(/boom/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(screen.getByText(/Nobody has called you/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Nothing on an SOR needs you/)).toBeInTheDocument());
   });
 });

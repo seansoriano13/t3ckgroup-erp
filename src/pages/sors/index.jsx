@@ -37,6 +37,8 @@ import SaleTypeFilter from "../../components/sor/SaleTypeFilter";
 import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
 import DeletedOpportunitiesView from "../../components/sor/DeletedOpportunitiesView";
+import { useMySorWork } from "../../components/sor/useMySorWork";
+import { canReadSorRegister, getPermissionContext } from "../../utils/permissions";
 import { opportunityService } from "../../services/opportunityService";
 import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
@@ -122,6 +124,25 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
   );
 }
 
+// The view a person last used, kept across visits so Sales staff who live in
+// the List are not sent back to My work every time. Storage can be missing or
+// refuse (private windows), so every touch is guarded.
+const VIEW_KEY = "opportunitiesView";
+function readSavedView() {
+  try {
+    return localStorage.getItem(VIEW_KEY);
+  } catch {
+    return null;
+  }
+}
+function saveView(view) {
+  try {
+    localStorage.setItem(VIEW_KEY, view);
+  } catch {
+    // Not remembered; the page still works.
+  }
+}
+
 export default function OpportunitiesPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -146,15 +167,23 @@ export default function OpportunitiesPage() {
   const [employeeFilter, setEmployeeFilter] = useState(
     () => location.state?.filterEmployeeId || "ALL",
   );
-  const [view, setView] = useState(() => {
+  // Who can read the register itself (`sor_read`). Everyone else, someone
+  // called into an SOR from another team, gets only My work: the register's
+  // list would come back empty for them.
+  const hasRegister = canReadSorRegister(getPermissionContext(user));
+  const [chosenView, setView] = useState(() => {
+    if (location.state?.view === "mine") return "mine";
     if (location.state?.filterEmployeeId) return "list";
-    const saved = sessionStorage.getItem("opportunitiesView");
-    // "retailQueue" and "retail" moved to /retail. A session that still names
-    // one of them would otherwise restore a tab that no longer exists, leaving
-    // the strip with nothing selected.
+    const saved = readSavedView();
+    // "retailQueue" and "retail" moved to /retail. A saved view that still
+    // names one of them would otherwise restore a tab that no longer exists,
+    // leaving the strip with nothing selected.
     if (saved === "retailQueue" || saved === "retail") return "list";
-    return saved || "list";
+    // First visit opens on My work: what this person owes leads.
+    return saved || "mine";
   });
+  const view = hasRegister ? chosenView : "mine";
+  const mySorWork = useMySorWork();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   // notificationRouter sends every OPPORTUNITY_* notification here with the
@@ -206,7 +235,11 @@ export default function OpportunitiesPage() {
       // remember: otherwise a reload restores the "overview" that was saved
       // before the click and the register jumps back to a screen the user
       // already left.
-      sessionStorage.setItem("opportunitiesView", "list");
+      saveView("list");
+      hasHandledState = true;
+    }
+    if (navState.view === "mine") {
+      setView("mine");
       hasHandledState = true;
     }
     if (navState.filterStatus) {
@@ -221,12 +254,13 @@ export default function OpportunitiesPage() {
 
   const changeView = (next) => {
     setView(next);
-    sessionStorage.setItem("opportunitiesView", next);
+    saveView(next);
   };
 
   const { data: opportunities = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["opportunities"],
     queryFn: () => opportunityService.getOpportunities(),
+    enabled: hasRegister,
   });
 
   // Someone else moving or editing an SOR redraws the Board and the list here
@@ -982,17 +1016,21 @@ export default function OpportunitiesPage() {
         title="SOR Register"
         frame="full"
         action={
-          <>
-            <SorsViewTabs view={view} onChange={changeView} />
-            <Button onClick={() => setFormOpen(true)}>
-              <Plus size={16} strokeWidth={2.5} />
-              Register SOR
-            </Button>
-          </>
+          hasRegister && (
+            <>
+              <SorsViewTabs view={view} onChange={changeView} />
+              <Button onClick={() => setFormOpen(true)}>
+                <Plus size={16} strokeWidth={2.5} />
+                Register SOR
+              </Button>
+            </>
+          )
         }
-        toolbar={toolbar}
+        toolbar={view === "mine" ? mySorWork.toolbar : toolbar}
       >
-        {view === "deleted" ? (
+        {view === "mine" ? (
+          mySorWork.body
+        ) : view === "deleted" ? (
           <DeletedOpportunitiesView currentUserId={user?.id} isSuperAdmin={isSuperAdmin} />
         ) : isError ? (
           <QueryError title="The SOR register could not be loaded." onRetry={refetch} />

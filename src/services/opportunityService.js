@@ -6,6 +6,8 @@ import { notificationService } from "./notificationService";
 import { sorAwardService } from "./sorAwardService";
 import { accessWindowSummary } from "../utils/stageAudience";
 import { SOURCE_DEAL_TEAM, SOURCE_MENTION } from "../utils/mySorsFilters";
+import { TASK_STATUS, GROUP_MEMBER_STATUS, GROUP_TASK_STATUS } from "../constants/status";
+import { isClosedStatus } from "../constants/purchaseRequest";
 import { sorStageParticipantService } from "./sorStageParticipantService";
 import { pipelineStageService } from "./pipelineStageService";
 import { getCurrentLocalDate } from "../utils/formatDate";
@@ -3919,7 +3921,16 @@ export const opportunityService = {
 
     // #478: the SORs this person is on the Deal Team of: Full access, no window.
     const dealTeamIds = await opportunityService.getMyDealTeamSorIds();
-    if ((!windows || windows.length === 0) && mentionRows.length === 0 && dealTeamIds.length === 0) return [];
+    // "Your move": the open work this person owes, per SOR. An SOR they owe
+    // work on is always listed, even if no window names it.
+    const moves = await opportunityService.getMySorMoves(employeeId);
+    if (
+      (!windows || windows.length === 0) &&
+      mentionRows.length === 0 &&
+      dealTeamIds.length === 0 &&
+      Object.keys(moves).length === 0
+    )
+      return [];
 
     const shape = windows?.length ? await shapeAccessWindows(windows) : () => null;
 
@@ -3936,7 +3947,7 @@ export const opportunityService = {
       if (!byOpportunity.has(m.opportunity_id)) byOpportunity.set(m.opportunity_id, []);
     }
 
-    for (const id of dealTeamIds) {
+    for (const id of [...dealTeamIds, ...Object.keys(moves)]) {
       if (!byOpportunity.has(id)) byOpportunity.set(id, []);
     }
     const dealTeam = new Set(dealTeamIds);
@@ -3978,8 +3989,10 @@ export const opportunityService = {
           clientName: facets[opportunityId]?.clientName ?? null,
           saleTypeName: facets[opportunityId]?.saleTypeName ?? null,
           lastActivityAt: facets[opportunityId]?.lastActivityAt ?? null,
-          isOpen: allWindows.some((w) => !w.closedAt),
+          // Owing work keeps an SOR current even when no window is open on it.
+          isOpen: allWindows.some((w) => !w.closedAt) || (moves[opportunityId] || []).length > 0,
           windows: allWindows,
+          moves: moves[opportunityId] || [],
         };
       }),
     );
@@ -4092,20 +4105,89 @@ export const opportunityService = {
     return colors;
   },
 
+  /**
+   * "Your move" on My SOR Work: the open work this person owes on each SOR,
+   * keyed by SOR. Three kinds, each read through a policy that already names
+   * the person: their own individual tasks, their unfinished part of an
+   * active group task, and Purchase Requests they are the Buyer of that still
+   * have an unsettled item. A mention is not a move: it is listed under
+   * Watching. Oldest first, so the first move is the one waiting longest.
+   */
+  async getMySorMoves(employeeId) {
+    if (!employeeId) return {};
+    const [tasksRes, partsRes, requestsRes] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, opportunity_id, project_title, task_description, status, created_at, end_at")
+        .eq("logged_by", employeeId)
+        .not("opportunity_id", "is", null)
+        .in("status", [TASK_STATUS.INCOMPLETE, TASK_STATUS.NOT_APPROVED]),
+      supabase
+        .from("committee_task_members")
+        .select("id, task_description, status, created_at, task:committee_tasks!inner(id, title, status, due_date, opportunity_id)")
+        .eq("employee_id", employeeId)
+        .neq("status", GROUP_MEMBER_STATUS.DONE)
+        .eq("task.status", GROUP_TASK_STATUS.ACTIVE)
+        .not("task.opportunity_id", "is", null),
+      supabase
+        .from("purchase_requests")
+        .select("id, opportunity_id, pr_number, title, created_at, items:purchase_request_items(status)")
+        .eq("buyer_id", employeeId)
+        .not("opportunity_id", "is", null),
+    ]);
+    for (const res of [tasksRes, partsRes, requestsRes]) if (res.error) throw res.error;
+
+    const moves = {};
+    const add = (sorId, move) => {
+      if (!sorId) return;
+      (moves[sorId] ||= []).push(move);
+    };
+    for (const t of tasksRes.data || []) {
+      add(t.opportunity_id, {
+        id: t.id,
+        entityType: "TASK",
+        kind: t.status === TASK_STATUS.NOT_APPROVED ? "Redo task" : "Task",
+        label: t.project_title || t.task_description?.split("\n")[0] || "Task",
+        since: t.created_at,
+        dueAt: t.end_at || null,
+      });
+    }
+    for (const m of partsRes.data || []) {
+      add(m.task?.opportunity_id, {
+        id: m.task.id,
+        entityType: "GROUP_TASK",
+        kind: "Group task",
+        label: m.task_description?.split("\n")[0] || m.task.title || "Your part",
+        since: m.created_at,
+        dueAt: m.task.due_date || null,
+      });
+    }
+    for (const r of requestsRes.data || []) {
+      const open = (r.items || []).filter((i) => !isClosedStatus(i.status)).length;
+      if (open === 0) continue;
+      add(r.opportunity_id, {
+        id: r.id,
+        entityType: "PURCHASE_REQUEST",
+        kind: "Purchase Request",
+        label: `${open} item${open === 1 ? "" : "s"} to buy${r.pr_number ? ` · ${r.pr_number}` : ""}`,
+        since: r.created_at,
+        dueAt: null,
+      });
+    }
+    for (const list of Object.values(moves)) {
+      list.sort((a, b) => new Date(a.since || 0) - new Date(b.since || 0));
+    }
+    return moves;
+  },
+
+  /**
+   * The My SOR Work badge: how many SORs have a move waiting on this person.
+   * Counts SORs, not moves, to match the "Needs you" group the badge opens.
+   */
   async countMyOpenSors(employeeId) {
     if (!employeeId) return 0;
-    const { data, error } = await supabase
-      .from("sor_stage_participants")
-      .select("opportunity_id")
-      .eq("employee_id", employeeId)
-      .is("closed_at", null);
-    if (error) throw error;
-    const mentions = await opportunityService.getMyMentionGrants(employeeId);
-    return new Set([
-      ...(data || []).map((r) => r.opportunity_id),
-      // Only Mention Windows still open: an ended one is listed, not counted.
-      ...mentions.filter((m) => !m.closed_at).map((m) => m.opportunity_id),
-    ]).size;
+    const moves = await opportunityService.getMySorMoves(employeeId);
+    return Object.keys(moves).length;
   },
 
   /**

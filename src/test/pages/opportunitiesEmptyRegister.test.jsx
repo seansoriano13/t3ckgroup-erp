@@ -23,10 +23,12 @@ vi.mock("@/context/AuthContext", () => ({
 
 describe("OpportunitiesPage with nothing the caller may see", () => {
   beforeEach(() => {
-    // The page restores its last tab from sessionStorage; without this a test
-    // that opens Board makes the next one start there.
-    sessionStorage.clear();
-    const employee = makeEmployee({ name: "Narrowed Salesperson" });
+    // The page restores its last tab from localStorage; without this a test
+    // that opens Board makes the next one start there. List, not the first
+    // visit's My work, is what these tests are about.
+    localStorage.clear();
+    localStorage.setItem("opportunitiesView", "list");
+    const employee = { ...makeEmployee({ name: "Narrowed Salesperson" }), has_sales_flow: true };
     mockUser.current = employee;
   });
 

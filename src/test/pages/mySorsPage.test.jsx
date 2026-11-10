@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import MySorsPage from "@/pages/my-sors/index";
+import MySorsPage from "@/components/sor/MySorWork";
 import { renderWithProviders } from "@/test/support";
 import {
   makeEmployee,
@@ -31,15 +31,21 @@ vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: mockUser.current, isAuthLoading: false }),
 }));
 
+/** Hover the info mark beside an SOR and return the "why you can see this" text. */
+async function whyText(user) {
+  await user.hover(await screen.findByLabelText("Why you can see this SOR"));
+  return (await screen.findByText("Why you can see this")).parentElement.textContent;
+}
+
 function renderPage() {
   return renderWithProviders(
-    <MemoryRouter initialEntries={["/my-sors"]}>
+    <MemoryRouter initialEntries={["/sors"]}>
       <MySorsPage />
     </MemoryRouter>,
   );
 }
 
-describe("My SORs", () => {
+describe("SORS: My work view", () => {
   let me, technical, bid, deal;
 
   beforeEach(() => {
@@ -68,7 +74,7 @@ describe("My SORs", () => {
     renderPage();
 
     expect(
-      await screen.findByText(/Nobody has called you into an SOR yet/i),
+      await screen.findByText(/Nothing on an SOR needs you/i),
     ).toBeInTheDocument();
   });
 
@@ -83,16 +89,19 @@ describe("My SORs", () => {
     });
 
     renderPage();
+    const user = userEvent.setup();
 
     expect(await screen.findByText("S01234")).toBeInTheDocument();
     expect(screen.getByText("Supply of Equipment")).toBeInTheDocument();
-    // The Stage that pulled them in, not the Stage the SOR is on now.
-    expect(screen.getByRole("columnheader", { name: "Called in at" })).toBeInTheDocument();
-    expect(screen.getByText("Technical Review")).toBeInTheDocument();
+    // Now on is the Stage the SOR is on today.
     expect(screen.getByText("Bid Submitted")).toBeInTheDocument();
-    expect(screen.getByText("Task")).toBeInTheDocument();
-    // The reach, in the Flow Canvas's own words.
-    expect(screen.getByText(/this Stage only/)).toBeInTheDocument();
+    // Called in with nothing owed: Watching, not Needs you.
+    expect(screen.getByTestId("my-sors-group-watching")).toBeInTheDocument();
+    expect(screen.getByText("Nothing owed")).toBeInTheDocument();
+    // Why they can see it is hover detail: the Stage that pulled them in, how, and the reach.
+    const why = await whyText(user);
+    expect(why).toMatch(/Task at Technical Review/);
+    expect(why).toMatch(/this Stage only/);
   });
 
   it("names the later Stage a longer window reaches through", async () => {
@@ -106,8 +115,9 @@ describe("My SORs", () => {
     });
 
     renderPage();
+    const user = userEvent.setup();
 
-    expect(await screen.findByText(/through Bid Submitted/)).toBeInTheDocument();
+    expect(await whyText(user)).toMatch(/through Bid Submitted/);
   });
 
   it("keeps an ended window listed behind the Access filter, tagged Access ended (#478)", async () => {
@@ -131,7 +141,7 @@ describe("My SORs", () => {
 
     // The SOR someone worked last month is what they come here looking for.
     expect(await screen.findByText("S01234")).toBeInTheDocument();
-    expect(screen.getByText("Access ended", { selector: "td span" })).toBeInTheDocument();
+    expect(screen.getByTestId("my-sors-group-ended")).toHaveTextContent("Access ended");
   });
 
   it("opens a row through the one shared entry path, not a modal of its own", async () => {
@@ -163,11 +173,14 @@ describe("My SORs", () => {
     makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: second.id, source: "assignment" });
 
     renderPage();
+    const user = userEvent.setup();
 
     expect(await screen.findAllByText("S01234")).toHaveLength(1);
-    expect(screen.getAllByRole("row")).toHaveLength(2); // header + one SOR
-    // Two call-ins stay two answers: one on the row, the other behind the chip.
-    expect(screen.getByLabelText("1 more windows")).toHaveTextContent("+1");
+    expect(screen.getAllByRole("row")).toHaveLength(3); // header + group + one SOR
+    // Two call-ins stay two answers, both in the hover.
+    const why = await whyText(user);
+    expect(why).toMatch(/Task at Technical Review/);
+    expect(why).toMatch(/Assignment at Bid Submitted/);
   });
 
   it("shows — when there is no Sales Reference", async () => {
@@ -192,11 +205,10 @@ describe("My SORs", () => {
     ]);
 
     renderPage();
+    const user = userEvent.setup();
 
     expect(await screen.findByText("S01234")).toBeInTheDocument();
-    expect(screen.getByText("Mention")).toBeInTheDocument();
-    expect(screen.getByText(/by Sean Sender/)).toBeInTheDocument();
-    expect(screen.getByText("Technical Review")).toBeInTheDocument();
+    expect(await whyText(user)).toMatch(/Mention by Sean Sender at Technical Review/);
   });
 
   it("lists an SOR I am on the Deal Team of as Deal Team with Full access, and filters by it (#478)", async () => {
@@ -210,8 +222,7 @@ describe("My SORs", () => {
 
     expect(await screen.findByText("S01234")).toBeInTheDocument();
     const row = screen.getByText("S01234").closest("tr");
-    expect(row).toHaveTextContent("Deal Team");
-    expect(row).toHaveTextContent(/Sees the whole SOR \(Full access\)/);
+    expect(await whyText(user)).toMatch(/Deal Team · sees the whole SOR \(Full access\)/);
     // The Deal Team window has no start date: a dash, never "Invalid Date".
     expect(row).not.toHaveTextContent("Invalid Date");
     expect(row.querySelector("td:last-child")).toHaveTextContent("—");

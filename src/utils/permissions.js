@@ -119,6 +119,17 @@ export function canReadIpas(ctx) {
 }
 
 /**
+ * Whether the person `ctx` describes gets the SORS register's own views (List,
+ * Board, Overview, Deleted) and Register SOR: Super Admins, HR, Sales access
+ * and Purchasing access. Everyone else still opens SORS, but sees only My
+ * work, the SORs they were called into. A screen's convenience: `sor_read`
+ * decides which rows anyone actually gets.
+ */
+export function canReadSorRegister(ctx) {
+  return !!(ctx?.isSuperAdmin || ctx?.isHr || ctx?.hasSalesFlow || ctx?.hasPurchasingFlow);
+}
+
+/**
  * Who may create, edit and manage Group Tasks (#656): department heads, HR
  * and Super Admins. Everyone else only sees the tasks they belong to, chats,
  * ticks their checklist and works on their own part. Mirrors the SQL function

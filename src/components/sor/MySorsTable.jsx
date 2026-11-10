@@ -1,3 +1,5 @@
+import { Fragment, useMemo, useState } from "react";
+import { Info } from "lucide-react";
 import {
   SortHead,
   Table,
@@ -9,13 +11,17 @@ import {
 } from "../ui/table";
 import { useTableSort } from "../../hooks/useTableSort";
 import { Tooltip } from "../ui/Tooltip";
+import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
 import { SOURCE_DEAL_TEAM, SOURCE_MENTION } from "../../utils/mySorsFilters";
 
 /**
- * My SORs as a Register table: one row per SOR, showing its most recent
- * call-in. Any other windows collapse into a "+N" chip whose tooltip lists
- * them, so "why can I see this" keeps every answer without a row each.
+ * My SOR Work as a work list: one row per SOR, grouped by whether the person
+ * owes something on it. "Needs you" leads, with the move waiting longest on
+ * top; "Watching" holds SORs they can see but owe nothing on; "Access ended"
+ * shows only when the Access filter lets it. Why the person can see an SOR
+ * (Deal Team, called in, mentioned) is hover detail on the info mark, never a
+ * standing column: it answers a question nobody asks while working the list.
  */
 const VIA_LABEL = {
   [SOURCE_DEAL_TEAM]: "Deal Team",
@@ -25,115 +31,207 @@ const VIA_LABEL = {
   [SOURCE_MENTION]: "Mention",
 };
 
-const formatSince = (iso) =>
-  iso
-    ? new Date(iso).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : "—";
+const DAY = 24 * 60 * 60 * 1000;
+
+const formatDate = (iso) =>
+  iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+
+/** "today", "1 day", "12 days": how long a move has waited. */
+const waitedFor = (iso, now) => {
+  if (!iso) return null;
+  const days = Math.floor((now - new Date(iso).getTime()) / DAY);
+  if (days <= 0) return "today";
+  return `${days} day${days === 1 ? "" : "s"}`;
+};
 
 const describeWindow = (w) =>
-  `${w.calledInAtStageName || "This deal"} · ${VIA_LABEL[w.source] || "—"}${
-    w.mentionedBy ? ` by ${w.mentionedBy}` : ""
-  } · sees ${w.reachLabel}${
-    w.closedAt ? " (closed)" : ""
-  }`;
+  `${VIA_LABEL[w.source] || "Called in"}${w.mentionedBy ? ` by ${w.mentionedBy}` : ""}${
+    w.calledInAtStageName ? ` at ${w.calledInAtStageName}` : ""
+  } · sees ${w.reachLabel}${w.closedAt ? " (ended)" : ""}`;
+
+const oldestMove = (r) => r.moves?.[0];
 
 const MY_SORS_SORT = {
   sor: (r) => r.salesReference || r.sorCode,
+  move: (r) => oldestMove(r)?.label,
   "now-on": (r) => r.currentStageName,
-  "called-in-at": (r) => r.windows[0]?.calledInAtStageName,
-  via: (r) => VIA_LABEL[r.windows[0]?.source],
-  access: (r) => r.windows[0]?.reachLabel,
-  since: (r) => (r.windows[0]?.createdAt ? new Date(r.windows[0].createdAt).getTime() : null),
+  // Oldest first reads as "longest waiting first" when sorted ascending.
+  waiting: (r) => {
+    const at = oldestMove(r)?.since || r.windows[0]?.createdAt;
+    return at ? new Date(at).getTime() : null;
+  },
 };
 
+const GROUPS = [
+  { key: "needs", label: "Needs you", test: (r) => r.moves?.length > 0 },
+  { key: "watching", label: "Watching", test: (r) => !(r.moves?.length > 0) && r.isOpen },
+  { key: "ended", label: "Access ended", test: (r) => !(r.moves?.length > 0) && !r.isOpen },
+];
+
+function openEntity(move) {
+  window.dispatchEvent(
+    new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: move.id, type: move.entityType } }),
+  );
+}
+
+function MoveCell({ moves }) {
+  if (!moves?.length) return <span className="text-muted-foreground">Nothing owed</span>;
+  const [first, ...rest] = moves;
+  return (
+    <span className="inline-flex min-w-0 max-w-full items-center gap-2">
+      <Button
+        type="button"
+        variant="link"
+        onClick={(e) => {
+          e.stopPropagation();
+          openEntity(first);
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+        className="h-auto min-w-0 justify-start truncate px-0 text-left text-[length:inherit] font-medium"
+      >
+        <span className="truncate">
+          <span className="text-muted-foreground">{first.kind}:</span> {first.label}
+        </span>
+      </Button>
+      {rest.length > 0 && (
+        <Tooltip
+          content={
+            <ul className="space-y-1 font-medium">
+              {rest.map((m) => (
+                <li key={`${m.entityType}-${m.id}`}>
+                  {m.kind}: {m.label}
+                </li>
+              ))}
+            </ul>
+          }
+        >
+          <span
+            tabIndex={0}
+            aria-label={`${rest.length} more to do`}
+            className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-black text-muted-foreground"
+          >
+            +{rest.length}
+          </span>
+        </Tooltip>
+      )}
+    </span>
+  );
+}
+
+function WaitingCell({ row, now }) {
+  const move = oldestMove(row);
+  if (!move) {
+    const since = formatDate(row.windows[0]?.createdAt);
+    return <span className="text-muted-foreground">{since ? `Since ${since}` : "—"}</span>;
+  }
+  const overdue = move.dueAt && new Date(move.dueAt).getTime() < now;
+  return (
+    <div className="flex flex-col">
+      <span className="tabular-nums text-foreground">{waitedFor(move.since, now)}</span>
+      {move.dueAt && (
+        <span className={overdue ? "text-xs font-semibold text-red-11" : "text-xs text-muted-foreground"}>
+          {overdue ? "Overdue · " : "Due "}
+          {formatDate(move.dueAt)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function MySorsTable({ rows: unsortedRows, onOpen }) {
-  const { sorted: rows, sort, toggle } = useTableSort(unsortedRows, MY_SORS_SORT);
+  // One clock for the whole list, read once when it mounts.
+  const [now] = useState(() => Date.now());
+  // Until a header is clicked, the move waiting longest leads.
+  const byWaiting = useMemo(() => {
+    const at = MY_SORS_SORT.waiting;
+    return [...unsortedRows].sort((a, b) => (at(a) ?? Infinity) - (at(b) ?? Infinity));
+  }, [unsortedRows]);
+  const { sorted: rows, sort, toggle } = useTableSort(byWaiting, MY_SORS_SORT);
+  const groups = GROUPS.map((g) => ({ ...g, rows: rows.filter(g.test) })).filter((g) => g.rows.length > 0);
+
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-      <Table tableId="my-sors" className="min-w-[900px]">
+      <Table tableId="my-sors" className="min-w-[860px]">
         <TableHeader>
           <TableRow>
             <SortHead id="sor" sortKey="sor" sort={sort} onSort={toggle}>SOR</SortHead>
+            <SortHead id="move" sortKey="move" sort={sort} onSort={toggle}>Your move</SortHead>
             <SortHead id="now-on" sortKey="now-on" sort={sort} onSort={toggle}>Now on</SortHead>
-            <SortHead id="called-in-at" sortKey="called-in-at" sort={sort} onSort={toggle}>Called in at</SortHead>
-            <SortHead id="via" sortKey="via" sort={sort} onSort={toggle}>Via</SortHead>
-            <SortHead id="access" sortKey="access" sort={sort} onSort={toggle}>Access</SortHead>
-            <SortHead id="since" sortKey="since" sort={sort} onSort={toggle}>Since</SortHead>
+            <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle}>Waiting</SortHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((row) => {
-            const [first, ...others] = row.windows;
-            return (
-              <TableRow
-                key={row.opportunityId}
-                tabIndex={0}
-                onClick={() => onOpen(row.opportunityId)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onOpen(row.opportunityId);
-                  }
-                }}
-                className="group cursor-pointer"
-              >
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[13px] font-semibold text-foreground">
-                      {row.salesReference || row.sorCode || "—"}
-                    </span>
-                    {!row.isOpen && <StatusBadge theme="mauve" label="Access ended" />}
-                  </div>
-                  <div className="max-w-xs truncate text-muted-foreground">
-                    {row.projectTitle || "Untitled"}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {row.currentStageName ? (
-                    <StatusBadge theme={row.currentStageColor || "mauve"} label={row.currentStageName} />
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-                <TableCell>{first?.calledInAtStageName || "—"}</TableCell>
-                <TableCell>
-                  {VIA_LABEL[first?.source] || "—"}
-                  {first?.mentionedBy ? <span className="text-muted-foreground"> by {first.mentionedBy}</span> : null}
-                </TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center gap-2">
-                    {first ? `Sees ${first.reachLabel}` : "—"}
-                    {others.length > 0 && (
-                      <Tooltip
-                        content={
-                          <ul className="space-y-1 font-medium">
-                            {others.map((w) => (
-                              <li key={w.id}>{describeWindow(w)}</li>
-                            ))}
-                          </ul>
-                        }
-                      >
-                        <span
-                          tabIndex={0}
-                          aria-label={`${others.length} more windows`}
-                          className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-black text-muted-foreground"
-                        >
-                          +{others.length}
-                        </span>
-                      </Tooltip>
-                    )}
-                  </span>
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {formatSince(first?.createdAt)}
-                </TableCell>
+          {groups.map((group) => (
+            <Fragment key={group.key}>
+              <TableRow className="hover:bg-transparent" data-testid={`my-sors-group-${group.key}`}>
+                <TableHead colSpan={4} className="h-9 bg-muted/40 text-xs font-semibold text-foreground">
+                  {group.label}
+                  <span className="ml-2 tabular-nums font-normal text-muted-foreground">{group.rows.length}</span>
+                </TableHead>
               </TableRow>
-            );
-          })}
+              {group.rows.map((row) => (
+                <TableRow
+                  key={row.opportunityId}
+                  tabIndex={0}
+                  onClick={() => onOpen(row.opportunityId)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onOpen(row.opportunityId);
+                    }
+                  }}
+                  className="group cursor-pointer"
+                >
+                  <TableCell className="w-[32%]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-[13px] font-semibold text-foreground">
+                        {row.salesReference || row.sorCode || "—"}
+                      </span>
+                      {row.windows.length > 0 && (
+                        <Tooltip
+                          content={
+                            <div className="space-y-1 font-medium">
+                              <p className="text-muted-foreground">Why you can see this</p>
+                              <ul className="space-y-1">
+                                {row.windows.map((w) => (
+                                  <li key={w.id}>{describeWindow(w)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          }
+                        >
+                          <span
+                            tabIndex={0}
+                            aria-label="Why you can see this SOR"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex text-muted-foreground/70 hover:text-foreground"
+                          >
+                            <Info size={13} />
+                          </span>
+                        </Tooltip>
+                      )}
+                    </div>
+                    <div className="max-w-xs truncate text-muted-foreground">
+                      {row.projectTitle || "Untitled"}
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-0 w-[36%]">
+                    <MoveCell moves={row.moves} />
+                  </TableCell>
+                  <TableCell>
+                    {row.currentStageName ? (
+                      <StatusBadge theme={row.currentStageColor || "mauve"} label={row.currentStageName} />
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <WaitingCell row={row} now={now} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </Fragment>
+          ))}
         </TableBody>
       </Table>
     </div>

@@ -16,7 +16,6 @@ import {
   ShoppingCart,
   ShoppingBag,
   Sparkles,
-  Handshake,
   Bug,
   PackageOpen,
   ReceiptText,
@@ -109,8 +108,15 @@ export const NAV_MODULES = {
         label: "SORS",
         link: "/sors",
         icon: Target,
-        // Purchasing reads the register too: their buying starts from an SOR.
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow || ctx.hasPurchasingFlow,
+        // Open to everyone. ADR 0021 lets a purchaser, an engineer or a
+        // finance officer be called into an SOR without Sales access, and the
+        // register's My work view is where they find it. `isPermitted` is
+        // synchronous and cannot ask whether this person holds a window, so it
+        // does not try: someone without register access sees only My work
+        // (`canReadSorRegister`), with an empty state when they have none.
+        // The badge counts the SORs where something waits on this person.
+        badgeKey: "mySors",
+        isPermitted: () => true,
         exactMatch: true,
       },
       // The Costing Matrix page (#606): every SOR's matrix with Planned and
@@ -134,23 +140,6 @@ export const NAV_MODULES = {
         link: "/technical",
         icon: ClipboardCheck,
         isPermitted: (ctx) => ctx.canOpenTechnical,
-      },
-      // ADR 0021 keeps a Stage Participant out of `sales_opportunities`, so a
-      // deal someone was called into can never appear in the SORS register.
-      // This is where it appears instead. Deliberately ungated, like Flow
-      // Canvas: `isPermitted` is synchronous and cannot ask whether this
-      // person holds a window, and gating on `hasSalesFlow` would lock out
-      // exactly the people ADR 0021 names — a purchaser, an engineer, a
-      // finance officer — none of whom need Sales access to be called in.
-      // The page shows an empty state to anyone who has none.
-      {
-        key: "sales.mySors",
-        label: "My SORs",
-        link: "/my-sors",
-        icon: Handshake,
-        badgeKey: "mySors",
-        isPermitted: () => true,
-        exactMatch: true,
       },
       {
         key: "sales.commissionDashboard",

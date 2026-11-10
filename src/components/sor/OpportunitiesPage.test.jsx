@@ -82,6 +82,13 @@ vi.mock("../../context/AuthContext", () => ({
   }),
 }));
 
+// The register opens on My work the first time; these tests are about the
+// List, so they start from a person who last used it.
+beforeEach(() => {
+  localStorage.clear();
+  localStorage.setItem("opportunitiesView", "list");
+});
+
 describe("OpportunitiesPage Deep Linking", () => {
   beforeEach(() => {
     vi.clearAllMocks();

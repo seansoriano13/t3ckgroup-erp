@@ -57,7 +57,7 @@ describe("navigation registry", () => {
         "Release Notes",
       ]);
       expect(groups[1].key).toBe("sales");
-      expect(groups[1].links.map((l) => l.label)).toEqual(["My SORs"]);
+      expect(groups[1].links.map((l) => l.label)).toEqual(["SORS"]);
       expect(groups[2].key).toBe("purchasing");
       expect(groups[2].links.map((l) => l.label)).toEqual(["Purchase Requests"]);
       expect(groups.find((g) => g.key === "administration")).toBeUndefined();
@@ -214,10 +214,6 @@ describe("navigation registry", () => {
       expect(salesGroup).toBeDefined();
       expect(salesGroup.links.map((l) => l.label)).toEqual([
         "SORS",
-        // ADR 0021: the SORs this person was called into, which `sor_read`
-        // keeps out of the register above. Ungated — see the standard
-        // employee case.
-        "My SORs",
         "Commission Dashboard",
         // Retail moved out of the register's tab strip onto its own screen,
         // gated by the Retail access right (on by default for SALES).
@@ -229,10 +225,10 @@ describe("navigation registry", () => {
       const taskUser = { id: "task-1", has_task_flow: true };
 
       const groups = getFilteredNavigationGroups(taskUser);
-      // The Sales group now survives for this user, but only for My SORs —
-      // Retail must still be absent from it.
+      // The Sales group survives for this user, but only for SORS (its My
+      // work view) — Retail must still be absent from it.
       const salesGroup = groups.find((g) => g.key === "sales");
-      expect(salesGroup.links.map((l) => l.label)).toEqual(["My SORs"]);
+      expect(salesGroup.links.map((l) => l.label)).toEqual(["SORS"]);
 
       // Asserted against the entry itself as well: checking only the group's
       // contents would not catch Retail's own gate being loosened.
@@ -417,7 +413,6 @@ describe("navigation registry", () => {
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
           "SORS",
-          "My SORs",
           "Retail",
         ]);
       });
@@ -429,7 +424,6 @@ describe("navigation registry", () => {
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
           "SORS",
-          "My SORs",
           "Commission Dashboard",
           "Retail",
         ]);
@@ -453,7 +447,6 @@ describe("navigation registry", () => {
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
           "SORS",
-          "My SORs",
           "Commission Dashboard",
           "Retail",
         ]);
