@@ -13,9 +13,7 @@ export function useCostingTier(opportunityId) {
     queryFn: () => costingMatrixService.tier(opportunityId),
     retry: false,
     staleTime: 60_000,
-    // Leave `enabled` unset when there is an id, so the Release Notes
-    // SampleProvider's off-by-default queries keep this off the network.
-    ...(opportunityId ? {} : { enabled: false }),
+    enabled: Boolean(opportunityId),
   });
 }
 

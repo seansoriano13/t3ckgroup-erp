@@ -18,10 +18,6 @@ const REGISTER_TABS = [
  *
  * No "SORS" title rides along any more: the strip opens the register's header
  * row on its own, and the SideNav's active item already says where you are.
- * The Release Notes deck still draws that title itself, on the one slide whose
- * whole subject is the rename.
- *
- * Shared by the register and the Release Notes deck.
  */
 export default function SorsViewTabs({ view, onChange }) {
   return (

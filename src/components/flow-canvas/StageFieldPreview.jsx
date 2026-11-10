@@ -8,8 +8,6 @@ import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
  * How a Stage field will look on the SOR, drawn from the draft being edited.
- * Shared by the Stage Fields form and the Release Notes deck, so the deck shows
- * the real thing instead of a picture of it.
  */
 export default function StageFieldPreview({ draft }) {
   return (

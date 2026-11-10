@@ -39,7 +39,7 @@ export default function PendingActionDecisions({ opportunity, actorId, onChanged
     enabled: !!opportunityId && !!actorId,
   });
 
-  // Set once the decision is actually sent, so a refusal raised before any request (Release Notes samples) does not refetch.
+  // Set once the decision is actually sent, so a refusal raised before any request does not refetch.
   const sentRef = useRef(false);
 
   const decideMutation = useMutation({

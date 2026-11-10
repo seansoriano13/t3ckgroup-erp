@@ -21,8 +21,7 @@ const INK_COLOR = "#1B1620"; // mauve-ink, matches the printed forms' typography
  * environment doesn't have. Its contract is that it emits a PNG blob, and
  * that blob's journey from there is what signatureService.test.js covers.
  *
- * `save` stores the PNG; Release Notes swaps it for one that stores nothing
- * (ADR 0030).
+ * `save` stores the PNG.
  */
 export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onSuccess, save = signatureService.saveSignature }) {
   const [activeTab, setActiveTab] = useState("draw");

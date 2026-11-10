@@ -15,8 +15,7 @@ import { cn } from "@/lib/utils";
  * amount is one hover away, and the register's own columns carry it to the
  * centavo for anything you would act on.
  *
- * `count` is optional: the Release Notes deck shows the two money figures on
- * their own, with no register behind them to count.
+ * `count` is optional: without it, only the two money figures show.
  */
 export default function SorsTotals({ count, openValue, wonValue, className }) {
   return (
