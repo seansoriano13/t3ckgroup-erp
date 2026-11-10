@@ -146,14 +146,22 @@ export function IpasChargesSection({
   onAddCharge,
   onEditCharge,
   onRemoveCharge,
+  onRemoveBlankCharges,
   children = null,
 }) {
   const canRecord = useEditable(recordGranted);
   const { charges } = ipas;
+  const blank = charges.filter((charge) => charge.amount_php === null || charge.amount_php === undefined);
 
   return (
     <IpasSection title={ipasSectionLabel("finance")}>
       <SectionHeader title={`Freight and charges · ${charges.length}`} className="border-b-0 pb-2">
+        {canRecord && onRemoveBlankCharges && blank.length > 0 && (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onRemoveBlankCharges(blank)}>
+            <Trash2 size={14} />
+            Remove blank charges ({blank.length})
+          </Button>
+        )}
         {canRecord && (
           <Button size="sm" variant="outline" className="gap-1.5" onClick={onAddCharge}>
             <Plus size={14} />

@@ -105,6 +105,19 @@ describe("payments and charges", () => {
     expect(next.charges).toHaveLength(1)
     expect(next.charges[0]).toMatchObject({ amount_php: 600, kind_id: "c1" })
   })
+
+  it("removes every blank charge in one step and keeps the ones with an amount", () => {
+    const withCharges = (rows) => ({ ...cached(), charges: rows })
+    const raw = withCharges([
+      { id: "a", amount_php: null },
+      { id: "b", amount_php: 600 },
+      { id: "c", amount_php: undefined },
+      { id: "d", amount_php: 0 },
+    ])
+    const blankIds = raw.charges.filter((c) => c.amount_php === null || c.amount_php === undefined).map((c) => c.id)
+    expect(blankIds).toEqual(["a", "c"])
+    expect(edit.removeCharges(blankIds)(raw).charges.map((c) => c.id)).toEqual(["b", "d"])
+  })
 })
 
 describe("sign-offs", () => {

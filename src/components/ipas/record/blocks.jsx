@@ -61,7 +61,7 @@ export function buildBlocks(ctx) {
     />
   );
   const charges = (
-    <IpasChargesSection ipas={ipas} canRecord={can.record} onAddCharge={on.addCharge} onEditCharge={on.editCharge} onRemoveCharge={on.removeCharge} />
+    <IpasChargesSection ipas={ipas} canRecord={can.record} onAddCharge={on.addCharge} onEditCharge={on.editCharge} onRemoveCharge={on.removeCharge} onRemoveBlankCharges={on.removeBlankCharges} />
   );
   const sales = (
     <IpasSalesSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} />
