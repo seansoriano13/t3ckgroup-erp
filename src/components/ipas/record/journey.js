@@ -11,6 +11,7 @@ import {
   IPAS_SOURCE,
 } from "@/constants/ipas";
 import { TRANSMITTAL_STAFF_LIST } from "@/constants/transmittals";
+import { chargesLackingFile, isBlankCharge } from "@/utils/ipasDocuments";
 
 const LIST_NAME = {
   [IPAS_SIGNER_LIST.S1_APPROVED]: "Order approvers",
@@ -33,6 +34,13 @@ const CHECK_LISTS = [IPAS_SIGNER_LIST.S7_RECEIVED, IPAS_SIGNER_LIST.S7_NOTED, IP
 
 const orList = (names) => (names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`);
 const andList = (items) => (items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
+
+/** The Sign Logistics item, shared by the rail and section 4 · Delivery so both open the same review window. */
+export const LOGISTICS_ITEM = {
+  key: "logistics",
+  label: "Sign Logistics",
+  action: { kind: "logistics", label: "Sign Logistics", confirm: "Sign Logistics", what: "Logistics is signed and filing can go ahead" },
+};
 
 export function journeyFor({ ipas, digest, lists, userId, can }) {
   const members = (keys) => {
@@ -82,9 +90,9 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
           : { line: "Landed Cost has no figure yet.", section: null, label: null };
 
   // A charge with no amount stops section 2's sign-off in the database: it is fixed (or removed) before signing.
-  const blankCharges = (ipas.charges ?? []).filter((charge) => charge.amount_php === null || charge.amount_php === undefined).length;
+  const blankCharges = (ipas.charges ?? []).filter(isBlankCharge).length;
   // …and a charge with an amount needs its file (the database checks both when signing).
-  const chargesNoFile = (ipas.charges ?? []).filter((charge) => charge.amount_php !== null && charge.amount_php !== undefined && !charge.attachment_url).length;
+  const chargesNoFile = chargesLackingFile(ipas).length;
   const chargeProblems = [
     blankCharges > 0 && `${blankCharges} ${blankCharges === 1 ? "charge has" : "charges have"} no amount (fill in or remove)`,
     chargesNoFile > 0 && `${chargesNoFile} ${chargesNoFile === 1 ? "charge has" : "charges have"} no file`,
@@ -171,7 +179,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
           : `Opens once the ${andList([!located && "Item Location", !carried && "Transmittal", !arrived && "arrival date"].filter(Boolean))} ${[!located, !carried, !arrived].filter(Boolean).length > 1 ? "are" : "is"} in.`,
       who: who([IPAS_SIGNER_LIST.LOGISTICS_SIGNED]),
       action: !s8?.approved && logisticsReady && onList([IPAS_SIGNER_LIST.LOGISTICS_SIGNED])
-        ? { kind: "logistics", label: "Sign Logistics", confirm: "Sign Logistics", what: "Logistics is signed and filing can go ahead" }
+        ? LOGISTICS_ITEM.action
         : null,
     },
   ].filter(Boolean);

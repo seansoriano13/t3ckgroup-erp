@@ -119,7 +119,7 @@ function AddButton({ onClick, children, icon: Icon = Plus }) {
 // ── Section 1: freight and payments ─────────────────────────────────────────
 
 /** A file attached to a freight or charge row: shows the link, or an Attach button (#709). */
-function AttachFile({ label, url, disabled, onChange }) {
+function AttachFile({ label, url, disabled, onChange, missingIn }) {
   const [uploading, setUploading] = useState(false);
   const attach = async ([file]) => {
     setUploading(true);
@@ -131,7 +131,8 @@ function AttachFile({ label, url, disabled, onChange }) {
     }
   };
   return (
-    <div className="min-w-0">
+    // data-missing-file: where the edit bar's Next empty scrolls to (#924).
+    <div className="min-w-0" data-missing-file={!url && !disabled ? missingIn : undefined}>
       <FieldBox label={label} />
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         {url ? (
@@ -251,7 +252,7 @@ function ProofField({ row, disabled, onPatch }) {
     }
   };
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" data-missing-file={!row.proofUrl && !disabled ? "payments" : undefined}>
       <FieldBox label={<>Proof of payment<RequiredMark /></>} />
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         {row.proofUrl ? (
@@ -463,7 +464,7 @@ function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove
           error={row.amountPhp !== "" && !amount.ok ? "Not a number" : undefined}
           onChange={(v) => onPatch({ amountPhp: v })}
         />
-        <AttachFile label="File" url={row.attachmentUrl} disabled={disabled} onChange={(v) => onPatch({ attachmentUrl: v })} />
+        <AttachFile label="File" url={row.attachmentUrl} disabled={disabled} missingIn="costs" onChange={(v) => onPatch({ attachmentUrl: v })} />
       </div>
     </DraftRow>
   );
@@ -535,7 +536,7 @@ function AttachmentField({ document, row, disabled, onPatch }) {
   }
   if (disabled) return <span className="text-xs text-muted-foreground">—</span>;
   return (
-    <FileInput accept={ALLOWED_EXTENSIONS_STRING} disabled={uploading} onFiles={attach} size="xs" className="gap-1" aria-label={`Attach a file to ${document.label}`}>
+    <FileInput data-missing-file="documents" accept={ALLOWED_EXTENSIONS_STRING} disabled={uploading} onFiles={attach} size="xs" className="gap-1" aria-label={`Attach a file to ${document.label}`}>
       {uploading ? <Spinner size="sm" /> : <Paperclip size={12} aria-hidden="true" />}
       {uploading ? "Uploading…" : "Attach"}
     </FileInput>

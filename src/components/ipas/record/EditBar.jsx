@@ -7,7 +7,7 @@ import { useState } from "react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { focusField } from "./formHelpers";
+import { focusField, scrollIntoViewGently } from "./formHelpers";
 
 export default function EditBar({ editor, canSave, saving, onDone, reveal, show, missingFiles = [], notice, failure }) {
   const { changed, missing, done, total, saved, planError, save, clear } = editor;
@@ -24,6 +24,9 @@ export default function EditBar({ editor, canSave, saving, onDone, reveal, show,
     if (!file) return;
     if (show) show(file.section);
     else reveal(file.section);
+    // Scroll to the first empty file slot of that section (slots carry data-missing-file).
+    const scroll = () => scrollIntoViewGently(document.querySelector(`[data-missing-file="${file.section}"]`));
+    requestAnimationFrame(() => requestAnimationFrame(scroll));
   };
 
   let status = null;

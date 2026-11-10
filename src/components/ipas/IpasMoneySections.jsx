@@ -24,6 +24,7 @@ import {
   ipasSectionLabel,
 } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
+import { isBlankCharge } from "../../utils/ipasDocuments";
 import { optionsForPicker } from "../../utils/ipasPayments";
 import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from "../../utils/landedCost";
 
@@ -151,7 +152,7 @@ export function IpasChargesSection({
 }) {
   const canRecord = useEditable(recordGranted);
   const { charges } = ipas;
-  const blank = charges.filter((charge) => charge.amount_php === null || charge.amount_php === undefined);
+  const blank = charges.filter(isBlankCharge);
 
   return (
     <IpasSection title={ipasSectionLabel("finance")}>

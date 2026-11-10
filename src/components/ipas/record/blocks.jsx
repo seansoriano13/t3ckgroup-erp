@@ -18,14 +18,9 @@ import {
 
 import { useState } from "react";
 
+import { LOGISTICS_ITEM } from "./journey";
 import SignReview from "./SignReview";
 import SignoffList from "./SignoffList";
-
-const LOGISTICS_ITEM = {
-  key: "logistics",
-  label: "Sign Logistics",
-  action: { kind: "logistics", confirm: "Sign Logistics", what: "Logistics is signed and filing can go ahead" },
-};
 
 /** Section 4 with its Sign Logistics button opening the same review window as the rail. */
 function LogisticsWithReview({ ctx }) {

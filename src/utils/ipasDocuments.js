@@ -156,16 +156,26 @@ const dateText = (iso) => {
   return Number.isNaN(date.getTime()) ? String(iso) : date.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
 };
 
+/** The payments with no proof of payment attached: the one rule behind the rail, the edit bar and the 2 Â· Payments row. */
+export function paymentsLackingProof(payments = []) {
+  return payments.filter((payment) => !payment.proof_url);
+}
+
+/** A charge with no amount yet (0 counts as filled). The database's Landed Cost final check mirrors this (#919). */
+export function isBlankCharge(charge) {
+  return charge?.amount_php === null || charge?.amount_php === undefined;
+}
+
+/** The charges that have an amount but no file attached. */
+export function chargesLackingFile(ipas) {
+  return (ipas?.charges ?? []).filter((charge) => !isBlankCharge(charge) && !charge.attachment_url);
+}
+
 /**
  * The documents each part still lacks a file for: { purchasing, finance, costing,
  * filing } of label lists. A document counts once its row for that kind has an
  * attachment; the landed cost sheet is never asked for.
  */
-/** The payments with no proof of payment attached: the one rule behind the rail, the edit bar and the 2 · Payments row. */
-export function paymentsLackingProof(payments = []) {
-  return payments.filter((payment) => !payment.proof_url);
-}
-
 export function missingDocumentsByPart(documents = [], payments = [], source) {
   const has = (label) =>
     documents.some((doc) => !doc.byHand && doc.attachmentUrl && String(doc.kind?.label ?? "").trim().toLowerCase() === label.toLowerCase());

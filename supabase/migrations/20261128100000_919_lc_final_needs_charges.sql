@@ -3,6 +3,8 @@
 -- amount. A trigger (not just ipas_set_header) so no other route can slip past it. Only the move
 -- INTO lc_odoo_done is checked: an IPAS already there is not blocked from other edits.
 
+-- Keep in step with isBlankCharge in src/utils/ipasDocuments.js: a charge is blank when amount_php is null
+-- (0 counts as filled). The rail, the Remove blank charges button and the missing-files list use that helper.
 create or replace function public.ipas_lc_final_needs_charges()
 returns trigger
 language plpgsql

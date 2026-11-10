@@ -3,6 +3,8 @@
 // before signing, proof of payment per payment) and a charge with an amount but no file.
 // The edit bar (#924) counts these beside the required fields and Next empty jumps to them.
 
+import { chargesLackingFile } from "@/utils/ipasDocuments";
+
 /** [{ label, section }] in the order the rail lists them; `section` is where to attach it. */
 export function missingRequiredFiles({ ipas, digest }) {
   const byPart = digest?.docs?.missingByPart ?? {};
@@ -11,9 +13,6 @@ export function missingRequiredFiles({ ipas, digest }) {
     label,
     section: label.startsWith("Proof of payment") ? "payments" : "documents",
   }));
-  for (const charge of ipas?.charges ?? []) {
-    const hasAmount = charge.amount_php !== null && charge.amount_php !== undefined;
-    if (hasAmount && !charge.attachment_url) out.push({ label: "Charge file", section: "costs" });
-  }
+  for (const charge of chargesLackingFile(ipas)) out.push({ label: "Charge file", section: "costs", id: charge.id });
   return out;
 }

@@ -344,15 +344,23 @@ function IpasPage({ onClose }) {
       signoffChanged();
     },
   });
+  // The review window shows a refusal beside its button, so no toast or card failure here;
+  // the instant update is put back and the page reads the IPAS again.
   const signLogistics = useMutation({
     mutationFn: () => ipasService.sign(id, 8, IPAS_SIGNOFF_ROLE.APPROVED),
+    onMutate: () => ({
+      rollback: patchCache(optimistic.giveSignoff({ section: 8, role: IPAS_SIGNOFF_ROLE.APPROVED, by, ipasId: id })),
+    }),
     onSuccess: () => {
       toast.success("Logistics signed.");
       setFailure(null);
       markSigned();
       signoffChanged();
     },
-    onError: () => signoffChanged(),
+    onError: (_error, _vars, context) => {
+      context?.rollback?.();
+      signoffChanged();
+    },
   });
   const signCheck = useMutation({
     mutationFn: () => ipasService.signCheck(id),
@@ -599,6 +607,13 @@ function IpasPage({ onClose }) {
       changed();
     },
     onError: (error, vars, context) => {
+      if (vars.type === "blank-charges") {
+        // Some charges may already be gone on the server: don't roll them back. Say why and
+        // read the IPAS again; the button then lists whatever blank charges are left.
+        toast.error(ipasErrorMessage(error));
+        changed();
+        return;
+      }
       context?.rollback?.();
       failChange(error, () => remove.mutate(vars));
     },

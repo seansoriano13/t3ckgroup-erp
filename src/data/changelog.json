@@ -1,5 +1,20 @@
 [
     {
+        "date": "2026-11-10",
+        "title": "IPAS tidy-up",
+        "version": "1.9.98",
+        "changes": [
+            "One button on an IPAS removes all the blank charges at once.",
+            "Landed Cost can no longer be marked final while a charge has no amount.",
+            "After you submit a Transmittal raised from an IPAS, a Back to the IPAS button takes you straight back.",
+            "The printed Payments table is tidier.",
+            "Order and Payments in the IPAS now show Done or Waiting.",
+            "The edit bar now counts the files still missing, and Next empty takes you to them.",
+            "The person who gave the Check on an IPAS can no longer also approve and file it.",
+            "Sign Logistics now shows the final form first, then signs."
+        ]
+    },
+    {
         "date": "2026-11-05",
         "title": "Approve evaluations from the Technical page",
         "version": "1.9.97",

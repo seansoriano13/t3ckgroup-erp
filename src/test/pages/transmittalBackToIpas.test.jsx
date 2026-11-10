@@ -7,8 +7,9 @@ import TransmittalForm from "@/components/transmittals/TransmittalForm";
 import { renderWithProviders, setupUser } from "@/test/support";
 
 const service = vi.hoisted(() => ({ pickablePoLines: vi.fn(), create: vi.fn(), submit: vi.fn() }));
+const ipasMock = vi.hoisted(() => ({ listOptions: vi.fn(), findByNumber: vi.fn() }));
 vi.mock("@/services/transmittalService", () => ({ transmittalService: service }));
-vi.mock("@/services/ipasService", () => ({ ipasService: { listOptions: vi.fn().mockResolvedValue([]) } }));
+vi.mock("@/services/ipasService", () => ({ ipasService: ipasMock }));
 vi.mock("@/services/companyService", () => ({
   companyService: { getCompanies: vi.fn().mockResolvedValue([{ name: "T3CK Trading" }]) },
 }));
@@ -18,6 +19,8 @@ describe("Transmittal Submit, back to the IPAS", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     toast.remove();
+    ipasMock.listOptions.mockResolvedValue([]);
+    ipasMock.findByNumber.mockResolvedValue({ id: "i9", number: "TGIPAS_077" });
     service.pickablePoLines.mockResolvedValue([
       { ipasId: "i1", ipasNumber: "TGIPAS_049", poNumber: "P02552", odooPoLineId: 1, productName: "Cutter", quantity: 4, unit: "pcs", entity: "T3ck Trading", sors: [] },
     ]);
@@ -46,6 +49,14 @@ describe("Transmittal Submit, back to the IPAS", () => {
     await user.click(screen.getByRole("button", { name: /^submit$/i }));
     expect(await screen.findByRole("button", { name: "Back to TGIPAS_049" })).toBeInTheDocument();
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith("t1", { backToIpas: { id: "i1", number: "TGIPAS_049" } }));
+  });
+
+  it("still offers the link when the opening IPAS is not on any line, by looking it up", async () => {
+    const { user, onSaved } = await open("/purchasing/transmittals/new?ipas=TGIPAS_077");
+    await user.click(screen.getByRole("button", { name: /^submit$/i }));
+    expect(await screen.findByRole("button", { name: "Back to TGIPAS_077" })).toBeInTheDocument();
+    expect(ipasMock.findByNumber).toHaveBeenCalledWith("TGIPAS_077");
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith("t1", { backToIpas: { id: "i9", number: "TGIPAS_077" } }));
   });
 
   it("offers nothing when it was not opened from an IPAS", async () => {

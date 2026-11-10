@@ -178,8 +178,19 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
       );
       // Opened from an IPAS: the line that carries it gives the id to go back to.
       const wanted = fromIpas.trim().toLowerCase();
-      const source = wanted ? lines.find((l) => l.ipasId && String(l.ipasNumber ?? "").toLowerCase() === wanted) : null;
-      const backToIpas = submit && source ? { id: source.ipasId, number: source.ipasNumber } : null;
+      let backToIpas = null;
+      if (submit && wanted) {
+        const source = lines.find((l) => l.ipasId && String(l.ipasNumber ?? "").toLowerCase() === wanted);
+        if (source) backToIpas = { id: source.ipasId, number: source.ipasNumber };
+        else {
+          // No slip line carries that IPAS: look it up by its number. A failed look-up only loses the link.
+          try {
+            backToIpas = await ipasService.findByNumber(fromIpas);
+          } catch {
+            backToIpas = null;
+          }
+        }
+      }
       const message = submit ? `${saved.number} submitted.` : `${saved.number} saved as a draft.`;
       if (backToIpas) {
         toast.success(

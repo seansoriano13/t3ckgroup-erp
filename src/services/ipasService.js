@@ -216,6 +216,15 @@ export const ipasService = {
     return data?.[0] ?? null;
   },
 
+  /** `{ id, number }` of the IPAS with this TGIPAS_ number (any case), or null. */
+  async findByNumber(number) {
+    const wanted = String(number ?? "").trim();
+    if (!wanted) return null;
+    const { data, error } = await supabase.from("ipas").select("id, number").ilike("number", wanted).limit(1);
+    if (error) throw error;
+    return data?.[0] ?? null;
+  },
+
   // ── Raise, list, read ────────────────────────────────────────────────────
 
   /**
