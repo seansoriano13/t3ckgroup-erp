@@ -161,13 +161,18 @@ const dateText = (iso) => {
  * filing } of label lists. A document counts once its row for that kind has an
  * attachment; the landed cost sheet is never asked for.
  */
+/** The payments with no proof of payment attached: the one rule behind the rail, the edit bar and the 2 · Payments row. */
+export function paymentsLackingProof(payments = []) {
+  return payments.filter((payment) => !payment.proof_url);
+}
+
 export function missingDocumentsByPart(documents = [], payments = [], source) {
   const has = (label) =>
     documents.some((doc) => !doc.byHand && doc.attachmentUrl && String(doc.kind?.label ?? "").trim().toLowerCase() === label.toLowerCase());
   const lacking = (part) => (SECTION_DOCUMENT_KINDS[part]?.[source] ?? []).filter((label) => !has(label));
   return {
     purchasing: lacking("purchasing"),
-    finance: payments.filter((payment) => !payment.proof_url).map((payment) => `Proof of payment of ${dateText(payment.paid_on)}`),
+    finance: paymentsLackingProof(payments).map((payment) => `Proof of payment of ${dateText(payment.paid_on)}`),
     costing: lacking("costing"),
     filing: lacking("filing"),
   };
