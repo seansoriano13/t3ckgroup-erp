@@ -14,12 +14,11 @@ const buttonVariants = cva(
           // Exception: a Page's main action (the header's New / Register button) turns primary red through
           // the `[data-page-actions]` rule in index.css (2026-11-10). Dialog Save / Make buttons use `primary`.
           "bg-foreground text-background shadow-sm hover:bg-foreground/85 [a]:hover:opacity-90",
-        // The page's one main action and a dialog's Save / Make, in brand red.
-        // Light mode uses red-11 under white text: red-9 gives only 3.8:1 there,
-        // short of WCAG AA's 4.5:1 (#871). Dark mode keeps red-9 under dark
-        // text, which already passes (4.7:1).
+        // A dialog's Save / Make, in brand red. The fill is the
+        // `--primary-action` token (index.css), which passes WCAG AA in both
+        // modes (#871) and is shared with a Page's main action.
         primary:
-          "bg-red-11 text-primary-foreground shadow-sm hover:bg-red-11/90 dark:bg-primary dark:hover:bg-primary/90 [a]:hover:opacity-90",
+          "bg-primary-action text-primary-foreground shadow-sm hover:bg-primary-action/90 [a]:hover:opacity-90",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
         secondary:

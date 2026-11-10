@@ -216,7 +216,7 @@ The shapes are soft rounded rectangles on a 12px base radius (`--radius: 0.75rem
 Compact, confident, and quiet unless they are *the* action.
 - **Shape:** gently rounded (12px), 32px tall by default (24 / 28 / 36px for xs / sm / lg), 14px medium text, 16px icons.
 - **Primary:** Signal Red fill with Desk text and `shadow-sm`. It lifts 2px on hover and presses 1px down on active.
-- **Page main action:** a Page's one New / Register / Add button is primary red, with nothing to add: a plain (default-variant) `Button` placed straight in PageShell's `action` slot turns red through the `[data-page-actions]` rule in `index.css`. Outline, ghost and pill controls beside it keep their look. In light mode the fill is red-11 under white text, since red-9 gives only 3.8:1 (WCAG AA needs 4.5:1); dark mode keeps red-9. Dialog Save / Make buttons use the `primary` Button variant, which has the same colours.
+- **Page main action:** a Page's one New / Register / Add button is primary red, with nothing to add: a plain (default-variant) `Button` placed straight in PageShell's `action` slot turns red through the `[data-page-actions]` rule in `index.css`. Outline, ghost and pill controls beside it keep their look. The fill is the `--primary-action` token: red-11 under white text in light mode, since red-9 gives only 3.8:1 (WCAG AA needs 4.5:1), and red-9 in dark mode. Dialog Save / Make buttons use the `primary` Button variant, which uses the same token.
 - **Outline:** Desk fill with a mauve border, shifting to Muted Desk on hover.
 - **Ghost:** transparent, shifting to Muted Desk on hover.
 - **Destructive:** Red Wash at 10% with Consequence Red text. Red is carried by the text, not a solid fill.
@@ -258,7 +258,7 @@ A **Primitive** is anything in `src/components/ui/`. Raw `<button>`, `<input>`, 
 Headings are stable anchors; a lint message links to the heading of the Primitive it asks for. Paths are under `src/components/`.
 
 #### Button
-`ui/button.jsx`. Replaces raw `<button>`. Props: `variant` (`default` | `outline` | `secondary` | `ghost` | `destructive` | `link`), `size` (`default` | `xs` | `sm` | `lg` | `icon` | `icon-xs` | `icon-sm` | `icon-lg`), `asChild`, `className`, plus native button props.
+`ui/button.jsx`. Replaces raw `<button>`. Props: `variant` (`default` | `primary` | `outline` | `secondary` | `ghost` | `destructive` | `link`; `primary` is a dialog's Save / Make, filled with the `--primary-action` token), `size` (`default` | `xs` | `sm` | `lg` | `icon` | `icon-xs` | `icon-sm` | `icon-lg`), `asChild`, `className`, plus native button props.
 
 #### Dialog
 `ui/dialog.jsx` (base-ui). Replaces hand-rolled full-screen modals. Parts: `Dialog`, `DialogTrigger`, `DialogPortal`, `DialogOverlay`, `DialogContent` (`showCloseButton`, `className`), `DialogHeader`, `DialogFooter` (`showCloseButton`), `DialogTitle`, `DialogDescription`, `DialogClose`.
@@ -320,7 +320,7 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`, `SelectScrollUpButton`, `SelectScrollDownButton`. Building blocks for `SelectField`; use those directly only for custom triggers/items. Look matches the Category/Priority Dropdowns and `FilterTrigger`/`FilterOptionList`: bordered card trigger (`h-[46px]`, `size="sm"` is `h-9`) with rotating chevron and mauve ring when open; `bg-muted` rounded-xl popover; semibold items, selected item `bg-muted/80` bold with a muted check.
 
 #### SelectField
-`ui/SelectField.jsx`. Replaces raw `<select>`. Props: `options` (`{value,label,disabled?}`), `value`, `onChange(value)`, `placeholder`, `disabled`, `size`, `className`, `contentClassName`. Works inside Dropdown popovers: its list registers with the Dropdown nesting context (`useDropdownNestedPopoverRef` in `ui/dropdownNesting.js`), otherwise the outer popover closes on mousedown before the pick registers.
+`ui/SelectField.jsx`. Replaces raw `<select>`. Props: `options` (`{value,label,disabled?}`), `value`, `onChange(value)`, `placeholder`, `disabled`, `size`, `className`, `contentClassName`, `label`, `error`, `required`, `name`, `requiredMessage`. Tab reaches it; Enter or Space opens it; the arrows and Enter pick. With `required`, a blank one stops its form, turns red and says "Choose an option." (or `requiredMessage`) until something is picked. Works inside Dropdown popovers: its list registers with the Dropdown nesting context (`useDropdownNestedPopoverRef` in `ui/dropdownNesting.js`), otherwise the outer popover closes on mousedown before the pick registers.
 
 #### FieldBox
 `ui/FieldBox.jsx`. Form-field Primitive, label plus control. Replaces raw `<label>`. Props: `label`, `isEditing`, `noBorder`, `bare`, `inline`, `htmlFor`, `className`, `children`. Default: caption above a bordered control box; `bare`: caption above children, no box; no children: caption only (pass `htmlFor`); `inline`: label wraps children, for checkbox and switch rows. A lone child control is associated with the label automatically.

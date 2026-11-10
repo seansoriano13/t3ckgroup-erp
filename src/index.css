@@ -105,6 +105,10 @@
   /* Brand: Red for primary actions */
   --primary: var(--red-9);
   --primary-foreground: var(--mauve-1);
+  /* The fill of a primary action button (Button `primary`, a Page's main
+     action). red-11 under white text in light mode: red-9 gives only 3.8:1,
+     short of WCAG AA's 4.5:1 (#871). Dark mode sets it back to red-9 below. */
+  --primary-action: var(--red-11);
 
   /* Destructive: Red 11 for distinct destructive vs brand */
   --destructive: var(--red-10);
@@ -592,6 +596,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-action: var(--primary-action);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -840,22 +845,19 @@
   }
 }
 
+.dark {
+  --primary-action: var(--red-9);
+}
+
 /* A Page's main action is primary red (2026-11-10): a default-variant Button
-   placed straight in the Page header's action area (PageHeader). Same colours
-   as Button's `primary` variant: red-11 under white text in light mode (5.0:1;
-   red-9 is only 3.8:1), red-9 under dark text in dark mode. Unlayered, so it
-   beats the variant's own utility classes. Only direct children, so buttons
-   inside an inline picker in the header are left alone. */
+   placed straight in the Page header's action area (PageHeader). Same fill
+   token as Button's `primary` variant. Unlayered, so it beats the variant's
+   own utility classes. Only direct children, so buttons inside an inline
+   picker in the header are left alone. */
 [data-page-actions] > [data-slot="button"][data-variant="default"] {
-  background-color: var(--red-11);
+  background-color: var(--primary-action);
   color: var(--primary-foreground);
 }
 [data-page-actions] > [data-slot="button"][data-variant="default"]:hover {
-  background-color: color-mix(in srgb, var(--red-11) 90%, transparent);
-}
-.dark [data-page-actions] > [data-slot="button"][data-variant="default"] {
-  background-color: var(--primary);
-}
-.dark [data-page-actions] > [data-slot="button"][data-variant="default"]:hover {
-  background-color: color-mix(in srgb, var(--primary) 90%, transparent);
+  background-color: color-mix(in srgb, var(--primary-action) 90%, transparent);
 }
