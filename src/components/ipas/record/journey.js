@@ -189,6 +189,10 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
   const preparer = SIGN_SECTIONS.map(([section]) => signoffs[section]?.prepared?.signedBy).find(Boolean);
   const checked = Boolean(s7.received && s7.noted && s7.checked);
   const filed = Boolean(s7.approved) || digest.filed;
+  // Whoever gave the Check cannot also file (#921): the database refuses it, so the rail doesn't offer it.
+  const checkedByMe = Boolean(userId) && [s7.received, s7.noted, s7.checked].some((row) => row?.signedBy?.id === userId);
+  const fileWho = who([IPAS_SIGNER_LIST.S7_APPROVED]);
+  const othersWhoFile = [...members([IPAS_SIGNER_LIST.S7_APPROVED])].filter(([id]) => id !== userId).map(([, name]) => name);
   const approverWho = who(toApprove.length > 0 ? toApprove.map(([, list]) => list) : SIGN_SECTIONS.map(([, list]) => list));
 
   const sign = [
@@ -250,9 +254,13 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       key: "file",
       label: "Approve and file",
       done: filed,
-      line: filed ? `Filed by ${s7.approved?.signedBy?.name ?? "someone"}.` : "Files the IPAS. It can't be changed after that.",
-      who: who([IPAS_SIGNER_LIST.S7_APPROVED]),
-      action: readyDone && checked && !filed && onList([IPAS_SIGNER_LIST.S7_APPROVED])
+      line: filed
+        ? `Filed by ${s7.approved?.signedBy?.name ?? "someone"}.`
+        : checkedByMe && onList([IPAS_SIGNER_LIST.S7_APPROVED])
+          ? `Checked by you, so someone else on the list files it.${othersWhoFile.length > 0 ? ` Others who can file: ${andList(othersWhoFile)}.` : ""}`
+          : "Files the IPAS. It can't be changed after that.",
+      who: fileWho,
+      action: readyDone && checked && !filed && onList([IPAS_SIGNER_LIST.S7_APPROVED]) && !checkedByMe
         ? { kind: "file", label: "Review and file", confirm: "Approve and file", what: "the IPAS is filed and frozen" }
         : null,
     },

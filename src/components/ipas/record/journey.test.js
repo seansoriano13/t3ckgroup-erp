@@ -38,3 +38,38 @@ describe("rail: Mark Landed Cost final", () => {
     expect(item.action).toMatchObject({ kind: "landed", status: IPAS_COMPUTATION_STATUS.LC_ODOO_DONE });
   });
 });
+
+describe("rail: Approve and file after the Check (#921)", () => {
+  const person = (id, name) => ({ employeeId: id, name });
+  const signed = (id) => ({ signedBy: { id, name: id } });
+  const file = (userId, checkerId) =>
+    journeyFor({
+      ipas: { charges: [], slips: [{ number: "T1" }], itemLocation: { label: "A" }, source: "local" },
+      digest: {
+        ...digest,
+        costsComplete: true,
+        docs: { missingByPart: {} },
+        s1: { approved: {} },
+        s3: { approved: {} },
+        s6: { approved: {} },
+        s8: { approved: {} },
+        s7: { received: signed(checkerId), noted: signed(checkerId), checked: signed(checkerId) },
+      },
+      lists: { s7_approved: [person("u1", "Ana"), person("u2", "Ben"), person("u3", "Cy")] },
+      userId,
+      can: {},
+    }).sign.find((item) => item.key === "file");
+
+  it("hides the button from the person who checked and names the others", () => {
+    const item = file("u1", "u1");
+
+    expect(item.action).toBeNull();
+    expect(item.line).toContain("Checked by you, so someone else on the list files it.");
+    expect(item.line).toContain("Ben and Cy");
+    expect(item.line).not.toContain("Ana");
+  });
+
+  it("still offers the button to another filing approver", () => {
+    expect(file("u2", "u1").action).toMatchObject({ kind: "file" });
+  });
+});
