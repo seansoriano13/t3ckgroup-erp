@@ -344,24 +344,6 @@ function IpasPage({ onClose }) {
       signoffChanged();
     },
   });
-  // The review window shows a refusal beside its button, so no toast or card failure here;
-  // the instant update is put back and the page reads the IPAS again.
-  const signLogistics = useMutation({
-    mutationFn: () => ipasService.sign(id, 8, IPAS_SIGNOFF_ROLE.APPROVED),
-    onMutate: () => ({
-      rollback: patchCache(optimistic.giveSignoff({ section: 8, role: IPAS_SIGNOFF_ROLE.APPROVED, by, ipasId: id })),
-    }),
-    onSuccess: () => {
-      toast.success("Logistics signed.");
-      setFailure(null);
-      markSigned();
-      signoffChanged();
-    },
-    onError: (_error, _vars, context) => {
-      context?.rollback?.();
-      signoffChanged();
-    },
-  });
   const signCheck = useMutation({
     mutationFn: () => ipasService.signCheck(id),
     onSuccess: () => {
@@ -985,12 +967,12 @@ function IpasPage({ onClose }) {
     setSplit: (landedCostSplit) => pick.mutate({ landedCostSplit }),
     setMarkup: (values) => setMarkup.mutate(values),
     prepare: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.PREPARED, from }),
+    signLogistics: () => signoff.mutateAsync({ section: 8, role: IPAS_SIGNOFF_ROLE.APPROVED }),
     approve: (section, from) => signoff.mutate({ section, role: IPAS_SIGNOFF_ROLE.APPROVED, from }),
     openReturn: (section, from) => setReturning({ section, from }),
     give: giveSignoff,
     signMany: (steps) => signMany.mutateAsync({ steps }),
     signCheck: () => signCheck.mutateAsync(),
-    signLogistics: () => signLogistics.mutateAsync(),
     // The last sign-off: read the final form, then file. The files were attached in "Get it ready".
     file: () => give.mutateAsync({ role: IPAS_SIGNOFF_ROLE.APPROVED, confirm: true }),
   };
@@ -1015,7 +997,7 @@ function IpasPage({ onClose }) {
     onHold: Boolean(digest.figures?.onHold),
     rights: { 1: sectionRights(1), 3: sectionRights(3), 6: sectionRights(6), 7: filingRights, 8: logisticsRights, sendBack7: canReturnSection7 },
     busy: {
-      signoff: signoff.isPending || returnSection.isPending || signMany.isPending || signCheck.isPending || signLogistics.isPending,
+      signoff: signoff.isPending || returnSection.isPending || signMany.isPending || signCheck.isPending,
       give: give.isPending || returnSection.isPending,
       print: print.isPending,
     },
@@ -1121,7 +1103,7 @@ function IpasPage({ onClose }) {
               <MoneySummary digest={digest} onOpen={sections.show} />
             </div>
             <aside className="min-w-0 xl:sticky xl:top-2 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
-              <IpasJourney ctx={ctx} digest={digest} journey={journey} onEdit={openEdit} next={nextIpas} />
+              <IpasJourney ctx={ctx} digest={digest} journey={journey} onEdit={openEdit} onGoToSignoff={sections.showSignoff} next={nextIpas} />
             </aside>
             <div className="min-w-0 xl:col-start-1 xl:row-start-2">
               <EditableSections

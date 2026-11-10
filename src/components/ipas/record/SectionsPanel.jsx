@@ -9,7 +9,8 @@ import { CHROME, MOVE_ORIGIN, RecordSectionChrome } from "@/components/record/se
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
 import { SECTIONS, sectionState } from "./digest";
 import EditSectionBody, { EDITABLE_SECTIONS } from "./EditSectionBody";
-import { actionSectionFor, canEditSection, footerMovesFor } from "./moves";
+import { canEditSection, footerMovesFor } from "./moves";
+import { actionSectionFor } from "./journey";
 import { scrollToSection } from "./useSectionsOpen";
 
 /** These edit right there, in place. Every other section reads here and edits in the edit view. */
@@ -40,7 +41,7 @@ const GROUPS = [{ sections: SECTIONS }];
 export default function SectionsPanel({ ctx, blocks, digest, open, headRef, onEdit, edit = null }) {
   const { busy, failure, viewer } = ctx;
   const { param, openKeys, toggle, reveal, openAll, closeAll, autoOpen } = open;
-  const actionKey = actionSectionFor(ctx, digest);
+  const actionKey = actionSectionFor(ctx.journey);
 
   // A link to a section (also what leaving the edit view lands on): open it and bring it into view.
   useEffect(() => {

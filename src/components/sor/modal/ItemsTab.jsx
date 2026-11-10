@@ -7,7 +7,7 @@ import OpportunityItemsEditor from "../OpportunityItemsEditor";
 import TabSkeleton from "./TabSkeleton";
 import { useSorModalData } from "./useSorModalData";
 import { useSorPurchaseRequest } from "./useSorPurchaseRequest";
-import { requestedItemForLine, p0ForLine } from "../../../utils/sorPurchaseRequest";
+import { requestedItemForLine, p0ForLine, showsStockBadge } from "../../../utils/sorPurchaseRequest";
 import { odooPurchaseOrderUrl } from "../../../utils/odooLinks";
 import { ExternalLink } from "@/components/ui/external-link";
 import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../../../constants/purchaseRequest";
@@ -276,7 +276,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
                   </span>
                 </>
               )}
-              <ItemStockRow item={it} snapshotData={stockSnapshot?.data} />
+              {showsStockBadge(it, purchaseRequest?.items) && <ItemStockRow item={it} snapshotData={stockSnapshot?.data} />}
             </div>
           ))
         )}

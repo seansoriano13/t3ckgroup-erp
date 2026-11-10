@@ -227,24 +227,3 @@ export function footerMovesFor(ctx, digest, sectionKey) {
   if (sectionKey !== "signoffs") return [];
   return movesFor(ctx, digest).bySection;
 }
-
-/**
- * The section that needs this viewer's action, which opens on arrival: the one
- * the card's sign-off moves are for (the earliest, see `cardMovesFor`), else
- * the Landed Cost step's. Null when nothing waits on the viewer.
- */
-export function actionSectionFor(ctx, digest) {
-  const { moves, costs } = cardMovesFor(ctx, digest);
-  const part = moves[0]?.section ?? costs[0]?.section ?? null;
-  // A move names its part ("purchasing"); the record's sections are keyed by what the screen shows ("order").
-  return part ? (SCREEN_KEY_OF_PART[part] ?? null) : null;
-}
-
-const SCREEN_KEY_OF_PART = {
-  purchasing: "order",
-  finance: "payments",
-  costing: "costs",
-  logistics: "delivery",
-  documents: "documents",
-  filing: "signoffs",
-};

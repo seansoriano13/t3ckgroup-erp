@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -105,7 +105,7 @@ function seedRows(box) {
         unit: c.unit ?? "",
         snapshot: c.snapshot,
       }))
-    : [{ ...blank }];
+    : [];
 }
 
 function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
@@ -125,15 +125,58 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
   const nothingReceived = allProducts.length > 0 && productList.length === 0;
 
   const setRow = (index, patch) => setRows((current) => current.map((r, i) => (i === index ? { ...r, ...patch } : r)));
-  const pick = (index, lineId) => {
+  const qtyRefs = useRef({});
+  const [focusKey, setFocusKey] = useState(null);
+  const nextKey = useRef(0);
+  const newKey = () => `r${nextKey.current++}`;
+
+  // Rows get a stable key so the quantity of a new or existing row can be focused.
+  const [rowKeys, setRowKeys] = useState(() => rows.map(() => newKey()));
+
+  useEffect(() => {
+    if (focusKey == null) return;
+    const el = qtyRefs.current[focusKey];
+    if (el) {
+      el.focus();
+      el.select?.();
+    }
+    setFocusKey(null);
+  }, [focusKey, rows]);
+
+  const addRow = (row) => {
+    const key = newKey();
+    setRows((current) => [...current, row]);
+    setRowKeys((current) => [...current, key]);
+    return key;
+  };
+
+  // Each pick adds a filled row; picking the same product again adds to its row.
+  const pick = (lineId) => {
     const line = productList.find((l) => String(l.id) === lineId);
     if (!line) return;
-    setRow(index, {
+    const existing = rows.findIndex((r) => r.lineId === lineId);
+    if (existing >= 0) {
+      const have = Number(rows[existing].quantity);
+      const add = Number(line.quantity);
+      if (rows[existing].quantity !== "" && Number.isFinite(have) && Number.isFinite(add) && line.quantity != null) {
+        setRow(existing, { quantity: String(have + add) });
+      }
+      setFocusKey(rowKeys[existing]);
+      return;
+    }
+    const key = addRow({
       description: line.product_name,
       quantity: String(line.quantity ?? ""),
       unit: line.unit ?? "",
       snapshot: sorLineSnapshot(line),
+      lineId,
     });
+    setFocusKey(key);
+  };
+
+  const removeRow = (index) => {
+    setRows((r) => r.filter((_, i) => i !== index));
+    setRowKeys((k) => k.filter((_, i) => i !== index));
   };
 
   const save = async () => {
@@ -179,13 +222,26 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
         </p>
       )}
         <div className="space-y-3">
+          {productList.length > 0 && (
+            <SelectField
+              options={productList.map((line) => ({
+                value: String(line.id),
+                label: `${line.product_name} · ${line.quantity} ${line.unit ?? ""}`,
+              }))}
+              value=""
+              onChange={pick}
+              placeholder="Add a product…"
+              className="w-full"
+              aria-label="Add a product"
+            />
+          )}
           {rows.map((row, index) => (
-            <div key={index} className="grid grid-cols-1 gap-2 md:grid-cols-[2fr_1fr_1fr_auto] md:items-end">
+            <div key={rowKeys[index]} className="grid grid-cols-1 gap-2 md:grid-cols-[2fr_1fr_1fr_auto] md:items-end">
               <FieldBox label="Description" bare>
-                <Input value={row.description} onChange={(e) => setRow(index, { description: e.target.value, snapshot: null })} />
+                <Input value={row.description} onChange={(e) => setRow(index, { description: e.target.value, snapshot: null, lineId: null })} />
               </FieldBox>
               <FieldBox label="Quantity" bare>
-                <Input type="number" min="0" step="any" value={row.quantity} onChange={(e) => setRow(index, { quantity: e.target.value })} />
+                <Input ref={(el) => { qtyRefs.current[rowKeys[index]] = el; }} type="number" min="0" step="any" value={row.quantity} onChange={(e) => setRow(index, { quantity: e.target.value })} />
               </FieldBox>
               <FieldBox label="Unit" bare>
                 <SelectField
@@ -195,29 +251,14 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
                   onChange={(value) => setRow(index, { unit: value })}
                 />
               </FieldBox>
-              <Button variant="ghost" size="icon" aria-label="Remove content" onClick={() => setRows((r) => r.filter((_, i) => i !== index))}>
+              <Button variant="ghost" size="icon" aria-label="Remove content" onClick={() => removeRow(index)}>
                 <Trash2 size={14} />
               </Button>
-              {productList.length > 0 && (
-                <div className="md:col-span-4">
-                  <SelectField
-                    options={productList.map((line) => ({
-                      value: String(line.id),
-                      label: `${line.product_name} · ${line.quantity} ${line.unit ?? ""}`,
-                    }))}
-                    value=""
-                    onChange={(lineId) => pick(index, lineId)}
-                    placeholder="Pick from the Product List…"
-                    className="w-full"
-                    aria-label="Pick from the Product List"
-                  />
-                </div>
-              )}
             </div>
           ))}
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setRows((r) => [...r, { ...blank }])}>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => addRow({ ...blank })}>
             <Plus size={14} />
-            Add a content
+            Add a typed content
           </Button>
         </div>
     </ModalShell>

@@ -246,8 +246,6 @@ export default function CostingDesk({ opportunityId, opportunity }) {
             }}
           />
 
-          <TechnicalVerdict matrix={matrix} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
-
           <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
 
           <section className="space-y-3">
@@ -275,13 +273,15 @@ export default function CostingDesk({ opportunityId, opportunity }) {
             )}
           </section>
 
+          <TechnicalVerdict matrix={matrix} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
+
           <OtherCosts matrix={matrix} writes={writes} />
           <CostingSummary matrix={matrix} writes={writes} />
           <CostGuide opportunityId={opportunityId} />
         </div>
 
         <aside className="min-w-0 space-y-4 xl:sticky xl:top-2 xl:self-start">
-          {tierReadsBidDecision(matrix.tier) && <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} />}
+          {tierReadsBidDecision(matrix.tier) && <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} opportunity={opportunity} />}
           <SignoffBar matrix={matrix} nameOf={incharge.nameOf} />
         </aside>
       </div>

@@ -1,6 +1,7 @@
 // The rail of the IPAS record: one road in two stretches (journey.js).
 // "Get it ready" is a checklist of the work; "Sign the final IPAS" opens once
-// it is all ticked, and every signer reads the final IPAS form before signing.
+// it is all ticked. A sign-off is only pointed to here ("Go to sign-off"); it is signed from its
+// own row in 6 · Sign-offs, after the signer reads the final IPAS form.
 // Each item names who does it; the viewer's own items carry their button.
 
 import { useState } from "react";
@@ -11,10 +12,10 @@ import MoveButton from "@/components/record/MoveButton";
 import { CHROME } from "@/components/record/sectionChrome";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
 import { Button } from "@/components/ui/button";
+import { isSignAction } from "./journey";
 import { movesFor } from "./moves";
-import SignReview from "./SignReview";
 
-function Item({ item, number, locked, onAct, busy }) {
+function Item({ item, number, locked, onAct, onGo, busy }) {
   const { done, action } = item;
   const mine = Boolean(action) && !locked;
   return (
@@ -51,6 +52,10 @@ function Item({ item, number, locked, onAct, busy }) {
                 <Button asChild size="sm" variant="outline">
                   <Link to={action.to}>{action.label}</Link>
                 </Button>
+              ) : isSignAction(action) ? (
+                <Button size="sm" variant="outline" onClick={() => onGo(item.key)}>
+                  Go to sign-off
+                </Button>
               ) : (
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => onAct(item)}>
                   {action.label}
@@ -64,9 +69,9 @@ function Item({ item, number, locked, onAct, busy }) {
   );
 }
 
-export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
+
+export default function IpasJourney({ ctx, digest, journey, onEdit, onGoToSignoff, next }) {
   const { busy, failure, viewer, on } = ctx;
-  const [reviewing, setReviewing] = useState(null);
   const [showReady, setShowReady] = useState(false);
   const { run, dialog } = useMoveConfirm({ restate: (section) => digest.lines[section], viewer, origin: CHROME.CARD });
   const { returns } = movesFor(ctx, digest);
@@ -77,14 +82,6 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
     const { action } = item;
     if (action.kind === "edit") onEdit(action.section);
     else if (action.kind === "landed") on.setComputationStatus(action.status, { key: "costs", origin: CHROME.CARD });
-    else setReviewing(item);
-  };
-  const signIt = (item) => {
-    const { action } = item;
-    if (action.kind === "sign") return on.signMany(action.steps);
-    if (action.kind === "check") return on.signCheck();
-    if (action.kind === "logistics") return on.signLogistics();
-    return on.file();
   };
 
   const finished = digest.filed || digest.cancelled;
@@ -121,7 +118,7 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
           ) : (
             <ul className="mt-2 space-y-2">
               {ready.map((item) => (
-                <Item key={item.key} item={item} onAct={act} busy={working} />
+                <Item key={item.key} item={item} onAct={act} onGo={onGoToSignoff} busy={working} />
               ))}
             </ul>
           )}
@@ -132,7 +129,7 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
           )}
           <ol className="mt-2 space-y-2">
             {sign.map((item, index) => (
-              <Item key={item.key} item={item} number={index + 1} locked={!readyDone && !item.done} onAct={act} busy={working} />
+              <Item key={item.key} item={item} number={index + 1} locked={!readyDone && !item.done} onAct={act} onGo={onGoToSignoff} busy={working} />
             ))}
           </ol>
         </>
@@ -146,7 +143,6 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, next }) {
         </ul>
       )}
       {dialog}
-      <SignReview ctx={ctx} item={reviewing} onClose={() => setReviewing(null)} onSign={signIt} />
     </section>
   );
 }

@@ -272,7 +272,7 @@ function gateSectionState(key, digest) {
   if (key === "order") return done(digest.order.done, "Filled in", digest.order.detail);
   if (key === "payments") return done(digest.paymentsProgress.done, "Complete", digest.paymentsProgress.detail);
   if (key === "costs") return done(digest.costsComplete, "Final", digest.landedUnavailable ? "No figure yet" : "Provisional");
-  if (key === "delivery") return done(Boolean(digest.s8?.approved), "Signed", "Needs the Logistics sign-off");
+  if (key === "delivery") return done(Boolean(digest.s8?.approved), "Signed", "Not delivered yet");
   if (key === "documents") return done(digest.missingFiles.length === 0, "All in", `${digest.missingFiles.length} missing`);
   if (key === "signoffs") return done(digest.filed, "Filed", `${digest.signedCount} of 4 signed`);
   const gate = (gateKey) => digest.gates.find((g) => g.key === gateKey);

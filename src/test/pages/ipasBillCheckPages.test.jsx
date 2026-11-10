@@ -195,7 +195,7 @@ describe("IPAS Supplier bill check", () => {
       renderDetail(row.id);
 
       const step = await approveStep();
-      const approve = within(step).getByRole("button", { name: "Review and approve" });
+      const approve = within(step).getByRole("button", { name: "Go to sign-off" });
       const warning = within(step).getByText(/Supplier bill check: the P\.I is ₱5,000\.00 more than the Odoo PO/);
       // It sits beside the button, and never blocks it.
       expect(approve).toBeEnabled();
@@ -209,7 +209,7 @@ describe("IPAS Supplier bill check", () => {
 
       const step = await approveStep();
       expect(step).toHaveTextContent("P.I/QT Amount is not typed yet");
-      expect(within(step).getByRole("button", { name: "Review and approve" })).toBeEnabled();
+      expect(within(step).getByRole("button", { name: "Go to sign-off" })).toBeEnabled();
     });
 
     it("shows no warning when the bill matches", async () => {
@@ -218,7 +218,7 @@ describe("IPAS Supplier bill check", () => {
       renderDetail(row.id);
 
       const step = await approveStep();
-      expect(within(step).getByRole("button", { name: "Review and approve" })).toBeInTheDocument();
+      expect(within(step).getByRole("button", { name: "Go to sign-off" })).toBeInTheDocument();
       expect(step).not.toHaveTextContent("Supplier bill check");
     });
 
@@ -228,7 +228,7 @@ describe("IPAS Supplier bill check", () => {
       renderDetail(row.id);
 
       const step = await within(await screen.findByRole("region", { name: "Your move" })).findByTestId("ipas-journey-send");
-      expect(within(step).getByRole("button", { name: "Review and send" })).toBeInTheDocument();
+      expect(within(step).getByRole("button", { name: "Go to sign-off" })).toBeInTheDocument();
       expect(step).not.toHaveTextContent("Supplier bill check");
     });
   });

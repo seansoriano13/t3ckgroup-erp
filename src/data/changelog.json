@@ -2,7 +2,7 @@
     {
         "date": "2026-11-10",
         "title": "IPAS tidy-up",
-        "version": "1.9.98",
+        "version": "1.9.99",
         "changes": [
             "One button on an IPAS removes all the blank charges at once.",
             "Landed Cost can no longer be marked final while a charge has no amount.",
@@ -10,8 +10,23 @@
             "The printed Payments table is tidier.",
             "Order and Payments in the IPAS now show Done or Waiting.",
             "The edit bar now counts the files still missing, and Next empty takes you to them.",
-            "The person who gave the Check on an IPAS can no longer also approve and file it.",
-            "Sign Logistics now shows the final form first, then signs."
+            "The person who gave the Check on an IPAS can no longer also approve and file it."
+        ]
+    },
+    {
+        "date": "2026-11-09",
+        "title": "Technical, IPAS, Transmittal and costing improvements",
+        "version": "1.9.98",
+        "changes": [
+            "The overall Technical verdict now follows the products: Complies when every product complies, Deviates as soon as one deviates. The Technical page shows progress per product, and the in-charge can give one verdict to many products at once.",
+            "A Group Task template that a Stage Action uses can no longer be deleted. The message names the Flow and Stage that use it.",
+            "A Products tab on an SOR hides the Odoo stock badge once Purchasing has set a status.",
+            "Transmittal stages sign in one click, with an Undo for a few seconds after signing. Required fields show a red asterisk.",
+            "IPAS checks the required documents at every sign-off of a section. Finance now owns payments, proof of payment and the Forex Rate Paid, and Logistics signs off in section 6.",
+            "The IPAS rail points to the sign-off row, and signing happens there.",
+            "The Packing List has one Add a product picker that adds a row for each pick.",
+            "After a No-go, the Deal Owner gets a Move to Closed Lost button. It opens the normal lost-reason picker with the reason set to Other and the No-go reason in the note.",
+            "The Bid Decision shows how the planned revenue is worked out, and warns when the offer is below the ABC."
         ]
     },
     {

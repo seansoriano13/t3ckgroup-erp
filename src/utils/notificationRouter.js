@@ -145,11 +145,10 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     // page) opens the modal through `getOpportunityForModal`, which branches on
     // access level and reads `sor_participant_record` / `sor_locked_summary`
     // instead. Same event `SorLink` uses to open an SOR from a task.
-    window.dispatchEvent(
-      new CustomEvent("OPEN_ENTITY_DETAILS", {
-        detail: { id: notif.reference_id, type: "OPPORTUNITY" },
-      }),
-    );
+    // #941: a Bid Decision opens the SOR on its PMS tab, where the S0 Evaluation and its Bid Decision are.
+    const detail = { id: notif.reference_id, type: "OPPORTUNITY" };
+    if (notif.type === "SOR_BID_DECISION") detail.view = "pms";
+    window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail }));
   } else if (notif.type === "OPPORTUNITY_MENTION") {
     // Same reason as SOR_* above: the register's deep-link fetch is a plain
     // `.single()` that RLS empties for anyone outside the deal team (an old

@@ -11,6 +11,7 @@ import { waitForNetworkIdle } from "@/test/network";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 import { makeReady } from "@/test/support/ipasReady";
+import { openSignReview } from "@/test/support/ipasSignRow";
 import { findOtherDialog } from "@/test/support/dialogs";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -123,7 +124,7 @@ describe("IPAS sign-offs", () => {
       // The sign-offs list only reads; the rail carries the button.
       const section = await screen.findByRole("region", { name: "6 · Sign-offs" });
       expect(within(section).queryByRole("button", { name: /Send for signing|Approve/ })).not.toBeInTheDocument();
-      await user.click(within(await step("send")).getByRole("button", { name: "Review and send" }));
+      await openSignReview(user, "send");
       await user.click(within(await screen.findByRole("dialog", { name: "Send for signing" })).getByRole("button", { name: "Send for signing" }));
 
       await waitFor(() => expect(live("prepared")).toHaveLength(3));
@@ -144,7 +145,7 @@ describe("IPAS sign-offs", () => {
 
       renderDetail(row.id);
       expect(within(await step("send")).queryByRole("button")).not.toBeInTheDocument();
-      await user.click(within(await step("approve")).getByRole("button", { name: "Review and approve" }));
+      await openSignReview(user, "approve");
       await user.click(within(await screen.findByRole("dialog", { name: "Approve" })).getByRole("button", { name: "Approve" }));
 
       await waitFor(() => expect(live("approved")).toHaveLength(3));
@@ -249,7 +250,7 @@ describe("IPAS sign-offs", () => {
       const approve = await step("approve");
       expect(approve).not.toHaveTextContent("Approved.");
       expect(approve).toHaveTextContent("your turn");
-      expect(within(approve).getByRole("button", { name: "Review and approve" })).toBeInTheDocument();
+      expect(within(approve).getByRole("button", { name: "Go to sign-off" })).toBeInTheDocument();
     });
 
     it("writes the sign-offs, send-backs and clearings into History in words", async () => {
@@ -291,7 +292,7 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       renderDetail(row.id);
-      await user.click(within(await step("approve")).getByRole("button", { name: "Review and approve" }));
+      await openSignReview(user, "approve");
       const dialog = await screen.findByRole("dialog", { name: "Approve" });
       await user.click(within(dialog).getByRole("button", { name: "Approve" }));
 

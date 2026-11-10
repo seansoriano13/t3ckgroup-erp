@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { itemsForVisit, openItems, p0ForLine, requestedItemForLine, shapeSorOverview } from "./sorPurchaseRequest"
+import { itemsForVisit, openItems, p0ForLine, showsStockBadge, requestedItemForLine, shapeSorOverview } from "./sorPurchaseRequest"
 
 const item = (over) => ({ id: "i", name: "Hose", source: "sor_line", odoo_product_id: null, status: "not_checked", created_at: "2026-01-05T00:00:00Z", ...over })
 
@@ -101,5 +101,16 @@ describe("p0ForLine (#747)", () => {
     expect(p0ForLine(line, [item({ sor_item_id: "line-1" })])).toBeNull()
     expect(p0ForLine(line, [item({ sor_item_id: "line-1", po_number: "P00012", po_state: "rfq" })])).toBeNull()
     expect(p0ForLine(line, [])).toBeNull()
+  })
+})
+
+describe("showsStockBadge (#934)", () => {
+  const line = { id: "line-1", product_name: "Hose" }
+  it("shows both badges for a line at Not checked, or with no request item", () => {
+    expect(showsStockBadge(line, [item({ sor_item_id: "line-1", status: "not_checked" })])).toBe(true)
+    expect(showsStockBadge(line, [])).toBe(true)
+  })
+  it("shows only the Purchase Request status once Purchasing sets another one", () => {
+    expect(showsStockBadge(line, [item({ sor_item_id: "line-1", status: "to_purchase" })])).toBe(false)
   })
 })

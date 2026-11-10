@@ -18,6 +18,20 @@ export function scrollToSection(key) {
   document.getElementById(sectionDomId(key))?.scrollIntoView?.({ block: "start" });
 }
 
+/** Scrolls to a sign-off row of 6 · Sign-offs and marks it for a moment. Waits a few frames for the section to draw. */
+export function highlightSignoff(key, tries = 20) {
+  const row = document.getElementById(`ipas-signoff-${key}`);
+  if (!row) {
+    if (tries > 0) requestAnimationFrame(() => highlightSignoff(key, tries - 1));
+    return;
+  }
+  row.scrollIntoView?.({ block: "center" });
+  row.dataset.highlighted = "true";
+  setTimeout(() => {
+    delete row.dataset.highlighted;
+  }, 2000);
+}
+
 /**
  * Which section blocks are open. Several can be, so it is a set; the page keeps
  * it, so the choice survives a trip to the edit view and back. A link with
@@ -50,6 +64,14 @@ export function useSectionsOpen() {
     },
     [reveal],
   );
+  // The rail's "Go to sign-off": open 6 · Sign-offs and bring that row into view.
+  const showSignoff = useCallback(
+    (key) => {
+      reveal("signoffs");
+      highlightSignoff(key);
+    },
+    [reveal],
+  );
   const openAll = useCallback(() => setOpenKeys(new Set(KEYS)), []);
   const closeAll = useCallback(() => setOpenKeys(new Set()), []);
   const autoOpen = useCallback(
@@ -61,5 +83,5 @@ export function useSectionsOpen() {
     [reveal],
   );
 
-  return { param, openKeys, toggle, reveal, show, openAll, closeAll, autoOpen };
+  return { param, openKeys, toggle, reveal, show, showSignoff, openAll, closeAll, autoOpen };
 }

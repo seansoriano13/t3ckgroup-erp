@@ -189,6 +189,23 @@ export function missingDocumentsByPart(documents = [], payments = [], source) {
 }
 
 /**
+ * Each part's required document kinds for a Source, as { part, label, missing }
+ * (#936), so the read view can list them with an asterisk and say which lack a file.
+ * Finance's proofs of payment are listed per payment, only when one is missing.
+ */
+export function requiredFilesByPart(documents = [], payments = [], source) {
+  const lacking = missingDocumentsByPart(documents, payments, source);
+  const rows = [];
+  for (const part of ["purchasing", "costing", "filing"]) {
+    for (const label of SECTION_DOCUMENT_KINDS[part]?.[source] ?? []) {
+      rows.push({ part, label, missing: lacking[part].includes(label) });
+    }
+  }
+  for (const label of lacking.finance) rows.push({ part: "finance", label, missing: true });
+  return rows;
+}
+
+/**
  * The required documents nobody has ticked: what Filing warns about, each as
  * { id, label, usedFor, appliesTo } and nothing more, so a warning never carries
  * a file or an attachment link.

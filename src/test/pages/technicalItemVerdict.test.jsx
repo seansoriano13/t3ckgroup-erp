@@ -62,6 +62,33 @@ describe("a product's verdict and remark on the Technical sheet", () => {
     await waitFor(() => expect(stored()).toMatchObject({ compliance: "deviates", compliance_note: "Narrower strap" }));
   });
 
+  it("sets a verdict on every checked product from the Set verdict bar, and shows the result at the bottom", async () => {
+    const user = mount(inCharge);
+    expect(screen.queryByTestId("bulk-verdict-bar")).not.toBeInTheDocument();
+    await user.click(await screen.findByLabelText("Check all products"));
+    expect(screen.getByTestId("bulk-verdict-bar")).toHaveTextContent("1 product checked");
+    await user.click(screen.getByRole("button", { name: "Complies" }));
+    await waitFor(() => expect(stored().compliance).toBe("complies"));
+    expect(screen.queryByTestId("bulk-verdict-bar")).not.toBeInTheDocument();
+  });
+
+  it("asks for one remark when Deviates is set in bulk, and applies it to each checked product", async () => {
+    const user = mount(inCharge);
+    await user.click(await screen.findByLabelText(/^Check [0-9]/));
+    await user.click(screen.getByRole("button", { name: "Deviates" }));
+    const apply = screen.getByRole("button", { name: "Set Deviates" });
+    expect(apply).toBeDisabled();
+    await user.type(screen.getByLabelText("Remark for every checked product"), "Wrong size");
+    await user.click(apply);
+    await waitFor(() => expect(stored()).toMatchObject({ compliance: "deviates", compliance_note: "Wrong size" }));
+  });
+
+  it("offers no checkboxes to anyone but the in-charge", async () => {
+    mount(reader);
+    await screen.findByTestId("technical-component");
+    expect(screen.queryByLabelText("Check all products")).not.toBeInTheDocument();
+  });
+
   it("shows everyone else the verdict and the remark, with nothing to change", async () => {
     db.internal.rowsOf("costing_components").find((c) => c.id === component.id).compliance = "complies";
     db.internal.rowsOf("costing_components").find((c) => c.id === component.id).compliance_note = "Checked against the datasheet";

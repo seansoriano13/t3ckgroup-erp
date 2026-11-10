@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { TECHNICAL_TAB, checkedLabel, filterTechnical, shapeTechnicalList, technicalState } from "./technicalList"
+import { TECHNICAL_TAB, checkedLabel, filterTechnical, judgingProgress, overallCompliance, shapeTechnicalList, technicalState } from "./technicalList"
 
-const row = (over = {}) => ({ opportunityId: "o1", sorNumber: "SOR-3", soNumber: "S03204", projectTitle: "Fire", clientName: "Marikina", stage: "Lead", team: "RRD", rowsTotal: 12, rowsJudged: 7, approved: false, isMine: true, ...over })
+const row = (over = {}) => ({ opportunityId: "o1", sorNumber: "SOR-3", soNumber: "S03204", projectTitle: "Fire", clientName: "Marikina", stage: "Lead", team: "RRD", rowsTotal: 12, rowsJudged: 7, rowsDeviates: 0, compliance: null, approved: false, isMine: true, ...over })
 
 describe("shapeTechnicalList", () => {
   it("camelCases a row and turns the counts into numbers", () => {
@@ -27,13 +27,47 @@ describe("shapeTechnicalList", () => {
 
 describe("checkedLabel", () => {
   it("says how many are checked", () => {
-    expect(checkedLabel({ rowsJudged: 7, rowsTotal: 12 })).toBe("7 of 12 checked")
-    expect(checkedLabel({ rowsJudged: 0, rowsTotal: 3 })).toBe("0 of 3 checked")
+    expect(checkedLabel({ rowsJudged: 7, rowsTotal: 12 })).toBe("7 of 12 judged")
+    expect(checkedLabel({ rowsJudged: 0, rowsTotal: 3 })).toBe("0 of 3 judged")
   })
 
   it("says all checked when none is left, but not for an empty list", () => {
-    expect(checkedLabel({ rowsJudged: 12, rowsTotal: 12 })).toBe("All 12 checked")
-    expect(checkedLabel({ rowsJudged: 0, rowsTotal: 0 })).toBe("0 of 0 checked")
+    expect(checkedLabel({ rowsJudged: 12, rowsTotal: 12 })).toBe("All 12 judged")
+    expect(checkedLabel({ rowsJudged: 0, rowsTotal: 0 })).toBe("0 of 0 judged")
+  })
+})
+
+describe("overallCompliance (#932)", () => {
+  const c = (compliance) => ({ compliance })
+
+  it("is Complies only when every product complies", () => {
+    expect(overallCompliance([c("complies"), c("complies")])).toBe("complies")
+  })
+
+  it("is Deviates as soon as one product deviates, even with others unjudged", () => {
+    expect(overallCompliance([c("complies"), c("deviates")])).toBe("deviates")
+    expect(overallCompliance([c(null), c("deviates")])).toBe("deviates")
+  })
+
+  it("is unjudged while any product is unjudged, and for no products", () => {
+    expect(overallCompliance([c("complies"), c(null)])).toBeNull()
+    expect(overallCompliance([])).toBeNull()
+    expect(overallCompliance(null)).toBeNull()
+  })
+})
+
+describe("judgingProgress (#932)", () => {
+  it("counts judged of total and the deviations while judging", () => {
+    expect(judgingProgress({ rowsTotal: 5, rowsJudged: 2, rowsDeviates: 1 })).toEqual({ total: 5, judged: 2, deviates: 1, done: false, result: null })
+  })
+
+  it("turns into the result once every product is judged", () => {
+    expect(judgingProgress({ rowsTotal: 3, rowsJudged: 3, rowsDeviates: 0 })).toMatchObject({ done: true, result: "complies" })
+    expect(judgingProgress({ rowsTotal: 3, rowsJudged: 3, rowsDeviates: 2 })).toMatchObject({ done: true, result: "deviates" })
+  })
+
+  it("is never done with no products", () => {
+    expect(judgingProgress({ rowsTotal: 0, rowsJudged: 0 })).toMatchObject({ done: false, result: null })
   })
 })
 

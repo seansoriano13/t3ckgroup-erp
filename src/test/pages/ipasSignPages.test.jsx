@@ -8,6 +8,7 @@ import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 import { makeReady } from "@/test/support/ipasReady";
+import { openSignReview } from "@/test/support/ipasSignRow";
 import { queryOtherDialog } from "@/test/support/dialogs";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -150,7 +151,7 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(section).queryByRole("button", { name: /^(Submit|Approve|Send for signing|Review and)/ })).not.toBeInTheDocument();
       expect(within(section).getByRole("button", { name: "Edit section" })).toBeInTheDocument();
       // Signing starts in the rail.
-      expect(within(await step("send")).getByRole("button", { name: "Review and send" })).toBeInTheDocument();
+      expect(within(await step("send")).getByRole("button", { name: "Go to sign-off" })).toBeInTheDocument();
     });
 
     it("lists the four sign-offs in the Sign-offs section, with who gives each, and no give buttons: the rail has them", async () => {
@@ -171,7 +172,7 @@ describe("IPAS signing with the evidence in view", () => {
       expect(within(section).getByText("Check")).toBeInTheDocument();
       expect(within(section).getByText("Approve and file")).toBeInTheDocument();
       expect(within(section).queryByRole("button", { name: /^(Receive|Note|Check|Review and)/ })).not.toBeInTheDocument();
-      expect(within(await step("check")).getByRole("button", { name: "Review and check" })).toBeInTheDocument();
+      expect(within(await step("check")).getByRole("button", { name: "Go to sign-off" })).toBeInTheDocument();
     });
 
     it("gives History no moves and no Edit section: it expands under its row", async () => {
@@ -294,7 +295,7 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
       renderDetail(row.id);
 
-      await user.click(within(await step("send")).getByRole("button", { name: "Review and send" }));
+      await openSignReview(user, "send");
 
       const dialog = await screen.findByRole("dialog", { name: "Send for signing" });
       expect(within(dialog).getByText(/the approvers are told it is ready/)).toBeInTheDocument();
@@ -313,7 +314,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id);
       const user = setupUser();
 
-      await user.click(within(await step("approve")).getByRole("button", { name: "Review and approve" }));
+      await openSignReview(user, "approve");
       const dialog = await screen.findByRole("dialog", { name: "Approve" });
       expect(within(dialog).getByText(/you approve the sections on your list; the rest wait for their approvers/)).toBeInTheDocument();
       expect(within(dialog).getByText(/You sign as Boss Lito\./)).toBeInTheDocument();
@@ -329,7 +330,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id);
       const user = setupUser();
 
-      await user.click(within(await step("approve")).getByRole("button", { name: "Review and approve" }));
+      await openSignReview(user, "approve");
       const dialog = await screen.findByRole("dialog", { name: "Approve" });
       await user.click(within(dialog).getByRole("button", { name: "Not yet" }));
 
@@ -357,7 +358,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id);
       const user = setupUser();
 
-      await user.click(within(await step("approve")).getByRole("button", { name: "Review and approve" }));
+      await openSignReview(user, "approve");
       const dialog = await screen.findByRole("dialog", { name: "Approve" });
       await user.click(within(dialog).getByRole("button", { name: "Approve" }));
 
@@ -463,7 +464,7 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       expect(screen.queryByRole("link", { name: /Next IPAS waiting for me/ })).not.toBeInTheDocument();
-      await user.click(within(await step("approve")).getByRole("button", { name: "Review and approve" }));
+      await openSignReview(user, "approve");
       await user.click(within(await screen.findByRole("dialog", { name: "Approve" })).getByRole("button", { name: "Approve" }));
 
       const link = await screen.findByRole("link", { name: `Next IPAS waiting for me: ${second.number}` });
@@ -476,7 +477,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(only.id);
       const user = setupUser();
 
-      await user.click(within(await step("approve")).getByRole("button", { name: "Review and approve" }));
+      await openSignReview(user, "approve");
       await user.click(within(await screen.findByRole("dialog", { name: "Approve" })).getByRole("button", { name: "Approve" }));
 
       await waitFor(() => expect(live("approved").filter((s) => s.section !== 8)).toHaveLength(1));
@@ -491,7 +492,7 @@ describe("IPAS signing with the evidence in view", () => {
       const user = setupUser();
 
       // A sign-off on the first IPAS succeeds, which names the second as the next one waiting.
-      await user.click(within(await step("approve")).getByRole("button", { name: "Review and approve" }));
+      await openSignReview(user, "approve");
       await user.click(within(await screen.findByRole("dialog", { name: "Approve" })).getByRole("button", { name: "Approve" }));
       await screen.findByRole("link", { name: `Next IPAS waiting for me: ${second.number}` });
 
@@ -507,7 +508,7 @@ describe("IPAS signing with the evidence in view", () => {
       await waitFor(() => expect(screen.getByRole("heading", { name: second.number })).toBeInTheDocument());
       const region = await yourMove();
       // The second IPAS offers its own sign-off, but shows none of the first one's failure.
-      await within(region).findByRole("button", { name: "Review and approve" });
+      await within(region).findByRole("button", { name: "Go to sign-off" });
       expect(within(region).queryByRole("alert")).not.toBeInTheDocument();
       expect(within(region).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     });
@@ -520,12 +521,12 @@ describe("IPAS signing with the evidence in view", () => {
       makeReady(early, approver);
       const view = renderDetail(early.id);
       expect(await within(await yourMove()).findByTestId("ipas-journey-landed")).toHaveTextContent("Mark Landed Cost final");
-      expect(within(await yourMove()).queryByRole("button", { name: "Review and send" })).not.toBeInTheDocument();
+      expect(within(await yourMove()).queryByRole("button", { name: "Go to sign-off" })).not.toBeInTheDocument();
       view.unmount();
 
       const ready = readyIpas();
       renderDetail(ready.id);
-      expect(await within(await step("send")).findByRole("button", { name: "Review and send" })).toBeInTheDocument();
+      expect(await within(await step("send")).findByRole("button", { name: "Go to sign-off" })).toBeInTheDocument();
     });
 
     it("lets a section 3 list member approve it, but not the person who sent it", async () => {
@@ -535,14 +536,14 @@ describe("IPAS signing with the evidence in view", () => {
       signIn(purchaser);
       const mine = renderDetail(row.id);
       const own = await step("approve");
-      expect(within(own).queryByRole("button", { name: "Review and approve" })).not.toBeInTheDocument();
+      expect(within(own).queryByRole("button", { name: "Go to sign-off" })).not.toBeInTheDocument();
       expect(own).toHaveTextContent("Buyer sent it, so someone else on the list approves it.");
       mine.unmount();
 
       signIn(approver);
       renderDetail(row.id);
       const user = setupUser();
-      await user.click(within(await step("approve")).getByRole("button", { name: "Review and approve" }));
+      await openSignReview(user, "approve");
       const dialog = await screen.findByRole("dialog", { name: "Approve" });
       await user.click(within(dialog).getByRole("button", { name: "Approve" }));
       await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.section === 6 && s.role === "approved")).toHaveLength(1));

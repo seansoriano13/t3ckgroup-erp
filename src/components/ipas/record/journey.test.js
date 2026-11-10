@@ -4,7 +4,55 @@ import { IPAS_COMPUTATION_STATUS } from "@/constants/ipas";
 
 import { journeyFor } from "./journey";
 
-const digest = {
+const digest = (over = {}) => ({
+  s1: {}, s3: {}, s6: {}, s7: {}, s8: {},
+  docs: { missingByPart: { purchasing: [], finance: [], costing: [], filing: [] } },
+  money: {},
+  costsComplete: false,
+  ...over,
+});
+const ipasOf = (over = {}) => ({ number: "IPAS-1", source: "local", currency: "PHP", charges: [], payments: [], slips: [], ...over });
+const run = ({ ipas = ipasOf(), dig = digest(), can = {} } = {}) =>
+  journeyFor({ ipas, digest: dig, lists: {}, userId: "u1", can: { purchasing: false, change: false, record: false, pickLocation: false, ...can } });
+const item = (journey, key) => journey.ready.find((entry) => entry.key === key);
+
+describe("journeyFor: Finance (#937)", () => {
+  const missingProof = digest({ docs: { missingByPart: { purchasing: ["Proforma Invoice"], finance: ["Proof of payment of Oct 1, 2026"], costing: [], filing: [] } } });
+  const foreign = ipasOf({ currency: "USD", payments: [{ forex_rate: null }] });
+
+  it("gives payments, proof and the forex rate to Finance, and the other files to Purchasing", () => {
+    const journey = run({ ipas: foreign, dig: missingProof });
+    for (const key of ["charges", "proof", "forex"]) expect(item(journey, key).who.names).toBe("Finance");
+    expect(item(journey, "files").who.names).not.toBe("Finance");
+  });
+
+  it("says Your turn to Finance for proof and the rate, never for the other files", () => {
+    const journey = run({ ipas: foreign, dig: missingProof, can: { record: true } });
+    expect(item(journey, "proof").action).toBeTruthy();
+    expect(item(journey, "forex").action).toBeTruthy();
+    expect(item(journey, "files").action).toBeNull();
+    expect(journey.mine.map((entry) => entry.key)).not.toContain("files");
+    expect(journey.headline).toMatch(/^Your turn: /);
+  });
+
+  it("tells Finance who they are waiting on when nothing is theirs", () => {
+    const journey = run({
+      dig: digest({ docs: { missingByPart: { purchasing: ["Proforma Invoice"], finance: [], costing: [], filing: [] } } }),
+      can: { record: true },
+    });
+    expect(journey.mine).toHaveLength(0);
+    expect(journey.headline).toContain("Waiting on");
+    expect(journey.headline).toContain("Attach the files");
+  });
+
+  it("lets Purchasing attach the other files", () => {
+    const journey = run({ dig: missingProof, can: { change: true, record: true } });
+    expect(item(journey, "files").action).toMatchObject({ section: "documents" });
+  });
+});
+
+
+const baseDigest = {
   docs: { missingByPart: {} },
   money: { landedText: "₱100.00", landedFigureText: "₱100.00" },
   costsComplete: false,
@@ -17,7 +65,7 @@ const digest = {
 };
 
 const build = (charges, can = { change: true, record: true }) =>
-  journeyFor({ ipas: { charges, slips: [], source: "local" }, digest, lists: {}, userId: "u1", can });
+  journeyFor({ ipas: { charges, slips: [], source: "local" }, digest: baseDigest, lists: {}, userId: "u1", can });
 const landed = (journey) => journey.ready.find((item) => item.key === "landed");
 
 describe("rail: Mark Landed Cost final", () => {
@@ -46,7 +94,7 @@ describe("rail: Approve and file after the Check (#921)", () => {
     journeyFor({
       ipas: { charges: [], slips: [{ number: "T1" }], itemLocation: { label: "A" }, source: "local" },
       digest: {
-        ...digest,
+        ...baseDigest,
         costsComplete: true,
         docs: { missingByPart: {} },
         s1: { approved: {} },
@@ -71,25 +119,5 @@ describe("rail: Approve and file after the Check (#921)", () => {
 
   it("still offers the button to another filing approver", () => {
     expect(file("u2", "u1").action).toMatchObject({ kind: "file" });
-  });
-});
-
-describe("rail: Sign Logistics reads the form first (#925)", () => {
-  const logistics = (listed) =>
-    journeyFor({
-      ipas: { charges: [], slips: [{ number: "T1" }], itemLocation: { label: "A" }, source: "local" },
-      digest,
-      lists: listed ? { logistics_signed: [{ employeeId: "u1", name: "Lo" }] } : {},
-      userId: "u1",
-      can: { change: false, record: false },
-    }).ready.find((item) => item.key === "logistics");
-
-  it("carries the review window's button and sentence, not a one-click sign", () => {
-    expect(logistics(true).action).toMatchObject({ kind: "logistics", confirm: "Sign Logistics" });
-    expect(logistics(true).action.what).toBeTruthy();
-  });
-
-  it("offers it to nobody off the Logistics list", () => {
-    expect(logistics(false).action).toBeNull();
   });
 });

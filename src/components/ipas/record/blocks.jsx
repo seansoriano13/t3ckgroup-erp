@@ -16,30 +16,7 @@ import {
   IpasStatusSection,
 } from "@/components/ipas/IpasSections";
 
-import { useState } from "react";
-
-import { LOGISTICS_ITEM } from "./journey";
-import SignReview from "./SignReview";
 import SignoffList from "./SignoffList";
-
-/** Section 4 with its Sign Logistics button opening the same review window as the rail. */
-function LogisticsWithReview({ ctx }) {
-  const { ipas, can, on, rights } = ctx;
-  const [reviewing, setReviewing] = useState(null);
-  return (
-    <>
-      <IpasLogisticsSection
-        ipas={ipas}
-        canChange={can.pickLocation ?? can.change}
-        onPick={on.pickLocation}
-        signRights={rights[8]}
-        busy={ctx.busy?.signoff}
-        onSign={() => setReviewing(LOGISTICS_ITEM)}
-      />
-      <SignReview ctx={ctx} item={reviewing} onClose={() => setReviewing(null)} onSign={() => on.signLogistics()} />
-    </>
-  );
-}
 
 export function buildBlocks(ctx) {
   const { ipas, can, on, rights } = ctx;
@@ -84,12 +61,18 @@ export function buildBlocks(ctx) {
     />
   );
   const charges = (
-    <IpasChargesSection ipas={ipas} canRecord={can.record} onAddCharge={on.addCharge} onEditCharge={on.editCharge} onRemoveCharge={on.removeCharge} onRemoveBlankCharges={on.removeBlankCharges} />
+    <IpasChargesSection ipas={ipas} canRecord={can.record} onAddCharge={on.addCharge} onEditCharge={on.editCharge} onRemoveCharge={on.removeCharge} />
   );
   const sales = (
     <IpasSalesSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} />
   );
-  const logistics = <LogisticsWithReview ctx={ctx} />;
+  const logistics = (
+    <IpasLogisticsSection
+      ipas={ipas}
+      canChange={can.pickLocation ?? can.change}
+      onPick={on.pickLocation}
+    />
+  );
   const status = (
     <IpasStatusSection
       ipas={ipas}
@@ -126,7 +109,7 @@ export function buildBlocks(ctx) {
         {costing}
       </div>
     ),
-    // 4 · Delivery: where the goods are, and the Logistics sign-off.
+    // 4 · Delivery: where the goods are.
     delivery: (
       <div className="space-y-6">
         {logistics}
@@ -136,7 +119,16 @@ export function buildBlocks(ctx) {
     // 5 · Documents: every file, in one list.
     documents,
     // 6 · Sign-offs: who signed the final IPAS.
-    signoffs: <SignoffList steps={ctx.journey?.sign ?? []} />,
+    signoffs: (
+      <SignoffList
+        ctx={ctx}
+        steps={[
+          // Logistics is the first sign-off; it is a "get it ready" step on the rail and gates "Send for signing".
+          ...(ctx.journey?.ready ?? []).filter((step) => step.key === "logistics"),
+          ...(ctx.journey?.sign ?? []),
+        ]}
+      />
+    ),
     history: <IpasHistorySection events={ipas.events} />,
   };
 }

@@ -1799,6 +1799,19 @@ create table if not exists public."transmittal_lines" (
   "created_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."transmittal_pending_notices" (
+  "id" uuid not null default gen_random_uuid(),
+  "transmittal_id" uuid not null,
+  "stage_id" uuid not null,
+  "signer_id" uuid,
+  "signed_at" timestamp with time zone,
+  "notices" jsonb not null,
+  "due_at" timestamp with time zone not null,
+  "sent_at" timestamp with time zone,
+  "cancelled_at" timestamp with time zone,
+  "created_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."transmittal_products" (
   "id" uuid not null default gen_random_uuid(),
   "transmittal_id" uuid not null,
@@ -2050,6 +2063,7 @@ alter table tasks add constraint "tasks_pkey" PRIMARY KEY (id);
 alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_pkey" PRIMARY KEY (id);
 alter table transmittal_ipas add constraint "transmittal_ipas_pkey" PRIMARY KEY (id);
 alter table transmittal_lines add constraint "transmittal_lines_pkey" PRIMARY KEY (id);
+alter table transmittal_pending_notices add constraint "transmittal_pending_notices_pkey" PRIMARY KEY (id);
 alter table transmittal_products add constraint "transmittal_products_pkey" PRIMARY KEY (id);
 alter table transmittal_references add constraint "transmittal_references_pkey" PRIMARY KEY (id);
 alter table transmittal_sors add constraint "transmittal_sors_pkey" PRIMARY KEY (id);
@@ -2147,7 +2161,6 @@ alter table costing_landed_defaults add constraint "costing_landed_defaults_loca
 alter table costing_landed_defaults add constraint "costing_landed_defaults_one_row_chk" CHECK ((id = true));
 alter table costing_markup_presets add constraint "costing_markup_presets_factor_chk" CHECK ((factor > (0)::numeric));
 alter table costing_matrices add constraint "costing_matrices_compliance_chk" CHECK (((compliance IS NULL) OR (compliance = ANY (ARRAY['complies'::text, 'deviates'::text]))));
-alter table costing_matrices add constraint "costing_matrices_deviation_note_chk" CHECK (((compliance IS DISTINCT FROM 'deviates'::text) OR (NULLIF(btrim(compliance_note), ''::text) IS NOT NULL)));
 alter table costing_matrices add constraint "costing_matrices_import_addon_chk" CHECK (((import_addon_percent IS NULL) OR (import_addon_percent >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_factor_chk" CHECK (((default_factor IS NULL) OR (default_factor > (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_marketing_chk" CHECK (((marketing IS NULL) OR (marketing >= (0)::numeric)));
@@ -2662,6 +2675,9 @@ alter table transmittal_lines add constraint "transmittal_lines_opportunity_id_f
 alter table transmittal_lines add constraint "transmittal_lines_tech_in_charge_id_fkey" FOREIGN KEY (tech_in_charge_id) REFERENCES employees(id);
 alter table transmittal_lines add constraint "transmittal_lines_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
 alter table transmittal_lines add constraint "transmittal_lines_wh_in_charge_id_fkey" FOREIGN KEY (wh_in_charge_id) REFERENCES employees(id);
+alter table transmittal_pending_notices add constraint "transmittal_pending_notices_signer_id_fkey" FOREIGN KEY (signer_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table transmittal_pending_notices add constraint "transmittal_pending_notices_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES transmittal_stages(id) ON DELETE CASCADE;
+alter table transmittal_pending_notices add constraint "transmittal_pending_notices_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
 alter table transmittal_products add constraint "transmittal_products_option_id_fkey" FOREIGN KEY (option_id) REFERENCES ipas_options(id) ON DELETE RESTRICT;
 alter table transmittal_products add constraint "transmittal_products_transmittal_id_fkey" FOREIGN KEY (transmittal_id) REFERENCES transmittals(id) ON DELETE CASCADE;
 alter table transmittal_references add constraint "transmittal_references_option_id_fkey" FOREIGN KEY (option_id) REFERENCES ipas_options(id) ON DELETE RESTRICT;
@@ -2861,6 +2877,8 @@ CREATE INDEX transmittal_ipas_ipas_id_idx ON public.transmittal_ipas USING btree
 CREATE INDEX transmittal_lines_ipas_id_idx ON public.transmittal_lines USING btree (ipas_id);
 CREATE INDEX transmittal_lines_opportunity_id_idx ON public.transmittal_lines USING btree (opportunity_id);
 CREATE INDEX transmittal_lines_transmittal_id_idx ON public.transmittal_lines USING btree (transmittal_id);
+CREATE INDEX transmittal_pending_notices_due_idx ON public.transmittal_pending_notices USING btree (due_at) WHERE ((sent_at IS NULL) AND (cancelled_at IS NULL));
+CREATE UNIQUE INDEX transmittal_pending_notices_signature_key ON public.transmittal_pending_notices USING btree (stage_id, signed_at);
 CREATE INDEX transmittal_products_option_id_idx ON public.transmittal_products USING btree (option_id);
 CREATE INDEX transmittal_references_option_id_idx ON public.transmittal_references USING btree (option_id);
 CREATE INDEX transmittal_sors_opportunity_id_idx ON public.transmittal_sors USING btree (opportunity_id);
@@ -3000,6 +3018,7 @@ alter table public."tasks" enable row level security;
 alter table public."transmittal_cleared_signatures" enable row level security;
 alter table public."transmittal_ipas" enable row level security;
 alter table public."transmittal_lines" enable row level security;
+alter table public."transmittal_pending_notices" enable row level security;
 alter table public."transmittal_products" enable row level security;
 alter table public."transmittal_references" enable row level security;
 alter table public."transmittal_sors" enable row level security;
@@ -6128,8 +6147,7 @@ AS $function$
 declare
   v_missing jsonb;
 begin
-  if (new.section in (1, 3, 6) and new.role = 'prepared')
-     or (new.section = 7 and new.role = 'received') then
+  if new.section in (1, 3, 6, 7) then
     v_missing := public._ipas_missing_documents(new.ipas_id, new.section::integer);
     if jsonb_array_length(v_missing) > 0 then
       raise exception 'ipas_sign: section % needs % first',
@@ -9810,6 +9828,31 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_component_derive_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_matrix uuid;
+begin
+  if tg_op in ('INSERT', 'UPDATE') then
+    select l.matrix_id into v_matrix from public.costing_tender_lines l where l.id = new.tender_line_id;
+    if v_matrix is not null then
+      perform public.costing_refresh_overall_compliance(v_matrix);
+    end if;
+  end if;
+  if tg_op in ('DELETE', 'UPDATE') then
+    select l.matrix_id into v_matrix from public.costing_tender_lines l where l.id = old.tender_line_id;
+    if v_matrix is not null then
+      perform public.costing_refresh_overall_compliance(v_matrix);
+    end if;
+  end if;
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_component_markup_price(p_component_id uuid, p_acquire numeric, p_factor numeric)
  RETURNS numeric
  LANGUAGE sql
@@ -11358,17 +11401,24 @@ CREATE OR REPLACE FUNCTION public.costing_matrix_verdict_guard()
 AS $function$
 declare
   v_actor uuid := public.get_employee_id();
+  v_trusted boolean := auth.uid() is null
+    or coalesce(auth.role(), '') = 'service_role'
+    or coalesce(current_setting('costing.bypass', true), '') = 'on';
 begin
-  if (new.compliance is not distinct from old.compliance)
-     and (new.compliance_note is not distinct from old.compliance_note) then
+  if new.compliance is distinct from old.compliance then
+    if coalesce(current_setting('costing.derive', true), '') = 'on' or v_trusted then
+      return new;
+    end if;
+    raise exception 'costing_technical: the overall verdict follows from the products and cannot be set by hand'
+      using errcode = '42501';
+  end if;
+  if new.compliance_note is not distinct from old.compliance_note then
     -- Not a verdict change. The stamp belongs to the verdict, so a plain write cannot move it.
     new.compliance_by := old.compliance_by;
     new.compliance_at := old.compliance_at;
     return new;
   end if;
-  if auth.uid() is null
-     or coalesce(auth.role(), '') = 'service_role'
-     or coalesce(current_setting('costing.bypass', true), '') = 'on' then
+  if v_trusted then
     return new;
   end if;
   if old.technical_incharge_id is null then
@@ -11377,8 +11427,6 @@ begin
   if v_actor is distinct from old.technical_incharge_id then
     raise exception 'costing_technical: only the Technical in-charge can give the Compliance verdict' using errcode = '42501';
   end if;
-  new.compliance_by := v_actor;
-  new.compliance_at := now();
   return new;
 end;
 $function$
@@ -11596,6 +11644,23 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_overall_compliance_value(p_matrix_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when count(c.id) = 0 then null
+    when count(*) filter (where c.compliance = 'deviates') > 0 then 'deviates'
+    when count(*) filter (where c.compliance = 'complies') = count(c.id) then 'complies'
+    else null
+  end
+  from public.costing_tender_lines l
+  join public.costing_components c on c.tender_line_id = l.id
+  where l.matrix_id = p_matrix_id
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_pending_bid_decisions()
  RETURNS TABLE(matrix_id uuid, opportunity_id uuid, project_title text, client_name text, deal_owner_id uuid, deal_owner_name text, final_offer_total numeric, abc_total numeric, waiting_since timestamp with time zone)
  LANGUAGE sql
@@ -11663,6 +11728,31 @@ AS $function$
   select sl.unit_price
   from public.sales_opportunity_items sl
   where sl.id = public.costing_matching_sor_line(p_tender_line_id)
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_refresh_overall_compliance(p_matrix_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_new text := public.costing_overall_compliance_value(p_matrix_id);
+  v_old text;
+begin
+  select m.compliance into v_old from public.costing_matrices m where m.id = p_matrix_id;
+  if not found or v_old is not distinct from v_new then
+    return;
+  end if;
+  -- compliance_by means "whose verdict this is". The derived verdict is the Technical in-charge's by role (they are the
+  -- only person who may judge the offer), whoever happened to edit a product row (a sales or costing editor, or a
+  -- cascade from a deleted line). With no in-charge named yet it is left empty rather than naming an editor.
+  perform set_config('costing.derive', 'on', true);
+  update public.costing_matrices
+     set compliance = v_new, compliance_by = technical_incharge_id, compliance_at = now()
+   where id = p_matrix_id;
+  perform set_config('costing.derive', 'off', true);
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_refuse_when_locked()
@@ -12060,6 +12150,9 @@ begin
   if not exists (select 1 from public.costing_matrices m where m.id = p_matrix_id and m.compliance is not null) then
     raise exception 'costing_sign: the Technical verdict is not given yet' using errcode = '22023';
   end if;
+  if exists (select 1 from public.costing_matrices m where m.id = p_matrix_id and m.compliance = 'deviates' and nullif(btrim(m.compliance_note), '') is null) then
+    raise exception 'costing_sign: a deviation needs the Technical note first' using errcode = '22023';
+  end if;
 
   if not coalesce(p_decline_signature, false) then
     select nullif(btrim(e.signature_path), '') into v_signature from public.employees e where e.id = v_actor;
@@ -12111,14 +12204,13 @@ AS $function$
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_technical_list()
- RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, client_name text, stage text, team text, rows_total integer, rows_judged integer, approved boolean, is_mine boolean)
+ RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, client_name text, stage text, team text, rows_total integer, rows_judged integer, approved boolean, is_mine boolean, rows_deviates integer, compliance text)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
   v_me uuid := public.get_employee_id();
-  -- A Super Admin reads every in-charge's SOR; so does someone on the Evaluation list, who approves them.
   v_all boolean := coalesce(public.is_super_admin(), false) or public.costing_on_list('evaluation');
 begin
   if v_me is null then
@@ -12134,18 +12226,26 @@ begin
     o.client_name,
     fs.name,
     'Technical'::text,
-    (select count(*)::integer from public.costing_tender_lines l where l.matrix_id = m.id),
-    case when m.compliance is null then 0
-         else (select count(*)::integer from public.costing_tender_lines l where l.matrix_id = m.id)
-    end,
+    p.total,
+    p.judged,
     exists (
       select 1 from public.costing_signoffs s
       where s.matrix_id = m.id and s.role = 'evaluation_approved' and s.cleared_at is null
     ),
-    m.technical_incharge_id = v_me
+    m.technical_incharge_id = v_me,
+    p.deviates,
+    m.compliance
   from public.costing_matrices m
   join public.sales_opportunities o on o.id = m.opportunity_id
   left join public.flow_stages fs on fs.id = o.flow_stage_id
+  cross join lateral (
+    select count(c.id)::integer as total,
+           (count(*) filter (where c.compliance is not null))::integer as judged,
+           (count(*) filter (where c.compliance = 'deviates'))::integer as deviates
+    from public.costing_tender_lines l
+    join public.costing_components c on c.tender_line_id = l.id
+    where l.matrix_id = m.id
+  ) p
   where m.technical_incharge_id is not null
     and not coalesce(o.is_deleted, false)
     and not coalesce(o.is_scratch, false)
@@ -12175,6 +12275,18 @@ begin
       using errcode = '22023', hint = 'costing_component_linked';
   end if;
   return old;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_tender_line_derive_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_overall_compliance(old.matrix_id);
+  return null;
 end;
 $function$
 ;
@@ -14603,6 +14715,74 @@ AS $function$
         )
       )
   )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.group_task_template_usage(p_template_id uuid)
+ RETURNS TABLE(flow_name text, stage_name text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with live as (
+    select st.name as flow_name, s.name as stage_name
+    from flow_stage_actions a
+    join flow_stages s on s.id = a.stage_id
+    join sales_flows f on f.id = s.flow_id
+    join sale_types st on st.id = f.sale_type_id
+    where a.archived_at is null
+      and a.config->>'templateId' = p_template_id::text
+  ),
+  live_snap as (
+    -- latest snapshot per flow (new SORs start on it) plus any snapshot an open SOR is on
+    select sn.id, sn.flow_id, sn.snapshot_data
+    from flow_snapshots sn
+    where sn.version = (select max(x.version) from flow_snapshots x where x.flow_id = sn.flow_id)
+       or exists (
+         select 1
+         from sales_opportunities o
+         left join flow_stages fst on fst.id = o.flow_stage_id
+         where o.flow_snapshot_id = sn.id
+           and coalesce(fst.is_terminal, false) = false
+       )
+  ),
+  snap as (
+    select st.name as flow_name,
+           coalesce(
+             (select e->>'name'
+                from jsonb_array_elements(coalesce(ls.snapshot_data->'stages', '[]'::jsonb)) e
+               where e->>'id' = act->>'stageId' limit 1),
+             'a stage') as stage_name
+    from live_snap ls
+    join sales_flows f on f.id = ls.flow_id
+    join sale_types st on st.id = f.sale_type_id
+    cross join lateral jsonb_array_elements(coalesce(ls.snapshot_data->'actions', '[]'::jsonb)) act
+    where act->'config'->>'templateId' = p_template_id::text
+  )
+  select distinct u.flow_name, u.stage_name from (
+    select * from live union all select * from snap
+  ) u
+  order by 1, 2;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.group_task_templates_block_delete_in_use()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_list text;
+begin
+  select string_agg(flow_name || ' > ' || stage_name, '; ')
+    into v_list
+  from group_task_template_usage(old.id);
+
+  if v_list is not null then
+    raise exception 'Template "%" is used by a Stage Action: %. Remove it from those stages first.', old.name, v_list
+      using errcode = 'P0001';
+  end if;
+  return old;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.group_task_templates_touch()
@@ -27580,6 +27760,153 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.transmittal_flush_notices()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_count int := 0;
+  v_row record;
+  v_all boolean := auth.uid() is null or coalesce(auth.role(), '') = 'service_role';
+  v_actor uuid := public.get_employee_id();
+begin
+  if not v_all and v_actor is null then
+    raise exception 'transmittal_flush_notices: not signed in' using errcode = '42501';
+  end if;
+
+  for v_row in
+    select * from public.transmittal_pending_notices p
+     where p.sent_at is null and p.cancelled_at is null
+       and p.due_at < clock_timestamp()
+       and (v_all or p.signer_id = v_actor)
+     order by p.due_at
+     for update skip locked
+  loop
+    insert into public.notifications (recipient_id, type, title, message, reference_id)
+    select (n ->> 'recipient_id')::uuid, n ->> 'type', n ->> 'title', n ->> 'message', n ->> 'reference_id'
+      from jsonb_array_elements(v_row.notices) n
+     where n ->> 'recipient_id' is not null;
+    update public.transmittal_pending_notices set sent_at = now() where id = v_row.id;
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_hold_notices(p_transmittal_id uuid, p_stage text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_stage public.transmittal_stages;
+  v_row public.transmittals;
+  v_number text;
+  v_next_list text;
+  v_next_label text;
+  v_other uuid;
+  v_na int := 0;
+  v_notices jsonb := '[]'::jsonb;
+  v_due timestamptz;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_hold_notices: not signed in' using errcode = '42501';
+  end if;
+  select * into v_stage from public.transmittal_stages s
+   where s.transmittal_id = p_transmittal_id and s.stage = p_stage for update;
+  if not found or v_stage.completed_at is null or v_stage.completed_by is distinct from v_actor then
+    raise exception 'transmittal_hold_notices: only the signer of a signed stage holds its notices' using errcode = '42501';
+  end if;
+  v_due := v_stage.completed_at + public.transmittal_quick_undo_window();
+  if clock_timestamp() > v_due then
+    raise exception 'transmittal_hold_notices: the quick-undo window has passed' using errcode = '42501';
+  end if;
+
+  select * into v_row from public.transmittals t where t.id = p_transmittal_id;
+  v_number := v_row.number;
+
+  -- Who is next, as transmittal_complete_stage decided it.
+  if p_stage = 'warehouse_checking' then
+    if v_row.check_technical then
+      v_next_list := 'transmittal_warehouse'; v_next_label := 'waiting on release';
+    else
+      v_next_list := 'transmittal_check_by'; v_next_label := 'awaiting Check by';
+    end if;
+  elsif p_stage = 'warehouse_releasing' then
+    if v_row.check_technical then
+      v_next_list := 'transmittal_technical'; v_next_label := 'waiting on Technical';
+    end if;
+  elsif p_stage = 'technical_inspection' then
+    v_next_list := 'transmittal_check_by'; v_next_label := 'awaiting Check by';
+  end if;
+
+  if v_next_list is not null then
+    v_notices := v_notices || coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'recipient_id', l.employee_id,
+        'type', 'TRANSMITTAL_STAGE_READY',
+        'title', v_number || ' is waiting on you',
+        'message', v_number || ' is ' || v_next_label || '.',
+        'reference_id', p_transmittal_id::text))
+        from public.ipas_signer_lists l
+        join public.employees e on e.id = l.employee_id
+       where l.list_key = v_next_list and not coalesce(e.is_deleted, false)
+    ), '[]'::jsonb);
+  end if;
+
+  -- The registered co-signer who still has to confirm.
+  v_other := case
+    when v_stage.first_confirmed is false then v_stage.first_signer_id
+    when v_stage.second_confirmed is false then v_stage.second_signer_id
+  end;
+  if v_other is not null and v_other <> v_actor then
+    v_notices := v_notices || jsonb_build_array(jsonb_build_object(
+      'recipient_id', v_other,
+      'type', 'TRANSMITTAL_CONFIRM_SIGNATURE',
+      'title', 'Confirm your signature on ' || v_number,
+      'message', 'You are the second signatory on ' || v_number || '. Confirm or decline it.',
+      'reference_id', p_transmittal_id::text));
+  end if;
+
+  -- NA lines: the preparer and the Check by list hear of them.
+  if p_stage = 'warehouse_checking' then
+    select count(*) into v_na from public.transmittal_lines l
+     where l.transmittal_id = p_transmittal_id and l.wh_rating = 'na';
+  elsif p_stage = 'technical_inspection' then
+    select count(*) into v_na from public.transmittal_lines l
+     where l.transmittal_id = p_transmittal_id and l.tech_rating = 'na';
+  end if;
+  if v_na > 0 then
+    v_notices := v_notices || coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'recipient_id', r.u,
+        'type', 'TRANSMITTAL_NA_RAISED',
+        'title', v_number || ' has NA lines',
+        'message', v_number || ' was checked with ' || v_na || ' line' || case when v_na = 1 then '' else 's' end || ' rated NA.',
+        'reference_id', p_transmittal_id::text))
+        from (
+          select v_row.prepared_by as u
+          union
+          select l.employee_id from public.ipas_signer_lists l
+            join public.employees e on e.id = l.employee_id
+           where l.list_key = 'transmittal_check_by' and not coalesce(e.is_deleted, false)
+        ) r
+       where r.u is not null
+    ), '[]'::jsonb);
+  end if;
+
+  insert into public.transmittal_pending_notices (transmittal_id, stage_id, signer_id, signed_at, notices, due_at)
+  values (v_stage.transmittal_id, v_stage.id, v_actor, v_stage.completed_at, v_notices, v_due)
+  on conflict (stage_id, signed_at) do nothing;
+
+  return jsonb_build_object('due_at', v_due);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.transmittal_ipas_po_lines(p_ipas_number text)
  RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb)
  LANGUAGE plpgsql
@@ -27793,6 +28120,59 @@ begin
   limit 200;
 end;
 $function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_quick_undo(p_transmittal_id uuid, p_stage text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_stage public.transmittal_stages;
+  v_result jsonb;
+begin
+  if v_actor is null then
+    raise exception 'transmittal_quick_undo: not signed in' using errcode = '42501';
+  end if;
+
+  select * into v_stage from public.transmittal_stages s
+   where s.transmittal_id = p_transmittal_id and s.stage = p_stage
+   for update;
+  if not found or v_stage.completed_at is null then
+    raise exception 'transmittal_quick_undo: that stage is not signed' using errcode = '22023';
+  end if;
+  if v_stage.completed_by is distinct from v_actor then
+    raise exception 'transmittal_quick_undo: only the person who signed can undo this way' using errcode = '42501';
+  end if;
+  if clock_timestamp() > v_stage.completed_at + public.transmittal_quick_undo_window() then
+    raise exception 'transmittal_quick_undo: the quick-undo window has passed; undo with a reason' using errcode = '42501';
+  end if;
+
+  -- Nobody hears of it: cancel the notices still held for this signature.
+  -- If a flush already sent them (it holds the row lock, so this waited for it),
+  -- the window is over: refuse instead of undoing a signature people were told of.
+  update public.transmittal_pending_notices
+     set cancelled_at = now()
+   where stage_id = v_stage.id and signed_at = v_stage.completed_at
+     and sent_at is null and cancelled_at is null;
+  if exists (
+    select 1 from public.transmittal_pending_notices
+     where stage_id = v_stage.id and signed_at = v_stage.completed_at and sent_at is not null
+  ) then
+    raise exception 'transmittal_quick_undo: the quick-undo window has passed; undo with a reason' using errcode = '42501';
+  end if;
+
+  v_result := public.transmittal_undo_signature(p_transmittal_id, 'stage', 'Undone right after signing', p_stage, null);
+  return v_result - 'notify_ids';
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittal_quick_undo_window()
+ RETURNS interval
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$ select interval '15 seconds' $function$
 ;
 CREATE OR REPLACE FUNCTION public.transmittal_rate(p_transmittal_id uuid, p_line_ratings jsonb)
  RETURNS jsonb
@@ -29386,6 +29766,7 @@ CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON pub
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_clear_evaluation_components AFTER INSERT OR DELETE OR UPDATE OF offer_specification, compliance, compliance_note ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
 CREATE TRIGGER costing_component_delete_guard BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_component_delete_guard();
+CREATE TRIGGER costing_component_derive AFTER INSERT OR DELETE OR UPDATE OF compliance, tender_line_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_component_derive_trigger();
 CREATE TRIGGER costing_component_verdict_guard BEFORE UPDATE OF compliance, compliance_note, recommended_alternative ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_component_verdict_guard();
 CREATE TRIGGER costing_components_cleanup BEFORE DELETE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_components_cleanup();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_write_events();
@@ -29437,6 +29818,7 @@ CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.c
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('prepared,final_approved', 'The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_tender_line_delete_guard BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_delete_guard();
+CREATE TRIGGER costing_tender_line_derive AFTER DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_derive_trigger();
 CREATE TRIGGER costing_tender_line_product_guard BEFORE UPDATE OF odoo_product_id ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_product_guard();
 CREATE TRIGGER costing_tender_line_removal_guard BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_line_removal_guard();
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
@@ -29444,6 +29826,7 @@ CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_fl
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER trg_prevent_privileged_flags_on_insert BEFORE INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_privileged_flags_on_insert();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
+CREATE TRIGGER group_task_templates_block_delete_in_use BEFORE DELETE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_block_delete_in_use();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
 CREATE TRIGGER ipas_actual_checking_hand_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_actual_checking_hand_guard();
 CREATE TRIGGER ipas_filing_clears_hold BEFORE UPDATE OF state ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_filing_clears_hold();

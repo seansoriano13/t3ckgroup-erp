@@ -312,6 +312,37 @@ export function summary(matrix, settings) {
   };
 }
 
+/** A Final Offer under this share of the ABC is flagged (#942). */
+export const LOW_OFFER_SHARE_OF_ABC = 50;
+
+/**
+ * Whether the Final Offer is far below the ABC (#942). `low` is true when the offer total is under
+ * 50% of the ABC total; it needs both totals, so it is false while either is blank. `percent` is
+ * the whole-number share. `lines` lists the Tender Lines whose own offer is under 50% of their own
+ * ABC, each as `{ id, number, name, percent }`. It only warns; it blocks nothing.
+ */
+export function offerVsAbc(tenderLines) {
+  const lines = tenderLines ?? [];
+  const totals = matrixTotals(lines);
+  const percent = totals.percentOfAbc;
+  const low = percent !== null && percent < LOW_OFFER_SHARE_OF_ABC;
+  const lowLines = [];
+  for (const line of lines) {
+    const a = extendedCentavos(line?.abc_unit, line?.quantity);
+    const o = extendedCentavos(line?.final_offer_unit, line?.quantity);
+    if (a === null || o === null || a <= 0n) continue;
+    if (o * 100n < a * BigInt(LOW_OFFER_SHARE_OF_ABC)) {
+      lowLines.push({
+        id: line.id ?? null,
+        number: line.number ?? null,
+        name: line.tender_specification ?? "",
+        percent: Math.round(Number((o * 10_000n) / a)) / 100,
+      });
+    }
+  }
+  return { low, percent: percent === null ? null : Math.round(percent), lines: lowLines };
+}
+
 /** Revenue in centavos: (Final Offer - cost) - ITR on the taxed part of the offer. Null while any input is blank. */
 function revenueCentavos(offer, cost, taxed, itrRate) {
   if (offer === null || cost === null || taxed === null || itrRate === null) return null;

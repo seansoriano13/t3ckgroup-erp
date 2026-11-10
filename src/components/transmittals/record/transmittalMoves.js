@@ -115,7 +115,8 @@ export function movesFor(t, rights, { forms, odooRef, on }) {
           icon: Check,
           label: `Sign ${title}`,
           verb: "Sign",
-          confirm: !blocker,
+          // One click when nothing blocks it; the page's "Signed as … · Undo" toast is the safety net.
+          confirm: false,
           hint: blocker ?? `Records your signature and the other signatory's, who confirms it. Next: ${nextAfter(t, stage)}`,
           run: (from) => (blocker ? on.open(stage) : on.signStage(stage, form, from)),
         }),
