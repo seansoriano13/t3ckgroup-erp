@@ -7,17 +7,34 @@ import { useState } from "react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { focusField } from "./formHelpers";
+import { focusField, scrollIntoViewGently } from "./formHelpers";
 
-export default function EditBar({ editor, canSave, saving, onDone, reveal, notice, failure }) {
+export default function EditBar({ editor, canSave, saving, onDone, reveal, show, missingFiles = [], notice, failure }) {
   const { changed, missing, done, total, saved, planError, save, clear } = editor;
   const [discarding, setDiscarding] = useState(false);
 
   const nextEmpty = () => {
     const first = missing[0];
-    if (!first) return;
-    reveal(first.section);
-    requestAnimationFrame(() => focusField(first.id));
+    if (first) {
+      reveal(first.section);
+      requestAnimationFrame(() => focusField(first.id));
+      return;
+    }
+    const file = missingFiles[0];
+    if (!file) return;
+    if (show) show(file.section);
+    else reveal(file.section);
+    // Scroll to the first empty file slot of that section (slots carry data-missing-file).
+    // A document slot is matched by its label, so an optional document's slot is never the target.
+    const exact =
+      file.section === "documents"
+        ? `[data-missing-file="documents"][aria-label="${CSS.escape(`Attach a file to ${file.label}`)}"]`
+        : null;
+    const scroll = () =>
+      scrollIntoViewGently(
+        (exact && document.querySelector(exact)) || document.querySelector(`[data-missing-file="${file.section}"]`),
+      );
+    requestAnimationFrame(() => requestAnimationFrame(scroll));
   };
 
   let status = null;
@@ -39,10 +56,10 @@ export default function EditBar({ editor, canSave, saving, onDone, reveal, notic
           {status}
         </span>
         <span className="text-sm text-muted-foreground tabular-nums">
-          {done} of {total} required fields filled
+          {done} of {total} fields{missingFiles.length > 0 && ` · ${missingFiles.length} ${missingFiles.length === 1 ? "file" : "files"} missing`}
         </span>
         <div className="ml-auto flex flex-wrap gap-2">
-          <Button type="button" variant="ghost" size="sm" disabled={!missing.length} onClick={nextEmpty}>
+          <Button type="button" variant="ghost" size="sm" disabled={!missing.length && !missingFiles.length} onClick={nextEmpty}>
             Next empty
           </Button>
           {changed > 0 ? (

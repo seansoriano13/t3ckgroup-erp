@@ -15626,6 +15626,28 @@ AS $function$
   select case when coalesce(public.ipas_can_read(), false) then public._ipas_landed_cost(p_ipas_id) end
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_lc_final_needs_charges()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_blank int;
+begin
+  select count(*) into v_blank
+    from public.ipas_charges c
+   where c.ipas_id = new.id and c.amount_php is null;
+  if v_blank > 0 then
+    raise exception 'Landed Cost can''t be marked final while % % no amount. Fill in or remove % in 3 · Costs first.',
+      v_blank,
+      case when v_blank = 1 then 'charge has' else 'charges have' end,
+      case when v_blank = 1 then 'it' else 'them' end
+      using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_lc_header_changed()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -17610,6 +17632,16 @@ begin
          where s.ipas_id = v_ipas.id and s.section = 7 and s.role in ('received', 'noted', 'checked') and s.cleared_at is null
       ) < 3 then
         raise exception 'ipas_sign: Approved needs Received, Noted and Checked first' using errcode = '22023';
+      end if;
+      -- #921: whoever gave the Check cannot also file. One person on both lists
+      -- could otherwise check and file the same IPAS alone.
+      if exists (
+        select 1 from public.ipas_signoffs s
+         where s.ipas_id = v_ipas.id and s.section = 7 and s.role in ('received', 'noted', 'checked')
+           and s.cleared_at is null and s.signed_by = v_actor
+      ) then
+        raise exception 'ipas_sign: you checked %, so someone else on the Filing approvers list files it', v_ipas.number
+          using errcode = '42501';
       end if;
       if v_ipas.computation_status not in ('lc_odoo_done', 'checked') then
         raise exception 'ipas_sign: % can''t be filed until LC Odoo Done: Landed Cost is still provisional, and Filing freezes it as final', v_ipas.number
@@ -29802,6 +29834,7 @@ CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON 
 CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_freeze_guard();
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
 CREATE TRIGGER ipas_lc_clear AFTER UPDATE OF landed_cost_split, computation_status, odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_lc_header_changed();
+CREATE TRIGGER ipas_lc_final_needs_charges BEFORE UPDATE OF computation_status ON public.ipas FOR EACH ROW WHEN (((new.computation_status = 'lc_odoo_done'::text) AND (old.computation_status IS DISTINCT FROM 'lc_odoo_done'::text))) EXECUTE FUNCTION ipas_lc_final_needs_charges();
 CREATE TRIGGER ipas_receive_items_from_copy AFTER INSERT OR UPDATE OF odoo_copy, odoo_fetched_at ON public.ipas FOR EACH ROW EXECUTE FUNCTION _ipas_receive_items_from_copy();
 CREATE TRIGGER ipas_seed_blank_charges AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION _ipas_seed_blank_charges();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();

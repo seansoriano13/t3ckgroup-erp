@@ -895,7 +895,7 @@ describe("IPAS pages", () => {
       renderDetail(row.id, "delivery", "edit");
       const box = await screen.findByRole("combobox", { name: /^Item Location/ });
       expect(box).toHaveAccessibleName(/Needed/);
-      expect(screen.getByText(/required fields filled/)).toBeInTheDocument();
+      expect(screen.getByText(/\d+ of \d+ fields/)).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Next empty" }));
       await waitFor(() => expect(document.activeElement?.id).toMatch(/^f-/));
     });

@@ -11,6 +11,7 @@ import {
   IPAS_SOURCE,
 } from "@/constants/ipas";
 import { TRANSMITTAL_STAFF_LIST } from "@/constants/transmittals";
+import { chargesLackingFile, isBlankCharge } from "@/utils/ipasDocuments";
 
 const LIST_NAME = {
   [IPAS_SIGNER_LIST.S1_APPROVED]: "Order approvers",
@@ -89,9 +90,9 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
           : { line: "Landed Cost has no figure yet.", section: null, label: null };
 
   // A charge with no amount stops section 2's sign-off in the database: it is fixed (or removed) before signing.
-  const blankCharges = (ipas.charges ?? []).filter((charge) => charge.amount_php === null || charge.amount_php === undefined).length;
+  const blankCharges = (ipas.charges ?? []).filter(isBlankCharge).length;
   // …and a charge with an amount needs its file (the database checks both when signing).
-  const chargesNoFile = (ipas.charges ?? []).filter((charge) => charge.amount_php !== null && charge.amount_php !== undefined && !charge.attachment_url).length;
+  const chargesNoFile = chargesLackingFile(ipas).length;
   const chargeProblems = [
     blankCharges > 0 && `${blankCharges} ${blankCharges === 1 ? "charge has" : "charges have"} no amount (fill in or remove)`,
     chargesNoFile > 0 && `${chargesNoFile} ${chargesNoFile === 1 ? "charge has" : "charges have"} no file`,
@@ -137,12 +138,16 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       done: Boolean(digest.costsComplete),
       line: digest.costsComplete
         ? `Final at ${digest.money.landedFigureText}.`
+        : blankCharges > 0
+          ? `Can't be marked final while ${blankCharges} ${blankCharges === 1 ? "charge has" : "charges have"} no amount. Fill in or remove ${blankCharges === 1 ? "it" : "them"} in 3 · Costs.`
         : digest.landedUnavailable
           ? noFigure.line
           : `Now ${digest.money.landedText}. Check 3 · Costs, then mark it final.`,
       who: buyer,
       action: !(can.change || can.record) || digest.costsComplete
         ? null
+        : blankCharges > 0
+          ? { kind: "edit", section: "costs", label: "Fill in 3 · Costs" }
         : digest.landedUnavailable
           ? (noFigure.section ? { kind: "edit", section: noFigure.section, label: noFigure.label } : null)
           : can.change
@@ -206,6 +211,10 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
   const preparer = SIGN_SECTIONS.map(([section]) => signoffs[section]?.prepared?.signedBy).find(Boolean);
   const checked = Boolean(s7.received && s7.noted && s7.checked);
   const filed = Boolean(s7.approved) || digest.filed;
+  // Whoever gave the Check cannot also file (#921): the database refuses it, so the rail doesn't offer it.
+  const checkedByMe = Boolean(userId) && [s7.received, s7.noted, s7.checked].some((row) => row?.signedBy?.id === userId);
+  const fileWho = who([IPAS_SIGNER_LIST.S7_APPROVED]);
+  const othersWhoFile = [...members([IPAS_SIGNER_LIST.S7_APPROVED])].filter(([id]) => id !== userId).map(([, name]) => name);
   const approverWho = who(toApprove.length > 0 ? toApprove.map(([, list]) => list) : SIGN_SECTIONS.map(([, list]) => list));
 
   const sign = [
@@ -267,9 +276,13 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       key: "file",
       label: "Approve and file",
       done: filed,
-      line: filed ? `Filed by ${s7.approved?.signedBy?.name ?? "someone"}.` : "Files the IPAS. It can't be changed after that.",
-      who: who([IPAS_SIGNER_LIST.S7_APPROVED]),
-      action: readyDone && checked && !filed && onList([IPAS_SIGNER_LIST.S7_APPROVED])
+      line: filed
+        ? `Filed by ${s7.approved?.signedBy?.name ?? "someone"}.`
+        : checkedByMe && onList([IPAS_SIGNER_LIST.S7_APPROVED])
+          ? `Checked by you, so someone else on the list files it.${othersWhoFile.length > 0 ? ` Others who can file: ${andList(othersWhoFile)}.` : ""}`
+          : "Files the IPAS. It can't be changed after that.",
+      who: fileWho,
+      action: readyDone && checked && !filed && onList([IPAS_SIGNER_LIST.S7_APPROVED]) && !checkedByMe
         ? { kind: "file", label: "Review and file", confirm: "Approve and file", what: "the IPAS is filed and frozen" }
         : null,
     },

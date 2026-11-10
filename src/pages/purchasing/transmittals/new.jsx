@@ -71,7 +71,9 @@ function NewTransmittal() {
           </p>
           <TransmittalForm
             defaultOrigin={originFor({ hasPurchasingFlow, lists })}
-            onSaved={(id) => navigate(`/purchasing/transmittals/${id}`)}
+            onSaved={(id, extra) =>
+              navigate(`/purchasing/transmittals/${id}`, { state: extra?.backToIpas ? { backToIpas: extra.backToIpas } : undefined })
+            }
             actionsSlot={actionsSlot}
           />
         </>
