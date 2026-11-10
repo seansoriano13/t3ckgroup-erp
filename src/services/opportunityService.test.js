@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { opportunityService } from "./opportunityService"
 import { notificationService } from "./notificationService"
 import { db } from "@/test/db/store"
+import { supabase } from "@/lib/supabase"
 import {
   makeEmployee,
   makeFlowEdge,
@@ -462,6 +463,18 @@ describe("opportunityService", () => {
         expect(await opportunityService.getStageChecklist(deal.id)).toHaveLength(0)
         const moved = await opportunityService.updateStatus(deal.id, "AWARDED", registrar.id)
         expect(moved.status).toBe("AWARDED")
+      })
+
+      // Prod smoke test, 2026-11-10: the checklist asked stage_conditions for
+      // stage_id = "LEAD", a stage code in a uuid column, and PostgREST answered
+      // 400 on every Legacy SOR opened. It has nothing to look up, so it asks nothing.
+      it("does not ask stage_conditions about a stage code", async () => {
+        const deal = versionlessDeal()
+        const from = vi.spyOn(supabase, "from")
+
+        expect(await opportunityService.getStageChecklist(deal.id, deal)).toHaveLength(0)
+        expect(from.mock.calls.map(([table]) => table)).not.toContain("stage_conditions")
+        from.mockRestore()
       })
     })
 

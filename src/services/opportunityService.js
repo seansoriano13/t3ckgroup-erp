@@ -4626,10 +4626,15 @@ export const opportunityService = {
     if (!target) return [];
     // A versionless Legacy Pipeline deal is gated by its stage code (#414), as
     // the move itself is, not by whatever its live flow Stage carries.
-    const stageCode = isJudgedByStageCode(target) ? target.status : target.flow_stage_id;
+    const judgedByCode = isJudgedByStageCode(target);
+    const stageCode = judgedByCode ? target.status : target.flow_stage_id;
 
     let conditions = [];
-    if (target.flow_snapshot_id) {
+    if (judgedByCode && !target.flow_snapshot_id) {
+      // No conditions are kept against a stage code (stage_conditions.stage_id is a
+      // Flow Stage uuid), so there is nothing to read. Asking with the code made
+      // PostgREST answer 400 on every Legacy SOR opened (prod, 2026-11-10).
+    } else if (target.flow_snapshot_id) {
       const { data: snapshot } = await supabase
         .from("flow_snapshots")
         .select("snapshot_data")
