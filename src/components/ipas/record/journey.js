@@ -116,12 +116,16 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       done: Boolean(digest.costsComplete),
       line: digest.costsComplete
         ? `Final at ${digest.money.landedFigureText}.`
+        : blankCharges > 0
+          ? `Can't be marked final while ${blankCharges} ${blankCharges === 1 ? "charge has" : "charges have"} no amount. Fill in or remove ${blankCharges === 1 ? "it" : "them"} in 3 · Costs.`
         : digest.landedUnavailable
           ? noFigure.line
           : `Now ${digest.money.landedText}. Check 3 · Costs, then mark it final.`,
       who: buyer,
       action: !(can.change || can.record) || digest.costsComplete
         ? null
+        : blankCharges > 0
+          ? { kind: "edit", section: "costs", label: "Fill in 3 · Costs" }
         : digest.landedUnavailable
           ? (noFigure.section ? { kind: "edit", section: noFigure.section, label: noFigure.label } : null)
           : can.change
