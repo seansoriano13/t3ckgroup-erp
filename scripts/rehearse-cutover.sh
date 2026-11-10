@@ -4,7 +4,7 @@
 # prod is only read by pg_dump. Runs on a CI runner with the local Supabase
 # stack started (`supabase start`), see .github/workflows/cutover-rehearsal.yml.
 #
-# Needs PROD_DB_URL (read: dump) and STAGING_DB_URL (read: flow transfer).
+# Needs PROD_DB_URL (read: dump). Staging is no longer read (#946).
 set -euo pipefail
 
 DB_CONTAINER=supabase_db_t3ckgroup-erp-local
@@ -92,36 +92,31 @@ LEFT=$(scalar "select count(*) from information_schema.tables where table_schema
 POLICIES=$(scalar "select count(*) from pg_policies where tablename in ('sor_stage_visits','sor_stage_participants') and policyname like '%_read' and qual like '%sor_access_level%'")
 [ "$POLICIES" = "2" ] || fail "visit/participant read policies not narrowed ($POLICIES)"
 
-# Runbook 6a-6c. Prod already holds both flows (same ids); only Government is
-# newer on staging (v5 vs v4, 2026-09-29), so only it is replaced.
-step "6a. replace Government from staging"
-node scripts/transfer-sales-flows.mjs --from staging --to-url "$LOCAL" --replace --apply Government
-
-step "6b. Group Task Templates (done on prod 2026-09-29; transfer only if missing)"
-# Prod already got them (same ids, tagged) before 2026-09-29; transfer only if not.
-if [ "$(scalar "select count(*) from public.group_task_templates where name like '% (staging%'")" = "0" ]; then
-  node scripts/transfer-group-task-templates.mjs --from staging --to-url "$LOCAL" --tag-all --apply
-else
-  echo "already on prod: $(scalar "select count(*) from public.group_task_templates") templates"
-fi
-
-step "6c. repoint Government's Project Delivery template to prod's DELIVERY"
-node scripts/repoint-government-delivery-template.mjs --to prod --to-url "$LOCAL" --apply
-
-step "7. Legacy Pipeline rename and backfill"
-docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -X < supabase/scripts/cutover/legacy_pipeline_backfill.sql
+# Runbook steps 6 and 7 are NOT part of the 2026-11 release (#946):
+#   * 6a-6c copied the Government flow and templates from staging. Prod now owns
+#     its flows (Government became "Project"; staging's flows are no longer kept
+#     up to date), and #946 Q7 says never copy sales flows from staging.
+#   * 7 (legacy_pipeline_backfill.sql) already ran on prod on 2026-09-29. Running
+#     it again would rename "Legacy Pipeline (Do not Use)" back to "Legacy
+#     Pipeline" and attach SORs to it, so the release does not run it.
+# So the rehearsal only checks that prod's own setup survives the migrations.
+LEGACY_ID=f1d4e085-9a13-4c30-a2b7-b9f97f009608
+step "6. check: prod's own flows survive the migrations (nothing is copied or changed)"
+echo "Sale Types: $(scalar "select string_agg(name || ' (' || (select count(*) from public.sales_opportunities o where o.sale_type_id = st.id and coalesce(o.is_deleted,false)=false) || ' SORs)', ', ' order by name) from public.sale_types st where archived_at is null")"
+[ "$(scalar "select count(*) from public.sale_types where id = '$LEGACY_ID'")" = "1" ] || fail "prod's Legacy Pipeline Sale Type ($LEGACY_ID) is missing"
+[ "$(scalar "select system_key from public.sale_types where id = '$LEGACY_ID'")" = "legacy_pipeline" ] || fail "#856 did not put system_key 'legacy_pipeline' on prod's Legacy Pipeline row"
+[ "$(scalar "select count(*) from public.sale_types where system_key = 'legacy_pipeline'")" = "1" ] || fail "more than one Sale Type has system_key 'legacy_pipeline'"
+[ "$(scalar "select count(*) from public.flow_access_settings fas join public.sales_flows f on f.id = fas.flow_id where f.sale_type_id = '$LEGACY_ID' and fas.always_sees = '[{\"type\":\"everyone\"}]'::jsonb and fas.always_edits = '[{\"type\":\"everyone\"}]'::jsonb")" = "1" ] || fail "Legacy Pipeline's Always sees / Always edits are no longer Everyone"
+[ "$(scalar "select count(*) from public.sale_types st join public.sales_flows f on f.sale_type_id = st.id where st.name = 'Project' and st.archived_at is null")" = "1" ] || fail "prod's Project flow is missing"
 NULLS=$(scalar "select count(*) from public.sales_opportunities where sale_type_id is null and coalesce(is_deleted,false)=false")
-[ "$NULLS" = "0" ] || fail "$NULLS non-deleted SORs without a Sale Type"
-LEG=$(scalar "select count(*) from public.sale_types where name = 'Legacy Pipeline'")
-[ "$LEG" = "1" ] || fail "expected one Sale Type named Legacy Pipeline, found $LEG"
-echo "re-run (idempotent):"
-docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -X < supabase/scripts/cutover/legacy_pipeline_backfill.sql
+echo "non-deleted SORs with no Sale Type (only their Deal Team and Super Admins can read them): $NULLS"
+[ "$NULLS" = "0" ] || echo "WARNING: $NULLS SORs have no Sale Type. Not a migration failure; the release leaves them as they are."
 
 step "RLS: spot-check SOR visibility as real employees"
 # visible_as <email> [where]: how many non-deleted SORs this employee can read.
 # Legacy Pipeline is open to Everyone by design (ADR 0021, 2026-09-25
 # amendment), so the Deal Team checks only count SORs outside it.
-LEGACY="(select st.id from public.sale_types st where st.name = 'Legacy Pipeline')"
+LEGACY="(select st.id from public.sale_types st where st.system_key = 'legacy_pipeline')"
 NONLEGACY="coalesce(is_deleted,false)=false and sale_type_id is distinct from $LEGACY"
 visible_as() {
   # One -c string = one session; psql also echoes SET, so keep the last line.
@@ -134,20 +129,27 @@ TOTAL=$(scalar "select count(*) from public.sales_opportunities where $ALL")
 LEG_TOTAL=$(scalar "select count(*) from public.sales_opportunities where $ALL and sale_type_id = $LEGACY")
 NL_TOTAL=$(scalar "select count(*) from public.sales_opportunities where $NONLEGACY")
 ADMIN=$(scalar "select email from public.employees where is_super_admin and email is not null limit 1")
+# The outsider is someone sor_read gives no way in: not a Super Admin, on no
+# SOR's Deal Team, and not covered by any non-Legacy flow's Always sees (prod's
+# Project flow lets all of SALES see it, so a salesperson is not an outsider).
 OUTSIDER=$(scalar "select e.email from public.employees e
   where e.email is not null and not coalesce(e.is_super_admin,false) and not coalesce(e.is_hr,false)
-    and not exists (select 1 from public.sales_opportunities o where e.id in
-      (o.registered_by, o.deal_owner_id, o.support_sales_1_id, o.sales_director_id, o.closing_sales_id))
-  limit 1")
+    and not coalesce(e.is_deleted,false)
+    and not exists (select 1 from public.sales_opportunities o where public.sor_is_deal_team(o, e.id))
+    and not exists (select 1 from public.sales_opportunities o
+                     where o.sale_type_id is distinct from $LEGACY and public.sor_always_sees(o, e.id))
+  order by e.email limit 1")
+[ -n "$OUTSIDER" ] || fail "no outsider employee found to test with"
+echo "outsider for the checks: $OUTSIDER"
 A=$(visible_as "$ADMIN" "$ALL"); XL=$(visible_as "$OUTSIDER" "$ALL and sale_type_id = $LEGACY"); XN=$(visible_as "$OUTSIDER" "$NONLEGACY")
 echo "non-deleted SORs: $TOTAL (Legacy $LEG_TOTAL, other flows $NL_TOTAL) | Super Admin sees $A | outsider sees Legacy $XL, other flows $XN"
 [ "$A" = "$TOTAL" ] || fail "Super Admin sees $A of $TOTAL"
 [ "$XL" = "$LEG_TOTAL" ] || fail "Legacy Pipeline not open to Everyone: outsider sees $XL of $LEG_TOTAL"
 [ "$XN" = "0" ] || fail "an employee on no Deal Team sees $XN non-Legacy SORs"
 
-step "RLS: Deal Team privacy on a throwaway Government SOR (clone only)"
-# Prod has no Government SORs yet, so make one on the clone: a copy of any SOR,
-# moved to Government, owned by a non-admin who isn't the outsider. Triggers
+step "RLS: Deal Team privacy on a throwaway Project SOR (clone only)"
+# Make one on the clone: a copy of any SOR, moved to prod's Project flow (the
+# old Government), owned by a non-admin who isn't the outsider. Triggers
 # are off for the insert only (stage guards don't matter to a read test).
 OWNER_ID=$(scalar "select e.id from public.employees e
   where e.email is not null and not coalesce(e.is_super_admin,false) and not coalesce(e.is_hr,false)
@@ -159,9 +161,9 @@ create temp table zz as select * from public.sales_opportunities limit 1;
 update zz set id = gen_random_uuid(),
   serial_no = (select coalesce(max(serial_no),0) + 1 from public.sales_opportunities),
   opportunity_no = null, sales_reference = null, project_title = 'ZZREHEARSAL', is_deleted = false,
-  sale_type_id = (select id from public.sale_types where name = 'Government'),
+  sale_type_id = (select id from public.sale_types where name = 'Project' and archived_at is null),
   flow_stage_id = (select fs.id from public.flow_stages fs join public.sales_flows f on f.id = fs.flow_id
-                    join public.sale_types st on st.id = f.sale_type_id where st.name = 'Government' limit 1),
+                    join public.sale_types st on st.id = f.sale_type_id where st.name = 'Project' and st.archived_at is null limit 1),
   flow_snapshot_id = null,
   registered_by = '$OWNER_ID', deal_owner_id = '$OWNER_ID',
   closing_sales_id = null, support_sales_1_id = null, support_sales_2_id = null, sales_director_id = null;
@@ -179,8 +181,8 @@ end
 SQL
 GOV="project_title = 'ZZREHEARSAL'"
 GO=$(visible_as "$OWNER" "$GOV"); GX=$(visible_as "$OUTSIDER" "$GOV")
-echo "throwaway Government SOR: its owner sees $GO, an outsider sees $GX"
-[ "$GO" = "1" ] || fail "Deal Owner can't see their Government SOR ($GO)"
-[ "$GX" = "0" ] || fail "an employee on no Deal Team sees a Government SOR"
+echo "throwaway Project SOR: its owner sees $GO, an outsider sees $GX"
+[ "$GO" = "1" ] || fail "Deal Owner can't see their Project SOR ($GO)"
+[ "$GX" = "0" ] || fail "an employee on no Deal Team sees a Project SOR"
 
 echo; echo "✔ REHEARSAL PASSED"

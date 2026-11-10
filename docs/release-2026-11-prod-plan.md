@@ -32,6 +32,7 @@ Spec agreed in a grilling session on 2026-11-10. These decisions are settled. Bu
 Follow `docs/production-cutover-runbook.md` where it applies. In order:
 
 1. **Rehearsal.** Push a `rehearsal/**` branch. `cutover-rehearsal.yml` runs all migrations against a copy of prod on a GitHub machine, and only reads prod. If it fails, stop. Prod is untouched.
+   - Runbook steps 6 (copy flows and templates from staging) and 7 (Legacy Pipeline backfill) are not part of this release, so the rehearsal no longer runs them. Prod owns its flows now (Government became Project), and the backfill would rename "Legacy Pipeline (Do not Use)" back. The rehearsal only checks that prod's own flows and Legacy Pipeline settings survive the migrations.
    - Also confirm here that the **old web app still works on the new database**. The only dropped columns and tables are purchasing ones, which prod doesn't have. But 43 migration files replace, rename or drop functions, and those haven't been checked one by one.
 2. **Note the current prod build** in Vercel, so you know exactly which build to switch back to.
 3. **Backup.** Push a `backup/**` branch to run `prod-backup.yml`. **Download the dump to your PC right away. The GitHub copy deletes itself after 1 day.**
