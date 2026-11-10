@@ -1813,39 +1813,71 @@ function auditLabel({ sales_reference, client_name }) {
 const VERSION_MOVE_BATCH_SIZE = 10;
 
 /**
- * Every non-deleted SOR pinned to an earlier Flow Snapshot of the same
- * major as `targetSnapshotId` — the candidate set for "Move N SORs on 3.x
- * up to 3.2" (issue #190). Scratch SORs are deliberately included: they run
- * identical Sales Flow code, so the `is_scratch` exclusion this file applies
- * elsewhere does not apply to a version move.
+ * Every non-deleted SOR on an earlier Flow Snapshot of the same flow whose
+ * current Stage still exists in `targetSnapshotId` — the candidate set for the
+ * post-publish "Move N SORs up to vX.Y" offer (issue #190). Scratch SORs are
+ * deliberately included: they run identical Sales Flow code, so the
+ * `is_scratch` exclusion this file applies elsewhere does not apply here.
+ *
+ * Earlier majors count too. A major publish used to offer nothing, so after
+ * Project went 5.9 -> 6.0 (Won Stage changed) -> 6.1, all 83 SORs sat on 5.9
+ * with no way to move them in bulk. An SOR whose Stage the target dropped is
+ * left out rather than stranded. `wonStageChanged` says whether any candidate
+ * comes from a version with a different Won Stage, so the offer can warn.
  */
-async function eligibleOpportunityIdsForVersionMove(targetSnapshotId) {
+async function versionMoveCandidates(targetSnapshotId) {
+  const none = { ids: [], crossesMajor: false, wonStageChanged: false };
   const { data: targetSnapshot, error: snapshotError } = await supabase
     .from("flow_snapshots")
-    .select("id, flow_id, version, version_minor")
+    .select("id, flow_id, version, version_minor, snapshot_data")
     .eq("id", targetSnapshotId)
     .single();
   if (snapshotError) throw snapshotError;
 
-  const { data: earlierSnapshots, error: earlierError } = await supabase
+  const { data: flowSnapshots, error: earlierError } = await supabase
     .from("flow_snapshots")
-    .select("id")
-    .eq("flow_id", targetSnapshot.flow_id)
-    .eq("version", targetSnapshot.version)
-    .lt("version_minor", targetSnapshot.version_minor);
+    .select("id, version, version_minor")
+    .eq("flow_id", targetSnapshot.flow_id);
   if (earlierError) throw earlierError;
 
-  const earlierIds = (earlierSnapshots || []).map((s) => s.id);
-  if (earlierIds.length === 0) return [];
+  const targetMinor = targetSnapshot.version_minor ?? 0;
+  const earlier = (flowSnapshots || []).filter(
+    (s) =>
+      s.version < targetSnapshot.version ||
+      (s.version === targetSnapshot.version && (s.version_minor ?? 0) < targetMinor),
+  );
+  if (earlier.length === 0) return none;
+  const majorOf = new Map(earlier.map((s) => [s.id, s.version]));
 
   const { data: deals, error: dealsError } = await supabase
     .from("sales_opportunities")
-    .select("id")
-    .in("flow_snapshot_id", earlierIds)
+    .select("id, flow_snapshot_id, flow_stage_id")
+    .in("flow_snapshot_id", [...majorOf.keys()])
     .neq("is_deleted", true);
   if (dealsError) throw dealsError;
 
-  return (deals || []).map((d) => d.id);
+  const targetStageIds = new Set((targetSnapshot.snapshot_data?.stages || []).map((st) => st.id));
+  const eligible = (deals || []).filter((d) => targetStageIds.has(d.flow_stage_id));
+  if (eligible.length === 0) return none;
+
+  const sourceIds = [...new Set(eligible.map((d) => d.flow_snapshot_id))];
+  const crossesMajor = sourceIds.some((id) => majorOf.get(id) !== targetSnapshot.version);
+  let wonStageChanged = false;
+  if (crossesMajor) {
+    const { data: sources, error: sourcesError } = await supabase
+      .from("flow_snapshots")
+      .select("id, snapshot_data")
+      .in("id", sourceIds);
+    if (sourcesError) throw sourcesError;
+    const targetWon = targetSnapshot.snapshot_data?.wonStageId ?? null;
+    wonStageChanged = (sources || []).some((s) => (s.snapshot_data?.wonStageId ?? null) !== targetWon);
+  }
+
+  return { ids: eligible.map((d) => d.id), crossesMajor, wonStageChanged };
+}
+
+async function eligibleOpportunityIdsForVersionMove(targetSnapshotId) {
+  return (await versionMoveCandidates(targetSnapshotId)).ids;
 }
 
 /**
@@ -2833,8 +2865,40 @@ export const opportunityService = {
   },
 
   /**
+   * What the post-publish offer should say (issue #190): whether any SOR
+   * comes from an older major, and whether the Won Stage differs, so the
+   * dialog can warn instead of promising no change.
+   */
+  async getVersionMoveOffer(targetSnapshotId) {
+    const { ids, crossesMajor, wonStageChanged } = await versionMoveCandidates(targetSnapshotId);
+    return { count: ids.length, crossesMajor, wonStageChanged };
+  },
+
+  /**
+   * Before a publish exists: live SORs on any Flow Snapshot of this flow. The
+   * Publish dialog says "up to N" will be offered a move afterwards; the real
+   * offer drops any whose Stage the new version no longer has.
+   */
+  async countOpportunitiesOnFlow(flowId) {
+    const { data: snapshots, error: snapshotError } = await supabase
+      .from("flow_snapshots")
+      .select("id")
+      .eq("flow_id", flowId);
+    if (snapshotError) throw snapshotError;
+    const ids = (snapshots || []).map((s) => s.id);
+    if (ids.length === 0) return 0;
+    const { data: deals, error } = await supabase
+      .from("sales_opportunities")
+      .select("id")
+      .in("flow_snapshot_id", ids)
+      .neq("is_deleted", true);
+    if (error) throw error;
+    return (deals || []).length;
+  },
+
+  /**
    * Moves every non-deleted SOR (Scratch included) pinned to an earlier
-   * Flow Snapshot of the same major onto `targetSnapshotId` (issue #190).
+   * Flow Snapshot of this flow, whose Stage the target still has, onto `targetSnapshotId` (issue #190).
    * Opt-in only — this runs solely when the Operations Manager accepts the
    * post-publish offer, never as a side effect of publishing itself.
    *

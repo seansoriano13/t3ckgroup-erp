@@ -325,13 +325,12 @@ function FlowCanvasInner() {
   });
   const publishLabel = versionPreview ? `Publish ${versionPreview.label}` : "Publish";
 
-  // Said before Publish, not only after: a minor publish offers every deal on this
-  // major a move up, and the person publishing should know how many that is.
-  const isMinorPublish = Boolean(versionPreview && versionPreview.minor > 0);
+  // Said before Publish, not only after: any publish offers the deals on older
+  // versions a move up, and the person publishing should know how many that is.
   const { data: dealsOfferedMove } = useQuery({
-    queryKey: ["flowDealsOnMajor", flow?.id, versionPreview?.major],
-    queryFn: () => opportunityService.countOpportunitiesOnFlowMajor(flow.id, versionPreview.major),
-    enabled: publishOpen && Boolean(flow?.id) && isMinorPublish,
+    queryKey: ["flowDealsOnFlow", flow?.id],
+    queryFn: () => opportunityService.countOpportunitiesOnFlow(flow.id),
+    enabled: publishOpen && Boolean(flow?.id),
   });
   const stageNameFor = useCallback(
     (stageId) => stages.find((s) => s.id === stageId)?.name || stageId,
@@ -653,21 +652,26 @@ function FlowCanvasInner() {
       setPublishNote("");
 
       const snapshot = result?.snapshot;
-      // Only a minor publish is safe to offer moving deals onto (ADR 0020):
-      // a fresh major (version_minor === 0, including the very first v1.0)
-      // may drop a Stage or change the Won Stage, so an earlier deal could
-      // be stranded or have its Realized timing shift.
-      if (!snapshot || snapshot.version_minor === 0) return;
+      if (!snapshot) return;
 
-      const sors = await opportunityService.listOpportunitiesEligibleForVersionMove(snapshot.id);
+      // Offered after every publish, major included. A major publish used to
+      // offer nothing, which left all 83 Project SORs on 5.9 after 6.0 changed
+      // the Won Stage. Deals whose Stage the new version dropped are left out,
+      // and the dialog warns when the Won Stage differs (allow + warn).
+      const [sors, offer] = await Promise.all([
+        opportunityService.listOpportunitiesEligibleForVersionMove(snapshot.id),
+        opportunityService.getVersionMoveOffer(snapshot.id),
+      ]);
       if (sors.length > 0) {
         setOfferMode(UPDATE_MODE.ALL);
         setOfferPicked([]);
         setMoveOffer({
           targetSnapshotId: snapshot.id,
-          majorLabel: `${snapshot.version}.x`,
+          majorLabel: offer.crossesMajor ? "older versions" : `${snapshot.version}.x`,
           targetLabel: formatVersionNumber(snapshot.version, snapshot.version_minor),
           sors,
+          crossesMajor: offer.crossesMajor,
+          wonStageChanged: offer.wonStageChanged,
         });
       }
     },
@@ -1958,11 +1962,9 @@ function FlowCanvasInner() {
         }}
         title={publishLabel}
         description={
-          isMinorPublish && dealsOfferedMove > 0
-            ? `Publishing freezes this draft as a new Flow Snapshot. ${dealsOfferedMove} deal${dealsOfferedMove === 1 ? "" : "s"} on v${versionPreview.major}.x will be offered a move up afterwards. Nothing moves unless you accept.`
-            : versionPreview && !isMinorPublish
-              ? "Publishing freezes this draft as a new major Flow Snapshot. Deals already running an older version stay on it and are not offered a move."
-              : "Publishing freezes this draft as a new Flow Snapshot. Deals already running an older version keep using it."
+          dealsOfferedMove > 0
+            ? `Publishing freezes this draft as a new Flow Snapshot. Up to ${dealsOfferedMove} deal${dealsOfferedMove === 1 ? "" : "s"} on older versions will be offered a move up afterwards. Nothing moves unless you accept.`
+            : "Publishing freezes this draft as a new Flow Snapshot. Deals already running an older version keep using it."
         }
         confirmLabel="Publish"
         confirmDisabled={!versionPreview || versionPreview.hasChanges === false}
@@ -2029,7 +2031,7 @@ function FlowCanvasInner() {
         onConfirm={() => restoreMutation.mutate(viewingSnapshot.id)}
       />
 
-      {/* ── Update-SORs offer, after a minor publish (issues #190, #743) ──── */}
+      {/* ── Update-SORs offer, after a publish (issues #190, #743) ───────── */}
       {(() => {
         const sors = moveOffer?.sors ?? [];
         const chosenIds = idsForUpdateMode(offerMode, sors.map((o) => o.id), offerPicked);
@@ -2045,7 +2047,7 @@ function FlowCanvasInner() {
               if (!open) setMoveOffer(null);
             }}
             title={`Update ${sors.length} SOR${sors.length === 1 ? "" : "s"} on ${moveOffer?.majorLabel} to ${moveOffer?.targetLabel}?`}
-            description="Every earlier version in this major contains every Stage of the new one and shares its Won Stage, so no deal can be stranded and no deal's Realized timing changes. This is opt-in — nothing is updated unless you choose to."
+            description={moveOfferDescription(moveOffer)}
             confirmLabel={`Update ${chosenIds.length} SOR${chosenIds.length === 1 ? "" : "s"}`}
             confirmDisabled={chosenIds.length === 0}
             onConfirm={() =>
@@ -2184,3 +2186,19 @@ const CanvasEmptyState = ({ title, body }) => (
     </div>
   </div>
 );
+
+/**
+ * The update offer's explanation. Within one major nothing can change for a
+ * deal; across majors only deals whose Stage still exists are listed, and a
+ * changed Won Stage can move when a deal counts as won, so it says so.
+ */
+function moveOfferDescription(offer) {
+  const optIn = "This is opt-in — nothing is updated unless you choose to.";
+  if (!offer?.crossesMajor) {
+    return `Every earlier version in this major contains every Stage of the new one and shares its Won Stage, so no deal can be stranded and no deal's Realized timing changes. ${optIn}`;
+  }
+  const won = offer.wonStageChanged
+    ? " The Won Stage is different in the new version, so an updated deal counts as won at the new Won Stage."
+    : "";
+  return `Only deals whose current Stage still exists in the new version are listed.${won} ${optIn}`;
+}
