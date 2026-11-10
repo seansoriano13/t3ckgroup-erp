@@ -1323,6 +1323,10 @@ _Avoid_: Component (already means an S0 Evaluation row), Widget, Shared componen
 The short explanation of why something is in the state it shows (locked, switched off, not checked, and so on), such as "Locked after Lead". It is shown on hover, as a tooltip on the icon, badge or control, and never as standing text on the screen. The screen shows the state (a lock icon, a badge); the hover says why.
 _Avoid_: Helper text, Caption (when meaning this)
 
+**Beta tag**:
+A small "Beta" badge on a screen or nav item that is live but not finished, such as Purchasing in the 2026-11 release. The screen stays usable, never locked. The hover says why (a Hover detail), for example "Still being built. Keep using group tasks for purchasing."
+_Avoid_: Hidden module, Feature flag, Coming soon
+
 **Release Notes**:
 The page every employee can open to see what changed in the ERP over a window of time, grouped by screen. Each change is shown with the real screen fed Sample Data, never live records.
 _Avoid_: Presentation, Deck, Changelog, What's new
