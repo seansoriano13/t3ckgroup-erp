@@ -282,6 +282,7 @@ export const SECTIONS = [
         title: "Currency and Employee fields, and fields that show only when needed",
         body: "A Stage Field can be a Currency field, in pesos and numbers only, or an Employee field, where you pick a person. A field can also show only while another field has a given value, and only then is it required. On the Project flows, NOA Amount is now a Currency field, and Purchasing Involved, Logistics Representative and Representative are Employee fields.",
         who: ["Admins"],
+        sample: "field-types",
       },
       {
         id: "won-lost-endings",

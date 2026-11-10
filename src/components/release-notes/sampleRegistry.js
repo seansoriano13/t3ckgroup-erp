@@ -1,3 +1,4 @@
+import { FieldTypesSample } from "./adminSamples"
 import { RetailIncomeSample, RetrySample } from "./everydaySamples"
 import { CalendarSample, LeaveRangeSample, MeetingRequestSample } from "./timeOffSamples"
 import { GroupTaskDatesSample, GroupTaskEvaluationSample, TaskApprovalsSample } from "./taskSamples"
@@ -31,6 +32,8 @@ export const SAMPLES = {
   retry: RetrySample,
   // Retail
   "retail-income": RetailIncomeSample,
+  // For admins
+  "field-types": FieldTypesSample,
 }
 
 /**
