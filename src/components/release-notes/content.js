@@ -337,6 +337,7 @@ export const SECTIONS = [
         title: "S0 Evaluation: cost, price and decide the bid",
         body: "The S0 Evaluation is one sheet per SOR: a row for each line of the S0, its cost from Odoo, the markup and the price, with a playground to try a markup before you save it. Technical marks each product Complies or Deviates. The Bid Decision takes Go, Revise or No-go; a Go locks the sheet, and a Go on a loss needs a decider. It prints on A4.",
         who: ["Sales", "Purchasing", "Management"],
+        sample: "s0-evaluation",
       },
       {
         id: "technical",
@@ -355,6 +356,7 @@ export const SECTIONS = [
         title: "IPAS, the purchase approval sheet",
         body: "Attaching a P0 creates its IPAS. Purchasing and Finance record its payments, charges and documents, and Landed Cost is worked out for you. Each section is submitted, then approved in Approvals under IPAS Sign-offs, before the IPAS is filed. It prints like the paper form.",
         who: ["Purchasing", "Finance"],
+        sample: "ipas",
       },
       {
         id: "transmittals",
@@ -373,6 +375,7 @@ export const SECTIONS = [
         title: "The PMS tab on every SOR",
         body: "Every SOR has a PMS tab with its Purchase Request, IPAS, Transmittals and Packing Lists, and its S0 Evaluation for the people allowed to see it. Anyone who can read the SOR sees where its orders stand, without the money. Purchasing now has SORS in the menu too.",
         who: ["Sales", "Deal Team", "Purchasing"],
+        sample: "pms-tab",
       },
     ],
   },
