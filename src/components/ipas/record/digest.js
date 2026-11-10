@@ -23,6 +23,7 @@ import { formatDay } from "@/utils/ipasPayments";
 import { isLandedCostEstimate } from "@/utils/landedCost";
 import { formatDate } from "@/utils/formatDate.js";
 import { filingWaitsOn, gatesFor } from "./gates";
+import { orderProgress, paymentsProgress } from "./sectionRules";
 import { STATE } from "@/components/record/statePalette";
 
 /** A section's detail beside its state word, from its sign-offs. */
@@ -224,6 +225,8 @@ export function digestIpas(ipas, signerLists = null) {
     signerLists,
     computationStatus: ipas.computationStatus,
     docs,
+    order: orderProgress(ipas),
+    paymentsProgress: paymentsProgress(ipas),
     track,
     lines,
     lastEvent,
@@ -266,6 +269,8 @@ export function sectionState(key, digest) {
 
 function gateSectionState(key, digest) {
   const done = (yes, doneWord, notYet) => ({ state: yes ? STATE.DONE : STATE.WAITING, detail: yes ? doneWord : notYet });
+  if (key === "order") return done(digest.order.done, "Filled in", digest.order.detail);
+  if (key === "payments") return done(digest.paymentsProgress.done, "Complete", digest.paymentsProgress.detail);
   if (key === "costs") return done(digest.costsComplete, "Final", digest.landedUnavailable ? "No figure yet" : "Provisional");
   if (key === "delivery") return done(Boolean(digest.s8?.approved), "Signed", "Needs the Logistics sign-off");
   if (key === "documents") return done(digest.missingFiles.length === 0, "All in", `${digest.missingFiles.length} missing`);
