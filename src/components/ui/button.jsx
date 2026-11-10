@@ -10,7 +10,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          // Neutral, not the brand red (2026-11-06): red is kept for danger only, so a main button never reads as a warning.
+          // Neutral, not the brand red (2026-11-06), so a yes/no or secondary button never reads as a warning.
+          // Exception: a Page's main action (the header's New / Register button) turns primary red through
+          // the `[data-page-actions]` rule in index.css (2026-11-10). Dialog Save / Make buttons use `primary`.
           "bg-foreground text-background shadow-sm hover:bg-foreground/85 [a]:hover:opacity-90",
         // The page's one main action and a dialog's Save / Make, in brand red.
         // Light mode uses red-11 under white text: red-9 gives only 3.8:1 there,
@@ -61,6 +63,7 @@ function Button({
     return (
       <ButtonPrimitive
         data-slot="button"
+        data-variant={variant}
         className={cn(buttonVariants({ variant, size, className }))}
         render={children}
         nativeButton={
@@ -76,6 +79,7 @@ function Button({
   return (
     <ButtonPrimitive
       data-slot="button"
+      data-variant={variant}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     >

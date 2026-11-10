@@ -216,6 +216,7 @@ The shapes are soft rounded rectangles on a 12px base radius (`--radius: 0.75rem
 Compact, confident, and quiet unless they are *the* action.
 - **Shape:** gently rounded (12px), 32px tall by default (24 / 28 / 36px for xs / sm / lg), 14px medium text, 16px icons.
 - **Primary:** Signal Red fill with Desk text and `shadow-sm`. It lifts 2px on hover and presses 1px down on active.
+- **Page main action:** a Page's one New / Register / Add button is primary red, with nothing to add: a plain (default-variant) `Button` placed straight in PageShell's `action` slot turns red through the `[data-page-actions]` rule in `index.css`. Outline, ghost and pill controls beside it keep their look. In light mode the fill is red-11 under white text, since red-9 gives only 3.8:1 (WCAG AA needs 4.5:1); dark mode keeps red-9. Dialog Save / Make buttons use the `primary` Button variant, which has the same colours.
 - **Outline:** Desk fill with a mauve border, shifting to Muted Desk on hover.
 - **Ghost:** transparent, shifting to Muted Desk on hover.
 - **Destructive:** Red Wash at 10% with Consequence Red text. Red is carried by the text, not a solid fill.

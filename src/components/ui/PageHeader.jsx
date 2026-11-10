@@ -40,8 +40,12 @@ const PageHeader = ({
           </p>
         )}
       </div>
+      {/* `data-page-actions`: a plain (default-variant) Button placed straight
+          in here is the Page's main action and turns primary red (index.css),
+          so a new Page gets a red New button with nothing extra. Outline,
+          ghost and pill controls beside it keep their own look. */}
       {children && (
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div data-page-actions className="flex min-w-0 flex-wrap items-center gap-3">
           {children}
         </div>
       )}
