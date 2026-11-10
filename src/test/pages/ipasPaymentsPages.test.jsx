@@ -167,15 +167,15 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
 
       renderDetail(row.id, "payments", "edit");
       // Odoo fills the supplier's name; the other three are still needed.
-      expect(await screen.findByText("1 of 4 required fields filled")).toBeInTheDocument();
+      expect(await screen.findByText(new RegExp("^1 of 4 fields( ·|$)"))).toBeInTheDocument();
       await user.click(await screen.findByRole("button", { name: "Add payment" }));
       const payment = await screen.findByRole("group", { name: "Payment 1" });
 
       // Date starts as today; the amount and the method are still needed.
-      expect(screen.getByText("2 of 7 required fields filled")).toBeInTheDocument();
+      expect(screen.getByText(new RegExp("^2 of 7 fields( ·|$)"))).toBeInTheDocument();
       expect(within(payment).getAllByText("Needed")).toHaveLength(2);
       await user.type(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "50");
-      expect(screen.getByText("3 of 7 required fields filled")).toBeInTheDocument();
+      expect(screen.getByText(new RegExp("^3 of 7 fields( ·|$)"))).toBeInTheDocument();
     });
 
     it("keeps what was typed when a later step fails, and Retry doesn't add the payment twice", { timeout: 30000 }, async () => {
