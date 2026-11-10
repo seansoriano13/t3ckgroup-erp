@@ -22,6 +22,13 @@ describe("navigation registry", () => {
   });
 
   describe("getFilteredNavigationGroups", () => {
+    // #946: the sidebar reads the group's Beta flag from what this returns.
+    it("keeps the Purchasing group's Beta tag and leaves other groups without one", () => {
+      const groups = getFilteredNavigationGroups({ id: "u", isSuperAdmin: true });
+      expect(groups.find((g) => g.key === "purchasing")?.beta).toBe(true);
+      expect(groups.find((g) => g.key === "sales")?.beta).toBeFalsy();
+    });
+
     it("returns only Workspace links for a standard employee without extra flows", () => {
       const standardUser = {
         id: "user-1",
