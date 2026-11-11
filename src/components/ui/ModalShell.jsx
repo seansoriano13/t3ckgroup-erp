@@ -196,7 +196,7 @@ export default function ModalShell({
                     variant="ghost"
                     size="sm"
                     onClick={close}
-                    className="h-9 rounded-xl px-4 text-[13px] font-bold text-muted-foreground/80 hover:text-foreground"
+                    className="h-8 rounded-lg px-4 text-sm font-bold text-muted-foreground/80 hover:text-foreground"
                   >
                     {cancelLabel}
                   </Button>

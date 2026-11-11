@@ -46,7 +46,7 @@ export default function LogTaskFooter({
           variant="ghost"
           size="sm"
           onClick={onClose}
-          className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4"
+          className="text-sm font-bold text-muted-foreground/80 hover:text-foreground h-8 rounded-lg px-4"
         >
           Cancel
         </Button>
@@ -54,7 +54,7 @@ export default function LogTaskFooter({
           type="submit"
           form="log-task-form"
           disabled={isSubmitting}
-          className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20"
+          className="h-8 px-6 rounded-lg shadow-lg shadow-primary/20"
         >
           {isSubmitting ? (
             <>

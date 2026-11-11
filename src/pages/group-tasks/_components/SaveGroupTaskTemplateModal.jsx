@@ -159,14 +159,14 @@ export default function SaveGroupTaskTemplateModal({
               size="sm"
               onClick={onClose}
               disabled={isSaving}
-              className="text-xs font-semibold text-muted-foreground hover:text-foreground h-9 px-4 rounded-xl"
+              className="text-xs font-semibold text-muted-foreground hover:text-foreground h-8 px-4 rounded-lg"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={!templateName.trim() || isSaving}
-              className="h-9 px-5 rounded-xl text-xs font-bold shadow-md shadow-primary/15"
+              className="h-8 px-5 rounded-lg text-xs font-bold shadow-md shadow-primary/15"
             >
               {isSaving ? (
                 <>

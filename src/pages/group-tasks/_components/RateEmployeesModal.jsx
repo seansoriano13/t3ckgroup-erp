@@ -256,14 +256,14 @@ export default function RateEmployeesModal({
             <Button
               variant="ghost"
               onClick={onClose}
-              className="h-9 rounded-xl px-4 text-[13px] font-bold text-muted-foreground/80 hover:bg-transparent hover:text-foreground"
+              className="h-8 rounded-lg px-4 text-sm font-bold text-muted-foreground/80 hover:bg-transparent hover:text-foreground"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={isSubmitting || !allMembersDone}
-              className="h-9 gap-2 rounded-xl px-6 font-bold shadow-lg shadow-primary/20"
+              className="h-8 gap-2 rounded-lg px-6 font-bold shadow-lg shadow-primary/20"
             >
               <Star size={14} fill="currentColor" />
               {isSubmitting ? "Submitting…" : "Submit Ratings & Complete"}

@@ -59,12 +59,11 @@ export default function ConfirmDialog({
 
         <DialogFooter className={footerClassName}>
           {!hideCancel && (
-            <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
               {cancelLabel}
             </Button>
           )}
           <Button
-            size="lg"
             variant={tone === "destructive" ? "destructive" : "default"}
             className={cn(tone === "approve" && APPROVE_CLASS)}
             disabled={confirmDisabled}

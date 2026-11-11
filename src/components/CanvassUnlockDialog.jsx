@@ -35,7 +35,7 @@ export default function CanvassUnlockDialog({ open, onOpenChange, canvass, onUnl
       title={`Unlock Canvass ${canvass?.number ?? ""}`.trim()}
       className={cn("z-[90]", className)}
       actions={
-        <Button type="button" size="lg" disabled={!reason.trim() || unlock.isPending} onClick={() => unlock.mutate()}>
+        <Button type="button" disabled={!reason.trim() || unlock.isPending} onClick={() => unlock.mutate()}>
           {unlock.isPending ? "Unlocking…" : "Unlock"}
         </Button>
       }

@@ -73,7 +73,7 @@ function Body({ targets, initial = null, onSubmit, onClose }) {
       crumbs={["IPAS", single ? titleOf(target) : "Return or undo an approval"]}
       title={single ? titleOf(target) : "Return or undo an approval"}
       actions={
-        <Button size="lg" variant="destructive" disabled={!ready || saving} onClick={submit}>
+        <Button variant="destructive" disabled={!ready || saving} onClick={submit}>
           {saving ? "Working…" : verbOf(target)}
         </Button>
       }

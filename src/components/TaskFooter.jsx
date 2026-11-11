@@ -41,7 +41,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
         <Button
           variant="ghost"
           onClick={isEditing ? onCancel : onClose}
-          className="h-9 rounded-xl px-4 text-[13px] font-bold text-mauve-11 hover:bg-mauve-3 hover:text-mauve-12"
+          className="h-8 rounded-lg px-4 text-sm font-bold text-mauve-11 hover:bg-mauve-3 hover:text-mauve-12"
         >
           {isEditing ? "Cancel" : "Close"}
         </Button>
@@ -53,7 +53,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
               variant="ghost"
               onClick={onDelete}
               disabled={isSubmitting}
-              className="h-9 rounded-xl px-4 text-[13px] font-bold text-mauve-11 hover:bg-red-3 hover:text-red-11 gap-1.5"
+              className="h-8 rounded-lg px-4 text-sm font-bold text-mauve-11 hover:bg-red-3 hover:text-red-11 gap-1.5"
               title="Delete Task"
             >
               <Trash2 size={15} />
@@ -72,7 +72,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
             variant="ghost"
             onClick={onSave}
             disabled={!formIsValid || isSubmitting}
-            className="h-9 rounded-xl px-5 text-[13px] font-bold border border-blue-6 bg-blue-3 text-blue-11 hover:bg-blue-4 hover:text-blue-11 shadow-sm gap-1.5"
+            className="h-8 rounded-lg px-5 text-sm font-bold border border-blue-6 bg-blue-3 text-blue-11 hover:bg-blue-4 hover:text-blue-11 shadow-sm gap-1.5"
           >
             {isSubmitting ? <Spinner size="sm" /> : <CheckCircle size={15} />}
             {isSubmitting ? "Saving..." : "Save"}
@@ -85,7 +85,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                 variant="ghost"
                 onClick={isOwner && isHrRejected ? onResubmit : onToggleEdit}
                 disabled={isSubmitting && isOwner && isHrRejected}
-                className={`h-9 rounded-xl px-4 text-[13px] font-bold shadow-sm gap-1.5 ${
+                className={`h-8 rounded-lg px-4 text-sm font-bold shadow-sm gap-1.5 ${
                   isOwner && isHrRejected
                     ? "border border-violet-6 bg-violet-3 text-violet-11 hover:bg-violet-4 hover:text-violet-11"
                     : "border border-mauve-6 bg-mauve-3 text-mauve-11 hover:bg-mauve-4 hover:text-mauve-12"
@@ -125,7 +125,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                     state.hasUncheckedItems
                   }
                   title={state.hasUncheckedItems ? "Check all items first" : ""}
-                  className="h-9 rounded-xl px-5 text-[13px] font-bold shadow-sm gap-1.5 bg-blue-9 text-white hover:bg-blue-10 border-none"
+                  className="h-8 rounded-lg px-5 text-sm font-bold shadow-sm gap-1.5 bg-blue-9 text-white hover:bg-blue-10 border-none"
                 >
                   {isSubmitting ? (
                     <Spinner size="sm" />
@@ -144,7 +144,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                     <Button
                       variant="ghost"
                       onClick={onSelfVerify}
-                      className="h-9 rounded-xl px-5 text-[13px] font-bold border border-violet-6 bg-violet-3 text-violet-11 hover:bg-violet-4 hover:text-violet-11 shadow-sm gap-1.5"
+                      className="h-8 rounded-lg px-5 text-sm font-bold border border-violet-6 bg-violet-3 text-violet-11 hover:bg-violet-4 hover:text-violet-11 shadow-sm gap-1.5"
                       title="Bypass unresponsive head approval"
                     >
                       <ShieldCheck size={15} /> Self-Verify
@@ -155,7 +155,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                     variant="ghost"
                     onClick={onRecallTask}
                     disabled={isSubmitting}
-                    className="h-9 rounded-xl px-4 text-[13px] font-bold border border-orange-6 bg-orange-3 text-orange-11 hover:bg-orange-4 hover:text-orange-11 shadow-sm gap-1.5"
+                    className="h-8 rounded-lg px-4 text-sm font-bold border border-orange-6 bg-orange-3 text-orange-11 hover:bg-orange-4 hover:text-orange-11 shadow-sm gap-1.5"
                     title="Recall this task to make edits"
                   >
                     <Undo2 size={15} /> Recall
@@ -183,7 +183,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                     variant="ghost"
                     onClick={onHeadReject}
                     disabled={isSubmitting}
-                    className="h-9 rounded-xl px-4 text-[13px] font-bold border border-red-6 bg-red-3 text-red-11 hover:bg-red-4 hover:text-red-11 shadow-sm gap-1.5"
+                    className="h-8 rounded-lg px-4 text-sm font-bold border border-red-6 bg-red-3 text-red-11 hover:bg-red-4 hover:text-red-11 shadow-sm gap-1.5"
                   >
                     <XCircle size={15} /> Return
                   </Button>
@@ -192,7 +192,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                     variant="default"
                     onClick={onMarkComplete}
                     disabled={isSubmitting || !state.canApprove}
-                    className="h-9 rounded-xl px-5 text-[13px] font-bold shadow-sm gap-1.5 bg-green-9 text-white hover:bg-green-10 border-none"
+                    className="h-8 rounded-lg px-5 text-sm font-bold shadow-sm gap-1.5 bg-green-9 text-white hover:bg-green-10 border-none"
                   >
                     {isSubmitting ? (
                       <Spinner size="sm" />
@@ -212,7 +212,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                   variant="default"
                   onClick={onHrVerify}
                   disabled={isSubmitting}
-                  className="h-9 rounded-xl px-5 text-[13px] font-bold shadow-sm gap-1.5 bg-blue-9 text-white hover:bg-blue-10 border-none"
+                  className="h-8 rounded-lg px-5 text-sm font-bold shadow-sm gap-1.5 bg-blue-9 text-white hover:bg-blue-10 border-none"
                 >
                   {isSubmitting ? (
                     <Spinner size="sm" />
@@ -228,7 +228,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
                 variant="ghost"
                 onClick={onUndoVerify}
                 disabled={isSubmitting}
-                className="h-9 rounded-xl px-4 text-[13px] font-bold border border-amber-6 bg-amber-3 text-amber-11 hover:bg-amber-4 hover:text-amber-11 shadow-sm gap-1.5"
+                className="h-8 rounded-lg px-4 text-sm font-bold border border-amber-6 bg-amber-3 text-amber-11 hover:bg-amber-4 hover:text-amber-11 shadow-sm gap-1.5"
               >
                 {isSubmitting ? <Spinner size="sm" /> : <RotateCcw size={15} />}
                 Undo

@@ -85,7 +85,7 @@ export function NewProductDialog({ open, onOpenChange, requestId }) {
       className={OVER_REQUEST_MODAL}
       crumbs={["Purchase Requests", "Ask for a product"]}
       actions={
-        <Button size="lg" disabled={!valid || busy} onClick={() => addMutation.mutate()}>
+        <Button disabled={!valid || busy} onClick={() => addMutation.mutate()}>
           {busy && <Spinner size="sm" />}
           Send request
         </Button>

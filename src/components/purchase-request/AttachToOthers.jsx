@@ -68,7 +68,7 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
         className={OVER_REQUEST_MODAL}
         crumbs={["Purchase Requests", "Attach P0"]}
         actions={
-          <Button size="lg" type="button" onClick={onClose}>
+          <Button type="button" onClick={onClose}>
             Done
           </Button>
         }
@@ -110,10 +110,10 @@ export function AttachToOthers({ open, onClose, requestId, poNumber, offer, orde
       }}
       actions={
         <>
-          <Button size="lg" type="button" variant="outline" onClick={onClose} disabled={busy}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
             Skip
           </Button>
-          <Button size="lg" type="submit" disabled={!count || busy}>
+          <Button type="submit" disabled={!count || busy}>
             {busy && <Spinner size="sm" />}
             {`Attach to ${count} ${count === 1 ? "item" : "items"}`}
           </Button>

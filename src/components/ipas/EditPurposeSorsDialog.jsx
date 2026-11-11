@@ -50,7 +50,7 @@ function EditBody({ ipas, onClose }) {
       onOpenChange={(next) => !next && onClose()}
       crumbs={["IPAS", ipas.number, "Purpose"]}
       actions={
-        <Button size="lg" disabled={!ready || save.isPending} onClick={() => save.mutate()}>
+        <Button disabled={!ready || save.isPending} onClick={() => save.mutate()}>
           {save.isPending ? "Saving…" : "Save"}
         </Button>
       }

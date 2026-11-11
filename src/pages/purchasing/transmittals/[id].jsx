@@ -430,7 +430,7 @@ function TransmittalPage({ onClose }) {
           title={`Undo ${undoing.label}?`}
           cancelLabel="Keep it signed"
           actions={
-            <Button variant="destructive" size="lg" onClick={undo} disabled={busy || undoReason.trim() === ""}>
+            <Button variant="destructive" onClick={undo} disabled={busy || undoReason.trim() === ""}>
               Undo signature
             </Button>
           }
@@ -453,7 +453,7 @@ function TransmittalPage({ onClose }) {
           title={`Cancel ${t.number}?`}
           cancelLabel="Keep it"
           actions={
-            <Button size="lg" onClick={cancel} disabled={busy || reason.trim() === ""}>
+            <Button onClick={cancel} disabled={busy || reason.trim() === ""}>
               Cancel Transmittal
             </Button>
           }

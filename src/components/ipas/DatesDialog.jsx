@@ -47,7 +47,7 @@ function Body({ title, description, fields, submitLabel = "Save", onSubmit, onCl
       crumbs={["IPAS", title]}
       title={title}
       actions={
-        <Button size="lg" disabled={!valid || !changed || saving} onClick={submit}>
+        <Button disabled={!valid || !changed || saving} onClick={submit}>
           {saving ? "Saving…" : submitLabel}
         </Button>
       }

@@ -84,7 +84,7 @@ export default function HRFormModal({
               type="button"
               variant="ghost"
               onClick={onClose}
-              className="h-9 text-[13px] font-bold text-muted-foreground/80 hover:text-foreground hover:bg-transparent rounded-xl px-4 transition-colors"
+              className="h-8 text-sm font-bold text-muted-foreground/80 hover:text-foreground hover:bg-transparent rounded-lg px-4 transition-colors"
             >
               Cancel
             </Button>
@@ -93,7 +93,7 @@ export default function HRFormModal({
               form={formId}
               disabled={isPending}
               variant="primary"
-              className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20 font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-[13px]"
+              className="h-8 px-6 rounded-lg shadow-lg shadow-primary/20 font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
             >
               {isPending ? <Spinner size="sm" /> : null}
               {isPending ? "Saving..." : submitLabel}

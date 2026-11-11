@@ -1266,7 +1266,7 @@ function IpasPage({ onClose }) {
           title={`Cancel ${ipas.number}?`}
           cancelLabel="Keep it"
           actions={
-            <Button size="lg" variant="destructive" onClick={() => cancel.mutate()} disabled={cancel.isPending || reason.trim() === ""}>
+            <Button variant="destructive" onClick={() => cancel.mutate()} disabled={cancel.isPending || reason.trim() === ""}>
               Cancel IPAS
             </Button>
           }

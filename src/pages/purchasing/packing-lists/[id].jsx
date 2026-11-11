@@ -75,7 +75,7 @@ function BoxDialog({ open, onOpenChange, box, listId, onSaved }) {
       onOpenChange={onOpenChange}
       crumbs={["Packing List", box ? `Box ${box.boxNo}` : "Add a box"]}
       actions={
-        <Button size="lg" onClick={save} disabled={saving}>
+        <Button onClick={save} disabled={saving}>
           {saving ? "Saving…" : "Save box"}
         </Button>
       }
@@ -210,7 +210,7 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
       onOpenChange={onOpenChange}
       crumbs={["Packing List", `Box ${box?.boxNo}`, "Contents"]}
       actions={
-        <Button size="lg" onClick={save} disabled={saving}>
+        <Button onClick={save} disabled={saving}>
           {saving ? "Saving…" : "Save contents"}
         </Button>
       }

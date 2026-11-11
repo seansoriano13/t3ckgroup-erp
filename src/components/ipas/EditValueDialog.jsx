@@ -60,7 +60,7 @@ function Body({
       crumbs={["IPAS", title]}
       title={title}
       actions={
-        <Button size="lg" disabled={!ready || saving} onClick={submit}>
+        <Button disabled={!ready || saving} onClick={submit}>
           {saving ? "Saving…" : submitLabel}
         </Button>
       }

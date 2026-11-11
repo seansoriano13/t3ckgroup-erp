@@ -142,7 +142,7 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
       crumbs={["IPAS", "Raise an IPAS"]}
       actions={
         <Button
-          size="lg"
+         
           disabled={!ready || busy}
           onClick={() => createMutation.mutate()}
         >

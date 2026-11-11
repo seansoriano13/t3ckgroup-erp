@@ -49,10 +49,10 @@ export function YoursDialog({ open, onOpenChange, item, other, requestId }) {
       cancelLabel={null}
       actions={
         <>
-          <Button type="button" variant="outline" size="lg" disabled={busy} onClick={() => answer.mutate(false)}>
+          <Button type="button" variant="outline" disabled={busy} onClick={() => answer.mutate(false)}>
             No, they are different
           </Button>
-          <Button type="button" size="lg" disabled={busy} onClick={() => answer.mutate(true)}>
+          <Button type="button" disabled={busy} onClick={() => answer.mutate(true)}>
             {busy && <Spinner size="sm" />}
             Yes, same product
           </Button>

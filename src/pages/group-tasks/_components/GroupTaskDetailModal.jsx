@@ -1061,7 +1061,7 @@ export default function GroupTaskDetailModal({
                           variant="ghost"
                           size="sm"
                           onClick={handleCancelEdit}
-                          className="h-9 px-4 rounded-xl text-xs"
+                          className="h-8 px-4 rounded-lg text-xs"
                         >
                           Cancel
                         </Button>
@@ -1075,7 +1075,7 @@ export default function GroupTaskDetailModal({
                               !hasChecklistContent(draft.checklist))
                           }
                           onClick={handleSaveDraft}
-                          className="h-9 px-6 rounded-xl text-xs"
+                          className="h-8 px-6 rounded-lg text-xs"
                         >
                           {draft.id
                             ? isUpdatingMember
@@ -1737,7 +1737,7 @@ export default function GroupTaskDetailModal({
                 variant="ghost"
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="text-[13px] font-bold text-destructive/80 hover:text-destructive hover:bg-destructive/5 h-9 rounded-xl px-2 sm:px-4 mr-1 sm:mr-2"
+                className="text-sm font-bold text-destructive/80 hover:text-destructive hover:bg-destructive/5 h-8 rounded-lg px-2 sm:px-4 mr-1 sm:mr-2"
                 title="Delete Task"
               >
                 <Trash2 size={14} className={isDeleting ? "animate-pulse" : "sm:mr-1.5"} />
@@ -1750,7 +1750,7 @@ export default function GroupTaskDetailModal({
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4"
+              className="text-sm font-bold text-muted-foreground/80 hover:text-foreground h-8 rounded-lg px-4"
             >
               Close
             </Button>
@@ -1762,7 +1762,7 @@ export default function GroupTaskDetailModal({
                 variant="outline"
                 size="sm"
                 onClick={handleStartTaskEdit}
-                className="text-[13px] font-bold h-9 rounded-xl px-3 sm:px-4 flex items-center gap-0 sm:gap-2 border-border/80 bg-card hover:bg-muted"
+                className="text-sm font-bold h-8 rounded-lg px-3 sm:px-4 flex items-center gap-0 sm:gap-2 border-border/80 bg-card hover:bg-muted"
                 title="Edit Task"
               >
                 <Edit3 size={14} />
@@ -1777,7 +1777,7 @@ export default function GroupTaskDetailModal({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsSaveTemplateModalOpen(true)}
-                className="text-[13px] font-bold h-9 rounded-xl px-3 sm:px-4 flex items-center gap-0 sm:gap-2 border-border/80 bg-card hover:bg-muted"
+                className="text-sm font-bold h-8 rounded-lg px-3 sm:px-4 flex items-center gap-0 sm:gap-2 border-border/80 bg-card hover:bg-muted"
                 title="Save as Template"
               >
                 <BookmarkPlus size={14} />
@@ -1799,7 +1799,7 @@ export default function GroupTaskDetailModal({
                   )
                 }
                 disabled={isReopening}
-                className="h-9 rounded-xl px-3 sm:px-4 text-[13px] font-bold"
+                className="h-8 rounded-lg px-3 sm:px-4 text-sm font-bold"
               >
                 {isReopening ? "Reopening…" : "Reopen"}
               </Button>
@@ -1811,7 +1811,7 @@ export default function GroupTaskDetailModal({
                 variant="outline"
                 onClick={onSendToEvaluation}
                 disabled={isSendingToEvaluation}
-                className="h-9 rounded-xl px-3 sm:px-4 text-[13px] font-bold"
+                className="h-8 rounded-lg px-3 sm:px-4 text-sm font-bold"
                 title="Send to the evaluator even though some members are not done"
               >
                 {isSendingToEvaluation ? "Sending…" : "Send to evaluation"}
@@ -1823,7 +1823,7 @@ export default function GroupTaskDetailModal({
               (isOpenForWork || task.status === "COMPLETED") && (
                 <Button
                   onClick={onOpenRateModal}
-                  className="h-9 px-4 sm:px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-0 sm:gap-2"
+                  className="h-8 px-4 sm:px-6 rounded-lg shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-0 sm:gap-2"
                   title={isOpenForWork && task.hr_remarks ? "Resubmit" : "Rate"}
                 >
                   <Star size={16} fill="currentColor" />
@@ -1843,7 +1843,7 @@ export default function GroupTaskDetailModal({
                       value={rejectRemarks}
                       onChange={(e) => setRejectRemarks(e.target.value)}
                       placeholder="Reason for rejection…"
-                      containerClassName="w-[220px]" className="h-9 px-3 bg-card border border-border rounded-xl text-xs text-foreground outline-none focus:border-red-400 transition-colors"
+                      containerClassName="w-[220px]" className="h-8 px-3 bg-card border border-border rounded-lg text-xs text-foreground outline-none focus:border-red-400 transition-colors"
                     />
                     <Button
                       type="button"
@@ -1852,7 +1852,7 @@ export default function GroupTaskDetailModal({
                         setShowRejectForm(false);
                         setRejectRemarks("");
                       }}
-                      className="h-9 px-3 rounded-xl text-xs text-muted-foreground"
+                      className="h-8 px-3 rounded-lg text-xs text-muted-foreground"
                     >
                       Cancel
                     </Button>
@@ -1864,7 +1864,7 @@ export default function GroupTaskDetailModal({
                         setShowRejectForm(false);
                         setRejectRemarks("");
                       }}
-                      className="h-9 px-5 rounded-xl text-xs bg-destructive hover:bg-destructive text-primary-foreground font-bold"
+                      className="h-8 px-5 rounded-lg text-xs bg-destructive hover:bg-destructive text-primary-foreground font-bold"
                     >
                       {isRejecting ? "Rejecting…" : "Confirm Reject"}
                     </Button>
@@ -1874,7 +1874,7 @@ export default function GroupTaskDetailModal({
                     <Button
                       type="button"
                       onClick={() => setShowRejectForm(true)}
-                      className="h-9 px-5 rounded-xl text-xs bg-destructive/10 text-destructive border border-red-500/20 hover:bg-destructive/20 font-bold flex items-center gap-1.5"
+                      className="h-8 px-5 rounded-lg text-xs bg-destructive/10 text-destructive border border-red-500/20 hover:bg-destructive/20 font-bold flex items-center gap-1.5"
                       variant="ghost"
                     >
                       <XCircle size={14} /> Reject
@@ -1883,7 +1883,7 @@ export default function GroupTaskDetailModal({
                       type="button"
                       disabled={isVerifying}
                       onClick={() => onVerify()}
-                      className="h-9 px-6 rounded-xl shadow-lg shadow-green-200 bg-green-9 hover:bg-green-9 text-primary-foreground flex items-center gap-2 font-bold text-xs"
+                      className="h-8 px-6 rounded-lg shadow-lg shadow-green-200 bg-green-9 hover:bg-green-9 text-primary-foreground flex items-center gap-2 font-bold text-xs"
                     >
                       <ShieldCheck size={16} />
                       {isVerifying ? "Verifying…" : "Verify & Approve"}

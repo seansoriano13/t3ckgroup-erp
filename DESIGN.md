@@ -214,7 +214,7 @@ The shapes are soft rounded rectangles on a 12px base radius (`--radius: 0.75rem
 
 ### Buttons
 Compact, confident, and quiet unless they are *the* action.
-- **Shape:** gently rounded (12px), 32px tall by default (24 / 28 / 36px for xs / sm / lg), 14px medium text, 16px icons.
+- **Shape:** gently rounded (12px), 32px tall by default (24 / 28 / 36px for xs / sm / lg), 14px medium text, 16px icons. Every size keeps the 12px corner except `xs` (9.6px, so a 24px button does not turn into a pill).
 - **Primary:** Signal Red fill with Desk text and `shadow-sm`. It lifts 2px on hover and presses 1px down on active.
 - **Page main action:** a Page's one New / Register / Add button is primary red, with nothing to add: a plain (default-variant) `Button` placed straight in PageShell's `action` slot turns red through the `[data-page-actions]` rule in `index.css`. Outline, ghost and pill controls beside it keep their look. The fill is the `--primary-action` token: red-11 under white text in light mode, since red-9 gives only 3.8:1 (WCAG AA needs 4.5:1), and red-9 in dark mode. Dialog Save / Make buttons use the `primary` Button variant, which uses the same token.
 - **Outline:** Desk fill with a mauve border, shifting to Muted Desk on hover.
@@ -222,6 +222,7 @@ Compact, confident, and quiet unless they are *the* action.
 - **Destructive:** Red Wash at 10% with Consequence Red text. Red is carried by the text, not a solid fill.
 - **Focus:** a neutral 3px ring at `ring/50`, never red.
 - **Disabled:** 50% opacity with no pointer events.
+- **Dialog footers:** Cancel and the Save / Make button are the default 32px size, the same as a page button. Do not set `size="lg"`, `h-9`, `rounded-xl` or `text-[13px]` on them.
 
 ### Chips and badges
 - **StatusBadge:** a pill (2px 8px) in the card color with a status-colored border and text, 11px bold uppercase tracked (`text-label`). Text uses Radix step 11 (step 12 for green, amber, and orange, which fall short of 4.5:1 at 11) so it passes 4.5:1 on the card. Mauve is the fallback for unknown statuses.
@@ -240,9 +241,9 @@ Compact, confident, and quiet unless they are *the* action.
 - **Error:** `aria-invalid` switches the border to Consequence Red with a 20% red ring.
 
 ### Tabs (TabGroup)
-- **Pill (default):** a Muted Desk track (4px padding, `xl`) with a Raised Desk indicator that slides under the active tab (framer-motion). Labels are 12px bold.
+- **Pill (default):** a Muted Desk track (4px padding, `xl`) with a Raised Desk indicator that slides under the active tab (framer-motion). Labels are 12px bold. Every pill tab is 28px tall, with or without an icon or count; `size` does not change it (only `xs`, the dense exception, is smaller).
 - **Primary / colored:** a card track with a border and a filled indicator (red, green, or violet) with a tinted shadow. Reserve this for the one tab bar on a page that switches the whole working mode.
-- **Underline:** a 2px mauve-10 underline, used in the notification drawer.
+- **Underline:** a 2px mauve-10 underline, used for level-1 tabs and the notification drawer. Every underline tab is 38px tall, whatever `size` is passed.
 - **Keyboard:** arrow keys, Home, and End move focus with roving tabindex, following ARIA tabs.
 
 ### Navigation (SideNav)
