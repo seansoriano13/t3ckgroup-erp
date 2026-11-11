@@ -29,13 +29,14 @@ describe("the ticks that were dropped from the record", () => {
 })
 
 describe("the one A4 page of flow rows", () => {
-  it("is a portrait A4 sheet set at 7.2pt body and 6.6pt tables, with rows that never split", () => {
+  it("is a portrait A4 sheet on the paper set's dense step, with rows that never split", () => {
     const html = doc()
 
-    expect(html).toMatch(/@page\s*{\s*size:\s*A4 portrait;\s*margin:\s*0/)
+    expect(html).toMatch(/@page\s*{\s*size:\s*A4 portrait;\s*margin:\s*9mm 0 8mm/)
     expect(html.match(/<div class="sheet/g)).toHaveLength(1)
-    expect(html).toMatch(/\.sheet \{[^}]*font-size: 7\.2pt/)
-    expect(html).toMatch(/th, td \{[^}]*font-size: 6\.6pt/)
+    expect(html).toContain('<div class="sheet dense">')
+    expect(html).toMatch(/\.sheet\.dense \{[^}]*--t-body: 7\.8pt/)
+    expect(html).toMatch(/\.sheet\.dense \{[^}]*--t-table: 7\.4pt/)
     expect(html).toMatch(/\.frow \{[^}]*break-inside: avoid/)
     expect(html).not.toContain("Outcome")
     expect(html).not.toContain('class="band"')
@@ -111,7 +112,7 @@ describe("the one A4 page of flow rows", () => {
 describe("sign-off column", () => {
   it("leaves room for the typed name so it cannot run over its label", () => {
     const html = doc()
-    expect(html).toMatch(/\.sig \.plate \{[^}]*min-height: 5mm/)
+    expect(html).toMatch(/\.sig \.plate \{[^}]*height: var\(--plate\)/)
     expect(html).toMatch(/\.sig \.printed-name \{[^}]*white-space: nowrap/)
   })
 })

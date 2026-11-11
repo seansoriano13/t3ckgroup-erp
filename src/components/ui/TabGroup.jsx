@@ -117,9 +117,12 @@ export default function TabGroup({
   // Per-button classes
   const btnBase = cn(
     "relative flex items-center justify-center gap-1.5 font-bold whitespace-nowrap transition-all outline-none",
+    // One height per variant, whatever `size` a page passes: a level-1
+    // underline tab is 38px and a pill tab is 28px (min-h holds that for an
+    // icon-only tab). `xs` stays the dense exception.
     size === "xs" && "px-2 py-1.5 text-[11px]",
-    size === "sm" && "px-4 py-1.5 text-xs",
-    size === "md" && "px-4 py-2 text-xs",
+    size !== "xs" && variant === "underline" && "px-4 pt-2 pb-3 text-xs",
+    size !== "xs" && variant !== "underline" && "min-h-7 px-4 py-1.5 text-xs",
     fullWidth && "flex-1",
   );
 
@@ -146,7 +149,7 @@ export default function TabGroup({
     destructive:
       "text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg",
     underline:
-      "border-b-2 border-transparent text-muted-foreground hover:text-foreground pb-3",
+      "border-b-2 border-transparent text-muted-foreground hover:text-foreground",
   };
 
   // Indicator background classes
@@ -219,7 +222,6 @@ export default function TabGroup({
                 isActive
                   ? activeClass || btnActive[currentVariant]
                   : btnInactive[currentVariant],
-                variant === "underline" && size === "sm" && "pb-3",
               )}
             >
               {isActive && currentVariant !== "underline" && (
@@ -238,7 +240,7 @@ export default function TabGroup({
                 {badge != null && badge > 0 && (
                   <span
                     className={cn(
-                      "ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-black transition-colors",
+                      "ml-0.5 text-[10px] leading-none px-1.5 py-0.5 rounded-full font-black transition-colors",
                       isActive
                         ? variant === "success"
                           ? "bg-white/20 text-white"

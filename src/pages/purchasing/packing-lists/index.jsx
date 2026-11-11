@@ -103,7 +103,7 @@ function NewPackingListDialog({ open, onOpenChange }) {
       }}
       crumbs={["Packing List", "New Packing List"]}
       actions={
-        <Button size="lg" onClick={create} disabled={saving || sor.length !== 1}>
+        <Button onClick={create} disabled={saving || sor.length !== 1}>
           {saving ? "Making…" : "Make Packing List"}
         </Button>
       }

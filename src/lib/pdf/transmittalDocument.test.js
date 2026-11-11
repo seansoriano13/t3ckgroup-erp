@@ -27,7 +27,7 @@ describe('buildTransmittalDocument', () => {
     const html = buildTransmittalDocument(buildTransmittalViewModel({ ...base, lines }));
     expect(html).not.toContain('<img src=x>');
     expect(html).toContain('&lt;img src=x&gt;');
-    expect(html.match(/class="sheet tg-sheet"/g)).toHaveLength(2);
+    expect(html.match(/class="sheet tg-sheet dense"/g)).toHaveLength(2);
     expect(html).toContain('Continued from the previous page');
   });
 

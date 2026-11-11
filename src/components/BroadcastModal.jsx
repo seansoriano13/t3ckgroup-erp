@@ -644,7 +644,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                   setEditingId(null);
                   setContent("");
                 }}
-                className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4"
+                className="text-sm font-bold text-muted-foreground/80 hover:text-foreground h-8 rounded-lg px-4"
               >
                 Cancel Edit
               </Button>
@@ -653,14 +653,14 @@ export default function BroadcastModal({ isOpen, onClose }) {
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4"
+              className="text-sm font-bold text-muted-foreground/80 hover:text-foreground h-8 rounded-lg px-4"
             >
               Close
             </Button>
             <Button
               onClick={handlePost}
               disabled={!content.trim() || isPosting}
-              className="h-9 px-6 rounded-xl shadow-lg shadow-mauve-4 gap-2"
+              className="h-8 px-6 rounded-lg shadow-lg shadow-mauve-4 gap-2"
             >
               {isPosting ? (
                 <>

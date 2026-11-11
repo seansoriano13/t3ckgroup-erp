@@ -80,7 +80,7 @@ export default function SignReview({ ctx, item, onClose, onSign }) {
       actions={
         action && (
           <Button
-            size="lg"
+           
             className={APPROVE_CLASS}
             disabled={working}
             onClick={async () => {

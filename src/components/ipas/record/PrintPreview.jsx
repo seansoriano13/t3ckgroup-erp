@@ -101,7 +101,7 @@ export function PrintPreviewButton({ ctx }) {
         }
         cancelLabel="Close"
         actions={
-          <Button size="lg" className="gap-1.5" onClick={() => frame.current?.contentWindow?.print()}>
+          <Button className="gap-1.5" onClick={() => frame.current?.contentWindow?.print()}>
             <Printer size={16} />
             Print this
           </Button>

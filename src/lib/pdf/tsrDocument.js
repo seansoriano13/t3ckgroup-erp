@@ -9,27 +9,17 @@
  */
 
 import { MARK } from './brandMark';
-import { CSS } from './ipasDocument';
+import { PAPER_CSS as CSS } from './paperSet';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
 
 const EXTRA_CSS = `
-  .tsr-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; font-size: 8.4pt; padding: 6px 0; border-bottom: 1px solid var(--hair); }
-  .tsr-facts .f { display: flex; gap: 8px; }
-  .tsr-facts .k { color: var(--ink-faint); min-width: 92px; font-size: 7.6pt; text-transform: uppercase; letter-spacing: .04em; }
-  .tsr-units { width: 100%; border-collapse: collapse; font-size: 8pt; margin-top: 6px; }
-  .tsr-units th, .tsr-units td { border-bottom: 1px solid var(--hair); padding: 4px 6px; text-align: left; vertical-align: top; }
-  .tsr-units th { font-size: 6.8pt; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-mid); }
+  .tsr-facts .wide { grid-column: 1 / -1; }
   .tsr-units tr.fail td { font-weight: 600; }
-  .tsr-evidence { font-size: 8.4pt; border-top: 1px solid var(--hair); padding-top: 6px; margin-top: 8px; }
-  .tsr-evidence .k { font-size: 7.6pt; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); }
-  .tsr-photos { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 6px; }
-  .tsr-photos img { width: 100%; height: 110px; object-fit: cover; border: 1px solid var(--hair); }
-  .tsr-foot { display: flex; justify-content: space-between; font-size: 8.4pt; border-top: 1px solid var(--ink); padding-top: 5px; margin-top: 8px; }
-  .tsr-sigs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
-  .tsr-sigs .sig.waiting .plate { border-bottom: 1px solid var(--ink-faint); height: 34px; }
+  .tsr-photos { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s-2); }
+  .tsr-photos img { width: 100%; height: 38mm; object-fit: cover; border: 1px solid var(--hair); break-inside: avoid; }
 `;
 
-const fact = (k, v) => `<div class="f"><span class="k">${esc(k)}</span><span>${esc(v)}</span></div>`;
+const fact = (k, v, wide = false) => `<div class="f${wide ? ' wide' : ''}"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
 
 /** The plate: a signed signer through `sigBlock`, a waiting one blank with its role. */
 function plateHtml(p) {
@@ -41,7 +31,7 @@ function plateHtml(p) {
 
 /** The unit table: serial, verdict, and the remark in full. */
 function unitsHtml(units) {
-  if (!units.length) return '<div class="tsr-evidence">No units recorded.</div>';
+  if (!units.length) return '<div class="empty">No units recorded.</div>';
   const rows = units
     .map((u) => `<tr class="${u.failed ? 'fail' : ''}"><td>${esc(u.serial)}</td><td>${esc(u.verdict)}</td><td>${esc(u.remark)}</td></tr>`)
     .join('');
@@ -61,19 +51,19 @@ export function buildTsrSheetHtml(vm, { withPhotographs = false, photos = [] } =
       <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">Technical Service Report</div></span></div>
     <div class="head"><div class="l"><div class="kind">Technical Service Report</div>
       <div class="who">${esc(f.item)}</div></div></div>
-    <div class="tsr-facts">
+    <div class="hdr tsr-facts">
       ${fact('Item', f.item)}
       ${fact('Transmittal', f.transmittal)}
       ${fact('Follows', f.line)}
       ${fact('SOR', f.sor)}
       ${fact('PO', f.po)}
       ${fact('Checked by', `${f.checkedBy} · ${f.checkedAt}`)}
-      ${fact('Remarks', f.remarks)}
+      ${fact('Remarks', f.remarks, true)}
     </div>
     <section class="sec"><h3><span>Units</span></h3><div class="body">${unitsHtml(vm.units)}</div></section>
-    <div class="tsr-evidence"><div class="k">Evidence</div><div>${esc(vm.evidence.summary)}</div>${pictures}</div>
-    ${vm.failure ? `<div class="tsr-foot"><span>${esc(vm.failure)}</span></div>` : ''}
-    <div class="tsr-sigs">${sigs}</div>
+    <section class="sec"><h3><span>Evidence</span></h3><div class="body"><div>${esc(vm.evidence.summary)}</div>${pictures}</div></section>
+    ${vm.failure ? `<div class="total-line flagged"><span>${esc(vm.failure)}</span></div>` : ''}
+    <div class="band"><div class="sigs n2">${sigs}</div></div>
     <div class="foot"><span>${esc(vm.number)}</span><span class="mid">${vm.printedOn ? `Printed ${esc(vm.printedOn)}` : ''}</span><span class="r">Technical</span></div>
   </div>`;
 }

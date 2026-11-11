@@ -73,7 +73,7 @@ export default function ReplaceItemDialog({ open, onOpenChange, item, requestId 
       className={OVER_REQUEST_MODAL}
       crumbs={["Purchase Requests", "Replace a product"]}
       actions={
-        <Button size="lg" disabled={!valid || busy} onClick={() => replaceMutation.mutate()}>
+        <Button disabled={!valid || busy} onClick={() => replaceMutation.mutate()}>
           {busy && <Spinner size="sm" />}
           Replace product
         </Button>

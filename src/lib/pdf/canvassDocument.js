@@ -10,28 +10,27 @@
  */
 
 import { MARK } from './brandMark';
-import { CSS } from './ipasDocument';
+import { PAPER_CSS as CSS } from './paperSet';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
 
 const EXTRA_CSS = `
-  .head .r .x { font-family: var(--mono); font-size: 7.2pt; color: var(--ink-faint); margin-top: 6px; }
-  .cnv-reason { font-family: var(--serif); font-size: 9.6pt; line-height: 1.5; white-space: pre-wrap; margin: 0; }
-  .cnv-compare { table-layout: fixed; width: 100%; page-break-inside: avoid; break-inside: avoid; }
-  .cnv-compare + .cnv-group { margin-top: 10px; }
-  .cnv-compare th, .cnv-compare td { vertical-align: top; overflow-wrap: anywhere; }
-  .cnv-compare thead th { text-align: left; }
-  .cnv-compare th.cnv-label { font-family: var(--mono); font-size: 6.8pt; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); text-align: left; }
-  .cnv-compare .chosen { background: rgba(0, 0, 0, .035); }
+  .head .r .x { font-family: var(--mono); font-size: var(--t-fine); color: var(--ink-faint); margin-top: var(--s-1); }
+  .cnv-compare { table-layout: fixed; page-break-inside: avoid; break-inside: avoid; }
+  .cnv-compare + .cnv-group { margin-top: var(--s-2); }
+  .cnv-compare th, .cnv-compare td { overflow-wrap: anywhere; padding-left: 6px; }
+  .cnv-compare thead th { vertical-align: top; padding-top: 3px; }
+  .cnv-compare thead th b { color: var(--ink); font-weight: 600; }
+  .cnv-compare th.cnv-label { padding-left: 0; font-size: var(--t-micro); font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-faint); }
+  .cnv-compare td.num { padding-right: 6px; }
+  .cnv-compare .chosen { background: var(--wash); }
   .cnv-compare .sub { margin-top: 2px; }
-  .cnv-compare td.num .sub { font-size: 6.6pt; color: var(--ink-faint); white-space: normal; }
-  .cnv-group { font-family: var(--mono); font-size: 7pt; color: var(--ink-faint); margin: 2px 0 4px; }
-  .sigs.n1 { grid-template-columns: minmax(0, 1fr); max-width: 33%; }
-  .sigs.n3 { grid-template-columns: repeat(3, 1fr); }
-  .cnv-slots { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.6pt; }
-  .cnv-slots th, .cnv-slots td { border: 1px solid var(--ink); padding: 4px 6px; text-align: left; vertical-align: top; }
-  .cnv-slots th { font-size: 7.4pt; text-transform: uppercase; letter-spacing: .06em; }
-  .cnv-slots .cnv-by { font-size: 7.4pt; opacity: .7; }
-  .cnv-warning { font-size: 8.2pt; font-weight: 600; color: var(--flag); border-top: 1px solid var(--ink); padding-top: 5px; }
+  .cnv-compare td.num .sub { color: var(--ink-faint); white-space: normal; }
+  .cnv-group { font-family: var(--mono); font-size: var(--t-fine); color: var(--ink-faint); }
+  .cnv-slots { table-layout: fixed; }
+  .cnv-slots th { font-size: var(--t-micro); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; border-bottom-color: var(--rule); padding-top: 0; }
+  .cnv-slots td { overflow-wrap: anywhere; }
+  .cnv-slots .cnv-by { font-size: var(--t-fine); color: var(--ink-faint); }
+  .cnv-warning { font-size: var(--t-body); font-weight: 600; color: var(--flag); border-top: 1px solid var(--ink); padding-top: var(--s-1); }
 `;
 
 const field = (label, value, { mono = false } = {}) =>
@@ -52,7 +51,7 @@ function headHtml(d) {
 
 /** The reason the winner was chosen, printed as the canvasser typed it. */
 function reasonHtml(reason) {
-  const body = reason ? `<p class="cnv-reason">${esc(reason)}</p>` : '<div class="empty">No reason recorded.</div>';
+  const body = reason ? `<p class="lede">${esc(reason)}</p>` : '<div class="empty">No reason recorded.</div>';
   return `<section class="sec"><h3><span>Why this supplier</span></h3><div class="body">${body}</div></section>`;
 }
 

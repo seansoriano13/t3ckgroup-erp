@@ -221,7 +221,7 @@ export function AttachP0Dialog({ open, onOpenChange, item, request }) {
         if (chosen && !busy && !earlyMissing) attachMutation.mutate();
       }}
       actions={
-        <Button size="lg" type="submit" disabled={!chosen || busy || earlyMissing}>
+        <Button type="submit" disabled={!chosen || busy || earlyMissing}>
           {busy && <Spinner size="sm" />}
           {chosen ? `${notOpen ? "Order early and attach" : "Attach"} ${chosen}` : "Attach P0"}
         </Button>
@@ -324,7 +324,7 @@ export function CorrectPoDialog({ open, onOpenChange, item, requestId }) {
         if (!invalid && !busy) correctMutation.mutate();
       }}
       actions={
-        <Button size="lg" type="submit" disabled={invalid || busy}>
+        <Button type="submit" disabled={invalid || busy}>
           {busy && <Spinner size="sm" />}
           Check PO and correct
         </Button>
@@ -384,7 +384,7 @@ export function PickPoLinesDialog({ open, onOpenChange, item, requestId, lines }
       crumbs={["Purchase Requests", "Pick the P0 line"]}
       actions={
         <Button
-          size="lg"
+         
           disabled={pickedIds.length === 0 || pickMutation.isPending}
           onClick={() => pickMutation.mutate(pickedIds)}
         >

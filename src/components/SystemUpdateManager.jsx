@@ -329,7 +329,7 @@ export default function SystemUpdateManager() {
               <Button
                 onClick={handlePost}
                 disabled={!content.trim() || isPosting}
-                className="h-9 px-6 rounded-xl text-[13px] font-black shadow-lg shadow-mauve-4 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="h-8 px-6 rounded-lg text-sm font-black shadow-lg shadow-mauve-4 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {isPosting ? (
                   <>

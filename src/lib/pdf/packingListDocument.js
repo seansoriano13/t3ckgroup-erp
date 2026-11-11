@@ -16,21 +16,20 @@
  */
 
 import { MARK } from './brandMark';
-import { CSS } from './ipasDocument';
+import { PAPER_CSS as CSS } from './paperSet';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
 
 const EXTRA_CSS = `
-  .pkl-box { border-top: 1px solid var(--hair); padding: 6px 0 0; break-inside: avoid; }
-  .pkl-box .bh { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; font-size: 8.2pt; }
-  .pkl-box .bh .n { font-family: var(--serif); font-size: 11pt; font-weight: 500; }
-  .pkl-box .bh .f { font-family: var(--mono); font-size: 7.6pt; color: var(--ink-mid); }
-  .pkl-box .bh .f b { color: var(--ink-faint); font-weight: 400; margin-right: 4px; }
-  .pkl-box ul { margin: 4px 0 0; padding: 0; list-style: none; }
-  .pkl-box li { display: flex; justify-content: space-between; gap: 10px; font-size: 8pt; padding: 2px 0; border-bottom: 1px solid var(--hair); }
+  .pkl-box { border-top: 1px solid var(--hair); padding-top: var(--s-2); break-inside: avoid; }
+  .pkl-box:first-child { border-top: 0; padding-top: 0; }
+  .pkl-box .bh { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .pkl-box .bh .n { font-size: var(--t-value); font-weight: 600; min-width: 16mm; }
+  .pkl-box .bh .f { font-family: var(--mono); font-size: var(--t-table); color: var(--ink); }
+  .pkl-box .bh .f b { font-family: var(--sans); font-size: var(--t-micro); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; margin-right: 5px; }
+  .pkl-box ul { margin: var(--s-1) 0 0; padding: 0 0 0 16mm; list-style: none; }
+  .pkl-box li { display: flex; justify-content: space-between; gap: 10px; font-size: var(--t-table); padding: var(--cell-y) 0; border-top: 1px solid var(--hair); }
   .pkl-box li .q { font-family: var(--mono); white-space: nowrap; }
-  .pkl-box .none { font-style: italic; color: var(--ink-faint); font-size: 7.6pt; margin-top: 4px; }
-  .pkl-totals { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; border-top: 1px solid var(--ink); padding-top: 5px; font-size: 8.4pt; }
-  .pkl-totals .big { font-family: var(--mono); font-size: 12pt; font-weight: 500; }
+  .pkl-box .none { font-style: italic; color: var(--ink-faint); font-size: var(--t-table); margin: var(--s-1) 0 0 16mm; }
 `;
 
 const field = (label, value, { mono = false } = {}) =>
@@ -73,7 +72,7 @@ export function buildPackingListSheetHtml(vm) {
       ${field('Created by', vm.createdBy)}
     </div>
     <section class="sec"><h3><span>Boxes</span><b>${esc(t.boxesLine)}</b></h3><div class="body">${boxes}</div></section>
-    <div class="pkl-totals"><span>${esc(t.weightLine)}</span></div>
+    <div class="total-line"><span>${esc(t.weightLine)}</span></div>
     <div class="band"><div class="sigs n1">${sigBlock({
       role: esc(sig.role),
       who: esc(sig.who),

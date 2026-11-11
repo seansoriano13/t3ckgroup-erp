@@ -45,7 +45,7 @@ function Body({ number, onHold, note, onSubmit, onClose }) {
       crumbs={["IPAS", title]}
       title={title}
       actions={
-        <Button size="lg" disabled={saving} onClick={submit}>
+        <Button disabled={saving} onClick={submit}>
           {saving ? "Saving…" : onHold ? "Clear On-Hold" : "Put On-Hold"}
         </Button>
       }

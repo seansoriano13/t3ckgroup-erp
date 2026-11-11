@@ -175,7 +175,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       crumbs={['Calendar', editing ? 'Edit Meeting Request' : 'New Meeting Request']}
       title={editing ? 'Edit Meeting Request' : 'New Meeting Request'}
       actions={
-        <Button size="lg" disabled={Boolean(problem) || mutation.isPending} onClick={() => mutation.mutate()}>
+        <Button disabled={Boolean(problem) || mutation.isPending} onClick={() => mutation.mutate()}>
           {mutation.isPending ? 'Sending…' : resend ? 'Send again' : editing ? 'Save changes' : 'Send request'}
         </Button>
       }

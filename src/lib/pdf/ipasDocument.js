@@ -11,10 +11,10 @@
  * Sales & Operation (5) has no sign-off; it prints as a plain row after Status so nothing the old
  * print showed is dropped. Numbers are the ones the screen shows (ipasSectionLabel, constants/ipas.js).
  *
- * Fitting: the page is set at 7.2pt body and 6.6pt tables so an order of about ten lines, two
- * payments and five charges fits one A4 sheet. A longer order is not shrunk further: rows never
- * split (break-inside: avoid), so the rows that do not fit continue on a second sheet; every
- * sheet's footer carries the IPAS number.
+ * Fitting: the page uses the paper set's `dense` step (7.8pt body, 7.4pt tables, paperSet.js),
+ * the charges sit beside the Landed Cost build, and the five signatures share one row, so an
+ * ordinary order fits one A4 sheet at a size that can be read. A longer order is not shrunk:
+ * table rows never split, so what does not fit continues on a second sheet with the same margins.
  *
  * The view model keeps the stored section names (`section1`, `section3`, ...); only what is
  * printed is renumbered. There is no Transmittals list yet.
@@ -27,180 +27,20 @@
 
 import { ipasSectionLabel } from '../../constants/ipas';
 import { MARK } from './brandMark';
+import { PAPER_CSS } from './paperSet';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
 
-export const CSS = `
-  :root {
-    --paper: #ffffff; --ink: #221F1A; --ink-mid: #4A463F; --ink-soft: #4A463F; --ink-faint: #6E6A61;
-    --rule: #C6C1B8; --hair: #E3E0D9; --wash: #F2F0EA;
-    --accent: #221F1A; --ok: #221F1A; --ok-bg: #ffffff; --ok-border: #221F1A;
-    --flag: #b91c1c; --warn: #6E6A61; --warn-bg: #ffffff; --warn-border: #6E6A61;
-    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
-    --serif: "Spectral", ui-serif, Georgia, "Times New Roman", serif;
-  }
-  * { box-sizing: border-box; }
-  @page { size: A4 portrait; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #ffffff; color: var(--ink); font-family: var(--sans); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-  .sheet {
-    width: 210mm; min-height: 296mm; margin: 0 auto; padding: 10mm 14mm 8mm;
-    display: flex; flex-direction: column; gap: 3.5mm;
-    font-size: 8.6pt; line-height: 1.36; color: var(--ink); background: var(--paper);
-  }
-  .sheet.first { break-after: page; page-break-after: always; }
-
-  .m { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  .k { font-size: 6pt; line-height: 1.3; font-weight: 500; letter-spacing: .155em; text-transform: uppercase; color: var(--ink-faint); }
-
-  .rail { display: flex; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
-  .rail .mark { width: 27px; height: 23px; flex: none; color: var(--ink); }
-  .rail .mark svg { width: 100%; height: 100%; display: block; }
-  .rail .org { font-size: 6pt; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-faint); line-height: 1.55; font-weight: 500; }
-  .rail .org b { display: block; font-size: 7.4pt; letter-spacing: .155em; color: var(--ink-mid); font-weight: 600; }
-  .rail .doc { margin-left: auto; text-align: right; line-height: 1.45; }
-  .rail .doc .t { font-size: 10pt; font-weight: 600; letter-spacing: .03em; font-family: var(--mono); }
-  .rail .doc .s { font-family: var(--mono); font-size: 7pt; color: var(--ink-faint); }
-  .copy-mark { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--ink); border-radius: 2px; font-family: var(--sans); font-size: 6pt; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
-  .tag-state { display: inline-block; padding: 0 5px; border: 1px solid var(--rule); border-radius: 2px; font-family: var(--sans); font-size: 6.4pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
-  .tag-state.filed { border-color: var(--ink); color: var(--ink); }
-  .tag-state.cancelled { color: var(--flag); border-color: var(--flag); }
-
-  .head { display: flex; align-items: flex-end; gap: 28px; padding: 3mm 0 3.5mm; border-bottom: 1px solid var(--rule); }
-  .head .l { flex: 1 1 auto; min-width: 0; }
-  .head .kind { font-size: 7.8pt; font-weight: 600; letter-spacing: .19em; text-transform: uppercase; }
-  .head .who { font-family: var(--serif); font-size: 19pt; font-weight: 500; letter-spacing: -.017em; line-height: 1.12; margin-top: 7px; overflow-wrap: anywhere; }
-  .head .meta { font-size: 8pt; color: var(--ink-mid); margin-top: 4px; }
-  .head .company { font-size: 7.2pt; color: var(--ink-faint); margin-top: 4px; }
-  .head .company .k { display: inline; margin-right: 5px; }
-  .head .company b { font-family: var(--mono); color: var(--ink); font-weight: 600; }
-  .head .r { flex: 0 0 auto; text-align: right; }
-  .head .big { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 23pt; font-weight: 500; letter-spacing: -.035em; line-height: 1; margin-top: 7px; }
-  .head .big em { font-style: normal; font-size: 9pt; font-weight: 400; color: var(--ink-mid); margin-left: 6px; letter-spacing: 0; }
-  .head .big.na { font-size: 13pt; color: var(--ink-faint); letter-spacing: 0; }
-  .head .ledger { font-family: var(--mono); font-size: 7.2pt; color: var(--ink-faint); margin-top: 6px; }
-
-  .cols { display: flex; gap: 24px; flex: 1; min-height: 0; padding-top: 1mm; }
-  .cL { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5mm; }
-  .cR { flex: 0 0 56mm; padding-left: 20px; border-left: 1px solid var(--hair); display: flex; flex-direction: column; gap: 5mm; }
-  .blk .v { font-size: 9pt; font-weight: 600; margin-top: 4px; }
-  .blk .rows { margin-top: 6px; display: grid; gap: 5px; }
-  .blk .row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 7.6pt; line-height: 1.3; }
-  .blk .row .a { color: var(--ink-faint); }
-  .blk .row .b { font-family: var(--mono); font-weight: 500; text-align: right; }
-  .blk .row .b.wait { color: var(--ink-faint); }
-
-  .hdr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 20px; }
-  .f .k { display: block; margin-bottom: 2px; }
-  .f .v { font-size: 9pt; font-weight: 500; overflow-wrap: anywhere; }
-  .f .v.mono { font-family: var(--mono); font-size: 8.4pt; }
-  .f .x { display: block; font-size: 6.8pt; color: var(--ink-faint); font-weight: 400; }
-
-  .sec { display: flex; flex-direction: column; gap: 5px; }
-  .sec > h3 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 6pt; letter-spacing: .155em; text-transform: uppercase; color: var(--ink-mid); border-bottom: 1px solid var(--rule); padding: 0 0 4px; font-weight: 600; }
-  .sec > h3 b { font-family: var(--mono); color: var(--ink-faint); font-weight: 400; letter-spacing: 0; font-size: 7pt; text-transform: none; }
-  .sec > .body { padding: 2px 0; display: flex; flex-direction: column; gap: 7px; }
-  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
-  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(32mm, 1fr)); gap: 6px 16px; }
-  .fields.n3 { grid-template-columns: repeat(3, 1fr); }
-  .fields.n2 { grid-template-columns: repeat(2, 1fr); }
-
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; vertical-align: top; padding: 3px 6px 3px 0; border-bottom: 1px solid var(--hair); font-size: 8pt; }
-  thead th { font-size: 6pt; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--rule); padding: 0 6px 4px 0; }
-  th.num, td.num { text-align: right; font-family: var(--mono); white-space: nowrap; padding-right: 0; padding-left: 8px; }
-  th.center, td.center { text-align: center; }
-  table.pay { table-layout: fixed; }
-  table.pay th.num, table.pay td.num { padding-right: 10px; padding-left: 4px; }
-  table.pay th { white-space: normal; overflow-wrap: break-word; }
-  table.pay td { overflow-wrap: anywhere; }
-  tr { break-inside: avoid; page-break-inside: avoid; }
-  tfoot td { font-weight: 600; border-top: 1px solid var(--ink); border-bottom: 0; padding: 5px 6px 0 0; }
-  tfoot td.num { padding-right: 0; }
-  .pre { white-space: pre-line; }
-  .sub { color: var(--ink-mid); font-size: 7pt; }
-  .empty { color: var(--ink-faint); font-style: italic; }
-
-  .build td .basis { color: var(--ink-faint); font-size: 7.2pt; }
-  .build tfoot td { font-family: var(--mono); font-size: 9.6pt; padding-top: 6px; }
-  .build tfoot td:first-child { font-family: var(--sans); font-size: 8pt; }
-  .lede { font-family: var(--serif); font-style: italic; font-size: 9.6pt; line-height: 1.5; color: var(--ink-mid); }
-
-  .chk { display: inline-flex; align-items: center; justify-content: center; width: 11px; height: 11px; border-radius: 2px; border: 1px solid var(--ink-faint); background: #ffffff; font-size: 7.6pt; line-height: 1; color: transparent; vertical-align: middle; }
-  .chk.done { border-color: var(--ink); color: var(--ink); font-weight: 700; }
-  .chk.part { border-color: var(--ink-faint); color: var(--ink-mid); font-weight: 700; }
-
-  .stat { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-  .stat .s { display: inline-flex; gap: 5px; align-items: center; font-size: 7.8pt; break-inside: avoid; color: var(--ink-faint); }
-  .stat .s.done { color: var(--ink); font-weight: 500; }
-  .stat .s .d { font-family: var(--mono); color: var(--ink-faint); font-size: 6.8pt; font-weight: 400; }
-  .stat .s.current .t { text-decoration: underline; text-underline-offset: 2px; }
-  .odoo { color: var(--ink); font-size: 6.6pt; line-height: 1; }
-  .legend { color: var(--ink-mid); font-family: var(--sans); font-weight: 500; letter-spacing: 0; }
-  .group-k { font-size: 6pt; letter-spacing: .155em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; margin-bottom: 3px; }
-
-  .box { border-top: 1px solid var(--hair); padding: 6px 0 0; break-inside: avoid; }
-  .prov { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--ink); border-radius: 2px; font-family: var(--sans); font-size: 5.8pt; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; vertical-align: 2px; color: var(--ink); }
-  .prov.final { background: var(--ink); color: #ffffff; }
-  .prov.na { border-color: var(--rule); color: var(--ink-faint); }
-  .flag { color: var(--flag); font-weight: 700; }
-
-  .band { margin-top: auto; padding-top: 4mm; border-top: 1px solid var(--rule); break-inside: avoid; }
-  .sorow { display: grid; grid-template-columns: 30mm 1fr; gap: 0 14px; align-items: end; padding: 2.5mm 0; border-bottom: 1px solid var(--rule); break-inside: avoid; }
-  .sorow:last-child { border-bottom: 0; }
-  .soname { font-size: 8pt; font-weight: 600; line-height: 1.3; align-self: center; }
-  .soname .no { display: block; font-family: var(--mono); font-size: 6.5pt; color: var(--ink-faint); letter-spacing: .08em; }
-  .sigs { display: grid; gap: 14px 20px; }
-  .sigs.n2 { grid-template-columns: repeat(2, 1fr); }
-  .sigs.n4 { grid-template-columns: repeat(4, 1fr); }
-  .sig { display: flex; flex-direction: column; }
-  .sig .k { color: var(--ink-faint); }
-  .sig .plate { min-height: 9mm; overflow: hidden; margin-top: 4px; border-bottom: 1px solid var(--rule); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 2px; }
-  .sig.awaiting .plate { background: var(--wash); }
-  .sig .plate img { max-height: 8mm; max-width: 100%; object-fit: contain; }
-  .sig .printed-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-family: var(--serif); font-style: italic; font-size: 11.5pt; font-weight: 500; }
-  .sig .who { font-size: 8pt; font-weight: 600; margin-top: 4px; min-height: 1.34em; }
-  .sig .role { font-size: 6pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-top: 2px; }
-  .sig .stamp { font-family: var(--mono); font-size: 6pt; color: var(--ink-mid); margin-top: 3px; }
-  .sig .pending { font-family: var(--mono); font-size: 6pt; color: var(--ink-faint); letter-spacing: .12em; text-transform: uppercase; margin-top: 3px; }
-
-  .foot { display: grid; grid-template-columns: 1fr 1.6fr 1fr; align-items: start; gap: 12px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.2pt; color: var(--ink-faint); font-family: var(--mono); margin-top: auto; }
-  .foot .mid { text-align: center; }
-  .foot .r { text-align: right; }
-
-  /* Flow rows (#714): one A4 page at 7.2pt body, 6.6pt tables. */
-  .sheet { padding: 7mm 10mm 5mm; gap: 2mm; font-size: 7.2pt; }
-  .head { padding: 1.5mm 0 2.5mm; }
-  .head .who { font-size: 14pt; margin-top: 3px; }
-  .head .big { font-size: 19pt; }
-  th, td { font-size: 6.6pt; padding: 1.1px 5px 1.1px 0; }
-  thead th { font-size: 5.4pt; padding-bottom: 2px; }
-  tfoot td { padding-top: 3px; }
-  .build tfoot td { font-size: 8pt; }
-  .build tfoot td:first-child { font-size: 6.6pt; }
-  .sec { gap: 2px; }
-  .sec > h3 { padding-bottom: 2px; font-size: 5.8pt; }
-  .sec > .body { gap: 4px; padding: 1px 0; }
-  .fields { gap: 3px 12px; }
-  .f .v { font-size: 7.6pt; }
-  .f .v.mono { font-size: 7.2pt; }
-  .sig .plate { min-height: 5mm; margin-top: 1px; padding-bottom: 1px; }
-  .sig .plate img { max-height: 4.6mm; }
-  .sig .printed-name { font-size: 9pt; }
-  .sig .who { font-size: 6.9pt; margin-top: 2px; min-height: 0; }
-  .sig .role, .sig .stamp, .sig .pending { font-size: 5.4pt; margin-top: 1px; }
-  .sig .role:empty { display: none; }
-  .flow { display: flex; flex-direction: column; gap: 0; }
-  .frow { display: grid; grid-template-columns: 1fr 54mm; gap: 0 5mm; padding: 1.4mm 0; border-bottom: 1px solid var(--rule); break-inside: avoid; page-break-inside: avoid; }
-  .frow:last-child { border-bottom: 0; }
-  .frow > div:first-child { min-width: 0; }
-  .frow .signs { border-left: 1px solid var(--hair); padding-left: 4mm; display: flex; flex-direction: column; gap: 1.6mm; }
-  .frow .signs .none { color: var(--ink-faint); font-style: italic; font-size: 6.6pt; }
-  .frow .sigs { gap: 1.6mm 4mm; }
-  .ticks { display: flex; flex-wrap: wrap; gap: 2px 10px; }
-  .ticks span { display: inline-flex; gap: 4px; align-items: center; font-size: 6.6pt; }
-  .flow > .sec + .sec { margin-top: 4mm; }
+/** What only the IPAS draws: its sections run as one flow down the page, set one step tighter (`dense`). */
+const IPAS_CSS = `
+  .flow { display: flex; flex-direction: column; gap: var(--s-4); }
+  .frow { break-inside: avoid; page-break-inside: avoid; }
+  .ticks { display: flex; flex-wrap: wrap; gap: 3px 14px; }
+  .ticks span { display: inline-flex; gap: 4px; align-items: center; font-size: var(--t-table); }
+  .track { display: flex; flex-direction: column; gap: var(--s-2); }
 `;
+
+/** The paper set plus the IPAS's own rules. Other forms import `PAPER_CSS` from paperSet.js. */
+export const CSS = `${PAPER_CSS}${IPAS_CSS}`;
 
 // ── Small pieces ─────────────────────────────────────────────────────────────
 
@@ -233,7 +73,7 @@ function sigs(boxes) {
       }),
     )
     .join('');
-  return `<div class="sigs n${Math.min(boxes.length, 2)}">${html}</div>`;
+  return `<div class="sigs n${Math.min(boxes.length, 5)}">${html}</div>`;
 }
 
 /** A part's documents as ticks (#711): the files that belong to that part. */
@@ -368,7 +208,7 @@ function paymentsPart(vm) {
 
 /** 3 · Costs: the charges on top of the price, and the Landed Cost. */
 function costsPart(vm) {
-  return section(esc(ipasSectionLabel('costing')), `Charges: ${esc(vm.section3.chargesTotal)}`, `${chargesTable(vm)}${costing(vm)}`);
+  return section(esc(ipasSectionLabel('costing')), `Charges: ${esc(vm.section3.chargesTotal)}`, `<div class="cols2"><div>${chargesTable(vm)}</div><div>${build(vm)}</div></div>${costing(vm)}`);
 }
 
 function sorsOf(vm) {
@@ -456,8 +296,8 @@ function status(vm) {
         .join('')}</div></div>`
     : '';
 
-  return `${origin}
-    <div><div class="group-k">Buyer track</div><div class="stat">${s.buyerTrack.map(statusChip).join('')}</div></div>`;
+  return `<div class="track">${origin}
+    <div><div class="group-k">Buyer track</div><div class="stat">${s.buyerTrack.map(statusChip).join('')}</div></div></div>`;
 }
 
 /** The computation status and Landed Cost per line, with its provisional or final mark. */
@@ -483,8 +323,7 @@ function costing(vm) {
             )
             .join('')}</tbody></table>`;
 
-  return `<div class="box"><div class="group-k">Landed cost ${mark}</div>${landed}</div>
-    ${build(vm)}`;
+  return `<div class="box"><div class="group-k">Landed cost ${mark}</div>${landed}</div>`;
 }
 
 
@@ -522,7 +361,7 @@ export function buildIpasPagesHtml(vm) {
     documentsPart(vm),
     section(esc(ipasSectionLabel('filing')), '', sigs(boxes)),
   ].join('');
-  return `<div class="sheet">
+  return `<div class="sheet dense">
     ${rail(vm)}${head(vm)}
     <div class="flow">${parts}</div>
     ${footer(vm)}

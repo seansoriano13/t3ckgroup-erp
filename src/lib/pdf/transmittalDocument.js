@@ -15,37 +15,31 @@
  */
 
 import { MARK } from './brandMark';
-import { CSS } from './ipasDocument';
+import { PAPER_CSS as CSS } from './paperSet';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
 
 const EXTRA_CSS = `
-  .tg-sheet + .tg-sheet { break-before: page; page-break-before: always; }
-  .tg-ticks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 14px; font-size: 8pt; padding: 6px 0; border-bottom: 1px solid var(--hair); }
-  .tg-ticks .g { display: flex; flex-direction: column; gap: 2px; }
-  .tg-ticks .g > b { font-weight: 600; font-size: 7.6pt; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-mid); }
-  .tg-ticks .o { display: flex; gap: 5px; align-items: center; }
-  .tg-ticks .box { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 10px; height: 10px; border: 1px solid var(--ink); line-height: 1; font-size: 7pt; overflow: hidden; flex: none; }
+  .tbox { display: inline-flex; align-items: center; justify-content: center; width: 11px; height: 11px; border: 1px solid var(--ink); border-radius: 2px; line-height: 1; font-size: 7pt; overflow: hidden; flex: none; vertical-align: -2px; }
+  .tg-ticks { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s-3) 20px; font-size: var(--t-table); }
+  .tg-ticks .g { display: flex; flex-direction: column; gap: 3px; }
+  .tg-ticks .g > b { font-size: var(--t-micro); line-height: 1.3; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 1px; }
+  .tg-ticks .o { display: flex; gap: 6px; align-items: center; }
   .tg-ticks .other { font-style: italic; }
-  .tg-grid { width: 100%; border-collapse: collapse; font-size: 7.6pt; table-layout: fixed; margin-top: 6px; }
-  .tg-grid th, .tg-grid td { border: 1px solid var(--ink-faint); padding: 3px 4px; vertical-align: top; height: 17px; text-align: left; }
-  .tg-grid th { font-weight: 600; font-size: 6.8pt; text-transform: uppercase; background: var(--paper-tint, transparent); }
+  .tg-lines { display: flex; flex-direction: column; gap: var(--s-1); }
+  .tg-sheet { --plate: 6mm; }
+  .tg-grid td { height: 5mm; }
   .tg-grid td.c { text-align: center; font-family: var(--mono); }
-  .tg-legend { font-size: 7.2pt; color: var(--ink-mid); margin-top: 3px; letter-spacing: .03em; }
-  .tg-cont { font-size: 7.6pt; color: var(--ink-faint); font-style: italic; margin-top: 4px; }
-  .tg-stage { border-top: 1px solid var(--hair); padding: 6px 0 4px; }
-  .tg-stage h4 { margin: 0 0 3px; font-family: var(--serif); font-size: 10pt; font-weight: 500; }
-  .tg-stage.struck h4, .tg-stage.struck .rem { text-decoration: line-through; color: var(--ink-faint); }
-  .tg-stage .rem { font-size: 8pt; min-height: 22px; white-space: pre-wrap; }
-  .tg-stage .pics { font-size: 7.6pt; color: var(--ink-mid); margin-top: 2px; }
-  .tg-plates { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 4px; }
-  .tg-plates .sig { font-size: 7.6pt; }
-  .tg-plates .sig.waiting .plate { border-bottom: 1px solid var(--ink-faint); height: 34px; }
-  .tg-cs { font-family: var(--mono); font-size: 7.6pt; color: var(--ink-mid); text-align: center; }
-  .tg-odoo { display: flex; gap: 14px; font-size: 8pt; border-top: 1px solid var(--ink); padding-top: 5px; margin-top: 6px; flex-wrap: wrap; }
-  .tg-odoo .k { color: var(--ink-faint); font-size: 7.2pt; text-transform: uppercase; letter-spacing: .04em; }
+  .tg-legend, .tg-cont { font-size: var(--t-fine); color: var(--ink-faint); }
+  .tg-cont { font-style: italic; }
+  .tg-stage.struck h3, .tg-stage.struck .rem { text-decoration: line-through; color: var(--ink-faint); }
+  .tg-stage .rem { min-height: 5mm; white-space: pre-wrap; }
+  .tg-stage .pics { font-size: var(--t-table); color: var(--ink-mid); }
+  .tg-plates { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3) 20px; }
+  .tg-odoo { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2) 20px; border-top: 1px solid var(--ink); padding-top: var(--s-2); }
+  .tg-odoo .v { display: block; min-height: 1.3em; }
 `;
 
-const TICK = (on) => `<span class="box">${on ? '✕' : ''}</span>`;
+const TICK = (on) => `<span class="tbox">${on ? '✕' : ''}</span>`;
 
 /** A tick option; its Others text follows it when the option has one. */
 const tick = (o) => `<span class="o">${TICK(o.ticked)}<span>${esc(o.label)}${o.other ? ` <i class="other">${esc(o.other)}</i>` : ''}</span></span>`;
@@ -75,7 +69,7 @@ function gridHtml(page) {
     .map((r) => `<tr><td>${esc(r.sn)}</td><td>${esc(r.item)}</td><td>${esc(r.project)}</td><td class="c">${esc(r.boxQuantity)}</td>
       <td>${esc(r.whInCharge)}</td><td class="c">${esc(r.whCheck)}</td><td>${esc(r.techInCharge)}</td><td class="c">${esc(r.techCheck)}</td></tr>`)
     .join('');
-  return `<table class="tg-grid">${GRID_HEAD}<tbody>${body}</tbody></table>`;
+  return `<table class="grid tg-grid">${GRID_HEAD}<tbody>${body}</tbody></table>`;
 }
 
 /** A plate: a signed signer through `sigBlock`, a waiting one blank with its role. */
@@ -95,18 +89,18 @@ function plateHtml(p) {
 
 /** One stage section: its heading, remarks, pictures line and two plates. A stage the slip lacks is struck through. */
 function stageHtml(s) {
-  return `<div class="tg-stage${s.present ? '' : ' struck'}">
-    <h4>${esc(s.title)}</h4>
-    <div class="rem">${esc(s.remarks)}</div>
+  return `<section class="sec tg-stage${s.present ? '' : ' struck'}">
+    <h3><span>${esc(s.title)}</span></h3>
+    <div class="body"><div class="rem">${esc(s.remarks)}</div>
     <div class="pics">(Provided Pictures &amp; Videos) ${s.pictures === 'Yes' ? '<b>Yes</b> / No' : s.pictures === 'No' ? 'Yes / <b>No</b>' : 'Yes / No'}</div>
-    <div class="tg-plates">${s.plates.map((p) => plateHtml(p)).join('')}</div>
-  </div>`;
+    <div class="tg-plates">${s.plates.map((p) => plateHtml(p)).join('')}</div></div>
+  </section>`;
 }
 
 /** Check by: two plates, blank until signed, each with the call sign beneath. */
 function checkByHtml(plates) {
   return `<div class="tg-plates">${plates
-    .map((p) => `<div>${plateHtml(p)}<div class="tg-cs">${esc(p.callSign)}</div></div>`)
+    .map((p) => `<div>${plateHtml(p)}<div class="sig"><div class="callsign">${esc(p.callSign)}</div></div></div>`)
     .join('')}</div>`;
 }
 
@@ -121,8 +115,8 @@ export function buildTransmittalSheetsHtml(vm) {
             <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">TG03 · ${esc(vm.stateLabel)}</div></span></div>
           <div class="head">
             <div class="l"><div class="kind">TRANSMITTAL FORM</div>
-              <div class="meta">${vm.techBox ? '<span class="box">✕</span> ' : '<span class="box"></span> '}To be checked by Technical</div></div>
-            <div class="r"><div class="k">Date</div><div class="v">${esc(vm.preparedOn)}</div><div class="k">TN</div><div class="v mono">${esc(vm.number)}</div></div>
+              <div class="meta">${TICK(vm.techBox)} To be checked by Technical</div></div>
+            <div class="r"><div class="f"><span class="k">Date</span><span class="v">${esc(vm.preparedOn)}</span></div><div class="f"><span class="k">TN</span><span class="v mono">${esc(vm.number)}</span></div></div>
           </div>
           ${ticksHtml(vm)}`
         : `<div class="rail"><span class="mark">${MARK}</span>
@@ -132,12 +126,13 @@ export function buildTransmittalSheetsHtml(vm) {
       const cont = page.continued ? '<div class="tg-cont">Continued from the previous page</div>' : '';
       const tail = i === last
         ? `${vm.stages.map(stageHtml).join('')}
-           <div class="tg-odoo"><span><span class="k">Received in Odoo by</span> ${esc(vm.odooReceived.by)}</span>
-             <span><span class="k">At</span> ${esc(vm.odooReceived.at)}</span>
-             <span><span class="k">Odoo ref</span> ${esc(vm.odooReceived.ref)}</span></div>
-           <div class="tg-stage"><h4>Check by</h4>${checkByHtml(vm.checkBy)}</div>`
+           <div class="tg-odoo"><div class="f"><span class="k">Received in Odoo by</span><span class="v">${esc(vm.odooReceived.by)}</span></div>
+             <div class="f"><span class="k">At</span><span class="v">${esc(vm.odooReceived.at)}</span></div>
+             <div class="f"><span class="k">Odoo ref</span><span class="v mono">${esc(vm.odooReceived.ref)}</span></div></div>
+           <section class="sec tg-stage"><h3><span>Check by</span></h3><div class="body">${checkByHtml(vm.checkBy)}</div></section>`
         : '';
-      return `<div class="sheet tg-sheet">${head}${cont}${gridHtml(page)}${legend}${tail}</div>`;
+      const foot = `<div class="foot"><span>${esc(vm.number)}</span><span class="mid">Sheet ${i + 1} of ${vm.pages.length}</span><span class="r">Purchasing</span></div>`;
+      return `<div class="sheet tg-sheet dense">${head}<div class="tg-lines">${cont}${gridHtml(page)}${legend}</div>${tail}${foot}</div>`;
     })
     .join('');
 }

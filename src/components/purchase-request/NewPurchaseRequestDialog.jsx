@@ -149,7 +149,7 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       crumbs={["Purchase Requests", "New Purchase Request"]}
       actions={
-        <Button size="lg" disabled={!valid || busy} onClick={() => openMutation.mutate()}>
+        <Button disabled={!valid || busy} onClick={() => openMutation.mutate()}>
           {busy && <Spinner size="sm" />}
           Send to Purchasing
         </Button>

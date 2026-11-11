@@ -18,13 +18,12 @@
  */
 
 import { MARK } from './brandMark';
-import { CSS as IPAS_CSS } from './ipasDocument';
+import { PAPER_CSS, pageCss } from './paperSet';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
 
 const EXTRA_CSS = `
-  @page { size: A4 landscape; margin: 0; }
-  .sheet { width: 297mm; min-height: 209mm; padding: 9mm 13mm 7mm; gap: 3mm; }
-  .sheet + .sheet { break-before: page; page-break-before: always; }
+  .sheet { width: 297mm; min-height: 209mm; }
+  ${pageCss({ landscape: true })}
 
   .head .company b + .k { margin-left: 14px; }
   .head .abc { width: 46mm; margin: 6px 0 0 auto; }
@@ -33,41 +32,36 @@ const EXTRA_CSS = `
   .bar.over span { background: var(--flag); }
   .over-abc { color: var(--flag); font-weight: 600; }
 
-  .cols { gap: 22px; }
-  .cR { flex-basis: 74mm; gap: 4mm; }
+  .cR { flex-basis: 74mm; }
 
   .lines td.no { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
   .lines tr.line td { font-weight: 600; }
   .lines tr.line td .sub { font-weight: 400; }
   .lines thead tr.owner th { border-bottom: 0; padding-bottom: 1px; letter-spacing: .1em; color: var(--ink-mid); }
-  .lines .wait { font-family: var(--sans); font-size: 6.4pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
+  .lines .wait { font-family: var(--sans); font-size: var(--t-micro); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
 
-  .notes { display: flex; flex-direction: column; gap: 4px; }
-  .notes .n { font-size: 7.8pt; line-height: 1.4; padding-left: 8px; border-left: 1px solid var(--rule); break-inside: avoid; }
+  .notes { display: flex; flex-direction: column; gap: var(--s-2); }
+  .notes .n { font-size: var(--t-body); line-height: 1.4; padding-left: 8px; border-left: 1px solid var(--rule); break-inside: avoid; }
   .notes .n.flagged { border-left-color: var(--flag); }
   .notes .n b { font-weight: 600; }
   .notes .n.flagged b { color: var(--flag); }
 
-  .blk .row.strong { border-top: 1px solid var(--ink); padding-top: 5px; margin-top: 2px; font-size: 8.6pt; }
+  .blk .row.strong { border-top: 1px solid var(--ink); padding-top: 5px; margin-top: 2px; font-size: var(--t-body); }
   .blk .row.strong .a { color: var(--ink); font-weight: 600; }
   .blk .row.strong .b { font-weight: 600; }
-  .cR .blk .rows { gap: 3px; margin-top: 4px; }
-  .blk .row .a .h { margin-left: 4px; font-size: 6.4pt; color: var(--ink-faint); }
-  .head { padding: 2mm 0 2.5mm; }
-  .head .big { font-size: 21pt; }
+  .cR .blk .rows { gap: 4px; }
+  .blk .row .a .h { margin-left: 4px; font-size: var(--t-micro); color: var(--ink-faint); }
   .blk .row .b.note { font-family: var(--sans); font-style: italic; color: var(--ink-faint); font-weight: 400; }
-  .fine { font-size: 6.6pt; line-height: 1.4; color: var(--ink-faint); }
+  .fine { font-size: var(--t-fine); line-height: 1.4; color: var(--ink-faint); }
 
-  .band { padding-top: 3mm; }
-  .sig .plate { height: 8mm; }
   .sig .pending { color: var(--flag); }
 
-  .entry { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; border-top: 1px solid var(--hair); padding: 5px 0 6px; break-inside: avoid; }
+  .entry { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; border-top: 1px solid var(--hair); padding: var(--s-2) 0; break-inside: avoid; }
   .entry:first-child { border-top: 0; padding-top: 0; }
-  .entry ul { margin: 2px 0 0; padding-left: 12px; font-size: 7.8pt; line-height: 1.42; }
+  .entry ul { margin: 2px 0 0; padding-left: 12px; font-size: var(--t-table); line-height: 1.34; }
   .entry .name { font-weight: 600; margin-top: 2px; }
-  .entry .src { font-size: 7pt; color: var(--ink-faint); margin-top: 3px; font-family: var(--mono); }
-  .entry .verdict { margin-top: 4px; font-size: 7.6pt; line-height: 1.38; }
+  .entry .src { font-size: var(--t-fine); color: var(--ink-faint); margin-top: 3px; font-family: var(--mono); }
+  .entry .verdict { margin-top: 4px; font-size: var(--t-table); line-height: 1.38; }
   .entry .verdict .sub { margin-top: 2px; }
   .tag-state.deviates { color: var(--flag); border-color: var(--flag); }
   .tag-state.complies { border-color: var(--ink); color: var(--ink); }
@@ -204,7 +198,7 @@ function moneySheet(vm) {
   const boxes = m.signoffs
     .map((s) => sigBlock({ role: esc(s.role), who: esc(s.who), title: esc(s.title), state: s.state, signatureBase64: s.signatureBase64, stamp: s.stamp ? esc(s.stamp) : undefined }))
     .join('');
-  return `<div class="sheet money">
+  return `<div class="sheet dense money">
     ${rail(vm, 'money')}${moneyHead(vm)}
     <div class="cols">
       <div class="cL">${section('Tender lines', `${m.lines.length} ${m.lines.length === 1 ? 'line' : 'lines'}`, moneyTable(m))}${section('Evaluation and Bid Decision', '', findings(m))}</div>
@@ -267,7 +261,7 @@ function appendixLine(line) {
 
 function appendixSheet(vm) {
   const body = vm.appendix.lines.length ? vm.appendix.lines.map(appendixLine).join('') : '<div class="empty">No Tender Lines yet.</div>';
-  return `<div class="sheet appendix">
+  return `<div class="sheet dense appendix">
     ${rail(vm, 'appendix')}
     <div class="head"><div class="l"><div class="kind">S0 Evaluation · specification appendix</div>
       <div class="who">${esc(vm.projectTitle)}</div><div class="meta">${esc(vm.clientName)}</div></div></div>
@@ -278,7 +272,7 @@ function appendixSheet(vm) {
 
 // ── document ─────────────────────────────────────────────────────────────────
 
-export const CSS = `${IPAS_CSS}${EXTRA_CSS}`;
+export const CSS = `${PAPER_CSS}${EXTRA_CSS}`;
 
 export function buildCostingMatrixPagesHtml(vm) {
   return `${vm.money ? moneySheet(vm) : ''}${appendixSheet(vm)}`;
