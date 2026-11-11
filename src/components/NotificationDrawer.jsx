@@ -284,8 +284,9 @@ export default function NotificationDrawer({ isOpen, onClose }) {
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DrawerContent>
         {/* Header */}
-        <div className="p-6 border-b border-border flex justify-between items-center bg-card shrink-0">
-          <div>
+        {/* On a phone the Mark buttons wrap under the title, so the Close button stays on screen. */}
+        <div className="p-4 sm:p-6 border-b border-border flex flex-wrap justify-between items-center gap-x-2 gap-y-3 bg-card shrink-0">
+          <div className="min-w-0 flex-1">
             <DrawerTitle className="text-xl font-bold text-foreground flex items-center gap-2 leading-normal">
               <Bell size={20} className="text-foreground" /> Notifications
             </DrawerTitle>
@@ -293,7 +294,16 @@ export default function NotificationDrawer({ isOpen, onClose }) {
               Your Universal Action Hub
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Close notifications"
+            className="order-2 sm:order-3 h-auto w-auto p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full transition-colors"
+          >
+            <X size={20} />
+          </Button>
+          <div className="order-3 sm:order-2 flex w-full sm:w-auto items-center gap-2">
             <Button
               variant="outline"
               onClick={() => markAllReadMutation.mutate()}
@@ -307,14 +317,6 @@ export default function NotificationDrawer({ isOpen, onClose }) {
               className="h-auto text-label font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors px-2 py-1 rounded-md uppercase tracking-tight"
             >
               Mark All Unread
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onClose}
-              className="h-auto w-auto p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full transition-colors"
-            >
-              <X size={20} />
             </Button>
           </div>
         </div>

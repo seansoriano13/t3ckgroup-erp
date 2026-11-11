@@ -1,5 +1,14 @@
 [
     {
+        "date": "2026-11-11",
+        "title": "Phone notifications and leave records",
+        "version": "1.10.1",
+        "changes": [
+            "Notifications: on a phone the Close button is always visible, and the bell count now matches the list.",
+            "Leave records: opening a leave form's verified record works again."
+        ]
+    },
+    {
         "date": "2026-11-10",
         "title": "The November Update: See Everything in Release Notes",
         "version": "1.10.0",

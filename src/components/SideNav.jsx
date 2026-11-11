@@ -24,6 +24,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { notificationService } from "../services/notificationService";
+import { groupChatNotifications } from "../utils/groupChatNotifications";
 import { activeChatService } from "../services/tasks/activeChatService";
 import NotificationDrawer from "./NotificationDrawer";
 import { usePushNotificationClick } from "../hooks/usePushNotificationClick";
@@ -198,7 +199,9 @@ export default function SideNav() {
     queryFn: () => notificationService.getMyNotifications(user?.id),
     enabled: !!user?.id,
   });
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  // One per row the drawer shows: a chat's messages are one row there, so
+  // counting every message made the badge say 3 over a list of 1.
+  const unreadCount = groupChatNotifications(notifications).filter((n) => !n.is_read).length;
 
   // Active Chats State
   const [isChatsOpen, setIsChatsOpen] = useState(false);

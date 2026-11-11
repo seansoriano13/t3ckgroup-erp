@@ -29522,7 +29522,7 @@ BEGIN
       'total_hours', group_hours,
       'status', rec.status,
       'approver_name', rec.hr_name,
-      'approval_date', COALESCE(to_char(rec.hr_processed_at, 'Mon DD, YYYY'), to_char(rec.updated_at, 'Mon DD, YYYY')),
+      'approval_date', to_char(rec.hr_processed_at, 'Mon DD, YYYY'),
       'application_valid', app_valid,
       'approval_valid', appr_valid,
       'employee_signature_timestamp', rec.employee_signature_timestamp,
