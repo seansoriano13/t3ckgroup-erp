@@ -242,7 +242,7 @@ describe("the printed S0 Evaluation, view model", () => {
 describe("the printed S0 Evaluation, document", () => {
   it("is landscape A4 in the IPAS paper set, with the owner-band header and the margin column", () => {
     const html = buildCostingMatrixDocument(build(COSTING_TIER.CLOSED_BOOK));
-    expect(html).toContain("@page { size: A4 landscape; margin: 0; }");
+    expect(html).toMatch(/@page \{ size: A4 landscape; margin: 9mm 0 8mm; \}/);
     expect(html).toContain("width: 297mm");
     expect(html).toContain('<div class="rail">');
     expect(html).toContain('<tr class="band owner">');

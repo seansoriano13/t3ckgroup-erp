@@ -125,13 +125,14 @@ export function buildPrintableDocument(mappedData) {
   .strike { text-decoration: line-through; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
   .cols { display: flex; gap: 24px; padding-top: 15px; flex: 1; min-height: 0; }
-  .cL { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .cL { flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
   .cR { flex: 0 0 214px; padding-left: 24px; border-left: 1px solid var(--f-hair); display: flex; flex-direction: column; gap: 16px; }
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px 20px; }
-  .f .v { font-size: 12.5px; line-height: 1.3; font-weight: 500; margin-top: 4px; letter-spacing: -.004em; }
+  .f .v { font-size: 12.5px; line-height: 1.3; font-weight: 500; margin-top: 4px; letter-spacing: -.004em; text-wrap: balance; }
   .f .x { font-size: 9.5px; line-height: 1.35; color: var(--f-3); margin-top: 2px; }
-  .rem { margin-top: auto; padding-top: 13px; }
-  .rem p { margin: 7px 0 0; font-family: var(--serif); font-style: italic; font-size: 13px; line-height: 1.55; color: var(--f-2); max-width: 46ch; }
+  /* The reason takes the column's full width and stops at five lines, so a long one can never run into the signatures. */
+  .rem { margin-top: auto; padding-top: 13px; min-height: 0; }
+  .rem p { margin: 6px 0 0; font-family: var(--serif); font-style: italic; font-size: 12px; line-height: 1.45; color: var(--f-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
 
   .blk .v { font-size: 12px; line-height: 1.3; font-weight: 600; margin-top: 5px; display: flex; align-items: center; gap: 7px; letter-spacing: -.004em; }
   .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--f-ink); flex: 0 0 5px; }
@@ -148,7 +149,7 @@ export function buildPrintableDocument(mappedData) {
   .sig.awaiting .plate { background: var(--f-well); }
   .sig .who { margin-top: 6px; font-size: 10.5px; line-height: 1.3; font-weight: 600; letter-spacing: -.008em; }
   .sig .role { font-size: 7.5px; line-height: 1.3; letter-spacing: .08em; text-transform: uppercase; color: var(--f-3); margin-top: 3px; }
-  .sig .stamp, .sig .pending { font-family: var(--mono); font-size: 7px; line-height: 1.3; margin-top: 4px; letter-spacing: .02em; }
+  .sig .stamp, .sig .pending { font-family: var(--mono); font-size: 7.5px; line-height: 1.3; margin-top: 4px; letter-spacing: .02em; }
   .sig .stamp { color: var(--f-2); }
   .sig .pending { color: var(--f-3); letter-spacing: .12em; text-transform: uppercase; }
   .sig .plate img { max-height: 24px; max-width: 100%; object-fit: contain; }
@@ -157,7 +158,7 @@ export function buildPrintableDocument(mappedData) {
   .verify { flex: 0 0 188px; display: flex; gap: 11px; }
   .qr { width: 52px; height: 52px; flex: 0 0 52px; }
   .verify .u { font-family: var(--mono); font-size: 7.5px; line-height: 1.5; color: var(--f-2); word-break: break-all; }
-  .verify .h { font-size: 7px; line-height: 1.45; color: var(--f-3); margin-top: 5px; }
+  .verify .h { font-size: 7.5px; line-height: 1.4; color: var(--f-3); margin-top: 5px; }
   .note { margin-top: 11px; padding-top: 8px; border-top: 1px solid var(--f-hair); font-size: 7.5px; line-height: 1.35; color: var(--f-3); letter-spacing: .03em; }
 
   .blank { position: absolute; inset: 0; display: grid; place-content: center; gap: 8px; text-align: center; font-family: var(--mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: #A8A399; }

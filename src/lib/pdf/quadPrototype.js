@@ -22,7 +22,7 @@ const QUAD_CSS = `
   .quad .cR { flex: 0 0 auto; padding-left: 0; border-left: 0; border-top: 1px solid var(--f-hair); padding-top: 8px; gap: 10px; }
   .quad .grid { gap: 9px 14px; }
   .quad .rem { min-height: 0; flex: 1 1 auto; overflow: hidden; }
-  .quad .rem p { max-width: none; }
+  .quad .rem p { max-width: none; display: block; -webkit-line-clamp: unset; overflow: visible; }
   .quad .band { flex-direction: column; gap: 10px; margin-top: 10px; padding-top: 10px; }
   .quad .sigs { width: 100%; gap: 12px; }
   .quad .verify { flex: 0 0 auto; }
