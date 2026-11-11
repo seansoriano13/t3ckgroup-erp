@@ -4,7 +4,7 @@ For the agent writing the one curated prod `changelog.json` entry. What's New sh
 
 ## Steps
 
-1. **Source:** `git log --oneline <last-prod-deploy-sha>..HEAD` (last prod deploy = the `main` commit currently live). Skim PR/issue titles for detail.
+1. **Source:** `git log --oneline <last-prod-deploy-sha>..HEAD` (last prod deploy = the `main` commit currently live). Skim PR/issue titles for detail. Read every `feat` and `fix` commit, not only `changelog.json`: some changes never get a What's new entry (2026-11 missed converting a task into a Group Task, #657, this way).
 2. **Skip** staging-only entries (`"env": "staging"`) and internal work (tests, refactors, tooling, docs).
 3. **Audience:** end users (sales, procurement, HR staff), not developers.
 4. **Write:** plain words, short sentences, what changed for them. No ticket numbers, file names, jargon.
