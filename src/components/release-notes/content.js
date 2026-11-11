@@ -72,6 +72,18 @@ export const SECTIONS = [
         sample: "needs-attention",
       },
       {
+        id: "mentions",
+        title: "A Mention lets someone into the SOR's current Stage",
+        body: "Mention someone in an SOR's chat and they can open the Stage it is on, read its notes and add their own, until the SOR moves on. The message box tells you this before you send. They see a banner saying who mentioned them and when it ends. Under Deal team, the SOR lists everyone it was shared with this way.",
+        who: ["Sales", "Deal Team", "Everyone"],
+      },
+      {
+        id: "quick-view-tasks",
+        title: "Quick View lists the SOR's tasks",
+        body: "Quick View now lists every task on the SOR that you can read, your own first.",
+        who: ["Sales", "Deal Team"],
+      },
+      {
         id: "change-notes",
         title: "Clearer change notes",
         body: "In Activity & Log Notes, a change to an SOR shows as a label with the old and new value. Products that were added, removed, changed or renamed are grouped, and each group opens to show the details.",
@@ -95,6 +107,9 @@ export const SECTIONS = [
       "The register shows its Status column without scrolling sideways, and long statuses no longer spill past the table.",
       "Deleted SORs has a search box, like the register.",
       "The SOR window shows its frame straight away while the deal loads.",
+      "Opening an SOR you can't see now says so and names the Deal Owner to ask, instead of showing nothing.",
+      "When the Board won't take a drop, it says why.",
+      "Registering an SOR starts the first Stage's tasks and actions straight away.",
     ],
   },
   {
@@ -105,9 +120,27 @@ export const SECTIONS = [
       {
         id: "group-task-evaluation",
         title: "Group Tasks wait for their Evaluator",
-        body: "When every member is done, a Group Task shows Awaiting evaluation, and it is Completed only once it is rated. The To evaluate tab lists the ones waiting, longest first. The Evaluator gets a message, then reminders after 3, 6 and 9 days, and after that the creator and the Evaluator's heads are told. Pick the Evaluator when you create the task, or leave it empty to rate it yourself.",
+        body: "When every member is done, a Group Task shows Awaiting evaluation, and it is Completed only once it is rated. The To evaluate tab lists the ones waiting, longest first. The Evaluator gets a message, then reminders after 3, 6 and 9 days, and after that the creator and the Evaluator's heads are told. Pick the Evaluator when you create the task, or leave it empty to rate it yourself. A Group Task made by a Stage is rated by the SOR's Deal Owner. The creator, heads and Super Admins can change the Evaluator, and an Evaluator who isn't a member can still open the task and its SOR.",
         who: ["Everyone"],
         sample: "group-task-evaluation",
+      },
+      {
+        id: "convert-to-group-task",
+        title: "Turn a task into a Group Task",
+        body: "Heads, HR and Super Admins can press Convert to Group Task on an open task. It keeps its details, checklist, files and chat; the task's owner becomes the first member, and you pick who else joins. Its notifications open the Group Task from then on.",
+        who: ["Department heads", "HR"],
+      },
+      {
+        id: "group-task-managers",
+        title: "Only heads, HR and Super Admins make Group Tasks",
+        body: "Creating a Group Task, and editing, cancelling or deleting one, is now for heads, HR and Super Admins. Everyone else keeps working on the Group Tasks they are in.",
+        who: ["Everyone"],
+      },
+      {
+        id: "group-task-sor-chat",
+        title: "A Group Task for an SOR shows the SOR's chat too",
+        body: "A Group Task made for an SOR shows the SOR's chat beside its own, so you can follow both without switching windows.",
+        who: ["Everyone"],
       },
       {
         id: "group-task-dates",
@@ -129,12 +162,23 @@ export const SECTIONS = [
         who: ["Department heads", "HR"],
         sample: "task-approvals",
       },
+      {
+        id: "dashboard-all-tasks",
+        kind: "fix",
+        title: "The Dashboard counts every task",
+        body: "The Dashboard stopped counting after the first 1,000 tasks, so its totals were too low. It now counts them all, and the Group Tasks part has its own row of figures.",
+        who: ["Everyone"],
+      },
     ],
     alsoFixed: [
       "Phased checklists, such as Checking and Validation, no longer lock Submit for Review when every item is ticked.",
       "The grade you pick keeps its colour when you hover it.",
       "Teams show up when you pick Group Task members, and editing a Group Task no longer moves its Due Date back a day.",
       "A Group Task template that a Stage uses can't be deleted. The message names the flow and Stage that use it.",
+      "A reaction on a Group Task chat message opens that chat.",
+      "Task categories match your department and sub-department.",
+      "Pasting a picture into a text box no longer also attaches it to the task.",
+      "Pictures open in front of the task or SOR window, and the task window keeps its buttons in view.",
     ],
   },
   {
@@ -166,8 +210,14 @@ export const SECTIONS = [
       {
         id: "meal-break",
         title: "The lunch hour comes off by the clock",
-        body: "Leave and overtime take off the Meal Break, 12 to 1 pm, only when your hours cover it. The old rule took an hour off any day of 5 hours or more.",
+        body: "Leave and overtime take off the Meal Break, 12 to 1 pm, only when your hours cover it. The old rule took an hour off any day of 5 hours or more. When no break was taken, HR can keep the hour in on review, with a reason.",
         who: ["Everyone", "HR"],
+      },
+      {
+        id: "hr-decides",
+        title: "HR can decide a request still with a head",
+        body: "HR now sees every leave and overtime request waiting on a department head, and can decide it. The employee is told it was decided on the head's behalf. Super Admins see these requests too.",
+        who: ["HR", "Department heads"],
       },
       {
         id: "time-off-name",
@@ -186,6 +236,8 @@ export const SECTIONS = [
       "Leave, overtime and offset dates follow Manila time, so a request near midnight lands on the right day.",
       "Opening a time off request shows all its dates, days and hours, not only the day you clicked.",
       "Declining a request opens it first, so you can add a reason.",
+      "A request your head declined no longer blocks those dates or counts against your hours.",
+      "An Offset request shows its attached pictures.",
       "The printed TG-11, TG-12 and TG-13 forms are cleaner and show when HR validated the request.",
     ],
   },
@@ -210,6 +262,18 @@ export const SECTIONS = [
         id: "grouped-notifications",
         title: "Messages from one chat come as one notification",
         body: "Several messages in the same chat now arrive as one row in your notifications, and the count badge is plain grey.",
+        who: ["Everyone"],
+      },
+      {
+        id: "chat-actions",
+        title: "Chats: unsend, react, reply and copy",
+        body: "You can unsend a message within 15 minutes of sending it. On a computer, hover a message for reactions, reply and copy, and select its text like any other. Enter sends in every chat.",
+        who: ["Everyone"],
+      },
+      {
+        id: "resize-columns",
+        title: "Make a table column wider",
+        body: "Drag the edge of a column heading in a register or queue to resize it. The app remembers your widths, and a double-click puts them back.",
         who: ["Everyone"],
       },
       {
@@ -243,6 +307,7 @@ export const SECTIONS = [
       "Approve, Decline and similar buttons can't be pressed twice by accident.",
       "Messages are clearer, and dates look the same everywhere.",
       "Leaving Profile or the FAQ Editor with unsaved changes warns you first.",
+      "Picking a file you already uploaded links the original instead of adding a copy.",
       "Pop-ups open in front of the window they came from, and dropdowns no longer lock the page.",
     ],
   },
@@ -258,6 +323,9 @@ export const SECTIONS = [
         who: ["Sales"],
         sample: "retail-income",
       },
+    ],
+    alsoFixed: [
+      "This month against last compares the same days of each month.",
     ],
   },
   {
@@ -293,13 +361,13 @@ export const SECTIONS = [
       {
         id: "outdated-sors",
         title: "Update Outdated SORs, and see what happens first",
-        body: "After a flow is published, SORs on the older version can be updated in bulk or one at a time, or taken back. Before you update, you see which Group Tasks will start and who will be told.",
+        body: "After a flow is published, SORs on the older version can be updated in bulk or one at a time, or taken back. Before you update, you see which Group Tasks will start and who will be told, and a bulk update shows its progress.",
         who: ["Admins"],
       },
       {
         id: "flow-access",
-        title: "Every flow's access on one page",
-        body: "A Super Admin page holds the access settings of every flow in one place.",
+        title: "Flow access opens from the canvas",
+        body: "The Access button on the Flow Canvas toolbar opens Always sees, Always edits, History viewers and Restricted Stages for the Sale Type you picked. The separate Flow Access page is gone.",
         who: ["Super Admin"],
       },
       {
@@ -318,6 +386,9 @@ export const SECTIONS = [
     ],
     alsoFixed: [
       "Hover a Stage condition that is also checked at another Stage to see where.",
+      "A Group Task action can name who evaluates it.",
+      "Require confirmation can go to everyone in a department.",
+      "The canvas warns when a flow has no Lost end Stage.",
     ],
   },
   {
@@ -373,7 +444,7 @@ export const SECTIONS = [
       {
         id: "pms-tab",
         title: "The PMS tab on every SOR",
-        body: "Every SOR has a PMS tab with its Purchase Request, IPAS, Transmittals and Packing Lists, and its S0 Evaluation for the people allowed to see it. Anyone who can read the SOR sees where its orders stand, without the money. Purchasing now has SORS in the menu too.",
+        body: "Every SOR has a PMS tab with its Purchase Request, IPAS, Transmittals and Packing Lists, and its S0 Evaluation for the people allowed to see it. Anyone who can read the SOR sees where its orders stand, without the money, and each Product List line shows its P0, linked to Odoo. Purchasing now has SORS in the menu too.",
         who: ["Sales", "Deal Team", "Purchasing"],
         sample: "pms-tab",
       },
