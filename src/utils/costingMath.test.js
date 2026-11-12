@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { summaryLineShown } from "../constants/costing";
-import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
+import { resolveCost, lineCost, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -643,5 +643,31 @@ describe("a row costed by Acquire only (#787)", () => {
   it("still prefers an old deal's Final Acquire", () => {
     const m = { ...matrix, costRows: [{ quantity: 1, acquire_unit: "5.00", final_acquire_unit: "7.00" }] };
     expect(finalAcquireTotal(m.costRows)).toBe(finalAcquireTotal([{ quantity: 1, final_acquire_unit: "7.00" }]));
+  });
+});
+
+describe("the Odoo SRP is a figure, never a cost (#961)", () => {
+  it("totals SRP unit x quantity per Component and sums a line and the Other costs", () => {
+    expect(componentTotals({ quantity: 3, odoo_unit: 1250.5 }).odooTotal).toBe(3751.5);
+    expect(costRowsTotals([{ quantity: 2, odoo_unit: 100 }, { quantity: 1, odoo_unit: 50.25 }]).odooTotal).toBe(250.25);
+  });
+
+  it("keeps a blank SRP blank, never zero", () => {
+    expect(componentTotals({ quantity: 3, odoo_unit: null }).odooTotal).toBeNull();
+    expect(costRowsTotals([{ quantity: 2, odoo_unit: 100 }, { quantity: 1 }]).odooTotal).toBeNull();
+  });
+
+  it("resolveCost does not fall back to the SRP", () => {
+    expect(resolveCost({ odoo_unit: 500 })).toBeNull();
+    expect(resolveCost({ acquire_unit: null, odoo_unit: 500, acquire_source: "odoo" })).toBeNull();
+  });
+
+  it("resolveCost still reads an Acquire filled from Odoo's cost, not the SRP", () => {
+    expect(resolveCost({ acquire_unit: 400, acquire_source: "odoo", odoo_unit: 500 })).toMatchObject({ source: "odoo", pesos: 400 });
+  });
+
+  it("lineCost is null while a part has only an SRP", () => {
+    expect(lineCost({ quantity: 1, components: [{ quantity: 1, odoo_unit: 500 }] })).toBeNull();
+    expect(lineCost({ quantity: 1, components: [{ quantity: 1, acquire_unit: 400, acquire_source: "typed", odoo_unit: 500 }] })).toMatchObject({ pesos: 400 });
   });
 });

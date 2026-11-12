@@ -48,7 +48,7 @@ export const tierReads = (tier, column) => (TENDER_PRICE_TIERS[column] ?? []).in
 /**
  * The tiers that receive each unit-cost column of a Component (costing_component_costs) and of a
  * cost-only row (costing_cost_rows) (#268, shaped by #319). Final Acquire and the markup factor are
- * Closed Book only; Acquire is the cost side's; the Odoo unit cost is Sales's own column and
+ * Closed Book only; Acquire is the cost side's; the Odoo SRP is Sales's own column and
  * Purchasing reads it. A tier that is not listed is not sent the key at all.
  */
 export const COMPONENT_COST_TIERS = {
@@ -329,7 +329,7 @@ export const COSTING_COLUMN_LABEL = {
   "costing_components.recommended_alternative": "The recommended alternative",
   "costing_component_costs.*": "A Component's costs",
   "costing_component_costs.acquire_unit": "Acquire",
-  "costing_component_costs.odoo_unit": "Odoo unit cost",
+  "costing_component_costs.odoo_unit": "Odoo SRP",
   "costing_component_costs.final_acquire_unit": "Final cost",
   "costing_component_costs.markup_factor": "The markup factor",
   "costing_inclusions.*": "Adding or removing an Inclusion",
@@ -345,7 +345,7 @@ export const COSTING_COLUMN_LABEL = {
   "costing_cost_rows.description": "A cost-only row's description",
   "costing_cost_rows.quantity": "A cost-only row's quantity",
   "costing_cost_rows.acquire_unit": "Acquire",
-  "costing_cost_rows.odoo_unit": "Odoo unit cost",
+  "costing_cost_rows.odoo_unit": "Odoo SRP",
   "costing_cost_rows.final_acquire_unit": "Final cost",
   "costing_cost_rows.markup_factor": "The markup factor",
   "costing_matrix_money.marketing": "Marketing",

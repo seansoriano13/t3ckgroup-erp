@@ -822,7 +822,7 @@ export const costingMatrixService = {
   },
 
   /**
-   * Fills blank Odoo unit costs and Acquires from each product's cost in Odoo. The server reads
+   * Pulls the Odoo SRP (list price) and fills blank Acquires from each product in Odoo. The server reads
    * Odoo and writes; nothing typed is overwritten. Resolves to `{ success, filled, unpriced, message }`;
    * `success: false` means Odoo could not be asked, not that there is no cost.
    */

@@ -1200,6 +1200,14 @@ component it buys for, and the Landed Cost of the purchase arrives beside the
 component's estimates without replacing any of them.
 _Avoid_: Offer component, Part, Sub-item, Child row
 
+**Odoo SRP**:
+The ODOO column of the S0 Evaluation: the product's Sales Price in Odoo
+(`list_price`), taken as is, pulled from Odoo for every line linked to an Odoo
+product and typed by Sales where there is none. Shown per unit and as a total.
+It is not a cost: no cost, markup or Final Acquire reads it as one. Acquire
+filled from Odoo still reads Odoo's cost (`standard_price`), a separate figure.
+_Avoid_: Odoo cost, Odoo unit cost
+
 **Final Acquire**:
 The cost Management sets on a Component — the figure the S0 Evaluation summary
 reads as Operational Expenses and takes Revenue from. Written only by the people

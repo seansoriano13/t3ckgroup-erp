@@ -66,8 +66,8 @@ function useFill(matrix, opportunityId, writes) {
       const left = leftOut.length
         ? ` ${plural(leftOut.length, "S0 line")} left out while the sheet is locked by a Go: ${shown}${leftOut.length > 3 ? `, and ${leftOut.length - 3} more` : ""}.`
         : "";
-      if (!odoo?.success) setOdooNote({ tone: "warning", text: `${added ? `${plural(added, "line")} added. ` : ""}Odoo's costs could not be read (${odoo?.message ?? "no answer"}); type them in, or try again.${left}` });
-      else if (added || odoo.filled || left) setOdooNote({ tone: left ? "warning" : "info", text: `${added ? `${plural(added, "line")} added from the SOR. ` : ""}${odoo.filled ? `${plural(odoo.filled, "cost")} filled from Odoo.` : ""}${odoo.unpriced ? ` ${plural(odoo.unpriced, "product")} have no cost in Odoo.` : ""}${left}`.trim() });
+      if (!odoo?.success) setOdooNote({ tone: "warning", text: `${added ? `${plural(added, "line")} added. ` : ""}Odoo's prices could not be read (${odoo?.message ?? "no answer"}); the Odoo SRP and costs stay as they were, type them in or try again.${left}` });
+      else if (added || odoo.filled || left) setOdooNote({ tone: left ? "warning" : "info", text: `${added ? `${plural(added, "line")} added from the SOR. ` : ""}${odoo.filled ? `${plural(odoo.filled, "line")} updated from Odoo.` : ""}${odoo.unpriced ? ` ${plural(odoo.unpriced, "product")} have no price in Odoo.` : ""}${left}`.trim() });
       else setOdooNote({ tone: "info", text: "Everything on the SOR is already here." });
     });
 
@@ -234,7 +234,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
               {odooNote ? (
                 <span className={odooNote.tone === "warning" ? "text-amber-11" : undefined}>{odooNote.text}</span>
               ) : (
-                <>Lines come from the SOR&apos;s products, with their Odoo cost.</>
+                <>Lines come from the SOR&apos;s products, with their Odoo SRP.</>
               )}
             </span>
             {canFill && (

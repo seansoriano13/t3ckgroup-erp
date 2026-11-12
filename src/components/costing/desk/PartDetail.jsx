@@ -75,7 +75,7 @@ export function Band({ title, hint, children, className }) {
 
 /**
  * Everything about one Component (#268), one band per writer: what we supply (name, quantity, the Offer
- * Specification beside the tender's words), Sales (Brand, Status, Odoo unit cost), Purchasing (availability,
+ * Specification beside the tender's words), Sales (Brand, Status, Odoo SRP), Purchasing (availability,
  * source, P.O./RFQ, Acquire), the Final Acquire and the Landed Cost the IPAS brought back, the markup,
  * Technical's verdict, then its Odoo link, bundle and incharge. Under them the Canvass, what is being
  * bought for it and, for a bundle, its Inclusions. A total sits beside its unit figure, never under it. A
@@ -173,10 +173,10 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
         </Field>
         {showOdoo && (
           <>
-            <Field label="Odoo cost / unit">
-              <Cell label={label("Odoo unit cost")} noun="Odoo unit cost" value={component.odoo_unit} numeric money placeholder="0.00" readOnly={!canCost("odoo_unit")} onSave={(value) => save({ odooUnit: value })} />
+            <Field label="Odoo SRP / unit">
+              <Cell label={label("Odoo SRP")} noun="Odoo SRP" value={component.odoo_unit} numeric money placeholder="0.00" readOnly={!canCost("odoo_unit")} onSave={(value) => save({ odooUnit: value })} />
             </Field>
-            <Field label="Odoo total">
+            <Field label="Odoo SRP total">
               <Readout>{pesos(component.totals.odooTotal)}</Readout>
             </Field>
           </>

@@ -779,7 +779,7 @@ const hasValue = (value) => value !== null && value !== undefined && value !== "
 /**
  * A Component's cost and where it came from, or null while it has none. A typed cost wins over
  * every other source (a fill never replaces it); then the Canvass winner, the attached P0's price,
- * Odoo's `standard_price`.
+ * an Acquire filled from Odoo's cost (`standard_price`). The Odoo SRP (`odoo_unit`) is never a cost (#961).
  *
  * Returns `{ source, pesos, price, currency }`: `source` is "typed" | "canvass" | "p0" | "odoo",
  * `pesos` the unit cost in pesos, `price` the figure as quoted (the same as `pesos`, except for a
@@ -800,7 +800,6 @@ export function resolveCost(component) {
     };
   }
   if (hasValue(acquire)) return own(c.acquire_source === COST_SOURCE.ODOO ? COST_SOURCE.ODOO : COST_SOURCE.TYPED);
-  if (hasValue(c.odoo_unit)) return { source: COST_SOURCE.ODOO, pesos: c.odoo_unit, price: c.odoo_unit, currency: "PHP" };
   return null;
 }
 
