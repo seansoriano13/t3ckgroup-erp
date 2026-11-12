@@ -29,7 +29,7 @@ import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
 import { sorCodeOf } from "../../../utils/sorCode";
 import { blockedLabels } from "./summary/shared";
-import { useMediaQuery } from "../../../hooks/useMediaQuery";
+import { useShortScreen } from "@/hooks/useScreenBand";
 
 const TONE_CLASSES = {
   green: { current: "bg-green-9 text-white hover:bg-green-9 hover:text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
@@ -81,7 +81,7 @@ export default function SorModalHeader({
   const [markLostOpen, setMarkLostOpen] = useState(false);
   // On a screen at most 820px tall (a small laptop) the header saves height:
   // one line for reference, title and client, and the stage ribbon behind a chip.
-  const compact = useMediaQuery("(max-height: 820px)");
+  const compact = useShortScreen();
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
 
   useEffect(() => {

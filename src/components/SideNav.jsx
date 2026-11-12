@@ -1,8 +1,9 @@
 import BetaTag from "@/components/ui/BetaTag";
 import BugReportButton from "./BugReportButton";
+import { RAIL_QUERY } from "@/hooks/useScreenBand";
 
 // Below this width, with no saved choice, the side menu opens as the icon rail.
-const RAIL_BELOW = 1280;
+const RAIL_BELOW = 1280; // keep in step with RAIL_QUERY
 import {
   Plus,
   Bell,
@@ -180,7 +181,7 @@ export default function SideNav() {
   // choice keeps winning.
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return undefined;
-    const mq = window.matchMedia(`(max-width: ${RAIL_BELOW - 0.02}px)`);
+    const mq = window.matchMedia(RAIL_QUERY);
     const onChange = () => {
       if (user?.id) setIsCollapsed(getInitialCollapsed(user.id));
     };

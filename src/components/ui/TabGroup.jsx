@@ -30,8 +30,8 @@ import { cn } from "@/lib/utils";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { SelectField } from "./SelectField";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 const FADE = 24;
 
@@ -54,7 +54,7 @@ export default function TabGroup({
   );
 
   // On phones an underline strip with more than four tabs is a Select.
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
   const asSelect = phone && variant === "underline" && normalised.length > 4;
 
   const scrollerRef = useRef(null);

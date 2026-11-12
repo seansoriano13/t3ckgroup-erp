@@ -20,7 +20,6 @@ import EmptyState from "../../../components/ui/EmptyState";
 import StatusBadge from "../../../components/StatusBadge";
 import TabGroup from "../../../components/ui/TabGroup";
 import { SelectField } from "@/components/ui/SelectField";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import HighlightText from "../../../components/HighlightText";
 import Avatar from "@/components/Avatar";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
@@ -39,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 export default function EmployeeManagement() {
   const queryClient = useQueryClient();
@@ -226,7 +226,7 @@ export default function EmployeeManagement() {
   };
 
   const isEmployees = activeTab === "employees";
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
   const viewTabs = [
     { value: "employees", label: "Employees" },
     { value: "categories", label: "Categories Config" },

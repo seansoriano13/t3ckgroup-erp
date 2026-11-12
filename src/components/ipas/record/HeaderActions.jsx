@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Ban, CirclePause, CirclePlay, Eye, FileLock2, Pencil, Printer } from "lucide-react";
 
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Button } from "@/components/ui/button";
 import RecordMoreMenu from "@/components/record/RecordMoreMenu";
 import { PrintPreviewButton } from "./PrintPreview";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 /**
  * The record window's actions, top right: Preview and Edit as outline buttons,
@@ -14,7 +14,7 @@ import { PrintPreviewButton } from "./PrintPreview";
  */
 export default function HeaderActions({ ctx }) {
   const { ipas, can, on, busy } = ctx;
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
   const [previewing, setPreviewing] = useState(false);
   // On a phone Preview goes into More so the breadcrumb has room.
   const items = phone ? [{ key: "preview", label: "Preview", icon: Eye, onSelect: () => setPreviewing(true) }] : [];

@@ -13,7 +13,7 @@ import { getStatusTheme } from "../../constants/status";
 import HighlightText from "../HighlightText";
 import { Button } from "../ui/button";
 import { SelectField } from "../ui/SelectField";
-import { useMediaQuery } from "../../hooks/useMediaQuery";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 const THEME_DOT = {
   green: "bg-green-9",
@@ -210,7 +210,7 @@ export default function OpportunityBoard({
 
   // Phones: one Stage column at a time, picked with a Select above it, rather
   // than a board that scrolls sideways.
-  const onPhone = useMediaQuery("(max-width: 767.98px)");
+  const onPhone = useIsPhone();
   const [phoneStageKey, setPhoneStageKey] = useState(null);
   const phoneColumn = columns.find((c) => c.key === phoneStageKey) ?? columns[0];
   const shownColumns = onPhone && phoneColumn ? [phoneColumn] : columns;

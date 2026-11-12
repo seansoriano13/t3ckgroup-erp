@@ -28,10 +28,10 @@ import ImageCropModal from "../../components/ImageCropModal";
 import SignatureCaptureModal from "../../components/profile/SignatureCaptureModal";
 import { HIDDEN_TASK_STATUS_FILTER, TASK_STATUS } from "../../constants/status";
 import PageShell from "../../components/ui/PageShell";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
+import { useIsPhone } from "@/hooks/useScreenBand";
 const UNSPLASH_BANNER_POOL = [
   "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80",
   "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1600&q=80",
@@ -332,7 +332,7 @@ export default function ProfilePage() {
 
   // Phones: Save sits in the header only until there is something to save,
   // then it sticks to the bottom of the screen beside the fields it saves.
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
   const saveButton = (
     <Button
       type="button"

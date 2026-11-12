@@ -6,7 +6,6 @@ import { Button } from "../../ui/button";
 import SlideOver, { SlideOverBody } from "../../ui/SlideOver";
 import StatusBadge from "../../StatusBadge";
 import SidePanel from "../../ui/SidePanel";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import RecordHeader from "../../record/RecordHeader";
 import { costingMatrixService, requestsByComponent } from "../../../services/costingMatrixService";
 import { canvassService } from "../../../services/canvassService";
@@ -32,6 +31,7 @@ import CostingSheet from "./CostingSheet";
 import MarkupPlayground from "./MarkupPlayground";
 import { useMarkupPlay } from "./useMarkupPlay";
 import S0LinkSuggestions from "./S0LinkSuggestions";
+import { useRoomy } from "@/hooks/useScreenBand";
 
 const firstLine = (text) => (text ?? "").split("\n")[0].trim();
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -106,7 +106,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   const markup = useMarkupPlay(matrix, writes, { enabled: Boolean(matrix) && tierReadsCost(matrix.tier, "markup_factor") });
   const lines = matrix?.tenderLines ?? [];
   // The Bid Decision is a side column only where there is room (SidePanel's own rule); elsewhere a button in the header.
-  const roomy = useMediaQuery("(min-width: 1440px) and (min-height: 701px)");
+  const roomy = useRoomy();
   // The line open in the slide-over, by id, so it stays open while lines are moved or refreshed.
   const [openLineId, setOpenLineId] = useState(null);
 

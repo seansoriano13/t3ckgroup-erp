@@ -1,3 +1,4 @@
+import { BELOW_LAPTOP_QUERY } from "@/hooks/useScreenBand";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Lock, X } from "lucide-react";
@@ -32,7 +33,7 @@ export default function FlowVersionRail({
   viewingSnapshotId,
 }) {
   // Below 1024px the rail starts collapsed so it does not cover the canvas.
-  const [open, setOpen] = useState(() => !window.matchMedia("(max-width: 1023.98px)").matches);
+  const [open, setOpen] = useState(() => !window.matchMedia(BELOW_LAPTOP_QUERY).matches);
   const [expandedId, setExpandedId] = useState(null);
   const [compareTargetId, setCompareTargetId] = useState(null);
 

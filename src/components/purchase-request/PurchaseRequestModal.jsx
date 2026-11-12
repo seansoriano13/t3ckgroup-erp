@@ -6,7 +6,6 @@ import ModalShell from "@/components/ui/ModalShell";
 import RecordHeader from "@/components/record/RecordHeader";
 import NewOdooPoLink from "@/components/ui/NewOdooPoLink";
 import RecordMoreMenu from "@/components/record/RecordMoreMenu";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { sorHref } from "@/utils/sorLink";
 import { ODOO_NEW_PO_URL } from "@/utils/odooLinks";
 import OpenSorButton from "./OpenSorButton";
@@ -14,6 +13,7 @@ import PurchaseRequestView from "./PurchaseRequestView";
 import { usePurchaseRequest } from "./requestHooks";
 import { REQUEST_STATE_TONES, requestStateOf } from "./queueList";
 import { REQUEST_KIND, requestIdentity, requestKind, requestStageLabel } from "@/constants/purchaseRequest";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 /** The old per-person drawer/full choice is gone; clear what it left behind. */
 function clearOldOpenAsChoice() {
@@ -53,7 +53,7 @@ export default function PurchaseRequestModal({ requestId, focusChat = false, tab
   const { reference, title } = requestIdentity(request);
   const { state, label } = request ? requestStateOf(request) : {};
   const navigate = useNavigate();
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
   // On a phone the two header actions go into a More menu so the breadcrumb has room.
   const moreItems = [
     {

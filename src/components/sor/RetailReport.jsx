@@ -6,7 +6,6 @@ import TabGroup from "../ui/TabGroup";
 import EmptyState from "../ui/EmptyState";
 import { Input } from "../ui/input";
 import { SelectField } from "../ui/SelectField";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import MarketplaceBreakdown from "./MarketplaceBreakdown";
 import RetailHeadline from "./RetailHeadline";
 import OrdersByMonth from "./OrdersByMonth";
@@ -25,11 +24,12 @@ import {
   rangeBounds,
   summarize,
 } from "../../utils/retailReport";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 /** Retail's time range: the header's action slot on the Retail page. */
 export function RetailRangeControl({ range, onRangeChange, custom, onCustomChange }) {
   // Five pills do not fit a phone (Custom was cut off): there it is a Select.
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
   return (
     <>
       {range === "custom" && (

@@ -1,6 +1,5 @@
 import { Children, Fragment, isValidElement, useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "../../lib/utils";
 import { Button } from "./button";
 import { Input } from "./input";
@@ -8,11 +7,9 @@ import Dropdown from "./Dropdown";
 import { FilterTriggerButton } from "./FilterDropdown";
 import SaveDefaultButton from "./SaveDefaultButton";
 import { Drawer, DrawerContent, DrawerTitle } from "./drawer";
+import { useIsPhone, useLaptopBand } from "@/hooks/useScreenBand";
 
 // Phones are below Tailwind's md; the laptop band is ADR 0051's `laptop:` query.
-const PHONE_QUERY = "(max-width: 767.98px)";
-const LAPTOP_QUERY =
-  "(min-width: 1024px) and (max-width: 1535.98px), (min-width: 1024px) and (max-height: 820px)";
 
 /** Chips arrive as nodes, often inside a fragment; list the real elements. */
 function chipList(...nodes) {
@@ -75,8 +72,8 @@ export default function FilterBar({
   onClearAll,
   className,
 }) {
-  const phone = useMediaQuery(PHONE_QUERY);
-  const band = useMediaQuery(LAPTOP_QUERY);
+  const phone = useIsPhone();
+  const band = useLaptopBand();
   const limit = phone ? 0 : (inlineChips ?? (band ? 2 : 3));
   const all = chipList(chips, children);
   const inline = all.slice(0, limit);

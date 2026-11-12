@@ -11,7 +11,6 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import Avatar from "../Avatar";
 import HighlightText from "../HighlightText";
 import { getStatusTheme } from "../../constants/status";
@@ -20,6 +19,7 @@ import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
 import { CAPTION_BASE } from "@/lib/captionStyle";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -73,7 +73,7 @@ export default function EmployeeOpportunityMatrix({
   const [searchTerm, setSearchTerm] = useState("");
   const [layoutMode, setLayoutMode] = useState("grid"); // "list" | "leaderboard" | "grid"
   // Phones show the grid as compact rows instead of tall cards.
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
 
   const employeeStats = useMemo(() => {
     if (!opportunities?.length) return [];

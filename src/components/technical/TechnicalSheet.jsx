@@ -10,13 +10,13 @@ import ItemVerdict from "./ItemVerdict";
 import BulkVerdictBar from "./BulkVerdictBar";
 import { Checkbox } from "../ui/checkbox";
 import LinerList from "../record/LinerList";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { COMPLIANCE_LABEL, COMPLIANCE_THEME } from "../../constants/costing";
 import { useCostingWrites, useInchargeOptions } from "../costing/useCostingWrites";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { useAuth } from "../../context/AuthContext";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import { technicalKeys } from "../../utils/technicalList";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 /**
  * One SOR's Technical sheet (#877, #908), shown in a record window over the Technical list. The Technical in-charge
@@ -57,7 +57,7 @@ export default function TechnicalSheet({ opportunityId }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [checked, setChecked] = useState(() => new Set());
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
 
   const sheet = useQuery({
     queryKey: technicalKeys.sheet(opportunityId),

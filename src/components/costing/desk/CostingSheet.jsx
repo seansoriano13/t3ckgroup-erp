@@ -11,8 +11,8 @@ import { COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierRe
 import { factorLabel, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
 import LinerList from "../../record/LinerList";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { lineBuyingStatus } from "../../../utils/buyingStatus";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 /** The line's buying status in the Purchase Request's own words (utils/buyingStatus); nothing before a request. */
 function BuyingBadge({ line }) {
@@ -260,7 +260,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const kidsOf = new Map();
   for (const line of lines) if (line.included && line.includedIn) kidsOf.set(line.includedIn, [...(kidsOf.get(line.includedIn) ?? []), line]);
   const priced = lines.filter((line) => !line.included);
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
 
   // On a phone each line is one Liner row: item and quantity, the buying status on the right, the figures as the
   // sub line; the row opens to the line's own window.

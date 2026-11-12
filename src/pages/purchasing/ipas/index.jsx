@@ -29,7 +29,6 @@ import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView } from "../../../utils/ipasList
 import ExportButton from "../../../components/purchasing/list/ExportButton";
 import ColumnsMenu from "../../../components/purchasing/list/ColumnsMenu";
 import { useHiddenColumns } from "../../../hooks/useHiddenColumns";
-import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -43,6 +42,7 @@ import {
   IPAS_STATUS_LABELS,
   ipasSectionNo,
 } from "../../../constants/ipas";
+import { useLaptopBand } from "@/hooks/useScreenBand";
 
 /**
  * The IPAS list (issue #242, spec #241), a Register: every IPAS the signed-in
@@ -124,7 +124,6 @@ const LOCKED_HEADING = "IPAS";
 // Someone who has never chosen columns starts without these three; a saved choice (even "show all") is kept.
 const DEFAULT_HIDDEN_COLUMNS = ["raised-by", "dp", "fp"];
 // In the laptop band (ADR 0051) Purpose and Costing start hidden too, so Project / SO fits.
-const LAPTOP_QUERY = "(min-width: 1024px) and (max-width: 1535.98px), (min-width: 1024px) and (max-height: 820px)";
 const LAPTOP_HIDDEN_COLUMNS = [...DEFAULT_HIDDEN_COLUMNS, "purpose", "costing"];
 // A column's place on a phone card (Table `stackOnPhone`); a heading not listed is hidden there.
 const PHONE_ROLE = { IPAS: "title", State: "badge", "Odoo PO": "meta", Purpose: "meta", Amount: "meta" };
@@ -148,7 +147,7 @@ function IpasList() {
   const [view, setView] = useState(null);
   const [creating, setCreating] = useState(false);
   // Remembered per employee on this browser.
-  const inLaptopBand = useMediaQuery(LAPTOP_QUERY);
+  const inLaptopBand = useLaptopBand();
   const columns = useHiddenColumns(`erp_ipas_columns_${user?.id ?? "anon"}`, {
     defaults: inLaptopBand ? LAPTOP_HIDDEN_COLUMNS : DEFAULT_HIDDEN_COLUMNS,
     known: KNOWN_COLUMN_KEYS,

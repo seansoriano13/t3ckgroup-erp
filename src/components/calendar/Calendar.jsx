@@ -9,7 +9,6 @@ import QueryError from '@/components/ui/QueryError';
 import { Button } from '@/components/ui/button';
 import FilterBar from '@/components/ui/FilterBar';
 import SidePanel from '@/components/ui/SidePanel';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
 import { meetingRequestService } from '@/services/meetingRequestService';
@@ -26,11 +25,10 @@ import { withSpan } from '@/components/calendar/entrySpan.js';
 import { GANTT_WEEKS, ganttDays, layoutRange, layoutTitle, parseCalendarParams, shiftDate } from '@/components/calendar/calendarNav.js';
 import { useCalendarLayers } from '@/components/calendar/useCalendarLayers';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
+import { useIsPhone, useRoomy } from "@/hooks/useScreenBand";
 
 const LAYOUT_KEY = 'calendar.layout';
-const PHONE_QUERY = '(max-width: 767.98px)';
 // The same test SidePanel uses for its inline column (inlineFrom 1440, over 700px tall).
-const ROOMY_QUERY = '(min-width: 1440px) and (min-height: 701px)';
 
 function rememberedLayout() {
   try {
@@ -86,8 +84,8 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   const [params, setParams] = useSearchParams();
   const parsed = parseCalendarParams(params, manilaToday(), rememberedLayout());
   const { date: anchor, weeks } = parsed;
-  const phone = useMediaQuery(PHONE_QUERY);
-  const roomy = useMediaQuery(ROOMY_QUERY);
+  const phone = useIsPhone();
+  const roomy = useRoomy();
   // The Gantt needs room; a phone always gets the month, as an Agenda.
   const layout = phone ? 'calendar' : parsed.layout;
   const ganttHidden = phone && parsed.layout === 'gantt';
