@@ -167,7 +167,7 @@ export function ipasFigures(ipas) {
   let paidCents = 0;
   let hasFullPayment = false;
   const methods = [];
-  const kinds = [];
+  const percentLabels = [];
   for (const payment of payments) {
     const cents = toCents(finiteNumber(payment?.amount) ?? 0);
     paidCents += cents;
@@ -179,7 +179,7 @@ export function ipasFigures(ipas) {
     const label = methodLabelOf(payment);
     if (label && !methods.includes(label)) methods.push(label);
     // #958: "Payment · 30%" for the payments that are a percent of the order.
-    if (finiteNumber(payment?.percent_of_order) > 0) kinds.push(paymentKindWithPercent(payment.kind, payment.percent_of_order));
+    if (finiteNumber(payment?.percent_of_order) > 0) percentLabels.push(paymentKindWithPercent(payment.kind, payment.percent_of_order));
   }
 
   const onHold = ipas?.on_hold === true;
@@ -221,7 +221,7 @@ export function ipasFigures(ipas) {
     remainingBalance,
     paymentMethods: methods,
     paymentScheme: methods.join(PAYMENT_SCHEME_SEPARATOR),
-    paymentPercents: kinds.join("; "),
+    paymentPercents: percentLabels.join("; "),
   };
 }
 

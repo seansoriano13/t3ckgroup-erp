@@ -59,12 +59,12 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
           </TableHeader>
           <TableBody className="divide-y-0">
             {rows.map(({ payment, pesos, total }) => {
-              const kind = IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind;
-              const kindShown = paymentKindWithPercent(payment.kind, payment.percent_of_order);
+              const kindLabel = IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind;
+              const kindWithPercent = paymentKindWithPercent(payment.kind, payment.percent_of_order);
               return (
                 <TableRow key={payment.id} data-testid="ipas-payment-row" className="hover:bg-transparent">
                   <TableCell className={td}>
-                    <div className="font-semibold">{kindShown}</div>
+                    <div className="font-semibold">{kindWithPercent}</div>
                     <div className="text-xs text-mauve-11">{formatDay(payment.paid_on)}</div>
                     {payment.check_no && <div className="text-xs text-mauve-11">Check No. {payment.check_no}</div>}
                     {payment.paid_before_approval && <StatusBadge theme="amber" label="Paid before approval" />}
@@ -98,7 +98,7 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label={`Edit ${kind ?? "payment"} of ${formatDay(payment.paid_on)}`}
+                          aria-label={`Edit ${kindLabel ?? "payment"} of ${formatDay(payment.paid_on)}`}
                           onClick={() => onEditPayment(payment)}
                         >
                           <Pencil />
@@ -107,7 +107,7 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
                           variant="ghost"
                           size="icon"
                           className="text-muted-foreground hover:text-red-11"
-                          aria-label={`Remove ${kind ?? "payment"} of ${formatDay(payment.paid_on)}`}
+                          aria-label={`Remove ${kindLabel ?? "payment"} of ${formatDay(payment.paid_on)}`}
                           onClick={() => onRemovePayment(payment)}
                         >
                           <Trash2 />

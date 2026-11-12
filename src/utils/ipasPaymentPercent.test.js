@@ -9,6 +9,7 @@ import {
   paymentWarnings,
   percentApplies,
   percentBase,
+  refillAmountsFromPercent,
 } from "./ipasPaymentPercent";
 
 describe("which kinds can be a percent", () => {
@@ -125,5 +126,30 @@ describe("paymentWarnings", () => {
   it("adds centavos without drift", () => {
     const rows = [{ amount: "0.1" }, { amount: "0.2" }];
     expect(paymentWarnings(rows, 0.3).amountOver).toBeNull();
+  });
+});
+
+describe("refillAmountsFromPercent", () => {
+  const base = { source: "pi_qt", amount: 2000, label: "P.I/QT Amount" };
+  it("re-fills the amount of a payment that has a percent when the base changes", () => {
+    const rows = [
+      { key: "a", kind: "down_payment", percentOfOrder: "30", amount: "300" },
+      { key: "b", kind: "payment", percentOfOrder: "45", amount: "450" },
+    ];
+    expect(refillAmountsFromPercent(rows, base)).toEqual([
+      { key: "a", amount: "600" },
+      { key: "b", amount: "900" },
+    ]);
+  });
+  it("leaves a payment by hand, a full payment and an up to date amount alone", () => {
+    const rows = [
+      { key: "a", kind: "payment", percentOfOrder: "", amount: "123" },
+      { key: "b", kind: "full_payment", percentOfOrder: "30", amount: "5" },
+      { key: "c", kind: "payment", percentOfOrder: "50", amount: "1000" },
+    ];
+    expect(refillAmountsFromPercent(rows, base)).toEqual([]);
+  });
+  it("does nothing with no base", () => {
+    expect(refillAmountsFromPercent([{ key: "a", kind: "payment", percentOfOrder: "30", amount: "1" }], null)).toEqual([]);
   });
 });

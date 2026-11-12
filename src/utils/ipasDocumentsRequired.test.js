@@ -104,3 +104,18 @@ describe("chargesLackingFile", () => {
     expect(chargesLackingFile(ipas({ file_on_every_charge: false }))).toEqual([]);
   });
 });
+
+describe("fileRulesOf on a filed IPAS", () => {
+  it("reads the rules at filing, not the live settings", () => {
+    const live = OPTIONS.map((option) => ({ ...option, required_before: option.required_before == null ? null : 6 }));
+    const snapshotOptions = Object.fromEntries(OPTIONS.filter((o) => o.required_before != null).map((o) => [o.id, o.required_before]));
+    const filed = {
+      options: live,
+      fileRules: { proof_on_every_payment: false, file_on_every_charge: false },
+      file_rules_snapshot: { options: snapshotOptions, proof_on_every_payment: true, file_on_every_charge: true },
+    };
+    const rules = fileRulesOf(filed);
+    expect(rules).toMatchObject({ proofOnEveryPayment: true, fileOnEveryCharge: true });
+    expect(requiredKindsByPart(rules, "import")).toEqual(requiredKindsByPart(fileRulesOf({ options: OPTIONS }), "import"));
+  });
+});

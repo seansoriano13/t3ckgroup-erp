@@ -757,7 +757,8 @@ create table if not exists public."ipas" (
   "freight_billed_by_supplier" boolean not null default false,
   "freight_attachment_url" text,
   "retail_multiplier" numeric(10,4),
-  "wholesale_discount_pct" numeric(5,2) not null default 30
+  "wholesale_discount_pct" numeric(5,2) not null default 30,
+  "file_rules_snapshot" jsonb
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -5423,6 +5424,23 @@ AS $function$
   select coalesce(
     p_document.label,
     (select o.label from public.ipas_options o where o.id = p_document.kind_id)
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_file_rules_now()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+    'options', coalesce(
+      (select jsonb_object_agg(o.id::text, o.required_before)
+         from public.ipas_options o
+        where o.list = 'document_kind' and o.required_before is not null),
+      '{}'::jsonb),
+    'proof_on_every_payment', coalesce((select proof_on_every_payment from public.ipas_file_rules limit 1), true),
+    'file_on_every_charge', coalesce((select file_on_every_charge from public.ipas_file_rules limit 1), true)
   );
 $function$
 ;
@@ -15463,6 +15481,21 @@ AS $function$
 begin
   raise exception 'ipas_events is append-only: history can''t be changed (% refused)', tg_op
     using errcode = '42501';
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_file_rules_snapshot_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.state = 'filed' and old.state is distinct from 'filed' then
+    new.file_rules_snapshot := public._ipas_file_rules_now();
+  elsif new.state is distinct from 'filed' then
+    new.file_rules_snapshot := null;
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -29905,6 +29938,7 @@ CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR
 CREATE TRIGGER group_task_templates_block_delete_in_use BEFORE DELETE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_block_delete_in_use();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
 CREATE TRIGGER ipas_actual_checking_hand_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_actual_checking_hand_guard();
+CREATE TRIGGER ipas_file_rules_snapshot BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_file_rules_snapshot_guard();
 CREATE TRIGGER ipas_filing_clears_hold BEFORE UPDATE OF state ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_filing_clears_hold();
 CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_fill_from_odoo_copy();
 CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_freeze_guard();
