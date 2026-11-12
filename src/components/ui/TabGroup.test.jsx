@@ -80,3 +80,29 @@ describe("TabGroup", () => {
     spies.forEach((s) => s.mockRestore());
   });
 });
+
+describe("TabGroup on phones", () => {
+  const five = ["General", "Pay", "Docs", "Team", "Notes"];
+  const stub = (matches) => {
+    window.matchMedia = (query) => ({
+      matches, media: query, addEventListener: () => {}, removeEventListener: () => {},
+    });
+  };
+
+  it("turns an underline group with more than four tabs into a Select", () => {
+    stub(true);
+    render(<TabGroup tabs={five} activeTab="Pay" onChange={() => {}} variant="underline" />);
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    stub(false);
+  });
+
+  it("keeps pills and short underline groups as tabs", () => {
+    stub(true);
+    const { rerender } = render(<TabGroup tabs={five} activeTab="Pay" onChange={() => {}} />);
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    rerender(<TabGroup tabs={five.slice(0, 4)} activeTab="Pay" onChange={() => {}} variant="underline" />);
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    stub(false);
+  });
+});

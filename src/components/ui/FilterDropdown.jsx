@@ -76,11 +76,12 @@ export function FilterTrigger({
  * focus and Enter/Space open it (the trigger alone is a styled div). Takes
  * FilterTrigger's props; `popup` names the popup it opens for assistive tech.
  */
-export function FilterTriggerButton({ popup = "listbox", disabled, wrapperClassName, ...trigger }) {
+export function FilterTriggerButton({ popup = "listbox", disabled, wrapperClassName, onClick, ...trigger }) {
   return (
     <button
       type="button"
       disabled={disabled}
+      onClick={onClick}
       aria-haspopup={popup}
       className={cn("block w-full text-left", wrapperClassName)}
     >

@@ -56,7 +56,10 @@ export default function PageShell({
       {toolbar && (
         <div
           data-testid="page-toolbar"
-          className={`flex flex-wrap items-center gap-3 ${pinned}`}
+          // From 1024px the pills and the FilterBar share one row; if they
+          // cannot fit, the pills take the first row and the FilterBar the
+          // second (flex-wrap). Never three rows.
+          className={`flex flex-wrap items-center gap-3 lg:[&>*:last-child:not(:first-child)]:min-w-[min(100%,28rem)] lg:[&>*:last-child:not(:first-child)]:flex-1 ${pinned}`}
         >
           {toolbar}
         </div>

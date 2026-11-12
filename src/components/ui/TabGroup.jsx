@@ -17,6 +17,9 @@
  *               "hidden sm:inline" to collapse a strip to icons on narrow
  *               screens; the button keeps its accessible name either way.
  *
+ * On phones (below 768px) an underline group with more than four tabs
+ * renders as a Select ("Section"); other groups scroll with an edge fade.
+ *
  * Variants:
  *  pill      → bg-muted wrapper, bg-card active (group / approvals / broadcast)
  *  primary   → bg-card+border wrapper, bg-primary active (tasks, HR management)
@@ -27,6 +30,8 @@ import { cn } from "@/lib/utils";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { SelectField } from "./SelectField";
 
 const FADE = 24;
 
@@ -47,6 +52,10 @@ export default function TabGroup({
   const normalised = tabs.map((t) =>
     typeof t === "string" ? { value: t, label: t } : t,
   );
+
+  // On phones an underline strip with more than four tabs is a Select.
+  const phone = useMediaQuery("(max-width: 767.98px)");
+  const asSelect = phone && variant === "underline" && normalised.length > 4;
 
   const scrollerRef = useRef(null);
   const [fade, setFade] = useState({ left: false, right: false });
@@ -162,6 +171,23 @@ export default function TabGroup({
     destructive: "bg-destructive shadow-md shadow-destructive/15 rounded-lg",
     underline: "", // Handle underline separately if needed, but underline uses border
   };
+
+  if (asSelect) {
+    return (
+      <SelectField
+        aria-label="Section"
+        options={normalised.map((t) => ({
+          value: t.value,
+          label: typeof t.label === "string" ? t.label : String(t.value),
+        }))}
+        value={activeTab}
+        onChange={onChange}
+        placeholder="Section"
+        containerClassName={cn("w-full", className)}
+        className="h-9"
+      />
+    );
+  }
 
   return (
     <div
