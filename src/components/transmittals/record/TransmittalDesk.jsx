@@ -3,6 +3,7 @@ import MoveButton from "@/components/record/MoveButton";
 import { CHROME } from "@/components/record/sectionChrome";
 import RecordHeader from "@/components/record/RecordHeader";
 import YourMoveCard from "@/components/record/YourMoveCard";
+import RecordWithRail from "@/components/record/RecordWithRail";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
 import { formatPreparedAt } from "@/utils/preparedAt";
 import { transmittalStateLabel } from "@/utils/transmittals";
@@ -56,16 +57,9 @@ export default function TransmittalDesk({ ctx }) {
         badge={{ label: transmittalStateLabel(t.state), theme: badgeThemeOf(t.state) }}
         line={`Prepared ${formatPreparedAt(t.preparedOn)}${t.preparedBy?.name ? ` by ${t.preparedBy.name}` : ""}`}
       />
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_25rem]">
-        <div className="min-w-0 space-y-6">
-          <SlipFacts t={t} />
-          <section>
-            <SectionTitle title={`Lines · ${t.lines.length}`} />
-            <LineRatings ctx={ctx} />
-          </section>
-        </div>
-
-        <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
+      <RecordWithRail
+        status={status}
+        rail={
           <YourMoveCard
             status={status}
             next={
@@ -80,8 +74,14 @@ export default function TransmittalDesk({ ctx }) {
             lead={<MoveList items={slipMovesFor(built)} run={run} busy={busy} failure={failure} />}
             steps={steps}
           />
-        </aside>
-      </div>
+        }
+      >
+        <SlipFacts t={t} />
+        <section>
+          <SectionTitle title={`Lines · ${t.lines.length}`} />
+          <LineRatings ctx={ctx} />
+        </section>
+      </RecordWithRail>
       {dialog}
     </div>
   );

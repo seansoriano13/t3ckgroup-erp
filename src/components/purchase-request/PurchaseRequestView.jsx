@@ -60,9 +60,11 @@ export default function PurchaseRequestView({ requestId, focusChat = false, tab 
   // window is wide enough for both, 2xl), so the item tables keep their width at 1440 px.
   return (
     <div className={cn("flex flex-col gap-4", className)}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <RequestPills request={request} />
-        <div className="ml-auto flex items-center gap-2" role="group" aria-label="Side panel">
+      <div className="flex items-center gap-x-3">
+        <div className="min-w-0 flex-1">
+          <RequestPills request={request} />
+        </div>
+        <div className="flex shrink-0 items-center gap-2" role="group" aria-label="Side panel">
           {SIDE_PANELS.map(({ key, label, icon: Icon }) => (
             <Button
               key={key}
@@ -71,10 +73,11 @@ export default function PurchaseRequestView({ requestId, focusChat = false, tab 
               size="sm"
               aria-pressed={panel === key}
               onClick={() => setPanel((current) => (current === key ? null : key))}
-              className="h-9 gap-1.5"
+              aria-label={label}
+              className="h-9 gap-1.5 max-sm:w-9 max-sm:px-0"
             >
               <Icon size={14} aria-hidden="true" />
-              {label}
+              <span className="max-sm:sr-only">{label}</span>
             </Button>
           ))}
         </div>

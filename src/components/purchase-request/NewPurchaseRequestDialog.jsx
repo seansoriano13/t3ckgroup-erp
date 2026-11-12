@@ -172,7 +172,7 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
           <ProjectField value={project} onChange={setProject} />
 
           {items.map((item, index) => (
-            <fieldset key={item.key} className="space-y-3 rounded-lg border border-border p-3">
+            <fieldset key={item.key} className="space-y-3 rounded-lg border border-border p-3 laptop:space-y-2 laptop:p-2.5">
               <div className="flex items-center justify-between">
                 <legend className="text-xs font-semibold text-muted-foreground">Item {index + 1}</legend>
                 {items.length > 1 && (
@@ -194,7 +194,8 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
                   placeholder="What do you need?"
                 />
               </FieldBox>
-              <div className="grid grid-cols-2 gap-3">
+              {/* Quantity is a short number, so Unit gets the rest of the row and neither wraps. */}
+              <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-3">
                 <FieldBox bare label="Quantity">
                   <Input
                     type="number"
@@ -213,7 +214,7 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
                 <Textarea
                   value={item.description}
                   onChange={(e) => setItem(item.key, "description")(e.target.value)}
-                  rows={2}
+                  rows={1}
                   placeholder="Brand, specs, a link"
                 />
               </FieldBox>

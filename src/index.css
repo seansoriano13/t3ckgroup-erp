@@ -880,3 +880,10 @@
 [data-page-actions] > [data-slot="button"][data-variant="default"]:hover {
   background-color: color-mix(in srgb, var(--primary-action) 90%, transparent);
 }
+
+/* A record window sits at z-70. The "Your move" SidePanel inside it (RecordWithRail) opens a
+   Drawer, which is z-50 by default, so lift any drawer to the layer used for drawers over a
+   modal (z-75) while a record window is open. */
+body:has([data-modal-shell="record"]) :is([data-slot="drawer-overlay"], [data-slot="drawer-content"]) {
+  z-index: 75;
+}

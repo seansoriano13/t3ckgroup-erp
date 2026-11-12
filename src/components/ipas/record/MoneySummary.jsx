@@ -139,7 +139,8 @@ export default function MoneySummary({ digest, onOpen }) {
       data-testid="ipas-money-summary"
     >
       <BillCheck bill={bill} beforeTax={figures.poTotalBeforeTax} />
-      <ul className="grid content-start gap-x-6 gap-y-4 p-4 sm:grid-cols-3">
+      {/* In the laptop band the three figures are one row at the top, with the bill check under them. */}
+      <ul className="grid content-start gap-x-6 gap-y-4 p-4 sm:grid-cols-3 laptop:order-first laptop:grid-cols-3 laptop:gap-x-4 laptop:p-3">
         <Stat
           label="Paid"
           value={money.paymentCount > 0 ? formatAmount(figures.paid, currency) : "—"}
