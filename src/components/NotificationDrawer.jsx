@@ -311,7 +311,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent>
+      <DrawerContent className="max-sm:w-full pb-[env(safe-area-inset-bottom)]">
         {/* Header */}
         {/* On a phone the Mark buttons wrap under the title, so the Close button stays on screen. */}
         <div className="p-4 sm:p-6 border-b border-border flex flex-wrap justify-between items-center gap-x-2 gap-y-3 bg-card shrink-0">

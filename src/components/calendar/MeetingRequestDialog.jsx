@@ -219,13 +219,15 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           <Input type="date" value={date} min={manilaToday()} onChange={(e) => setDate(e.target.value)} containerClassName="w-full" className="font-semibold" />
         </div>
         {venueName && date && <VenuePreview venueName={venueName} meetings={venueMeetings(dayEntries, venueName)} />}
-        <div>
-          <FieldBox label="Start"className="mb-1.5 block" />
-          <SelectField value={start} onChange={setStart} options={TIME_OPTIONS} className="w-full" />
-        </div>
-        <div>
-          <FieldBox label="End" className="mb-1.5 block" />
-          <SelectField value={end} onChange={setEnd} options={TIME_OPTIONS} className="w-full" />
+        <div className="grid grid-cols-2 gap-4 sm:col-span-2">
+          <div className="min-w-0">
+            <FieldBox label="Start" className="mb-1.5 block" />
+            <SelectField value={start} onChange={setStart} options={TIME_OPTIONS} className="w-full" />
+          </div>
+          <div className="min-w-0">
+            <FieldBox label="End" className="mb-1.5 block" />
+            <SelectField value={end} onChange={setEnd} options={TIME_OPTIONS} className="w-full" />
+          </div>
         </div>
         <div className="sm:col-span-2">
           <FieldBox label="Facilitator" className="mb-1.5 block" />
@@ -243,7 +245,8 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         </div>
         <div className="sm:col-span-2">
           <FieldBox label="Guests (outside the company)" className="mb-1.5 block" />
-          <div className="flex gap-2">
+          <div className="flex items-end gap-2">
+            <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
             <Input
               value={guestDraft}
               onChange={(e) => setGuestDraft(e.target.value)}
@@ -254,7 +257,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
                 }
               }}
               placeholder="Name"
-              containerClassName="flex-1"
+              containerClassName="w-full sm:flex-1"
             />
             <Input
               type="email"
@@ -267,8 +270,9 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
                 }
               }}
               placeholder="Email (optional)"
-              containerClassName="flex-1"
+              containerClassName="w-full sm:flex-1"
             />
+            </div>
             <Button type="button" variant="outline" onClick={addGuest} disabled={!guestDraft.trim()}>
               Add
             </Button>
