@@ -25,7 +25,7 @@ function chipList(...nodes) {
 }
 
 /** Is a chip narrowing the list? `isActive` wins; a period chip is active with a date; otherwise a value other than `allValue` (default "ALL"). */
-export function chipIsActive(chip) {
+function chipIsActive(chip) {
   const p = chip.props ?? {};
   if (p.isActive != null) return Boolean(p.isActive);
   if ("timeframe" in p) return Boolean(p.value);

@@ -90,7 +90,7 @@ const step = async (key) => within(await yourMove()).findByTestId(`ipas-journey-
 /** Stubs the wide breakpoint (xl, 1280px) on: jsdom reports no match, which collapses the card. */
 function stubWide() {
   window.matchMedia = vi.fn().mockImplementation((query) => ({
-    matches: true && !/max-/.test(query),
+    matches: !/max-/.test(query),
     media: query,
     onchange: null,
     addEventListener: vi.fn(),

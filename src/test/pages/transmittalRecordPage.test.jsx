@@ -80,7 +80,7 @@ function renderPage(id = "t1", search = "") {
 /** Stubs the wide breakpoint (xl) on: jsdom reports no match, which collapses the card's moves. */
 function stubWide() {
   window.matchMedia = vi.fn().mockImplementation((query) => ({
-    matches: true && !/max-/.test(query),
+    matches: !/max-/.test(query),
     media: query,
     onchange: null,
     addEventListener: vi.fn(),
