@@ -330,7 +330,7 @@ const RECORDS = [
 
 function stubWide() {
   window.matchMedia = vi.fn().mockImplementation((query) => ({
-    matches: true,
+    matches: true && !/max-/.test(query),
     media: query,
     onchange: null,
     addEventListener: vi.fn(),

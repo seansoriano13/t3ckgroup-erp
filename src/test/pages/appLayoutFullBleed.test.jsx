@@ -55,7 +55,7 @@ describe("AppLayout full-bleed routes", () => {
 
   it("keeps /sors/commission a normal, centred page", () => {
     renderAt("/sors/commission");
-    const content = screen.getByText("Commission Dashboard");
+    const content = screen.getAllByText("Commission Dashboard").find((el) => el.tagName === "DIV");
     expect(content.closest(".wrapper")).not.toBeNull();
   });
 

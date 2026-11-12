@@ -17,7 +17,7 @@ import { waitForNetworkIdle } from "../../../test/network"
 let authUser
 vi.mock("../../../context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }))
 
-window.matchMedia = (query) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} })
+window.matchMedia = (query) => ({ matches: !/max-/.test(query), media: query, addEventListener: () => {}, removeEventListener: () => {} })
 
 describe("SorModal — access level", () => {
   it("shows only the locked summary and Your visits for a locked viewer", async () => {

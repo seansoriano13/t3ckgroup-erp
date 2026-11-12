@@ -15,7 +15,7 @@ import { waitForNetworkIdle } from "../../../test/network"
 let authUser
 vi.mock("../../../context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }))
 
-window.matchMedia = (query) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} })
+window.matchMedia = (query) => ({ matches: !/max-/.test(query), media: query, addEventListener: () => {}, removeEventListener: () => {} })
 
 function makeParticipantDeal() {
   const viewer = makeEmployee()

@@ -8,6 +8,7 @@ import { makeEmployee, makeFlowStage, makeOpportunity } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { stubRoomyScreen } from "@/test/roomyScreen";
 import { findOtherDialog, queryOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -73,6 +74,8 @@ const statusPill = () => within(recordWindow()).getByText("Status").parentElemen
 async function openMore(user) {
   await user.click(await screen.findByRole("button", { name: /More/ }));
 }
+
+beforeEach(() => stubRoomyScreen());
 
 describe("IPAS pages", () => {
   let purchaser, finance, salesperson;
@@ -642,7 +645,7 @@ describe("IPAS pages", () => {
     });
 
     // The record is a window over the list, as the Transmittal is.
-    it("opens in the record window over the list: header, then the money, Your move, then the sections", async () => {
+    it("opens in the record window over the list: header, then the money, then the sections with Your move beside them", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = setupUser();
       renderDetail(row.id);
@@ -653,8 +656,9 @@ describe("IPAS pages", () => {
       const sections = screen.getByRole("heading", { name: "Sections" });
       const before = (a, b) => expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       before(title, slot);
-      before(slot, card);
-      before(card, sections);
+      before(slot, sections);
+      // Wide and tall, Your move is a column beside the sections (after them in the DOM, order-last in CSS).
+      expect(card.closest('[data-slot="side-panel"]')).not.toBeNull();
       expect(screen.getAllByRole("dialog").filter((dialog) => dialog.dataset.modalShell === "record")).toHaveLength(1);
       expect(queryOtherDialog()).not.toBeInTheDocument();
       // The list is behind the window; Close returns to it.

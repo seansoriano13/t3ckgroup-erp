@@ -12,6 +12,7 @@ import { stubEdgeFunction } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
 import { makeReady } from "@/test/support/ipasReady";
 import { openSignReview } from "@/test/support/ipasSignRow";
+import { stubRoomyScreen } from "@/test/roomyScreen";
 import { findOtherDialog } from "@/test/support/dialogs";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -78,6 +79,8 @@ function renderDetail(id, section, param = "open") {
     </MemoryRouter>,
   );
 }
+
+beforeEach(() => stubRoomyScreen());
 
 describe("IPAS sign-offs", () => {
   let purchaser, approver, other, superAdmin;
