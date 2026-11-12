@@ -1,5 +1,7 @@
 # ADR 0047 — A Canvass has three supplier slots, no sign-off, and one starting point
 
+> **Update 2026-11-12:** the one-Canvass-per-line shape is replaced by ADR 0053 (one Canvass per Purchase Request). No sign-off, one starting point and "No other supplier" still hold. See that ADR for what still holds.
+
 ## Status
 Accepted (2026-11-13), spec #718, ticket #721 (slots), with #728 (sign-off removal) and #729 (one starting point) building on it. Narrows ADR 0034, builds on ADR 0042.
 
