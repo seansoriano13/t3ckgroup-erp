@@ -269,6 +269,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### Drawer
 `ui/drawer.jsx` (base-ui dialog). Side panel: notification drawer, mobile sidebar. Same focus trap, Escape and backdrop click as Dialog. Parts: `Drawer` (`open`, `onOpenChange`), `DrawerTrigger`, `DrawerContent` (`side`: `right` | `left`, `className`), `DrawerTitle`, `DrawerDescription`, `DrawerClose`. No built-in close button; add `DrawerClose`.
 
+#### SidePanel
+`ui/SidePanel.jsx`, on Drawer. A side column that is not the page's main job. Inline right column at `inlineFrom` (default 1440px) wide and over 700px tall; otherwise a trigger opens the same content in a right Drawer (768px and up) or a bottom sheet (phones). Content renders in one place only, so its queries never run twice. Props: `label`, `icon`, `badge`, `inlineFrom`, `width` (default `22rem`), `open` / `onOpenChange` (controlled, optional), `trigger` (`"button"` placed by the host, or `"sticky"` for a bottom bar on phones with label and badge), `className`, `children`.
+
 #### SlideOver
 `ui/SlideOver.jsx`, on Drawer. The record slide-over (DESIGN.md "Pages → Container rule"). Props: `record` (null = closed), `icon`, `crumb` (closes back to the list), `identity(record)` → `{ ref, title, badge, subtitle }`, `index`, `total` (position count; arrows and count hidden when `total` is 1 or omitted), `onStep(±1)` (buttons and J / K), `onClose`, `onOpenFull(record)` (button shown only when given), `openFullLabel` (its aria-label, default "Open full"), `children(record)`. Parts: `SlideOverBody` (scrolls), `SlideOverFooter` (pinned decision). Pair with `hooks/useRecordParam` so the open record lives in `?record=`.
 
@@ -495,6 +498,7 @@ Compact is the only title size, last word in Signal Red. The large variant is re
 Pick by what the person is doing.
 - **Slide-over** (from the right): looking at or deciding on a record picked from a list. Has previous/next with a position count, "Open full" when a RecordModal exists, a scrolling body, and a pinned decision footer. The open record lives in the URL query. Never holds a long form; longer edits open a modal from it.
 - **Modal**: a short make or confirm step ending in Save/Cancel (Register SOR, New Template, Apply Leave / OT, Add Employee, confirmations).
+- **SidePanel**: a side column that is not the page's main job (a chat, an activity list, Your move). Inline on wide, tall screens; a trigger plus drawer or bottom sheet otherwise.
 - **RecordModal**: SOR, Individual Task, Group Task, the records that carry a Chat. One size (16px inset, 1400px max width, rounded, dimmed backdrop), no size switcher. Reached from a slide-over's "Open full" or directly where that is the existing entry.
 
 - **Record window** (Purchasing): every Purchasing record (Purchase Request, Canvass, IPAS, Transmittal, Packing List) opens in `ModalShell size="record"` over its list, at every width, and Close returns to the list. Its parts are the Record header, Property pills, Detail grid, Liner list and Your move card (see the Primitive catalog). Purchase Request review is no longer a slide-over. See [ADR 0040](docs/adr/0040-every-purchasing-record-opens-in-one-full-window-record-window.md).
