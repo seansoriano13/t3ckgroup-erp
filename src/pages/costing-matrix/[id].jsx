@@ -17,7 +17,7 @@ const LIST_PATH = "/costing-matrix";
 
 /**
  * One SOR's Costing Matrix in the record window (the Costing Desk), over the Costing Matrix list. The
- * URL is the SOR's id and works as a deep link. Opened from an SOR's PMS tab it closes back to that
+ * URL is the SOR's id (or, for an evaluation started from an S0 alone, its own id; #966) and works as a deep link. Opened from an SOR's PMS tab it closes back to that
  * SOR, on its PMS tab; otherwise it closes to the list. Who reads what is the database's to decide:
  * someone who may not read this matrix sees a plain line saying so.
  */
@@ -66,12 +66,14 @@ function CostingMatrixWindow() {
       open
       onOpenChange={(next) => !next && close()}
       size="record"
-      crumbs={["S0 Evaluation", opportunity?.sor_code ?? "SOR"]}
+      crumbs={["S0 Evaluation", opportunity?.standalone ? `${opportunity.sales_reference ?? "S0"} · No SOR` : (opportunity?.sor_code ?? "SOR")]}
       headerActions={
         <>
-          <Button type="button" size="sm" variant="outline" onClick={openPms}>
-            SOR PMS tab
-          </Button>
+          {!opportunity?.standalone && (
+            <Button type="button" size="sm" variant="outline" onClick={openPms}>
+              SOR PMS tab
+            </Button>
+          )}
           <PrintButton opportunityId={id} opportunity={opportunity} />
         </>
       }
@@ -83,8 +85,9 @@ function CostingMatrixWindow() {
 
 function Behind() {
   const { user } = useAuth();
-  // The list is the Closed Book's page; anyone else opened the window from an SOR and sees no list behind it.
-  return getPermissionContext(user).isBidDecider ? <CostingMatrixList /> : null;
+  // The list is the Closed Book's page and the page of whoever is named on a standalone evaluation; anyone else opened
+  // the window from an SOR and sees no list behind it.
+  return getPermissionContext(user).canOpenCostingPage ? <CostingMatrixList /> : null;
 }
 
 export default function CostingMatrixRecordPage() {

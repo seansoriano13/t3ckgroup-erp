@@ -7,6 +7,7 @@ import { SelectCell } from "./GridCell";
  * grants no access and notifies nobody. `emptyLabel` is what unset means here ("Not set" on the matrix,
  * "Matrix default" on a row that can override it). A select is read-only outside the column's band.
  * The Technical picker is drawn only when `technicalOptions` is passed (the matrix, not a row).
+ * `purchasingLabel` renames the second picker: a standalone evaluation (#966) calls it the PMS incharge.
  */
 export default function InchargeSelects({
   sales,
@@ -21,6 +22,7 @@ export default function InchargeSelects({
   technical,
   technicalOptions,
   canTechnical = false,
+  purchasingLabel = "Purchasing incharge",
 }) {
   // A named person who is no longer an option (left the Deal Team) still reads by name.
   const withCurrent = (options, current) =>
@@ -44,9 +46,9 @@ export default function InchargeSelects({
           />
         </div>
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Purchasing incharge</span>
+          <span className="text-xs font-medium text-muted-foreground">{purchasingLabel}</span>
           <SelectCell
-            label={`${labelPrefix}Purchasing incharge`}
+            label={`${labelPrefix}${purchasingLabel}`}
             className="w-full sm:w-44"
             clearable={false}
             readOnly={!canPurchasing}

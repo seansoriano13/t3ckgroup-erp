@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { CostingBandError, CostingRuleError, costingMatrixService, toBandError, toRuleError } from "./costingMatrixService"
+import { CostingBandError, CostingRuleError, StandaloneStartError, costingMatrixService, toBandError, toRuleError } from "./costingMatrixService"
 import { opportunityService } from "./opportunityService"
 import { db, deleteRows } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc"
-import { stubRpc } from "@/test/msw/server"
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { COSTING_TIER } from "@/constants/costing"
 
 /**
@@ -941,3 +941,70 @@ describe("costingMatrixService", () => {
     });
   });
 });
+
+describe("starting an evaluation from an S0 (#966)", () => {
+  const ids = { salesIncharge: "emp-sales", pmsIncharge: "emp-pms" }
+  const start = (s0Number) => costingMatrixService.startStandalone({ s0Number, ...ids })
+  const kindOf = async (promise) => {
+    const error = await promise.then(
+      () => null,
+      (e) => e,
+    )
+    expect(error).toBeInstanceOf(StandaloneStartError)
+    return error.kind
+  }
+
+  beforeEach(() => {
+    stubRpc("costing_s0_existing", null)
+  })
+
+  it("says it is not an S0 number before asking anything", async () => {
+    expect(await kindOf(start("SOR-12"))).toBe("not_s0")
+    expect(await kindOf(start(""))).toBe("not_s0")
+  })
+
+  it("says Odoo has no such S0, apart from Odoo being unreachable", async () => {
+    stubEdgeFunction("odoo-sor-lookup", { success: false, found: false, message: 'No Odoo quotation found matching "S09999".' })
+    expect(await kindOf(start("s09999"))).toBe("not_found")
+
+    stubEdgeFunction("odoo-sor-lookup", { success: false, message: "Odoo integration is not configured on the server." })
+    expect(await kindOf(start("S09999"))).toBe("odoo_down")
+  })
+
+  it("hands the database the lines Odoo sent, and returns what to open", async () => {
+    let sent
+    stubEdgeFunction("odoo-sor-lookup", {
+      success: true,
+      found: true,
+      items: [{ product_name: "Rescue vehicle", quantity: 2, unit: "Unit", odoo_product_id: 4242, odoo_line_id: 91001 }],
+    })
+    stubRpc("costing_standalone_open", (args) => {
+      sent = args
+      return { subject_id: "m-1", matrix_id: "m-1", existed: false, standalone: true }
+    })
+
+    const result = await start(" s09001 ")
+
+    expect(result).toEqual({ subjectId: "m-1", existed: false, standalone: true })
+    expect(sent).toMatchObject({ p_s0_number: "S09001", p_sales_incharge: "emp-sales", p_pms_incharge: "emp-pms" })
+    expect(sent.p_lines).toEqual([{ name: "Rescue vehicle", quantity: 2, unit: "Unit", odoo_product_id: 4242, odoo_line_id: 91001 }])
+  })
+
+  it("opens the evaluation the S0 already has, without asking Odoo", async () => {
+    stubRpc("costing_s0_existing", { subject_id: "sor-7", matrix_id: "m-7", standalone: false })
+    stubEdgeFunction("odoo-sor-lookup", () => {
+      throw new Error("Odoo should not be asked")
+    })
+    expect(await start("S09001")).toEqual({ subjectId: "sor-7", existed: true, standalone: false })
+  })
+
+  it("puts a refusal from the database in words", async () => {
+    stubEdgeFunction("odoo-sor-lookup", { success: true, found: true, items: [] })
+    stubRpc("costing_standalone_open", () => {
+      const error = new Error("costing_standalone: only Super Admins, Purchasing, the Deal Team and the decider list start an evaluation")
+      error.code = "42501"
+      throw error
+    })
+    await expect(start("S09001")).rejects.toThrow(/^Only Super Admins/)
+  })
+})
