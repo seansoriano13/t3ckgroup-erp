@@ -1,5 +1,14 @@
 [
     {
+        "date": "2026-11-12",
+        "title": "Notifications: older ones reachable",
+        "version": "1.10.2",
+        "changes": [
+            "Notifications: the list no longer grows past 50 while the page stays open.",
+            "Notifications: a Load older button shows the rest, and the bell shows a plus when there is more."
+        ]
+    },
+    {
         "date": "2026-11-11",
         "title": "Phone notifications and leave records",
         "version": "1.10.1",
