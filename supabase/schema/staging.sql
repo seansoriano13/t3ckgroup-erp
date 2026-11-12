@@ -8484,13 +8484,13 @@ begin
   )
   returning * into v_supplier;
 
-  -- The rate is money: written only for a caller who may read it, and always as a row, so a reader
-  -- of money always has a row to read.
+  -- The rate is money: its value is written only for a caller who may read it. The row is always
+  -- made, so a money reader who comes later has a row to fill.
   if public.canvass_can_read_money(v_canvass.id) then
     v_rate := nullif(p_price ->> 'comparison_rate', '')::numeric;
-    insert into public.request_canvass_supplier_prices (supplier_id, comparison_rate)
-    values (v_supplier.id, v_rate);
   end if;
+  insert into public.request_canvass_supplier_prices (supplier_id, comparison_rate)
+  values (v_supplier.id, v_rate);
 
   return jsonb_build_object(
     'canvass_id', v_canvass.id,
@@ -8701,11 +8701,18 @@ AS $function$
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.canvass_list()
- RETURNS TABLE(id uuid, number text, request_id uuid, request_label text, opportunity_id uuid, sales_reference text, project_title text, canvasser_id uuid, canvasser_name text, supplier_count integer, line_count integer, quoted_line_count integer, winner_count integer, created_by uuid, created_at timestamp with time zone, updated_at timestamp with time zone)
+ RETURNS TABLE(id uuid, number text, request_id uuid, request_label text, opportunity_id uuid, sales_reference text, project_title text, canvasser_id uuid, canvasser_name text, supplier_count integer, line_count integer, quoted_line_count integer, winner_count integer, open_line_count integer, open_winner_count integer, locked_line_count integer, no_other_supplier boolean, supplier_names text[], product_names text[], created_by uuid, created_at timestamp with time zone, updated_at timestamp with time zone)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+  with lines as (
+    select i.id, i.request_id, i.name,
+           public.canvass_item_is_locked(i.id) as locked,
+           exists (select 1 from public.request_canvass_winners w where w.item_id = i.id) as won
+      from public.purchase_request_items i
+     where i.status <> 'cancelled'
+  )
   select c.id,
          c.number,
          req.id,
@@ -8716,10 +8723,16 @@ AS $function$
          coalesce(c.canvasser_id, req.buyer_id),
          canvasser.name,
          (select count(*)::integer from public.request_canvass_suppliers s where s.canvass_id = c.id),
-         (select count(*)::integer from public.purchase_request_items i where i.request_id = req.id and i.status <> 'cancelled'),
+         (select count(*)::integer from lines l where l.request_id = req.id),
          (select count(distinct q.item_id)::integer from public.request_canvass_quotes q where q.canvass_id = c.id),
-         (select count(*)::integer from public.request_canvass_winners w
-            join public.purchase_request_items i on i.id = w.item_id where i.request_id = req.id),
+         (select count(*)::integer from lines l where l.request_id = req.id and l.won),
+         (select count(*)::integer from lines l where l.request_id = req.id and not l.locked),
+         (select count(*)::integer from lines l where l.request_id = req.id and not l.locked and l.won),
+         (select count(*)::integer from lines l where l.request_id = req.id and l.locked),
+         exists (select 1 from public.request_canvass_no_other_supplier n where n.canvass_id = c.id),
+         coalesce((select array_agg(s.supplier_name order by s.sort_order, s.created_at)
+                     from public.request_canvass_suppliers s where s.canvass_id = c.id), '{}'),
+         coalesce((select array_agg(l.name order by l.name) from lines l where l.request_id = req.id), '{}'),
          c.created_by,
          c.created_at,
          c.updated_at
@@ -8728,7 +8741,7 @@ AS $function$
     left join public.sales_opportunities opp on opp.id = req.opportunity_id
     left join public.employees canvasser on canvasser.id = coalesce(c.canvasser_id, req.buyer_id)
    where public.canvass_can_read(c.id)
-   order by c.created_at desc, c.id
+   order by coalesce(c.updated_at, c.created_at) desc, c.id
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.canvass_lock_applies()
@@ -8965,10 +8978,14 @@ begin
     remarks     = case when p_quote ? 'remarks' then excluded.remarks else request_canvass_quotes.remarks end
   returning * into v_quote;
 
-  insert into public.request_canvass_quote_prices (quote_id, unit_price)
-  values (v_quote.id, nullif(p_price ->> 'unit_price', '')::numeric)
-  on conflict (quote_id) do update set
-    unit_price = case when p_price ? 'unit_price' then excluded.unit_price else request_canvass_quote_prices.unit_price end;
+  -- The price row is money: the table refuses a caller who may not read it, so only a money
+  -- reader writes it.
+  if public.canvass_can_read_money(v_canvass) then
+    insert into public.request_canvass_quote_prices (quote_id, unit_price)
+    values (v_quote.id, nullif(p_price ->> 'unit_price', '')::numeric)
+    on conflict (quote_id) do update set
+      unit_price = case when p_price ? 'unit_price' then excluded.unit_price else request_canvass_quote_prices.unit_price end;
+  end if;
 
   return to_jsonb(v_quote);
 end
@@ -10070,7 +10087,13 @@ begin
   return (
     select coalesce(
       jsonb_agg(
-        jsonb_build_object('id', i.id, 'component_id', ic.component_id, 'status', i.status, 'request_id', i.request_id)
+        jsonb_build_object(
+          'id', i.id,
+          'component_id', ic.component_id,
+          'status', i.status,
+          'request_id', i.request_id,
+          'request_label', public._purchase_request_label(i.request_id)
+        )
         order by i.created_at, i.id
       ),
       '[]'::jsonb

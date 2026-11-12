@@ -99,6 +99,8 @@ export const SEED_TABLES = [
   "request_canvass_quotes",
   "request_canvass_quote_prices",
   "request_canvass_winners",
+  // #969: the Super Admin unlocks of a Purchased line, after the items they point at.
+  "request_canvass_line_unlocks",
   "request_canvass_no_other_supplier",
   "purchase_request_messages",
   // IPAS (#242). After sales_opportunities and employees, which they point at;

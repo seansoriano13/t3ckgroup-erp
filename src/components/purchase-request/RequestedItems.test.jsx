@@ -5,6 +5,7 @@
  * through accessible names, not structure.
  */
 import { openRow, showDoneLines } from "@/test/openRequestedItem"
+import { useEffect } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router"
@@ -320,9 +321,12 @@ describe("RequestedItems opened from a Canvass link", () => {
   it("opens the request Canvass at the line, then takes the link off the address", async () => {
     const line = itemRow("Rope Access Kit")
     stubCanvassMoneyRpc({ money: true })
-    let search = ""
+    const seen = { search: "" }
     function Probe() {
-      search = useLocation().search
+      const { search } = useLocation()
+      useEffect(() => {
+        seen.search = search
+      })
       return null
     }
     renderWithProviders(
@@ -338,7 +342,7 @@ describe("RequestedItems opened from a Canvass link", () => {
     const focused = screen.getAllByTestId("canvass-line").filter((l) => l.dataset.focused === "true")
     expect(focused).toHaveLength(1)
     expect(within(focused[0]).getByRole("rowheader")).toHaveAccessibleName("Rope Access Kit")
-    await waitFor(() => expect(search).toBe(`?request=${request.id}`))
+    await waitFor(() => expect(seen.search).toBe(`?request=${request.id}`))
   })
 
   it("stays shut with no Canvass link", async () => {
