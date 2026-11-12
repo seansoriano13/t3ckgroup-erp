@@ -42,11 +42,12 @@ const SORT = {
   progress: (r) => (r.rowsTotal ? r.rowsJudged / r.rowsTotal : null),
   state: (r) => technicalState(r).label,
 };
+// The third item is the column's place on a phone card (Table `stackOnPhone`).
 const COLUMNS = [
-  ["SOR", "sor"],
-  ["Stage", "stage"],
-  ["Progress", "progress"],
-  ["State", "state"],
+  ["SOR", "sor", "title"],
+  ["Stage", "stage", "hide"],
+  ["Progress", "progress", "meta"],
+  ["State", "state", "badge"],
 ];
 
 // One segment per product; a judged product is filled. Once every product is judged the bar becomes the result badge.
@@ -210,12 +211,13 @@ export default function TechnicalList({ selectedId = null }) {
       {!isLoading && !isError && visible.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           <div className="overflow-x-auto">
-            <Table tableId="technical" className="md:min-w-[44rem]">
+            <Table tableId="technical" stackOnPhone className="md:min-w-[44rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  {COLUMNS.map(([heading, key]) => (
+                  {COLUMNS.map(([heading, key, phone]) => (
                     <SortHead
                       key={key}
+                      phone={phone}
                       id={`technical-${key}`}
                       sortKey={key}
                       sort={sort}
