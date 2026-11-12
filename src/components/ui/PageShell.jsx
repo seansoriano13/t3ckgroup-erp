@@ -42,7 +42,7 @@ export default function PageShell({
       maxWidth={FRAME_WIDTH[frame] ?? "7xl"}
       fill={full}
       spaceY="4"
-      className={className}
+      className={`laptop:space-y-3 ${className}`}
     >
       {banner && <div className={pinned}>{banner}</div>}
       <PageHeader title={title} description={description}>

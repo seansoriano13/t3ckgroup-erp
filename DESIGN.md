@@ -187,7 +187,9 @@ Green, amber, blue, violet, orange, and red Radix scales are imported for **Stat
 
 ## Layout
 
-Pages sit in a centered `wrapper` (max 80rem, 16px side gutter on mobile, 40px from `sm`). A fixed left **SideNav** (collapsible on desktop, an overlay drawer below `md`) holds navigation. Each page opens with **PageHeader**: the title and description on the left, actions on the right, a bottom border, and 24px of padding beneath. Headers stack vertically below `md`.
+Pages sit in a centered `wrapper` (max 80rem). The wrapper owns the one side gutter (16px on phones, 24px from `md`); PageContainer adds none. Top padding is 24px, 16px in the laptop band. A fixed left **SideNav** (collapsible on desktop, an overlay drawer below `md`) holds navigation. Each page opens with **PageHeader**: the title and description on the left, actions on the right, a bottom border, and 24px of padding beneath. Headers stack vertically below `md`.
+
+**Laptop band** (ADR 0051). Viewport at least 1024px wide and either under 1536px wide or at most 820px tall: `@media (min-width: 1024px) and (max-width: 1535.98px), (min-width: 1024px) and (max-height: 820px)`. Use the Tailwind variant `laptop:`. In the band the root font size is 15px (16px elsewhere, so every rem size shrinks about 6%), PageShell's slot gap is 12px, and the SideNav is 216px wide with 32px rows. With no saved choice the SideNav opens as the icon rail below 1280px. The Report a bug item sits in the SideNav footer from `md`.
 
 Rhythm runs on Tailwind's 4px grid. 24px separates page sections, 16px pads cards (12px for the `sm` size), and 6–10px sits between pills and chips. Desktop is the primary scene (see PRODUCT.md). Mobile is supported but never leads.
 

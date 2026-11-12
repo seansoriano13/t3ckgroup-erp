@@ -154,6 +154,16 @@
 /* ---break--- */
 @custom-variant dark (&:is(.dark *));
 
+/* Laptop band (ADR 0051, DESIGN.md "Layout"): 1024px and wider, and either under
+   1536px wide or at most 820px tall. Covers 1280x600, 1366x650 and 1536x730.
+   `laptop:` and the root-size rule below share this one query. */
+@custom-variant laptop {
+  @media (min-width: 1024px) and (max-width: 1535.98px),
+    (min-width: 1024px) and (max-height: 820px) {
+    @slot;
+  }
+}
+
 @layer components {
 
   /* LAYOUT */
@@ -724,6 +734,15 @@
 
   html {
     @apply font-sans;
+  }
+
+  /* One step down in the laptop band: every rem size shrinks about 6%. Media
+     queries keep the browser's 16px, so breakpoints do not move. */
+  @media (min-width: 1024px) and (max-width: 1535.98px),
+    (min-width: 1024px) and (max-height: 820px) {
+    html {
+      font-size: 15px;
+    }
   }
 }
 /*

@@ -80,7 +80,7 @@ export default function AppLayout() {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="wrapper py-10 px-4 md:px-6">
+            <div className="wrapper pt-10 px-4 md:pt-6 md:px-6 laptop:pt-4">
               <IssuedPasswordBanner />
               <Outlet />
             </div>

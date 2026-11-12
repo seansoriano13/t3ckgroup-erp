@@ -20,6 +20,7 @@ vi.mock("./RoleSwitcher", () => ({ default: () => <div data-testid="role-switche
 describe("SideNav Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.innerWidth = 1440;
   });
 
   function renderSideNav(user) {
@@ -181,6 +182,13 @@ describe("SideNav Component", () => {
     fireEvent.click(toggle);
 
     expect(setItemSpy).toHaveBeenCalledWith("erp_sidebar_collapsed_collapse-user-1", "1");
+    expect(screen.getByTitle("Expand sidebar")).toBeInTheDocument();
+  });
+
+  it("starts as the icon rail below 1280px wide when nothing is saved", () => {
+    window.innerWidth = 1100;
+    renderSideNav({ id: "rail-user", name: "Rail Test", isSuperAdmin: true });
+
     expect(screen.getByTitle("Expand sidebar")).toBeInTheDocument();
   });
 

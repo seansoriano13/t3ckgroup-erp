@@ -2,7 +2,8 @@ import React from "react";
 
 /**
  * Standardized container for all dashboard pages.
- * Ensures consistent max-width, horizontal padding, and vertical spacing.
+ * Ensures consistent max-width and vertical spacing. The side gutter belongs to
+ * the app frame's `wrapper` (one gutter, not two).
  *
  * `fill` is for full-bleed routes (no wrapper around the page): the container
  * takes the app frame's height, so a body inside it can scroll on its own.
@@ -35,7 +36,7 @@ export default function PageContainer({
   // own top padding, and its left padding clears the SideNav's mobile trigger.
   const boxClass = fill
     ? "flex h-full min-h-0 flex-col pl-14 pr-4 pt-3 pb-4 md:px-6"
-    : "px-4 sm:px-6 lg:px-8 pb-10";
+    : "pb-10";
 
   return (
     <div className={`mx-auto ${maxWidthClass} ${spaceYClass} ${boxClass} ${className}`}>

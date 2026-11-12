@@ -1,4 +1,8 @@
 import BetaTag from "@/components/ui/BetaTag";
+import BugReportButton from "./BugReportButton";
+
+// Below this width, with no saved choice, the side menu opens as the icon rail.
+const RAIL_BELOW = 1280;
 import {
   Plus,
   Bell,
@@ -141,11 +145,11 @@ export default function SideNav() {
   // its drawer is a full overlay, not a rail — so the toggle only renders and
   // only changes layout at the md breakpoint.
   const getInitialCollapsed = (userId) => {
-    // Below 1024px the rail is the default (UI-167): an expanded 240px sidebar
-    // leaves ~430px of content at 768. A saved choice still wins; one tap on
-    // the rail toggle opens it.
+    // Below 1280px the rail is the default (UI-167, widened by ADR 0051 for the
+    // laptop band): an expanded sidebar leaves too little content on a small
+    // laptop. A saved choice still wins; one tap on the rail toggle opens it.
     const narrow =
-      typeof window !== "undefined" && window.innerWidth < 1024;
+      typeof window !== "undefined" && window.innerWidth < RAIL_BELOW;
     if (!userId) return narrow;
     try {
       const saved = localStorage.getItem(`erp_sidebar_collapsed_${userId}`);
@@ -165,17 +169,16 @@ export default function SideNav() {
     }
   }, [user?.id]);
 
-  // With no saved choice the rail follows the viewport across 1024; a saved
+  // With no saved choice the rail follows the viewport across 1280; a saved
   // choice keeps winning.
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return undefined;
-    const mq = window.matchMedia("(max-width: 1023.98px)");
+    const mq = window.matchMedia(`(max-width: ${RAIL_BELOW - 0.02}px)`);
     const onChange = () => {
       if (user?.id) setIsCollapsed(getInitialCollapsed(user.id));
     };
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const toggleCollapsed = () => {
@@ -268,7 +271,7 @@ export default function SideNav() {
   const renderSidebarBody = (collapsed, showRailToggle = false) => (
     <>
         {/* 1. Header (Profile Dropdown + Quick Actions) */}
-        <div className="px-3 pt-6 pb-2 flex flex-col gap-2.5">
+        <div className="px-3 pt-6 pb-2 flex flex-col gap-2.5 laptop:pt-4 laptop:gap-2">
           {/* Row 1: Profile Selector */}
           {/* Desktop collapse toggle — a rail is icons-only, so this is the one
               control that survives collapsing to it. Sits in the header row
@@ -279,7 +282,7 @@ export default function SideNav() {
               className="flex-1 min-w-0"
               trigger={({ isOpen }) => (
                 <div
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all ${collapsed ? "md:justify-center md:px-0" : "justify-between"} ${isOpen ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50"
+                  className={`flex items-center gap-2.5 px-3 py-2 laptop:py-1 rounded-lg transition-all ${collapsed ? "md:justify-center md:px-0" : "justify-between"} ${isOpen ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50"
                     }`}
                 >
                   <div className="flex items-center gap-2.5 overflow-hidden w-full group cursor-pointer transition-opacity">
@@ -343,7 +346,7 @@ export default function SideNav() {
                   setIsMobileOpen(false);
                   setIsBroadcastOpen(true);
                 }}
-                className={`h-auto flex items-center justify-center p-2 rounded-lg border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all ${collapsed ? "md:w-full" : ""}`}
+                className={`h-auto flex items-center justify-center p-2 laptop:p-1.5 rounded-lg border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all ${collapsed ? "md:w-full" : ""}`}
                 title="Broadcast"
               >
                 <Megaphone size={15} strokeWidth={2.2} />
@@ -357,7 +360,7 @@ export default function SideNav() {
                 setIsNotifOpen(true);
                 setIsMobileOpen(false);
               }}
-              className={`h-auto relative flex-1 flex items-center justify-center p-2 rounded-lg transition-all ${collapsed ? "md:w-full md:flex-none" : ""} ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              className={`h-auto relative flex-1 flex items-center justify-center p-2 laptop:p-1.5 rounded-lg transition-all ${collapsed ? "md:w-full md:flex-none" : ""} ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Notifications"
             >
               <Bell size={15} strokeWidth={2.2} />
@@ -375,7 +378,7 @@ export default function SideNav() {
                 setIsChatsOpen(true);
                 setIsMobileOpen(false);
               }}
-              className={`h-auto relative flex-1 flex items-center justify-center p-2 rounded-lg transition-all ${collapsed ? "md:w-full md:flex-none" : ""} ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              className={`h-auto relative flex-1 flex items-center justify-center p-2 laptop:p-1.5 rounded-lg transition-all ${collapsed ? "md:w-full md:flex-none" : ""} ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Chats"
             >
               <MessageCircle size={15} strokeWidth={2.2} />
@@ -499,7 +502,7 @@ export default function SideNav() {
                           onClick={() => setIsMobileOpen(false)}
                           title={collapsed ? navLink.label : undefined}
                           className={({ isActive }) =>
-                            `flex gap-3 items-center px-3 py-2 rounded-md transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${isActive
+                            `flex gap-3 items-center px-3 py-2 laptop:py-1.5 rounded-md transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${isActive
                               ? "bg-sidebar-accent text-sidebar-primary shadow-sm"
                               : "hover:text-sidebar-foreground hover:bg-sidebar-accent/50 text-sidebar-foreground/80"
                             }`
@@ -542,6 +545,15 @@ export default function SideNav() {
           <div className={collapsed ? "md:hidden" : ""}>
             <RoleSwitcher />
           </div>
+
+          {/* Footer: the bug report lives here from md up (it used to float over
+              the last table column). Phones keep the small floating one until the
+              menu drawer work lands. */}
+          {showRailToggle && (
+            <div className="mt-auto pt-3">
+              <BugReportButton asMenuItem collapsed={collapsed} />
+            </div>
+          )}
         </div>
     </>
   );
@@ -593,7 +605,7 @@ export default function SideNav() {
           hidden md:flex sticky top-0 left-0 h-screen z-50 flex-col
           bg-sidebar   text-sm font-sans
           transition-[width] duration-300 ease-in-out
-          ${isCollapsed ? "w-[68px]" : "w-[240px]"} shrink-0 overflow-y-auto scrollbar-hide
+          ${isCollapsed ? "w-[68px]" : "w-[240px] laptop:w-[216px]"} shrink-0 overflow-y-auto scrollbar-hide
         `}
       >
         {renderSidebarBody(isCollapsed, true)}
