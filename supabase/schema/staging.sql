@@ -9472,6 +9472,44 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_abc_moved_line()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_percent_rows(case when tg_op = 'DELETE' then old.matrix_id else new.matrix_id end);
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_abc_moved_matrix()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_percent_rows(new.id);
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_abc_moved_price()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_percent_rows(
+    (select l.matrix_id from public.costing_tender_lines l
+      where l.id = case when tg_op = 'DELETE' then old.tender_line_id else new.tender_line_id end));
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_accept_brand(p_component_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -10313,6 +10351,20 @@ AS $function$
 begin
   if old.category_key is not null and new.category_key is null then
     raise exception 'costing_cost_row: a cost needs a category' using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_cost_rows_percent_unit()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.abc_pct is not null then
+    new.acquire_unit := public.costing_percent_row_unit(new.matrix_id, new.abc_pct, new.quantity);
   end if;
   return new;
 end;
@@ -11914,6 +11966,19 @@ AS $function$
   order by 9, m.id
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_percent_row_unit(p_matrix_id uuid, p_pct numeric, p_quantity numeric)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+           when p_pct is null or p_quantity is null or p_quantity <= 0 or b.abc_total is null then null
+           else round(round(p_pct * b.abc_total / 100, 2) / p_quantity, 2)
+         end
+  from public.costing_bid_totals(p_matrix_id) b
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_pick(p_row jsonb, p_cols text[])
  RETURNS jsonb
  LANGUAGE sql
@@ -12014,6 +12079,28 @@ begin
      set compliance = v_new, compliance_by = technical_incharge_id, compliance_at = now()
    where id = p_matrix_id;
   perform set_config('costing.derive', 'off', true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_refresh_percent_rows(p_matrix_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_was text := coalesce(current_setting('costing.bypass', true), '');
+begin
+  if p_matrix_id is null then
+    return;
+  end if;
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_cost_rows r
+     set acquire_unit = public.costing_percent_row_unit(r.matrix_id, r.abc_pct, r.quantity)
+   where r.matrix_id = p_matrix_id
+     and r.abc_pct is not null
+     and r.acquire_unit is distinct from public.costing_percent_row_unit(r.matrix_id, r.abc_pct, r.quantity);
+  perform set_config('costing.bypass', v_was, true);
 end;
 $function$
 ;
@@ -30361,6 +30448,7 @@ CREATE TRIGGER costing_cost_categories_touch BEFORE UPDATE ON public.costing_cos
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_cost_row AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_cost_rows_keep_category BEFORE UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_cost_rows_keep_category();
+CREATE TRIGGER costing_cost_rows_percent_unit BEFORE INSERT OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_cost_rows_percent_unit();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'An Acquire changed', 'acquire_unit');
@@ -30374,6 +30462,7 @@ CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costi
 CREATE TRIGGER costing_inclusion_needs_bundle BEFORE INSERT OR UPDATE OF component_id ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_inclusion_needs_bundle();
 CREATE TRIGGER costing_landed_defaults_stamp BEFORE INSERT OR UPDATE ON public.costing_landed_defaults FOR EACH ROW EXECUTE FUNCTION costing_landed_defaults_stamp();
 CREATE TRIGGER costing_markup_presets_touch BEFORE UPDATE ON public.costing_markup_presets FOR EACH ROW EXECUTE FUNCTION costing_markup_presets_touch();
+CREATE TRIGGER costing_abc_moved AFTER UPDATE OF abc_mode, abc_total ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_abc_moved_matrix();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_check_technical_incharge BEFORE INSERT OR UPDATE OF technical_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_technical_incharge();
@@ -30391,12 +30480,14 @@ CREATE TRIGGER trg_costing_final_acquire_percent AFTER INSERT OR UPDATE OF final
 CREATE TRIGGER costing_settings_stamp BEFORE UPDATE ON public.costing_settings FOR EACH ROW EXECUTE FUNCTION costing_settings_stamp();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_signoffs_guard BEFORE UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_signoffs_guard();
+CREATE TRIGGER costing_abc_moved AFTER INSERT OR DELETE OR UPDATE OF abc_unit ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_abc_moved_price();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'final_offer_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_final_offer_log AFTER INSERT OR UPDATE OF final_offer_unit ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_log_final_offer_change();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('prepared,final_approved', 'The Final Offer changed', 'final_offer_unit');
+CREATE TRIGGER costing_abc_moved AFTER INSERT OR DELETE OR UPDATE OF quantity ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_abc_moved_line();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_clear_evaluation_lines AFTER INSERT OR DELETE OR UPDATE OF tender_specification ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();

@@ -8,7 +8,7 @@ import { SelectField } from "../../ui/SelectField";
 import { costingKeys } from "../costingKeys";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import { COST_ROW_BANDS, ROW_EDIT_BANDS, USUAL_COST_CATEGORIES, inAnyBand, tierReadsCostRow } from "../../../constants/costing";
-import { percentOfAbcAmount, usualRowsToAdd } from "../../../utils/costingMath";
+import { usualRowsToAdd } from "../../../utils/costingMath";
 import { cn } from "../../../lib/utils";
 import { Cell, Readout } from "../GridCell";
 import { pesos } from "../gridFormat";
@@ -41,7 +41,6 @@ export default function OtherCosts({ matrix, writes }) {
   const showAcquire = tierReadsCostRow(tier, "acquire_unit");
   const showFinal = tierReadsCostRow(tier, "final_acquire_unit");
   const showPct = tierReadsCostRow(tier, "abc_pct");
-  const abcTotal = matrix.totals?.abcTotal ?? null;
   const missingUsual = usualRowsToAdd(costRows, USUAL_COST_CATEGORIES).filter((key) => categories.some((c) => c.key === key));
 
   if (costRows.length === 0 && !canEditRows) return null;
@@ -51,15 +50,11 @@ export default function OtherCosts({ matrix, writes }) {
     await refresh();
   };
 
-  // A percent row keeps its peso amount stored beside the percent, so the database reads the same figure (#963).
-  const storedUnit = (pct, quantity) => {
-    const amount = percentOfAbcAmount(pct, abcTotal);
-    return amount === null || !(Number(quantity) > 0) ? null : Number((amount / Number(quantity)).toFixed(6));
-  };
-  const savePercent = (row, value) => save(row, { abcPct: value, acquireUnit: storedUnit(value, row.quantity) });
+  // A percent row's peso amount is worked by the database (it follows the percent, the quantity and the ABC), so only the percent is sent (#963).
+  const savePercent = (row, value) => save(row, { abcPct: value });
   // Typing the peso amount by hand clears the percent.
   const saveAmount = (row, value) => save(row, row.abc_pct == null ? { acquireUnit: value } : { acquireUnit: value, abcPct: null });
-  const saveQuantity = (row, value) => save(row, row.abc_pct == null ? { quantity: value } : { quantity: value, acquireUnit: storedUnit(row.abc_pct, value) });
+  const saveQuantity = (row, value) => save(row, { quantity: value });
   const addUsual = () =>
     run(async () => {
       for (const key of missingUsual) {

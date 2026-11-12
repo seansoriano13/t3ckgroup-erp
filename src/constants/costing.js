@@ -175,8 +175,8 @@ export const COST_ROW_BANDS = {
   category_key: [SALES, PURCHASING],
   quantity: [SALES, PURCHASING],
   ...COMPONENT_COST_BANDS,
-  // #963: written by the band that writes the row's Acquire.
-  abc_pct: [PURCHASING],
+  // #963: Sales and Purchasing type the percent; the database works the amount (Purchasing alone types an amount).
+  abc_pct: [SALES, PURCHASING],
   // A cost-only row keeps the band it had; only a Component's Final Acquire moved to the decider list (#962).
   final_acquire_unit: [SALES, PURCHASING, MANAGEMENT],
 };
