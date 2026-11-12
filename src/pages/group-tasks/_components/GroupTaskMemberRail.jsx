@@ -16,6 +16,29 @@ import { cn } from "@/lib/utils";
  * view the row a member actually came to act on is their own, and hunting for
  * it in a list of eight is pure friction.
  */
+// Below `chipsBelow` the rail is a row of member chips above the details (#984).
+// Tailwind needs the class names written out, so each breakpoint has its own set.
+const CHIP_CLASSES = {
+  lg: {
+    root: "max-lg:h-auto max-lg:flex-row max-lg:items-center max-lg:border-r-0 max-lg:border-b",
+    head: "max-lg:px-3 max-lg:py-0",
+    list: "max-lg:flex max-lg:flex-none max-lg:items-center max-lg:overflow-x-auto max-lg:overflow-y-hidden max-lg:py-2 max-lg:pb-2",
+    chip: "max-lg:mb-0 max-lg:w-auto max-lg:shrink-0 max-lg:items-center max-lg:py-1.5",
+    sub: "max-lg:hidden",
+    add: "max-lg:ml-auto max-lg:shrink-0 max-lg:border-t-0",
+    addBtn: "max-lg:w-auto max-lg:px-3 max-lg:py-1.5",
+  },
+  xl: {
+    root: "max-xl:h-auto max-xl:flex-row max-xl:items-center max-xl:border-r-0 max-xl:border-b",
+    head: "max-xl:px-3 max-xl:py-0",
+    list: "max-xl:flex max-xl:flex-none max-xl:items-center max-xl:overflow-x-auto max-xl:overflow-y-hidden max-xl:py-2 max-xl:pb-2",
+    chip: "max-xl:mb-0 max-xl:w-auto max-xl:shrink-0 max-xl:items-center max-xl:py-1.5",
+    sub: "max-xl:hidden",
+    add: "max-xl:ml-auto max-xl:shrink-0 max-xl:border-t-0",
+    addBtn: "max-xl:w-auto max-xl:px-3 max-xl:py-1.5",
+  },
+};
+
 export default function GroupTaskMemberRail({
   members,
   selectedId,
@@ -26,18 +49,20 @@ export default function GroupTaskMemberRail({
   resolveEmployee,
   avatarMap,
   mode = "create",
+  chipsBelow = "lg",
   className,
 }) {
+  const c = CHIP_CLASSES[chipsBelow] ?? CHIP_CLASSES.lg;
   return (
-    <div className={cn("flex flex-col h-full min-h-0 border-r border-border bg-muted/20", className)}>
-      <div className="px-4 pt-4 pb-2 shrink-0">
+    <div className={cn("flex flex-col h-full min-h-0 border-r border-border bg-muted/20", c.root, className)}>
+      <div className={cn("px-4 pt-4 pb-2 shrink-0", c.head)}>
         <h3 className="text-label font-bold text-muted-foreground uppercase tracking-widest">
           Members{" "}
           <span className="text-muted-foreground/60">({members.length})</span>
         </h3>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-2 custom-scrollbar min-h-0">
+      <div className={cn("flex-1 overflow-y-auto px-2 pb-2 custom-scrollbar min-h-0", c.list)}>
         {members.map((member) => {
           const employee = resolveEmployee?.(member);
           // Guarded against a null id on both sides: a member list that lost
@@ -67,7 +92,7 @@ export default function GroupTaskMemberRail({
               type="button"
               variant="ghost"
               onClick={() => onSelect(member.id)}
-              className={`group relative h-auto w-full items-start justify-start gap-2.5 rounded-xl px-2.5 py-2.5 mb-1 text-left font-normal ${
+              className={`group relative h-auto w-full items-start justify-start gap-2.5 rounded-xl px-2.5 py-2.5 mb-1 text-left font-normal ${c.chip} ${
                 isSelected
                   ? "bg-card shadow-sm ring-1 ring-mauve-4 hover:bg-card"
                   : "hover:bg-muted/60"
@@ -96,7 +121,7 @@ export default function GroupTaskMemberRail({
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <div className={cn("flex items-center gap-1.5 mt-1 flex-wrap", c.sub)}>
                   {(member.customRole || member.custom_role || member.role) && (
                     <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border truncate max-w-[120px]">
                       {member.customRole || member.custom_role || member.role}
@@ -139,12 +164,12 @@ export default function GroupTaskMemberRail({
       </div>
 
       {onAdd && (
-        <div className="p-2 border-t border-border shrink-0">
+        <div className={cn("p-2 border-t border-border shrink-0", c.add)}>
           <Button
             type="button"
             variant="outline"
             onClick={onAdd}
-            className="h-auto w-full gap-2 rounded-xl border-2 border-dashed border-primary/25 py-2.5 text-[11px] font-bold text-primary hover:border-primary/40 hover:bg-primary/5"
+            className={cn("h-auto w-full gap-2 rounded-xl border-2 border-dashed border-primary/25 py-2.5 text-[11px] font-bold text-primary hover:border-primary/40 hover:bg-primary/5", c.addBtn)}
           >
             <Plus size={15} /> Add member
           </Button>

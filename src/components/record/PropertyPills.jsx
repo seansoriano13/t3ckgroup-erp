@@ -59,7 +59,7 @@ export default function PropertyPills({ items, className }) {
   const shown = items.filter((item) => item.value);
   if (shown.length === 0) return null;
   return (
-    <div className={cn("flex flex-wrap gap-2", className)}>
+    <div className={cn("flex flex-nowrap gap-2 overflow-x-auto [&>*]:shrink-0", className)}>
       {shown.map((item) =>
         item.options && item.onChange ? (
           <PickerPill key={item.key ?? item.label} {...item} />

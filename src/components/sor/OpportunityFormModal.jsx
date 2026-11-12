@@ -445,7 +445,7 @@ export default function OpportunityFormModal({
       isPending={isPending}
       submitLabel={isEdit ? "Save changes" : "Register"}
     >
-      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-5 transition-[padding] duration-300 ease-in-out [&:has([data-state=open])]:pb-64">
+      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-5 laptop:space-y-3 transition-[padding] duration-300 ease-in-out [&:has([data-state=open])]:pb-64">
         {!isEdit && (
           <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/40 border border-border rounded-xl px-3 py-2.5">
             Register before bid, proposal, or quotation issuance. The
@@ -485,7 +485,7 @@ export default function OpportunityFormModal({
             />
           )}
 
-          <div className="rounded-lg p-3 flex flex-col gap-1">
+          <div className="rounded-lg p-3 laptop:py-1.5 flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
               <FieldBox label="Sales Division" className="block" />
               <Button

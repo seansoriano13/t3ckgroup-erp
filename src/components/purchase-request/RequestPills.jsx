@@ -93,7 +93,7 @@ export default function RequestPills({ request }) {
       ];
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto [&>*]:shrink-0">
       <PropertyPills items={[buyer]} className="contents" />
       {busy && <Spinner size="sm" />}
       {unassigned && hasPurchasingFlow && (

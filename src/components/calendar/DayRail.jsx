@@ -32,7 +32,7 @@ const byStart = (a, b) => String(a.starts_at).localeCompare(String(b.starts_at))
  *
  *   onPickSlot  when given, "Book a room" and the strips open the request form
  */
-export default function DayRail({ ymd, entries, layers, venues, todayYmd, onOpenEntry, onPickSlot = null }) {
+export default function DayRail({ ymd, entries, layers, venues, todayYmd, onOpenEntry, onPickSlot = null, framed = true }) {
   const date = parseManilaDate(ymd);
   const day = entries.filter((e) => e.manila_date === ymd);
   const out = day.filter(isOut);
@@ -40,7 +40,11 @@ export default function DayRail({ ymd, entries, layers, venues, todayYmd, onOpen
   const overtime = day.filter((e) => e.kind === 'OVERTIME').sort(byStart);
 
   return (
-    <aside className="flex flex-col gap-6 rounded-2xl border border-mauve-5 bg-card p-5 xl:sticky xl:top-4" data-testid="day-rail" aria-live="polite">
+    <div
+      className={cn('flex flex-col gap-6', framed ? 'max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-mauve-5 bg-card p-5' : 'p-4')}
+      data-testid="day-rail"
+      aria-live="polite"
+    >
       <header className="flex items-start justify-between gap-3">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
@@ -154,6 +158,6 @@ export default function DayRail({ ymd, entries, layers, venues, todayYmd, onOpen
           )}
         </RailSection>
       )}
-    </aside>
+    </div>
   );
 }

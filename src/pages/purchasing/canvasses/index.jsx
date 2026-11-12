@@ -83,12 +83,13 @@ const HEAD = "text-label font-bold uppercase tracking-wider";
 const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
 
+// The third item is the column's place on a phone card (Table `stackOnPhone`).
 const HEADINGS = [
-  ["canvass", "Canvass"],
-  ["canvasser", "Canvasser"],
-  ["winner", "Winner"],
-  ["request", "Request"],
-  ["state", "State"],
+  ["canvass", "Canvass", "title"],
+  ["canvasser", "Canvasser", "meta"],
+  ["winner", "Winner", "meta"],
+  ["request", "Request", "meta"],
+  ["state", "State", "badge"],
 ];
 
 const CANVASS_SORT = {
@@ -310,12 +311,13 @@ function CanvassesPage({ userId, canEdit }) {
       {ready && shown.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           <div className="overflow-x-auto">
-            <Table tableId="canvasses" className="md:min-w-[44rem]">
+            <Table tableId="canvasses" stackOnPhone className="md:min-w-[44rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  {HEADINGS.map(([key, heading]) => (
+                  {HEADINGS.map(([key, heading, phone]) => (
                     <SortHead
                       key={key}
+                      phone={phone}
                       id={key}
                       sortKey={key}
                       sort={sort}

@@ -59,7 +59,7 @@ export default function SlideOver({
 
   return (
     <Drawer open={!!record} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className={overModal ? "z-[75] w-[560px] max-sm:w-full" : "w-[560px] max-sm:w-full"} initialFocus={focusRef}>
+      <DrawerContent className={overModal ? "z-[75] w-[560px] max-md:w-full" : "w-[560px] max-md:w-full"} initialFocus={focusRef}>
         {current && (
           <div ref={focusRef} tabIndex={-1} className="flex min-h-0 flex-1 flex-col outline-none">
             <div className="flex items-start gap-3 border-b border-border px-6 py-5">
@@ -120,5 +120,18 @@ export function SlideOverBody({ children }) {
 
 /** The decision, pinned to the bottom of a slide-over. */
 export function SlideOverFooter({ children }) {
-  return <div className="space-y-3 border-t border-border bg-muted/30 px-6 py-4">{children}</div>;
+  // In the laptop band and on phones the footer stays short (#980): the quick-reply chips
+  // (NotePresets) sit in one row that scrolls sideways, and the note box starts one line
+  // tall and grows when focused.
+  return (
+    <div
+      className={
+        "space-y-3 border-t border-border bg-muted/30 px-6 py-4 max-md:space-y-2 max-md:px-4 max-md:pb-[calc(0.75rem+env(safe-area-inset-bottom))] laptop:space-y-2 laptop:py-3 " +
+        "max-md:[&_textarea:not(:focus)]:!h-9 max-md:[&_textarea:not(:focus)]:!min-h-0 laptop:[&_textarea:not(:focus)]:!h-9 laptop:[&_textarea:not(:focus)]:!min-h-0 " +
+        "[&_textarea]:transition-[height]"
+      }
+    >
+      {children}
+    </div>
+  );
 }

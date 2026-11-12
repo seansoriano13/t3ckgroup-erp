@@ -32,10 +32,12 @@ import { pluralize } from "../../../../utils/plural";
 import { useRecordParam } from "../../../../hooks/useRecordParam";
 import { NEXT_FILTER, TRACKER_ORDER, TRACKER_STAGES, buildTracker, sorSummary, stageStates, valueOpenByCurrency } from "../../../../utils/purchasingTracker";
 import SorPanel from "./SorPanel";
+import StageChips from "./StageChips";
 import { TRACKER_COLUMNS, TRACKER_EXPORT_HEADER, TRACKER_SORT, trackerExportRows } from "./trackerList";
 import { Age, DeadlineText, MoveText, StageCircle } from "./trackerParts";
 import { ALL, FILED_INCLUDED, NO_CANVASS } from "./useTrackerFilters";
 import { useStandingLabel } from "./useStandingLabel";
+import { useIsPhone, useLaptopBand } from "@/hooks/useScreenBand";
 
 /**
  * The Purchasing Dashboard's tracker: one row per SOR, one circle per stage of
@@ -55,6 +57,9 @@ const sorIdentity = (sor) => ({
 
 const TRACKER_COLUMN_KEYS = TRACKER_COLUMNS.map((column) => column.key);
 const HEAD = "whitespace-nowrap text-label font-bold uppercase tracking-wider";
+// Phones are below Tailwind's md; the laptop band is ADR 0051's `laptop:` query.
+// The Filed circle column is the first to go when the table is short of room (below 1440px).
+const FILED_NARROW = "max-[1439px]:laptop:hidden";
 const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
 
@@ -176,7 +181,7 @@ function useTrackerOrder(userId) {
 }
 
 /** The filter bar: search, three inline choices, the rest in Filters. */
-function trackerBar(f, { rows, orders, names }, valueOpen, columns, exportRows, sortBy) {
+function trackerBar(f, { rows, orders, names }, valueOpenText, columns, exportRows, sortBy) {
   const { values, set } = f;
   return {
     search: { value: f.search, onChange: f.setSearch, placeholder: "Search SOR, IPAS or PO" },
@@ -220,17 +225,7 @@ function trackerBar(f, { rows, orders, names }, valueOpen, columns, exportRows, 
     // Money is not a stage, so it sits at the right end of the bar, then Columns and Export.
     actions: (
       <>
-        {valueOpen.length > 0 && (
-          <p className="ml-auto text-xs text-muted-foreground" aria-label="Value of open orders, pre-tax">
-            Value open{" "}
-            {valueOpen.map((v, index) => (
-              <span key={v.currency ?? "none"}>
-                {index > 0 && " · "}
-                <span className="font-semibold tabular-nums text-foreground">{formatAmount(v.total, v.currency)}</span>
-              </span>
-            ))}
-          </p>
-        )}
+        {valueOpenText}
         <ColumnsMenu columns={columns.list} hidden={columns.hidden} onToggle={columns.toggle} />
         <ExportButton name="purchasing-dashboard" sheetName="Purchasing Dashboard" header={TRACKER_EXPORT_HEADER} rows={exportRows} />
       </>
@@ -254,6 +249,9 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
   const shown = TRACKER_COLUMNS.filter((column) => column.locked || columns.show(column.key));
 
   const [order, chooseOrder] = useTrackerOrder(user?.id);
+  const onPhone = useIsPhone();
+  const inLaptopBand = useLaptopBand();
+  const compact = onPhone || inLaptopBand;
 
   const today = useMemo(() => new Date(), []);
   const tracker = useMemo(
@@ -300,35 +298,62 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
     }
   };
 
+  // Money is not a stage: it sits at the right end of the bar, or, in the laptop band and on a phone,
+  // at the end of the stage chips so the bar keeps to one row.
+  const valueOpenText =
+    valueOpen.length > 0 ? (
+      <p className={cn("text-xs text-muted-foreground", !compact && "ml-auto")} aria-label="Value of open orders, pre-tax">
+        Value open{" "}
+        {valueOpen.map((v, index) => (
+          <span key={v.currency ?? "none"}>
+            {index > 0 && " · "}
+            <span className="font-semibold tabular-nums text-foreground">{formatAmount(v.total, v.currency)}</span>
+          </span>
+        ))}
+      </p>
+    ) : null;
+
   const toolbar = (
     <FilterBar
-      {...trackerBar(f, data, valueOpen, { list: TRACKER_COLUMNS, hidden: columns.hidden, toggle: columns.toggle }, exportRows, { order, choose: chooseOrder })}
+      {...trackerBar(f, data, compact ? null : valueOpenText,{ list: TRACKER_COLUMNS, hidden: columns.hidden, toggle: columns.toggle }, exportRows, { order, choose: chooseOrder })}
     />
   );
 
   return page(
     <div className="flex flex-col gap-6">
-      {/* Seven totals hold one row from xl; below that they wrap. */}
-      <div role="group" aria-label="Stage totals">
-        <ReportFigure stats={stats} listClassName="xl:grid-cols-7" />
-      </div>
+      {/* Seven totals hold one row from xl; below that they wrap. The laptop band and phones get compact chips. */}
+      {compact ? (
+        <StageChips stats={stats} end={valueOpenText} />
+      ) : (
+        <div role="group" aria-label="Stage totals">
+          <ReportFigure stats={stats} listClassName="xl:grid-cols-7" />
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <EmptyState icon={FolderKanban} title="No SOR matches" description="Change the search or the filters." />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           <div className="overflow-x-auto">
-            <Table tableId="purchasing-tracker" className="md:min-w-[62rem]">
+            <Table tableId="purchasing-tracker" stackOnPhone className="md:min-w-[62rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {shown.map((column) =>
                     column.stage ? (
                       // A stage circle column does not sort: its circles are the same shape for every row.
-                      <TableHead key={column.key} className={cn(HEAD, "px-2 text-center")}>
+                      <TableHead key={column.key} phone="hide" className={cn(HEAD, "px-2 text-center", column.key === "filed" && FILED_NARROW)}>
                         {column.label}
                       </TableHead>
                     ) : (
-                      <SortHead key={column.key} id={column.key} sortKey={column.key} sort={sort} onSort={toggle} className={HEAD}>
+                      <SortHead
+                        key={column.key}
+                        id={column.key}
+                        sortKey={column.key}
+                        sort={sort}
+                        onSort={toggle}
+                        phone={column.key === "sor" ? "title" : "meta"}
+                        className={cn(HEAD, column.key === "next-move" && "min-w-[14rem]")}
+                      >
                         {column.label}
                       </SortHead>
                     ),
@@ -362,13 +387,21 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
                               search={f.search}
                             >
                               <AwardedBadge date={data.awards?.get(sor.key)} className="mt-1" />
+                              {/* On a phone card the five stage counts ride under the SOR as a mini-row. */}
+                              {onPhone && (
+                              <span className="mt-1.5 flex gap-1.5">
+                                {TRACKER_STAGES.map((stage, index) => (
+                                  <StageCircle key={stage.key} stage={stage} state={states[index]} />
+                                ))}
+                              </span>
+                              )}
                             </IdentityCell>
                           );
                         }
                         if (column.stage) {
                           const index = TRACKER_STAGES.findIndex((stage) => stage.key === column.key);
                           return (
-                            <TableCell key={column.key} className="px-2 text-center">
+                            <TableCell key={column.key} phone="hide" className={cn("px-2 text-center", column.key === "filed" && FILED_NARROW)}>
                               <span className="inline-flex">
                                 <StageCircle stage={column.stage} state={states[index]} />
                               </span>
@@ -377,7 +410,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
                         }
                         if (column.key === "next-move") {
                           return (
-                            <TableCell key={column.key} className="max-w-[18rem]">
+                            <TableCell key={column.key} className="min-w-[14rem] max-w-[18rem]">
                               <MoveText next={sor.next} />
                             </TableCell>
                           );

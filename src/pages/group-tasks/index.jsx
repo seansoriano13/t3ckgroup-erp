@@ -441,12 +441,20 @@ export default function GroupTasksPage() {
             className="shrink-0"
           />
           {canManage && (
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus size={16} className="mr-1.5" />
-              Create Group Task
+            <Button onClick={() => setIsCreateOpen(true)} aria-label="Create Group Task">
+              <Plus size={16} className="md:mr-1.5" />
+              <span className="max-md:hidden">Create Group Task</span>
             </Button>
           )}
         </>
+      }
+      tabs={
+        <EvaluationTabs
+          statusFilter={statusFilter}
+          count={awaitingMyRating}
+          holdCount={onHoldCount}
+          onChange={setStatusFilter}
+        />
       }
       toolbar={
         <GroupTaskFilterBar
@@ -468,13 +476,6 @@ export default function GroupTasksPage() {
         />
       }
     >
-      <EvaluationTabs
-        statusFilter={statusFilter}
-        count={awaitingMyRating}
-        holdCount={onHoldCount}
-        onChange={setStatusFilter}
-      />
-
       {viewMode === "table" ? (
         <div className="pb-10">
           <GroupTaskTableView

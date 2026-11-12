@@ -8,6 +8,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
 import CalendarPage from '@/pages/calendar';
+import { stubRoomyScreen } from '@/test/roomyScreen';
 import { calendarService } from '@/services/calendarService';
 import { meetingRequestService } from '@/services/meetingRequestService';
 
@@ -41,6 +42,7 @@ function renderAt(url) {
 
 describe('Calendar layouts', () => {
   beforeEach(() => {
+    stubRoomyScreen();
     window.localStorage.clear();
     calendarService.fetchEntries.mockResolvedValue([]);
     meetingRequestService.listVenues.mockResolvedValue([

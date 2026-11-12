@@ -65,18 +65,18 @@ export default function RetailOrderRow({ order, salesperson = false, odoo = fals
 /** The orders as a table: header plus a `RetailOrderRow` each. Same flags as the row. */
 export function RetailOrderTable({ orders, salesperson = false, odoo = false, arrivals }) {
   return (
-    <Table>
+    <Table stackOnPhone>
       <TableHeader>
         <TableRow>
-          <TableHead className="py-1.5">Reference</TableHead>
+          <TableHead className="py-1.5" phone="title">Reference</TableHead>
           <TableHead className="py-1.5">Marketplace Order ID</TableHead>
-          <TableHead className="py-1.5">Buyer</TableHead>
-          {salesperson && <TableHead className="py-1.5">Salesperson</TableHead>}
-          <TableHead className="py-1.5">Date</TableHead>
-          <TableHead className="py-1.5 text-right">Order Amount</TableHead>
-          <TableHead className="py-1.5 text-right">Marketplace Fee</TableHead>
-          <TableHead className="py-1.5 text-right">Order Income</TableHead>
-          <TableHead className="py-1.5">Income</TableHead>
+          <TableHead className="py-1.5" phone={odoo ? "hide" : "meta"}>Buyer</TableHead>
+          {salesperson && <TableHead className="py-1.5" phone="hide">Salesperson</TableHead>}
+          <TableHead className="py-1.5" phone="hide">Date</TableHead>
+          <TableHead className="py-1.5 text-right" phone={odoo ? "meta" : "hide"}>Order Amount</TableHead>
+          <TableHead className="py-1.5 text-right" phone="hide">Marketplace Fee</TableHead>
+          <TableHead className="py-1.5 text-right" phone={odoo ? "hide" : "meta"}>Order Income</TableHead>
+          <TableHead className="py-1.5" phone="badge">Income</TableHead>
           {odoo && <TableHead className="py-1.5">Odoo</TableHead>}
         </TableRow>
       </TableHeader>

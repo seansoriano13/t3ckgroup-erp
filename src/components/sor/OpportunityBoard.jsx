@@ -12,6 +12,8 @@ import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { getStatusTheme } from "../../constants/status";
 import HighlightText from "../HighlightText";
 import { Button } from "../ui/button";
+import { SelectField } from "../ui/SelectField";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 const THEME_DOT = {
   green: "bg-green-9",
@@ -205,6 +207,13 @@ export default function OpportunityBoard({
       flow: activeFlow,
     });
   }, [selected, isLegacy, stages, pipelineOpportunities, activeFlowStages, flowOpportunities, snapshotsById, activeFlow]);
+
+  // Phones: one Stage column at a time, picked with a Select above it, rather
+  // than a board that scrolls sideways.
+  const onPhone = useIsPhone();
+  const [phoneStageKey, setPhoneStageKey] = useState(null);
+  const phoneColumn = columns.find((c) => c.key === phoneStageKey) ?? columns[0];
+  const shownColumns = onPhone && phoneColumn ? [phoneColumn] : columns;
 
   const columnKeys = useMemo(() => new Set(columns.map((c) => c.key)), [columns]);
 
@@ -425,8 +434,19 @@ export default function OpportunityBoard({
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 min-h-0 gap-3 overflow-x-auto pb-2 items-start">
-          {columns.map((column, idx) => {
+        <div className="flex flex-1 min-h-0 flex-col gap-3 md:flex-row md:overflow-x-auto pb-2 md:items-start">
+          {onPhone && columns.length > 0 && (
+            <SelectField
+              aria-label="Stage"
+              value={phoneColumn?.key}
+              onChange={setPhoneStageKey}
+              options={columns.map((c) => ({
+                value: c.key,
+                label: `${c.stage?.label || c.stage?.name || c.key} (${c.count})`,
+              }))}
+            />
+          )}
+          {shownColumns.map((column, idx) => {
             const showBracketHeader =
               column.bracketLabel && (idx === 0 || columns[idx - 1].bracketLabel !== column.bracketLabel);
             return (
@@ -500,7 +520,7 @@ function BoardColumn({
   const dimmed = isDragging && !isDragTarget;
 
   return (
-    <div className="flex min-w-[264px] w-[264px] shrink-0 flex-col">
+    <div className="flex w-full shrink-0 flex-col md:min-w-[264px] md:w-[264px] laptop:min-w-[260px] laptop:w-[260px]">
       {bracketHeader && (
         <p className="mb-1 truncate px-1 text-label font-black uppercase tracking-widest text-muted-foreground">
           {bracketHeader}

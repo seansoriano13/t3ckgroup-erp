@@ -39,17 +39,18 @@ const BELOW = "below";
 
 // Stage, Final Offer and Items hide below md so the SOR, project and the three Revenue figures stay in view.
 const NARROW_HIDDEN = "hidden md:table-cell";
+// Phones show each row as a card (Table `stackOnPhone`): SOR and project on top, the stage as its badge, then three figures.
 
 const COLUMNS = [
-  { key: "sor", label: "SOR" },
-  { key: "so", label: "SO" },
-  { key: "project", label: "Project" },
-  { key: "stage", label: "Stage", hidden: true },
-  { key: "offer", label: "Final Offer", right: true, hidden: true },
-  { key: "planned", label: "Planned Revenue", right: true },
-  { key: "actual", label: "Actual Revenue", right: true },
-  { key: "difference", label: "Difference", right: true },
-  { key: "items", label: "Items bought", right: true, hidden: true },
+  { key: "sor", label: "SOR", phone: "title" },
+  { key: "so", label: "SO", phone: "hide" },
+  { key: "project", label: "Project", phone: "hide" },
+  { key: "stage", label: "Stage", phone: "badge" },
+  { key: "offer", label: "Final offer", right: true, phone: "meta" },
+  { key: "planned", label: "Planned", right: true, phone: "meta" },
+  { key: "actual", label: "Actual", right: true, phone: "meta" },
+  { key: "difference", label: "Difference", right: true, phone: "hide" },
+  { key: "items", label: "Items bought", right: true, hidden: true, phone: "hide" },
 ];
 
 const SORT = {
@@ -106,12 +107,13 @@ function MatrixRow({ row, search }) {
       }}
       className={`group cursor-pointer outline-none focus-visible:bg-muted ${lower ? "bg-destructive/10 hover:bg-destructive/15" : ""}`}
     >
-      <TableCell>
+      <TableCell className="whitespace-nowrap">
         <span className="font-mono text-xs font-semibold text-foreground">
           <HighlightText text={row.sorNumber} search={search} />
         </span>
+        <span className="text-xs font-normal text-muted-foreground md:hidden"> · {row.projectTitle}</span>
       </TableCell>
-      <TableCell>
+      <TableCell className="whitespace-nowrap">
         <span className="font-mono text-xs text-foreground">{row.soNumber ? <HighlightText text={row.soNumber} search={search} /> : "—"}</span>
       </TableCell>
       <TableCell>
@@ -119,14 +121,14 @@ function MatrixRow({ row, search }) {
           <HighlightText text={row.projectTitle} search={search} />
         </span>
       </TableCell>
-      <TableCell className={NARROW_HIDDEN}>
+      <TableCell>
         <span className="text-xs text-muted-foreground">{row.stage || "—"}</span>
       </TableCell>
-      <TableCell className={`${NARROW_HIDDEN} ${RIGHT} text-xs tabular-nums`}>{figure(row.finalOffer)}</TableCell>
-      <TableCell className={`${RIGHT} text-xs tabular-nums`} data-testid="costing-matrix-planned">
+      <TableCell className={`${RIGHT} text-xs tabular-nums max-md:text-left`}>{figure(row.finalOffer)}</TableCell>
+      <TableCell className={`${RIGHT} text-xs tabular-nums max-md:text-left`} data-testid="costing-matrix-planned">
         {figure(comparison.planned)}
       </TableCell>
-      <TableCell className={`${RIGHT} text-xs tabular-nums`} data-testid="costing-matrix-actual">
+      <TableCell className={`${RIGHT} text-xs tabular-nums max-md:text-left`} data-testid="costing-matrix-actual">
         {figure(comparison.actual)}
         {comparison.estimate && comparison.actual !== null && <EstimateMark testId="costing-matrix-estimate" />}
       </TableCell>
@@ -147,7 +149,7 @@ function MatrixRow({ row, search }) {
 function TotalsRow({ totals }) {
   const lower = totals.difference < 0;
   return (
-    <TableRow className="bg-muted/40 font-semibold hover:bg-muted/40" data-testid="costing-matrix-totals">
+    <TableRow className="bg-muted/40 font-semibold hover:bg-muted/40 max-md:hidden!" data-testid="costing-matrix-totals">
       <TableCell colSpan={3} className="text-xs">
         Total of {totals.count} {totals.count === 1 ? "SOR" : "SORs"} shown
         {totals.incomplete > 0 && (
@@ -156,8 +158,8 @@ function TotalsRow({ totals }) {
           </span>
         )}
       </TableCell>
-      <TableCell className={NARROW_HIDDEN} />
-      <TableCell className={`${NARROW_HIDDEN} ${RIGHT} text-xs tabular-nums`} data-testid="costing-matrix-total-offer">
+      <TableCell />
+      <TableCell className={`${RIGHT} text-xs tabular-nums`} data-testid="costing-matrix-total-offer">
         {pesos(totals.finalOffer)}
       </TableCell>
       <TableCell className={`${RIGHT} text-xs tabular-nums`} data-testid="costing-matrix-total-planned">
@@ -279,13 +281,14 @@ export function CostingMatrixList() {
       {!isLoading && !isError && visible.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           <div className="overflow-x-auto">
-            <Table tableId="costing-matrix" className="md:min-w-[60rem]">
+            <Table tableId="costing-matrix" stackOnPhone className="md:min-w-[60rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {COLUMNS.map((column) => (
                     <SortHead
                       key={column.key}
                       id={`costing-matrix-${column.key}`}
+                      phone={column.phone}
                       sortKey={column.key}
                       sort={sort}
                       onSort={toggle}

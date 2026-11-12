@@ -560,7 +560,7 @@ export default function TaskDetails({
               }
             />
 
-            <div className="p-6 flex-1 min-h-0 overflow-y-auto space-y-6 custom-scrollbar bg-card">
+            <div className="p-6 max-sm:p-4 laptop:py-4 flex-1 min-h-0 overflow-y-auto space-y-6 custom-scrollbar bg-card">
               {task.status === "DELETED" && !isClosedOff && (
                 <div className="bg-destructive/5 border border-destructive/30 rounded-xl p-4 flex items-center gap-3 text-destructive shadow-sm mt-0 -mb-4">
                   <div className="bg-red-100 p-2 rounded-lg">

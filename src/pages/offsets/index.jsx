@@ -147,17 +147,19 @@ export default function EmployeeLeavesPage() {
 
   // The balances sit beside File Time Off / Overtime: they are what the person checks
   // before applying, on either tab. A zero balance reads muted, not alarming.
+  // One stat line above the list: "Offset 0.0 hrs · SIL 0.0 hrs".
   const balances = (
-    <dl className="flex items-center gap-6">
+    <dl className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" aria-label="Balances">
       {[
-        { label: 'Offset balance', hours: offsetBalance },
-        { label: 'SIL balance', hours: silBalance },
-      ].map(({ label, hours }) => {
+        { label: 'Offset', hours: offsetBalance },
+        { label: 'SIL', hours: silBalance },
+      ].map(({ label, hours }, i) => {
         const value = parseFloat(hours) || 0;
         return (
-          <div key={label} className="flex flex-col">
+          <div key={label} className="flex items-baseline gap-1.5">
+            {i > 0 && <span aria-hidden="true" className="text-muted-foreground">·</span>}
             <dt className={`${CAPTION_BASE} tracking-wider text-muted-foreground`}>{label}</dt>
-            <dd className={`font-mono text-sm font-semibold tabular-nums ${value > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+            <dd className={`font-mono font-semibold tabular-nums ${value > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
               {value.toFixed(1)}
               <span className="ml-1 font-sans text-xs font-medium text-muted-foreground">hrs</span>
             </dd>
@@ -173,15 +175,10 @@ export default function EmployeeLeavesPage() {
         title="My Requests"
         description="Track every leave, offset, overtime and undertime request you've filed, and see where each one stands."
         action={
-          <>
-            <FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} />
-            {balances}
-            <span aria-hidden="true" className="hidden h-8 w-px bg-border sm:block" />
-            <Button onClick={() => setIsApplyModalOpen(true)}>
-              <Plus size={16} />
-              File Time Off / Overtime
-            </Button>
-          </>
+          <Button onClick={() => setIsApplyModalOpen(true)}>
+            <Plus size={16} />
+            File Time Off / Overtime
+          </Button>
         }
         tabs={
           <TabGroup
@@ -197,6 +194,8 @@ export default function EmployeeLeavesPage() {
         }
         toolbar={
           activeTab === 'requests' && (
+            <>
+            <FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} />
             <FilterBar
               chips={
                 <FilterSelect
@@ -212,9 +211,11 @@ export default function EmployeeLeavesPage() {
               hasActiveFilters={typeFilter !== 'ALL'}
               onClearAll={() => setTypeFilter('ALL')}
             />
+            </>
           )
         }
       >
+        <div className="mb-3">{balances}</div>
 
         {activeTab === 'calendar' && (
           <div className="animate-in fade-in duration-300">

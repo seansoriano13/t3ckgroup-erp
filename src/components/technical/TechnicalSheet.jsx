@@ -9,11 +9,14 @@ import TechnicalVerdict from "../costing/TechnicalVerdict";
 import ItemVerdict from "./ItemVerdict";
 import BulkVerdictBar from "./BulkVerdictBar";
 import { Checkbox } from "../ui/checkbox";
+import LinerList from "../record/LinerList";
+import { COMPLIANCE_LABEL, COMPLIANCE_THEME } from "../../constants/costing";
 import { useCostingWrites, useInchargeOptions } from "../costing/useCostingWrites";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { useAuth } from "../../context/AuthContext";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import { technicalKeys } from "../../utils/technicalList";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 /**
  * One SOR's Technical sheet (#877, #908), shown in a record window over the Technical list. The Technical in-charge
@@ -24,10 +27,37 @@ import { technicalKeys } from "../../utils/technicalList";
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
 
+// On a phone a product is one Liner row: item and quantity on top, the verdict badge on the right, then what the
+// client asks for and what we offer. The row opens to the verdict and remark.
+function phoneRows(lines, canWriteVerdict, refresh) {
+  return lines.flatMap((line) =>
+    line.components.map((component, index) => {
+      const offer = [component.offer_specification, component.brand].filter(Boolean).join(" · ");
+      const asks = index === 0 ? line.tender_specification : "";
+      return {
+        key: component.id,
+        testId: "technical-component",
+        main: `${component.number} · ${component.name || line.tender_specification}`,
+        quantity: `${component.quantity} ${component.unit ?? ""}`.trim(),
+        badge: { label: COMPLIANCE_LABEL[component.compliance] ?? "Not judged", theme: COMPLIANCE_THEME[component.compliance] ?? "mauve" },
+        subWrap: true,
+        sub: (
+          <>
+            {asks ? <span className="block break-words">Asks for: {asks}</span> : null}
+            <span className="block break-words">We offer: {offer || "Not entered yet"}</span>
+          </>
+        ),
+        children: <ItemVerdict component={component} canWrite={canWriteVerdict} onChanged={refresh} />,
+      };
+    }),
+  );
+}
+
 export default function TechnicalSheet({ opportunityId }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [checked, setChecked] = useState(() => new Set());
+  const phone = useIsPhone();
 
   const sheet = useQuery({
     queryKey: technicalKeys.sheet(opportunityId),
@@ -89,7 +119,7 @@ export default function TechnicalSheet({ opportunityId }) {
 
           <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={user?.id ?? null} nameOf={nameOf} writes={approvalWrites} />
 
-          {canWriteVerdict && checkedIds.length > 0 && (
+          {!phone && canWriteVerdict && checkedIds.length > 0 && (
             <BulkVerdictBar
               ids={checkedIds}
               onDone={async () => {
@@ -101,6 +131,8 @@ export default function TechnicalSheet({ opportunityId }) {
 
           {lines.length === 0 ? (
             <p className="text-sm text-muted-foreground">This S0 Evaluation has no rows yet.</p>
+          ) : phone ? (
+            <LinerList label="Products" rows={phoneRows(lines, canWriteVerdict, refresh)} />
           ) : (
             <div className="overflow-hidden rounded-xl border border-border bg-card">
               <div className="overflow-x-auto">

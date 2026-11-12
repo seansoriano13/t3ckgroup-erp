@@ -1,35 +1,28 @@
 import { UserRoundCheck, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import Dropdown from '@/components/ui/Dropdown';
+import SidePanel from '@/components/ui/SidePanel';
 import Avatar from '../../../../components/Avatar';
 import { LABEL, TYPE_META, useWhoIsOut } from './leaveDisplay';
 
 /**
- * Who is out today and tomorrow, as one header button that opens the lists.
+ * Who is out today and tomorrow, as one header button that opens the lists in a SidePanel.
  * It lives in the header so it is there on every view, without a rail of its own.
  */
 export default function WhoIsOut({ approvedLeaves }) {
   const out = useWhoIsOut(approvedLeaves);
   const Icon = out.today.length > 0 ? Users : UserRoundCheck;
 
+  // Always a header button that opens a drawer (never an inline column): inlineFrom is out of reach.
   return (
-    <Dropdown
-      usePortal
-      placement="bottom-end"
-      matchTriggerWidth={false}
-      className="w-auto shrink-0"
-      trigger={
-        <Button type="button" variant="outline" size="lg" aria-haspopup="dialog" className="gap-2">
-          <Icon />
-          {out.today.length > 0 ? `${out.today.length} out today` : "Everyone’s in"}
-        </Button>
-      }
+    <SidePanel
+      label={out.today.length > 0 ? `${out.today.length} out today` : "Everyone’s in"}
+      icon={Icon}
+      inlineFrom={100000}
     >
-      <div className="flex w-64 flex-col gap-5 p-3">
+      <div className="flex flex-col gap-5 p-4">
         <OutList label="Out today" rows={out.today} empty="Everyone’s in." />
         <OutList label="Out tomorrow" rows={out.tomorrow} empty="No one." />
       </div>
-    </Dropdown>
+    </SidePanel>
   );
 }
 

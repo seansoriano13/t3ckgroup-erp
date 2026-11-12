@@ -125,7 +125,7 @@ export default function LineLiner({ line, index, onChange, onRemove }) {
         </div>
       </div>
       {more && (
-        <div className="mt-2 grid grid-cols-2 gap-2 pl-8">
+        <div className="mt-2 grid grid-cols-2 gap-2 pl-8 max-sm:pl-0">
           <Input className="h-9 text-[13px]" value={line.serialNumbers} onChange={(e) => onChange({ serialNumbers: e.target.value })} placeholder="SN#" aria-label="SN#" />
           <Input className="h-9 text-[13px]" value={line.boxQuantity} onChange={(e) => onChange({ boxQuantity: e.target.value })} placeholder="Quantity of Box" aria-label="Quantity of Box" />
         </div>

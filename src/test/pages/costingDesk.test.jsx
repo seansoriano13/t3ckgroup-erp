@@ -8,6 +8,7 @@ import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "@/test/factories";
 import { closeLine, openLines, renderCostingDesk } from "@/test/support/costingDesk";
 import { costingMatrixService } from "@/services/costingMatrixService";
+import { stubRoomyScreen } from "@/test/roomyScreen";
 
 /**
  * The Costing Desk, the Costing Matrix's record window (#267, layout A of 2026-10-22): its Tender
@@ -757,6 +758,9 @@ describe("the Costing Desk", () => {
   });
 
   describe("the Bid Decision (#320)", () => {
+    // The Bid Decision is a side column on a wide, tall screen and behind a button otherwise.
+    beforeEach(() => stubRoomyScreen());
+
     let matrix;
     let decider;
 

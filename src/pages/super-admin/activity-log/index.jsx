@@ -12,7 +12,7 @@ import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
 import ActivityLogFilterBar from "../../../components/ActivityLogFilterBar";
 import { LiveIndicator, LogLoadError, LogPager } from "../../../components/ActivityLogParts";
-import { DEFAULT_LOG_FILTERS, formatWhen } from "../../../lib/activityLog";
+import { DEFAULT_LOG_FILTERS, formatWhen, formatWhenShort } from "../../../lib/activityLog";
 import HrLogsPanel from "../../../components/hr/HrLogsPanel";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -413,15 +413,15 @@ export default function SuperAdminActivityLogPage() {
     body = (
       <>
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table scrollCue tableId="activity-log">
+          <Table scrollCue stackOnPhone tableId="activity-log">
             <TableHeader>
               <TableRow>
-                <SortHead id="when" sortKey="when" sort={sort} onSort={toggle}>When</SortHead>
-                <SortHead id="type" sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
-                <SortHead id="subject" sortKey="subject" sort={sort} onSort={toggle}>Subject</SortHead>
-                <SortHead id="details" sortKey="details" sort={sort} onSort={toggle}>Details</SortHead>
-                <SortHead id="by" sortKey="by" sort={sort} onSort={toggle}>By</SortHead>
-                {showStatus && <SortHead id="status" sortKey="status" sort={sort} onSort={toggle}>Status</SortHead>}
+                <SortHead id="when" phone="meta" sortKey="when" sort={sort} onSort={toggle}>When</SortHead>
+                <SortHead id="type" phone="badge" sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
+                <SortHead id="subject" phone="title" sortKey="subject" sort={sort} onSort={toggle}>Subject</SortHead>
+                <SortHead id="details" phone="meta" sortKey="details" sort={sort} onSort={toggle}>Details</SortHead>
+                <SortHead id="by" phone="meta" sortKey="by" sort={sort} onSort={toggle}>By</SortHead>
+                {showStatus && <SortHead id="status" phone="meta" sortKey="status" sort={sort} onSort={toggle}>Status</SortHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -464,7 +464,8 @@ export default function SuperAdminActivityLogPage() {
                     className={`align-top ${isClickable ? "cursor-pointer" : ""}`}
                   >
                     <TableCell className="whitespace-nowrap text-xs font-semibold text-muted-foreground">
-                      {formatWhen(e.createdAt)}
+                      <span className="hidden md:inline laptop:hidden">{formatWhen(e.createdAt)}</span>
+                      <span className="md:hidden laptop:inline">{formatWhenShort(e.createdAt)}</span>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -485,7 +486,7 @@ export default function SuperAdminActivityLogPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-xs">
+                    <TableCell className="min-w-40">
                       {isClickable ? (
                         <Button
                           type="button"
@@ -503,7 +504,9 @@ export default function SuperAdminActivityLogPage() {
                       )}
                     </TableCell>
                     <TableCell className="max-w-md whitespace-normal text-xs text-muted-foreground">
-                      <ContentDisplay content={displayContent} search={filters.search} />
+                      <div className="max-md:line-clamp-2">
+                        <ContentDisplay content={displayContent} search={filters.search} />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5 whitespace-nowrap">

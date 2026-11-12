@@ -25,7 +25,7 @@ export default function LogTaskPropertyBar({
   mode = "normal",
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 py-2.5 border-t border-mauve-3/40 animate-content-in stagger-3 relative z-20">
+    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 py-2.5 border-t border-mauve-3/40 animate-content-in stagger-3 relative z-20">
       {/* Category Dropdown */}
       <div className="relative z-100" ref={categoryRef}>
         <CategoryDropdown
@@ -40,7 +40,7 @@ export default function LogTaskPropertyBar({
           categories={categories}
           isLoading={isLoadingData}
           disabled={!formData.loggedById}
-          triggerClassName={`property-pill ${openPopover === "category" || formData.categoryId ? "active" : ""}`}
+          triggerClassName={`property-pill whitespace-nowrap ${openPopover === "category" || formData.categoryId ? "active" : ""}`}
           onResetOthers={() => {
             setCommitteeRole("");
             setOthersRemarks("");
@@ -59,7 +59,7 @@ export default function LogTaskPropertyBar({
           onChange={(newPriority) => {
             setFormData((p) => ({ ...p, priority: newPriority }));
           }}
-          triggerClassName={`property-pill ${openPopover === "priority" || (formData.priority && formData.priority !== "NORMAL") ? "active" : ""}`}
+          triggerClassName={`property-pill whitespace-nowrap ${openPopover === "priority" || (formData.priority && formData.priority !== "NORMAL") ? "active" : ""}`}
         />
       </div>
 
@@ -78,6 +78,7 @@ export default function LogTaskPropertyBar({
               isActive={mode === "automation" ? formData.dueOffsetDays !== undefined && formData.dueOffsetDays !== "" : !!formData.endAt}
               isOpen={isOpen}
               icon={Clock}
+              className="whitespace-nowrap"
             >
               {mode === "automation"
                 ? formData.dueOffsetDays !== undefined && formData.dueOffsetDays !== ""

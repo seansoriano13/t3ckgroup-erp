@@ -79,7 +79,7 @@ function renderDetail(id) {
 
 function stubWide(wide) {
   window.matchMedia = vi.fn().mockImplementation((query) => ({
-    matches: wide,
+    matches: wide && !/max-/.test(query),
     media: query,
     onchange: null,
     addEventListener: vi.fn(),

@@ -19,6 +19,7 @@ import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
 import { CAPTION_BASE } from "@/lib/captionStyle";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -71,6 +72,8 @@ export default function EmployeeOpportunityMatrix({
   const userDepartment = user?.department;
   const [searchTerm, setSearchTerm] = useState("");
   const [layoutMode, setLayoutMode] = useState("grid"); // "list" | "leaderboard" | "grid"
+  // Phones show the grid as compact rows instead of tall cards.
+  const phone = useIsPhone();
 
   const employeeStats = useMemo(() => {
     if (!opportunities?.length) return [];
@@ -139,8 +142,8 @@ export default function EmployeeOpportunityMatrix({
 
   return (
     <div className="py-5 overflow-x-auto">
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
-        <div>
+      <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-3 laptop:mb-3 sm:flex-nowrap">
+        <div className="order-1 min-w-0 flex-1">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
             {title}
           </h2>
@@ -149,8 +152,8 @@ export default function EmployeeOpportunityMatrix({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 min-w-[200px]">
+        <div className="contents">
+          <div className="order-3 flex w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 sm:order-2 sm:w-auto sm:min-w-[200px]">
             <Search size={14} className="text-muted-foreground" />
             <Input
               type="text"
@@ -172,7 +175,7 @@ export default function EmployeeOpportunityMatrix({
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
+          <div className="order-2 flex items-center gap-1.5 rounded-lg border border-mauve-5 bg-mauve-2 p-1 sm:order-3">
             <Button
               type="button"
               variant="ghost"
@@ -214,7 +217,7 @@ export default function EmployeeOpportunityMatrix({
             </Button>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-lg">
+          <div className="order-4 hidden items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-lg">
             <Users size={14} className="text-muted-foreground" />
             <span className="text-xs text-muted-foreground">
               {employeeStats.length} salespeople
@@ -228,8 +231,9 @@ export default function EmployeeOpportunityMatrix({
         className={`max-h-[500px] overflow-y-auto overflow-x-hidden pr-1
         ${layoutMode === "list" ? "flex flex-col gap-3 pb-1" : ""}
         ${layoutMode === "leaderboard" ? "flex flex-col gap-2.5 pb-1" : ""}
-        ${layoutMode === "grid"
-            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-4"
+        ${layoutMode === "grid" && phone ? "flex flex-col gap-2 pb-1" : ""}
+        ${layoutMode === "grid" && !phone
+            ? "grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3 pb-4"
             : ""
           }
       `}
@@ -392,6 +396,57 @@ export default function EmployeeOpportunityMatrix({
                       {formatPHP(emp.value)}
                     </span>
                   </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Phones: the grid becomes compact rows (name, value, win rate, stage bar).
+          if (phone) {
+            return (
+              <div
+                key={emp.id}
+                onClick={() => goToEmployee(emp.id)}
+                className="flex w-full cursor-pointer flex-col gap-2 rounded-lg border border-border bg-card px-3 py-2.5 transition-colors hover:bg-mauve-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <Avatar className="bg-white shrink-0" size="sm" name={emp.name} src={emp.avatarPath} />
+                    <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
+                      <HighlightText text={emp.name} search={searchTerm} />
+                    </h3>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 text-xs font-semibold text-foreground">
+                    <span>{formatPHP(emp.value)}</span>
+                    <span className="flex items-center gap-0.5 text-muted-foreground">
+                      {emp.winRate}%
+                      <TrendingUp
+                        size={12}
+                        className={
+                          emp.winRate >= 50
+                            ? "text-green-9"
+                            : emp.winRate >= 25
+                              ? "text-amber-9"
+                              : "text-muted-foreground"
+                        }
+                      />
+                    </span>
+                  </div>
+                </div>
+                <div className="flex h-[7px] w-full overflow-hidden rounded-sm bg-muted">
+                  {pipelineStages.map((stage) => {
+                    const count = emp.stageCounts[stage.code];
+                    if (!count) return null;
+                    const theme = stage.theme || getStatusTheme(stage.code);
+                    return (
+                      <div
+                        key={stage.code}
+                        className={`h-full ${THEME_BAR[theme] || THEME_BAR.mauve}`}
+                        style={{ width: `${(count / emp.total) * 100}%` }}
+                        title={`${count} ${stage.label}`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             );

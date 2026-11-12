@@ -23,7 +23,7 @@ import { CAPTION_BASE } from "@/lib/captionStyle";
 const BOX_BASE =
   "bg-muted/30 border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all";
 const BOX = `${BOX_BASE} border-border`;
-const LABEL = `${CAPTION_BASE} text-muted-foreground tracking-widest mb-1 block`;
+const LABEL = `${CAPTION_BASE} text-muted-foreground tracking-widest mb-1 laptop:mb-0.5 block`;
 const CONTROL =
   "w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium";
 
@@ -39,7 +39,7 @@ const AUTOFILLED = "border-mauve-8 ring-1 ring-mauve-8";
 // thicker ring shows only for keyboard focus, so Tab users always see where
 // they are.
 const GROUPED_BASE =
-  "rounded-lg p-3 flex flex-col group transition-all focus-within:bg-muted/40 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring";
+  "rounded-lg p-3 laptop:px-3 laptop:py-1.5 flex flex-col group transition-all focus-within:bg-muted/40 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring";
 const GROUPED_AUTOFILLED = "ring-1 ring-mauve-8 bg-mauve-3";
 
 const GroupedContext = createContext(false);

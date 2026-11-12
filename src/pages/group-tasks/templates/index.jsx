@@ -133,13 +133,13 @@ export default function GroupTaskTemplatesPage() {
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <Table scrollCue tableId="task-templates">
+          <Table stackOnPhone scrollCue tableId="task-templates">
             <TableHeader>
               <TableRow>
-                <SortHead id="template" sortKey="template" sort={sort} onSort={toggle}>Template</SortHead>
+                <SortHead id="template" phone="title" sortKey="template" sort={sort} onSort={toggle}>Template</SortHead>
                 <SortHead id="slots" sortKey="slots" sort={sort} onSort={toggle}>Slots</SortHead>
                 <SortHead id="usage" sortKey="usage" sort={sort} onSort={toggle}>Usage</SortHead>
-                <TableHead id="actions" className="text-right">Actions</TableHead>
+                <TableHead id="actions" phone="badge" className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

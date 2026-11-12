@@ -22,11 +22,12 @@ import { formatBytes } from "@/utils/attachments";
  * The floating "Report a bug" button on every signed-in page (CONTEXT.md →
  * Bug Report). One text box plus up to 5 files of any type, 50 MB each; a
  * screenshot pasted into the text box is attached. The page it was sent from
- * is recorded automatically. The sender gets a toast; IT may then write back
+ * is recorded automatically. From md up it is the "Report a bug" item in the
+ * side menu footer (`asMenuItem`); the floating circle is phones only. The sender gets a toast; IT may then write back
  * in the report's Notes, which the sender follows under "My reports"
  * (/bug-reports shows a non-reader only their own).
  */
-export default function BugReportButton() {
+export default function BugReportButton({ asMenuItem = false, collapsed = false }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -65,16 +66,29 @@ export default function BugReportButton() {
       {/* Neutral, not the red main-action colour: it sits on every page and
           is never that page's main action. z-30 so a page's own bottom
           toolbar (Approvals, z-40) covers it rather than the other way round. */}
-      <Button
-        variant="outline"
-        size="icon"
-        aria-label="Report a bug"
-        title="Report a bug"
-        onClick={() => setOpen(true)}
-        className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 size-11 rounded-full bg-card text-muted-foreground shadow-lg hover:text-foreground"
-      >
-        <Bug size={18} />
-      </Button>
+      {asMenuItem ? (
+        <Button
+          variant="ghost"
+          aria-label="Report a bug"
+          title="Report a bug"
+          onClick={() => setOpen(true)}
+          className={`h-auto w-full justify-start gap-3 rounded-md px-3 py-2 laptop:py-1.5 text-[13.5px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground ${collapsed ? "justify-center px-2" : ""}`}
+        >
+          <Bug size={15} strokeWidth={2.2} className="shrink-0 text-sidebar-foreground/60" />
+          {!collapsed && <span className="truncate">Report a bug</span>}
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="Report a bug"
+          title="Report a bug"
+          onClick={() => setOpen(true)}
+          className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 size-9 rounded-full bg-card text-muted-foreground shadow-lg hover:text-foreground md:hidden"
+        >
+          <Bug size={16} />
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={(next) => !busy && setOpen(next)}>
         <DialogContent className="sm:max-w-lg">

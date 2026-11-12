@@ -70,7 +70,7 @@ function renderDetail(id) {
 /** Stubs the wide breakpoint (xl, 1280px) on or off. jsdom reports no match by default. */
 function stubWide(wide) {
   window.matchMedia = vi.fn().mockImplementation((query) => ({
-    matches: wide,
+    matches: wide && !/max-/.test(query),
     media: query,
     onchange: null,
     addEventListener: vi.fn(),
@@ -327,15 +327,16 @@ describe("IPAS rail: Your move and the filed state", () => {
     expect(within(dialog).getByPlaceholderText("Why is this filed IPAS being reopened?")).toBeInTheDocument();
   });
 
-  it("puts Your move before the sections when the window is narrow", async () => {
+  it("puts Your move behind a button when the window is narrow", async () => {
     stubWide(false);
+    const user = setupUser();
     const row = ipas();
     renderDetail(row.id);
 
-    const sections = await screen.findByRole("heading", { name: "Sections" });
-    const yourMove = screen.getByRole("heading", { name: "Your move" });
-    expect(yourMove.compareDocumentPosition(sections) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await screen.findByRole("heading", { name: "Sections" });
+    // Narrow, the card is a "Your move" button above the sections that opens it in a drawer.
+    await user.click(await screen.findByRole("button", { name: "Your move" }));
     // The checklist and its buttons are there at any width.
-    expect(within(await screen.findByRole("region", { name: "Your move" })).getByRole("button", { name: "Mark Landed Cost final" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Mark Landed Cost final" })).toBeInTheDocument();
   });
 });

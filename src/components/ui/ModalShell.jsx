@@ -12,10 +12,7 @@ const SIZE_CLASS = {
   compact: "w-[680px]",
   wide: "w-[1100px]",
   // The record window: the RecordModal size, and the full screen on a phone.
-  record: cn(
-    RECORD_MODAL_CLASS,
-    "max-sm:!top-0 max-sm:!left-0 max-sm:!translate-x-0 max-sm:!h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:rounded-none",
-  ),
+  record: RECORD_MODAL_CLASS,
 };
 
 const EXPANDED_CLASS =
@@ -103,7 +100,7 @@ export default function ModalShell({
         showCloseButton={false}
         data-modal-shell={size}
         className={cn(
-          "flex flex-col gap-0 overflow-hidden rounded-2xl p-0 shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] transition-all duration-300 sm:max-w-none max-w-[95vw] max-h-[90vh]",
+          "flex flex-col gap-0 overflow-hidden rounded-2xl p-0 shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] transition-all duration-300 sm:max-w-none max-w-[95vw] max-h-[90dvh]",
           SIZE_CLASS[size],
           // A record sits at 70 so its section drawer (75) and the small dialogs opened from it (80) stack above it.
           size === "wide" || isRecord ? "z-[70]" : "z-[80]",
@@ -113,7 +110,7 @@ export default function ModalShell({
       >
         <DialogTitle className="sr-only">{heading}</DialogTitle>
 
-        <div className="flex shrink-0 items-center justify-between border-b border-mauve-3/40 px-5 pt-4 pb-2">
+        <div className={cn("flex shrink-0 items-center justify-between border-b border-mauve-3/40 px-5 pt-4 pb-2", isRecord && "laptop:h-12 laptop:py-0")}>
           <nav
             aria-label="Breadcrumb"
             className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
@@ -179,7 +176,7 @@ export default function ModalShell({
           </div>
 
           {!isRecord && (
-            <div className="flex shrink-0 items-center justify-between border-t border-border bg-muted/30 px-5 py-4">
+            <div className="flex shrink-0 items-center justify-between border-t border-border bg-muted/30 px-5 py-4 max-md:pb-[calc(1rem+env(safe-area-inset-bottom))]">
               <div className="flex items-center gap-4 text-[10px] font-medium text-muted-foreground">
                 <span className="hidden items-center gap-1.5 sm:flex">
                   <kbd className="rounded border border-border bg-muted/80 px-1.5 py-0.5 font-sans text-[9px] text-muted-foreground">

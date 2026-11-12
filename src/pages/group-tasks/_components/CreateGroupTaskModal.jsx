@@ -9,6 +9,7 @@ import {
   Calendar,
   LayoutTemplate,
   BookmarkPlus,
+  Ellipsis,
 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -439,7 +440,7 @@ export default function CreateGroupTaskModal({
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="rounded-md text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                className="rounded-md text-muted-foreground hover:bg-muted/80 hover:text-foreground max-sm:hidden"
                 title={isExpanded ? "Exit full screen" : "Full screen"}
                 aria-label={isExpanded ? "Exit full screen" : "Full screen"}
               >
@@ -461,7 +462,7 @@ export default function CreateGroupTaskModal({
           <form
             id="create-group-task-form"
             onSubmit={handleSubmit}
-            className="flex-1 flex flex-col min-h-0"
+            className="flex-1 flex flex-col min-h-0 overflow-y-auto"
           >
             {/* TASK-LEVEL FIELDS */}
             <div className="shrink-0 px-6 pt-5 pb-4 border-b border-border/60">
@@ -497,8 +498,8 @@ export default function CreateGroupTaskModal({
                 />
               )}
 
-              <div className="flex items-start gap-6 flex-wrap">
-                <div className="flex-1 min-w-[260px]">
+              <div className="flex flex-col gap-3">
+                <div className="w-full">
                   {mode === "automation" ? (
                     <HighlightedTemplateField
                       ref={descriptionRef}
@@ -527,7 +528,9 @@ export default function CreateGroupTaskModal({
                   )}
                 </div>
 
-                <div className="flex flex-col shrink-0">
+                {/* Dates: two per row on phones, three per row from 640px. */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="flex min-w-0 flex-col">
                   <span className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                     Target Due Date
                   </span>
@@ -540,7 +543,7 @@ export default function CreateGroupTaskModal({
                           value={dueOffsetDays || ""}
                           onChange={(e) => setDueOffsetDays(e.target.value)}
                           placeholder="Offset Days (e.g. 3)"
-                          containerClassName="w-60" className="h-auto bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors"
+                          containerClassName="w-full" className="h-auto bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors"
                         />
                         <Calendar
                           size={13}
@@ -551,12 +554,13 @@ export default function CreateGroupTaskModal({
                       <>
                         <DatePicker
                           selected={dueDate}
+                          wrapperClassName="w-full"
                           onChange={(date) => setDueDate(date)}
                           showTimeSelect
                           timeIntervals={15}
                           dateFormat="MMMM d, yyyy h:mm aa"
                           placeholderText="Required due date & time"
-                          className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-60"
+                          className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-full"
                         />
                         <Calendar
                           size={13}
@@ -571,17 +575,18 @@ export default function CreateGroupTaskModal({
                     they are per-task facts, not something a flow can know. */}
                 {mode !== "automation" && (
                   <>
-                    <div className="flex flex-col shrink-0">
+                    <div className="flex min-w-0 flex-col">
                       <span className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                         Start Date
                       </span>
                       <div className="relative">
                         <DatePicker
+                          wrapperClassName="w-full"
                           selected={startDate}
                           onChange={(date) => setStartDate(date)}
                           dateFormat="MMMM d, yyyy"
                           placeholderText="Required start date"
-                          className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-48"
+                          className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-full"
                         />
                         <Calendar
                           size={13}
@@ -590,7 +595,7 @@ export default function CreateGroupTaskModal({
                       </div>
                     </div>
 
-                    <div className="flex flex-col shrink-0">
+                    <div className="col-span-2 flex min-w-0 flex-col sm:col-span-1">
                       <span className="text-label font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                         Lead Time
                       </span>
@@ -599,11 +604,12 @@ export default function CreateGroupTaskModal({
                         value={leadTime}
                         onChange={(e) => setLeadTime(e.target.value)}
                         placeholder="e.g. 120 calendar days"
-                        className="h-auto w-48 bg-muted px-3 py-2 text-xs md:text-xs"
+                        className="h-auto w-full bg-muted px-3 py-2 text-xs md:text-xs"
                       />
                     </div>
                   </>
                 )}
+                </div>
               </div>
 
               <div className="mt-3 space-y-1">
@@ -663,8 +669,8 @@ export default function CreateGroupTaskModal({
             )}
 
             {/* MASTER / DETAIL */}
-            <div className="flex-1 flex min-h-0">
-              <div className="w-[260px] shrink-0 min-h-0">
+            <div className="flex flex-none flex-col lg:min-h-[18rem] lg:flex-1 lg:flex-row">
+              <div className="w-full shrink-0 min-h-0 lg:w-[260px]">
                 <GroupTaskMemberRail
                   members={members}
                   selectedId={selectedMemberId}
@@ -677,6 +683,7 @@ export default function CreateGroupTaskModal({
                     employees.find((e) => e.id === m.employeeId)
                   }
                   mode="create"
+                  chipsBelow="lg"
                 />
               </div>
 
@@ -697,13 +704,41 @@ export default function CreateGroupTaskModal({
           </form>
 
           {/* FOOTER */}
-          <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
+          <div className="px-5 py-3 border-t border-border bg-muted/30 flex items-center justify-between gap-2 shrink-0 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <div className="flex items-center gap-3">
+              {/* Phones: Save as Template moves into a More menu. */}
+              <div className="sm:hidden">
+                <Dropdown
+                  usePortal
+                  placement="top-start"
+                  matchTriggerWidth={false}
+                  trigger={() => (
+                    <Button type="button" variant="outline" size="icon-sm" aria-label="More">
+                      <Ellipsis size={16} />
+                    </Button>
+                  )}
+                >
+                  {({ close }) => (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        close();
+                        setIsSaveTemplateModalOpen(true);
+                      }}
+                      className="h-auto justify-start gap-2 rounded-lg px-3 py-2 text-xs font-semibold"
+                    >
+                      <BookmarkPlus size={13} className="text-primary" />
+                      Save as Template
+                    </Button>
+                  )}
+                </Dropdown>
+              </div>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setIsSaveTemplateModalOpen(true)}
-                className="h-auto gap-1.5 rounded-lg bg-card px-3 py-1.5 text-xs font-semibold shadow-sm hover:border-primary/40 hover:bg-muted"
+                className="h-auto gap-1.5 rounded-lg bg-card px-3 py-1.5 text-xs font-semibold shadow-sm hover:border-primary/40 hover:bg-muted max-sm:hidden"
               >
                 <BookmarkPlus size={13} className="text-primary" />
                 <span>Save as Template</span>
@@ -717,7 +752,7 @@ export default function CreateGroupTaskModal({
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 ml-auto">
+            <div className="flex min-w-0 items-center gap-2.5 ml-auto">
               <Button
                 type="button"
                 variant="ghost"
@@ -731,7 +766,7 @@ export default function CreateGroupTaskModal({
                 type="submit"
                 form="create-group-task-form"
                 disabled={isSubmitting}
-                className="h-8 px-6 rounded-lg shadow-lg shadow-primary/20"
+                className="h-8 px-6 rounded-lg shadow-lg shadow-primary/20 max-sm:px-4"
               >
                 {isSubmitting ? (
                   <>
@@ -741,7 +776,8 @@ export default function CreateGroupTaskModal({
                 ) : (
                   <>
                     <Check size={16} strokeWidth={3} className="mr-1.5" />
-                    <span>Create Group Task</span>
+                    <span className="max-sm:hidden">Create Group Task</span>
+                    <span className="sm:hidden">Create</span>
                   </>
                 )}
               </Button>

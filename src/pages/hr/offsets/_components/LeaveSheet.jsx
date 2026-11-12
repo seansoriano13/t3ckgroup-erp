@@ -252,14 +252,14 @@ function PendingFooter({ request, decide, overtimeAs, onOvertimeAs }) {
               aria-checked={overtimeAs === value}
               tabIndex={overtimeAs === value ? 0 : -1}
               onClick={() => onOvertimeAs(value)}
-              className={`h-auto justify-start gap-3 whitespace-normal rounded-xl px-4 py-3 text-left ${overtimeAs === value ? 'border-mauve-12 bg-muted' : ''}`}
+              className={`h-auto justify-start gap-3 whitespace-normal rounded-xl px-4 py-3 max-sm:py-2 laptop:py-2 text-left ${overtimeAs === value ? 'border-mauve-12 bg-muted' : ''}`}
             >
               <span className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${overtimeAs === value ? 'border-mauve-12 bg-mauve-12' : 'border-mauve-8'}`}>
                 {overtimeAs === value && <Dot size="size-1.5" color="bg-mauve-1" />}
               </span>
               <span>
                 <span className="block text-sm font-bold text-foreground">{title}</span>
-                <span className="block text-xs font-medium text-muted-foreground">{detail}</span>
+                <span className="block text-xs font-medium text-muted-foreground max-sm:hidden laptop:hidden">{detail}</span>
               </span>
             </Button>
           ))}
