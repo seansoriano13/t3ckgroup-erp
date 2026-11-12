@@ -62,14 +62,14 @@ function ReportRow({ report, onOpen, showSender }) {
       }}
       className="cursor-pointer outline-none focus-visible:bg-muted"
     >
-      <TableCell className="max-w-[28rem]">
+      <TableCell phone="title" className="max-w-[28rem]">
         <span className="block truncate text-sm font-semibold text-foreground">{firstLine(report.description)}</span>
       </TableCell>
-      {showSender && <TableCell className="hidden text-xs md:table-cell text-foreground">{report.reporter?.name || "—"}</TableCell>}
-      <TableCell className="hidden max-w-[12rem] truncate md:table-cell font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
-      <TableCell className="hidden text-xs tabular-nums md:table-cell text-muted-foreground">{report.attachments?.length || "—"}</TableCell>
-      <TableCell className="hidden whitespace-nowrap text-xs md:table-cell text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
-      <TableCell className="text-right">
+      {showSender && <TableCell label="Sent by" className="text-xs text-foreground">{report.reporter?.name || "—"}</TableCell>}
+      <TableCell phone="hide" className="hidden max-w-[12rem] truncate md:table-cell font-mono text-xs text-muted-foreground">{report.page_url || "—"}</TableCell>
+      <TableCell phone="hide" className="hidden text-xs tabular-nums md:table-cell text-muted-foreground">{report.attachments?.length || "—"}</TableCell>
+      <TableCell label="Sent" className="whitespace-nowrap text-xs text-muted-foreground">{formatWhen(report.created_at)}</TableCell>
+      <TableCell phone="badge" className="text-right">
         <Status report={report} />
       </TableCell>
     </TableRow>
@@ -408,7 +408,7 @@ function BugReportsList({ isReader, meId }) {
 
         {!isLoading && !isError && shown.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <Table tableId="bug-reports" className="md:min-w-[48rem]">
+            <Table stackOnPhone tableId="bug-reports" className="md:min-w-[48rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                   {["Report", ...(isReader ? ["Sent by"] : []), "Page", "Files", "Sent", "Status"].map((heading) => (
