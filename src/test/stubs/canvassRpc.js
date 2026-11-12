@@ -101,7 +101,14 @@ export function stubCanvassListRpcs() {
   stubRpc("canvass_list", () =>
     rowsOf("request_canvasses").map((c) => {
       const request = rowsOf("purchase_requests").find((r) => r.id === c.request_id)
-      const items = rowsOf("purchase_request_items").filter((i) => i.request_id === c.request_id)
+      const items = rowsOf("purchase_request_items").filter((i) => i.request_id === c.request_id && i.status !== "cancelled")
+      const suppliers = rowsOf("request_canvass_suppliers").filter((s) => s.canvass_id === c.id)
+      // canvass_item_is_locked: Purchased or Received, with no unlock since it got that status.
+      const locked = (i) =>
+        ["purchased", "received"].includes(i.status) &&
+        !rowsOf("request_canvass_line_unlocks").some((u) => u.item_id === i.id && String(u.created_at) >= String(i.status_changed_at ?? ""))
+      const won = (i) => rowsOf("request_canvass_winners").some((w) => w.item_id === i.id)
+      const open = items.filter((i) => !locked(i))
       const quotes = rowsOf("request_canvass_quotes").filter((q) => q.canvass_id === c.id)
       const canvasserId = c.canvasser_id ?? request?.buyer_id ?? null
       return {
@@ -114,10 +121,16 @@ export function stubCanvassListRpcs() {
         project_title: null,
         canvasser_id: canvasserId,
         canvasser_name: nameOf(canvasserId),
-        supplier_count: rowsOf("request_canvass_suppliers").filter((s) => s.canvass_id === c.id).length,
-        line_count: items.filter((i) => i.status !== "cancelled").length,
+        supplier_count: suppliers.length,
+        line_count: items.length,
         quoted_line_count: new Set(quotes.map((q) => q.item_id)).size,
-        winner_count: rowsOf("request_canvass_winners").filter((w) => items.some((i) => i.id === w.item_id)).length,
+        winner_count: items.filter(won).length,
+        open_line_count: open.length,
+        open_winner_count: open.filter(won).length,
+        locked_line_count: items.length - open.length,
+        no_other_supplier: rowsOf("request_canvass_no_other_supplier").some((n) => n.canvass_id === c.id),
+        supplier_names: [...suppliers].sort((a, b) => a.sort_order - b.sort_order).map((s) => s.supplier_name),
+        product_names: items.map((i) => i.name).sort(),
         created_by: c.created_by ?? null,
         created_at: c.created_at,
         updated_at: c.updated_at ?? c.created_at,

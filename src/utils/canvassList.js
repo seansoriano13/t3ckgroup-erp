@@ -2,11 +2,110 @@ import { CANVASS_KIND } from "../constants/canvass";
 import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../constants/purchaseRequest";
 import { STATUS_THEME } from "../constants/status";
 
-/** The Canvasses page filters (ADR 0034, #566); "all" on a select means no filter. */
+/**
+ * The Canvasses page (#973, spec #956): one row per Canvass, which is one per Purchase Request.
+ * Every function here is pure, so the list, its filters and its export agree.
+ */
+
+/** "all" on a select means no filter. */
 export const ANY = "all";
-export const WINNER_FILTER = { YES: "yes", NO: "no" };
-export const LINKED_FILTER = { LINKED: "linked", FREE: "free" };
-export const REQUEST_FILTER = { NOT_YET: "not_yet", CREATED: "created" };
+
+/** The Canvass needs this many suppliers, or a "No other supplier" note, before a winner (#969). */
+export const SUPPLIERS_NEEDED = 3;
+
+export const CANVASS_STATUS = {
+  NEEDS_SUPPLIERS: "needs_suppliers",
+  NEEDS_WINNERS: "needs_winners",
+  WINNERS_PICKED: "winners_picked",
+};
+
+export const CANVASS_STATUS_LABELS = {
+  [CANVASS_STATUS.NEEDS_SUPPLIERS]: "Needs suppliers",
+  [CANVASS_STATUS.NEEDS_WINNERS]: "Needs winners",
+  [CANVASS_STATUS.WINNERS_PICKED]: "Winners picked",
+};
+
+/** Status -> StatusBadge tone, the one place this list maps them. */
+export const CANVASS_STATUS_TONES = {
+  [CANVASS_STATUS.NEEDS_SUPPLIERS]: "amber",
+  [CANVASS_STATUS.NEEDS_WINNERS]: "blue",
+  [CANVASS_STATUS.WINNERS_PICKED]: "green",
+};
+
+/**
+ * The one status a row shows: "Needs suppliers" (fewer than three and no note), "Needs winners",
+ * or "Winners picked" (every open line has one; a locked line is no longer open).
+ */
+export function canvassStatusOf(row) {
+  let key;
+  if ((row.supplierCount ?? 0) < SUPPLIERS_NEEDED && !row.noOtherSupplier) key = CANVASS_STATUS.NEEDS_SUPPLIERS;
+  else if ((row.openWinnerCount ?? 0) < (row.openLineCount ?? 0)) key = CANVASS_STATUS.NEEDS_WINNERS;
+  else key = CANVASS_STATUS.WINNERS_PICKED;
+  return { key, state: key, label: CANVASS_STATUS_LABELS[key] };
+}
+
+/** The lock shows when every line of the request is locked. */
+export function canvassLocked(row) {
+  return (row.lineCount ?? 0) > 0 && (row.lockedLineCount ?? 0) >= row.lineCount;
+}
+
+/** The project the request is for ("S07983 · Hospital beds"), or "Direct request". */
+export function canvassProjectLabel(row) {
+  const project = [row.salesReference, row.projectTitle].filter(Boolean).join(" · ");
+  return project || "Direct request";
+}
+
+/** How many lines have a winner out of all lines: "1 of 3". */
+export function canvassWinnersLabel(row) {
+  return `${row.winnerCount ?? 0} of ${row.lineCount ?? 0}`;
+}
+
+/**
+ * Where a request's Canvass opens: the Purchase Request's own window with its Canvass grid open
+ * (#970), at one line when `itemId` is given. The Canvasses page and the S0 Evaluation both link here,
+ * so there is one grid and one address for it.
+ */
+export function canvassHref({ requestId, itemId = null }) {
+  const params = new URLSearchParams({ request: requestId, canvass: "1" });
+  if (itemId) params.set("line", itemId);
+  return `/purchasing?${params.toString()}`;
+}
+
+export const CANVASS_EXPORT_HEADER = ["Canvass", "Request", "Project", "Canvasser", "Suppliers", "Winners", "Status", "Last changed"];
+
+/** The rows shown, in the order shown, as the sheet's cells. */
+export function canvassExportRows(rows) {
+  return rows.map((row) => [
+    row.number,
+    row.requestLabel ?? null,
+    canvassProjectLabel(row),
+    row.canvasserName ?? null,
+    row.supplierCount ?? 0,
+    canvassWinnersLabel(row),
+    canvassStatusOf(row).label,
+    row.updatedAt ?? row.createdAt ?? null,
+  ]);
+}
+
+/** Rows that pass the filter bar: search (number, request, supplier, product), Canvasser, status. */
+export function filterCanvasses(rows, { search = "", canvasserId = ANY, status = ANY } = {}) {
+  const needle = search.trim().toLowerCase();
+  return rows.filter((row) => {
+    if (canvasserId !== ANY && row.canvasserId !== canvasserId) return false;
+    if (status !== ANY && canvassStatusOf(row).key !== status) return false;
+    if (!needle) return true;
+    const haystack = [row.number, row.requestLabel, row.projectTitle, row.salesReference, ...(row.supplierNames || []), ...(row.productNames || [])]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(needle);
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Still read by the old per-line CanvassPanel and CanvassRequestBadge, which #970 replaces with the
+// request's grid. Remove with them.
+// ---------------------------------------------------------------------------------------------
 
 /**
  * Whether a Purchase Request still has to be made from a Canvass, for the list column and the panel
@@ -30,28 +129,6 @@ export function canvassRequestState({ kind, winner, requestId, requestLabel, req
     ? { key: "ready", label: "Ready to request", requestId: null, theme: STATUS_THEME.BLUE }
     : { key: "needs_winner", label: "Needs winner", requestId: null, theme: STATUS_THEME.MAUVE };
 }
-
-/** The Request column: the request's reference once one was made, nothing before (the State column says the rest). */
-export function canvassRequestRef(row) {
-  return row.requestId ? row.requestLabel || "Purchase Request" : null;
-}
-
-/** What the row says it is for: "S07983 · 1.2 Stretcher", "Gloves (PR-12)", or the product alone. */
-export function canvassSubjectLabel(row) {
-  if (row.kind === CANVASS_KIND.COMPONENT) {
-    return [row.salesReference, [row.componentNumber, row.subjectName].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
-  }
-  if (row.kind === CANVASS_KIND.REQUESTED_ITEM) {
-    return [row.subjectName, row.requestLabel ? `(${row.requestLabel})` : null].filter(Boolean).join(" ");
-  }
-  return row.productName || row.subjectName || "";
-}
-
-/**
- * The State pills (#728, ADR 0047): Open is a Canvass with no winner yet; Winner picked has one. Signed off
- * is history, kept on old records only.
- */
-export const CANVASS_STATE = { OPEN: "open", WON: "won", SIGNED: "signed", ALL: "all" };
 
 /** A Canvass's own state for the State badge: Signed off (old history), Requested (a Purchase Request was made), Winner picked, or Open. */
 export const CANVASS_ROW_STATE = { OPEN: "open", WON: "won", REQUESTED: "requested", SIGNED: "signed" };
@@ -81,55 +158,3 @@ export function canvassStateOf(row) {
   return { state: CANVASS_ROW_STATE.OPEN, label: "Open" };
 }
 
-/** The winner as the list says it: "Supplier · Brand", "Picked", or "No winner". */
-export function canvassWinnerLabel(row) {
-  if (!row.winner) return "No winner";
-  return [row.winner.supplierName, row.winner.brand].filter(Boolean).join(" · ") || "Picked";
-}
-
-export const CANVASS_EXPORT_HEADER = ["Canvass", "Subject", "Canvasser", "Winner", "Offers", "Request", "Signed off by", "State"];
-
-/** The rows shown, in the order shown, as the sheet's cells. */
-export function canvassExportRows(rows) {
-  return rows.map((row) => [
-    row.number,
-    canvassSubjectLabel(row) || null,
-    row.canvasserName ?? null,
-    canvassWinnerLabel(row),
-    row.offerCount ?? 0,
-    canvassRequestRef(row),
-    row.signerName ?? null,
-    canvassStateOf(row).label,
-  ]);
-}
-
-/** Whether a row is in a State pill: Open (no winner yet), Winner picked, or Signed off (old history). */
-function matchesState(row, state) {
-  const signed = Boolean(row.signedOffAt);
-  if (state === CANVASS_STATE.SIGNED) return signed;
-  if (state === CANVASS_STATE.WON) return !signed && Boolean(row.winner);
-  return !signed && !row.winner;
-}
-
-/** Rows that pass the filter bar: search, Canvasser, state pill, has a winner, linked or not, request made or not. */
-export function filterCanvasses(rows, { search = "", canvasserId = ANY, state = ANY, winner = ANY, linked = ANY, request = ANY } = {}) {
-  const needle = search.trim().toLowerCase();
-  return rows.filter((row) => {
-    if (canvasserId !== ANY && row.canvasserId !== canvasserId) return false;
-    if (state !== ANY && !matchesState(row, state)) return false;
-    if (winner !== ANY && Boolean(row.winner) !== (winner === WINNER_FILTER.YES)) return false;
-    if (linked !== ANY && (row.kind !== CANVASS_KIND.NONE) !== (linked === LINKED_FILTER.LINKED)) return false;
-    if (request !== ANY) {
-      const key = canvassRequestState(row)?.key;
-      // "Not yet" is a Canvass that could still start a request; a Component Canvass has none either way.
-      const wanted = request === REQUEST_FILTER.CREATED ? key === "created" : key === "needs_winner" || key === "ready";
-      if (!wanted) return false;
-    }
-    if (!needle) return true;
-    const haystack = [row.number, canvassSubjectLabel(row), row.canvasserName, row.winner?.supplierName, row.winner?.brand, row.projectTitle]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(needle);
-  });
-}

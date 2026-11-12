@@ -528,7 +528,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     const componentIds = rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id)).map((c) => c.id)
     return rowsOf("purchase_request_items")
       .filter((i) => i.component_id && componentIds.includes(i.component_id))
-      .map((i) => ({ id: i.id, component_id: i.component_id, status: i.status, request_id: i.request_id }))
+      .map((i) => ({ id: i.id, component_id: i.component_id, status: i.status, request_id: i.request_id, request_label: rowsOf("purchase_requests").find((r) => r.id === i.request_id)?.title ?? null }))
   })
 
   stubRpc("costing_sign", (args) => {

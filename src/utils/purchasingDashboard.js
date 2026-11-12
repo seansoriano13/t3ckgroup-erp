@@ -1,3 +1,5 @@
+import { canvassHref } from "./canvassList";
+
 /**
  * The Purchasing Dashboard (#322): every project's buying grouped by what is
  * outstanding. The rows come from `purchasing_dashboard_rows()`, one per record
@@ -116,14 +118,15 @@ export function sorSummary(rows, owner) {
 }
 
 /**
- * Where a row opens: the record that owns the work. A Purchase Request (or a
- * Canvass on one of its items) opens the request; a Canvass on a Component and
- * the Costing Matrix open the SOR, where the matrix lives; an IPAS and a
- * Transmittal open themselves.
+ * Where a row opens: the record that owns the work. A Purchase Request opens
+ * the request, with its Canvass grid open while it is Still canvassing (one
+ * Canvass per request, #973); the Costing Matrix opens the SOR, where the
+ * matrix lives; an IPAS and a Transmittal open themselves.
  */
 export function linkFor(row) {
   if (row.target_kind === "transmittal") return { to: `/purchasing/transmittals/${row.target_id}` };
   if (row.target_kind === "ipas") return { to: `/purchasing/ipas/${row.target_id}` };
+  if (row.request_id && row.grp === DASHBOARD_GROUP.STILL_CANVASSING) return { to: canvassHref({ requestId: row.request_id }) };
   if (row.request_id) return { to: `/purchasing?request=${row.request_id}` };
   return { to: "/sors", state: { openOpportunityId: row.opportunity_id } };
 }
@@ -133,8 +136,6 @@ export function rowLabel(row) {
   switch (row.target_kind) {
     case "purchase_request":
       return row.target_label || "Purchase Request";
-    case "canvass":
-      return row.target_label ? `Canvass ${row.target_label}` : "Canvass";
     case "costing_matrix":
       return "S0 Evaluation";
     case "ipas":

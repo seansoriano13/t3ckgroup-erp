@@ -300,7 +300,7 @@ export const canvassService = {
 
   /**
    * Every Canvass the caller may read, newest first, for the Canvasses page: one row per Purchase
-   * Request. Names and counts only, no money.
+   * Request (#973). Names and counts only, no money: what the row's status, lock and search read.
    */
   async list() {
     const { data, error } = await supabase.rpc("canvass_list");
@@ -308,12 +308,6 @@ export const canvassService = {
     return (data ?? []).map((row) => ({
       id: row.id,
       number: row.number,
-      // Until the Canvasses page is rebuilt for one row per request (#973), the old page's fields
-      // are filled from the new ones so it still lists something sensible.
-      kind: "request",
-      subjectName: row.request_label ?? null,
-      offerCount: Number(row.supplier_count) || 0,
-      winner: Number(row.winner_count) > 0 ? {} : null,
       requestId: row.request_id ?? null,
       requestLabel: row.request_label ?? null,
       opportunityId: row.opportunity_id ?? null,
@@ -325,6 +319,12 @@ export const canvassService = {
       lineCount: Number(row.line_count) || 0,
       quotedLineCount: Number(row.quoted_line_count) || 0,
       winnerCount: Number(row.winner_count) || 0,
+      openLineCount: Number(row.open_line_count) || 0,
+      openWinnerCount: Number(row.open_winner_count) || 0,
+      lockedLineCount: Number(row.locked_line_count) || 0,
+      noOtherSupplier: Boolean(row.no_other_supplier),
+      supplierNames: row.supplier_names ?? [],
+      productNames: row.product_names ?? [],
       createdBy: row.created_by ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at ?? null,

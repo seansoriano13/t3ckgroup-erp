@@ -289,7 +289,13 @@ describe("canvassService", () => {
         lineCount: 2,
         quotedLineCount: 2,
         winnerCount: 1,
+        openLineCount: 2,
+        openWinnerCount: 1,
+        lockedLineCount: 0,
+        noOtherSupplier: false,
       })
+      expect(row.supplierNames).toHaveLength(3)
+      expect(row.productNames).toHaveLength(2)
       expect(Object.keys(row).some((key) => /price|rate/i.test(key))).toBe(false)
     })
   })

@@ -23,7 +23,7 @@ const row = (over = {}) => ({
 
 const ROWS = [
   row({ item_count: 3 }),
-  row({ target_kind: "canvass", target_id: "cv-1", item_count: 1, canvasser_id: "emp-c" }),
+  row({ target_id: "pr-1", item_count: 1, canvasser_id: "emp-c" }),
   row({ grp: DASHBOARD_GROUP.PURCHASED, item_count: 2, no_canvass_count: 1, buyer_id: "emp-b", since: daysAgo(30) }),
   row({ grp: DASHBOARD_GROUP.STILL_CANVASSING, target_kind: "costing_matrix", target_id: "sor-1", request_id: null }),
   row({ opportunity_id: "sor-2", sales_reference: "S08000", project_title: "Radios", target_id: "pr-2", request_id: "pr-2" }),
@@ -79,8 +79,8 @@ describe("sorSummary", () => {
 describe("linkFor", () => {
   it("opens the record that owns the work", () => {
     expect(linkFor(row())).toEqual({ to: "/purchasing?request=pr-1" });
-    expect(linkFor(row({ target_kind: "canvass", target_id: "cv-1" }))).toEqual({ to: "/purchasing?request=pr-1" });
-    expect(linkFor(row({ target_kind: "canvass", request_id: null }))).toEqual({ to: "/sors", state: { openOpportunityId: "sor-1" } });
+    // Still canvassing on a request (#973): the request opens with its Canvass grid.
+    expect(linkFor(row({ grp: DASHBOARD_GROUP.STILL_CANVASSING }))).toEqual({ to: "/purchasing?request=pr-1&canvass=1" });
     expect(linkFor(row({ target_kind: "costing_matrix", request_id: null }))).toEqual({ to: "/sors", state: { openOpportunityId: "sor-1" } });
     expect(linkFor(row({ target_kind: "transmittal", target_id: "tr-1" }))).toEqual({ to: "/purchasing/transmittals/tr-1" });
     expect(linkFor(row({ target_kind: "ipas", target_id: "ip-1" }))).toEqual({ to: "/purchasing/ipas/ip-1" });

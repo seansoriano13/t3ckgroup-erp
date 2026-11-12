@@ -60,7 +60,7 @@ import { getCurrentLocalDate } from "../utils/formatDate.js";
 
 /**
  * The Canvass (#275, built in #276): the supplier comparison for one Costing Matrix Component,
- * recorded as Offers. `subject` is `{ componentId }`, `{ requestedItemId }`, `{ canvassId }` (one
+ * recorded as Offers. `subject` is `{ requestedItemId }`, `{ canvassId }` (one
  * picked on the Canvasses page), or `{}` for a new Canvass with no subject (ADR 0034).
  *
  * Opening the panel writes nothing. A Canvass not started yet shows the first Offer's form; saving
@@ -561,14 +561,9 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
   const attachments = useFileAttachments({ max: 3 });
 
   const current = startedId ? { canvassId: startedId } : subject || {};
-  const subjectKind = current.canvassId
-    ? "canvass"
-    : current.componentId
-      ? "component"
-      : current.requestedItemId
-        ? "requestedItem"
-        : "new";
-  const subjectId = current.canvassId || current.componentId || current.requestedItemId || null;
+  // A Canvass is never opened on a Component (#972): the S0 Evaluation opens its request's Canvass.
+  const subjectKind = current.canvassId ? "canvass" : current.requestedItemId ? "requestedItem" : "new";
+  const subjectId = current.canvassId || current.requestedItemId || null;
   const queryKey = ["canvass", subjectKind, subjectId];
 
   // Opening only reads (ADR 0034): nothing is written until the first Offer is saved.
