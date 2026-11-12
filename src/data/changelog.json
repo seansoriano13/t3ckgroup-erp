@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-11-12",
+        "title": "Commission and Retail fit small screens",
+        "version": "1.10.3",
+        "changes": [
+            "Commission Pool shows its chart and legend smaller on laptops, so the SORs and People list starts higher.",
+            "Retail's date range is a drop-down on phones, so nothing is cut off.",
+            "SOR, People and Retail order lists show as cards on phones."
+        ]
+    },
+    {
+        "date": "2026-11-12",
         "title": "Fits small laptops better",
         "version": "1.10.2",
         "changes": [

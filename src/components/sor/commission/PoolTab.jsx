@@ -76,7 +76,7 @@ export default function PoolTab({ access, departments, initialDealId }) {
           },
         ]}
         chart={
-          <div className="h-[200px] min-w-0">
+          <div className="h-[200px] min-w-0 laptop:h-[160px]">
             {months.length === 0 ? (
               <EmptyState icon={TrendingUp} title="No SORs in this period" className="h-full" />
             ) : (
@@ -105,7 +105,7 @@ export default function PoolTab({ access, departments, initialDealId }) {
             <span key={d.name} title={`${d.name} ${d.allocationPercent}%`} className="h-full" style={{ width: `${d.allocationPercent}%`, background: d.color }} />
           ))}
         </div>
-        <ul className="mt-4 grid gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="mt-4 grid gap-x-8 gap-y-2 sm:grid-cols-2 lg:grid-cols-4 laptop:grid-cols-3">
           {departments.map((d) => (
             <li key={d.name} className="flex items-baseline justify-between gap-3 text-sm">
               <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
@@ -122,7 +122,7 @@ export default function PoolTab({ access, departments, initialDealId }) {
       </section>
 
       <section>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 laptop:flex-nowrap">
           <TabGroup
             variant="pill"
             tabs={[
@@ -159,15 +159,15 @@ export default function PoolTab({ access, departments, initialDealId }) {
         </div>
 
         {list === "deals" ? (
-          <Table>
+          <Table stackOnPhone>
             <TableHeader>
               <TableRow>
-                <TableHead>SOR</TableHead>
-                <TableHead>Stage</TableHead>
+                <TableHead phone="title">SOR</TableHead>
+                <TableHead phone="badge">Stage</TableHead>
                 <TableHead>Deal Owner</TableHead>
                 <TableHead className="text-right">Contract Value</TableHead>
                 <TableHead className="text-right">Pool</TableHead>
-                <TableHead className="text-right">Contract Date</TableHead>
+                <TableHead className="text-right" phone="hide">Contract Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -195,13 +195,13 @@ export default function PoolTab({ access, departments, initialDealId }) {
             </TableBody>
           </Table>
         ) : (
-          <Table>
+          <Table stackOnPhone>
             <TableHeader>
               <TableRow>
-                <TableHead>Person</TableHead>
+                <TableHead phone="title">Person</TableHead>
                 <TableHead className="text-right">Won</TableHead>
                 <TableHead>Share of the Sales fund</TableHead>
-                <TableHead className="text-right">Commission</TableHead>
+                <TableHead className="text-right" phone="badge">Commission</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

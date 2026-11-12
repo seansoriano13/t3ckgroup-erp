@@ -20,6 +20,7 @@ const plural = (count) => (count === 1 ? "" : "s");
 export default function RetailHeadline({ summary, mom, series, scope, empty, searching = false }) {
   return (
     <ReportFigure
+      className="lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]"
       label="Order Income"
       figure={formatPHP(summary.total)}
       note={
