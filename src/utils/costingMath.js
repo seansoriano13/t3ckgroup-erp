@@ -117,6 +117,59 @@ export function costRowsTotals(rows) {
 }
 
 /**
+ * A percent of the ABC as pesos (#963): `pct` x `abcTotal` ÷ 100 to the centavo, or null while either
+ * is blank (never zero: an unknown ABC leaves the amount blank).
+ */
+export function percentOfAbcAmount(pct, abcTotal) {
+  const p = scaled(pct);
+  const a = scaled(abcTotal);
+  if (p === null || a === null) return null;
+  // micro x micro = 10^12; ÷ 100 for the percent; a centavo is 10^10 of the product
+  return pesosFromCentavos(roundDiv(p * a, CENTAVO * 100n));
+}
+
+/**
+ * Cost-only rows with their percent rows worked (#963). A row with `abc_pct` counts at that percent of
+ * `abcTotal` (its Acquire is overwritten here, its Final cost dropped so the amount is the one counted),
+ * and carries `abcAmount` (the row's peso amount, null while the ABC is unknown) and `abcMissing`.
+ * Rows without a percent pass through untouched, so a viewer who was never sent `abc_pct` sees no change.
+ */
+export function applyPercentRows(rows, abcTotal) {
+  return (rows ?? []).map((row) => {
+    const pct = row?.abc_pct;
+    if (pct === null || pct === undefined || pct === "") return row;
+    const amount = percentOfAbcAmount(pct, abcTotal);
+    const quantity = Number(row.quantity);
+    const unit = amount === null || !(quantity > 0) ? null : Number((amount / quantity).toFixed(6));
+    const next = { ...row, acquire_unit: unit, abcAmount: amount, abcMissing: amount === null };
+    if ("final_acquire_unit" in next) next.final_acquire_unit = null;
+    return next;
+  });
+}
+
+/**
+ * The project expenses total (#963): the sum of every Other costs row, Equipment & Tools included. A row
+ * with nothing typed yet (no percent, no cost) is skipped; a row that has a percent or a cost but no
+ * amount worked (the ABC is unknown) makes the total null. Rows come through `applyPercentRows`.
+ */
+export function projectExpensesTotal(rows) {
+  const amounts = [];
+  for (const row of rows ?? []) {
+    const typed = [row?.abc_pct, row?.acquire_unit, row?.final_acquire_unit].some((v) => v !== null && v !== undefined && v !== "");
+    const worked = extendedCentavos(costUnit(row), row?.quantity);
+    if (worked === null && !typed && !row?.abcMissing) continue;
+    amounts.push(worked);
+  }
+  return pesosFromCentavos(sumUnlessBlank(amounts));
+}
+
+/** The cost guide categories among `keys` that no Other costs row has yet, in order (#963's "Add the usual rows"). */
+export function usualRowsToAdd(rows, keys) {
+  const have = new Set((rows ?? []).map((r) => r?.category_key));
+  return (keys ?? []).filter((key) => !have.has(key));
+}
+
+/**
  * The cost a row counts at: its Final Acquire (old deals, kept as signed) or else its Acquire
  * (#787; Final Acquire left the screen in #703). Same rule as the database's costing_settled_met.
  */

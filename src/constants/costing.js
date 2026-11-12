@@ -81,6 +81,8 @@ export const tierReadsCost = (tier, column) => (COMPONENT_COST_TIERS[column] ?? 
 export const COST_ROW_TIERS = {
   ...COMPONENT_COST_TIERS,
   markup_price_unit: [COSTING_TIER.CLOSED_BOOK],
+  // #963: the row typed as a percent of the ABC; read by the tiers that read its Acquire.
+  abc_pct: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
   // #723: the cost guide category is a label, not money; every tier that reads the row reads it.
   category_key: [COSTING_TIER.PARTICIPANT, COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
 };
@@ -161,7 +163,15 @@ export const COST_ROW_BANDS = {
   category_key: [SALES, PURCHASING],
   quantity: [SALES, PURCHASING],
   ...COMPONENT_COST_BANDS,
+  // #963: written by the band that writes the row's Acquire.
+  abc_pct: [PURCHASING],
 };
+
+/**
+ * The cost guide categories "Add the usual rows" fills (#963): the sheet's project expenses. Products
+ * are the Components and Profit Margin is not a cost.
+ */
+export const USUAL_COST_CATEGORIES = ["labor", "logistics", "equipment", "permits", "overhead"];
 
 /**
  * The matrix's own money row (costing_matrix_money): the default markup factor (#269), and Marketing and OPEX (#270)
@@ -356,6 +366,7 @@ export const COSTING_COLUMN_LABEL = {
   "costing_cost_rows.description": "A cost-only row's description",
   "costing_cost_rows.quantity": "A cost-only row's quantity",
   "costing_cost_rows.acquire_unit": "Acquire",
+  "costing_cost_rows.abc_pct": "A cost-only row's percent of the ABC",
   "costing_cost_rows.odoo_unit": "Odoo SRP",
   "costing_cost_rows.final_acquire_unit": "Final cost",
   "costing_cost_rows.markup_factor": "The markup factor",
