@@ -41,6 +41,7 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  sheet = true,
   ...props
 }) {
   // Every dialog sits on the dialog layer, z-[80], above the record windows (z-[70],
@@ -56,7 +57,13 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-[80] grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 max-h-[calc(100vh-2rem)] supports-[height:1dvh]:max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-[80] grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 max-h-[calc(100vh-2rem)] supports-[height:1dvh]:max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-lg",
+          // Phones (below 640px): a full-height sheet, inset 0, rounded top corners (#980).
+          // Header and footer stay pinned (they are sticky) while the body scrolls. A
+          // flex column here so the footer can sit at the bottom of a short form.
+          sheet &&
+            "max-sm:!top-0 max-sm:!left-0 max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!h-dvh max-sm:!max-h-none max-sm:!w-full max-sm:!max-w-none max-sm:flex max-sm:flex-col max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:[&>*]:shrink-0",
+          " data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
         )}
         {...props}
@@ -86,7 +93,11 @@ function DialogHeader({ className, ...props }) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn(
+        // Pinned: stays at the top of the dialog while the body scrolls (#980).
+        "sticky top-0 z-10 -mx-4 -mt-4 flex flex-col gap-2 bg-popover px-4 pt-4 pb-2",
+        className,
+      )}
       {...props}
     />
   );
@@ -102,7 +113,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        "sticky bottom-0 z-10 -mx-4 -mb-4 mt-0 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted p-4 max-sm:mt-auto max-sm:rounded-b-none max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end",
         className,
       )}
       {...props}

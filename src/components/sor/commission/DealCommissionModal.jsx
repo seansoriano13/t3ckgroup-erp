@@ -60,7 +60,7 @@ export default function DealCommissionModal({ deal, onClose, access }) {
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
         {deal && (
           <>
-            <DialogHeader className="gap-1 px-6 pb-4 pt-6 pr-12">
+            <DialogHeader className="mx-0 mt-0 gap-1 px-6 pb-4 pt-6 pr-12">
               <div className="mb-1"><StatusBadge status={deal.status} /></div>
               <DialogTitle className="text-lg font-semibold tracking-tight">{deal.clientName}</DialogTitle>
               <DialogDescription className="truncate text-xs">{meta.join(" · ")}</DialogDescription>

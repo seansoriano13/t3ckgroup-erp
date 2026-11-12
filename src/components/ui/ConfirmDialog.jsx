@@ -45,7 +45,7 @@ export default function ConfirmDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("z-[80] sm:max-w-md", className)}>
+      <DialogContent sheet={false} className={cn("z-[80] sm:max-w-md", className)}>
         {/* `pr-10` keeps the title clear of DialogContent's own close button,
             which is absolutely positioned at top-2 right-2 — on a dialog with
             roomier padding it otherwise sits on top of the title text and
