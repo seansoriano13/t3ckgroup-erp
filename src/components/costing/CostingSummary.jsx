@@ -3,7 +3,7 @@ import { Calculator } from "lucide-react";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import { MATRIX_MONEY_BANDS, inAnyBand, summaryLineShown } from "../../constants/costing";
 import { Cell } from "./GridCell";
-import { costIncomplete, offerIncomplete, pesos } from "./gridFormat";
+import { costIncomplete, expensesIncomplete, offerIncomplete, opexIncomplete, pesos, revenueIncomplete } from "./gridFormat";
 
 /** A rate as the sheet labels it: 0.06 -> "6%", 0.075 -> "7.5%". */
 const rateLabel = (rate) => `${Number((Number(rate) * 100).toFixed(4))}%`;
@@ -82,7 +82,7 @@ function PlannedVsActual({ comparison, revenueNote }) {
 
 /**
  * The summary at the foot of the grid, copied from the PMS sheet (#270): VAT-exclusive, Tax,
- * Retention, Collected Amount, Operational Expenses (the Final Acquire total), Marketing, OPEX,
+ * Retention, Collected Amount, Landed Cost (planned), Project expenses, Marketing, OPEX (worked out),
  * ITR and Revenue. Closed Book only: the matrix read gives every other tier no `summary`, and
  * this section is not drawn for it. A figure that cannot be worked yet says why in words
  * ("Incomplete — N rows have no cost") instead of a number; a blank cost is never zero.
@@ -100,8 +100,10 @@ export default function CostingSummary({ matrix, writes }) {
   const costNote = costIncomplete(incomplete);
   const offerFigure = (value) => (value === null || value === undefined ? <span className="text-muted-foreground">{offerNote ?? "—"}</span> : pesos(value));
   const costFigure = (value) => (value === null || value === undefined ? <span className="text-muted-foreground">{costNote ?? "—"}</span> : pesos(value));
-  // Revenue needs both sides; the cost shortfall is named first, as the sheet's Revenue is the cost line's answer.
-  const revenueNote = costNote ?? offerNote;
+  const expensesNote = expensesIncomplete(incomplete);
+  const opexNote = opexIncomplete(incomplete);
+  // Revenue needs the offer and OPEX; the cost shortfall is named first.
+  const revenueNote = revenueIncomplete(incomplete);
 
   const canType = (column) => inAnyBand(bands, MATRIX_MONEY_BANDS[column]);
   const saveMoney = async (fields) => {
@@ -130,7 +132,7 @@ export default function CostingSummary({ matrix, writes }) {
           </Row>
         )}
         {show("tax") && (
-        <Row label={`Less Tax ${rateLabel(rates.taxRate)}`} hint="on the gross offer" testId="summary-tax">
+        <Row label={`Less Tax ${rateLabel(rates.taxRate)}`} hint="on the VAT-exclusive figure" testId="summary-tax">
           {offerFigure(summary.tax)}
         </Row>
         )}
@@ -144,9 +146,18 @@ export default function CostingSummary({ matrix, writes }) {
           {offerFigure(summary.collected)}
         </Row>
         )}
-        {show("operationalExpenses") && (
-        <Row label="Operational Expenses" testId="summary-opex-total">
-          {costFigure(summary.operationalExpenses)}
+        {show("landedCost") && (
+        <Row label="Landed Cost (planned)" hint="Final Acquire total of the Components" testId="summary-landed-cost">
+          {costFigure(summary.landedCost)}
+        </Row>
+        )}
+        {show("projectExpenses") && (
+        <Row label="Project expenses" hint="the Other costs rows" testId="summary-project-expenses">
+          {summary.projectExpenses === null || summary.projectExpenses === undefined ? (
+            <span className="text-muted-foreground">{expensesNote ?? "—"}</span>
+          ) : (
+            pesos(summary.projectExpenses)
+          )}
         </Row>
         )}
         {show("marketing") && (
@@ -165,18 +176,12 @@ export default function CostingSummary({ matrix, writes }) {
         </Row>
         )}
         {show("opex") && (
-        <Row label="OPEX" testId="summary-opex">
-          <Cell
-            className="ml-auto w-40"
-            label="OPEX"
-            noun="OPEX"
-            value={summary.opex}
-            numeric
-            money
-            align="right"
-            readOnly={!canType("opex")}
-            onSave={(value) => saveMoney({ opex: value })}
-          />
+        <Row label="OPEX" hint="retention + landed cost + project expenses + marketing" testId="summary-opex">
+          {summary.opex === null || summary.opex === undefined ? (
+            <span className="text-muted-foreground">{opexNote ?? "—"}</span>
+          ) : (
+            pesos(summary.opex)
+          )}
         </Row>
         )}
         {show("itr") && (
@@ -191,6 +196,15 @@ export default function CostingSummary({ matrix, writes }) {
             pesos(summary.revenue)
           )}
         </Row>
+        {show("revenuePercent") && (
+        <Row label="Revenue ÷ Final Offer" hint={`the bid goes ahead at ${summary.goLinePercent}% or more`} testId="summary-revenue-percent">
+          {summary.revenuePercent === null || summary.revenuePercent === undefined ? (
+            <span className="text-muted-foreground">{revenueNote ?? "—"}</span>
+          ) : (
+            <span className={summary.underGoLine ? "font-semibold text-amber-600 dark:text-amber-400" : undefined}>{summary.revenuePercent.toFixed(2)}%</span>
+          )}
+        </Row>
+        )}
       </dl>
       {comparison && <PlannedVsActual comparison={comparison} revenueNote={revenueNote} />}
     </section>

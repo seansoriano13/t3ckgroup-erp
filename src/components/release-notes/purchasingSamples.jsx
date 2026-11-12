@@ -35,7 +35,7 @@ const BID_MATRIX = {
     { id: "tl-2", number: "2", tender_specification: "Demo radio base station", quantity: 2, abc_unit: 250000, final_offer_unit: 225000 },
   ],
   totals: { missingOffer: 0, finalOfferTotal: 1350000, abcTotal: 1500000 },
-  summary: { revenue: 210000, operationalExpenses: 1080000, itr: 60000 },
+  summary: { revenue: 210000, landedCost: 1080000, itr: 60000 },
 }
 
 export function BidDecisionSample() {

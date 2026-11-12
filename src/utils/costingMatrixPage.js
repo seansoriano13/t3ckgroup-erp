@@ -20,6 +20,8 @@ export function shapeMatrixPage(rows, settings) {
     const totals = {
       finalOfferTotal: numberOrNull(row.final_offer_total),
       finalAcquireTotal: numberOrNull(row.final_acquire_total),
+      projectExpensesTotal: numberOrNull(row.project_expenses_total),
+      marketing: numberOrNull(row.marketing),
       landedCostTotal: numberOrNull(row.landed_cost_total),
       boughtFinalAcquireTotal: numberOrNull(row.bought_final_acquire_total),
       itemsBought: Number(row.items_bought) || 0,

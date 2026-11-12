@@ -1160,10 +1160,28 @@ on each SOR, the Closed Book has an S0 Evaluation page listing every SOR's
 matrix with its Planned and Actual Revenue.
 _Avoid_: Costing Matrix (the old name), PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
 
+**Revenue**:
+The S0 Evaluation summary's bottom line, worked the way the sheet works it:
+the VAT-exclusive offer (Final Offer ÷ 1.12) less OPEX less ITR. The bid goes
+ahead when Revenue is 20% of the Final Offer or more (the Go line, set in S0
+Evaluation Settings); under it the Bid Decision shows "Revenue ÷ Final Offer"
+with a warning, and a Go is never blocked. A blank input blanks Revenue and the
+summary says why; a blank is never zero.
+_Avoid_: Margin, Profit, Net
+
+**OPEX**:
+In the S0 Evaluation summary, worked out and never typed: the retention plus
+the Landed Cost (planned) plus the project expenses plus Marketing. Marketing is
+the only part typed on the summary. The old typed OPEX field is gone; its values
+stay in the database but nothing reads them.
+_Avoid_: Operational Expenses (the old line, which was the cost total alone)
+
 **Planned Revenue / Actual Revenue**:
-The S0 Evaluation summary's Revenue worked two ways, side by side. Planned
-Revenue takes each item's cost as its Final Acquire, what Purchasing expected to
-pay; Actual Revenue takes its Landed Cost, what was really paid. Actual is an
+The S0 Evaluation summary's Revenue worked two ways, side by side, by the same
+formula. Planned Revenue takes the Landed Cost (planned), the Final Acquire total
+of the Components, what Purchasing expected to pay; Actual Revenue swaps in the
+Landed Cost of the items bought, what was really paid. Project expenses and
+Marketing are the same in both. Actual is an
 estimate while any of the SOR's IPAS has not reached LC Odoo Done, and an item
 nobody has bought yet counts at its Final Acquire, marked not bought yet. The
 gap between the two is what buying cost or saved against the plan.
@@ -1213,7 +1231,7 @@ _Avoid_: Odoo cost, Odoo unit cost
 
 **Final Acquire**:
 The cost Management sets on a Component — the figure the S0 Evaluation summary
-reads as Operational Expenses and takes Revenue from. It is filled by a rule,
+reads as the Landed Cost (planned), and the OPEX and Revenue that follow. It is filled by a rule,
 per line, from the Status: Stockable is the Odoo SRP plus or minus a percent
 (the evaluation has one default, starting at minus 20%, and a line may carry its
 own); Source Out is the line's Acquire as is, the attached P0's price when

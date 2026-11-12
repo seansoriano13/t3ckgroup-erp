@@ -581,6 +581,7 @@ function shapeSettings(row) {
     retentionRate: Number(row.retention_rate),
     itrRate: Number(row.itr_rate),
     itrAllowance: Number(row.itr_allowance),
+    goLinePercent: Number(row.go_line_percent ?? 20),
     finalVatRate: Number(row.final_vat_rate ?? 0.12),
     hiddenLines: Array.isArray(row.summary_hidden_lines) ? row.summary_hidden_lines : ["finalVat"],
     updatedAt: row.updated_at ?? null,
@@ -698,6 +699,7 @@ export const costingMatrixService = {
     if ("retentionRate" in fields) columns.retention_rate = fields.retentionRate;
     if ("itrRate" in fields) columns.itr_rate = fields.itrRate;
     if ("itrAllowance" in fields) columns.itr_allowance = fields.itrAllowance;
+    if ("goLinePercent" in fields) columns.go_line_percent = fields.goLinePercent;
     if ("finalVatRate" in fields) columns.final_vat_rate = fields.finalVatRate;
     if ("hiddenLines" in fields) columns.summary_hidden_lines = fields.hiddenLines;
     if (Object.keys(columns).length === 0) return costingMatrixService.getSettings();
@@ -760,7 +762,6 @@ export const costingMatrixService = {
   async updateMatrixMoney(matrixId, fields) {
     const patch = {};
     if ("marketing" in fields) patch.marketing = blankToNull(fields.marketing);
-    if ("opex" in fields) patch.opex = blankToNull(fields.opex);
     await writeMoney("costing_matrix_money", matrixId, patch);
   },
 
