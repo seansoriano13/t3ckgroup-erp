@@ -1,5 +1,6 @@
 import { revenueComparison } from "./costingMath";
 import { sumPesos } from "./landedCost";
+import { numberOrNull } from "./numberOrNull";
 import { matchesSearch, sorSearchFields } from "./sorSearch";
 
 /**
@@ -8,8 +9,6 @@ import { matchesSearch, sorSearchFields } from "./sorSearch";
  * each SOR's totals; the Revenue figures are worked here with `revenueComparison`, the same maths the
  * SOR's own summary uses, so the page and the SOR can never disagree.
  */
-
-const numberOrNull = (value) => (value === null || value === undefined || value === "" ? null : Number(value));
 
 /**
  * Shapes the read's rows with the summary's rates: camelCase, numbers for numerics (PostgREST may
@@ -29,7 +28,12 @@ export function shapeMatrixPage(rows, settings) {
       ipasShort: Boolean(row.ipas_short),
     };
     return {
+      standalone: false,
       opportunityId: row.opportunity_id,
+      subjectId: row.opportunity_id,
+      projectNote: null,
+      stageLabel: row.stage || "—",
+      itemsLabel: `${totals.itemsBought} of ${totals.itemsTotal}`,
       sorNumber: row.sor_code ?? "",
       soNumber: row.sales_reference ?? "",
       projectTitle: row.project_title ?? "",

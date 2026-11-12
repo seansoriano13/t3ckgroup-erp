@@ -98,10 +98,9 @@ function EstimateMark({ testId }) {
 function MatrixRow({ row, search }) {
   const navigate = useNavigate();
   // A row opens that SOR's Costing Matrix in its record window, over this list.
-  // A standalone evaluation (#966) opens by its own id.
+  // A standalone evaluation (#966) opens by its own id; the shaper names it as `subjectId`.
   const openMatrix = (id) => navigate(`/costing-matrix/${id}`);
-  const subjectId = row.standalone ? row.matrixId : row.opportunityId;
-  const { comparison } = row;
+  const { comparison, subjectId } = row;
   const lower = comparison.actualLower;
   return (
     <TableRow
@@ -136,11 +135,11 @@ function MatrixRow({ row, search }) {
       </TableCell>
       <TableCell>
         <span className="block max-w-[22rem] truncate text-xs font-medium text-foreground" title={row.projectTitle}>
-          {row.standalone ? <span className="font-normal text-muted-foreground">Started from the S0 alone</span> : <HighlightText text={row.projectTitle} search={search} />}
+          {row.projectNote ? <span className="font-normal text-muted-foreground">{row.projectNote}</span> : <HighlightText text={row.projectTitle} search={search} />}
         </span>
       </TableCell>
       <TableCell>
-        <span className="text-xs text-muted-foreground">{row.standalone ? "—" : row.stage || "—"}</span>
+        <span className="text-xs text-muted-foreground">{row.stageLabel}</span>
       </TableCell>
       <TableCell className={`${RIGHT} text-xs tabular-nums max-md:text-left`}>{figure(row.finalOffer)}</TableCell>
       <TableCell className={`${RIGHT} text-xs tabular-nums max-md:text-left`} data-testid="costing-matrix-planned">
@@ -157,7 +156,7 @@ function MatrixRow({ row, search }) {
         {signed(comparison.difference)}
       </TableCell>
       <TableCell className={`${NARROW_HIDDEN} ${RIGHT} text-xs tabular-nums text-muted-foreground`} data-testid="costing-matrix-items">
-        {row.standalone ? "—" : `${comparison.itemsBought} of ${comparison.itemsTotal}`}
+        {row.itemsLabel}
       </TableCell>
     </TableRow>
   );
@@ -358,7 +357,7 @@ export function CostingMatrixList() {
               </TableHeader>
               <TableBody>
                 {paging.rows.map((row) => (
-                  <MatrixRow key={row.standalone ? row.matrixId : row.opportunityId} row={row} search={search} />
+                  <MatrixRow key={row.subjectId} row={row} search={search} />
                 ))}
                 <TotalsRow totals={totals} />
               </TableBody>
@@ -373,7 +372,7 @@ export function CostingMatrixList() {
 
 // Every employee can type the address; only the Closed Book and the people named on a standalone evaluation (#966)
 // get past this, and the database refuses the read to anyone else whatever the screen does.
-function ClosedBookOnly({ children }) {
+function CostingPageReaders({ children }) {
   const { user } = useAuth();
   if (!getPermissionContext(user).canOpenCostingPage) return <Navigate to="/" replace />;
   return children;
@@ -382,9 +381,9 @@ function ClosedBookOnly({ children }) {
 export default function CostingMatrixPage() {
   return (
     <ProtectedRoute>
-      <ClosedBookOnly>
+      <CostingPageReaders>
         <CostingMatrixList />
-      </ClosedBookOnly>
+      </CostingPageReaders>
     </ProtectedRoute>
   );
 }

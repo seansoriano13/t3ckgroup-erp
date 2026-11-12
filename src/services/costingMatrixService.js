@@ -1,8 +1,9 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
-import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
+import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, FINAL_ACQUIRE_PERCENT_HIGH, FINAL_ACQUIRE_PERCENT_LOW, STANDALONE_START_PROBLEM, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
 import { DEFAULT_FINAL_ACQUIRE_PERCENT, abcSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
+import { numberOrNull } from "../utils/numberOrNull";
 import { isS0Number, linesFromOdoo, normalizeS0, shapeStandalonePage } from "../utils/standaloneEvaluation";
 import { odooService } from "./odooService";
 import { summariseCompleteness } from "../constants/projectEvaluation";
@@ -120,8 +121,6 @@ function fail(error) {
   throw toBandError(error) ?? toRuleError(error) ?? error;
 }
 
-const numberOrNullValue = (value) => (value === null || value === undefined ? null : Number(value));
-
 function shapeCostCategory(row) {
   return { key: row.key, label: row.label, lowPct: Number(row.low_pct), highPct: Number(row.high_pct) };
 }
@@ -130,7 +129,7 @@ function shapeCostCategory(row) {
 export function shapeCostGuide(data) {
   if (!data) return null;
   return {
-    finalOfferTotal: numberOrNullValue(data.final_offer_total),
+    finalOfferTotal: numberOrNull(data.final_offer_total),
     missingOffer: Number(data.missing_offer ?? 0),
     missingCost: Number(data.missing_cost ?? 0),
     categories: (data.categories ?? []).map((c) => ({
@@ -138,11 +137,11 @@ export function shapeCostGuide(data) {
       label: c.label,
       lowPct: Number(c.low_pct),
       highPct: Number(c.high_pct),
-      total: numberOrNullValue(c.total),
-      sharePct: numberOrNullValue(c.share_pct),
+      total: numberOrNull(c.total),
+      sharePct: numberOrNull(c.share_pct),
       status: c.status ?? null,
     })),
-    uncategorised: { total: numberOrNullValue(data.uncategorised?.total), sharePct: numberOrNullValue(data.uncategorised?.share_pct) },
+    uncategorised: { total: numberOrNull(data.uncategorised?.total), sharePct: numberOrNull(data.uncategorised?.share_pct) },
   };
 }
 
@@ -344,8 +343,8 @@ export function shapeMatrix(read, settings = null) {
     matrixId: read.matrix_id,
     matrix,
     tenderLines,
-    abc: abcSettingOf(matrix),
-    totals: matrixTotals(tenderLines, abcSettingOf(matrix)),
+    abc: abcSetting,
+    totals: matrixTotals(tenderLines, abcSetting),
     // Cost tiers only: no key means the viewer was not sent it (#702).
     importAddonPercent: matrix && "import_addon_percent" in matrix ? numberOrNull(matrix.import_addon_percent) : undefined,
     defaultFactor: money ? (defaultFactor === null ? null : Number(defaultFactor)) : undefined,
@@ -536,7 +535,6 @@ async function withPurchases(shaped, opportunityId) {
 /** An open IPAS (from `ipas_summaries_for_sor`) that has not reached LC Odoo Done. Filed and cancelled ones never hold Actual back. */
 const ipasShortOfLcOdooDone = (row) => row.state === "open" && !["lc_odoo_done", "costs_complete", "checked"].includes(row.computation_status);
 
-const numberOrNull = (value) => (value === null || value === undefined || value === "" ? null : Number(value));
 
 function shapePurchases(row, component) {
   const requests = (row?.requests ?? []).map((r) => ({
@@ -1076,8 +1074,8 @@ export const costingMatrixService = {
    */
   async setFinalAcquirePercent(matrixId, percent) {
     const n = Number(percent);
-    if (percent === null || percent === undefined || percent === "" || !Number.isFinite(n) || n <= -100 || n > 1000) {
-      throw new Error("The percent must be a number above -100.");
+    if (percent === null || percent === undefined || percent === "" || !Number.isFinite(n) || n <= FINAL_ACQUIRE_PERCENT_LOW || n > FINAL_ACQUIRE_PERCENT_HIGH) {
+      throw new Error(`The percent must be a number above ${FINAL_ACQUIRE_PERCENT_LOW} and at most ${FINAL_ACQUIRE_PERCENT_HIGH}.`);
     }
     await writeMoney("costing_matrix_money", matrixId, { final_acquire_percent: n });
   },
@@ -1358,12 +1356,6 @@ export const costingMatrixService = {
     return shapeStandalonePage(read.data, settings ?? DEFAULT_COSTING_SETTINGS);
   },
 
-  /** True when the caller reads at least one standalone evaluation (the page's door for someone named on one). */
-  async standaloneAnywhere() {
-    const { data, error } = await supabase.rpc("costing_standalone_anywhere");
-    return !error && data === true;
-  },
-
   /**
    * Starts an evaluation from an S0 number (#966). If the S0 already has one (standalone or on a SOR) that one is
    * opened and Odoo is not asked. Otherwise the lines and quantities are pulled from the sale order in Odoo; the
@@ -1372,7 +1364,7 @@ export const costingMatrixService = {
    */
   async startStandalone({ s0Number, salesIncharge, pmsIncharge }) {
     if (!isS0Number(s0Number)) {
-      throw new StandaloneStartError("not_s0", "That is not an S0 number. Type S0 and its digits, like S01237.");
+      throw new StandaloneStartError(STANDALONE_START_PROBLEM.NOT_S0, "That is not an S0 number. Type S0 and its digits, like S01237.");
     }
     const ref = normalizeS0(s0Number);
     const existing = await supabase.rpc("costing_s0_existing", { p_s0_number: ref });
@@ -1383,11 +1375,11 @@ export const costingMatrixService = {
     try {
       reply = await odooService.fetchOrderLines(ref);
     } catch {
-      throw new StandaloneStartError("odoo_down", "Odoo could not be reached. Try again in a moment.");
+      throw new StandaloneStartError(STANDALONE_START_PROBLEM.ODOO_DOWN, "Odoo could not be reached. Try again in a moment.");
     }
     if (reply?.success !== true) {
-      if (reply?.found === false) throw new StandaloneStartError("not_found", `No sale order ${ref} in Odoo.`);
-      throw new StandaloneStartError("odoo_down", reply?.message || "Odoo could not be reached. Try again in a moment.");
+      if (reply?.found === false) throw new StandaloneStartError(STANDALONE_START_PROBLEM.NOT_FOUND, `No sale order ${ref} in Odoo.`);
+      throw new StandaloneStartError(STANDALONE_START_PROBLEM.ODOO_DOWN, reply?.message || "Odoo could not be reached. Try again in a moment.");
     }
     const { data, error } = await supabase.rpc("costing_standalone_open", {
       p_s0_number: ref,

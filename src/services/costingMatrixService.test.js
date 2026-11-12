@@ -908,7 +908,10 @@ describe("costingMatrixService", () => {
     });
 
     it("refuses a Go on a loss to anyone but a Super Admin or the decider list, in words, and still takes a Revise (#880)", async () => {
-      // Final Offers total 3,942.88; a Component at 4,000 Final Acquire makes the planned revenue a loss.
+      // Final Offers total 3,942.88; a Component at 4,000 Final Acquire makes the planned revenue a loss. Revenue is only
+      // worked once Project expenses and Marketing are in (#964), so the sheet has an Other costs row and Marketing at 0.
+      db.seed("costing_cost_rows", { id: "cost-row-880", matrix_id: matrix.id, position: 1, description: "Delivery", quantity: 1, acquire_unit: 100 });
+      db.seed("costing_matrix_money", { matrix_id: matrix.id, marketing: 0 });
       const component = await costingMatrixService.addComponent(lineId, { name: "Head", quantity: 1 });
       stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management"] });
       await costingMatrixService.updateComponent(component, { finalAcquireUnit: 4000 });

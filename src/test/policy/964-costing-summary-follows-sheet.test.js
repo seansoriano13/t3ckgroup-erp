@@ -6,7 +6,7 @@
  *
  * The cast, on one SOR:
  *   dealOwner         Deal Team                       -> closed_book tier
- *   outsider          Purchasing access (flagged)     -> cost tier
+ *   outsider          Purchasing access (flagged)     -> closed_book tier (Purchasing reads the Closed Book)
  *   stageParticipant  open Stage Participant window   -> participant tier
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -14,7 +14,7 @@ import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { purgeCostingForSors } from "./support/costing.js"
-import { summary } from "../../utils/costingMath.js"
+import { summary, applyPercentRows, projectExpensesTotal } from "../../utils/costingMath.js"
 
 const svc = () => serviceClient()
 
@@ -31,7 +31,9 @@ const num = (value) => (value === null || value === undefined ? null : Number(va
 
 const dbRevenue = async () => {
     const db = sql()
-    const [row] = await db`select public.costing_planned_revenue(${matrixId}::uuid) as revenue`
+    const {
+        rows: [row],
+    } = await db.query("select public.costing_planned_revenue($1::uuid) as revenue", [matrixId])
     return num(row.revenue)
 }
 
@@ -119,7 +121,7 @@ describe("Revenue the sheet's way", () => {
     it("is blank while Project expenses or Marketing are blank, never zero", async () => {
         expect(await dbRevenue()).toBeNull()
         for (const [description, acquire] of [["Labor", 60000], ["Permits", 29160]]) {
-            await asSvc(svc().from("costing_cost_rows").insert({ matrix_id: matrixId, position: description === "Labor" ? 1 : 2, description, quantity: 1, acquire_unit: acquire, created_by: ids.dealOwner }), "cost row")
+            await asSvc(svc().from("costing_cost_rows").insert({ matrix_id: matrixId, position: description === "Labor" ? 1 : 2, description, quantity: 1, acquire_unit: acquire }), "cost row")
         }
         // Marketing still blank.
         expect(await dbRevenue()).toBeNull()
@@ -149,6 +151,24 @@ describe("Revenue the sheet's way", () => {
         }
     })
 
+    it("counts a percent-of-ABC row the screen's way: its percent of the ABC total, its Final cost dropped", async () => {
+        const { data: row, error } = await svc()
+            .from("costing_cost_rows")
+            .insert({ matrix_id: matrixId, position: 3, description: "Bid bond", quantity: 2, abc_pct: 10, final_acquire_unit: 99999 })
+            .select("*")
+            .single()
+        if (error) throw new Error(`percent row: ${error.message}`)
+        const rows = await asSvc(svc().from("costing_cost_rows").select("*").eq("matrix_id", matrixId), "cost rows")
+        const screen = projectExpensesTotal(applyPercentRows(rows.map((r) => ({ ...r, quantity: Number(r.quantity), acquire_unit: num(r.acquire_unit), final_acquire_unit: num(r.final_acquire_unit), abc_pct: num(r.abc_pct) })), 371500))
+        const {
+            rows: [db],
+        } = await sql().query("select public.costing_project_expenses_total($1::uuid) as total", [matrixId])
+        // 60,000 + 29,160 + 10% of the 371,500 ABC (37,150), not the 99,999 typed over it.
+        expect(screen).toBe(126310)
+        expect(num(db.total)).toBe(screen)
+        await svc().from("costing_cost_rows").delete().eq("id", row.id)
+    })
+
     it("starts the Go line at 20 percent", async () => {
         const settings = await asSvc(svc().from("costing_settings").select("go_line_percent").eq("id", 1).single(), "settings")
         expect(Number(settings.go_line_percent)).toBe(20)
@@ -156,12 +176,12 @@ describe("Revenue the sheet's way", () => {
 })
 
 describe("who reads what the Revenue is worked from", () => {
-    it("gives the Closed Book the Marketing row, and every other tier none of it", async () => {
-        expect((await readMatrix("dealOwner")).tables.costing_matrix_money?.[0]?.marketing).toBeDefined()
-        for (const who of ["outsider", "stageParticipant"]) {
-            const data = await readMatrix(who)
-            expect(data.tables.costing_matrix_money ?? [], who).toEqual([])
+    it("gives the Closed Book (Sales and Purchasing) the Marketing row, and a Stage Participant none of it", async () => {
+        for (const who of ["dealOwner", "outsider"]) {
+            expect((await readMatrix(who)).tables.costing_matrix_money?.[0]?.marketing, who).toBeDefined()
         }
+        const data = await readMatrix("stageParticipant")
+        expect(data.tables.costing_matrix_money ?? [], "stageParticipant").toEqual([])
     })
 
     it("keeps the Revenue function out of every signed-in caller's hands", async () => {
