@@ -585,7 +585,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       <DialogContent showCloseButton={false} className="max-w-md sm:max-w-md flex flex-col overflow-hidden p-0 gap-0">
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
             Time Off & Overtime
           </h2>
@@ -600,7 +600,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
           <TabGroup
             variant="pill"
             tabs={[

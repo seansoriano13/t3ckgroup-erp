@@ -56,7 +56,7 @@ export default function ApproveUndertimeModal({ isOpen, onClose, request, status
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent showCloseButton={false} className="max-w-sm sm:max-w-sm flex flex-col overflow-hidden p-0 gap-0">
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
             {isApprove ? 'Approve undertime' : 'Decline undertime'}
           </h2>
@@ -70,7 +70,7 @@ export default function ApproveUndertimeModal({ isOpen, onClose, request, status
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="min-h-0 flex-1 overflow-y-auto p-6 space-y-4">
           <p className="text-xs font-semibold text-muted-foreground">
             {request.employee?.name || 'This employee'} filed {request.hours} hrs of undertime on{' '}
             {new Date(request.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.
