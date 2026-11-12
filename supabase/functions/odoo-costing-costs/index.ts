@@ -1,7 +1,7 @@
-// Fills a Costing Matrix's blank costs from Odoo (Costing Desk). For every
-// Component of the SOR's matrix that has an Odoo product and a blank Odoo unit
-// cost or Acquire, it reads the product's cost (`standard_price`) in Odoo and
-// writes it into the blank ones. A cost someone typed or a Canvass filled is
+// Fills a Costing Matrix from Odoo (Costing Desk). For every Component of the
+// SOR's matrix that has an Odoo product it reads the product in Odoo: its Sales
+// Price (`list_price`, the Odoo SRP, #961) is written as the Odoo figure every
+// time, and its cost (`standard_price`) into a blank Acquire. A cost someone typed or a Canvass filled is
 // never overwritten, and nothing the browser sends becomes a cost: the
 // database is handed only what this function read from Odoo itself.
 //
@@ -59,19 +59,23 @@ Deno.serve(async (req) => {
 
   try {
     const uid = await authenticate();
-    const products = await executeKw(uid, "product.product", "read", [productIds, ["standard_price"]]);
+    const products = await executeKw(uid, "product.product", "read", [productIds, ["standard_price", "list_price"]]);
     const costs: Record<string, number> = {};
+    const srps: Record<string, number> = {};
     for (const p of products || []) {
       const price = Number(p.standard_price);
       if (Number.isFinite(price) && price > 0) costs[String(p.id)] = price;
+      const srp = Number(p.list_price);
+      if (Number.isFinite(srp) && srp > 0) srps[String(p.id)] = srp;
     }
     const { data: filled, error } = await admin.rpc("costing_fill_odoo_costs", {
       p_actor: employee.id,
       p_opportunity_id: opportunityId,
       p_costs: costs,
+      p_srps: srps,
     });
     if (error) return jsonResponse({ success: false, refused: true, code: error.code, message: error.message });
-    return jsonResponse({ success: true, filled: filled ?? 0, unpriced: productIds.length - Object.keys(costs).length });
+    return jsonResponse({ success: true, filled: filled ?? 0, unpriced: productIds.filter((id) => !(String(id) in costs) && !(String(id) in srps)).length });
   } catch (err) {
     console.error("odoo-costing-costs error:", err);
     return jsonResponse({ success: false, message: err instanceof Error ? err.message : "Odoo cost lookup failed." });

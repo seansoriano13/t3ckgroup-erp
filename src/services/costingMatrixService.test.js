@@ -419,7 +419,7 @@ describe("costingMatrixService", () => {
 
       stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing"] });
       const odoo = await costingMatrixService.updateComponent(id, { odooUnit: 6 }).catch((e) => e);
-      expect(odoo.message).toBe("Odoo unit cost is written by Sales (the Deal Team).");
+      expect(odoo.message).toBe("Odoo SRP is written by Sales (the Deal Team).");
       stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing", "markup"] });
       await costingMatrixService.updateComponent(id, { markupFactor: 2 });
       const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Permits" });

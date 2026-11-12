@@ -178,7 +178,7 @@ describe("the Costing Desk", () => {
     await waitFor(() => {
       expect(screen.getAllByText("₱850.00").length).toBeGreaterThan(0);
     });
-    expect(await screen.findByText(/1 cost filled from Odoo/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 line updated from Odoo/)).toBeInTheDocument();
   });
 
   it("updates the screen at once when Refresh from the SOR is pressed (#834)", async () => {
@@ -215,7 +215,7 @@ describe("the Costing Desk", () => {
     await waitFor(() => {
       expect(screen.getAllByText("₱950.00").length).toBeGreaterThan(0);
     });
-    expect(await screen.findByText(/1 cost filled from Odoo/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 line updated from Odoo/)).toBeInTheDocument();
   });
 
   it("shows what the SOR line now says when the Product List changed", async () => {
@@ -304,7 +304,7 @@ describe("the Costing Desk", () => {
       expect(within(rows[0]).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
       expect(within(rows[0]).getByLabelText("P.O./RFQ No. 1.1")).toHaveValue("RFQ-2231");
       expect(within(rows[0]).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
-      expect(within(rows[0]).getByLabelText("Odoo unit cost 1.1")).toHaveValue(2200000);
+      expect(within(rows[0]).getByLabelText("Odoo SRP 1.1")).toHaveValue(2200000);
       // The bundle at 1 x 2,160,500 totals 2,160,500, never 0.00; the part with no Acquire shows a dash.
       expect(within(rows[0]).getByText("₱2,160,500.00")).toBeInTheDocument();
       expect(within(rows[1]).getByText("₱120,000.00")).toBeInTheDocument();
@@ -329,7 +329,7 @@ describe("the Costing Desk", () => {
       const row = within(block).getAllByTestId("component")[0];
       // Sales writes Brand and the Odoo unit cost.
       expect(within(row).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
-      expect(within(row).getByLabelText("Odoo unit cost 1.1")).toHaveValue(2200000);
+      expect(within(row).getByLabelText("Odoo SRP 1.1")).toHaveValue(2200000);
       // Purchasing's columns read as text.
       expect(within(row).getByLabelText("Offer Specification 1.1").tagName).toBe("SPAN");
       expect(within(row).getByLabelText("P.O./RFQ No. 1.1").tagName).toBe("SPAN");
@@ -353,7 +353,7 @@ describe("the Costing Desk", () => {
       const row = within(await screen.findByTestId("components")).getAllByTestId("component")[0];
       // Brand is written by Sales and Purchasing; the Odoo unit cost stays Sales'.
       expect(within(row).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
-      expect(within(row).getByLabelText("Odoo unit cost 1.1").tagName).toBe("SPAN");
+      expect(within(row).getByLabelText("Odoo SRP 1.1").tagName).toBe("SPAN");
       expect(within(row).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
       expect(within(row).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
     });
