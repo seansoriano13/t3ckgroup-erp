@@ -176,7 +176,7 @@ export default function ModalShell({
           </div>
 
           {!isRecord && (
-            <div className="flex shrink-0 items-center justify-between border-t border-border bg-muted/30 px-5 py-4 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <div className="flex shrink-0 items-center justify-between border-t border-border bg-muted/30 px-5 py-4 max-md:pb-[calc(1rem+env(safe-area-inset-bottom))]">
               <div className="flex items-center gap-4 text-[10px] font-medium text-muted-foreground">
                 <span className="hidden items-center gap-1.5 sm:flex">
                   <kbd className="rounded border border-border bg-muted/80 px-1.5 py-0.5 font-sans text-[9px] text-muted-foreground">

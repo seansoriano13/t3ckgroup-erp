@@ -28,15 +28,15 @@ describe("ModalShell record size", () => {
     const dialog = screen.getByRole("dialog");
 
     expect(dialog.className).toContain("max-w-[1400px]");
-    expect(dialog.className).toContain("max-sm:!w-screen");
+    expect(dialog.className).toContain("max-md:!w-screen");
   });
 
   it("renders compact and wide as full-height sheets on a phone (#980)", () => {
     for (const size of ["compact", "wide"]) {
       const { unmount } = render(shell({ size }));
       const dialog = screen.getByRole("dialog");
-      expect(dialog.className).toContain("max-sm:!h-dvh");
-      expect(dialog.className).toContain("max-sm:rounded-t-2xl");
+      expect(dialog.className).toContain("max-md:!h-dvh");
+      expect(dialog.className).toContain("max-md:rounded-t-2xl");
       unmount();
     }
   });

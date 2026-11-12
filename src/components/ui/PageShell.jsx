@@ -58,8 +58,9 @@ export default function PageShell({
           data-testid="page-toolbar"
           // From 1024px the pills and the FilterBar share one row; if they
           // cannot fit, the pills take the first row and the FilterBar the
-          // second (flex-wrap). Never three rows.
-          className={`flex flex-wrap items-center gap-3 lg:[&>*:last-child:not(:first-child)]:min-w-[min(100%,28rem)] lg:[&>*:last-child:not(:first-child)]:flex-1 ${pinned}`}
+          // second (flex-wrap). Never three rows. A last child that must keep its
+          // own size (pills, not a FilterBar) sets `data-toolbar-no-stretch`.
+          className={`flex flex-wrap items-center gap-3 lg:[&>*:last-child:not(:first-child):not([data-toolbar-no-stretch])]:min-w-[min(100%,28rem)] lg:[&>*:last-child:not(:first-child):not([data-toolbar-no-stretch])]:flex-1 ${pinned}`}
         >
           {toolbar}
         </div>

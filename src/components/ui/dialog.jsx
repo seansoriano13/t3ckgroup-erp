@@ -62,7 +62,7 @@ function DialogContent({
           // Header and footer stay pinned (they are sticky) while the body scrolls. A
           // flex column here so the footer can sit at the bottom of a short form.
           sheet &&
-            "max-sm:!top-0 max-sm:!left-0 max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!h-dvh max-sm:!max-h-none max-sm:!w-full max-sm:!max-w-none max-sm:flex max-sm:flex-col max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:[&>*]:shrink-0",
+            "max-md:!top-0 max-md:!left-0 max-md:!translate-x-0 max-md:!translate-y-0 max-md:!h-dvh max-md:!max-h-none max-md:!w-full max-md:!max-w-none max-md:flex max-md:flex-col max-md:rounded-t-2xl max-md:rounded-b-none max-md:[&>*]:shrink-0",
           " data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
         )}
@@ -113,7 +113,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "sticky bottom-0 z-10 -mx-4 -mb-4 mt-0 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted p-4 max-sm:mt-auto max-sm:rounded-b-none max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end",
+        "sticky bottom-0 z-10 -mx-4 -mb-4 mt-0 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted p-4 max-md:mt-auto max-md:rounded-b-none max-md:pb-[calc(1rem+env(safe-area-inset-bottom))] md:flex-row md:justify-end",
         className,
       )}
       {...props}

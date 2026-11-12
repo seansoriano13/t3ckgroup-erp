@@ -49,7 +49,7 @@ export function ApprovalToolbar({
   return (
     <>
       <TabGroup className="max-w-full" size="sm" tabs={views} activeTab={view} onChange={onViewChange} />
-      <div className="flex flex-wrap items-center gap-2 md:ml-auto laptop:!min-w-0 laptop:!flex-none">
+      <div data-toolbar-no-stretch className="flex flex-wrap items-center gap-2 md:ml-auto">
         {onPersonChange && people.length > 0 && (
           <PillFilter label={personLabel} icon={<UserRound size={13} className="text-muted-foreground" />} value={person} options={personOptions} onChange={onPersonChange} />
         )}
