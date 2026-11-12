@@ -1,4 +1,5 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useInRouterContext, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QueryError from "@/components/ui/QueryError";
 import { ChevronRight } from "lucide-react";
@@ -170,6 +171,31 @@ function ItemSection({ section, rowFor, open, onOpenChange, sectionRef }) {
 }
 
 /**
+ * #972: the S0 Evaluation's Canvass button links to the request with `?canvass=1&line=<item>`
+ * (`canvassHref`). This opens the grid at that line, then takes both params off the address so a
+ * refresh or Back does not open it again. Only mounted inside a router.
+ */
+function CanvassLinkOpener({ onOpen }) {
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get("canvass") === "1";
+  const line = params.get("line");
+  useEffect(() => {
+    if (!wanted) return;
+    onOpen({ itemId: line });
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("canvass");
+        next.delete("line");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [wanted, line, onOpen, setParams]);
+  return null;
+}
+
+/**
  * Issue #305 / #678 — a Purchase Request's products in two sections: "From the S0" (one item per
  * S0 line, made and kept in step by the database) and "Other requests" (items with no S0 line).
  * Each shows its status beside it; the way to add an Other request sits on top.
@@ -185,6 +211,7 @@ export default function RequestedItems({ request, renderActions }) {
   const [openSections, setOpenSections] = useState({ s0: true, other: true });
   // #970: the request's Canvass grid, open (at a line, or at the top) or closed.
   const [canvassAt, setCanvassAt] = useState(null);
+  const inRouter = useInRouterContext();
   const sectionRefs = { s0: useRef(null), other: useRef(null) };
 
   const itemsQuery = useQuery({
@@ -334,6 +361,7 @@ export default function RequestedItems({ request, renderActions }) {
           <AddRequestedItems request={request} />
         </div>
       </div>
+      {inRouter && !renderActions && <CanvassLinkOpener onOpen={setCanvassAt} />}
       {canvassAt && (
         <CanvassGridModal open onOpenChange={(open) => !open && setCanvassAt(null)} request={request} focusItemId={canvassAt.itemId} />
       )}
