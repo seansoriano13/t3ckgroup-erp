@@ -6,7 +6,7 @@
  *   outsider   Purchasing access -> Purchasing band
  *   ordinary   nobody            -> no tier
  *
- * The matrix, Components, Canvasses, Offers and Requested Items are made with the service
+ * The matrix, Components, Canvasses, quotes and Requested Items are made with the service
  * role; every call under test runs as a real cast member, so the real triggers judge it.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -15,7 +15,6 @@ import { serviceClient } from "./support/stack.js"
 import { MARKER, makeSor } from "./support/rows.js"
 import { tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
 import { purgeCostingForSors } from "./support/costing.js"
-import { coverSlots } from "./support/canvassSlots.js"
 
 const svc = () => serviceClient()
 const BAD_INPUT = "22023"
@@ -148,36 +147,32 @@ describe("Purchasing names the Odoo product", () => {
     })
 })
 
-describe("a typed line is canvassed like any line", () => {
-    it("takes a Canvass on its Component, and the winner fills the Component's cost", async () => {
-        const line = await typedLine()
-        const comp = await component(line.id)
-        const canvass = await asSvc(svc().from("sor_canvasses").insert({ component_id: comp, created_by: ids.outsider }).select("id").single(), "Canvass")
-        const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass.id, supplier_name: "Redleaf Inc." }).select("id").single(), "Offer")
-        await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: 4250 }), "Offer price")
-
-        await coverSlots(canvass.id)
-        const picked = await (await clientFor("outsider")).rpc("canvass_apply_winner", { p_canvass_id: canvass.id, p_offer_id: offer.id })
-        expect(picked.error).toBeNull()
-        const cost = await asSvc(svc().from("costing_component_costs").select("acquire_unit").eq("component_id", comp).single(), "cost")
-        expect(Number(cost.acquire_unit)).toBe(4250)
-    })
-})
-
 describe("a line with a Canvass or a P0 stays", () => {
-    it("is refused once its Component has a Canvass", async () => {
+    // A Canvass belongs to the request (#967): a line is held once a supplier has quoted a Requested Item made from its Component.
+    const quoteOn = async (comp) => {
+        const item = await asSvc(
+            svc().from("purchase_request_items").insert({ request_id: requestId, source: "component", component_id: comp, name: "Tripod", quantity: 1, requested_by: ids.dealOwner }).select("id").single(),
+            "Requested Item",
+        )
+        const found = (await svc().from("request_canvasses").select("id").eq("request_id", requestId).maybeSingle()).data
+        const canvass = found ?? (await asSvc(svc().from("request_canvasses").insert({ request_id: requestId, number: "x", created_by: ids.outsider }).select("id").single(), "Canvass"))
+        const supplier = await asSvc(svc().from("request_canvass_suppliers").insert({ canvass_id: canvass.id, supplier_name: `${MARKER} ${comp}` }).select("id").single(), "supplier")
+        await asSvc(svc().from("request_canvass_quotes").insert({ canvass_id: canvass.id, supplier_id: supplier.id, item_id: item.id }), "quote")
+    }
+
+    it("is refused once a supplier has quoted its Component's Requested Item", async () => {
         const line = await typedLine()
         const comp = await component(line.id)
-        await asSvc(svc().from("sor_canvasses").insert({ component_id: comp, created_by: ids.outsider }), "Canvass")
+        await quoteOn(comp)
 
         const refused = await tryDelete(await clientFor("dealOwner"), "costing_tender_lines", line.id)
         expect(refused).toMatchObject({ ok: false, code: BAD_INPUT })
-        expect(refused.message).toBe("costing_line: a line with a Canvass can't be removed")
+        // Two guards say no; the Requested Item's fires first, and either way the line stays.
+        expect(refused.message).toMatch(/linked to a Requested Item|a line with a Canvass can't be removed/)
         expect(await lineExists(line.id)).toBe(true)
     })
 
-    // A Requested Item that names a Component is never canvassed itself (the Canvass is on the
-    // Component, #720), so a Canvass can't sit on it. The line is still held by the Requested Item.
+    // A Requested Item with no quote still holds the line.
     it("is refused once a Requested Item is made from its Component", async () => {
         const line = await typedLine()
         const comp = await component(line.id)
@@ -223,7 +218,7 @@ describe("a line with a Canvass or a P0 stays", () => {
     it("holds for a Super Admin too", async () => {
         const line = await typedLine()
         const comp = await component(line.id)
-        await asSvc(svc().from("sor_canvasses").insert({ component_id: comp, created_by: ids.outsider }), "Canvass")
+        await quoteOn(comp)
         const refused = await tryDelete(await clientFor("superAdmin"), "costing_tender_lines", line.id)
         expect(refused).toMatchObject({ ok: false, code: BAD_INPUT })
     })

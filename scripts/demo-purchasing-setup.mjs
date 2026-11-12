@@ -327,7 +327,8 @@ async function freeScenarioFS0s(c, demoFlow) {
 /**
  * #678: the demo's Requested Items in the new shape. Items on the Purchase Requests of the demo
  * SORs (any copy of the demo Sale Type, old ones included) are cleared, then one Not checked
- * item is made for every S0 line by the same function the database trigger uses. Staging only,
+ * item is made for every S0 line by the same function the database trigger uses. A demo request's
+ * Canvass (one per request since #967) is deleted with its suppliers and quotes. Staging only,
  * demo SORs only.
  */
 async function resetDemoItems(c) {
@@ -339,6 +340,8 @@ async function resetDemoItems(c) {
     [DEMO_SALE_TYPE, `${DEMO_SALE_TYPE} (old %`],
   )
   for (const { id } of requests) {
+    // The request's one Canvass (#967) goes with its suppliers and quotes, so the next rehearsal starts blank.
+    await c.query("delete from public.request_canvasses where request_id = $1", [id])
     await c.query("delete from public.purchase_request_items where request_id = $1", [id])
     await c.query("select public._purchase_request_sync_sor_items($1)", [id])
   }

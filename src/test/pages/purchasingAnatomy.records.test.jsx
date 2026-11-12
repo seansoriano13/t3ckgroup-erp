@@ -43,8 +43,6 @@ import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubProcurementQueueRpcs } from "@/test/stubs/procurementQueueRpc"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { shapeTransmittal } from "@/utils/transmittals"
-import CanvassesPage from "@/pages/purchasing/canvasses/index"
-import { stubCanvassListRpcs, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
 
 const auth = vi.hoisted(() => ({ user: null }))
 const transmittalService = vi.hoisted(() => ({
@@ -167,24 +165,6 @@ function seedPurchaseRequest() {
   auth.user = buyer
 }
 
-// A Canvass is a window over the Canvasses list, opened by ?canvass=<id>. It reads the fake database, which numbers it CNV_0001.
-function seedCanvass() {
-  const buyer = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true })
-  const canvasser = makeEmployee({ name: "Ana Reyes", has_purchasing_flow: true })
-  auth.user = buyer
-  stubCanvassMoneyRpc({ money: true })
-  stubCanvassWinnerRpcs({ bands: ["purchasing"] })
-  stubCanvassListRpcs({ actorId: buyer.id })
-  const canvass = db.seed("sor_canvasses", {
-    product_name: "Laser toner",
-    canvasser_id: canvasser.id,
-    created_by: canvasser.id,
-  })
-  db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Ink Depot", brand: "HP", is_winner: true })
-  db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Toner World", brand: "Canon", is_winner: false })
-  return canvass
-}
-
 // The IPAS reads the test database (not a mocked service). One buyer, one open IPAS from Odoo.
 const IPAS_ID = "00000000-0000-4000-8000-0000000000a1"
 
@@ -275,27 +255,6 @@ const RECORDS = [
     pills: ["Buyer", "SOR", "Stage", "Items"],
     hasMore: false,
     yourMove: null,
-  },
-  {
-    name: "Canvass",
-    Page: CanvassesPage,
-    route: "/purchasing/canvasses",
-    // The Canvass opens from the address, so the link is known once the seed has run.
-    get path() {
-      return `/purchasing/canvasses?canvass=${this.seeded.id}`
-    },
-    seed() {
-      this.seeded = seedCanvass()
-    },
-    title: /^CNV_0001\s*·\s*Laser toner$/,
-    badge: "Winner picked",
-    pills: ["Canvasser", "Subject", "Winner"],
-    hasMore: true,
-    yourMove: {
-      // Two offers and no explained slot, so the supplier slots come before the reason (#898).
-      status: "Next: fill or explain the other supplier slots",
-      steps: ["Offers in", "Winner picked", "Purchase Request"],
-    },
   },
   {
     name: "IPAS",

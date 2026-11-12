@@ -110,7 +110,7 @@ describe("the product list as a table", () => {
     expect(within(row).getAllByText("For the client").length).toBeGreaterThan(0)
   })
 
-  it("opens a line to its fields and, for Purchasing, the Canvass, Attach P0 and Replace buttons", async () => {
+  it("opens a line to its fields and, for Purchasing, the Attach P0 and Replace buttons", async () => {
     await seedS0({ po_number: "P09718", po_state: "rfq", po_verification: "VERIFIED" })
     show(buyer.id)
 
@@ -119,7 +119,6 @@ describe("the product list as a table", () => {
       expect(within(row).getAllByText(label).length).toBeGreaterThan(0)
     }
     expect(within(row).getByText(/RFQ only, not confirmed/)).toBeInTheDocument()
-    expect(within(row).getByRole("button", { name: "Canvass [M18C] Milwaukee Charger M18" })).toBeInTheDocument()
     expect(within(row).getByRole("button", { name: "Attach P0" })).toBeEnabled()
     expect(within(row).getByRole("button", { name: "Replace" })).toBeEnabled()
   })

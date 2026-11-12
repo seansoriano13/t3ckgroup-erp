@@ -20,19 +20,15 @@ export function canvassBlockedReason(item) {
 }
 
 /**
- * "Canvass CNV_0007 · 2 of 3 offers" for a line that has a Canvass, else null. Once a winner is
- * picked, the line also names who won: "· Winner Redleaf Inc.".
+ * "Canvass CNV_0007 · 2 of 3 suppliers" for a line a supplier has quoted, else null. `canvass` is
+ * what `purchaseRequestService.canvassesForItems` attaches: the request's Canvass number, how many
+ * suppliers quoted this line (`supplierCount`) and who won it (`winnerName`). Once a winner is
+ * picked the line also names who won: "· Winner Redleaf Inc.".
  */
 export function canvassLine(canvass) {
   if (!canvass) return null;
-  const offers = canvass.offers?.length ?? canvass.offerCount ?? 0;
   const head = canvass.number ? `Canvass ${canvass.number}` : "Canvass";
-  // #687: a replaced line's open Canvass is closed with the reason ("Stopped · replaced by B").
-  if (canvass.stopped_reason) return `${head} · ${canvass.stopped_reason}`;
-  // A "No other supplier" note covers a slot too, so count it (#795 A9).
-  const covered = canvass.slotsCovered ?? offers;
-  const count = covered > offers ? `${covered} of ${MIN_CANVASS_OFFERS} slots` : `${offers} of ${MIN_CANVASS_OFFERS} offers`;
-  const winner = (canvass.offers || []).find((offer) => offer?.is_winner);
-  const winnerName = winner ? String(winner.supplier_name || winner.brand || "").trim() : "";
+  const count = `${canvass.supplierCount ?? 0} of ${MIN_CANVASS_OFFERS} suppliers`;
+  const winnerName = String(canvass.winnerName || "").trim();
   return winnerName ? `${head} · ${count} · Winner ${winnerName}` : `${head} · ${count}`;
 }

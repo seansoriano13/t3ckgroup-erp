@@ -1,9 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 
 import Dot from "@/components/ui/Dot";
 import { cn } from "@/lib/utils";
-import { canvassService } from "../../services/canvassService";
 import { canvassLine } from "../../utils/itemCanvass";
 import { askedByText, lineNotes, p0Cell, purposeLabel, splitProductName, stockCell } from "../../utils/productLine";
 import { formatAmount } from "../../utils/requestedItem";
@@ -78,14 +76,9 @@ export function AskedSub({ item, side }) {
   );
 }
 
-/** "Canvass CNV_0009 · 2 of 3 offers", read from the Canvass the line already has. */
+/** "Canvass CNV_0009 · 2 of 3 suppliers", read from the Canvass the request's service already attached to the line. */
 function CanvassNote({ item }) {
-  const { data: canvass = null } = useQuery({
-    queryKey: ["canvass", "requestedItem", item.id],
-    queryFn: () => canvassService.getForRequestedItem(item.id),
-    enabled: !!item.canvass,
-  });
-  const summary = canvassLine(canvass);
+  const summary = canvassLine(item.canvass);
   return summary ? <span className="min-w-0 break-words">{summary}</span> : null;
 }
 

@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { Scale } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { ExternalLink } from "../ui/external-link";
-import CanvassPanel from "../CanvassPanel";
 import { canvassService } from "../../services/canvassService";
 import { refusalMessage } from "./gridFormat";
 
@@ -72,53 +70,24 @@ function Citations({ documents }) {
 }
 
 /**
- * The Canvass of a Component (#276), opened from its row. Where a Canvass exists, a chip shows its
- * number and how many Offers it holds; every reader of the matrix may open it (what they see inside
- * is what their tier allows). Where none exists, only Purchasing gets the "Canvass" action that
- * starts one. An old Canvass that was signed off says so (#279, read-only history since #728).
+ * What a Component's row says about its Canvass (#967, spec #956): where one of its Requested Items
+ * has been quoted, the Canvass number and how many suppliers quoted it. A Canvass belongs to the
+ * Purchase Request now, so the row no longer opens or starts one; the request's Canvass grid, opened
+ * at the line, arrives with #970 and the S0 Evaluation's Canvass button with #972.
  */
-export default function ComponentCanvass({ component, canvass, canWrite, opportunityId, actorId }) {
-  const [open, setOpen] = useState(false);
-  if (!canvass && !canWrite) return null;
-
-  const label = `Component ${component.number || ""}`.trim();
-  const offers = canvass?.offerCount ?? 0;
+export default function ComponentCanvass({ component, canvass }) {
+  if (!canvass) return null;
+  const suppliers = canvass.offerCount ?? 0;
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid="component-canvass">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-7 gap-1 px-2 text-xs"
-        aria-label={canvass ? `Open Canvass ${canvass.number} for ${label}` : `Canvass ${label}`}
-        onClick={() => setOpen(true)}
-      >
-        <Scale size={12} aria-hidden="true" />
-        {canvass ? canvass.number : "Canvass"}
-      </Button>
+      <span className="font-medium text-foreground" aria-label={`Canvass ${canvass.number} for Component ${component.number || ""}`.trim()}>
+        {canvass.number}
+      </span>
       <Citations documents={component.documents} />
-      {canvass && (
-        <span>
-          {offers} offer{offers === 1 ? "" : "s"}
-        </span>
-      )}
-      {canvass?.signed_off_at && (
-        <span data-testid="canvass-signed-state" className="font-semibold text-green-11">
-          Signed off
-        </span>
-      )}
-      {open && (
-        <CanvassPanel
-          open={open}
-          onOpenChange={setOpen}
-          subject={{ componentId: component.id }}
-          subjectLabel={`${component.number ? `${component.number} ` : ""}${component.name || "Component"}`}
-          userId={actorId}
-          canEdit={canWrite}
-          opportunityId={opportunityId}
-        />
-      )}
+      <span>
+        {suppliers} supplier{suppliers === 1 ? "" : "s"}
+      </span>
     </div>
   );
 }
