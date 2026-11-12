@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 
 import Dot from "@/components/ui/Dot";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { canvassLine } from "../../utils/itemCanvass";
 import { askedByText, lineNotes, p0Cell, purposeLabel, splitProductName, stockCell } from "../../utils/productLine";
@@ -76,21 +77,37 @@ export function AskedSub({ item, side }) {
   );
 }
 
-/** "Canvass CNV_0009 · 2 of 3 suppliers", read from the Canvass the request's service already attached to the line. */
-function CanvassNote({ item }) {
+/**
+ * "Canvass CNV_0009 · 2 of 3 suppliers", read from the Canvass the request's service already
+ * attached to the line. With `onOpen` it is a link that opens the request's Canvass grid at this
+ * line (#970).
+ */
+function CanvassNote({ item, onOpen }) {
   const summary = canvassLine(item.canvass);
-  return summary ? <span className="min-w-0 break-words">{summary}</span> : null;
+  if (!summary) return null;
+  if (!onOpen) return <span className="min-w-0 break-words">{summary}</span>;
+  return (
+    <Button
+      type="button"
+      variant="link"
+      onClick={() => onOpen(item)}
+      aria-label={`Open the Canvass at ${item.name}: ${summary}`}
+      className="h-auto min-w-0 whitespace-normal break-words p-0 text-left text-xs font-normal text-foreground underline"
+    >
+      {summary}
+    </Button>
+  );
 }
 
 /** The Delivery and notes column: what to know about the line, then the "Is this yours?" pill when it applies. */
-export function NotesCell({ item, replacedBy, yours }) {
+export function NotesCell({ item, replacedBy, yours, onOpenCanvass }) {
   const notes = lineNotes(item, { replacedBy });
   const quiet = notes.length === 0 && !item.canvass && !yours;
   return (
     <div className="flex min-w-0 flex-col items-start gap-1 text-xs text-muted-foreground">
       {yours}
       {yours && <span className="text-amber-12">New on the S0 today</span>}
-      {item.canvass && <CanvassNote item={item} />}
+      {item.canvass && <CanvassNote item={item} onOpen={onOpenCanvass} />}
       {notes.map((note) => (
         <span key={note.text} className={cn("flex items-start gap-1", note.warn && "font-medium text-amber-12")}>
           {note.warn && <AlertTriangle size={12} aria-hidden="true" className="mt-0.5 shrink-0" />}

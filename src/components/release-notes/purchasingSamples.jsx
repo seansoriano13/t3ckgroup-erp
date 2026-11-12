@@ -5,6 +5,8 @@ import IpasPaymentsTable from "../ipas/IpasPaymentsTable"
 import IpasSorSection from "../ipas/IpasSorSection"
 import { ipasSorSummariesKey } from "../ipas/ipasKeys"
 import { COSTING_TIER } from "../../constants/costing"
+import CanvassGrid from "../purchase-request/CanvassGrid"
+import { canvassKeys, purchaseRequestKeys } from "../purchase-request/queryKeys"
 import SampleProvider, { SAMPLE_SAVE_BLOCKED } from "./SampleProvider"
 import { PEOPLE, isoDate } from "./sampleData"
 
@@ -114,6 +116,56 @@ export function PmsIpasSample() {
     <SampleProvider seed={[[ipasSorSummariesKey("sample-pms-sor"), SUMMARIES]]}>
       <SampleAuthProvider user={VIEWER}>
         <IpasSorSection opportunityId="sample-pms-sor" />
+      </SampleAuthProvider>
+    </SampleProvider>
+  )
+}
+
+// The request’s Canvass (ADR 0053): two lines down, three suppliers across, one with a winner.
+// The viewer is on the Sales side, so the grid is the plain read of it, with no edit controls.
+const CANVASS_REQUEST = { id: "sample-canvass-request", title: "Demo rescue gear", opportunity_id: null }
+const CANVASS_ITEMS = [
+  { id: "ci-1", request_id: CANVASS_REQUEST.id, name: "Demo folding stretcher", quantity: 4, unit: "pc", status: "still_canvassing" },
+  { id: "ci-2", request_id: CANVASS_REQUEST.id, name: "Demo spine board", quantity: 2, unit: "pc", status: "still_canvassing" },
+]
+const supplier = (id, order, name, extra = {}) => ({
+  id, canvass_id: "sample-canvass", sort_order: order, supplier_name: name, currency: "PHP", lead_time: "14 days", quality_note: null, valid_until: null, expired: false, comparison_rate: null, ...extra,
+})
+const quote = (supplierId, itemId, unit, figure = unit, extra = {}) => ({
+  id: `sq-${supplierId}-${itemId}`, canvass_id: "sample-canvass", supplier_id: supplierId, item_id: itemId, brand: null, description: null, source_link: null, remarks: null, brochure: [], unit_price: unit, php_figure: figure, ...extra,
+})
+const CANVASS = {
+  id: "sample-canvass",
+  number: "CNV_0001",
+  request_id: CANVASS_REQUEST.id,
+  canReadMoney: true,
+  suppliers: [
+    supplier("sup-1", 0, "Demo Rescue Supply Co."),
+    supplier("sup-2", 1, "Demo Medical Traders", { lead_time: "10 days" }),
+    supplier("sup-3", 2, "Demo Hong Kong Ltd.", { currency: "USD", comparison_rate: 56.5, lead_time: "45 days", quality_note: "Grade A" }),
+  ],
+  quotes: [
+    quote("sup-1", "ci-1", 18000, 18000, { brand: "Demo" }),
+    quote("sup-2", "ci-1", 17500, 17500),
+    quote("sup-3", "ci-1", 300, 16950),
+    quote("sup-1", "ci-2", 9000),
+    quote("sup-2", "ci-2", 9500),
+  ],
+  winners: [{ item_id: "ci-1", supplier_id: "sup-3", reason: "Lowest in PHP and Grade A.", chosen_at: isoDate(-1) }],
+  noOtherSupplier: null,
+}
+
+export function CanvassGridSample() {
+  return (
+    <SampleProvider
+      seed={[
+        [purchaseRequestKeys.items(CANVASS_REQUEST.id), CANVASS_ITEMS],
+        [purchaseRequestKeys.itemActor(CANVASS_REQUEST.id), { side: "sales", canSubstitute: false }],
+        [canvassKeys.request(CANVASS_REQUEST.id), CANVASS],
+      ]}
+    >
+      <SampleAuthProvider user={VIEWER}>
+        <CanvassGrid request={CANVASS_REQUEST} />
       </SampleAuthProvider>
     </SampleProvider>
   )

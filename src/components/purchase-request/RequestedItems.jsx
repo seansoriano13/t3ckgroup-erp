@@ -18,6 +18,7 @@ import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
 import BulkStatusBar from "./BulkStatusBar";
 import LineButtons from "./LineButtons";
+import { CanvassGridModal } from "./CanvassGrid";
 import AttachFollowUpHost from "./AttachFollowUpHost";
 import { AskedSub, ColumnHeads, COLUMNS, ForCell, NotesCell, P0Cell, ProductCode, QtyCell, StockCell } from "./ProductLineCells";
 import { YoursBadge } from "./YoursDialog";
@@ -182,6 +183,8 @@ export default function RequestedItems({ request, renderActions }) {
   // #852: the ticked lines, for the bulk bar.
   const [ticked, setTicked] = useState(() => new Set());
   const [openSections, setOpenSections] = useState({ s0: true, other: true });
+  // #970: the request's Canvass grid, open (at a line, or at the top) or closed.
+  const [canvassAt, setCanvassAt] = useState(null);
   const sectionRefs = { s0: useRef(null), other: useRef(null) };
 
   const itemsQuery = useQuery({
@@ -294,6 +297,7 @@ export default function RequestedItems({ request, renderActions }) {
         <NotesCell
           item={item}
           replacedBy={replacedBy}
+          onOpenCanvass={(line) => setCanvassAt({ itemId: line.id })}
           yours={
             item.new_on_s0 ? (
               <YoursBadge
@@ -320,8 +324,19 @@ export default function RequestedItems({ request, renderActions }) {
             </span>
           )}
         </h3>
-        <AddRequestedItems request={request} />
+        <div className="flex items-center gap-2">
+          {/* #970: one Canvass for the whole request, for Purchasing. A line's notes open it at that line. */}
+          {!renderActions && actor?.side === MEMBER_SIDE.PURCHASING && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setCanvassAt({ itemId: null })}>
+              Canvass
+            </Button>
+          )}
+          <AddRequestedItems request={request} />
+        </div>
       </div>
+      {canvassAt && (
+        <CanvassGridModal open onOpenChange={(open) => !open && setCanvassAt(null)} request={request} focusItemId={canvassAt.itemId} />
+      )}
       <AttachFollowUpHost requestId={requestId} />
       {itemsQuery.isLoading ? (
         <div className="flex justify-center py-8">

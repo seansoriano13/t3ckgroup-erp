@@ -4,7 +4,10 @@
  */
 import { openRowNamed } from "@/test/openRequestedItem"
 import { beforeEach, describe, expect, it } from "vitest"
-import { screen, within } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
+import { stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc"
+import { canvassService } from "@/services/canvassService"
+import { SampleAuthProvider } from "@/context/AuthContext"
 import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
@@ -40,7 +43,11 @@ async function seedS0(fields = {}) {
 
 const show = (actorId) => {
   stubPurchaseRequestItemRpcs({ actorId })
-  renderWithProviders(<MemoryRouter><RequestedItems request={request} /></MemoryRouter>)
+  renderWithProviders(
+    <SampleAuthProvider user={{ id: actorId }}>
+      <MemoryRouter><RequestedItems request={request} /></MemoryRouter>
+    </SampleAuthProvider>,
+  )
 }
 
 beforeEach(() => {
@@ -131,6 +138,48 @@ describe("the product list as a table", () => {
     expect(within(row).getAllByText("Odoo code").length).toBeGreaterThan(0)
     expect(within(row).queryByRole("button", { name: "Attach P0" })).not.toBeInTheDocument()
     expect(within(row).queryByRole("button", { name: "Replace" })).not.toBeInTheDocument()
+  })
+
+  it("gives Purchasing one Canvass button for the request, not one per line (#970)", async () => {
+    await seedS0()
+    seedOther()
+    show(buyer.id)
+
+    const row = await openRowNamed("Milwaukee Charger M18")
+    expect(within(row).queryByRole("button", { name: "Canvass" })).not.toBeInTheDocument()
+    expect(await screen.findAllByRole("button", { name: "Canvass" })).toHaveLength(1)
+  })
+
+  it("gives Sales no Canvass button (#970)", async () => {
+    await seedS0()
+    show(salesperson.id)
+
+    await openRowNamed("Milwaukee Charger M18")
+    expect(screen.queryByRole("button", { name: "Canvass" })).not.toBeInTheDocument()
+  })
+
+  it("opens the request's Canvass in the wide window from the button, and at a line from its notes (#970)", async () => {
+    stubCanvassMoneyRpc({ money: true })
+    await seedS0()
+    const user = setupUser()
+    // A supplier has quoted the S0 line, so its notes column says where its Canvass stands.
+    const line = db.internal.rowsOf("purchase_request_items").find((i) => i.name.includes("Milwaukee"))
+    const supplier = await canvassService.addSupplier(request.id, { supplierName: "Redleaf Inc." }, buyer.id)
+    await canvassService.saveQuote(supplier.supplier.id, line.id, { unitPrice: 6500 })
+    show(buyer.id)
+
+    await user.click(await screen.findByRole("button", { name: "Canvass" }))
+    const shell = await screen.findByRole("dialog", { name: "Canvass" })
+    expect(shell).toHaveAttribute("data-modal-shell", "wide")
+    expect(within(shell).getByRole("button", { name: "Expand" })).toBeInTheDocument()
+    expect(await within(shell).findByRole("grid", { name: "Canvass" })).toBeInTheDocument()
+    await user.click(within(shell).getByRole("button", { name: "Close" }))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Canvass" })).not.toBeInTheDocument())
+
+    await user.click(await screen.findByRole("button", { name: /Open the Canvass at .*Milwaukee.*CNV_0001 · 1 of 3 suppliers/ }))
+    const again = await screen.findByRole("dialog", { name: "Canvass" })
+    await within(again).findByRole("grid", { name: "Canvass" })
+    expect(within(again).getByTestId("canvass-line").dataset.focused).toBe("true")
   })
 
   it("scrolls the table sideways rather than the page", async () => {
