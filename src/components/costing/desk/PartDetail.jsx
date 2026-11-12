@@ -5,7 +5,6 @@ import { Button } from "../../ui/button";
 import { Checkbox } from "../../ui/checkbox";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import {
-  COMPONENT_AVAILABILITY_LABEL,
   COMPONENT_BANDS,
   COMPONENT_COST_BANDS,
   COMPONENT_SOURCE_LABEL,
@@ -34,7 +33,6 @@ import { costComparisonText } from "../../../utils/costComparison";
 
 const toOptions = (labels) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const STATUS_OPTIONS = toOptions(COMPONENT_STATUS_LABEL);
-const AVAILABILITY_OPTIONS = toOptions(COMPONENT_AVAILABILITY_LABEL);
 const SOURCE_OPTIONS = toOptions(COMPONENT_SOURCE_LABEL);
 
 const CAPTION = "text-balance text-label font-bold uppercase tracking-wider text-muted-foreground";
@@ -75,8 +73,8 @@ export function Band({ title, hint, children, className }) {
 
 /**
  * Everything about one Component (#268), one band per writer: what we supply (name, quantity, the Offer
- * Specification beside the tender's words), Sales (Brand, Status, Odoo SRP), Purchasing (availability,
- * source, P.O./RFQ, Acquire), the Final Acquire and the Landed Cost the IPAS brought back, the markup,
+ * Specification beside the tender's words), Sales (Brand, Status, Odoo SRP), Purchasing (source,
+ * Acquire), the Final Acquire and the Landed Cost the IPAS brought back, the markup,
  * Technical's verdict, then its Odoo link, bundle and incharge. Under them the Canvass, what is being
  * bought for it and, for a bundle, its Inclusions. A total sits beside its unit figure, never under it. A
  * field outside the viewer's band reads; a cost the tier was never sent is not drawn. Labels end in the
@@ -189,14 +187,10 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
       </Band>
 
       <Band title="Purchasing">
-        <Field label="Availability">
-          <SelectCell label={label("Availability")} value={component.availability} options={AVAILABILITY_OPTIONS} readOnly={!can("availability")} onSave={(value) => save({ availability: value })} />
-        </Field>
         <Field label="Source">
           <SelectCell label={label("Source")} value={component.source} options={SOURCE_OPTIONS} readOnly={!can("source")} onSave={(value) => save({ source: value })} />
         </Field>
-        <Field label="P.O./RFQ No." wide>
-          <Cell label={label("P.O./RFQ No.")} value={component.po_rfq_no} placeholder="Once it is ordered or quoted" readOnly={!can("po_rfq_no")} onSave={(value) => save({ poRfqNo: value })} />
+        <Field label="Bought through" wide>
           <SupplierMismatch mismatch={component.supplierMismatch} />
           <ComponentPurchases component={component} linkIpas={tier !== COSTING_TIER.PARTICIPANT} canPick={inAnyBand(bands, [COSTING_BAND.PURCHASING])} onPicked={refresh} />
         </Field>

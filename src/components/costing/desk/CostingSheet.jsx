@@ -1,4 +1,5 @@
 import { ChevronRight, CornerDownRight } from "lucide-react";
+import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@/lib/utils";
@@ -11,6 +12,7 @@ import { costingMatrixService } from "../../../services/costingMatrixService";
 import { ABC_MODE, COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
 import { factorLabel, finalAcquireTotal, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
+import { IPAS_STATE_LABELS } from "../../../constants/ipas";
 import LinerList from "../../record/LinerList";
 import { lineBuyingStatus } from "../../../utils/buyingStatus";
 import { useIsPhone } from "@/hooks/useScreenBand";
@@ -20,6 +22,40 @@ function BuyingBadge({ line }) {
   const status = lineBuyingStatus(line);
   if (!status) return null;
   return <StatusBadge label={status.label} theme={status.theme} />;
+}
+
+/**
+ * The IPAS that pay for a line, from its parts (the data ItemRoad reads): the number and its state, a link to
+ * the IPAS when `linkIpas` (the IPAS page still decides who may open it), a dash when there is none. No money,
+ * so every tier sees it. Several are listed, one under another, never a table inside the cell.
+ */
+function IpasCell({ line, linkIpas }) {
+  const seen = new Set();
+  const ipas = [];
+  for (const component of line.components ?? []) {
+    for (const i of component.purchases?.ipas ?? []) {
+      if (!i.ipasId || seen.has(i.ipasId)) continue;
+      seen.add(i.ipasId);
+      ipas.push(i);
+    }
+  }
+  if (ipas.length === 0) return <span className="text-muted-foreground">-</span>;
+  return (
+    <ul className="space-y-1" data-testid="sheet-ipas">
+      {ipas.map((i) => (
+        <li key={i.ipasId} className="whitespace-nowrap">
+          {linkIpas ? (
+            <Link to={`/purchasing/ipas/${i.ipasId}`} className="font-medium underline underline-offset-2 hover:text-foreground">
+              {i.number}
+            </Link>
+          ) : (
+            <span className="font-medium">{i.number}</span>
+          )}
+          <span className="text-xs text-muted-foreground"> {IPAS_STATE_LABELS[i.state] || i.state}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** The word and colour under a price for where it came from; a cost Purchasing typed is amber. */
@@ -452,7 +488,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           <TableHeader className="bg-transparent">
             <TableRow>
               <th className={cn(GROUP, FROZEN)}>S0 line</th>
-              <th className={GROUP} />
+              <th colSpan={2} className={GROUP} />
               <th colSpan={1 + (showAbcLines ? 1 : 0) + (showOffer ? 1 : 0)} className={GROUP}>
                 Sales · the client&apos;s ask
               </th>
@@ -475,6 +511,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
             <TableRow>
               <th className={cn(HEAD, FROZEN)}>Item</th>
               <th className={cn(HEAD, "text-right")}>Qty</th>
+              <th className={HEAD}>IPAS</th>
               <th className={HEAD}>Client asks for</th>
               {showAbcLines && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
               {showOffer && <th className={cn(HEAD, "text-right")}>Final Offer / unit</th>}
@@ -491,7 +528,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           <TableBody>
             {lines.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={3 + (showAbcLines ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + (closed ? 2 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
+                <TableCell colSpan={4 + (showAbcLines ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + (closed ? 2 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
                   No S0 lines yet.
                 </TableCell>
               </TableRow>
@@ -539,6 +576,9 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                   <TableCell className={cn(CELL, NUM)}>
                     {line.quantity}
                     {line.unit && <div className={SUB}>{line.unit}</div>}
+                  </TableCell>
+                  <TableCell className={cn(CELL, "min-w-[8rem]")}>
+                    <IpasCell line={line} linkIpas={matrix.tier !== COSTING_TIER.PARTICIPANT} />
                   </TableCell>
                   <TableCell className={cn(CELL, "min-w-[14rem] max-w-[17rem]")}>
                     {kid ? null : (
