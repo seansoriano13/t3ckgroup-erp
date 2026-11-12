@@ -24,6 +24,7 @@ export const IPAS_EXPORT_HEADER = [
   "Full Payment",
   "Remaining Balance",
   "Status",
+  "Payments (% of order)",
 ];
 
 /** An Excel number format showing the currency's symbol the way the list does. */
@@ -75,6 +76,7 @@ export function ipasExportRows(rows) {
       paymentMoney(f.fullPayment, f.currency),
       money(f.remainingBalance, f.currency),
       f.status ? IPAS_STATUS_LABELS[f.status] : null,
+      f.paymentPercents || null,
     ];
   });
 }

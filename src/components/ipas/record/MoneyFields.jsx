@@ -36,7 +36,9 @@ import {
 } from "@/constants/ipas";
 import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "@/utils/attachments";
 import { formatAmount } from "@/utils/ipas";
-import { SECTION_DOCUMENT_KINDS, kindsToAdd } from "@/utils/ipasDocuments";
+import { odooPoTotal } from "@/utils/ipasFigures";
+import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase, refillAmountsFromPercent } from "@/utils/ipasPaymentPercent";
+import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
 import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateDay, formatRateNumber, rateDivergence } from "@/utils/referenceRate";
@@ -93,6 +95,16 @@ function RowHeader({ title, badge, removeLabel, onRemove, canRemove }) {
 
 function EmptyNote({ children }) {
   return <p className="text-[13px] text-muted-foreground">{children}</p>;
+}
+
+/** An amber heads-up under a figure: never blocks the save. */
+function AmberNote({ testId, children }) {
+  return (
+    <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400" role="status" data-testid={testId}>
+      <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
+      {children}
+    </p>
+  );
 }
 
 function Titled({ title, action, children }) {
@@ -229,7 +241,7 @@ function RateNote({ ipas, row }) {
   );
 }
 
-function ProofField({ row, disabled, onPatch }) {
+function ProofField({ row, disabled, required, onPatch }) {
   const [uploading, setUploading] = useState(false);
   const attach = async ([file]) => {
     if (!file) return;
@@ -253,7 +265,7 @@ function ProofField({ row, disabled, onPatch }) {
   };
   return (
     <div className="min-w-0" data-missing-file={!row.proofUrl && !disabled ? "payments" : undefined}>
-      <FieldBox label={<>Proof of payment<RequiredMark /></>} />
+      <FieldBox label={<>Proof of payment{required && <RequiredMark />}</>} />
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         {row.proofUrl ? (
           <>
@@ -282,7 +294,7 @@ function ProofField({ row, disabled, onPatch }) {
   );
 }
 
-function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, onRemove }) {
+function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPatch, onRemove }) {
   const { isPhp } = form;
   const currency = ipas.currency || "Odoo PO currency";
   const methods = optionsForPicker(ipas.options ?? [], IPAS_OPTION_LIST.PAYMENT_METHOD, saved?.method_id ?? null).map(asOption);
@@ -302,6 +314,8 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the reference rate arrives
   }, [referenceRate?.php_per_unit]);
   const kindLabel = IPAS_PAYMENT_KIND_LABELS[saved?.kind] ?? "payment";
+  const showPercent = percentApplies(row.kind);
+  const percent = parsePercentInput(row.percentOfOrder);
   return (
     <DraftRow
       label={`Payment ${index + 1}`}
@@ -319,8 +333,26 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
       }
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS} value={row.kind} disabled={disabled} onChange={(v) => onPatch({ kind: v })} />
+        <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS} value={row.kind} disabled={disabled} onChange={(v) => onPatch(afterPercentEdit(row, { field: "kind", value: v }))} />
         <Field id={id("paidOn")} label="Date" kind="date" required value={row.paidOn} disabled={disabled} onChange={(v) => onPatch({ paidOn: v })} />
+        {showPercent && (
+          <div className="min-w-0">
+            <Field
+              id={id("percentOfOrder")}
+              label="% of order"
+              placeholder="e.g. 30"
+              value={row.percentOfOrder}
+              disabled={disabled}
+              error={row.percentOfOrder !== "" && !percent.ok ? "Not a percent" : undefined}
+              onChange={(v) => onPatch(afterPercentEdit(row, { field: "percent", value: v, base }))}
+            />
+            <p className="mt-1 pl-1 text-xs text-muted-foreground" data-testid="payment-percent-base">
+              {base
+                ? `Worked out from the ${base.label} (${formatAmount(base.amount, ipas.currency)}). Type a different amount and the % is cleared.`
+                : "No P.I/QT Amount or PO total yet, so the % can't fill the amount."}
+            </p>
+          </div>
+        )}
         <Field
           id={id("amount")}
           label={isPhp ? "Amount (PHP)" : `Amount (${currency})`}
@@ -330,7 +362,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
           value={row.amount}
           disabled={disabled}
           error={row.amount !== "" && !amount.ok ? "Not a number" : undefined}
-          onChange={(v) => onPatch({ amount: v })}
+          onChange={(v) => onPatch(afterPercentEdit(row, { field: "amount", value: v, base }))}
         />
         {!isPhp && (
           <div className="min-w-0">
@@ -384,7 +416,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
         <PickField id={id("methodId")} label="Method" required placeholder="Pick a method" options={methods} value={row.methodId} disabled={disabled} onChange={(v) => onPatch({ methodId: v })} />
         <Field id={id("checkNo")} label="Check No." placeholder="When paid by check" value={row.checkNo} disabled={disabled} onChange={(v) => onPatch({ checkNo: v })} />
       </div>
-      <ProofField row={row} disabled={disabled} onPatch={onPatch} />
+      <ProofField row={row} disabled={disabled} required={fileRulesOf(ipas).proofOnEveryPayment} onPatch={onPatch} />
     </DraftRow>
   );
 }
@@ -394,6 +426,20 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
   const sum = ipas.paymentSummary;
   const currency = ipas.currency;
   const savedById = new Map((ipas.payments ?? []).map((payment) => [payment.id, payment]));
+  // The % is taken from the P.I/QT Amount as typed on the form, else the PO total (#958).
+  const poTotal = odooPoTotal(ipas.odoo_copy)?.total ?? null;
+  const base = percentBase({ piQtAmount: parseAmountInput(form.piQtAmount).value, poTotal });
+  const warnings = paymentWarnings(form.payments, base?.amount ?? null);
+  // When the base changes while editing, a payment with a % follows it (#958): the label, amount and
+  // printed % must agree. Not on first paint: opening a saved IPAS never edits it.
+  const lastBase = useRef(base?.amount ?? null);
+  useEffect(() => {
+    const before = lastBase.current;
+    lastBase.current = base?.amount ?? null;
+    if (!canRecord || before === null || before === lastBase.current) return;
+    for (const { key, amount } of refillAmountsFromPercent(form.payments, base)) rows.patch("payments", key, { amount });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the base amount changes
+  }, [base?.amount]);
   return (
     <Titled title="Payments" action={canRecord && <AddButton onClick={() => rows.add("payments", newPaymentDraft())}>Add payment</AddButton>}>
       <div className={GRID}>
@@ -403,6 +449,16 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
           {sum.count > 0 ? `${formatAmount(sum.totalDebitedPhp, "PHP")}${sum.missingPhp > 0 ? " (pesos missing)" : ""}` : null}
         </ReadValue>
       </div>
+      {warnings.percentOver && (
+        <AmberNote testId="payment-percent-warning">
+          The percents add up to {formatPercent(warnings.percentOver.total)}%, more than the whole order. You can still save.
+        </AmberNote>
+      )}
+      {warnings.amountOver && (
+        <AmberNote testId="payment-amount-warning">
+          The payments add up to {formatAmount(warnings.amountOver.paid, currency)}, which is {formatAmount(warnings.amountOver.over, currency)} more than the order amount of {formatAmount(warnings.amountOver.order, currency)}. You can still save.
+        </AmberNote>
+      )}
       {form.payments.length === 0 ? (
         <EmptyNote>
           No payments recorded yet.
@@ -420,6 +476,7 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
             saved={savedById.get(row.id) ?? null}
             fresh={fresh === row.key}
             disabled={!canRecord}
+            base={base}
             onPatch={(patch) => rows.patch("payments", row.key, patch)}
             onRemove={() => (row.id ? onRemoveSaved("payment", savedById.get(row.id)) : rows.drop("payments", row.key))}
           />
@@ -626,11 +683,9 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
   const savedById = new Map((ipas.documents ?? []).map((document) => [document.id, document]));
   const suggested = ipas.suggestedDocuments ?? [];
   const hasKinds = kindsToAdd(ipas.options ?? [], ipas.documents ?? []).length > 0;
-  // The kinds a sign-off waits on for this Source (#711), matched by label like missingDocumentsByPart.
-  const requiredLabels = new Set(
-    Object.values(SECTION_DOCUMENT_KINDS).flatMap((part) => part[ipas.source] ?? []).map((label) => label.toLowerCase()),
-  );
-  const isRequired = (document) => !document.byHand && requiredLabels.has(String(document.kind?.label ?? document.label ?? "").trim().toLowerCase());
+  // The kinds a sign-off waits on for this Source (#711), from the settings (#959) like missingDocumentsByPart.
+  const requiredIds = new Set(Object.values(requiredKindsByPart(fileRulesOf(ipas), ipas.source)).flat().map((kind) => kind.id));
+  const isRequired = (document) => !document.byHand && requiredIds.has(document.kind_id);
   return (
     <div data-testid="ipas-documents">
       <Titled

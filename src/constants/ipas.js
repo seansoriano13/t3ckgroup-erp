@@ -302,6 +302,34 @@ export const IPAS_DOCUMENT_USED_FOR_LABELS = {
   [IPAS_DOCUMENT_USED_FOR.BOTH]: "Documentation and filing",
 };
 
+/**
+ * "Required before" on a document kind (#959): the record's screen whose sign-off waits for
+ * a file of that kind. Null means not required. The numbers are the screens' (1 Order,
+ * 3 Costs, 6 Sign-offs); the part is the group the missing files are listed under.
+ */
+export const IPAS_REQUIRED_BEFORE = {
+  ORDER: 1,
+  COSTS: 3,
+  SIGN_OFFS: 6,
+};
+
+export const IPAS_REQUIRED_BEFORE_PARTS = {
+  [IPAS_REQUIRED_BEFORE.ORDER]: "purchasing",
+  [IPAS_REQUIRED_BEFORE.COSTS]: "costing",
+  [IPAS_REQUIRED_BEFORE.SIGN_OFFS]: "filing",
+};
+
+export const IPAS_REQUIRED_BEFORE_VALUES = Object.values(IPAS_REQUIRED_BEFORE);
+
+/** The two file switches when no settings row came: both on (the seeded value, #959). */
+export const IPAS_FILE_RULE_DEFAULTS = Object.freeze({ proof_on_every_payment: true, file_on_every_charge: true });
+
+export const IPAS_REQUIRED_BEFORE_LABELS = {
+  [IPAS_REQUIRED_BEFORE.ORDER]: "1 Order",
+  [IPAS_REQUIRED_BEFORE.COSTS]: "3 Costs",
+  [IPAS_REQUIRED_BEFORE.SIGN_OFFS]: "6 Sign-offs",
+};
+
 /** The two ticks on a document row: each belongs to one department. */
 export const IPAS_TICK_SIDE = {
   PURCHASING: "purchasing",

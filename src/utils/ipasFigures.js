@@ -24,6 +24,7 @@
 
 import { IPAS_PAYMENT_KIND, IPAS_STATE, IPAS_STATUS } from "../constants/ipas";
 import { finiteNumber, fromCents, toCents } from "./landedCost";
+import { paymentKindWithPercent } from "./ipasPaymentPercent";
 
 /** The bill check's three answers. */
 export const IPAS_BILL_CHECK = Object.freeze({
@@ -130,6 +131,7 @@ const methodLabelOf = (payment) => {
  *                       there is no Amount
  *   paymentMethods      distinct method labels, first used first
  *   paymentScheme       those joined, "Bank TT + Cash"; "" with none
+ *   paymentPercents     the payments that are a percent of the order, "Down payment · 30%; Payment · 45%"; "" with none
  */
 export function ipasFigures(ipas) {
   const copy = ipas?.odoo_copy ?? null;
@@ -165,6 +167,7 @@ export function ipasFigures(ipas) {
   let paidCents = 0;
   let hasFullPayment = false;
   const methods = [];
+  const percentLabels = [];
   for (const payment of payments) {
     const cents = toCents(finiteNumber(payment?.amount) ?? 0);
     paidCents += cents;
@@ -175,6 +178,8 @@ export function ipasFigures(ipas) {
     }
     const label = methodLabelOf(payment);
     if (label && !methods.includes(label)) methods.push(label);
+    // #958: "Payment · 30%" for the payments that are a percent of the order.
+    if (finiteNumber(payment?.percent_of_order) > 0) percentLabels.push(paymentKindWithPercent(payment.kind, payment.percent_of_order));
   }
 
   const onHold = ipas?.on_hold === true;
@@ -216,6 +221,7 @@ export function ipasFigures(ipas) {
     remainingBalance,
     paymentMethods: methods,
     paymentScheme: methods.join(PAYMENT_SCHEME_SEPARATOR),
+    paymentPercents: percentLabels.join("; "),
   };
 }
 

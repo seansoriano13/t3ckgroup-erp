@@ -34,6 +34,12 @@ import { Button } from "./ui/button";
 import { Drawer, DrawerContent, DrawerTitle } from "./ui/drawer";
 import { handleNotificationRoute } from "../utils/notificationRouter";
 import { groupChatNotifications } from "../utils/groupChatNotifications";
+import {
+  addLiveNotification,
+  appendOlderNotifications,
+  mayHaveMore,
+  NOTIFICATION_PAGE,
+} from "../utils/notificationPaging";
 import { showNotificationPopup } from "../utils/notificationPopup";
 
 // ─── Relative Timestamp ───────────────────────────────────────────────────────
@@ -156,6 +162,8 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   }, [user]);
 
   const [activeTab, setActiveTab] = useState("ALL");
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [noMoreOlder, setNoMoreOlder] = useState(false);
 
   // ── Data ──────────────────────────────────────────────────────────────────
   const { data: notifications = [], isLoading } = useQuery({
@@ -191,10 +199,9 @@ export default function NotificationDrawer({ isOpen, onClose }) {
           }
           return;
         }
-        queryClient.setQueryData(["notifications", user.id], (old = []) => [
-          newNotif,
-          ...old,
-        ]);
+        queryClient.setQueryData(["notifications", user.id], (old = []) =>
+          addLiveNotification(old, newNotif),
+        );
         
         const avatarUrl = avatarMap.get(newNotif.sender_id || newNotif.sender?.id);
         showNotificationPopup(newNotif, navigate, userRef.current, avatarUrl);
@@ -271,6 +278,28 @@ export default function NotificationDrawer({ isOpen, onClose }) {
     () => groupChatNotifications(filterNotifs(notifications, activeTab)),
     [notifications, activeTab],
   );
+
+  // The feed loads the newest page only; this pulls the next older page so a
+  // long unread pile can be reached and cleared.
+  const handleLoadOlder = async () => {
+    const oldest = notifications[notifications.length - 1];
+    if (!oldest || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const older = await notificationService.getOlderNotifications(
+        user?.id,
+        oldest.created_at,
+      );
+      queryClient.setQueryData(["notifications", user?.id], (old = []) =>
+        appendOlderNotifications(old, older),
+      );
+      if (older.length < NOTIFICATION_PAGE) setNoMoreOlder(true);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   // ── Handler ───────────────────────────────────────────────────────────────
   const handleNotificationClick = (notif) => {
@@ -368,6 +397,17 @@ export default function NotificationDrawer({ isOpen, onClose }) {
                 onClick={() => handleNotificationClick(notif)}
               />
             ))
+          )}
+          {!isLoading && mayHaveMore(notifications) && !noMoreOlder && (
+            <div className="p-4 flex justify-center">
+              <Button
+                variant="outline"
+                onClick={handleLoadOlder}
+                disabled={loadingOlder}
+              >
+                {loadingOlder ? "Loading..." : "Load older notifications"}
+              </Button>
+            </div>
           )}
         </div>
       </DrawerContent>

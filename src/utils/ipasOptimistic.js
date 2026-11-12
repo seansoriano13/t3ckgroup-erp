@@ -16,6 +16,7 @@ import { IPAS_SIGNOFF_ROLE, ipasSectionNo } from "../constants/ipas";
 import { pesosFromRate, sumPesos } from "./landedCost";
 import { shapeIpas } from "./ipas";
 import { parseAmountInput } from "./ipasPayments";
+import { parsePercentInput, percentApplies } from "./ipasPaymentPercent";
 
 /** The rows `reshapeIpas` needs, as `ipasService.get` read them. */
 export function rawOf({ row, sors, payments, charges, documents, options, signoffs, landedCost }) {
@@ -88,6 +89,7 @@ function paymentColumns(values, isPhpPo) {
     kind: values.kind,
     paid_on: values.paidOn,
     amount,
+    percent_of_order: percentApplies(values.kind) ? parsePercentInput(values.percentOfOrder).value : null,
     php_debited: isPhpPo ? null : php,
     charge_fee_php: sumPesos([bank, stamp, misc]),
     forex_rate: isPhpPo ? null : rate,
