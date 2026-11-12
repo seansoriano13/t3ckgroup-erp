@@ -680,14 +680,16 @@ describe("the Costing Desk", () => {
       }
     });
 
-    it("lets the Final Acquire list type Marketing, and the summary follows (Final Acquire has left the screen, #703)", async () => {
+    it("lets the Final Acquire list type Marketing, and the summary follows (Final Acquire is back on the screen, #962)", async () => {
       seedSummary({ finalAcquire: 2338500 });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
       const user = openDesk(deal);
 
       await openLines();
       const row = await screen.findByTestId("component");
-      expect(within(row).queryByLabelText("Final Acquire 1.1")).not.toBeInTheDocument();
+      // The figure is shown to the Closed Book; with no Status the cell says to pick one.
+      expect(within(row).getByLabelText("Final Acquire 1.1")).toHaveValue(2338500);
+      expect(within(row).getByTestId("final-acquire-rule")).toBeInTheDocument();
       await waitFor(() => expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱423,100.00"));
 
       await user.type(within(screen.getByTestId("summary-marketing")).getByLabelText("Marketing"), "12000");

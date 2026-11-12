@@ -548,6 +548,8 @@ describe("costingMatrixService", () => {
     it("writes Final Acquire through updateComponent and updateCostRow, and refuses a Technical caller", async () => {
       const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle" });
       const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Permits" });
+      // The decider list types a Component's Final Acquire over the rule (#962).
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management"] });
       await costingMatrixService.updateComponent(component, { finalAcquireUnit: 100 });
       await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 7 });
       const shaped = await read();
@@ -557,7 +559,7 @@ describe("costingMatrixService", () => {
       stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["technical"] });
       const refused = await costingMatrixService.updateComponent(component, { finalAcquireUnit: 1 }).catch((e) => e);
       expect(refused).toBeInstanceOf(CostingBandError);
-      expect(refused.message).toBe("Final cost is written by Sales (the Deal Team) or Purchasing or the decider list.");
+      expect(refused.message).toBe("Final Acquire is written by the decider list.");
       const marketing = await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 1 }).catch((e) => e);
       expect(marketing).toBeInstanceOf(CostingBandError);
       expect(marketing.message).toBe("Marketing is written by Finance or Sales (the Deal Team) or Purchasing or the decider list.");
@@ -897,6 +899,7 @@ describe("costingMatrixService", () => {
     it("refuses a Go on a loss to anyone but a Super Admin or the decider list, in words, and still takes a Revise (#880)", async () => {
       // Final Offers total 3,942.88; a Component at 4,000 Final Acquire makes the planned revenue a loss.
       const component = await costingMatrixService.addComponent(lineId, { name: "Head", quantity: 1 });
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management"] });
       await costingMatrixService.updateComponent(component, { finalAcquireUnit: 4000 });
       // A cost change clears the evaluation approval (#881), so approve it again for the Go.
       db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: salesperson.id });

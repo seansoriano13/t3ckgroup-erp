@@ -116,13 +116,40 @@ export function costRowsTotals(rows) {
   };
 }
 
+/** The evaluation's percent on the Odoo SRP until it is changed (#962). */
+export const DEFAULT_FINAL_ACQUIRE_PERCENT = -20;
+
 /**
- * The cost a row counts at: its Final Acquire (old deals, kept as signed) or else its Acquire
- * (#787; Final Acquire left the screen in #703). Same rule as the database's costing_settled_met.
+ * Final Acquire by the rule (#962), per unit, or null while an input is blank (never zero):
+ *   Stockable   Odoo SRP x (1 + percent / 100), rounded half away from zero to the centavo
+ *   Source Out  the line's Acquire (the attached P0's price when there is one), no percent
+ *   no Status   blank
+ * The percent is the line's own, else `defaultPercent` (the evaluation's). Same sum as the database's
+ * costing_final_acquire_rule; policy test 962 holds the two together.
+ */
+export function finalAcquireByRule(row, defaultPercent = DEFAULT_FINAL_ACQUIRE_PERCENT) {
+  if (row?.status === "source_out") {
+    const acquire = scaled(effectiveAcquireUnit(row));
+    return acquire === null ? null : pesosFromCentavos(roundDiv(acquire * 100n, MICRO));
+  }
+  if (row?.status !== "stockable") return null;
+  const own = row?.final_acquire_percent;
+  const percent = scaled(own !== null && own !== undefined && own !== "" ? own : defaultPercent);
+  const srp = scaled(row?.odoo_unit);
+  if (percent === null || srp === null) return null;
+  // (100 + percent) is scaled by 10^6, so SRP x factor over 10^12 is centavos.
+  return pesosFromCentavos(roundDiv(srp * (100n * MICRO + percent), MICRO * MICRO));
+}
+
+/**
+ * The cost a row counts at: its Final Acquire. A Component's is the one the database worked out by
+ * the rule or a decider typed (#962); with none the Component is unknown, never its Acquire. A
+ * cost-only row has no Status, so it keeps its Final Acquire, else its Acquire (#787).
  */
 export function costUnit(row) {
   const final = row?.final_acquire_unit;
-  return final !== null && final !== undefined && final !== "" ? final : row?.acquire_unit;
+  if (final !== null && final !== undefined && final !== "") return final;
+  return row && "tender_line_id" in row ? null : row?.acquire_unit;
 }
 
 /**

@@ -1210,10 +1210,19 @@ _Avoid_: Odoo cost, Odoo unit cost
 
 **Final Acquire**:
 The cost Management sets on a Component — the figure the S0 Evaluation summary
-reads as Operational Expenses and takes Revenue from. Written only by the people
-on the list Super Admins keep for it, never by a whole role. Neither Acquire,
-which is Purchasing's proposed cost and the one markup is taken from, nor Landed
-Cost, which is what the item turned out to cost once bought.
+reads as Operational Expenses and takes Revenue from. It is filled by a rule,
+per line, from the Status: Stockable is the Odoo SRP plus or minus a percent
+(the evaluation has one default, starting at minus 20%, and a line may carry its
+own); Source Out is the line's Acquire as is, the attached P0's price when
+there is one, with no percent; no Status yet is blank, and the cell says to pick
+one. A rule-filled value is worked again whenever the SRP, the percent, the
+Status or the Acquire changes. Anyone on the list Super Admins keep for it can
+type over a line; a typed value wins over the rule, is marked typed, never
+moves, and goes back to the rule on "Back to the rule". Values stored before the
+rule are kept as typed. A blank on any line makes the total unknown, never
+smaller. Written only by the people on that list, never by a whole role. Neither
+Acquire, which is Purchasing's proposed cost and the one markup is taken from,
+nor Landed Cost, which is what the item turned out to cost once bought.
 _Avoid_: Final Cost, Approved Cost, Management Price
 
 **Closed Book**:

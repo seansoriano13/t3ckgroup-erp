@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { summaryLineShown } from "../constants/costing";
-import { resolveCost, lineCost, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
+import { resolveCost, lineCost, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireByRule, costUnit, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -669,5 +669,67 @@ describe("the Odoo SRP is a figure, never a cost (#961)", () => {
   it("lineCost is null while a part has only an SRP", () => {
     expect(lineCost({ quantity: 1, components: [{ quantity: 1, odoo_unit: 500 }] })).toBeNull();
     expect(lineCost({ quantity: 1, components: [{ quantity: 1, acquire_unit: 400, acquire_source: "typed", odoo_unit: 500 }] })).toMatchObject({ pesos: 400 });
+  });
+});
+
+describe("Final Acquire by the rule (#962)", () => {
+  const stock = (odoo, extra = {}) => ({ tender_line_id: "t", status: "stockable", odoo_unit: odoo, quantity: 1, ...extra });
+
+  it("works the sheet's rows: Odoo x 0.8 on a Stockable line", () => {
+    expect(finalAcquireByRule(stock(49800))).toBe(39840);
+    expect(finalAcquireByRule(stock(9980))).toBe(7984);
+    const rows = [stock(49800), stock(9980, { quantity: 3 }), stock(76640)];
+    for (const row of rows) row.final_acquire_unit = finalAcquireByRule(row);
+    expect(extended(rows[1].final_acquire_unit, 3)).toBe(23952);
+    expect(finalAcquireTotal(rows)).toBe(125104);
+  });
+
+  it("takes the line's own percent over the evaluation's, and the evaluation's over the starting -20", () => {
+    expect(finalAcquireByRule(stock(1000), -10)).toBe(900);
+    expect(finalAcquireByRule(stock(1000, { final_acquire_percent: 5 }), -10)).toBe(1050);
+    expect(finalAcquireByRule(stock(1000, { final_acquire_percent: "0" }), -10)).toBe(1000);
+    expect(finalAcquireByRule(stock(1000, { final_acquire_percent: null }))).toBe(800);
+  });
+
+  it("rounds half away from zero to the centavo", () => {
+    expect(finalAcquireByRule(stock(0.05), -50)).toBe(0.03);
+    expect(finalAcquireByRule(stock(33.33), -20)).toBe(26.66);
+    expect(finalAcquireByRule(stock(10.01), 12.5)).toBe(11.26);
+  });
+
+  it("gives a Source Out line its Acquire as is, with no percent, the attached P0's price first", () => {
+    const out = { status: "source_out", odoo_unit: 5000, acquire_unit: 4000, final_acquire_percent: -50 };
+    expect(finalAcquireByRule(out, -20)).toBe(4000);
+    expect(finalAcquireByRule({ ...out, p0_unit_price: 3900.5 }, -20)).toBe(3900.5);
+  });
+
+  it("is blank, never zero, while an input is blank or the Status is not picked", () => {
+    expect(finalAcquireByRule({ odoo_unit: 49800 })).toBeNull();
+    expect(finalAcquireByRule({ status: null, odoo_unit: 49800, acquire_unit: 100 })).toBeNull();
+    expect(finalAcquireByRule(stock(null))).toBeNull();
+    expect(finalAcquireByRule(stock(""))).toBeNull();
+    expect(finalAcquireByRule({ status: "source_out", odoo_unit: 5000 })).toBeNull();
+    expect(finalAcquireByRule(stock(0))).toBe(0);
+  });
+
+  it("counts a typed value as it stands, and never moves it when the inputs move", () => {
+    // A typed value is the stored one; the rule is only what the database fills when nothing was typed.
+    const typed = stock(49800, { final_acquire_unit: 41000, final_acquire_typed: true });
+    expect(costUnit(typed)).toBe(41000);
+    expect(finalAcquireByRule({ ...typed, odoo_unit: 60000 })).toBe(48000);
+    expect(costUnit({ ...typed, odoo_unit: 60000 })).toBe(41000);
+  });
+
+  it("makes the total unknown, never smaller, when any Component has no Final Acquire", () => {
+    const filled = stock(49800, { final_acquire_unit: 39840 });
+    const blank = stock(1000, { acquire_unit: 900, final_acquire_unit: null });
+    expect(finalAcquireTotal([filled])).toBe(39840);
+    expect(finalAcquireTotal([filled, blank])).toBeNull();
+    expect(costUnit(blank)).toBeNull();
+  });
+
+  it("lets a cost-only row (no Status) keep its Acquire when it has no Final Acquire", () => {
+    expect(costUnit({ matrix_id: "m", acquire_unit: 900, final_acquire_unit: null })).toBe(900);
+    expect(finalAcquireTotal([{ matrix_id: "m", quantity: 2, acquire_unit: 900 }])).toBe(1800);
   });
 });

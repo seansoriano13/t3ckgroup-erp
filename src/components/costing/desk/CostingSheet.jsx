@@ -8,7 +8,7 @@ import StatusBadge from "../../StatusBadge";
 import { Cell } from "../GridCell";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import { COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
-import { factorLabel, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
+import { factorLabel, finalAcquireTotal, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
 import LinerList from "../../record/LinerList";
 import { lineBuyingStatus } from "../../../utils/buyingStatus";
@@ -108,6 +108,22 @@ function CostCells({ line, canCost, onSave }) {
  * Landed / unit (#702): the IPAS's real Landed Cost once the row's item has one, else an estimate on the
  * peso price plus the Import add-on (Local rows take the Local default). The words under it say which.
  */
+/** Final Acquire per unit and as a total for the line (#962): its parts added up; blank while any part has none. */
+function FinalAcquireCells({ line }) {
+  const total = line.components.length > 0 ? finalAcquireTotal(line.components) : null;
+  const unit = total !== null && Number(line.quantity) > 0 ? Math.round((total / Number(line.quantity)) * 100) / 100 : null;
+  return (
+    <>
+      <TableCell className={cn(CELL, NUM, "w-36")} data-testid="sheet-final-acquire-unit">
+        {unit === null ? <span className="text-muted-foreground">—</span> : pesos(unit)}
+      </TableCell>
+      <TableCell className={cn(CELL, NUM, "w-36")} data-testid="sheet-final-acquire-total">
+        {total === null ? <span className="text-muted-foreground">—</span> : pesos(total)}
+      </TableCell>
+    </>
+  );
+}
+
 function LandedCell({ line, addons }) {
   const landed = lineLanded(line, addons);
   return (
@@ -252,6 +268,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const closed = matrix.tier === COSTING_TIER.CLOSED_BOOK;
   const showSuggested = closed || matrix.tier === COSTING_TIER.PRICE;
   const markupCols = closed ? 3 : showSuggested ? 1 : 0;
+  const canFinalPercent = closed && matrix.bands.includes(COSTING_BAND.MANAGEMENT);
   const canMarkup = closed && matrix.bands.includes(COSTING_BAND.MARKUP);
   // Margin counts the landed cost per unit: the IPAS's real figure, else the estimate (#702).
   const landedOf = (line) => lineLanded(line, addons)?.unit ?? null;
@@ -302,6 +319,11 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
     await writes.refresh();
   };
 
+  const saveFinalPercent = async (value) => {
+    await costingMatrixService.setFinalAcquirePercent(matrix.matrixId, value);
+    await writes.refresh();
+  };
+
   // Typing a price writes the row's one part (made on the spot when the line has none yet); it reads "Typed" from then on.
   const saveCost = (line) => async (value) => {
     const [part] = line.components;
@@ -330,6 +352,21 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
               placeholder="Not set"
               readOnly={!canMarkup}
               onSave={saveDefault}
+              className="w-24"
+            />
+          </Fact>
+        )}
+        {closed && (
+          <Fact label="Final Acquire %" title="The default percent on the Odoo SRP" sub={canFinalPercent ? "a part can carry its own" : "set by the decider list"}>
+            <Cell
+              label="Default Final Acquire percent"
+              noun="The Final Acquire percent"
+              value={matrix.finalAcquirePercent}
+              numeric
+              align="right"
+              placeholder="-20"
+              readOnly={!canFinalPercent}
+              onSave={saveFinalPercent}
               className="w-24"
             />
           </Fact>
@@ -387,6 +424,11 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                   Purchasing · cost
                 </th>
               )}
+              {closed && (
+                <th colSpan={2} className={GROUP}>
+                  Final Acquire
+                </th>
+              )}
               {markupCols > 0 && (
                 <th colSpan={markupCols} className={cn(GROUP, "border-r-0")}>
                   {closed ? "Markup" : "Price"}
@@ -402,6 +444,8 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
               {showCost && <th className={cn(HEAD, "text-right")}>Price</th>}
               {showCost && <th className={cn(HEAD, "text-right")}>In pesos</th>}
               {showLanded && <th className={cn(HEAD, "text-right")}>Landed / unit</th>}
+              {closed && <th className={cn(HEAD, "text-right")}>Final Acquire / unit</th>}
+              {closed && <th className={cn(HEAD, "text-right")}>Final Acquire total</th>}
               {closed && <th className={cn(HEAD, "text-right")}>Multiplier</th>}
               {showSuggested && <th className={cn(HEAD, "text-right")}>Suggested / unit</th>}
               {closed && <th className={cn(HEAD, "text-right border-r-0")}>Margin / unit</th>}
@@ -410,7 +454,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           <TableBody>
             {lines.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={3 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
+                <TableCell colSpan={3 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + (closed ? 2 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
                   No S0 lines yet.
                 </TableCell>
               </TableRow>
@@ -518,6 +562,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                   )}
                   {showCost && <CostCells line={line} canCost={canCost} onSave={saveCost(line)} />}
                   {showLanded && <LandedCell line={line} addons={addons} />}
+                  {closed && <FinalAcquireCells line={line} />}
                   {showSuggested && <MarkupCells line={line} kid={kid} figures={figures} tier={matrix.tier} canMarkup={canMarkup} onSaveFactor={saveFactor(line)} />}
                 </TableRow>
               );
