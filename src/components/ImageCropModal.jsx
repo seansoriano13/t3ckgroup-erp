@@ -275,7 +275,7 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
         </div>
 
         {/* ── Canvas area ────────────────────────────────────────────────── */}
-        <div className="px-5 pt-5 pb-3 flex flex-col items-center gap-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-3 flex flex-col items-center gap-3">
           <p className="text-label font-black text-muted-foreground uppercase tracking-widest self-start">
             Drag to reposition · scroll or pinch to zoom
           </p>

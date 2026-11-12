@@ -50,6 +50,18 @@ describe("ApplyLeaveModal", () => {
       <ApplyLeaveModal isOpen onClose={onClose} onSuccess={onSuccess} {...props} />,
     )
 
+  // #957: on a short screen the body scrolls and the header stays pinned.
+  it("scrolls the body, not the whole dialog, so the header stays in view", () => {
+    open()
+    const dialog = document.querySelector("[data-slot='dialog-content']")
+    const body = screen.getByRole("button", { name: /submit|apply/i }).closest("form").parentElement
+    expect(dialog.className).toContain("overflow-hidden")
+    expect(body.className).toContain("overflow-y-auto")
+    expect(body.className).toContain("min-h-0")
+    expect(body.className).toContain("flex-1")
+    expect(screen.getByText("Time Off & Overtime").parentElement.className).toContain("shrink-0")
+  })
+
   /** Fills the visible tab's fields. */
   const fillForm = async ({ date, startTime, endTime, reason, categoryLabel }) => {
     const user = setupUser()

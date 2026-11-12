@@ -17,6 +17,7 @@ import {
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
 import { isIsoDate, parseAmountInput } from "@/utils/ipasPayments";
+import { PERCENT_ERROR, parsePercentInput, percentApplies } from "@/utils/ipasPaymentPercent";
 import { isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { isPhpCurrency } from "@/utils/landedCost";
 
@@ -123,6 +124,7 @@ export const paymentDraft = (payment) => ({
   kind: payment.kind ?? IPAS_PAYMENT_KIND.PAYMENT,
   paidOn: payment.paid_on ?? "",
   amount: text(payment.amount),
+  percentOfOrder: payment.percent_of_order ? text(payment.percent_of_order) : "",
   forexRate: payment.rate ? text(payment.rate) : "",
   chargeFeePhp: payment.bank_charge_php ? text(payment.bank_charge_php) : "",
   docStampPhp: payment.doc_stamp_php ? text(payment.doc_stamp_php) : "",
@@ -139,6 +141,7 @@ export const newPaymentDraft = () => ({
   kind: IPAS_PAYMENT_KIND.PAYMENT,
   paidOn: getCurrentLocalDate(),
   amount: "",
+  percentOfOrder: "",
   forexRate: "",
   chargeFeePhp: "",
   docStampPhp: "",
@@ -369,6 +372,7 @@ function positive(raw) {
 function paymentProblem(p, isPhp) {
   if (!isIsoDate(p.paidOn)) return "Give the date of the payment.";
   if (!positive(p.amount)) return "Amount must be a number more than zero.";
+  if (percentApplies(p.kind) && !parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
   // Blank is fine (#604); a figure that is given has to be a number above zero.
   if (!isPhp && !blank(p.forexRate) && !positive(p.forexRate))
     return "Forex rate paid must be a number more than zero, or left blank.";
@@ -406,6 +410,7 @@ const paymentValues = (p) => ({
   kind: p.kind,
   paidOn: p.paidOn,
   amount: p.amount,
+  percentOfOrder: percentApplies(p.kind) ? p.percentOfOrder : "",
   forexRate: p.forexRate,
   chargeFeePhp: p.chargeFeePhp,
   docStampPhp: p.docStampPhp,

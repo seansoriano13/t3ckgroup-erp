@@ -7,6 +7,8 @@ export const ipasListKey = ["ipas", "list"];
  */
 export const markIpasListStale = (queryClient) => queryClient.invalidateQueries({ queryKey: ipasListKey, refetchType: "none" });
 export const ipasKey = (id) => ["ipas", "one", id];
+/** Every open IPAS record, whatever its id (a setting changed under them, #959). */
+export const ipasAllRecordsKey = ["ipas", "one"];
 export const ipasRefreshKey = (id) => ["ipas", "refresh", id];
 export const ipasSorSearchKey = (term) => ["ipas", "sor-search", term];
 /** The caller's last five SORs named on an IPAS (#601). */
@@ -14,6 +16,8 @@ export const ipasRecentSorsKey = ["ipas", "recent-sors"];
 export const ipasOptionsKey = (list) => ["ipas", "options", list];
 /** The options a filed IPAS uses: those can't be renamed. */
 export const ipasFiledOptionsKey = ["ipas", "filed-options"];
+/** The two file switches (#959). */
+export const ipasFileRulesKey = ["ipas", "file-rules"];
 export const ipasSignerListsKey = ["ipas", "signer-lists"];
 /** Who changed the sign-off lists (Super Admins). */
 export const ipasSignerListLogKey = ["ipas", "signer-list-log"];

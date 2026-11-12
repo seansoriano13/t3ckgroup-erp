@@ -757,7 +757,8 @@ create table if not exists public."ipas" (
   "freight_billed_by_supplier" boolean not null default false,
   "freight_attachment_url" text,
   "retail_multiplier" numeric(10,4),
-  "wholesale_discount_pct" numeric(5,2) not null default 30
+  "wholesale_discount_pct" numeric(5,2) not null default 30,
+  "file_rules_snapshot" jsonb
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -805,6 +806,13 @@ create table if not exists public."ipas_events" (
   "created_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."ipas_file_rules" (
+  "id" boolean not null default true,
+  "proof_on_every_payment" boolean not null default true,
+  "file_on_every_charge" boolean not null default true,
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."ipas_options" (
   "id" uuid not null default gen_random_uuid(),
   "list" text not null,
@@ -814,7 +822,8 @@ create table if not exists public."ipas_options" (
   "applies_to" text,
   "used_for" text,
   "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
+  "updated_at" timestamp with time zone not null default now(),
+  "required_before" smallint
 );
 
 create table if not exists public."ipas_payments" (
@@ -834,7 +843,8 @@ create table if not exists public."ipas_payments" (
   "updated_at" timestamp with time zone not null default now(),
   "forex_rate" numeric(14,6),
   "doc_stamp_php" numeric(14,2) not null default 0,
-  "misc_fee_php" numeric(14,2) not null default 0
+  "misc_fee_php" numeric(14,2) not null default 0,
+  "percent_of_order" numeric(7,4)
 );
 
 create table if not exists public."ipas_signer_list_log" (
@@ -1999,6 +2009,7 @@ alter table ipas_bank_details add constraint "ipas_bank_details_pkey" PRIMARY KE
 alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
 alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
 alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
+alter table ipas_file_rules add constraint "ipas_file_rules_pkey" PRIMARY KEY (id);
 alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIMARY KEY (id);
@@ -2229,17 +2240,21 @@ alter table ipas_documents add constraint "ipas_documents_attachment_url_chk" CH
 alter table ipas_documents add constraint "ipas_documents_kind_or_label_chk" CHECK ((((kind_id IS NOT NULL) AND (label IS NULL)) OR ((kind_id IS NULL) AND (label IS NOT NULL) AND (length(btrim(label)) > 0) AND (length(label) <= 200))));
 alter table ipas_events add constraint "ipas_events_detail_chk" CHECK ((jsonb_typeof(detail) = 'object'::text));
 alter table ipas_events add constraint "ipas_events_kind_chk" CHECK ((length(btrim(kind)) > 0));
+alter table ipas_file_rules add constraint "ipas_file_rules_one_row_chk" CHECK (id);
 alter table ipas_options add constraint "ipas_options_applies_to_chk" CHECK (((applies_to IS NULL) OR (applies_to = ANY (ARRAY['import'::text, 'local'::text, 'both'::text]))));
 alter table ipas_options add constraint "ipas_options_document_columns_chk" CHECK (((list = 'document_kind'::text) OR ((applies_to IS NULL) AND (used_for IS NULL))));
 alter table ipas_options add constraint "ipas_options_document_kind_marked_chk" CHECK (((list <> 'document_kind'::text) OR ((applies_to IS NOT NULL) AND (used_for IS NOT NULL))));
 alter table ipas_options add constraint "ipas_options_label_chk" CHECK ((length(btrim(label)) > 0));
 alter table ipas_options add constraint "ipas_options_list_chk" CHECK ((list = ANY (ARRAY['payment_method'::text, 'charge_kind'::text, 'document_kind'::text, 'freight_service'::text, 'item_location'::text, 'transmittal_product'::text, 'transmittal_reference'::text])));
+alter table ipas_options add constraint "ipas_options_required_before_chk" CHECK (((required_before IS NULL) OR ((list = 'document_kind'::text) AND (required_before = ANY (ARRAY[1, 3, 6])))));
 alter table ipas_options add constraint "ipas_options_used_for_chk" CHECK (((used_for IS NULL) OR (used_for = ANY (ARRAY['documentation'::text, 'filing'::text, 'both'::text]))));
 alter table ipas_payments add constraint "ipas_payments_amount_chk" CHECK ((amount > (0)::numeric));
 alter table ipas_payments add constraint "ipas_payments_charge_fee_chk" CHECK ((charge_fee_php >= (0)::numeric));
 alter table ipas_payments add constraint "ipas_payments_check_no_chk" CHECK (((check_no IS NULL) OR (length(btrim(check_no)) > 0)));
 alter table ipas_payments add constraint "ipas_payments_kind_chk" CHECK ((kind = ANY (ARRAY['down_payment'::text, 'payment'::text, 'full_payment'::text, 'shipping_fee'::text])));
 alter table ipas_payments add constraint "ipas_payments_money_chk" CHECK ((((forex_rate IS NULL) OR (forex_rate > (0)::numeric)) AND (doc_stamp_php >= (0)::numeric) AND (misc_fee_php >= (0)::numeric)));
+alter table ipas_payments add constraint "ipas_payments_percent_chk" CHECK ((percent_of_order > (0)::numeric));
+alter table ipas_payments add constraint "ipas_payments_percent_max_chk" CHECK ((percent_of_order <= (1000)::numeric));
 alter table ipas_payments add constraint "ipas_payments_php_debited_chk" CHECK (((php_debited IS NULL) OR (php_debited > (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_proof_url_chk" CHECK (((proof_url IS NULL) OR (proof_url ~* '^https?://'::text)));
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_action_chk" CHECK ((action = ANY (ARRAY['added'::text, 'removed'::text])));
@@ -2957,6 +2972,7 @@ alter table public."ipas_bank_details" enable row level security;
 alter table public."ipas_charges" enable row level security;
 alter table public."ipas_documents" enable row level security;
 alter table public."ipas_events" enable row level security;
+alter table public."ipas_file_rules" enable row level security;
 alter table public."ipas_options" enable row level security;
 alter table public."ipas_payments" enable row level security;
 alter table public."ipas_signer_list_log" enable row level security;
@@ -3838,6 +3854,17 @@ create policy "ipas_events_read" on public."ipas_events"
   for select
   to authenticated
   using (( SELECT ipas_can_read() AS ipas_can_read));
+create policy "ipas_file_rules_read" on public."ipas_file_rules"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
+create policy "ipas_file_rules_update" on public."ipas_file_rules"
+  as permissive
+  for update
+  to authenticated
+  using (COALESCE(is_super_admin(), false))
+  with check (COALESCE(is_super_admin(), false));
 create policy "ipas_options_insert" on public."ipas_options"
   as permissive
   for insert
@@ -5092,6 +5119,28 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_clean_percent(p_fn text, p_kind text, p_percent numeric)
+ RETURNS numeric
+ LANGUAGE plpgsql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+declare
+  v numeric := round(p_percent, 4);
+begin
+  if v is null then
+    return null;
+  end if;
+  if v <= 0 or v > 1000 then
+    raise exception '%: the percent of the order must be more than 0 and at most 1000', p_fn using errcode = '22023';
+  end if;
+  if p_kind not in ('down_payment', 'payment') then
+    raise exception '%: only a Down payment or a Payment can be a percent of the order', p_fn using errcode = '22023';
+  end if;
+  return v;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_clean_sor_ids(p_fn text, p_purpose text, p_sor_ids uuid[])
  RETURNS uuid[]
  LANGUAGE plpgsql
@@ -5375,6 +5424,23 @@ AS $function$
   select coalesce(
     p_document.label,
     (select o.label from public.ipas_options o where o.id = p_document.kind_id)
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_file_rules_now()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+    'options', coalesce(
+      (select jsonb_object_agg(o.id::text, o.required_before)
+         from public.ipas_options o
+        where o.list = 'document_kind' and o.required_before is not null),
+      '{}'::jsonb),
+    'proof_on_every_payment', coalesce((select proof_on_every_payment from public.ipas_file_rules limit 1), true),
+    'file_on_every_charge', coalesce((select file_on_every_charge from public.ipas_file_rules limit 1), true)
   );
 $function$
 ;
@@ -5772,8 +5838,8 @@ CREATE OR REPLACE FUNCTION public._ipas_missing_documents(p_ipas_id uuid, p_sect
 AS $function$
 declare
   v_source text;
-  v_kinds text[];
-  v_kind text;
+  v_screen smallint;
+  v_proof boolean;
   v_missing text[] := '{}';
   v_pay record;
 begin
@@ -5783,38 +5849,37 @@ begin
   end if;
 
   if p_section = 3 then
-    for v_pay in
-      select paid_on from public.ipas_payments
-       where ipas_id = p_ipas_id and proof_url is null
-       order by paid_on, created_at
-    loop
-      v_missing := v_missing || ('Proof of payment of ' || to_char(v_pay.paid_on, 'Mon DD, YYYY'));
-    end loop;
+    select proof_on_every_payment into v_proof from public.ipas_file_rules limit 1;
+    if coalesce(v_proof, true) then
+      for v_pay in
+        select paid_on from public.ipas_payments
+         where ipas_id = p_ipas_id and proof_url is null
+         order by paid_on, created_at
+      loop
+        v_missing := v_missing || ('Proof of payment of ' || to_char(v_pay.paid_on, 'Mon DD, YYYY'));
+      end loop;
+    end if;
     return to_jsonb(v_missing);
   end if;
 
-  v_kinds := case p_section
-    when 1 then case when v_source = 'import' then array['Proforma Invoice'] else array['Quotation (Local)'] end
-    when 6 then case when v_source = 'import'
-                     then array['BL or Waybill', 'Packing List', 'Commercial Invoice', 'Freight Billing']
-                     else '{}'::text[] end
-    when 7 then array['BIR 2307']
-    else '{}'::text[]
-  end;
+  v_screen := case p_section when 1 then 1 when 6 then 3 when 7 then 6 else null end;
+  if v_screen is null then
+    return '[]'::jsonb;
+  end if;
 
-  foreach v_kind in array v_kinds loop
-    if not exists (
-      select 1
-        from public.ipas_documents d
-        join public.ipas_options o on o.id = d.kind_id
-       where d.ipas_id = p_ipas_id
-         and o.list = 'document_kind'
-         and lower(btrim(o.label)) = lower(v_kind)
-         and d.attachment_url is not null
-    ) then
-      v_missing := v_missing || v_kind;
-    end if;
-  end loop;
+  select coalesce(array_agg(o.label order by o.sort, o.label), '{}')
+    into v_missing
+    from public.ipas_options o
+   where o.list = 'document_kind'
+     and o.active
+     and o.required_before = v_screen
+     and o.applies_to in (v_source, 'both')
+     and not exists (
+       select 1 from public.ipas_documents d
+        where d.ipas_id = p_ipas_id
+          and d.kind_id = o.id
+          and d.attachment_url is not null
+     );
 
   return to_jsonb(v_missing);
 end;
@@ -6120,6 +6185,7 @@ AS $function$
 declare
   v_blank integer;
   v_nofile integer;
+  v_rule boolean;
 begin
   if new.section in (3, 6) and new.role = 'prepared' then
     select count(*) filter (where amount_php is null),
@@ -6130,7 +6196,8 @@ begin
       raise exception 'ipas_sign: % charge(s) are blank. Fill each in or remove it first', v_blank
         using errcode = '22023';
     end if;
-    if new.section = 6 and v_nofile > 0 then
+    select file_on_every_charge into v_rule from public.ipas_file_rules limit 1;
+    if new.section = 6 and v_nofile > 0 and coalesce(v_rule, true) then
       raise exception 'ipas_sign: % charge(s) with an amount have no file', v_nofile
         using errcode = '22023';
     end if;
@@ -15123,7 +15190,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_add_payment(p_ipas_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text)
+CREATE OR REPLACE FUNCTION public.ipas_add_payment(p_ipas_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric)
  RETURNS ipas_payments
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -15135,6 +15202,7 @@ declare
   v_clean jsonb;
   v_check text := nullif(btrim(p_check_no), '');
   v_proof text := nullif(btrim(p_proof_url), '');
+  v_percent numeric := public._ipas_clean_percent('ipas_add_payment', p_kind, p_percent_of_order);
   v_row public.ipas_payments;
 begin
   v_ipas := public._ipas_lock_open('ipas_add_payment', p_ipas_id);
@@ -15146,13 +15214,13 @@ begin
   end if;
 
   insert into public.ipas_payments (
-    ipas_id, kind, paid_on, amount, php_debited, charge_fee_php, method_id, check_no, proof_url, created_by
+    ipas_id, kind, paid_on, amount, php_debited, charge_fee_php, method_id, check_no, proof_url, percent_of_order, created_by
   ) values (
     v_ipas.id, p_kind, p_paid_on,
     (v_clean->>'amount')::numeric,
     (v_clean->>'php_debited')::numeric,
     (v_clean->>'charge_fee_php')::numeric,
-    p_method_id, v_check, v_proof, v_actor
+    p_method_id, v_check, v_proof, v_percent, v_actor
   )
   returning * into v_row;
 
@@ -15161,6 +15229,7 @@ begin
     'kind', v_row.kind,
     'paid_on', v_row.paid_on,
     'amount', v_row.amount,
+    'percent_of_order', v_row.percent_of_order,
     'php_debited', v_row.php_debited,
     'charge_fee_php', v_row.charge_fee_php,
     'method_id', v_row.method_id,
@@ -15412,6 +15481,21 @@ AS $function$
 begin
   raise exception 'ipas_events is append-only: history can''t be changed (% refused)', tg_op
     using errcode = '42501';
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_file_rules_snapshot_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.state = 'filed' and old.state is distinct from 'filed' then
+    new.file_rules_snapshot := public._ipas_file_rules_now();
+  elsif new.state is distinct from 'filed' then
+    new.file_rules_snapshot := null;
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -15853,6 +15937,24 @@ AS $function$
 begin
   if new.list is distinct from old.list then
     raise exception 'ipas_options: an option can''t move to another list' using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_options_required_before_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is not null
+     and not coalesce(public.is_super_admin(), false)
+     and (
+       (tg_op = 'INSERT' and new.required_before is not null)
+       or (tg_op = 'UPDATE' and new.required_before is distinct from old.required_before)
+     ) then
+    raise exception 'ipas_options: only a Super Admin sets which files are required' using errcode = '42501';
   end if;
   return new;
 end;
@@ -16449,7 +16551,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text)
+CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric)
  RETURNS ipas_payments
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -16483,10 +16585,10 @@ begin
   -- One transaction: if any step refuses, nothing is kept.
   if p_payment_id is null then
     v_row := public.ipas_add_payment(v_ipas.id, p_kind, p_paid_on, p_amount, v_pesos, p_charge_fee_php,
-                                     p_method_id, p_check_no, p_proof_url);
+                                     p_method_id, p_check_no, p_proof_url, p_percent_of_order);
   else
     v_row := public.ipas_update_payment(p_payment_id, p_kind, p_paid_on, p_amount, v_pesos, p_charge_fee_php,
-                                        p_method_id, p_check_no, p_proof_url);
+                                        p_method_id, p_check_no, p_proof_url, p_percent_of_order);
   end if;
   return public.ipas_set_payment_money(v_row.id, v_rate, p_doc_stamp_php, p_misc_fee_php);
 end;
@@ -18387,7 +18489,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_update_payment(p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text)
+CREATE OR REPLACE FUNCTION public.ipas_update_payment(p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric)
  RETURNS ipas_payments
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -18402,6 +18504,7 @@ declare
   v_clean jsonb;
   v_check text := nullif(btrim(p_check_no), '');
   v_proof text := nullif(btrim(p_proof_url), '');
+  v_percent numeric := public._ipas_clean_percent('ipas_update_payment', p_kind, p_percent_of_order);
   v_changes jsonb := '{}'::jsonb;
 begin
   select ipas_id into v_ipas_id from public.ipas_payments where id = p_payment_id;
@@ -18433,6 +18536,10 @@ begin
     v_changes := v_changes || jsonb_build_object('amount',
       jsonb_build_object('from', v_before.amount, 'to', (v_clean->>'amount')::numeric));
   end if;
+  if v_before.percent_of_order is distinct from v_percent then
+    v_changes := v_changes || jsonb_build_object('percent_of_order',
+      jsonb_build_object('from', v_before.percent_of_order, 'to', v_percent));
+  end if;
   if v_before.php_debited is distinct from (v_clean->>'php_debited')::numeric then
     v_changes := v_changes || jsonb_build_object('php_debited',
       jsonb_build_object('from', v_before.php_debited, 'to', (v_clean->>'php_debited')::numeric));
@@ -18462,6 +18569,7 @@ begin
      set kind = p_kind,
          paid_on = p_paid_on,
          amount = (v_clean->>'amount')::numeric,
+         percent_of_order = v_percent,
          php_debited = (v_clean->>'php_debited')::numeric,
          charge_fee_php = (v_clean->>'charge_fee_php')::numeric,
          method_id = p_method_id,
@@ -18473,6 +18581,7 @@ begin
   perform public._ipas_write_event(v_ipas.id, v_actor, 'payment_changed', jsonb_build_object(
     'payment_id', v_row.id,
     'kind', v_row.kind,
+    'percent_of_order', v_row.percent_of_order,
     'changes', v_changes
   ));
 
@@ -29829,6 +29938,7 @@ CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR
 CREATE TRIGGER group_task_templates_block_delete_in_use BEFORE DELETE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_block_delete_in_use();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
 CREATE TRIGGER ipas_actual_checking_hand_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_actual_checking_hand_guard();
+CREATE TRIGGER ipas_file_rules_snapshot BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_file_rules_snapshot_guard();
 CREATE TRIGGER ipas_filing_clears_hold BEFORE UPDATE OF state ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_filing_clears_hold();
 CREATE TRIGGER ipas_fill_from_odoo_copy BEFORE INSERT OR UPDATE OF odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_fill_from_odoo_copy();
 CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_freeze_guard();
@@ -29852,6 +29962,7 @@ CREATE TRIGGER ipas_events_no_change BEFORE DELETE OR UPDATE ON public.ipas_even
 CREATE TRIGGER ipas_events_no_truncate BEFORE TRUNCATE ON public.ipas_events FOR EACH STATEMENT EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_filed_guard();
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
+CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_required_before_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_payments_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();

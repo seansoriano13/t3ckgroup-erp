@@ -63,6 +63,7 @@ export function shapePayment(row, options = new Map()) {
     php_debited: finiteNumber(row.php_debited),
     charge_fee_php: finiteNumber(row.charge_fee_php) ?? 0,
     forex_rate: finiteNumber(row.forex_rate),
+    percent_of_order: finiteNumber(row.percent_of_order),
     doc_stamp_php: finiteNumber(row.doc_stamp_php) ?? 0,
     misc_fee_php: finiteNumber(row.misc_fee_php) ?? 0,
     // charge_fee_php holds every fee (#708); the bank charge is what is left after the other two.

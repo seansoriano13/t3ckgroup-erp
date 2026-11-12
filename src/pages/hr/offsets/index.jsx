@@ -382,7 +382,7 @@ export default function HrLeavesManagerPage() {
 
   const previewDialog = (
       <Dialog open={!!previewToken} onOpenChange={(open) => !open && setPreviewToken(null)}>
-        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-0 shadow-none">
+        <DialogContent className="max-w-3xl p-0 overflow-y-auto bg-transparent border-0 shadow-none">
           <VisuallyHidden>
             <DialogTitle>Verified Record Preview</DialogTitle>
           </VisuallyHidden>

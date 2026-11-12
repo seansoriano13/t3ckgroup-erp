@@ -11,6 +11,7 @@ import PageLoading from "../ui/PageLoading";
 import QueryError from "../ui/QueryError";
 import StatusBadge from "../StatusBadge";
 import EditValueDialog from "./EditValueDialog";
+import IpasFileRulesSwitches from "./IpasFileRulesSwitches";
 import { ipasService } from "../../services/ipasService";
 import {
   IPAS_DOCUMENT_APPLIES_TO,
@@ -22,6 +23,8 @@ import {
   IPAS_OPTION_LIST,
   IPAS_OPTION_LIST_LABELS,
   IPAS_OPTION_LIST_NOUNS,
+  IPAS_REQUIRED_BEFORE_LABELS,
+  IPAS_REQUIRED_BEFORE_VALUES,
 } from "../../constants/ipas";
 import { ipasErrorMessage } from "../../utils/ipas";
 import { ipasFiledOptionsKey, ipasOptionsKey } from "./ipasKeys";
@@ -35,6 +38,13 @@ const USED_FOR_OPTIONS = IPAS_DOCUMENT_USED_FOR_VALUES.map((value) => ({
   label: IPAS_DOCUMENT_USED_FOR_LABELS[value],
 }));
 
+/** "Required before" (#959): not required, or the screen whose sign-off waits for the file. */
+const NOT_REQUIRED = "none";
+const REQUIRED_BEFORE_OPTIONS = [
+  { value: NOT_REQUIRED, label: "Not required" },
+  ...IPAS_REQUIRED_BEFORE_VALUES.map((value) => ({ value: String(value), label: IPAS_REQUIRED_BEFORE_LABELS[value] })),
+];
+
 const FILED_HINT = "Used on a filed IPAS. Deactivate it and add a new one instead.";
 
 /**
@@ -45,9 +55,10 @@ const FILED_HINT = "Used on a filed IPAS. Deactivate it and add a new one instea
  * offered for new rows and stays on the rows that already use it. An option a
  * filed IPAS uses can't be renamed or re-marked (the database refuses, for
  * everyone): deactivate it and add a new one. Writable by
- * Purchasing access and Super Admins (the database decides).
+ * Purchasing access and Super Admins (the database decides). On the Document kinds list a
+ * Super Admin also sets each kind's "Required before" and the two file switches (#959).
  */
-export default function IpasOptionListEditor({ list }) {
+export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
   const queryClient = useQueryClient();
   const noun = IPAS_OPTION_LIST_NOUNS[list] ?? "option";
   const [label, setLabel] = useState("");
@@ -134,6 +145,7 @@ export default function IpasOptionListEditor({ list }) {
 
   return (
     <div className="space-y-4">
+      {isDocumentKind && <IpasFileRulesSwitches isSuperAdmin={isSuperAdmin} />}
       <form
         className="flex items-end gap-2"
         onSubmit={(e) => {
@@ -237,6 +249,17 @@ export default function IpasOptionListEditor({ list }) {
                     onChange={(value) => mark.mutate({ option, usedFor: value })}
                     className="w-auto"
                     aria-label={`${option.label}: used for`}
+                  />
+                  <SelectField
+                    size="sm"
+                    options={REQUIRED_BEFORE_OPTIONS}
+                    value={option.required_before == null ? NOT_REQUIRED : String(option.required_before)}
+                    disabled={busy || !isSuperAdmin}
+                    onChange={(value) =>
+                      mark.mutate({ option, requiredBefore: value === NOT_REQUIRED ? null : Number(value) })
+                    }
+                    className="w-auto"
+                    aria-label={`${option.label}: required before`}
                   />
                 </>
               )}

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { APPROVE_CLASS } from "@/components/ui/approveClass";
 import ModalShell from "@/components/ui/ModalShell";
 import { ipasErrorMessage } from "@/utils/ipas";
-import { missingDocumentsByPart } from "@/utils/ipasDocuments";
+import { fileRulesOf, missingDocumentsByPart } from "@/utils/ipasDocuments";
 import { ipasService } from "@/services/ipasService";
 import { ipasFilingWarningsKey } from "../ipasKeys";
 import { PreviewFrame } from "./PrintPreview";
@@ -36,7 +36,7 @@ function FilingWarning({ ipas }) {
     gcTime: 0,
     retry: false,
   });
-  const byPart = missingDocumentsByPart(ipas.documents ?? [], ipas.payments ?? [], ipas.source);
+  const byPart = missingDocumentsByPart(ipas.documents ?? [], ipas.payments ?? [], ipas.source, fileRulesOf(ipas));
   const files = [...byPart.purchasing, ...byPart.finance, ...byPart.costing, ...byPart.filing];
   const unticked = (ticks.data ?? []).map((doc) => doc.label);
   if (files.length === 0 && unticked.length === 0) return null;
