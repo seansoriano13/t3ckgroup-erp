@@ -17,7 +17,7 @@ import {
   tierReadsLandedCost,
 } from "../../../constants/costing";
 import { unitOptionsWith } from "../../../constants/procurement";
-import { extended } from "../../../utils/costingMath";
+import { DEFAULT_FINAL_ACQUIRE_PERCENT, extended, finalAcquireByRule } from "../../../utils/costingMath";
 import { cn } from "../../../lib/utils";
 import { Cell, Readout, SelectCell, StockBadge } from "../GridCell";
 import { factorLabel, percentLabel, pesos } from "../gridFormat";
@@ -93,7 +93,12 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
   const canEditRows = inAnyBand(bands, COMPONENT_BANDS.name);
   const showAcquire = tierReadsCost(tier, "acquire_unit");
   const showOdoo = tierReadsCost(tier, "odoo_unit");
-  const showFinal = false; // Final Acquire left the screen (#703); the data stays for a later clean-up.
+  // #962: Final Acquire is back for the Closed Book tier; the decider list types over the rule.
+  const showFinal = tierReadsCost(tier, "final_acquire_unit");
+  const canFinalAcquire = canCost("final_acquire_unit");
+  const finalAcquireTyped = Boolean(component.final_acquire_typed);
+  const ruleValue = finalAcquireByRule(component, matrix.finalAcquirePercent);
+  const finalAcquireHint = component.status ? (component.status === "source_out" ? "Needs the Acquire" : "Needs the Odoo SRP") : "Pick a Status";
   const showFactor = tierReadsCost(tier, "markup_factor");
   const showMarkupPrice = tierReadsCost(tier, "markup_price_unit");
   const showLanded = tierReadsLandedCost(tier);
@@ -219,13 +224,48 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
       </Band>
 
       {(showFinal || showLanded) && (
-        <Band title="Final cost">
+        <Band title={showFinal ? "Final Acquire" : "Landed Cost"} hint={showFinal ? "The planned cost, by the rule" : undefined}>
           {showFinal && (
             <>
-              <Field label="Final cost / unit">
-                <Cell label={label("Final cost")} noun="Final cost" value={component.final_acquire_unit} numeric money placeholder="0.00" readOnly={!canCost("final_acquire_unit")} onSave={(value) => save({ finalAcquireUnit: value })} />
+              <Field label="Percent on the Odoo SRP">
+                <Cell
+                  label={label("Final Acquire percent")}
+                  noun="The Final Acquire percent"
+                  value={component.final_acquire_percent}
+                  numeric
+                  placeholder={`${matrix.finalAcquirePercent ?? DEFAULT_FINAL_ACQUIRE_PERCENT} (the evaluation's)`}
+                  readOnly={!canFinalAcquire}
+                  onSave={(value) => save({ finalAcquirePercent: value })}
+                />
+                <p className={HINT}>{component.status === "source_out" ? "Not used on a Source Out line." : "Blank follows the evaluation's percent."}</p>
               </Field>
-              <Field label="Final cost total">
+              <Field label="Final Acquire / unit">
+                <Cell
+                  label={label("Final Acquire")}
+                  noun="Final Acquire"
+                  value={component.final_acquire_unit}
+                  numeric
+                  money
+                  placeholder={finalAcquireHint ?? "0.00"}
+                  readOnly={!canFinalAcquire}
+                  onSave={(value) => save({ finalAcquireUnit: value })}
+                />
+                {finalAcquireTyped ? (
+                  <p className={HINT} data-testid="final-acquire-typed">
+                    Typed{ruleValue === null ? "" : `; the rule gives ${pesos(ruleValue)}`}.{" "}
+                    {canFinalAcquire && (
+                      <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" aria-label={label("Back to the rule")} disabled={busy} onClick={() => save({ finalAcquireUnit: null })}>
+                        Back to the rule
+                      </Button>
+                    )}
+                  </p>
+                ) : (
+                  <p className={HINT} data-testid="final-acquire-rule">
+                    {component.final_acquire_unit === null || component.final_acquire_unit === undefined ? finalAcquireHint : "From the rule."}
+                  </p>
+                )}
+              </Field>
+              <Field label="Final Acquire total">
                 <Readout>{pesos(extended(component.final_acquire_unit, component.quantity))}</Readout>
               </Field>
             </>

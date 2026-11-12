@@ -5,6 +5,8 @@ import {
   BID_DECISION_TIERS,
   COMPONENT_CANVASS_COST_TIERS,
   COMPONENT_COST_BANDS,
+  COMPONENT_FINAL_ACQUIRE_BANDS,
+  COMPONENT_FINAL_ACQUIRE_TIERS,
   COMPONENT_COST_TIERS,
   COST_ROW_TIERS,
   tierReadsCostRow,
@@ -158,6 +160,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     // The "from Canvass" mark on Acquire (#278) is read by the tiers that read Acquire.
     const costColumns = [
       ...Object.keys(COMPONENT_COST_TIERS).filter((c) => tierReadsCost(tier, c)),
+      ...Object.entries(COMPONENT_FINAL_ACQUIRE_TIERS).filter(([, tiers]) => tiers.includes(tier)).map(([c]) => c),
       ...Object.entries(COMPONENT_CANVASS_COST_TIERS).filter(([, tiers]) => tiers.includes(tier)).map(([c]) => c),
     ]
     const onlyReadable = (row, keep) => Object.fromEntries(Object.entries(row).filter(([key]) => keep.includes(key)))
@@ -207,7 +210,7 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
   // Which bands may write each column of each money table, as the registry says.
   const MONEY_BANDS = {
     costing_tender_line_prices: { abc_unit: ["sales"], final_offer_unit: ["sales"] },
-    costing_component_costs: COMPONENT_COST_BANDS,
+    costing_component_costs: { ...COMPONENT_COST_BANDS, ...COMPONENT_FINAL_ACQUIRE_BANDS },
     costing_cost_rows: { ...COST_ROW_BANDS },
     costing_matrix_money: MATRIX_MONEY_BANDS,
   }

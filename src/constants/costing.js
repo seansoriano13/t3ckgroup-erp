@@ -142,8 +142,22 @@ export const COMPONENT_CANVASS_COST_BANDS = {
 export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
   odoo_unit: [SALES],
-  final_acquire_unit: [SALES, PURCHASING, MANAGEMENT],
+  // #962: Final Acquire is the decider list's: it types over the rule and sets the percents.
+  final_acquire_unit: [MANAGEMENT],
   markup_factor: [COSTING_BAND.MARKUP],
+};
+
+/**
+ * Final Acquire's own columns on a Component's costs row (#962), not on a cost-only row: the line's own
+ * percent on the Odoo SRP (blank = the evaluation's), and whether a decider typed the figure over the rule.
+ */
+export const COMPONENT_FINAL_ACQUIRE_TIERS = {
+  final_acquire_percent: [COSTING_TIER.CLOSED_BOOK],
+  final_acquire_typed: [COSTING_TIER.CLOSED_BOOK],
+};
+export const COMPONENT_FINAL_ACQUIRE_BANDS = {
+  final_acquire_percent: [MANAGEMENT],
+  final_acquire_typed: [MANAGEMENT],
 };
 
 /**
@@ -165,6 +179,8 @@ export const COST_ROW_BANDS = {
   ...COMPONENT_COST_BANDS,
   // #963: written by the band that writes the row's Acquire.
   abc_pct: [PURCHASING],
+  // A cost-only row keeps the band it had; only a Component's Final Acquire moved to the decider list (#962).
+  final_acquire_unit: [SALES, PURCHASING, MANAGEMENT],
 };
 
 /**
@@ -181,6 +197,7 @@ export const USUAL_COST_CATEGORIES = ["labor", "logistics", "equipment", "permit
 export const MATRIX_MONEY_TIERS = {
   default_factor: [COSTING_TIER.CLOSED_BOOK],
   default_preset_id: [COSTING_TIER.CLOSED_BOOK],
+  final_acquire_percent: [COSTING_TIER.CLOSED_BOOK],
   marketing: [COSTING_TIER.CLOSED_BOOK],
   opex: [COSTING_TIER.CLOSED_BOOK],
 };
@@ -188,6 +205,7 @@ export const MATRIX_MONEY_TIERS = {
 export const MATRIX_MONEY_BANDS = {
   default_factor: [COSTING_BAND.MARKUP],
   default_preset_id: [COSTING_BAND.MARKUP],
+  final_acquire_percent: [MANAGEMENT],
   marketing: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
   opex: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
 };
@@ -351,7 +369,10 @@ export const COSTING_COLUMN_LABEL = {
   "costing_component_costs.*": "A Component's costs",
   "costing_component_costs.acquire_unit": "Acquire",
   "costing_component_costs.odoo_unit": "Odoo SRP",
-  "costing_component_costs.final_acquire_unit": "Final cost",
+  "costing_component_costs.final_acquire_unit": "Final Acquire",
+  "costing_component_costs.final_acquire_percent": "Final Acquire percent",
+  "costing_component_costs.final_acquire_typed": "Final Acquire",
+  "costing_matrix_money.final_acquire_percent": "The Final Acquire percent",
   "costing_component_costs.markup_factor": "The markup factor",
   "costing_inclusions.*": "Adding or removing an Inclusion",
   "costing_inclusions.component_id": "Which bundle an Inclusion sits under",

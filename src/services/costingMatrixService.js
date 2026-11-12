@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
 import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
-import { abcSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
+import { DEFAULT_FINAL_ACQUIRE_PERCENT, abcSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
@@ -193,6 +193,9 @@ function costColumns(fields) {
   if ("acquireUnit" in fields) columns.acquire_unit = blankToNull(fields.acquireUnit);
   if ("odooUnit" in fields) columns.odoo_unit = blankToNull(fields.odooUnit);
   if ("finalAcquireUnit" in fields) columns.final_acquire_unit = blankToNull(fields.finalAcquireUnit);
+  // #962: the line's own percent on the Odoo SRP (blank = the evaluation's), and whether Final Acquire is typed over the rule.
+  if ("finalAcquirePercent" in fields) columns.final_acquire_percent = blankToNull(fields.finalAcquirePercent);
+  if ("finalAcquireTyped" in fields) columns.final_acquire_typed = Boolean(fields.finalAcquireTyped);
   if ("markupFactor" in fields) columns.markup_factor = blankToNull(fields.markupFactor);
   if ("abcPct" in fields) columns.abc_pct = blankToNull(fields.abcPct);
   return columns;
@@ -345,6 +348,8 @@ export function shapeMatrix(read, settings = null) {
     importAddonPercent: matrix && "import_addon_percent" in matrix ? numberOrNull(matrix.import_addon_percent) : undefined,
     defaultFactor: money ? (defaultFactor === null ? null : Number(defaultFactor)) : undefined,
     defaultPresetId: money ? (money.default_preset_id ?? null) : undefined,
+    // The evaluation's percent on the Odoo SRP (#962); no key means the viewer was not sent it.
+    finalAcquirePercent: money ? Number(money.final_acquire_percent ?? DEFAULT_FINAL_ACQUIRE_PERCENT) : undefined,
     markup: matrixMarkup(tenderLines, costRows, defaultFactor),
     compliance: complianceRollup(tenderLines.flatMap((line) => line.components)),
     evaluation: signoffState(signoffs, "evaluation_approved"),
@@ -1060,6 +1065,18 @@ export const costingMatrixService = {
     const { data, error } = await supabase.from(table).update(columns).eq("id", id).select("id");
     if (error) fail(error);
     if (!data?.length) throw new Error("The incharge could not be changed.");
+  },
+
+  /**
+   * Sets the evaluation's default percent on the Odoo SRP (#962; starts at -20). Written by the decider list;
+   * every line without its own percent and not typed over is worked again by the database.
+   */
+  async setFinalAcquirePercent(matrixId, percent) {
+    const n = Number(percent);
+    if (percent === null || percent === undefined || percent === "" || !Number.isFinite(n) || n <= -100 || n > 1000) {
+      throw new Error("The percent must be a number above -100.");
+    }
+    await writeMoney("costing_matrix_money", matrixId, { final_acquire_percent: n });
   },
 
   /**
