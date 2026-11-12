@@ -622,6 +622,8 @@ describe("IPAS pages", () => {
     });
 
     it("shows each section row with its full summary and the state word beside its dot", async () => {
+      // The files owed come from the document kinds' "Required before" (#959), so the kinds are seeded.
+      seedIpasOptions((table, row) => db.seed(table, row));
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
 
       renderDetail(row.id);
@@ -720,6 +722,8 @@ describe("IPAS pages", () => {
     });
 
     it("opens the section that needs the viewer on arrival", async () => {
+      // The files owed come from the document kinds' "Required before" (#959), so the kinds are seeded.
+      seedIpasOptions((table, row) => db.seed(table, row));
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       renderDetail(row.id);
 

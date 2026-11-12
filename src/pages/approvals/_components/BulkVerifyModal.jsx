@@ -81,7 +81,7 @@ export default function BulkVerifyModal({
         </div>
 
         {/* BODY */}
-        <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="min-h-0 flex-1 overflow-y-auto p-5 flex flex-col gap-6">
           <div tabIndex={-1} ref={titleRef} className="outline-none">
             <h2 className="text-xl font-extrabold text-foreground tracking-tight">
               Verify {pluralize(selectedCount, "Task")}
@@ -123,7 +123,7 @@ export default function BulkVerifyModal({
         </form>
 
         {/* FOOTER */}
-        <div className="px-5 py-4 border-t border-border bg-muted/30 flex justify-end gap-3 rounded-b-2xl">
+        <div className="px-5 py-4 border-t border-border bg-muted/30 flex justify-end gap-3 rounded-b-2xl shrink-0">
           <Button
             type="button"
             variant="ghost"

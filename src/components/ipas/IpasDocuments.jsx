@@ -20,7 +20,7 @@ import {
 import ReadTick from "@/components/record/ReadTick";
 import { useEditable, useInDrawer } from "@/components/record/sectionChrome";
 import { ALLOWED_EXTENSIONS_STRING } from "../../utils/attachments";
-import { requiredFilesByPart } from "../../utils/ipasDocuments";
+import { fileRulesOf, requiredFilesByPart } from "../../utils/ipasDocuments";
 import { uploadDocumentFile } from "./uploadDocumentFile";
 
 /**
@@ -54,7 +54,7 @@ export function IpasDocuments({
   const documents = ipas.documents ?? [];
   const suggested = ipas.suggestedDocuments ?? [];
   const [uploadingId, setUploadingId] = useState(null);
-  const required = requiredFilesByPart(documents, ipas.payments ?? [], ipas.source);
+  const required = requiredFilesByPart(documents, ipas.payments ?? [], ipas.source, fileRulesOf(ipas));
 
   const attach = async (document, [file]) => {
     setUploadingId(document.id);

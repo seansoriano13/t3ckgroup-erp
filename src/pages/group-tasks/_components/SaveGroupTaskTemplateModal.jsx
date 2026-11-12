@@ -54,7 +54,7 @@ export default function SaveGroupTaskTemplateModal({
         className="p-0 gap-0 z-[80] shadow-2xl flex flex-col w-[480px] max-w-[95vw] rounded-2xl overflow-hidden border border-border bg-card"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border/70">
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border/70 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-primary/10 text-primary border border-primary/20 shrink-0 shadow-sm">
               <BookmarkPlus size={18} />
@@ -79,8 +79,8 @@ export default function SaveGroupTaskTemplateModal({
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col">
-          <div className="px-6 py-5 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
             {/* Template Name Field */}
             <div className="flex flex-col gap-1.5">
               <FieldBox label={<>Template Name <span className="text-primary">*</span></>} />
@@ -152,7 +152,7 @@ export default function SaveGroupTaskTemplateModal({
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-end gap-2.5">
+          <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-end gap-2.5 shrink-0">
             <Button
               type="button"
               variant="ghost"

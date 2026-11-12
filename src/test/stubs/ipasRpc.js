@@ -1043,6 +1043,15 @@ export function stubIpasRpcs({
     return { amount, php, fee, label, proof }
   }
 
+  // #958: the percent of the order, kept to 4 places; only a Down payment or Payment carries one.
+  const percentOf = (fn, args) => {
+    if (args.p_percent_of_order == null) return null
+    const value = Math.round(Number(args.p_percent_of_order) * 1e4) / 1e4
+    if (!(value > 0) || value > 1000) refuse("22023", `${fn}: the percent of the order must be more than 0 and at most 1000`)
+    if (!["down_payment", "payment"].includes(args.p_kind)) refuse("22023", `${fn}: only a Down payment or a Payment can be a percent of the order`)
+    return value
+  }
+
   stubPaymentRpc("ipas_add_payment", (args) => {
     requireMoney("ipas_add_payment")
     const ipas = requireOpenIpas("ipas_add_payment", args.p_ipas_id)
@@ -1057,6 +1066,7 @@ export function stubIpasRpcs({
       method_id: args.p_method_id,
       check_no: clean(args.p_check_no),
       proof_url: clean_.proof,
+      percent_of_order: percentOf("ipas_add_payment", args),
       // The insert trigger: flagged while section 1 has no live Approved.
       paid_before_approval: !liveSignoffs(ipas.id).some((s) => s.section === 1 && s.role === "approved"),
       created_by: actorId,
@@ -1066,6 +1076,7 @@ export function stubIpasRpcs({
       kind: row.kind,
       paid_on: row.paid_on,
       amount: row.amount,
+      percent_of_order: row.percent_of_order,
       php_debited: row.php_debited,
       charge_fee_php: row.charge_fee_php,
       method_id: row.method_id,
@@ -1092,6 +1103,8 @@ export function stubIpasRpcs({
     diff("kind", before.kind, args.p_kind)
     diff("paid_on", before.paid_on, args.p_paid_on)
     diff("amount", before.amount, c.amount)
+    const percent = percentOf("ipas_update_payment", args)
+    diff("percent_of_order", before.percent_of_order, percent)
     diff("php_debited", before.php_debited, c.php)
     diff("charge_fee_php", before.charge_fee_php, c.fee)
     if (before.method_id !== args.p_method_id) {
@@ -1107,13 +1120,14 @@ export function stubIpasRpcs({
       kind: args.p_kind,
       paid_on: args.p_paid_on,
       amount: c.amount,
+      percent_of_order: percent,
       php_debited: c.php,
       charge_fee_php: c.fee,
       method_id: args.p_method_id,
       check_no: checkNo,
       proof_url: c.proof,
     })
-    event(ipas.id, "payment_changed", { payment_id: updated.id, kind: updated.kind, changes })
+    event(ipas.id, "payment_changed", { payment_id: updated.id, kind: updated.kind, percent_of_order: updated.percent_of_order, changes })
     return updated
   })
 
@@ -1149,6 +1163,7 @@ export function stubIpasRpcs({
       p_method_id: args.p_method_id,
       p_check_no: args.p_check_no,
       p_proof_url: args.p_proof_url,
+      p_percent_of_order: args.p_percent_of_order ?? null,
     }
     const money = (row) => ({ p_payment_id: row.id, p_forex_rate: rate, p_doc_stamp_php: args.p_doc_stamp_php, p_misc_fee_php: args.p_misc_fee_php })
     const saved = args.p_payment_id
@@ -1877,6 +1892,15 @@ export function seedIpasOptions(seed) {
   }
 
   // Document kinds (#246): label, the Source it is suggested for, documentation / filing / both.
+  // The seeded "Required before" (#959) is below: the migration's rules, BIR 2307 not required.
+  const requiredBefore = {
+    "Proforma Invoice": 1,
+    "Quotation (Local)": 1,
+    "BL or Waybill": 3,
+    "Packing List": 3,
+    "Commercial Invoice": 3,
+    "Freight Billing": 3,
+  }
   const kinds = [
     ["Proforma Invoice", "import", "both"],
     ["Quotation (Local)", "local", "documentation"],
@@ -1902,6 +1926,7 @@ export function seedIpasOptions(seed) {
       active: true,
       applies_to,
       used_for,
+      required_before: requiredBefore[label] ?? null,
     })
   })
 

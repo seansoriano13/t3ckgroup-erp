@@ -5,8 +5,10 @@
 
 import {
   IPAS_DOCUMENT_APPLIES_TO,
+  IPAS_FILE_RULE_DEFAULTS,
   IPAS_DOCUMENT_USED_FOR,
   IPAS_OPTION_LIST,
+  IPAS_REQUIRED_BEFORE_PARTS,
   IPAS_SOURCE,
   IPAS_STATUS_SOURCE,
   IPAS_SUPPLIER_ORIGIN_FIELDS,
@@ -141,15 +143,40 @@ export function requiredDocuments(documents = [], source) {
 }
 
 /**
- * The document kinds each part needs a file for before its first sign-off (#711),
- * by Source. Part 2 (finance) is proof of payment on every payment, handled apart.
- * Mirrors _ipas_missing_documents in the database, which is the real check.
+ * The file rules a screen applies (#959), read off an IPAS the service loaded: every option
+ * row (a document kind's "Required before") and the two switches. This is the one place the
+ * screen learns what is required; the database's _ipas_missing_documents reads the same
+ * settings. The switches default to on when the row did not come (the seeded value).
+ * A filed IPAS carries `file_rules_snapshot`, the rules at filing, and is read from that
+ * instead: a filed IPAS is never changed or re-checked.
  */
-export const SECTION_DOCUMENT_KINDS = {
-  purchasing: { import: ["Proforma Invoice"], local: ["Quotation (Local)"] },
-  costing: { import: ["BL or Waybill", "Packing List", "Commercial Invoice", "Freight Billing"], local: [] },
-  filing: { import: ["BIR 2307"], local: ["BIR 2307"] },
-};
+export function fileRulesOf(ipas) {
+  const snapshot = ipas?.file_rules_snapshot ?? null;
+  const switches = { ...IPAS_FILE_RULE_DEFAULTS, ...(snapshot ?? ipas?.fileRules ?? {}) };
+  const options = ipas?.options ?? [];
+  return {
+    // A filed IPAS keeps the rules it was filed under (a kind absent from the snapshot was not required).
+    options: snapshot
+      ? options.map((option) => (option.list === IPAS_OPTION_LIST.DOCUMENT_KIND ? { ...option, required_before: snapshot.options?.[option.id] ?? null } : option))
+      : options,
+    proofOnEveryPayment: switches.proof_on_every_payment,
+    fileOnEveryCharge: switches.file_on_every_charge,
+  };
+}
+
+/**
+ * The document kinds a Source must have a file for, by part: { purchasing, costing, filing } of
+ * option rows, in list order. A kind counts when it is active, "Required before" is set, and
+ * its Source is this one or Both. Part 2 (finance) is proof of payment, handled apart.
+ */
+export function requiredKindsByPart(rules, source) {
+  const out = { purchasing: [], costing: [], filing: [] };
+  const kinds = (rules?.options ?? [])
+    .filter((option) => option.list === IPAS_OPTION_LIST.DOCUMENT_KIND && option.active && option.required_before != null && kindMatchesSource(option, source))
+    .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || String(a.label).localeCompare(String(b.label)));
+  for (const kind of kinds) out[IPAS_REQUIRED_BEFORE_PARTS[kind.required_before]]?.push(kind);
+  return out;
+}
 
 const dateText = (iso) => {
   const date = new Date(`${iso}T00:00:00`);
@@ -166,8 +193,9 @@ export function isBlankCharge(charge) {
   return charge?.amount_php === null || charge?.amount_php === undefined;
 }
 
-/** The charges that have an amount but no file attached. */
+/** The charges that have an amount but no file attached (none, while "a file on every charge" is off). */
 export function chargesLackingFile(ipas) {
+  if (!fileRulesOf(ipas).fileOnEveryCharge) return [];
   return (ipas?.charges ?? []).filter((charge) => !isBlankCharge(charge) && !charge.attachment_url);
 }
 
@@ -176,13 +204,13 @@ export function chargesLackingFile(ipas) {
  * filing } of label lists. A document counts once its row for that kind has an
  * attachment; the landed cost sheet is never asked for.
  */
-export function missingDocumentsByPart(documents = [], payments = [], source) {
-  const has = (label) =>
-    documents.some((doc) => !doc.byHand && doc.attachmentUrl && String(doc.kind?.label ?? "").trim().toLowerCase() === label.toLowerCase());
-  const lacking = (part) => (SECTION_DOCUMENT_KINDS[part]?.[source] ?? []).filter((label) => !has(label));
+export function missingDocumentsByPart(documents = [], payments = [], source, rules) {
+  const required = requiredKindsByPart(rules, source);
+  const has = (kind) => documents.some((doc) => !doc.byHand && doc.attachmentUrl && doc.kind_id === kind.id);
+  const lacking = (part) => required[part].filter((kind) => !has(kind)).map((kind) => kind.label);
   return {
     purchasing: lacking("purchasing"),
-    finance: paymentsLackingProof(payments).map((payment) => `Proof of payment of ${dateText(payment.paid_on)}`),
+    finance: rules?.proofOnEveryPayment === false ? [] : paymentsLackingProof(payments).map((payment) => `Proof of payment of ${dateText(payment.paid_on)}`),
     costing: lacking("costing"),
     filing: lacking("filing"),
   };
@@ -193,11 +221,12 @@ export function missingDocumentsByPart(documents = [], payments = [], source) {
  * (#936), so the read view can list them with an asterisk and say which lack a file.
  * Finance's proofs of payment are listed per payment, only when one is missing.
  */
-export function requiredFilesByPart(documents = [], payments = [], source) {
-  const lacking = missingDocumentsByPart(documents, payments, source);
+export function requiredFilesByPart(documents = [], payments = [], source, rules) {
+  const lacking = missingDocumentsByPart(documents, payments, source, rules);
+  const required = requiredKindsByPart(rules, source);
   const rows = [];
   for (const part of ["purchasing", "costing", "filing"]) {
-    for (const label of SECTION_DOCUMENT_KINDS[part]?.[source] ?? []) {
+    for (const { label } of required[part]) {
       rows.push({ part, label, missing: lacking[part].includes(label) });
     }
   }

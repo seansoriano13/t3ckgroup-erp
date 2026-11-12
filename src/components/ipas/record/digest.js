@@ -17,7 +17,7 @@ import {
 import { formatAmount } from "@/utils/ipas";
 import { billCheckView } from "@/utils/ipasBillCheck";
 import { ipasFigures } from "@/utils/ipasFigures";
-import { filingChecklist, missingDocumentsByPart } from "@/utils/ipasDocuments";
+import { filingChecklist, fileRulesOf, missingDocumentsByPart } from "@/utils/ipasDocuments";
 import { FILING_STATUS, SIGNOFF_STATUS, isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { formatDay } from "@/utils/ipasPayments";
 import { isLandedCostEstimate } from "@/utils/landedCost";
@@ -110,7 +110,7 @@ export function digestIpas(ipas, signerLists = null) {
     filingTicked: checklist.filter((d) => d.ticked).length,
     missingRequired: (ipas.filingWarnings ?? []).length,
     // Per part, the documents whose file is missing; a part signs only once its list is empty (#711).
-    missingByPart: missingDocumentsByPart(documents, ipas.payments ?? [], ipas.source),
+    missingByPart: missingDocumentsByPart(documents, ipas.payments ?? [], ipas.source, fileRulesOf(ipas)),
   };
   const trackItems = ipas.buyerTrack ?? [];
   const track = {
