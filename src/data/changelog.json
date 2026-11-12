@@ -11,7 +11,11 @@
             "Purchasing lists and the Purchasing Dashboard fit a small laptop on one toolbar row, and show each record as a card on a phone.",
             "Commission Pool shows its chart and legend smaller on laptops, so the SORs and People list starts higher.",
             "Retail's date range is a drop-down on phones, so nothing is cut off.",
-            "SOR, People and Retail order lists show as cards on phones."
+            "SOR, People and Retail order lists show as cards on phones.",
+            "Windows and dialogs always fit the screen. On a phone they open full screen with the main button pinned at the bottom.",
+            "On a phone, IPAS, Transmittal and Packing List show Your move as a bar at the bottom of the screen.",
+            "Tasks, Group Tasks, SORs, S0 Evaluation, Costing Desk, Technical, Approvals and HR lists show as cards on a phone.",
+            "Create Group Task stacks its member list on small screens, so you can assign people from a phone."
         ]
     },
     {
