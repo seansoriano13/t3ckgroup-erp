@@ -6,7 +6,6 @@ import { useAuth } from "../context/AuthContext";
 import { isResetPasswordPath } from "../lib/recoveryLink";
 import ChangelogModal from "../components/ChangelogModal";
 import IssuedPasswordBanner from "../components/IssuedPasswordBanner";
-import BugReportButton from "../components/BugReportButton";
 
 import PageLoading from "@/components/ui/PageLoading";
 
@@ -68,10 +67,9 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="flex h-screen bg-mauve-2 font-sans overflow-hidden">
+    <div className="flex h-dvh flex-col md:flex-row bg-mauve-2 font-sans overflow-hidden">
       <SideNav />
       <ChangelogModal />
-      <BugReportButton />
 
       <main className="flex-1 flex flex-col min-w-0 bg-background md:my-2 md:mr-2 md:ml-2 md:rounded-2xl border-l md:border border-border shadow-sm overflow-hidden relative z-10 transition-transform">
         {isFullBleed ? (
@@ -80,7 +78,7 @@ export default function AppLayout() {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="wrapper pt-10 px-4 md:pt-6 md:px-6 laptop:pt-4">
+            <div className="wrapper pt-4 px-4 md:pt-6 md:px-6 laptop:pt-4">
               <IssuedPasswordBanner />
               <Outlet />
             </div>

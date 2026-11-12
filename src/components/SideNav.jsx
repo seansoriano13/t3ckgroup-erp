@@ -35,9 +35,9 @@ import { usePushNotificationClick } from "../hooks/usePushNotificationClick";
 import ComprehensiveChatModal from "./ComprehensiveChatModal";
 
 import GlobalDetailManager from "./GlobalDetailManager";
-import { Link, useNavigate, NavLink } from "react-router";
+import { useNavigate, useLocation, NavLink } from "react-router";
 import Avatar from "./Avatar";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import LogTaskModal from "./LogTaskModal";
 import CreateGroupTaskModal from "../pages/group-tasks/_components/CreateGroupTaskModal";
 import Dropdown from "./ui/Dropdown";
@@ -61,10 +61,16 @@ import {
 } from "../constants/navigation";
 import { useNavBadges } from "../hooks/useNavBadges";
 import { CAPTION_BASE } from "@/lib/captionStyle";
+import { navSectionLabel } from "@/lib/navSection";
+import { isStaging, isLocal } from "@/lib/appEnv";
 
 export default function SideNav() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const menuButtonRef = useRef(null);
+  const envLabel = isStaging ? "STAGING" : isLocal ? "LOCAL" : null;
+  const envColor = isStaging ? "#f97316" : "#22c55e";
   usePushNotificationClick(user, navigate);
   const badges = useNavBadges(user);
 
@@ -266,6 +272,41 @@ export default function SideNav() {
     }
   };
 
+  // The (+) menu body, shared by the side menu and the phone top bar so both
+  // list the same items.
+  const renderQuickMenu = ({ close }) => (
+    <div className="p-1.5 min-w-[190px] flex flex-col gap-1.5 bg-mauve-3 rounded-xl shadow-lg border border-border">
+                    {quickActionGroups.map((catGroup, groupIdx) => (
+                      <div key={catGroup.category} className="flex flex-col gap-0.5">
+                        {groupIdx > 0 && (
+                          <div className="h-[1px] bg-border/60 my-1 -mx-0.5" />
+                        )}
+                        <span className={`px-2.5 py-0.5 ${CAPTION_BASE} tracking-wider text-muted-foreground`}>
+                          {catGroup.category}
+                        </span>
+                        {catGroup.items.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <Button
+                              key={item.id}
+                              variant="ghost"
+                              onClick={() => {
+                                close();
+                                handleQuickAction(item.id);
+                              }}
+                              className="h-auto justify-start flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
+                            >
+                              <Icon size={14} className="text-sidebar-foreground/70" />
+                              <span>{item.label}</span>
+                              {item.beta && <BetaTag />}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+  );
+
   // The same panel renders in the desktop aside (rail-capable) and the mobile
   // Drawer (always full width), so it takes `collapsed` rather than reading state.
   const renderSidebarBody = (collapsed, showRailToggle = false) => (
@@ -409,38 +450,7 @@ export default function SideNav() {
                   </Button>
                 )}
               >
-                {({ close }) => (
-                  <div className="p-1.5 min-w-[190px] flex flex-col gap-1.5 bg-mauve-3 rounded-xl shadow-lg border border-border">
-                    {quickActionGroups.map((catGroup, groupIdx) => (
-                      <div key={catGroup.category} className="flex flex-col gap-0.5">
-                        {groupIdx > 0 && (
-                          <div className="h-[1px] bg-border/60 my-1 -mx-0.5" />
-                        )}
-                        <span className={`px-2.5 py-0.5 ${CAPTION_BASE} tracking-wider text-muted-foreground`}>
-                          {catGroup.category}
-                        </span>
-                        {catGroup.items.map((item) => {
-                          const Icon = item.icon;
-                          return (
-                            <Button
-                              key={item.id}
-                              variant="ghost"
-                              onClick={() => {
-                                close();
-                                handleQuickAction(item.id);
-                              }}
-                              className="h-auto justify-start flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
-                            >
-                              <Icon size={14} className="text-sidebar-foreground/70" />
-                              <span>{item.label}</span>
-                              {item.beta && <BetaTag />}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {renderQuickMenu}
               </Dropdown>
             )}
           </div>
@@ -546,53 +556,101 @@ export default function SideNav() {
             <RoleSwitcher />
           </div>
 
-          {/* Footer: the bug report lives here from md up (it used to float over
-              the last table column). Phones keep the small floating one until the
-              menu drawer work lands. */}
-          {showRailToggle && (
-            <div className="mt-auto pt-3">
-              <BugReportButton asMenuItem collapsed={collapsed} />
-            </div>
-          )}
+          {/* Footer: the bug report lives here (it used to float over the last
+              table column and the page corner on phones). */}
+          <div className="mt-auto pt-3">
+            <BugReportButton asMenuItem collapsed={collapsed} />
+          </div>
         </div>
     </>
   );
 
   return (
     <>
-      {/* Mobile Drawer Trigger (PanelRight) */}
-      <div className="md:hidden fixed top-3 left-3 z-40">
+      {/* Phone top bar: 48px, sticky at the top of the app frame (a flex child
+          in the column layout), below md only. Replaces the floating menu
+          button that sat over page titles. */}
+      <header
+        data-testid="mobile-top-bar"
+        className="md:hidden flex shrink-0 items-center gap-2 border-b border-sidebar-border bg-sidebar px-2 pt-[env(safe-area-inset-top)] h-[calc(3rem+env(safe-area-inset-top))] sticky top-0 z-40"
+      >
         <Button
-          variant="outline"
+          ref={menuButtonRef}
+          variant="ghost"
           size="icon"
           onClick={() => setIsMobileOpen(true)}
           aria-label="Open navigation"
           aria-expanded={isMobileOpen}
-          className="h-auto w-auto text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-sidebar-border backdrop-blur-md p-1.5 rounded-lg shadow-sm transition-colors"
+          className="size-10 shrink-0 text-sidebar-foreground/80 hover:text-sidebar-foreground"
         >
           <PanelRight size={18} strokeWidth={2} />
         </Button>
-      </div>
+        <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-sidebar-foreground">
+          {navSectionLabel(location.pathname)}
+        </h1>
+        {envLabel && (
+          <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black tracking-wide text-white" style={{ backgroundColor: envColor }}>
+            {envLabel}
+          </span>
+        )}
+        {quickActionGroups.length > 0 && (
+          <Dropdown
+            placement="bottom-end"
+            usePortal={true}
+            trigger={({ isOpen }) => (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Create new"
+                aria-expanded={isOpen}
+                className="size-10 shrink-0 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+              >
+                <Plus size={18} strokeWidth={2.5} />
+              </Button>
+            )}
+          >
+            {renderQuickMenu}
+          </Dropdown>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsNotifOpen(true)}
+          aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+          className="relative size-10 shrink-0 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+        >
+          <Bell size={18} strokeWidth={2.2} />
+          {unreadCount > 0 && (
+            <span
+              data-testid="mobile-bell-count"
+              className="absolute top-1 right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sidebar-primary px-1 text-[9px] font-bold text-primary-foreground shadow-sm ring-2 ring-sidebar"
+            >
+              {unreadCount}
+            </span>
+          )}
+        </Button>
+      </header>
 
       {/* Mobile Drawer */}
       <Drawer open={isMobileOpen} onOpenChange={setIsMobileOpen}>
         <DrawerContent
           side="left"
-          className="md:hidden w-[240px] bg-sidebar text-sm font-sans overflow-y-auto scrollbar-hide"
+          finalFocus={menuButtonRef}
+          className="md:hidden w-[260px] bg-sidebar text-sm font-sans overflow-y-auto scrollbar-hide pt-[env(safe-area-inset-top)]"
         >
           <DrawerTitle className="sr-only">Navigation</DrawerTitle>
-          <div className="absolute top-4 right-4 z-50">
+          <div className="absolute top-[calc(0.5rem+env(safe-area-inset-top))] right-2 z-50">
             <DrawerClose
               render={
                 <Button
                   variant="outline"
-                  size="icon"
-                  className="h-auto w-auto text-sidebar-foreground/60 hover:text-sidebar-foreground p-1 bg-sidebar border-sidebar-border rounded-md shadow-sm"
+                  size="sm"
+                  className="h-9 gap-1.5 px-2.5 text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-sidebar-border rounded-md shadow-sm"
                 />
               }
             >
-              <PanelLeft size={18} strokeWidth={2} />
-              <span className="sr-only">Close navigation</span>
+              <X size={16} strokeWidth={2} />
+              Close
             </DrawerClose>
           </div>
           {renderSidebarBody(false)}

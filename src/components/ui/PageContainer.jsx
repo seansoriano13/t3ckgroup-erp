@@ -33,9 +33,9 @@ export default function PageContainer({
     }[spaceY] || "space-y-6";
 
   // No wrapper surrounds a full-bleed route, so a filled container carries its
-  // own top padding, and its left padding clears the SideNav's mobile trigger.
+  // own top padding, and phones use the same 16px gutter as other pages (the top bar sits above).
   const boxClass = fill
-    ? "flex h-full min-h-0 flex-col pl-14 pr-4 pt-3 pb-4 md:px-6"
+    ? "flex h-full min-h-0 flex-col px-4 pt-3 pb-4 md:px-6"
     : "pb-10";
 
   return (

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+﻿import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import SideNav from "./SideNav";
@@ -11,7 +11,7 @@ vi.mock("./NotificationDrawer", () => ({ default: () => null }));
 vi.mock("./ComprehensiveChatModal", () => ({ default: () => null }));
 vi.mock("./GlobalDetailManager", () => ({ default: () => null }));
 vi.mock("./BroadcastModal", () => ({ default: () => null }));
-vi.mock("./LogTaskModal", () => ({ default: () => null }));
+vi.mock("./LogTaskModal", () => ({ default: ({ isOpen }) => (isOpen ? <div data-testid="log-task-window" /> : null) }));
 vi.mock("../pages/group-tasks/_components/CreateGroupTaskModal", () => ({ default: () => null }));
 vi.mock("./offsets/ApplyLeaveModal", () => ({ default: () => null }));
 vi.mock("./sor/OpportunityFormModal", () => ({ default: () => null }));
@@ -50,7 +50,7 @@ describe("SideNav Component", () => {
     renderSideNav(user);
 
     expect(screen.getByText("Workspace")).toBeInTheDocument();
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    expect(screen.getAllByText("Dashboard").length).toBeGreaterThan(0);
     expect(screen.getByText("My Requests")).toBeInTheDocument();
     expect(screen.queryByText("My Tasks")).not.toBeInTheDocument();
     expect(screen.queryByText("Human Resources")).not.toBeInTheDocument();
@@ -169,7 +169,7 @@ describe("SideNav Component", () => {
     );
   });
 
-  // Issue #206 — the sidebar collapses to an icon rail app-wide, remembered
+  // Issue #206 â€” the sidebar collapses to an icon rail app-wide, remembered
   // per person beside the group accordion state above.
   it("persists the collapse toggle in localStorage, per user", () => {
     const user = { id: "collapse-user-1", name: "Collapse Test", isSuperAdmin: true };
@@ -219,4 +219,30 @@ describe("SideNav Component", () => {
 
     expect(logout).toHaveBeenCalledTimes(1);
   });
-});
+
+  it("phone top bar: shows the section name and opens a quick action window", () => {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user: { id: "u-bar", name: "Bar Tester", has_task_flow: true },
+      isAuthLoading: false,
+    });
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/tasks"]}>
+        <SideNav />
+      </MemoryRouter>
+    );
+
+    const bar = screen.getByTestId("mobile-top-bar");
+    expect(bar).toHaveTextContent("My Tasks");
+    expect(bar).toContainElement(screen.getByRole("button", { name: "Open navigation" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Create new" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Log Task/ }).at(-1));
+
+    expect(screen.getByTestId("log-task-window")).toBeInTheDocument();
+  });});
