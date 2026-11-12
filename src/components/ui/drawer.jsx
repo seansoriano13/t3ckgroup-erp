@@ -11,6 +11,11 @@ const SIDES = {
   right:
     "right-0 border-l data-open:slide-in-from-right data-closed:slide-out-to-right",
   left: "left-0 border-r data-open:slide-in-from-left data-closed:slide-out-to-left",
+  // Bottom sheet: full width, rounded top corners, never taller than 90dvh.
+  // Put the scrolling body in a `flex-1 overflow-y-auto` child and the pinned
+  // footer in a `shrink-0` one; the safe-area padding sits on the popup.
+  bottom:
+    "inset-x-0 bottom-0 top-auto h-auto max-h-[90dvh] w-full rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)] data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
 };
 
 function Drawer({ ...props }) {
@@ -41,7 +46,8 @@ function DrawerContent({ side = "right", className, children, ...props }) {
       <DialogPrimitive.Popup
         data-slot="drawer-content"
         className={cn(
-          "fixed top-0 z-50 flex h-full w-[500px] max-w-full flex-col border-border bg-card text-foreground shadow-2xl outline-none duration-300 data-open:animate-in data-closed:animate-out data-closed:fill-mode-forwards",
+          "fixed z-50 flex flex-col border-border bg-card text-foreground shadow-2xl outline-none duration-300 data-open:animate-in data-closed:animate-out data-closed:fill-mode-forwards",
+          side === "bottom" ? null : "top-0 h-full w-[500px] max-w-full",
           SIDES[side],
           className,
         )}
