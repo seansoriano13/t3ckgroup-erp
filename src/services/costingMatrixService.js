@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
 import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
-import { abcSettingOf, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
+import { abcSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
@@ -194,6 +194,7 @@ function costColumns(fields) {
   if ("odooUnit" in fields) columns.odoo_unit = blankToNull(fields.odooUnit);
   if ("finalAcquireUnit" in fields) columns.final_acquire_unit = blankToNull(fields.finalAcquireUnit);
   if ("markupFactor" in fields) columns.markup_factor = blankToNull(fields.markupFactor);
+  if ("abcPct" in fields) columns.abc_pct = blankToNull(fields.abcPct);
   return columns;
 }
 
@@ -322,7 +323,10 @@ export function shapeMatrix(read, settings = null) {
   });
 
   // A cost-only row with no factor of its own is x1.00, not the matrix default.
-  const costRows = (tables.costing_cost_rows ?? []).map((row, index) => ({
+  // A row typed as a percent of the ABC counts at that percent of the ABC total (#963).
+  const abcSetting = abcSettingOf(matrix);
+  const abcTotal = matrixTotals(tenderLines, abcSetting).abcTotal;
+  const costRows = applyPercentRows(tables.costing_cost_rows ?? [], abcTotal).map((row, index) => ({
     ...row,
     number: index + 1,
     totals: costRowTotals(row),
@@ -348,6 +352,7 @@ export function shapeMatrix(read, settings = null) {
     signoffs: Object.fromEntries(SIGNOFF_ROLES.map((role) => [role, signoffState(signoffs, role)])),
     costRows,
     costRowsTotals: costRowsTotals(costRows),
+    projectExpensesTotal: projectExpensesTotal(costRows),
     costRowsMarkupTotal: markupPriceSum(costRows),
   };
 

@@ -1440,3 +1440,5 @@ side; not real time. The thread also shows when the report was ticked Resolved
 or Reopened. The sender sees their own reports, and only those, under My Bug
 Reports so they can reply.
 _Avoid_: Comment, Chat, Message
+
+**Project expenses (#963, spec #955):** the sum of every Other costs row, Equipment & Tools included. An Other costs row can be typed as a **% of ABC** (`costing_cost_rows.abc_pct`, same tiers and Purchasing band as its Acquire): its amount is the percent times the ABC total (the typed total in Total only, the sum of the lines in By line), worked again whenever the ABC changes, and blank (never zero) while the ABC is unknown. Typing the peso amount by hand clears the percent. "Add the usual rows" adds one blank row for each of Labor, Logistics, Equipment & Tools, Permits and Overhead that has none.

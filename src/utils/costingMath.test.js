@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { summaryLineShown } from "../constants/costing";
-import { resolveCost, lineCost, abcSettingOf, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
+import { resolveCost, lineCost, abcSettingOf, applyPercentRows, percentOfAbcAmount, projectExpensesTotal, usualRowsToAdd, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -736,5 +736,71 @@ describe("ABC typed as one total (#960)", () => {
     expect(abcSettingOf({ abc_mode: "by_line", abc_total: null })).toEqual({ mode: "by_line", total: null });
     expect(abcSettingOf({ id: 1 })).toBeNull();
     expect(abcSettingOf(null)).toBeNull();
+  });
+});
+
+describe("project expenses as a percent of the ABC (#963)", () => {
+  const abc = 371500;
+  const row = (category, pct, extra = {}) => ({ category_key: category, quantity: 1, abc_pct: pct, acquire_unit: null, ...extra });
+  const sheet = [row("labor", 10), row("logistics", 7), row("permits", 2), row("overhead", 5)];
+
+  it("works a percent as a share of the ABC, to the centavo", () => {
+    expect(percentOfAbcAmount(10, abc)).toBe(37150);
+    expect(percentOfAbcAmount(7, abc)).toBe(26005);
+    expect(percentOfAbcAmount(2, abc)).toBe(7430);
+    expect(percentOfAbcAmount(5, abc)).toBe(18575);
+    expect(percentOfAbcAmount(0.01, 1)).toBe(0);
+    expect(percentOfAbcAmount(33.33, 100.5)).toBe(33.5);
+  });
+
+  it("totals the sheet's figures to 89,160", () => {
+    const rows = applyPercentRows(sheet, abc);
+    expect(rows.map((r) => r.abcAmount)).toEqual([37150, 26005, 7430, 18575]);
+    expect(projectExpensesTotal(rows)).toBe(89160);
+  });
+
+  it("counts Equipment & Tools in the total", () => {
+    const rows = applyPercentRows([...sheet, row("equipment", 3)], abc);
+    expect(projectExpensesTotal(rows)).toBe(89160 + 11145);
+  });
+
+  it("adds a peso row typed by hand beside the percent rows", () => {
+    const rows = applyPercentRows([...sheet, row("equipment", null, { acquire_unit: 500, quantity: 2 })], abc);
+    expect(projectExpensesTotal(rows)).toBe(89160 + 1000);
+  });
+
+  it("follows the ABC when it changes", () => {
+    expect(projectExpensesTotal(applyPercentRows(sheet, 400000))).toBe(96000);
+  });
+
+  it("a blank ABC leaves a percent row blank, never zero, and the total unknown", () => {
+    for (const unknown of [null, undefined, ""]) {
+      const rows = applyPercentRows(sheet, unknown);
+      expect(rows.every((r) => r.abcAmount === null && r.abcMissing === true && r.acquire_unit === null)).toBe(true);
+      expect(projectExpensesTotal(rows)).toBeNull();
+    }
+  });
+
+  it("skips a row with nothing typed, and leaves a row without a percent untouched", () => {
+    const blank = row("labor", null);
+    const typed = row("overhead", null, { acquire_unit: 250 });
+    const rows = applyPercentRows([blank, typed], abc);
+    expect(rows[0]).toBe(blank);
+    expect(rows[1]).toBe(typed);
+    expect(projectExpensesTotal(rows)).toBe(250);
+    expect(projectExpensesTotal([])).toBeNull();
+  });
+
+  it("a percent row counts its worked amount, not a Final cost left on it", () => {
+    const rows = applyPercentRows([row("labor", 10, { final_acquire_unit: 1 })], abc);
+    expect(rows[0].final_acquire_unit).toBeNull();
+    expect(projectExpensesTotal(rows)).toBe(37150);
+  });
+
+  it("names the usual categories no row has yet", () => {
+    const keys = ["labor", "logistics", "equipment", "permits", "overhead"];
+    expect(usualRowsToAdd([], keys)).toEqual(keys);
+    expect(usualRowsToAdd([{ category_key: "labor" }, { category_key: "overhead" }], keys)).toEqual(["logistics", "equipment", "permits"]);
+    expect(usualRowsToAdd([{ category_key: "labor" }], ["labor"])).toEqual([]);
   });
 });
