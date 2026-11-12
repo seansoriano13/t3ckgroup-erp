@@ -82,7 +82,7 @@ function Citations({ documents }) {
  */
 function CanvassButton({ component, items = [], canRaise, opportunityId }) {
   const name = `Canvass ${component.number || ""}`.trim();
-  const onRequests = [...new Map(items.filter((i) => i.request_id).map((i) => [i.request_id, i])).values()];
+  const onRequests = [...new Map(items.filter((i) => i.request_id && i.status !== "cancelled").map((i) => [i.request_id, i])).values()];
 
   if (onRequests.length === 0) {
     return (

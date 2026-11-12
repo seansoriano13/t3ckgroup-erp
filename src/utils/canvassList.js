@@ -1,4 +1,4 @@
-import { CANVASS_KIND } from "../constants/canvass";
+import { CANVASS_KIND, MIN_CANVASS_OFFERS } from "../constants/canvass";
 import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../constants/purchaseRequest";
 import { STATUS_THEME } from "../constants/status";
 
@@ -10,8 +10,6 @@ import { STATUS_THEME } from "../constants/status";
 /** "all" on a select means no filter. */
 export const ANY = "all";
 
-/** The Canvass needs this many suppliers, or a "No other supplier" note, before a winner (#969). */
-export const SUPPLIERS_NEEDED = 3;
 
 export const CANVASS_STATUS = {
   NEEDS_SUPPLIERS: "needs_suppliers",
@@ -38,10 +36,15 @@ export const CANVASS_STATUS_TONES = {
  */
 export function canvassStatusOf(row) {
   let key;
-  if ((row.supplierCount ?? 0) < SUPPLIERS_NEEDED && !row.noOtherSupplier) key = CANVASS_STATUS.NEEDS_SUPPLIERS;
+  if ((row.supplierCount ?? 0) < MIN_CANVASS_OFFERS && !row.noOtherSupplier) key = CANVASS_STATUS.NEEDS_SUPPLIERS;
   else if ((row.openWinnerCount ?? 0) < (row.openLineCount ?? 0)) key = CANVASS_STATUS.NEEDS_WINNERS;
   else key = CANVASS_STATUS.WINNERS_PICKED;
   return { key, state: key, label: CANVASS_STATUS_LABELS[key] };
+}
+
+/** When the Canvass last changed, for the column, its sort and the export. */
+export function canvassChangedAt(row) {
+  return row.updatedAt ?? row.createdAt ?? null;
 }
 
 /** The lock shows when every line of the request is locked. */
@@ -83,7 +86,7 @@ export function canvassExportRows(rows) {
     row.supplierCount ?? 0,
     canvassWinnersLabel(row),
     canvassStatusOf(row).label,
-    row.updatedAt ?? row.createdAt ?? null,
+    canvassChangedAt(row),
   ]);
 }
 

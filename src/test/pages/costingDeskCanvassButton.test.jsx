@@ -33,14 +33,14 @@ describe("the Canvass button on an S0 Evaluation line", () => {
   // One project request per SOR; another request carrying the line is a Direct request (#798).
   const request = (title, { direct = false } = {}) =>
     db.seed("purchase_requests", { opportunity_id: direct ? null : deal.id, created_by: buyer.id, buyer_id: buyer.id, title });
-  const item = (requestId) =>
+  const item = (requestId, status = "still_canvassing") =>
     db.seed("purchase_request_items", {
       request_id: requestId,
       source: "component",
       component_id: vehicle.id,
       name: "4x4 pick-up",
       quantity: 1,
-      status: "still_canvassing",
+      status,
       requested_by: buyer.id,
     });
 
@@ -68,6 +68,14 @@ describe("the Canvass button on an S0 Evaluation line", () => {
     expect(button).toBeDisabled();
     expect(within(row).getByText("Raise the Purchase Request first")).toBeInTheDocument();
     expect(within(row).getByRole("link", { name: "Raise it from the SOR" })).toBeInTheDocument();
+  });
+
+  it("counts a cancelled line as no request", async () => {
+    item(request("S06070 vehicles").id, "cancelled");
+    stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
+
+    const row = await vehicleRow();
+    expect(await within(row).findByRole("button", { name: "Canvass 1.1" })).toBeDisabled();
   });
 
   it("gives a reader who can't raise a request only the note", async () => {

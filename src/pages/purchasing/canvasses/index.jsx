@@ -37,6 +37,7 @@ import {
   CANVASS_STATUS,
   CANVASS_STATUS_LABELS,
   CANVASS_STATUS_TONES,
+  canvassChangedAt,
   canvassExportRows,
   canvassHref,
   canvassLocked,
@@ -74,7 +75,7 @@ const CANVASS_SORT = {
   canvasser: (r) => r.canvasserName,
   suppliers: (r) => r.supplierCount,
   winners: (r) => r.winnerCount,
-  changed: (r) => r.updatedAt ?? r.createdAt,
+  changed: (r) => canvassChangedAt(r),
   status: (r) => canvassStatusOf(r).label,
 };
 
@@ -275,7 +276,7 @@ function CanvassesPage() {
                       <TableCell className="tabular-nums">{row.supplierCount}</TableCell>
                       <TableCell className="tabular-nums">{canvassWinnersLabel(row)}</TableCell>
                       <TableCell className="tabular-nums">
-                        {formatDate(row.updatedAt ?? row.createdAt)}
+                        {formatDate(canvassChangedAt(row))}
                       </TableCell>
                       <StateCell
                         state={rowStatus.state}
