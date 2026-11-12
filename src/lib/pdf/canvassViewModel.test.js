@@ -183,3 +183,28 @@ describe('header and signature', () => {
     expect(buildCanvassDocument(build(c))).not.toContain('<script>x</script>');
   });
 });
+
+describe('cancelled and bought lines', () => {
+  const withStatus = (statuses) => lines().map((l, i) => ({ ...l, status: statuses[i] }));
+
+  it('keeps a cancelled line on the sheet, marked, with no winner and not counted', () => {
+    const c = canvass(3, { winners: [{ item_id: 'l1', supplier_id: 's2', reason: 'Left over.' }] });
+    const vm = build(c, { lines: withStatus(['cancelled', 'to_purchase', 'to_purchase']) });
+    expect(vm.pages[0].rows).toHaveLength(3);
+    expect(vm.pages[0].rows[0]).toMatchObject({ no: 1, cancelled: true, outcome: 'cancelled' });
+    expect(vm.pages[0].rows[0].cells.some((cell) => cell.winner)).toBe(false);
+    expect(vm.reasons[0]).toMatchObject({ outcome: 'cancelled', supplier: null, reason: null });
+    expect(vm.header.lineCount).toBe(2);
+    const html = buildCanvassDocument(vm);
+    expect(html).toContain('print-line-cancelled');
+    expect(html).toContain('Cancelled');
+  });
+
+  it('says a bought line nobody quoted was bought with no Canvass', () => {
+    const vm = build(canvass(3), { lines: withStatus(['to_purchase', 'to_purchase', 'purchased']) });
+    expect(vm.reasons[2].outcome).toBe('bought-no-canvass');
+    const html = buildCanvassDocument(vm);
+    expect(html).toContain('Bought with no Canvass');
+    expect(html.match(/Bought with no Canvass/g)).toHaveLength(2); // on the line and under the grid
+  });
+});

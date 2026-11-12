@@ -23,8 +23,7 @@ const hasKey = (row, key) => Object.prototype.hasOwnProperty.call(row ?? {}, key
 
 const blank = (value) => value === null || value === undefined || value === "";
 
-/** The lines the grid shows, in the order given: a cancelled line has no Canvass, so it is left out. */
-export const gridItems = (items = []) => (Array.isArray(items) ? items : []).filter((i) => i?.status !== ITEM_STATUS.CANCELLED);
+const isCancelled = (item) => item?.status === ITEM_STATUS.CANCELLED;
 
 /** A supplier's column: what its header says. `rate` and `rateMissing` exist only where money is visible. */
 function supplierColumn(supplier, canReadMoney) {
@@ -81,10 +80,11 @@ function markCheapest(cells) {
 }
 
 /**
- * The grid for a request: `{ suppliers, lines, strip, covered, canReadMoney, state }`.
+ * The grid for a request: `{ suppliers, lines, strip, covered, canReadMoney, state }`. A cancelled line stays in the grid, read-only
+ * and marked (#969): it has no winner, takes no pick, and is not counted in the strip.
  *
  *   suppliers   one column per supplier, in the Canvass's order
- *   lines       one row per open line: `{ item, id, state, locked, cells, winner, quotedCount }`,
+ *   lines       one row per line, cancelled ones too: `{ item, id, state, cancelled, locked, cells, winner, quotedCount }`,
  *               where `winner` is `{ supplier, reason, chosenAt }` or null, and each cell is
  *               `{ supplierId, quote, quoted, unitPrice, total, phpFigure, cheapest, winner }`
  *   strip       the header strip: `{ suppliersText, linesText, supplierCount, winnerCount,
@@ -105,13 +105,15 @@ export function buildCanvassGrid({ items = [], canvass = null, unlockedIds = new
   const winnerOf = new Map(winners.map((w) => [w.item_id, w]));
   const supplierById = new Map(suppliers.map((s) => [s.id, s]));
 
-  const lines = gridItems(items).map((item) => {
+  const lines = (Array.isArray(items) ? items : []).map((item) => {
+    const cancelled = isCancelled(item);
     const cells = suppliers.map((supplier) =>
       gridCell({ supplier, quote: quoteOf.get(`${supplier.id}:${item.id}`), item, canReadMoney }),
     );
     markCheapest(cells);
 
-    const row = winnerOf.get(item.id) ?? null;
+    // A cancelled line cannot hold a winner, so one left over from before is not shown.
+    const row = cancelled ? null : (winnerOf.get(item.id) ?? null);
     const winnerSupplier = row ? supplierById.get(row.supplier_id) ?? null : null;
     for (const cell of cells) cell.winner = Boolean(row) && cell.supplierId === row.supplier_id;
 
@@ -119,6 +121,7 @@ export function buildCanvassGrid({ items = [], canvass = null, unlockedIds = new
     return {
       item,
       id: item.id,
+      cancelled,
       state: lineState({ item, winner: row, covered, unlocked: isUnlocked }),
       locked: lineLocked(item, isUnlocked),
       unlocked: isUnlocked,
@@ -128,7 +131,8 @@ export function buildCanvassGrid({ items = [], canvass = null, unlockedIds = new
     };
   });
 
-  const winnerCount = lines.filter((l) => l.winner).length;
+  const open = lines.filter((l) => !l.cancelled);
+  const winnerCount = open.filter((l) => l.winner).length;
   const state = canvassState({
     lines: lines.map((l) => ({ item: l.item, winner: l.winner, unlocked: l.unlocked })),
     covered,
@@ -143,10 +147,10 @@ export function buildCanvassGrid({ items = [], canvass = null, unlockedIds = new
     stateLabel: CANVASS_STATE_LABEL[state],
     strip: {
       supplierCount: suppliers.length,
-      lineCount: lines.length,
+      lineCount: open.length,
       winnerCount,
       suppliersText: `${suppliers.length} of ${MIN_CANVASS_OFFERS} suppliers`,
-      linesText: `${winnerCount} of ${lines.length} ${lines.length === 1 ? "line has" : "lines have"} a winner`,
+      linesText: `${winnerCount} of ${open.length} ${open.length === 1 ? "line has" : "lines have"} a winner`,
       note,
     },
   };
@@ -173,7 +177,7 @@ export function pickAllBlockedReason(grid, supplierId) {
   if (!grid.covered) {
     return `A winner needs ${MIN_CANVASS_OFFERS} suppliers, or a "No other supplier" note.`;
   }
-  const quotesPickable = grid.lines.some((l) => !l.locked && l.cells.some((c) => c.supplierId === supplierId && c.quoted));
+  const quotesPickable = grid.lines.some((l) => !l.locked && !l.cancelled && l.cells.some((c) => c.supplierId === supplierId && c.quoted));
   return quotesPickable ? null : "This supplier has no line it can win.";
 }
 

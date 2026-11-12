@@ -113,6 +113,7 @@ describe("the product list as a table", () => {
     const row = (await screen.findAllByTestId("requested-item"))[0]
     expect(within(row).getByText("Asked as: Plastic boat, 60 hp")).toBeInTheDocument()
     expect(within(row).getByText("Bought as: Plastic Rescue Boat 60 hp")).toBeInTheDocument()
+    expect(within(row).getByTestId("requested-item-no-canvass")).toHaveTextContent("Bought with no Canvass")
     expect(within(row).getAllByText("Asked by Sales · 2 days ago").length).toBeGreaterThan(0)
     expect(within(row).getAllByText("For the client").length).toBeGreaterThan(0)
   })

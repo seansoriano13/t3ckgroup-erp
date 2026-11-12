@@ -5,7 +5,7 @@
  * the next page with the line column repeated.
  *
  * A pure view model over a Canvass as `canvassService.get` returns it, plus the request's lines,
- * with no I/O, so the paging, the skipped lines and the no-money sheet are unit-tested without the
+ * with no I/O, so the paging, the cancelled lines and the no-money sheet are unit-tested without the
  * network. The document (canvassDocument.js) draws it; the printer (canvassPrinter.js) fetches it.
  *
  *   Header      the CNV number, the request, the client or project, the date, "Canvassed by"
@@ -23,6 +23,7 @@
 
 import { moreOffersWarning, offerCurrency } from '../../utils/canvassMath';
 import { DEFAULT_CURRENCY } from '../../constants/canvass';
+import { boughtWithoutCanvass } from '../../utils/itemCanvass';
 import { extended } from '../../utils/costingMath';
 import { printAmount, printDate } from './ipasViewModel';
 
@@ -132,6 +133,7 @@ export function buildCanvassViewModel({ canvass, request = {}, lines = [], peopl
     const winner = winnerAt.get(line.id) ?? null;
     const winnerSupplier = winner ? supplierById.get(winner.supplier_id) : null;
     const quoted = suppliers.some((s) => quoteAt.has(`${s.id}:${line.id}`));
+    const cancelled = line.status === 'cancelled';
     return {
       id: line.id,
       no: index + 1,
@@ -139,12 +141,23 @@ export function buildCanvassViewModel({ canvass, request = {}, lines = [], peopl
       description: [text(line.name), text(line.description)].filter(Boolean).join(' — ') || BLANK,
       quantity: quantityText(line.quantity),
       unit: text(line.unit) ?? BLANK,
-      // 'won' | 'no-winner' (quoted, none chosen) | 'unquoted' (nobody quoted it)
-      outcome: winnerSupplier ? 'won' : quoted ? 'no-winner' : 'unquoted',
-      winnerSupplier: winnerSupplier ? (text(winnerSupplier.supplier_name) ?? BLANK) : null,
-      reason: winner ? text(winner.reason) : null,
+      cancelled,
+      // 'cancelled' (kept on the sheet, can't win) | 'won' | 'no-winner' (quoted, none chosen)
+      // | 'bought-no-canvass' (bought, nobody quoted it) | 'unquoted' (nobody quoted it)
+      outcome: cancelled
+        ? 'cancelled'
+        : winnerSupplier
+          ? 'won'
+          : quoted
+            ? 'no-winner'
+            : boughtWithoutCanvass(line.status, quoted)
+              ? 'bought-no-canvass'
+              : 'unquoted',
+      winnerSupplier: !cancelled && winnerSupplier ? (text(winnerSupplier.supplier_name) ?? BLANK) : null,
+      reason: !cancelled && winner ? text(winner.reason) : null,
     };
   });
+  const openLineCount = lineRows.filter((row) => !row.cancelled).length;
 
   // No supplier yet still prints the line column, once.
   const groups = suppliers.length === 0 ? [[]] : chunk(suppliers, SUPPLIERS_PER_PAGE);
@@ -155,7 +168,7 @@ export function buildCanvassViewModel({ canvass, request = {}, lines = [], peopl
     rows: lineRows.map((row, i) => ({
       ...row,
       cells: group.map((s) =>
-        quoteCell(quoteAt.get(`${s.id}:${row.id}`), s, lines[i], winnerAt.get(row.id)?.supplier_id === s.id, money),
+        quoteCell(quoteAt.get(`${s.id}:${row.id}`), s, lines[i], !row.cancelled && winnerAt.get(row.id)?.supplier_id === s.id, money),
       ),
     })),
   }));
@@ -170,7 +183,7 @@ export function buildCanvassViewModel({ canvass, request = {}, lines = [], peopl
       project: text(request.project),
       sor: text(request.sor),
       date: printDate(canvass.created_at),
-      lineCount: lineRows.length,
+      lineCount: openLineCount,
       supplierCount: suppliers.length,
     },
     pages,

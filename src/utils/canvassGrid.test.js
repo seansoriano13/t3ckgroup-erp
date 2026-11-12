@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CANVASS_STATE } from "./canvassStatus";
-import { buildCanvassGrid, canUnlockLine, cellLiner, formatAmount, gridItems, pickAllBlockedReason, pickBlockedReason } from "./canvassGrid";
+import { buildCanvassGrid, canUnlockLine, cellLiner, formatAmount, pickAllBlockedReason, pickBlockedReason } from "./canvassGrid";
 
 const item = (id, over = {}) => ({ id, name: `Line ${id}`, quantity: 2, unit: "pc", status: "to_purchase", ...over });
 const supplier = (id, over = {}) => ({ id, supplier_name: `Supplier ${id}`, currency: "PHP", comparison_rate: null, ...over });
@@ -22,12 +22,14 @@ const canvass = (over = {}) => ({
 });
 
 describe("buildCanvassGrid", () => {
-  it("has one row per open line and one column per supplier, in order", () => {
+  it("has one row per line, a cancelled one too, and one column per supplier, in order", () => {
     const grid = buildCanvassGrid({
       items: [item("a"), item("b"), item("c", { status: "cancelled" })],
       canvass: canvass({ suppliers: [supplier("s1"), supplier("s2")] }),
     });
-    expect(grid.lines.map((l) => l.id)).toEqual(["a", "b"]);
+    expect(grid.lines.map((l) => l.id)).toEqual(["a", "b", "c"]);
+    expect(grid.lines.map((l) => l.cancelled)).toEqual([false, false, true]);
+    expect(grid.strip.lineCount).toBe(2);
     expect(grid.suppliers.map((s) => s.id)).toEqual(["s1", "s2"]);
     expect(grid.lines[0].cells.map((c) => c.supplierId)).toEqual(["s1", "s2"]);
   });
@@ -270,11 +272,6 @@ describe("formatAmount", () => {
 });
 
 describe("small helpers", () => {
-  it("keeps cancelled lines out of the grid", () => {
-    expect(gridItems([item("a"), item("b", { status: "cancelled" })]).map((i) => i.id)).toEqual(["a"]);
-    expect(gridItems(undefined)).toEqual([]);
-  });
-
   it("lets only a Super Admin unlock a locked line", () => {
     const locked = { locked: true };
     expect(canUnlockLine(locked, true)).toBe(true);

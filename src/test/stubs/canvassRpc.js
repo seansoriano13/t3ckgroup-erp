@@ -13,8 +13,10 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  * policy tier (90-canvass-tables.test.js).
  *
  *   canvass_can_read_money   whether the caller may see unit prices and comparison rates
+ *   canvass_request_can_read_money   the same, asked of a request that may have no Canvass yet
  *   canvass_add_supplier     the first supplier makes the request's Canvass (and its number); later
- *                            ones join it. The supplier and its rate row are written together.
+ *                            ones join it. The supplier and its rate row are written together;
+ *                            a caller without money gets the row with no rate (20261208 fix).
  *   canvass_save_quote       one supplier's answer on one line, and its price row, together
  *   canvass_list             one row per Canvass, for the Canvasses page
  *
@@ -37,6 +39,7 @@ const needsReason = () => pgrstError("22023", "A winner needs a reason.", { stat
 
 export function stubCanvassMoneyRpc({ money = true, projection = null } = {}) {
   stubRpc("canvass_can_read_money", () => money)
+  stubRpc("canvass_request_can_read_money", () => money)
 
   stubRpc("canvass_pick_supplier_for_all", (args) => {
     const canvass = rowsOf("request_canvasses").find((c) => c.id === args.p_canvass_id)
@@ -111,14 +114,13 @@ export function stubCanvassMoneyRpc({ money = true, projection = null } = {}) {
       sort_order: siblings.length,
       created_by: created_by ?? null,
     })
-    if (money) {
-      try {
-        insertRow("request_canvass_supplier_prices", { comparison_rate: null, ...priceInput, supplier_id: supplier.id })
-      } catch (error) {
-        const rows = rowsOf("request_canvass_suppliers")
-        rows.splice(rows.findIndex((s) => s.id === supplier.id), 1)
-        throw error
-      }
+    // The price row is always made; the rate in it is written only for a caller who may see money.
+    try {
+      insertRow("request_canvass_supplier_prices", { comparison_rate: null, ...(money ? priceInput : {}), supplier_id: supplier.id })
+    } catch (error) {
+      const rows = rowsOf("request_canvass_suppliers")
+      rows.splice(rows.findIndex((s) => s.id === supplier.id), 1)
+      throw error
     }
     return { canvass_id: canvass.id, number: canvass.number, supplier }
   })
@@ -141,9 +143,12 @@ export function stubCanvassMoneyRpc({ money = true, projection = null } = {}) {
         item_id: args.p_item_id,
       })
     }
-    const price = rowsOf("request_canvass_quote_prices").find((p) => p.quote_id === quote.id)
-    if (price) Object.assign(price, priceInput)
-    else insertRow("request_canvass_quote_prices", { unit_price: null, ...priceInput, quote_id: quote.id })
+    // The price row is money: only a caller who may see it writes it.
+    if (money) {
+      const price = rowsOf("request_canvass_quote_prices").find((p) => p.quote_id === quote.id)
+      if (price) Object.assign(price, priceInput)
+      else insertRow("request_canvass_quote_prices", { unit_price: null, ...priceInput, quote_id: quote.id })
+    }
     return quote
   })
 }

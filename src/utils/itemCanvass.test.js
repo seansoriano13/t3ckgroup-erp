@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { canvassBlockedReason, canvassLine } from "./itemCanvass"
+import { boughtWithoutCanvass, canvassBlockedReason, canvassLine } from "./itemCanvass"
 
 describe("canvassBlockedReason", () => {
   it.each([
@@ -29,5 +29,16 @@ describe("canvassLine", () => {
 
   it("is empty when there is no Canvass", () => {
     expect(canvassLine(null)).toBeNull()
+  })
+})
+
+describe("boughtWithoutCanvass", () => {
+  it.each(["purchased", "received"])("is true for a %s line nobody quoted", (status) => {
+    expect(boughtWithoutCanvass(status, false)).toBe(true)
+    expect(boughtWithoutCanvass(status, true)).toBe(false)
+  })
+
+  it.each(["to_purchase", "still_canvassing", "cancelled"])("is false for a %s line", (status) => {
+    expect(boughtWithoutCanvass(status, false)).toBe(false)
   })
 })

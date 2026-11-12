@@ -98,15 +98,34 @@ function cleanUnitPriceInput(input = {}) {
   return row;
 }
 
-/** A new supplier's columns and rate, checked: it has a name, and a PHP supplier takes no rate. */
-function supplierPayload(input) {
-  const row = cleanSupplierInput(input);
-  const rate = cleanRateInput(input);
-  if (!row.supplier_name) throw new Error("A supplier needs a name.");
-  const currency = row.currency || DEFAULT_CURRENCY;
+/**
+ * Throws "A line id and a supplier id are required." when any of the ids is missing. The keys are
+ * the nouns the message names: `requireIds({ "Canvass id": canvassId })`.
+ */
+function requireIds(ids) {
+  const nouns = Object.keys(ids);
+  if (nouns.every((noun) => ids[noun])) return;
+  throw new Error(`A ${nouns.join(" and a ")} ${nouns.length > 1 ? "are" : "is"} required.`);
+}
+
+/**
+ * The one check a supplier goes through, new or edited: it has a name (a new one always; an edit
+ * only when the name is being written), and a PHP supplier takes no comparison rate. `currency`
+ * is the supplier's currency once the write is done, or undefined when it can't matter.
+ */
+function checkSupplier(row, rate, { currency, isNew }) {
+  if ((isNew || row.supplier_name !== undefined) && !row.supplier_name) throw new Error("A supplier needs a name.");
   if (currency === DEFAULT_CURRENCY && rate.comparison_rate != null) {
     throw new Error("A PHP supplier takes no comparison rate.");
   }
+}
+
+/** A new supplier's columns and rate, checked. */
+function supplierPayload(input) {
+  const row = cleanSupplierInput(input);
+  const rate = cleanRateInput(input);
+  const currency = row.currency || DEFAULT_CURRENCY;
+  checkSupplier(row, rate, { currency, isNew: true });
   return {
     p_supplier: { ...row, currency },
     p_price: { comparison_rate: null, ...rate },
@@ -233,6 +252,17 @@ export const canvassService = {
     };
   },
 
+  /**
+   * Whether the caller may see and set money (rates, prices) on this request's Canvass. Works
+   * before any Canvass exists, which is when the first supplier's form needs the answer.
+   */
+  async canReadMoneyForRequest(requestId) {
+    if (!requestId) return false;
+    const { data, error } = await supabase.rpc("canvass_request_can_read_money", { p_request_id: requestId });
+    if (error) throw error;
+    return Boolean(data);
+  },
+
   /** The Canvass of one Purchase Request, or null. */
   getForRequest(requestId) {
     if (!requestId) return Promise.resolve(null);
@@ -337,7 +367,7 @@ export const canvassService = {
    * ones. Opening a grid writes nothing; this does. Returns `{ canvassId, number, supplier }`.
    */
   async addSupplier(requestId, input = {}, actorId) {
-    if (!requestId) throw new Error("A Purchase Request id is required.");
+    requireIds({ "Purchase Request id": requestId });
     const { p_supplier, p_price } = supplierPayload(input);
 
     const { data, error } = await supabase.rpc("canvass_add_supplier", {
@@ -355,12 +385,13 @@ export const canvassService = {
    * rate for the canvasser to fill.
    */
   async updateSupplier(supplierId, patch = {}) {
-    if (!supplierId) throw new Error("A supplier id is required.");
+    requireIds({ "supplier id": supplierId });
 
     const row = cleanSupplierInput(patch);
-    if (row.supplier_name !== undefined && !row.supplier_name) throw new Error("A supplier needs a name.");
     const price = cleanRateInput(patch);
 
+    // The supplier's own currency matters only when the patch changes it or writes a rate.
+    let currency = row.currency;
     if (row.currency !== undefined || price.comparison_rate != null) {
       const { data: current, error: readError } = await supabase
         .from("request_canvass_suppliers")
@@ -368,12 +399,10 @@ export const canvassService = {
         .eq("id", supplierId)
         .single();
       if (readError) throw readError;
-      const currency = row.currency ?? current.currency ?? DEFAULT_CURRENCY;
-      if (currency === DEFAULT_CURRENCY) {
-        if (price.comparison_rate != null) throw new Error("A PHP supplier takes no comparison rate.");
-        if (row.currency !== undefined) price.comparison_rate = null;
-      }
+      currency = row.currency ?? current.currency ?? DEFAULT_CURRENCY;
     }
+    checkSupplier(row, price, { currency, isNew: false });
+    if (currency === DEFAULT_CURRENCY && row.currency !== undefined) price.comparison_rate = null;
 
     // A rate has to go before the supplier turns PHP; it can only arrive after it turns foreign.
     const clearsRate = price.comparison_rate === null && row.currency === DEFAULT_CURRENCY;
@@ -403,14 +432,14 @@ export const canvassService = {
 
   /** Removes a supplier outright, with its quotes and any win they held: a comparison being built up is a draft. */
   async removeSupplier(supplierId) {
-    if (!supplierId) throw new Error("A supplier id is required.");
+    requireIds({ "supplier id": supplierId });
     const { error } = await supabase.from("request_canvass_suppliers").delete().eq("id", supplierId);
     if (error) throw error;
   },
 
   /** Arranges the suppliers in the order of `orderedIds`. Ids that aren't the Canvass's are ignored. */
   async reorderSuppliers(canvassId, orderedIds = []) {
-    if (!canvassId) throw new Error("A Canvass id is required.");
+    requireIds({ "Canvass id": canvassId });
 
     const writes = orderedIds
       .filter(Boolean)
@@ -427,7 +456,7 @@ export const canvassService = {
    * has to be on the Canvass's own request. Returns the quote without its money.
    */
   async saveQuote(supplierId, itemId, input = {}) {
-    if (!supplierId || !itemId) throw new Error("A supplier id and a line id are required.");
+    requireIds({ "supplier id": supplierId, "line id": itemId });
     const quote = cleanQuoteInput(input);
     const price = cleanUnitPriceInput(input);
 
@@ -443,7 +472,7 @@ export const canvassService = {
 
   /** Takes one supplier's answer off a line. A win it held goes with it. */
   async removeQuote(quoteId) {
-    if (!quoteId) throw new Error("A quote id is required.");
+    requireIds({ "quote id": quoteId });
     const { error } = await supabase.from("request_canvass_quotes").delete().eq("id", quoteId);
     if (error) throw error;
   },
@@ -455,7 +484,7 @@ export const canvassService = {
    * pick (#969).
    */
   async setWinner(itemId, supplierId, reason, actorId) {
-    if (!itemId || !supplierId) throw new Error("A line id and a supplier id are required.");
+    requireIds({ "line id": itemId, "supplier id": supplierId });
     const { data, error } = await supabase
       .from("request_canvass_winners")
       .upsert(
@@ -476,7 +505,7 @@ export const canvassService = {
 
   /** Rewrites why a line's winner was chosen: one paragraph, kept as written. A winner needs a reason, so blank is refused. */
   async setWinnerReason(itemId, reason) {
-    if (!itemId) throw new Error("A line id is required.");
+    requireIds({ "line id": itemId });
     const { data, error } = await supabase
       .from("request_canvass_winners")
       .update({ reason: text(reason) })
@@ -489,7 +518,7 @@ export const canvassService = {
 
   /** Un-picks a line's winner, leaving none. What the winner filled on the Component stays. */
   async clearWinner(itemId) {
-    if (!itemId) throw new Error("A line id is required.");
+    requireIds({ "line id": itemId });
     const { error } = await supabase.from("request_canvass_winners").delete().eq("item_id", itemId);
     if (error) throw error;
   },
@@ -499,7 +528,7 @@ export const canvassService = {
    * per Canvass; saving again replaces it. Refused without a reason.
    */
   async markNoOtherSupplier(canvassId, reason, actorId) {
-    if (!canvassId) throw new Error("A Canvass id is required.");
+    requireIds({ "Canvass id": canvassId });
     if (!text(reason)) throw new Error("Say why there is no other supplier.");
     const { data, error } = await supabase
       .from("request_canvass_no_other_supplier")
@@ -519,7 +548,7 @@ export const canvassService = {
    * Returns `{ picked, skipped }`.
    */
   async pickSupplierForAll(canvassId, supplierId, reason) {
-    if (!canvassId || !supplierId) throw new Error("A Canvass id and a supplier id are required.");
+    requireIds({ "Canvass id": canvassId, "supplier id": supplierId });
     const { data, error } = await supabase.rpc("canvass_pick_supplier_for_all", {
       p_canvass_id: canvassId,
       p_supplier_id: supplierId,
@@ -531,7 +560,7 @@ export const canvassService = {
 
   /** "Use the same reason for all" (`canvass_use_same_reason`): copies one reason to every picked line that isn't locked. Returns `{ changed }`. */
   async useSameReason(canvassId, reason) {
-    if (!canvassId) throw new Error("A Canvass id is required.");
+    requireIds({ "Canvass id": canvassId });
     const { data, error } = await supabase.rpc("canvass_use_same_reason", { p_canvass_id: canvassId, p_reason: text(reason) });
     if (error) throw error;
     return data;
@@ -539,7 +568,7 @@ export const canvassService = {
 
   /** A Super Admin lifts the lock on one Purchased line, with a reason kept in the history (`canvass_unlock_line`). */
   async unlockLine(itemId, reason) {
-    if (!itemId) throw new Error("A line id is required.");
+    requireIds({ "line id": itemId });
     const { data, error } = await supabase.rpc("canvass_unlock_line", { p_item_id: itemId, p_reason: text(reason) });
     if (error) throw error;
     return data;
@@ -570,7 +599,7 @@ export const canvassService = {
 
   /** Takes the "No other supplier" note off the Canvass. The database refuses while a winner depends on it. */
   async clearNoOtherSupplier(canvassId) {
-    if (!canvassId) throw new Error("A Canvass id is required.");
+    requireIds({ "Canvass id": canvassId });
     const { error } = await supabase.from("request_canvass_no_other_supplier").delete().eq("canvass_id", canvassId);
     if (error) throw error;
   },
@@ -580,7 +609,7 @@ export const canvassService = {
    * Only the Deal Team may; the database refuses anyone else. Returns `{ brand }`.
    */
   async acceptBrand(componentId) {
-    if (!componentId) throw new Error("A Component id is required.");
+    requireIds({ "Component id": componentId });
     const { data, error } = await supabase.rpc("costing_accept_brand", { p_component_id: componentId });
     if (error) throw error;
     return data;
@@ -588,7 +617,7 @@ export const canvassService = {
 
   /** Replaces the original working sheet: the whole descriptor list `[{ url, name, type, bytes }]`. */
   async setAttachments(canvassId, attachments = []) {
-    if (!canvassId) throw new Error("A Canvass id is required.");
+    requireIds({ "Canvass id": canvassId });
     const { data, error } = await supabase
       .from("request_canvasses")
       .update({ attachments: attachments || [] })
