@@ -51,6 +51,7 @@ describe("S0 Evaluation settings", () => {
     expect(within(rates).getByLabelText("Retention rate (%)")).toHaveValue("1");
     expect(within(rates).getByLabelText("ITR rate (%)")).toHaveValue("8");
     expect(within(rates).getByLabelText("ITR allowance (₱)")).toHaveValue("250000");
+    expect(within(rates).getByLabelText("Go line (%)")).toHaveValue("20");
     expect(screen.queryByTestId("costing-signer-list-final_acquire")).not.toBeInTheDocument();
     // The markup presets are not Finance access's: for them the tab holds the Rates and nothing else.
     expect(screen.queryByTestId("markup-presets")).not.toBeInTheDocument();

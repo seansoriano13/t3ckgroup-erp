@@ -197,7 +197,7 @@ export const MATRIX_MONEY_TIERS = {
   default_preset_id: [COSTING_TIER.CLOSED_BOOK],
   final_acquire_percent: [COSTING_TIER.CLOSED_BOOK],
   marketing: [COSTING_TIER.CLOSED_BOOK],
-  opex: [COSTING_TIER.CLOSED_BOOK],
+  opex: [COSTING_TIER.CLOSED_BOOK], // kept in the database, no longer read or written (#964)
 };
 
 export const MATRIX_MONEY_BANDS = {
@@ -287,6 +287,7 @@ export const DEFAULT_COSTING_SETTINGS = {
   itrRate: 0.08,
   itrAllowance: 250000,
   finalVatRate: 0.12,
+  goLinePercent: 20,
   hiddenLines: ["finalVat"],
 };
 
@@ -297,10 +298,12 @@ export const SUMMARY_LINES = [
   { key: "tax", label: "Less Tax (withholding)" },
   { key: "retention", label: "Retention" },
   { key: "collected", label: "Collected Amount" },
-  { key: "operationalExpenses", label: "Operational Expenses" },
+  { key: "landedCost", label: "Landed Cost (planned)" },
+  { key: "projectExpenses", label: "Project expenses" },
   { key: "marketing", label: "Marketing" },
   { key: "opex", label: "OPEX" },
   { key: "itr", label: "ITR" },
+  { key: "revenuePercent", label: "Revenue ÷ Final Offer" },
 ];
 
 /** Does Settings leave this summary line on? */

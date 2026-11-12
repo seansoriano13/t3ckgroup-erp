@@ -93,7 +93,7 @@ describe("the printed S0 Evaluation, view model", () => {
       landedCost: "awaiting purchase",
     });
     expect(money.costRows).toEqual([expect.objectContaining({ number: "C1", description: "Delivery Charge", acquire: "100,000.00", finalAcquire: "100,000.00", factor: "×1.00" })]);
-    expect(money.strip).toMatchObject({ finalOffer: "PHP 2,980,000.00", cost: "PHP 2,338,500.00", abcPercent: "93.1%", landedCost: "awaiting purchase" });
+    expect(money.strip).toMatchObject({ finalOffer: "PHP 2,980,000.00", cost: "PHP 2,238,500.00", abcPercent: "93.1%", landedCost: "awaiting purchase" });
     expect(money.strip.abcBar).toBeCloseTo(93.13, 1);
     expect(money.summary.find((r) => r.label === "Final Offer").value).toBe("PHP 2,980,000.00");
     expect(money.summary.find((r) => r.label === "Revenue").value).toMatch(/^PHP /);
@@ -118,12 +118,12 @@ describe("the printed S0 Evaluation, view model", () => {
   it("says why the summary is incomplete instead of printing a zero", () => {
     const tables = rawTables({ finalAcquireOnSecond: null, acquireOnSecond: null });
     const { money } = build(COSTING_TIER.CLOSED_BOOK, { tables });
-    expect(money.incomplete).toEqual(["Incomplete — 1 row has no cost"]);
-    expect(money.summary.find((r) => r.label === "Operational Expenses").value).toBe("Incomplete — 1 row has no cost");
-    expect(money.summary.find((r) => r.label === "Revenue").value).toBe("Incomplete — 1 row has no cost");
+    expect(money.incomplete).toEqual(["Incomplete — 1 Component has no Final Acquire"]);
+    expect(money.summary.find((r) => r.label === "Landed Cost (planned)").value).toBe("Incomplete — 1 Component has no Final Acquire");
+    expect(money.summary.find((r) => r.label === "Revenue").value).toBe("Incomplete — 1 Component has no Final Acquire");
     expect(money.summary.find((r) => r.label === "Final Offer").value).toBe("PHP 2,980,000.00");
-    expect(money.strip.cost).toBe("Incomplete — 1 row has no cost");
-    expect(buildCostingMatrixDocument(build(COSTING_TIER.CLOSED_BOOK, { tables }))).toContain("Incomplete — 1 row has no cost");
+    expect(money.strip.cost).toBe("Incomplete — 1 Component has no Final Acquire");
+    expect(buildCostingMatrixDocument(build(COSTING_TIER.CLOSED_BOOK, { tables }))).toContain("Incomplete — 1 Component has no Final Acquire");
   });
 
   it("prints only the Evaluation box as 'Signature required' on a new deal (#722)", () => {

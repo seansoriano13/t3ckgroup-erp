@@ -15,8 +15,8 @@ import { stubRpc } from "@/test/msw/server";
  * anyone outside the Closed Book home.
  *
  * Rows (default rates, ITR 8% over a 250,000 allowance):
- *   SOR-101  Final Offer 2,980,000, Final Acquire 2,338,500, nothing bought     Planned = Actual = 423,100
- *   SOR-102  same offer and cost, one item bought at 1,100,000 for 1,000,000    Actual 323,100 (-100,000), estimate
+ *   SOR-101  Final Offer 2,980,000, Final Acquire 2,000,000, project expenses 338,500, marketing 0, nothing bought     Planned = Actual = 74,014.29
+ *   SOR-102  same offer and cost, one item bought at 1,100,000 for 1,000,000    Actual -25,985.71 (-100,000), estimate
  *   SOR-103  no Final Offer yet                                                 no figures
  */
 
@@ -25,7 +25,9 @@ vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser, isAu
 
 const base = {
   final_offer_total: "2980000.00",
-  final_acquire_total: "2338500.00",
+  final_acquire_total: "2000000.00",
+  project_expenses_total: "338500.00",
+  marketing: "0",
   landed_cost_total: "0",
   bought_final_acquire_total: "0",
   items_bought: 0,
@@ -88,13 +90,13 @@ describe("the S0 Evaluation page", () => {
     expect(within(plain).getByText("BFP Command Bus")).toBeInTheDocument();
     expect(within(plain).getByText("Bidding")).toBeInTheDocument();
     expect(plain).toHaveTextContent("₱2,980,000.00");
-    expect(within(plain).getByTestId("costing-matrix-planned")).toHaveTextContent("₱423,100.00");
-    expect(within(plain).getByTestId("costing-matrix-actual")).toHaveTextContent("₱423,100.00");
+    expect(within(plain).getByTestId("costing-matrix-planned")).toHaveTextContent("₱74,014.29");
+    expect(within(plain).getByTestId("costing-matrix-actual")).toHaveTextContent("₱74,014.29");
     expect(within(plain).getByTestId("costing-matrix-items")).toHaveTextContent("0 of 2");
 
     const bought = await rowFor("SOR-102");
-    expect(within(bought).getByTestId("costing-matrix-planned")).toHaveTextContent("₱423,100.00");
-    expect(within(bought).getByTestId("costing-matrix-actual")).toHaveTextContent("₱323,100.00");
+    expect(within(bought).getByTestId("costing-matrix-planned")).toHaveTextContent("₱74,014.29");
+    expect(within(bought).getByTestId("costing-matrix-actual")).toHaveTextContent("-₱25,985.71");
     expect(within(bought).getByTestId("costing-matrix-difference")).toHaveTextContent("-₱100,000.00");
     expect(within(bought).getByTestId("costing-matrix-items")).toHaveTextContent("1 of 2");
   });
@@ -125,8 +127,8 @@ describe("the S0 Evaluation page", () => {
     const totals = screen.getByTestId("costing-matrix-totals");
     expect(totals).toHaveTextContent("Total of 3 SORs shown");
     expect(within(totals).getByTestId("costing-matrix-incomplete")).toHaveTextContent("1 without a figure yet, left out");
-    expect(within(totals).getByTestId("costing-matrix-total-planned")).toHaveTextContent("₱846,200.00");
-    expect(within(totals).getByTestId("costing-matrix-total-actual")).toHaveTextContent("₱746,200.00");
+    expect(within(totals).getByTestId("costing-matrix-total-planned")).toHaveTextContent("₱148,028.58");
+    expect(within(totals).getByTestId("costing-matrix-total-actual")).toHaveTextContent("₱48,028.58");
     expect(within(totals).getByTestId("costing-matrix-total-difference")).toHaveTextContent("-₱100,000.00");
     expect(within(totals).getByTestId("costing-matrix-total-offer")).toHaveTextContent("₱5,960,000.00");
     expect(within(totals).getByTestId("costing-matrix-total-items")).toHaveTextContent("1 of 4");
@@ -145,7 +147,7 @@ describe("the S0 Evaluation page", () => {
     expect(row).toHaveTextContent("SOR-102");
     expect(row.querySelector("span.font-semibold.rounded-\\[2px\\]")).not.toBeNull();
     expect(screen.getByTestId("costing-matrix-totals")).toHaveTextContent("Total of 1 SOR shown");
-    expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("₱423,100.00");
+    expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("₱74,014.29");
 
     await user.clear(search);
     await user.type(search, "SOR-103");
@@ -259,7 +261,7 @@ describe("the S0 Evaluation page with a loss-making SOR (#892)", () => {
   beforeEach(() => {
     authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
     db.seed("costing_settings", { id: 1 });
-    // SOR-257's figures: an offer of 8,550 against 29,928.06 of cost, under the ITR allowance.
+    // SOR-257's figures: an offer of 8,550 against 29,928.06 of cost and no project expenses, under the ITR allowance.
     stubRpc("costing_matrix_page", [
       {
         ...rows[0],
@@ -267,6 +269,7 @@ describe("the S0 Evaluation page with a loss-making SOR (#892)", () => {
         sor_code: "SOR-257",
         final_offer_total: "8550.00",
         final_acquire_total: "29928.06",
+        project_expenses_total: "0",
         items_total: 3,
       },
     ]);
@@ -278,8 +281,8 @@ describe("the S0 Evaluation page with a loss-making SOR (#892)", () => {
     renderPage();
 
     const row = await rowFor("SOR-257");
-    expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("-₱21,378.06");
+    expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("-₱22,379.63");
     expect(within(row).getByTestId("costing-matrix-planned")).not.toHaveTextContent("—");
-    expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("-₱21,378.06");
+    expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("-₱22,379.63");
   });
 });

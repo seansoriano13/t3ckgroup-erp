@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { summaryLineShown } from "../constants/costing";
-import { resolveCost, lineCost, abcSettingOf, applyPercentRows, percentOfAbcAmount, projectExpensesTotal, usualRowsToAdd, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireByRule, costUnit, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
+import { opexIncomplete, revenueIncomplete, resolveCost, lineCost, abcSettingOf, applyPercentRows, percentOfAbcAmount, projectExpensesTotal, usualRowsToAdd, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireByRule, costUnit, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -214,7 +214,7 @@ describe("summary", () => {
   const settings = { vatDivisor: 1.12, taxRate: 0.06, retentionRate: 0.01, itrRate: 0.08, itrAllowance: 250000 };
 
   /** One Tender Line at the given Final Offer (and ABC), with Components carrying the given Final Acquire totals. */
-  const matrix = ({ offer, abc, acquires = [], costRows = [], money } = {}) => ({
+  const matrix = ({ offer, abc, acquires = [], costRows = [{ quantity: 1, final_acquire_unit: 0 }], money = { marketing: 0 } } = {}) => ({
     tenderLines: [
       {
         quantity: 1,
@@ -232,11 +232,12 @@ describe("summary", () => {
     expect(s).toMatchObject({
       finalOfferTotal: 2980000,
       vatExclusive: 2660714.29,
-      tax: 178800,
+      tax: 159642.86,
       retention: 29800,
-      collected: 2771400,
+      collected: 2790557.14,
       itr: 218400,
-      operationalExpenses: null,
+      landedCost: null,
+      opex: null,
       revenue: null,
     });
     expect(s.incomplete).toMatchObject({ missingCost: 1, missingOffer: 0 });
@@ -245,24 +246,25 @@ describe("summary", () => {
   it("works Collected, ITR and Revenue once every cost is in (#213)", () => {
     const s = summary(matrix({ offer: 3930715, acquires: [1156780] }), settings);
     expect(s).toMatchObject({
-      tax: 235842.9,
+      tax: 210574.02,
       retention: 39307.15,
-      collected: 3655564.95,
+      collected: 3680833.83,
       itr: 294457.2,
-      operationalExpenses: 1156780,
-      revenue: 2479477.8,
+      landedCost: 1156780,
+      opex: 1196087.15,
+      revenue: 2019022.61,
     });
     expect(s.incomplete).toMatchObject({ missingCost: 0, missingOffer: 0 });
   });
 
-  it("matches the #229 sample: Revenue 423,100.00 at 93.1% of a 3,200,000 ABC", () => {
+  it("matches the #229 sample's ABC check: 93.1% of a 3,200,000 ABC", () => {
     const s = summary(matrix({ offer: 2980000, abc: 3200000, acquires: [2338500] }), settings);
-    expect(s.revenue).toBe(423100);
+    expect(s.revenue).toBe(74014.29);
     expect(s.percentOfAbc.toFixed(1)).toBe("93.1");
     expect(s.overAbc).toBe(false);
   });
 
-  it("adds Components of every line and the cost-only rows into Operational Expenses", () => {
+  it("adds the Components of every line into the Landed Cost, and the Other costs rows into Project expenses", () => {
     const s = summary(
       {
         tenderLines: [
@@ -270,18 +272,21 @@ describe("summary", () => {
           { quantity: 1, final_offer_unit: 2000000, components: [{ quantity: 1, final_acquire_unit: 900000 }] },
         ],
         costRows: [{ quantity: 1, final_acquire_unit: 25000.5 }],
+        money: { marketing: 0 },
       },
       settings,
     );
     expect(s.finalOfferTotal).toBe(3000000);
-    expect(s.operationalExpenses).toBe(1175000.5);
-    // (3,000,000 - 1,175,000.50) - (2,750,000 x 8%) = 1,824,999.50 - 220,000
-    expect(s.revenue).toBe(1604999.5);
+    expect(s.landedCost).toBe(1150000);
+    expect(s.projectExpenses).toBe(25000.5);
+    // VAT-exclusive 2,678,571.43 - OPEX (30,000 + 1,150,000 + 25,000.50 + 0) - ITR (2,750,000 x 8% = 220,000)
+    expect(s.opex).toBe(1205000.5);
+    expect(s.revenue).toBe(1253570.93);
   });
 
   it("changes every figure with a rate", () => {
     const changed = summary(matrix({ offer: 2980000, acquires: [2338500] }), { ...settings, taxRate: 0.05, itrAllowance: 0, vatDivisor: 1.1 });
-    expect(changed).toMatchObject({ vatExclusive: 2709090.91, tax: 149000, itr: 238400, revenue: 403100 });
+    expect(changed).toMatchObject({ vatExclusive: 2709090.91, tax: 135454.55, itr: 238400, revenue: 102390.91 });
   });
 
   it("works Final VAT from the configured rate on the VAT-exclusive figure (#705)", () => {
@@ -311,22 +316,23 @@ describe("summary", () => {
     expect(s.incomplete.missingOffer).toBe(2);
     for (const figure of ["finalOfferTotal", "vatExclusive", "tax", "retention", "collected", "itr", "revenue"]) expect(s[figure], figure).toBeNull();
     // The cost side does not need the offer.
-    expect(s.operationalExpenses).toBe(400000);
+    expect(s.landedCost).toBe(400000);
   });
 
-  it("counts a Component or cost-only row with no Final Acquire, and keeps Operational Expenses blank", () => {
-    const s = summary(matrix({ offer: 1000000, acquires: [100, null], costRows: [{ quantity: 1, final_acquire_unit: null }] }), settings);
-    expect(s.incomplete.missingCost).toBe(2);
-    expect(s.operationalExpenses).toBeNull();
+  it("counts a Component with no Final Acquire, and keeps the Landed Cost and OPEX blank", () => {
+    const s = summary(matrix({ offer: 1000000, acquires: [100, null] }), settings);
+    expect(s.incomplete.missingCost).toBe(1);
+    expect(s.landedCost).toBeNull();
+    expect(s.opex).toBeNull();
     expect(s.revenue).toBeNull();
-    expect(s.tax).toBe(60000);
+    expect(s.tax).toBe(53571.43);
   });
 
   it("charges no ITR below the allowance, so ITR never adds to Revenue", () => {
     const s = summary(matrix({ offer: 100000, acquires: [40000] }), settings);
     // The sheet's (100,000 - 250,000) x 8% would be -12,000 and lift Revenue to 72,000.
     expect(s.itr).toBe(0);
-    expect(s.revenue).toBe(60000);
+    expect(s.revenue).toBe(48285.71);
   });
 
   it("charges no ITR on an offer exactly at the allowance, and taxes one centavo above it", () => {
@@ -339,8 +345,8 @@ describe("summary", () => {
   it("rounds half away from zero once, on return", () => {
     // 1,000,000.01 / 1.12 = 892,857.1517857... -> 892,857.15
     expect(summary(matrix({ offer: 1000000.01, acquires: [1] }), settings).vatExclusive).toBe(892857.15);
-    // 0.5 centavo of tax rounds up: 1,000.25 x 6% = 60.015
-    expect(summary(matrix({ offer: 1000.25, acquires: [1] }), settings).tax).toBe(60.02);
+    // 0.5 centavo of tax rounds up: 1,120.28 / 1.12 x 6% = 60.015
+    expect(summary(matrix({ offer: 1120.28, acquires: [1] }), settings).tax).toBe(60.02);
   });
 
   it("says an empty matrix has nothing to add up rather than reading as zero", () => {
@@ -370,14 +376,84 @@ describe("summary", () => {
     expect(summary(matrix({ offer: 1100, abc: 1000, acquires: [1] }), settings).overAbc).toBe(true);
   });
 
-  it("carries Marketing and OPEX as typed, blank staying blank", () => {
-    expect(summary(matrix({ offer: 1000, acquires: [1], money: { marketing: "12000.50", opex: null } }), settings)).toMatchObject({ marketing: 12000.5, opex: null });
-    expect(summary(matrix({ offer: 1000, acquires: [1] }), settings)).toMatchObject({ marketing: null, opex: null });
+  it("carries Marketing as typed, and a blank Marketing blanks OPEX and Revenue with its reason (#964)", () => {
+    expect(summary(matrix({ offer: 1000, acquires: [1], money: { marketing: "12000.50" } }), settings)).toMatchObject({ marketing: 12000.5, opex: 12011.5 });
+    const blank = summary(matrix({ offer: 1000, acquires: [1], money: { marketing: null } }), settings);
+    expect(blank).toMatchObject({ marketing: null, opex: null, revenue: null, revenuePercent: null, underGoLine: false });
+    expect(blank.incomplete.noMarketing).toBe(true);
+    expect(opexIncomplete(blank.incomplete)).toBe("Incomplete — Marketing not typed");
+  });
+
+  it("ignores the old typed OPEX: OPEX is worked out (#964)", () => {
+    expect(summary(matrix({ offer: 1000, acquires: [1], money: { marketing: 0, opex: 999999 } }), settings).opex).toBe(11);
+  });
+
+  it("a blank Project expenses (no Other costs rows, or one with no amount worked) blanks OPEX and says why (#964)", () => {
+    const none = summary(matrix({ offer: 1000000, acquires: [100], costRows: [] }), settings);
+    expect(none).toMatchObject({ projectExpenses: null, opex: null, revenue: null });
+    expect(none.incomplete.noExpenses).toBe(true);
+    expect(revenueIncomplete(none.incomplete)).toBe("Incomplete — no project expenses worked yet");
+    const noAmount = summary(matrix({ offer: 1000000, acquires: [100], costRows: [{ quantity: 1, abc_pct: 10, abcMissing: true }] }), settings);
+    expect(noAmount.projectExpenses).toBeNull();
+    expect(noAmount.revenue).toBeNull();
+  });
+
+  describe("the sheet's summary as one case (#964, spec #955)", () => {
+    // ABC 371,500; Final Offer 370,000; Final Acquire total 125,104; project expenses 89,160; Marketing 0.
+    const sheet = () =>
+      summary(
+        {
+          tenderLines: [{ quantity: 1, final_offer_unit: 370000, abc_unit: 371500, components: [{ quantity: 1, final_acquire_unit: 125104 }] }],
+          costRows: [
+            { quantity: 1, final_acquire_unit: 60000 },
+            { quantity: 1, final_acquire_unit: 29160 },
+          ],
+          money: { marketing: 0 },
+        },
+        settings,
+      );
+
+    it("gives every line of the sheet's table", () => {
+      expect(sheet()).toMatchObject({
+        vatExclusive: 330357.14,
+        tax: 19821.43,
+        retention: 3700,
+        collected: 346478.57,
+        landedCost: 125104,
+        projectExpenses: 89160,
+        marketing: 0,
+        opex: 217964,
+        itr: 9600,
+        revenue: 102793.14,
+        revenuePercent: 27.78,
+      });
+    });
+
+    it("sits above the 20% Go line, and a higher line puts it under (a warning only)", () => {
+      expect(sheet()).toMatchObject({ goLinePercent: 20, underGoLine: false });
+      const m = {
+        tenderLines: [{ quantity: 1, final_offer_unit: 370000, components: [{ quantity: 1, final_acquire_unit: 125104 }] }],
+        costRows: [{ quantity: 1, final_acquire_unit: 89160 }],
+        money: { marketing: 0 },
+      };
+      expect(summary(m, { ...settings, goLinePercent: 30 })).toMatchObject({ goLinePercent: 30, underGoLine: true });
+      expect(summary(m, { ...settings, goLinePercent: 27.78 }).underGoLine).toBe(false);
+    });
+
+    it("Planned Revenue is the same figure, and Actual swaps in the Landed Cost of what was bought", () => {
+      const m = {
+        tenderLines: [{ quantity: 1, final_offer_unit: 370000, components: [{ quantity: 1, final_acquire_unit: 125104, landed_cost: { total: 130104, unit: 130104, mark: "final" } }] }],
+        costRows: [{ quantity: 1, final_acquire_unit: 89160 }],
+        money: { marketing: 0 },
+      };
+      const result = revenueComparison(revenueInputs(m), settings);
+      expect(result).toMatchObject({ planned: 102793.14, actual: 97793.14, difference: -5000, plannedPercent: 27.78, plannedCost: 125104, actualCost: 130104 });
+    });
   });
 
   it("reads rates that arrive as text, as PostgREST sends numeric columns", () => {
     const text = { vatDivisor: "1.120000", taxRate: "0.060000", retentionRate: "0.010000", itrRate: "0.080000", itrAllowance: "250000.00" };
-    expect(summary(matrix({ offer: 3930715, acquires: [1156780] }), text).revenue).toBe(2479477.8);
+    expect(summary(matrix({ offer: 3930715, acquires: [1156780] }), text).revenue).toBe(2019022.61);
   });
 });
 
@@ -490,6 +566,7 @@ describe("Planned and Actual Revenue (#605)", () => {
         },
       ],
       costRows: [{ quantity: 1, final_acquire_unit: 338500 }],
+      money: { marketing: 0 },
     },
     ipasShort,
   });
@@ -522,27 +599,27 @@ describe("Planned and Actual Revenue (#605)", () => {
   it("Planned Revenue is exactly the summary's Revenue", () => {
     const { matrix } = sample({ a: landed(900000), b: notBought });
     expect(revenueComparison(revenueInputs(matrix), settings).planned).toBe(summary(matrix, settings).revenue);
-    expect(summary(matrix, settings).revenue).toBe(423100);
+    expect(summary(matrix, settings).revenue).toBe(74014.29);
   });
 
   it("an item nobody has bought counts at Final Acquire, so Actual equals Planned and the count says so", () => {
     const { totals, result } = work({ a: notBought, b: notBought });
-    expect(totals).toMatchObject({ finalAcquireTotal: 2338500, landedCostTotal: 0, boughtFinalAcquireTotal: 0, itemsBought: 0, itemsTotal: 2 });
-    expect(result).toMatchObject({ planned: 423100, actual: 423100, difference: 0, actualLower: false, estimate: false, itemsBought: 0, notBought: 2 });
-    expect(result.actualCost).toBe(2338500);
+    expect(totals).toMatchObject({ finalAcquireTotal: 2000000, projectExpensesTotal: 338500, marketing: 0, landedCostTotal: 0, boughtFinalAcquireTotal: 0, itemsBought: 0, itemsTotal: 2 });
+    expect(result).toMatchObject({ planned: 74014.29, actual: 74014.29, difference: 0, actualLower: false, estimate: false, itemsBought: 0, notBought: 2 });
+    expect(result.actualCost).toBe(2000000);
   });
 
   it("a bought item takes its Landed Cost in place of its Final Acquire, the rest stays at Final Acquire", () => {
-    // A: Landed 900,000 instead of 1,000,000. B (1,000,000 at Final Acquire) and the cost-only row (338,500) stay.
+    // A: Landed 900,000 instead of 1,000,000. B (1,000,000 at Final Acquire) stays; Project expenses (338,500) are the same for both.
     const { totals, result } = work({ a: landed(900000), b: notBought });
     expect(totals).toMatchObject({ landedCostTotal: 900000, boughtFinalAcquireTotal: 1000000, itemsBought: 1, itemsTotal: 2 });
-    expect(result).toMatchObject({ actualCost: 2238500, actual: 523100, planned: 423100, difference: 100000, actualLower: false, notBought: 1 });
+    expect(result).toMatchObject({ actualCost: 1900000, actual: 174014.29, planned: 74014.29, difference: 100000, actualLower: false, notBought: 1 });
   });
 
   it("highlights when buying cost more than planned: Actual is lower and the difference is negative", () => {
     const { result } = work({ a: landed(1100000), b: landed(1000000) });
-    // Landed 2,100,000 against Final Acquire 2,000,000 on the two Components; the 338,500 row is unchanged.
-    expect(result).toMatchObject({ actualCost: 2438500, actual: 323100, difference: -100000, actualLower: true, notBought: 0 });
+    // Landed 2,100,000 against Final Acquire 2,000,000 on the two Components; Project expenses are unchanged.
+    expect(result).toMatchObject({ actualCost: 2100000, actual: -25985.71, difference: -100000, actualLower: true, notBought: 0 });
   });
 
   it("is an estimate while any IPAS is short of LC Odoo Done, and final once none is", () => {
@@ -579,14 +656,14 @@ describe("Planned and Actual Revenue (#605)", () => {
 
   it("works from per-SOR totals alone, so a database row gives the same answer as the shaped matrix", () => {
     const fromRow = revenueComparison(
-      { finalOfferTotal: 2980000, finalAcquireTotal: 2338500, landedCostTotal: 900000, boughtFinalAcquireTotal: 1000000, itemsBought: 1, itemsTotal: 2, ipasShort: true },
+      { finalOfferTotal: 2980000, finalAcquireTotal: 2000000, projectExpensesTotal: 338500, marketing: 0, landedCostTotal: 900000, boughtFinalAcquireTotal: 1000000, itemsBought: 1, itemsTotal: 2, ipasShort: true },
       settings,
     );
     expect(fromRow).toEqual(work({ a: landed(900000), b: notBought, ipasShort: true }).result);
   });
 
   it("a blank total in a row is blank in the answer, not zero", () => {
-    expect(revenueComparison({ finalOfferTotal: 2980000, finalAcquireTotal: 2338500 }, settings).actual).toBeNull();
+    expect(revenueComparison({ finalOfferTotal: 2980000, finalAcquireTotal: 2000000, projectExpensesTotal: 338500, marketing: 0 }, settings).actual).toBeNull();
     expect(revenueComparison({}, settings)).toMatchObject({ planned: null, actual: null, difference: null, itemsBought: 0, itemsTotal: 0, notBought: 0 });
   });
 });

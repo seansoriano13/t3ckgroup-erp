@@ -164,8 +164,10 @@ export default function BidDecisionPanel({
   const blockedLoss = losing && !matrix.canDecideLoss;
   // #899: an Unlock is the same right as a Go on a loss (costing_unlock_bid: a Super Admin or the decider list).
   const canUnlock = Boolean(matrix.canDecideLoss);
-  const marginPercent =
-    revenue === null || !Number(totals.finalOfferTotal) ? null : (Number(revenue) / Number(totals.finalOfferTotal)) * 100;
+  // #964: Revenue ÷ Final Offer against the Go line. A warning only; it never blocks a Go.
+  const marginPercent = matrix.summary?.revenuePercent ?? null;
+  const goLine = matrix.summary?.goLinePercent ?? null;
+  const underGoLine = Boolean(matrix.summary?.underGoLine);
 
   const offerCheck = offerVsAbc(tenderLines, matrix.abc);
 
@@ -285,10 +287,26 @@ export default function BidDecisionPanel({
 
       {showFigures && ready && revenue !== null && (
         <p className="text-xs text-muted-foreground" data-testid="bid-decision-revenue-breakdown">
-          Planned revenue: Final Offer {pesos(totals.finalOfferTotal)} − Cost{" "}
-          {pesos(matrix.summary?.operationalExpenses)} − ITR {pesos(matrix.summary?.itr)} = {pesos(revenue)}
-          {marginPercent === null ? "" : ` (${marginPercent.toFixed(1)}% of the Final Offer)`}
+          Planned revenue: VAT-exclusive {pesos(matrix.summary?.vatExclusive)} − OPEX{" "}
+          {pesos(matrix.summary?.opex)} − ITR {pesos(matrix.summary?.itr)} = {pesos(revenue)}
         </p>
+      )}
+      {showFigures && ready && marginPercent !== null && (
+        <div className="space-y-1" data-testid="bid-decision-go-line">
+          <p className="text-sm" data-testid="bid-decision-revenue-percent">
+            <span className="text-muted-foreground">Revenue ÷ Final Offer </span>
+            <span className="font-semibold">{marginPercent.toFixed(2)}%</span>
+          </p>
+          {underGoLine && (
+            <p
+              className="rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-sm text-foreground"
+              role="alert"
+              data-testid="bid-decision-under-go-line"
+            >
+              Under the {goLine}% Go line. A Go is still yours to take.
+            </p>
+          )}
+        </div>
       )}
       {showFigures && offerCheck.low && (
         <div

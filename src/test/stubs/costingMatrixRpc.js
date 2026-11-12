@@ -224,8 +224,8 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
   stubRpc("costing_can_manage_markup", () => manageMarkup)
   stubRpc("costing_can_decide_loss", () => canDecideLoss)
 
-  // #880: planned revenue as costing_decide_bid works it: (Final Offer - Final Acquire total) - ITR on the part above the allowance.
-  // Null while any Component or cost-only row has no Final Acquire (or Acquire), as costing_planned_cost_total does.
+  // #880/#964: planned revenue as costing_decide_bid works it (costing_planned_revenue): VAT-exclusive - OPEX - ITR, where
+  // OPEX = retention + Landed Cost (planned, the Components' Final Acquire) + Other costs rows + Marketing. Null while any is blank.
   const plannedCostOf = (matrixId) => {
     const lineIds = rowsOf("costing_tender_lines").filter((l) => l.matrix_id === matrixId).map((l) => l.id)
     const components = rowsOf("costing_components").filter((c) => lineIds.includes(c.tender_line_id))
@@ -234,10 +234,24 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
         const cost = rowsOf("costing_component_costs").find((x) => x.component_id === c.id)
         return { unit: cost?.final_acquire_unit ?? cost?.acquire_unit ?? null, quantity: c.quantity }
       }),
-      ...rowsOf("costing_cost_rows").filter((r) => r.matrix_id === matrixId).map((r) => ({ unit: r.final_acquire_unit ?? r.acquire_unit ?? null, quantity: r.quantity })),
     ]
     if (items.length === 0 || items.some((i) => i.unit == null)) return null
     return items.reduce((sum, i) => sum + Math.round(Number(i.unit) * Number(i.quantity) * 100) / 100, 0)
+  }
+  const expensesOf = (matrixId) => {
+    const rows = rowsOf("costing_cost_rows").filter((r) => r.matrix_id === matrixId && (r.abc_pct != null || r.acquire_unit != null || r.final_acquire_unit != null))
+    const amounts = rows.map((r) => (r.final_acquire_unit ?? r.acquire_unit) == null ? null : Math.round(Number(r.final_acquire_unit ?? r.acquire_unit) * Number(r.quantity) * 100) / 100)
+    return amounts.length === 0 || amounts.some((a) => a === null) ? null : amounts.reduce((sum, a) => sum + a, 0)
+  }
+  const plannedRevenueOf = (matrixId, offer) => {
+    const landed = plannedCostOf(matrixId)
+    const expenses = expensesOf(matrixId)
+    const marketing = rowsOf("costing_matrix_money").find((m) => m.matrix_id === matrixId)?.marketing ?? null
+    if (offer == null || landed === null || expenses === null || marketing === null) return null
+    const { vatDivisor, retentionRate, itrRate, itrAllowance } = DEFAULT_COSTING_SETTINGS
+    const round2 = (n) => Math.round(n * 100) / 100
+    const itr = round2(Math.max(offer - itrAllowance, 0) * itrRate)
+    return round2(offer / vatDivisor) - (round2(offer * retentionRate) + landed + expenses + Number(marketing)) - itr
   }
 
   stubRpc("costing_set_money", (args) => {
@@ -302,10 +316,8 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     }
     // #880: a Go on a loss (planned revenue below zero) is the Super Admin's or the decider list's to take.
     if (args.p_verdict === "go") {
-      const cost = plannedCostOf(args.p_matrix_id)
-      const { itrRate, itrAllowance } = DEFAULT_COSTING_SETTINGS
-      const itr = Math.round(Math.max(totals.finalOfferTotal - itrAllowance, 0) * itrRate * 100) / 100
-      if (cost !== null && totals.finalOfferTotal - cost - itr < 0 && !canDecideLoss) {
+      const revenue = plannedRevenueOf(args.p_matrix_id, totals.finalOfferTotal)
+      if (revenue !== null && revenue < 0 && !canDecideLoss) {
         refuse("42501", "a Go on a loss needs a Super Admin or the decider list", 403)
       }
     }

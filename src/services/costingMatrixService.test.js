@@ -476,14 +476,23 @@ describe("costingMatrixService", () => {
 
     const read = () => costingMatrixService.get(opportunity.id);
 
+    /** One Other costs row of 100,000 and Marketing typed as 0: the two inputs the sheet's Revenue needs besides the Components (#964). */
+    const fillTheRest = async () => {
+      const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge", quantity: 1 });
+      await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 100000 });
+      await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 0 });
+    };
+
     it("works the summary for Closed Book from the rates, to the centavo (#229 sample)", async () => {
       db.seed("costing_settings", { id: 1 });
       const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1 });
       await costingMatrixService.updateComponent(component, { finalAcquireUnit: 2338500 });
+      await fillTheRest();
 
       const { summary, money } = await read();
       expect(money).toMatchObject({ matrix_id: matrix.id });
-      expect(summary).toMatchObject({ finalOfferTotal: 2980000, operationalExpenses: 2338500, revenue: 423100, itr: 218400, tax: 178800 });
+      // VAT-exclusive 2,660,714.29 - OPEX (29,800 + 2,338,500 + 100,000 + 0) - ITR 218,400
+      expect(summary).toMatchObject({ finalOfferTotal: 2980000, landedCost: 2338500, projectExpenses: 100000, opex: 2468300, revenue: -25985.71, itr: 218400, tax: 159642.86, goLinePercent: 20 });
       expect(summary.percentOfAbc.toFixed(1)).toBe("93.1");
       expect(summary.incomplete).toMatchObject({ missingCost: 0, missingOffer: 0 });
     });
@@ -493,20 +502,20 @@ describe("costingMatrixService", () => {
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1 });
       const { summary } = await read();
       expect(summary.incomplete.missingCost).toBe(1);
-      expect(summary).toMatchObject({ operationalExpenses: null, revenue: null, collected: 2771400, vatExclusive: 2660714.29 });
+      expect(summary).toMatchObject({ landedCost: null, opex: null, revenue: null, collected: 2790557.14, vatExclusive: 2660714.29 });
     });
 
-    it("counts a cost-only row's Final Acquire in Operational Expenses, and Marketing and OPEX as typed", async () => {
+    it("counts an Other costs row in Project expenses, and Marketing as typed; OPEX is worked out (#964)", async () => {
       db.seed("costing_settings", { id: 1 });
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2000000 });
       const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge", quantity: 1 });
-      expect((await read()).summary.incomplete.missingCost).toBe(1);
+      expect((await read()).summary.incomplete.noExpenses).toBe(true);
 
       await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 100000 });
-      await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 12000.5, opex: 8000 });
+      await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 12000.5 });
       const { summary } = await read();
-      // (2,980,000 - 2,100,000) - ITR of 218,400
-      expect(summary).toMatchObject({ operationalExpenses: 2100000, marketing: 12000.5, opex: 8000, revenue: 661600 });
+      // VAT-exclusive 2,660,714.29 - OPEX (29,800 + 2,000,000 + 100,000 + 12,000.50) - ITR 218,400
+      expect(summary).toMatchObject({ landedCost: 2000000, projectExpenses: 100000, marketing: 12000.5, opex: 2141800.5, revenue: 300513.79 });
 
       await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: null });
       expect((await read()).summary.marketing).toBeNull();
@@ -515,16 +524,18 @@ describe("costingMatrixService", () => {
     it("changes the figures when a rate changes", async () => {
       db.seed("costing_settings", { id: 1 });
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2338500 });
-      expect((await read()).summary.tax).toBe(178800);
+      await fillTheRest();
+      expect((await read()).summary.tax).toBe(159642.86);
 
-      const changed = await costingMatrixService.setSettings({ taxRate: 0.05, itrAllowance: 0 });
-      expect(changed).toMatchObject({ taxRate: 0.05, itrAllowance: 0, vatDivisor: 1.12, retentionRate: 0.01, itrRate: 0.08 });
-      expect((await read()).summary).toMatchObject({ tax: 149000, itr: 238400, revenue: 403100 });
+      const changed = await costingMatrixService.setSettings({ taxRate: 0.05, itrAllowance: 0, goLinePercent: 25 });
+      expect(changed).toMatchObject({ taxRate: 0.05, itrAllowance: 0, vatDivisor: 1.12, retentionRate: 0.01, itrRate: 0.08, goLinePercent: 25 });
+      expect((await read()).summary).toMatchObject({ tax: 133035.71, itr: 238400, revenue: -45985.71, goLinePercent: 25 });
     });
 
     it("falls back to the sheet's rates when the row cannot be read", async () => {
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2338500 });
-      expect((await read()).summary.revenue).toBe(423100);
+      await fillTheRest();
+      expect((await read()).summary).toMatchObject({ revenue: -25985.71, goLinePercent: 20 });
     });
 
     it("gives every other tier no summary and no Marketing or OPEX, the keys absent", async () => {

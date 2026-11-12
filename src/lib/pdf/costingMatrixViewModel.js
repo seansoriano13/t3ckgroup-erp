@@ -25,7 +25,7 @@
  */
 
 import { COSTING_TIER, BID_VERDICT_LABEL, COMPONENT_SOURCE_LABEL, COMPONENT_STATUS_LABEL, summaryLineShown } from '../../constants/costing';
-import { costIncomplete, factorLabel, finalAcquireTotal, offerIncomplete } from '../../utils/costingMath';
+import { costIncomplete, expensesIncomplete, factorLabel, finalAcquireTotal, marketingIncomplete, offerIncomplete, opexIncomplete, revenueIncomplete } from '../../utils/costingMath';
 import { printAmount, printDate, printDateTime } from './ipasViewModel';
 
 const BLANK = '—';
@@ -112,24 +112,32 @@ function summaryRows(matrix) {
   const offer = (value) => (value === null || value === undefined ? (offerNote ?? BLANK) : peso(value));
   const cost = (value) => (value === null || value === undefined ? (costNote ?? BLANK) : peso(value));
   const rate = (value) => `${Number((Number(value) * 100).toFixed(4))}%`;
-  const typed = (value) => (value === null || value === undefined ? BLANK : peso(value));
-  const revenueNote = costNote ?? offerNote;
+  const expenses = (value) => (value === null || value === undefined ? (expensesIncomplete(summary.incomplete) ?? BLANK) : peso(value));
+  const marketingFigure = (value) => (value === null || value === undefined ? (marketingIncomplete(summary.incomplete) ?? BLANK) : peso(value));
+  const opexFigure = (value) => (value === null || value === undefined ? (opexIncomplete(summary.incomplete) ?? BLANK) : peso(value));
+  const revenueNote = revenueIncomplete(summary.incomplete);
+  const percentLine =
+    summary.revenuePercent === null || summary.revenuePercent === undefined
+      ? revenueNote ?? BLANK
+      : `${summary.revenuePercent.toFixed(2)}%${summary.underGoLine ? ` (under the ${summary.goLinePercent}% Go line)` : ''}`;
   return [
     { label: 'Final Offer', value: offer(summary.finalOfferTotal) },
     { key: 'vatExclusive', label: 'VAT-exclusive', hint: `Final Offer ÷ ${Number(rates.vatDivisor)}`, value: offer(summary.vatExclusive) },
     { key: 'finalVat', label: `Final VAT ${rate(rates.finalVatRate ?? 0.12)}`, hint: 'on the VAT-exclusive figure', value: offer(summary.finalVat) },
-    { key: 'tax', label: `Less Tax ${rate(rates.taxRate)}`, hint: 'on the gross offer', value: offer(summary.tax) },
+    { key: 'tax', label: `Less Tax ${rate(rates.taxRate)}`, hint: 'on the VAT-exclusive figure', value: offer(summary.tax) },
     { key: 'retention', label: `Retention ${rate(rates.retentionRate)}`, value: offer(summary.retention) },
     { key: 'collected', label: 'Collected Amount', value: offer(summary.collected) },
-    { key: 'operationalExpenses', label: 'Operational Expenses', hint: 'cost total', value: cost(summary.operationalExpenses) },
-    { key: 'marketing', label: 'Marketing', value: typed(summary.marketing) },
-    { key: 'opex', label: 'OPEX', value: typed(summary.opex) },
+    { key: 'landedCost', label: 'Landed Cost (planned)', hint: 'Final Acquire total', value: cost(summary.landedCost) },
+    { key: 'projectExpenses', label: 'Project expenses', hint: 'Other costs', value: expenses(summary.projectExpenses) },
+    { key: 'marketing', label: 'Marketing', value: marketingFigure(summary.marketing) },
+    { key: 'opex', label: 'OPEX', hint: 'retention + landed cost + expenses + marketing', value: opexFigure(summary.opex) },
     { key: 'itr', label: `ITR ${rate(rates.itrRate)}`, hint: `of the offer above ${peso(Number(rates.itrAllowance))}`, value: offer(summary.itr) },
     {
       label: 'Revenue',
       strong: true,
       value: summary.revenue === null || summary.revenue === undefined ? (revenueNote ?? BLANK) : peso(summary.revenue),
     },
+    { key: 'revenuePercent', label: 'Revenue ÷ Final Offer', value: percentLine },
   ].filter((line) => !line.key || summaryLineShown(rates, line.key));
 }
 
@@ -212,11 +220,11 @@ function moneySheet(matrix, people) {
     lines,
     costRows,
     // "Incomplete — N rows have no cost" and its offer-side twin: the summary still prints, saying why.
-    incomplete: [offerNote, costNote].filter(Boolean),
+    incomplete: [offerNote, costNote, expensesIncomplete(summary.incomplete), marketingIncomplete(summary.incomplete)].filter(Boolean),
     summary: summaryRows(matrix),
     strip: {
       finalOffer: summary.finalOfferTotal === null || summary.finalOfferTotal === undefined ? (offerNote ?? BLANK) : peso(summary.finalOfferTotal),
-      cost: summary.operationalExpenses === null || summary.operationalExpenses === undefined ? (costNote ?? BLANK) : peso(summary.operationalExpenses),
+      cost: summary.landedCost === null || summary.landedCost === undefined ? (costNote ?? BLANK) : peso(summary.landedCost),
       achieved: factorLabel(matrix.markup.achievedFactor),
       target: factorLabel(matrix.markup.targetFactor),
       abcPercent: percentText(summary.percentOfAbc),

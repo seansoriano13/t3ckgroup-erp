@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { filterMatrixPage, matrixPageTotals, shapeMatrixPage } from "./costingMatrixPage";
 import { revenueComparison, revenueInputs } from "./costingMath";
 
-const RATES = { itrRate: 0.08, itrAllowance: 250000 };
+const RATES = { vatDivisor: 1.12, retentionRate: 0.01, itrRate: 0.08, itrAllowance: 250000 };
 
 const read = (overrides = {}) => ({
   opportunity_id: "opp-1",
@@ -12,7 +12,9 @@ const read = (overrides = {}) => ({
   stage: "Bidding",
   entities: ["T3CK Group Inc"],
   final_offer_total: "2980000.00",
-  final_acquire_total: "2338500.00",
+  final_acquire_total: "2000000.00",
+  project_expenses_total: "338500.00",
+  marketing: "0",
   landed_cost_total: "0",
   bought_final_acquire_total: "0",
   items_bought: 0,
@@ -29,13 +31,14 @@ describe("shapeMatrixPage", () => {
     const matrix = {
       tenderLines: [{ final_offer_unit: 2980000, quantity: 1, components: [
         { final_acquire_unit: 1000000, quantity: 1, landed_cost: { total: 1100000, mark: "provisional" } },
-        { final_acquire_unit: 1338500, quantity: 1 },
+        { final_acquire_unit: 1000000, quantity: 1 },
       ] }],
-      costRows: [],
+      costRows: [{ quantity: 1, final_acquire_unit: 338500 }],
+      money: { marketing: 0 },
     };
     expect(row.comparison).toEqual(revenueComparison(revenueInputs(matrix, { ipasShort: true }), RATES));
-    expect(row.comparison.planned).toBe(423100);
-    expect(row.comparison.actual).toBe(323100);
+    expect(row.comparison.planned).toBe(74014.29);
+    expect(row.comparison.actual).toBe(-25985.71);
     expect(row.comparison.difference).toBe(-100000);
     expect(row.comparison.actualLower).toBe(true);
     expect(row.comparison.estimate).toBe(true);
@@ -99,8 +102,8 @@ describe("matrixPageTotals", () => {
     expect(matrixPageTotals(rows)).toEqual({
       count: 3,
       finalOffer: 5960000,
-      planned: 846200,
-      actual: 746200,
+      planned: 148028.58,
+      actual: 48028.58,
       difference: -100000,
       itemsBought: 1,
       itemsTotal: 7,
