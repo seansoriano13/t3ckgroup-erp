@@ -305,14 +305,18 @@ describe("a quote", () => {
 })
 
 describe("a winner", () => {
-    let supplier, other
+    let supplier, other, canvass
 
     beforeAll(async () => {
         const client = await clientFor("outsider")
-        supplier = (await addSupplier(requestId, { supplier_name: "[policy-tier] Winner" })).data.supplier.id
+        const made = await addSupplier(requestId, { supplier_name: "[policy-tier] Winner" })
+        canvass = made.data.canvass_id
+        supplier = made.data.supplier.id
         other = (await addSupplier(requestId, { supplier_name: "[policy-tier] Runner up" })).data.supplier.id
         await client.rpc("canvass_save_quote", { p_supplier_id: supplier, p_item_id: lineA, p_quote: { brand: "A" }, p_price: { unit_price: 10 } })
         await client.rpc("canvass_save_quote", { p_supplier_id: other, p_item_id: lineA, p_quote: { brand: "B" }, p_price: { unit_price: 12 } })
+        // The rules for picking (three suppliers, a reason) are tested in 969; here the note covers them.
+        await asSvc(svc().from("request_canvass_no_other_supplier").insert({ canvass_id: canvass, reason: "Two quoted" }), "note")
     })
     afterAll(() => wipe(requestId))
 
@@ -324,12 +328,12 @@ describe("a winner", () => {
         expect(second.error).toBeNull()
         const rows = await asSvc(svc().from("request_canvass_winners").select("supplier_id, reason").eq("item_id", lineA), "winners")
         expect(rows).toEqual([{ supplier_id: other, reason: "Faster" }])
-        const twice = await svc().from("request_canvass_winners").insert({ item_id: lineA, supplier_id: supplier })
+        const twice = await svc().from("request_canvass_winners").insert({ item_id: lineA, supplier_id: supplier, reason: "Again" })
         expect(twice.error.code).toBe(UNIQUE_VIOLATION)
     })
 
     it("has to be a supplier that quoted the line", async () => {
-        const refused = await svc().from("request_canvass_winners").insert({ item_id: lineB, supplier_id: supplier })
+        const refused = await svc().from("request_canvass_winners").insert({ item_id: lineB, supplier_id: supplier, reason: "Not a quoter" })
         expect(refused.error.code).toBe(FOREIGN_KEY_VIOLATION)
     })
 
@@ -369,8 +373,8 @@ describe("who reads, who writes, who sees money", () => {
         usd = made.data.supplier.id
         const saved = await client.rpc("canvass_save_quote", { p_supplier_id: usd, p_item_id: lineA, p_quote: { brand: "Visible" }, p_price: { unit_price: 99 } })
         quote = saved.data.id
-        await asSvc(svc().from("request_canvass_winners").insert({ item_id: lineA, supplier_id: usd, reason: "Only one" }), "winner")
         await asSvc(svc().from("request_canvass_no_other_supplier").insert({ canvass_id: canvass, reason: "Sole" }), "note")
+        await asSvc(svc().from("request_canvass_winners").insert({ item_id: lineA, supplier_id: usd, reason: "Only one" }), "winner")
     })
     afterAll(() => wipe(requestId))
 

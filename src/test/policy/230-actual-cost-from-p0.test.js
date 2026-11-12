@@ -119,7 +119,9 @@ describe("a foreign P0's Actual cost is in pesos", () => {
         await asSvc(svc().from("request_canvass_supplier_prices").insert({ supplier_id: supplier, comparison_rate: price.comparison_rate }), "rate")
         const quote = (await asSvc(svc().from("request_canvass_quotes").insert({ canvass_id: canvass, supplier_id: supplier, item_id: line }).select("id").single(), "quote")).id
         await asSvc(svc().from("request_canvass_quote_prices").insert({ quote_id: quote, unit_price: price.unit_price }), "quote price")
-        await asSvc(svc().from("request_canvass_winners").insert({ item_id: line, supplier_id: supplier }), "winner")
+        // A winner needs three suppliers or a note (#969), and a reason.
+        await asSvc(svc().from("request_canvass_no_other_supplier").upsert({ canvass_id: canvass, reason: "Only one quoted" }, { onConflict: "canvass_id" }), "note")
+        await asSvc(svc().from("request_canvass_winners").insert({ item_id: line, supplier_id: supplier, reason: "Only quote" }), "winner")
         return canvass
     }
 

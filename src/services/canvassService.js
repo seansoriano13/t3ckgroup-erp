@@ -10,8 +10,10 @@ import { isExpired, phpFigure } from "../utils/canvassMath";
  * and its own reason, and the Canvass has at most one "No other supplier" note.
  *
  * A Canvass is written only when its first supplier is saved (`addSupplier`), which is when it
- * gets its CNV_ number; reading one never creates it. This ticket is the plumbing. The rules (three
- * suppliers before a winner, the lock, status moves, filling a Component) are #969.
+ * gets its CNV_ number; reading one never creates it. The rules (three suppliers or a "No other
+ * supplier" note before a winner, a reason per winner, the lock on a Purchased line, Still
+ * canvassing, filling a Component) are the database's (#969); this service sends the write and
+ * lets the database's refusal reach the caller.
  *
  * Money is split the way the Costing Matrix splits it. A quote's `unit_price` and a supplier's
  * `comparison_rate` live in `request_canvass_quote_prices` and `request_canvass_supplier_prices`,
@@ -448,8 +450,9 @@ export const canvassService = {
 
   /**
    * Makes a supplier the winner of one line, with the reason, replacing the line's winner if it has
-   * one. The supplier has to have quoted the line (the database refuses otherwise). Plumbing only:
-   * the three-supplier rule and the Component fill are #969.
+   * one. The database refuses a supplier that did not quote the line, a blank reason, a cancelled or
+   * Purchased line, and a Canvass without three suppliers or a note; it fills the Component on a
+   * pick (#969).
    */
   async setWinner(itemId, supplierId, reason, actorId) {
     if (!itemId || !supplierId) throw new Error("A line id and a supplier id are required.");
@@ -471,7 +474,7 @@ export const canvassService = {
     return data;
   },
 
-  /** Records why a line's winner was chosen: one paragraph, kept as written. Blank clears it. */
+  /** Rewrites why a line's winner was chosen: one paragraph, kept as written. A winner needs a reason, so blank is refused. */
   async setWinnerReason(itemId, reason) {
     if (!itemId) throw new Error("A line id is required.");
     const { data, error } = await supabase
@@ -484,7 +487,7 @@ export const canvassService = {
     return data;
   },
 
-  /** Un-picks a line's winner, leaving none. */
+  /** Un-picks a line's winner, leaving none. What the winner filled on the Component stays. */
   async clearWinner(itemId) {
     if (!itemId) throw new Error("A line id is required.");
     const { error } = await supabase.from("request_canvass_winners").delete().eq("item_id", itemId);
@@ -510,7 +513,50 @@ export const canvassService = {
     return data;
   },
 
-  /** Takes the "No other supplier" note off the Canvass. */
+  /**
+   * "This supplier wins every line" (`canvass_pick_supplier_for_all`): picks the supplier on every
+   * line it quoted, with one reason, and skips the rest (and any cancelled or Purchased line).
+   * Returns `{ picked, skipped }`.
+   */
+  async pickSupplierForAll(canvassId, supplierId, reason) {
+    if (!canvassId || !supplierId) throw new Error("A Canvass id and a supplier id are required.");
+    const { data, error } = await supabase.rpc("canvass_pick_supplier_for_all", {
+      p_canvass_id: canvassId,
+      p_supplier_id: supplierId,
+      p_reason: text(reason),
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** "Use the same reason for all" (`canvass_use_same_reason`): copies one reason to every picked line that isn't locked. Returns `{ changed }`. */
+  async useSameReason(canvassId, reason) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    const { data, error } = await supabase.rpc("canvass_use_same_reason", { p_canvass_id: canvassId, p_reason: text(reason) });
+    if (error) throw error;
+    return data;
+  },
+
+  /** A Super Admin lifts the lock on one Purchased line, with a reason kept in the history (`canvass_unlock_line`). */
+  async unlockLine(itemId, reason) {
+    if (!itemId) throw new Error("A line id is required.");
+    const { data, error } = await supabase.rpc("canvass_unlock_line", { p_item_id: itemId, p_reason: text(reason) });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Each quote's Acquire (PHP) and Markup Price if it won (`canvass_offer_projection`), for the
+   * Closed Book and Cost tiers; null for anyone else or when no line names a Component.
+   */
+  async offerProjection(canvassId) {
+    if (!canvassId) return null;
+    const { data, error } = await supabase.rpc("canvass_offer_projection", { p_canvass_id: canvassId });
+    if (error) throw error;
+    return data ?? null;
+  },
+
+  /** Takes the "No other supplier" note off the Canvass. The database refuses while a winner depends on it. */
   async clearNoOtherSupplier(canvassId) {
     if (!canvassId) throw new Error("A Canvass id is required.");
     const { error } = await supabase.from("request_canvass_no_other_supplier").delete().eq("canvass_id", canvassId);
