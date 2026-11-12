@@ -14,6 +14,7 @@ import { MARK } from './brandMark';
 import { PAPER_CSS, pageCss } from './paperSet';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
 import { SUPPLIERS_PER_PAGE } from './canvassViewModel';
+import { BOUGHT_WITHOUT_CANVASS } from '../../utils/itemCanvass';
 
 const EXTRA_CSS = `
   .sheet { width: 297mm; min-height: 209mm; }
@@ -27,6 +28,8 @@ const EXTRA_CSS = `
   .cnv-grid td.no { font-family: var(--mono); font-weight: 600; text-align: center; }
   .cnv-grid td.q { font-family: var(--mono); text-align: right; white-space: nowrap; }
   .cnv-grid .win { background: var(--wash); }
+  .cnv-grid tr.cancelled td { color: var(--ink-faint); }
+  .cnv-grid tr.cancelled .sub { font-style: italic; }
   .cnv-grid .none { color: var(--ink-faint); font-style: italic; }
   .cnv-grid .price { font-family: var(--mono); white-space: nowrap; }
   .cnv-reasons { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: var(--t-table); }
@@ -58,6 +61,12 @@ function cellHtml(cell) {
   return `<td class="${cell.winner ? 'win' : ''}">${parts.join('<br>')}</td>`;
 }
 
+/** What a line's own cell says under its name: that it was cancelled, or bought with no Canvass. */
+function lineMark(row) {
+  const words = { cancelled: 'Cancelled', 'bought-no-canvass': BOUGHT_WITHOUT_CANVASS }[row.outcome];
+  return words ? `<span class="sub" data-testid="print-line-mark">${esc(words)}</span>` : '';
+}
+
 /** The grid of one page: the line column, then up to three suppliers; short pages keep the column count. */
 function gridHtml(page) {
   const pad = Math.max(0, SUPPLIERS_PER_PAGE - page.suppliers.length);
@@ -67,7 +76,7 @@ function gridHtml(page) {
   const body = page.rows
     .map(
       (row) =>
-        `<tr><td class="no">${row.no}</td><td>${row.brand ? `<b>${esc(row.brand)}</b><br>` : ''}${esc(row.description)}</td><td class="q">${esc(row.quantity)}</td><td>${esc(row.unit)}</td>${row.cells
+        `<tr${row.cancelled ? ' class="cancelled" data-testid="print-line-cancelled"' : ''}><td class="no">${row.no}</td><td>${row.brand ? `<b>${esc(row.brand)}</b><br>` : ''}${esc(row.description)}${lineMark(row)}</td><td class="q">${esc(row.quantity)}</td><td>${esc(row.unit)}</td>${row.cells
           .map(cellHtml)
           .join('')}${'<td></td>'.repeat(pad)}</tr>`,
     )
@@ -76,7 +85,12 @@ function gridHtml(page) {
   return `<table class="cnv-grid">${head}<tbody>${body}</tbody></table>${empty}`;
 }
 
-const OUTCOME_TEXT = { 'no-winner': 'No winner chosen', unquoted: 'No supplier quoted' };
+const OUTCOME_TEXT = {
+  cancelled: 'Cancelled',
+  'no-winner': 'No winner chosen',
+  'bought-no-canvass': BOUGHT_WITHOUT_CANVASS,
+  unquoted: 'No supplier quoted',
+};
 
 function reasonsHtml(vm) {
   const items = vm.reasons

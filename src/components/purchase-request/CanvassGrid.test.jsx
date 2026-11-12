@@ -170,6 +170,24 @@ describe("adding a supplier", () => {
   })
 })
 
+describe("a cancelled line", () => {
+  it("stays in the grid, marked Cancelled, with nothing to edit or pick", async () => {
+    const { redleaf } = await threeSuppliers()
+    await quote(redleaf, lineA, { unitPrice: 1000 })
+    patchLine(lineA, { status: "cancelled" })
+    show()
+    const grid = await screen.findByRole("grid", { name: "Canvass" })
+    expect(within(grid).getByRole("rowheader", { name: "Folding stretcher" })).toHaveTextContent("Cancelled")
+    // Its price is still readable but cannot be typed over, and there is no pick on it.
+    expect(screen.queryByRole("spinbutton", { name: /Folding stretcher/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Pick .*Folding stretcher/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Un-pick .*Folding stretcher/ })).toBeNull()
+    expect(screen.getAllByRole("button", { name: /^Pick .*Spine board/ })).toHaveLength(3)
+    // Only the open line counts toward the winners.
+    expect(screen.getByTestId("strip-lines")).toHaveTextContent("0 of 1 line has a winner")
+  })
+})
+
 describe("quoting lines", () => {
   it("takes a price in the cell, works the total out, and leaves a place nobody quoted empty", async () => {
     await addSupplier("Redleaf Inc.")
@@ -463,6 +481,26 @@ describe("who can see and who can change", () => {
     // What they may see is still there: who quoted what.
     expect(screen.getAllByText("Quoted").length).toBeGreaterThan(0)
     expect(screen.getByTestId("strip-suppliers")).toHaveTextContent("4 of 3 suppliers")
+  })
+
+  it("never asks a purchaser without the money tier for a rate, and saves a foreign supplier without one", async () => {
+    const user = setupUser()
+    show({ money: false })
+    await user.click(await screen.findByRole("button", { name: "Add a supplier" }))
+    const dialog = await screen.findByRole("dialog", { name: "Add a supplier" })
+    await user.type(within(dialog).getByRole("combobox", { name: "Supplier" }), "Hong Kong Trading")
+    await chooseOption(user, within(dialog).getByRole("combobox", { name: "Currency" }), "USD")
+    expect(within(dialog).queryByLabelText("Comparison rate")).toBeNull()
+    await user.click(within(dialog).getByRole("button", { name: "Add supplier" }))
+    await waitFor(() => expect(db.rows("request_canvass_suppliers")[0]).toMatchObject({ supplier_name: "Hong Kong Trading", currency: "USD" }))
+    // The price row is there, with no rate, for someone who can see money to fill later.
+    expect(db.rows("request_canvass_supplier_prices")[0].comparison_rate).toBeNull()
+  })
+
+  it("shows a reader with money a foreign supplier that has no rate as No rate", async () => {
+    await addSupplier("Hong Kong", { currency: "USD" })
+    show()
+    expect(await screen.findByText("No rate")).toBeInTheDocument()
   })
 
   it("lets a purchaser without the money tier still add a quote's details", async () => {

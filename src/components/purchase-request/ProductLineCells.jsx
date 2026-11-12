@@ -3,7 +3,7 @@ import { AlertTriangle } from "lucide-react";
 import Dot from "@/components/ui/Dot";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { canvassLine } from "../../utils/itemCanvass";
+import { BOUGHT_WITHOUT_CANVASS, boughtWithoutCanvass, canvassLine } from "../../utils/itemCanvass";
 import { askedByText, lineNotes, p0Cell, purposeLabel, splitProductName, stockCell } from "../../utils/productLine";
 import { formatAmount } from "../../utils/requestedItem";
 
@@ -65,6 +65,11 @@ export function AskedSub({ item, side }) {
       {item.po_number && item.bought_as && (
         <span className="block" data-testid="requested-item-bought-as">
           Bought as: {item.bought_as}
+        </span>
+      )}
+      {boughtWithoutCanvass(item.status, item.canvass) && (
+        <span className="block font-medium text-amber-12" data-testid="requested-item-no-canvass">
+          {BOUGHT_WITHOUT_CANVASS}
         </span>
       )}
       {item.ordered_early_reason && (

@@ -32,3 +32,10 @@ export function canvassLine(canvass) {
   const winnerName = String(canvass.winnerName || "").trim();
   return winnerName ? `${head} · ${count} · Winner ${winnerName}` : `${head} · ${count}`;
 }
+
+/** The words for a bought line nobody quoted (#972): the request row and the printed sheet say the same thing. */
+export const BOUGHT_WITHOUT_CANVASS = "Bought with no Canvass";
+
+/** Whether a line was bought (Purchased or Received) with no supplier having quoted it. */
+export const boughtWithoutCanvass = (status, quoted) =>
+  (status === ITEM_STATUS.PURCHASED || status === ITEM_STATUS.RECEIVED) && !quoted;

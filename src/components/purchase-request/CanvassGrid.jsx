@@ -37,6 +37,8 @@ import { getPermissionContext } from "../../utils/permissions";
 import { isAllowedAttachment } from "../../utils/attachments";
 import CanvassReasonDialog from "./CanvassReasonDialog";
 import CanvassSupplierDialog from "./CanvassSupplierDialog";
+import { useCanvassSupplierActions } from "./useCanvassSupplierActions";
+import { useCanvassWinnerActions } from "./useCanvassWinnerActions";
 import { canvassKeys, purchaseRequestKeys } from "./queryKeys";
 import { refusal, useRefreshRequest } from "./requestHooks";
 
@@ -266,10 +268,6 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
   const refresh = useRefreshRequest(requestId);
 
   const [openCell, setOpenCell] = useState(null);
-  const [supplierDialog, setSupplierDialog] = useState(null); // { supplier } | {} for a new one
-  const [reasonFor, setReasonFor] = useState(null);
-  const [removing, setRemoving] = useState(null);
-  const [clearingNote, setClearingNote] = useState(false);
 
   const itemsQuery = useQuery({
     queryKey: purchaseRequestKeys.items(requestId),
@@ -289,6 +287,12 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
 
   const items = useMemo(() => itemsQuery.data ?? [], [itemsQuery.data]);
   const canvass = canvassQuery.data ?? null;
+  // With no Canvass yet the first supplier's form still has to know whether this reader sees rates.
+  const { data: startingMoney } = useQuery({
+    queryKey: canvassKeys.money(requestId),
+    queryFn: () => canvassService.canReadMoneyForRequest(requestId),
+    enabled: Boolean(requestId) && !canvass,
+  });
   const canEdit = actor?.side === MEMBER_SIDE.PURCHASING;
 
   const lockedCandidates = items.filter((i) => ["purchased", "received"].includes(i.status));
@@ -343,6 +347,10 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
     }
   };
 
+  const winner = useCanvassWinnerActions({ canvass, actorId, refresh, attempt, note: grid.strip.note });
+  const supplierActions = useCanvassSupplierActions({ requestId, canvass, actorId, refresh, attempt });
+  const { ask } = winner;
+
   if (itemsQuery.isLoading || canvassQuery.isLoading) {
     return <p className={cn(HINT, "py-8 text-center")}>Loading the Canvass…</p>;
   }
@@ -362,69 +370,6 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
   const savePrice = (line, supplier, unitPrice) => strict(() => canvassService.saveQuote(supplier.id, line.id, { unitPrice }));
   const saveQuote = (line, supplier, patch) => strict(() => canvassService.saveQuote(supplier.id, line.id, patch));
 
-  const ask = (next) => setReasonFor(next);
-  const submitReason = async (reason) => {
-    const { kind, line, supplier } = reasonFor;
-    if (kind === "pick") {
-      await canvassService.setWinner(line.id, supplier.id, reason, actorId);
-      toast.success(`${supplier.name} wins ${line.item.name}.`);
-    } else if (kind === "all") {
-      const { picked, skipped } = await canvassService.pickSupplierForAll(canvass.id, supplier.id, reason);
-      toast.success(`${supplier.name} wins ${picked} ${picked === 1 ? "line" : "lines"}${skipped ? `; ${skipped} skipped` : ""}.`);
-    } else if (kind === "same") {
-      const { changed } = await canvassService.useSameReason(canvass.id, reason);
-      toast.success(`The same reason is on ${changed} ${changed === 1 ? "line" : "lines"}.`);
-    } else if (kind === "note") {
-      await canvassService.markNoOtherSupplier(canvass.id, reason, actorId);
-      toast.success("Noted: no other supplier.");
-    } else if (kind === "unlock") {
-      await canvassService.unlockLine(line.id, reason);
-      toast.success(`${line.item.name} is unlocked.`);
-    }
-    refresh();
-  };
-
-  const REASON_COPY = {
-    pick: (a) => ({
-      crumbs: ["Canvass", "Pick a winner"],
-      title: `${a.supplier.name} wins ${a.line.item.name}?`,
-      intro: "Say why. The reason is kept with the winner and printed on the Canvass.",
-      label: "Why this supplier",
-      initial: a.line.winner?.reason ?? "",
-      confirmLabel: "Pick winner",
-    }),
-    all: (a) => ({
-      crumbs: ["Canvass", "Wins every line"],
-      title: `${a.supplier.name} wins every line it quoted?`,
-      intro: "It is picked on every line it quoted, with this one reason. Lines it did not quote, and Purchased lines, are skipped.",
-      label: "Why this supplier",
-      confirmLabel: "Pick on every line",
-    }),
-    same: () => ({
-      crumbs: ["Canvass", "Same reason for all"],
-      title: "Use the same reason for all?",
-      intro: "This reason replaces the one on every picked line that is not locked.",
-      label: "Reason",
-      confirmLabel: "Use for all",
-    }),
-    note: () => ({
-      crumbs: ["Canvass", "No other supplier"],
-      title: "No other supplier?",
-      intro: "It stands in for the suppliers this Canvass is short of. It counts toward the three until a supplier fills that place.",
-      label: "Why there is no other supplier",
-      initial: strip.note?.reason ?? "",
-      confirmLabel: "Save note",
-    }),
-    unlock: (a) => ({
-      crumbs: ["Canvass", "Unlock"],
-      title: `Unlock ${a.line.item.name}?`,
-      intro: "Its prices, winner and reason can change again. The reason is kept in the history.",
-      label: "Why it is being unlocked",
-      confirmLabel: "Unlock",
-    }),
-  };
-  const reasonCopy = reasonFor ? REASON_COPY[reasonFor.kind](reasonFor) : null;
-
   const unitCount = (n, noun) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
   return (
@@ -439,7 +384,7 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
             <span className="font-medium text-foreground">No other supplier:</span>
             <span className="min-w-0 break-words">{strip.note.reason}</span>
             {canEdit && (
-              <Button type="button" variant="link" onClick={() => setClearingNote(true)} className="h-auto p-0 text-xs underline">
+              <Button type="button" variant="link" onClick={() => supplierActions.setClearingNote(true)} className="h-auto p-0 text-xs underline">
                 Remove note
               </Button>
             )}
@@ -457,7 +402,7 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
                 Same reason for all
               </Button>
             )}
-            <Button type="button" size="sm" onClick={() => setSupplierDialog({})}>
+            <Button type="button" size="sm" onClick={() => supplierActions.openSupplierDialog()}>
               <Plus size={14} aria-hidden="true" />
               Add a supplier
             </Button>
@@ -466,7 +411,7 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
       </div>
 
       {!canReadMoney && suppliers.length > 0 && <p className={HINT}>Prices and rates are not shown to you.</p>}
-      {lines.length === 0 && <p className={cn(HINT, "py-6 text-center")}>This request has no open lines to canvass.</p>}
+      {strip.lineCount === 0 && <p className={cn(HINT, "py-6 text-center")}>This request has no open lines to canvass.</p>}
       {suppliers.length === 0 && lines.length > 0 && (
         <p className={HINT}>
           {canEdit ? "No supplier yet. Add the first one to start the Canvass." : "No Canvass has been started on this request."}
@@ -489,8 +434,8 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
                   canEdit={canEdit}
                   wins="Wins every line"
                   winsBlocked={pickAllBlockedReason(grid, supplier.id)}
-                  onEdit={() => setSupplierDialog({ supplier })}
-                  onRemove={() => setRemoving(supplier)}
+                  onEdit={() => supplierActions.openSupplierDialog(supplier)}
+                  onRemove={() => supplierActions.askRemoveSupplier(supplier)}
                   onWinsAll={() => ask({ kind: "all", supplier })}
                 />
               ))}
@@ -499,7 +444,7 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
             {lines.map((line) => {
               const item = line.item;
               const focused = focusItemId === line.id;
-              const editable = canEdit && !line.locked;
+              const editable = canEdit && !line.locked && !line.cancelled;
               const openHere = openCell && openCell.lineId === line.id ? suppliers.find((s) => s.id === openCell.supplierId) : null;
               const openCellData = openHere ? line.cells.find((c) => c.supplierId === openHere.id) : null;
               const winnerCell = line.winner ? line.cells.find((c) => c.supplierId === line.winner.supplierId) : null;
@@ -510,9 +455,9 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
                       ref={focused ? focusRef : undefined}
                       role="rowheader"
                       aria-label={item.name}
-                      className={cn("sticky left-0 z-10 flex min-w-0 flex-col gap-1 border-b border-r border-border bg-card px-3 py-2", focused && "ring-2 ring-inset ring-blue-8")}
+                      className={cn("sticky left-0 z-10 flex min-w-0 flex-col gap-1 border-b border-r border-border bg-card px-3 py-2", focused && "ring-2 ring-inset ring-blue-8", line.cancelled && "text-muted-foreground")}
                     >
-                      <p className="min-w-0 break-words text-sm font-semibold text-foreground">{item.name}</p>
+                      <p className={cn("min-w-0 break-words text-sm font-semibold text-foreground", line.cancelled && "font-normal text-muted-foreground line-through")}>{item.name}</p>
                       <p className={HINT}>
                         {item.quantity} {item.unit ?? ""}
                       </p>
@@ -539,7 +484,7 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
                           role="gridcell"
                           data-testid={`cell-${line.id}-${supplier.id}`}
                           data-winner={cell.winner || undefined}
-                          className={cn("flex min-w-0 flex-col gap-1 border-b border-r border-border px-3 py-2", cell.winner && "bg-green-a2")}
+                          className={cn("flex min-w-0 flex-col gap-1 border-b border-r border-border px-3 py-2", cell.winner && "bg-green-a2", line.cancelled && "bg-muted/30")}
                         >
                           {canReadMoney ? (
                             <Cell
@@ -580,6 +525,7 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
                               </Button>
                             )}
                             {canEdit &&
+                              !line.cancelled &&
                               (cell.winner ? (
                                 <Button
                                   type="button"
@@ -588,7 +534,7 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
                                   disabled={line.locked}
                                   title={line.locked ? blocked ?? undefined : undefined}
                                   aria-label={`Un-pick ${supplier.name} on ${item.name}`}
-                                  onClick={() => attempt(() => canvassService.clearWinner(line.id), "Winner cleared.")}
+                                  onClick={() => winner.unpick(line)}
                                   className="h-7 px-2 text-xs"
                                 >
                                   Un-pick
@@ -628,10 +574,7 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
                               value={line.winner.reason}
                               readOnly={!editable}
                               placeholder="Why this supplier"
-                              onSave={(value) => {
-                                if (!String(value ?? "").trim()) throw new Error("A winner needs a reason.");
-                                return strict(() => canvassService.setWinnerReason(line.id, value));
-                              }}
+                              onSave={(value) => winner.saveWinnerReason(line, value)}
                             />
                           </Labeled>
                           <Projection projection={projectionOf(line, winnerCell)} label="Winner would give" />
@@ -663,60 +606,45 @@ export default function CanvassGrid({ request, focusItemId = null, className }) 
         </div>
       )}
 
-      {supplierDialog && (
+      {supplierActions.supplierDialog && (
         <CanvassSupplierDialog
-          key={supplierDialog.supplier?.id ?? "new"}
+          key={supplierActions.supplierDialog.supplier?.id ?? "new"}
           open
-          onOpenChange={(open) => !open && setSupplierDialog(null)}
-          supplier={supplierDialog.supplier ?? null}
-          canReadMoney={canReadMoney || !canvass}
-          onSubmit={async (values) => {
-            if (supplierDialog.supplier) {
-              await canvassService.updateSupplier(supplierDialog.supplier.id, values);
-              toast.success(`${values.supplierName} saved.`);
-            } else {
-              const started = await canvassService.addSupplier(requestId, values, actorId);
-              toast.success(canvass ? `${values.supplierName} added.` : `Canvass ${started.number} started.`);
-            }
-            refresh();
-          }}
+          onOpenChange={(open) => !open && supplierActions.closeSupplierDialog()}
+          supplier={supplierActions.supplierDialog.supplier ?? null}
+          canReadMoney={canvass ? canReadMoney : Boolean(startingMoney)}
+          onSubmit={supplierActions.saveSupplier}
         />
       )}
 
-      {reasonFor && reasonCopy && (
+      {winner.reasonFor && winner.reasonCopy && (
         <CanvassReasonDialog
-          key={`${reasonFor.kind}-${reasonFor.line?.id ?? ""}-${reasonFor.supplier?.id ?? ""}`}
+          key={`${winner.reasonFor.kind}-${winner.reasonFor.line?.id ?? ""}-${winner.reasonFor.supplier?.id ?? ""}`}
           open
-          onOpenChange={(open) => !open && setReasonFor(null)}
+          onOpenChange={(open) => !open && winner.closeReason()}
           placeholder="One line is enough."
-          onSubmit={submitReason}
-          {...reasonCopy}
+          onSubmit={winner.submitReason}
+          {...winner.reasonCopy}
         />
       )}
 
       <ConfirmDialog
-        open={Boolean(removing)}
-        onOpenChange={(open) => !open && setRemoving(null)}
-        title={`Remove ${removing?.name ?? "this supplier"}?`}
-        description={`Its quotes on ${unitCount(lines.length, "line")}, and any win they held, go with it.`}
+        open={Boolean(supplierActions.removing)}
+        onOpenChange={(open) => !open && supplierActions.cancelRemoveSupplier()}
+        title={`Remove ${supplierActions.removing?.name ?? "this supplier"}?`}
+        description={`Its quotes on ${unitCount(strip.lineCount, "line")}, and any win they held, go with it.`}
         confirmLabel="Remove"
         tone="destructive"
-        onConfirm={async () => {
-          await attempt(() => canvassService.removeSupplier(removing.id), `${removing.name} removed.`);
-          setRemoving(null);
-        }}
+        onConfirm={supplierActions.confirmRemoveSupplier}
       />
       <ConfirmDialog
-        open={clearingNote}
-        onOpenChange={setClearingNote}
+        open={supplierActions.clearingNote}
+        onOpenChange={supplierActions.setClearingNote}
         title="Remove the “No other supplier” note?"
         description="The database refuses while a winner depends on it."
         confirmLabel="Remove note"
         tone="destructive"
-        onConfirm={async () => {
-          await attempt(() => canvassService.clearNoOtherSupplier(canvass.id), "Note removed.");
-          setClearingNote(false);
-        }}
+        onConfirm={supplierActions.confirmClearNote}
       />
     </div>
   );

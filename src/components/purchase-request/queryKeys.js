@@ -21,6 +21,7 @@ export const canvassKeys = {
   request: (requestId) => ["canvass", "request", requestId],
   unlocks: (requestId) => ["canvass", "request", requestId, "unlocks"],
   projection: (requestId) => ["canvass", "request", requestId, "projection"],
+  money: (requestId) => ["canvass", "request", requestId, "money"],
 };
 
 /** The Purchase Requests list (#308, #179): every request the signed-in employee may read. */

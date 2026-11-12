@@ -59,7 +59,7 @@ async function readOrThrow(query) {
 }
 
 /**
- * The request as the sheet names it, its lines in order (a cancelled line is left off), and the
+ * The request as the sheet names it, its lines in order (a cancelled line stays, marked), and the
  * Canvasser. The brand asked for comes from the Component a line names.
  */
 async function readRequest(canvass) {
@@ -86,7 +86,7 @@ async function readRequest(canvass) {
     })(),
   ]);
 
-  const kept = (items ?? []).filter((item) => item.status !== 'cancelled');
+  const kept = items ?? [];
   const componentIds = [...new Set(kept.map((item) => item.component_id).filter(Boolean))];
   const components = componentIds.length
     ? await readOrThrow(supabase.from('costing_components').select('id, brand').in('id', componentIds))

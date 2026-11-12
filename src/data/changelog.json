@@ -1,5 +1,19 @@
 [
     {
+        "date": "2026-11-13",
+        "title": "One Canvass for the whole request",
+        "version": "1.10.6",
+        "changes": [
+            "A Purchase Request now has one Canvass: its lines go down and the suppliers go across, so you compare every line side by side.",
+            "Add each supplier once with its currency, rate, how long the quote holds and its lead time, then type its price on each line.",
+            "Pick a winner on each line with a reason, or let one supplier win every line it quoted. A Purchased line is locked until a Super Admin unlocks it.",
+            "A cancelled line stays in the Canvass and on the printed sheet, marked Cancelled, and cannot get a winner.",
+            "A line that was bought with no Canvass says so on the request and on the printed sheet.",
+            "The Canvasses page lists one row per request, and the printed sheet shows up to three suppliers across a page.",
+            "If you cannot see prices, you can still add a foreign supplier. It shows No rate until someone who can see prices fills it in."
+        ]
+    },
+    {
         "date": "2026-11-12",
         "title": "S0 Evaluation: cleaner figures and a start from just an S0",
         "version": "1.10.5",
