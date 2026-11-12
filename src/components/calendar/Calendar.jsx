@@ -1,16 +1,22 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
+import { CalendarDays } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { cn } from '@/lib/utils';
 import PageLoading from '@/components/ui/PageLoading';
 import QueryError from '@/components/ui/QueryError';
 import { Button } from '@/components/ui/button';
+import FilterBar from '@/components/ui/FilterBar';
+import SidePanel from '@/components/ui/SidePanel';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
 import { meetingRequestService } from '@/services/meetingRequestService';
 import { getPermissionContext } from '@/utils/permissions';
-import { manilaToday } from '@/lib/manilaDate.js';
+import { manilaToday, parseManilaDate } from '@/lib/manilaDate.js';
 import CalendarMonth from '@/components/calendar/CalendarMonth';
+import CalendarAgenda from '@/components/calendar/CalendarAgenda';
 import CalendarGantt from '@/components/calendar/CalendarGantt';
 import DayRail from '@/components/calendar/DayRail';
 import EntryDetail from '@/components/calendar/EntryDetail';
@@ -22,6 +28,9 @@ import { useCalendarLayers } from '@/components/calendar/useCalendarLayers';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 
 const LAYOUT_KEY = 'calendar.layout';
+const PHONE_QUERY = '(max-width: 767.98px)';
+// The same test SidePanel uses for its inline column (inlineFrom 1440, over 700px tall).
+const ROOMY_QUERY = '(min-width: 1440px) and (min-height: 701px)';
 
 function rememberedLayout() {
   try {
@@ -75,7 +84,14 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   const canSeePending = ctx.isHr || ctx.isSuperAdmin || ctx.canManageLeaves;
 
   const [params, setParams] = useSearchParams();
-  const { layout, date: anchor, weeks } = parseCalendarParams(params, manilaToday(), rememberedLayout());
+  const parsed = parseCalendarParams(params, manilaToday(), rememberedLayout());
+  const { date: anchor, weeks } = parsed;
+  const phone = useMediaQuery(PHONE_QUERY);
+  const roomy = useMediaQuery(ROOMY_QUERY);
+  // The Gantt needs room; a phone always gets the month, as an Agenda.
+  const layout = phone ? 'calendar' : parsed.layout;
+  const ganttHidden = phone && parsed.layout === 'gantt';
+  const [panelOpen, setPanelOpen] = useState(false);
   // Keep any other URL params (e.g. a host page's tab) when the layout or date changes.
   const go = (next) =>
     setParams(
@@ -119,12 +135,31 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   const entries = visibleEntries(all, layers);
   const open = (e) => setSelected(withSpan(e, entries));
   const gantt = layout === 'gantt';
+  const dayEntries = entries.filter((e) => e.manila_date === anchor);
+  const dayDate = parseManilaDate(anchor);
+  const dayLabel = `${anchor === todayYmd ? 'Today' : format(dayDate, 'EEE')} · ${format(dayDate, 'MMM d')}`;
+  const openDay = (ymd) => {
+    go({ date: ymd });
+    setPanelOpen(true);
+  };
+  const dayRail = (
+    <DayRail
+      ymd={anchor}
+      entries={entries}
+      layers={layers}
+      venues={venues}
+      todayYmd={todayYmd}
+      onOpenEntry={open}
+      onPickSlot={onPickSlot}
+      framed={roomy}
+    />
+  );
   const unit = gantt ? 'week' : 'month';
 
   const toolbar = (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-      <LayoutSwitch layout={layout} onChange={pickLayout} />
-      <h2 className="min-w-40 text-xl font-black tracking-tight" data-testid="calendar-title">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      {!phone && <LayoutSwitch layout={layout} onChange={pickLayout} />}
+      <h2 className="min-w-28 text-lg font-black tracking-tight" data-testid="calendar-title">
         {layoutTitle(layout, anchor, weeks)}
       </h2>
       <NavArrows
@@ -134,9 +169,26 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
         onToday={() => go({ date: todayYmd })}
       />
       {gantt && <WeeksSwitch weeks={weeks} onChange={(n) => go({ weeks: String(n) })} />}
-      <div className="flex flex-wrap items-center gap-3 lg:ml-auto">
+      <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
         <LayerToggles layers={layers} toggleLayer={toggleLayer} all={all} />
-        {canSeePending && <PendingSwitch showPending={showPending} setShowPending={setShowPending} />}
+        {canSeePending && (
+          <FilterBar
+            className="w-auto flex-none sm:flex-none"
+            filters={<PendingSwitch showPending={showPending} setShowPending={setShowPending} />}
+            activeCount={showPending ? 1 : 0}
+          />
+        )}
+        {!gantt && !roomy && (
+          <SidePanel
+            label={dayLabel}
+            icon={CalendarDays}
+            badge={dayEntries.length}
+            open={panelOpen}
+            onOpenChange={setPanelOpen}
+          >
+            {dayRail}
+          </SidePanel>
+        )}
       </div>
     </div>
   );
@@ -158,6 +210,19 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
         onPickSlot={onPickSlot}
       />
     );
+  else if (phone)
+    body = (
+      <CalendarAgenda
+        anchor={anchor}
+        entries={entries}
+        todayYmd={todayYmd}
+        selectedYmd={anchor}
+        onSelectDay={(ymd) => go({ date: ymd })}
+        onOpenDay={openDay}
+        onOpenEntry={open}
+        loading={isLoading ? <PageLoading /> : null}
+      />
+    );
   else
     body = (
       <CalendarMonth
@@ -166,13 +231,14 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
         todayYmd={todayYmd}
         selectedYmd={anchor}
         onSelectDay={(ymd) => go({ date: ymd })}
+        onOpenDay={openDay}
         onOpenEntry={open}
         loading={isLoading ? <PageLoading /> : null}
       />
     );
 
   return (
-    <div className="pb-16">
+    <div className="pb-16 laptop:pb-8">
       {gantt ? (
         <div className="flex min-w-0 flex-col gap-4">
           {toolbar}
@@ -180,21 +246,18 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
           <KindKey />
         </div>
       ) : (
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-          <section className="flex min-w-0 flex-col gap-4">
+        <div className="flex items-start gap-6">
+          <section className="flex min-w-0 flex-1 flex-col gap-3">
             {toolbar}
+            {ganttHidden && <p className="text-sm text-muted-foreground">Gantt needs a wider screen.</p>}
             {body}
             <KindKey />
           </section>
-          <DayRail
-            ymd={anchor}
-            entries={entries}
-            layers={layers}
-            venues={venues}
-            todayYmd={todayYmd}
-            onOpenEntry={open}
-            onPickSlot={onPickSlot}
-          />
+          {roomy && (
+            <SidePanel label={dayLabel} inlineFrom={1440} width="20rem" className="sticky top-4">
+              {dayRail}
+            </SidePanel>
+          )}
         </div>
       )}
       <EntryDetail entry={selected} onClose={() => setSelected(null)} entries={entries} viewerId={user?.id} onWithdraw={onWithdraw} />

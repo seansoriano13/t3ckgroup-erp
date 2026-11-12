@@ -23,7 +23,7 @@ const isBar = (e) => TIME_OFF_KINDS.has(e.kind);
 const lineText = (e) =>
   e.kind === 'MEETING' ? e.title : `${shortName(e.employee?.name)} ${e.kind === 'UNDERTIME' ? 'undertime' : 'overtime'}`;
 
-function Week({ week, entries, selectedYmd, todayYmd, onSelectDay, onOpenEntry }) {
+function Week({ week, entries, selectedYmd, todayYmd, onSelectDay, onOpenDay, onOpenEntry }) {
   const ymds = week.map((d) => d.ymd);
   const bars = entriesToBars(entries.filter(isBar), ymds);
   const shownBars = bars.filter((b) => b.lane < MAX_LANES);
@@ -38,8 +38,8 @@ function Week({ week, entries, selectedYmd, todayYmd, onSelectDay, onOpenEntry }
 
   return (
     <div
-      className={cn('grid border-b border-mauve-5 last:border-b-0', COLS)}
-      style={{ gridTemplateRows: `2.25rem ${lanes ? `repeat(${lanes}, ${LANE})` : ''} minmax(4.5rem, auto)` }}
+      className={cn('grid border-b border-mauve-5 last:border-b-0 laptop:[--cal-row:2.6rem]', COLS)}
+      style={{ gridTemplateRows: `2.25rem ${lanes ? `repeat(${lanes}, ${LANE})` : ''} minmax(var(--cal-row, 4.5rem), auto)` }}
     >
       {week.map((day, i) => {
         const selected = day.ymd === selectedYmd;
@@ -51,7 +51,10 @@ function Week({ week, entries, selectedYmd, todayYmd, onSelectDay, onOpenEntry }
             data-day={day.ymd}
             data-testid={`day-${day.ymd}`}
             tabIndex={selected ? 0 : -1}
-            onClick={() => onSelectDay?.(day.ymd)}
+            onClick={() => {
+              onSelectDay?.(day.ymd);
+              onOpenDay?.(day.ymd);
+            }}
             aria-label={`${format(day.date, 'EEEE, MMMM d')}, ${count} on the Calendar`}
             aria-pressed={selected}
             className={cn(
@@ -133,7 +136,10 @@ function Week({ week, entries, selectedYmd, todayYmd, onSelectDay, onOpenEntry }
                 <Button
                   variant="link"
                   tabIndex={-1}
-                  onClick={() => onSelectDay?.(day.ymd)}
+                  onClick={() => {
+                    onSelectDay?.(day.ymd);
+                    onOpenDay?.(day.ymd);
+                  }}
                   className="pointer-events-auto h-5 justify-start px-1 text-xs font-semibold text-muted-foreground"
                 >
                   +{extra} more
@@ -169,8 +175,10 @@ const SLIDE = {
  *
  *   selectedYmd  the highlighted day (the Calendar's day rail shows it)
  *   onSelectDay  called with a Manila date when a day is clicked or keyed to
+ *   onOpenDay    called with a Manila date on a click only (opens the day panel
+ *                when it is not beside the grid), never on an arrow key
  */
-export default function CalendarMonth({ anchor, entries, onOpenEntry, todayYmd, selectedYmd = null, onSelectDay = null, loading = null }) {
+export default function CalendarMonth({ anchor, entries, onOpenEntry, todayYmd, selectedYmd = null, onSelectDay = null, onOpenDay = null, loading = null }) {
   const weeks = monthWeeks(anchor);
   const month = anchor.slice(0, 7);
   const reduce = useReducedMotion();
@@ -216,7 +224,7 @@ export default function CalendarMonth({ anchor, entries, onOpenEntry, todayYmd, 
     <div
       ref={grid}
       onKeyDown={onKeyDown}
-      className="overflow-hidden rounded-2xl border border-mauve-5 bg-background"
+      className="flex flex-col overflow-hidden rounded-2xl border border-mauve-5 bg-background laptop:h-[max(22rem,calc(100dvh-16rem))]"
       role="group"
       aria-label="Month"
       data-testid="calendar-month"
@@ -230,6 +238,7 @@ export default function CalendarMonth({ anchor, entries, onOpenEntry, todayYmd, 
       </div>
       <AnimatePresence mode="wait" initial={false} custom={dir}>
         <motion.div
+          className="min-h-0 flex-1 overflow-y-auto"
           key={month}
           custom={dir}
           variants={SLIDE}
@@ -248,6 +257,7 @@ export default function CalendarMonth({ anchor, entries, onOpenEntry, todayYmd, 
                 selectedYmd={selectedYmd}
                 todayYmd={todayYmd}
                 onSelectDay={onSelectDay}
+                onOpenDay={onOpenDay}
                 onOpenEntry={onOpenEntry}
               />
             ))}
