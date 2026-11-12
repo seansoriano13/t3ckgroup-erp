@@ -144,7 +144,7 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent showCloseButton={false} className="gap-0 p-0 flex flex-col overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">Your Signature</h2>
           <Button
             variant="ghost"
@@ -156,7 +156,7 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
           </Button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-4">
           <TabGroup
             variant="pill"
             tabs={[

@@ -67,3 +67,32 @@ describe("Dialog layers", () => {
     expect(layerOf(option)).toBeGreaterThan(layerOf(popup()));
   });
 });
+
+// #957: a tall dialog must never run off the screen with its buttons out of reach.
+describe("Dialog height", () => {
+  it("limits a dialog to the screen minus a 16px inset and lets it scroll", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Tall form</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    const { className } = popup();
+    expect(className).toContain("max-h-[calc(100vh-2rem)]");
+    expect(className).toContain("supports-[height:1dvh]:max-h-[calc(100dvh-2rem)]");
+    expect(className).toContain("overflow-y-auto");
+  });
+
+  it("lets a caller keep its own overflow for a pinned header and footer", () => {
+    render(
+      <Dialog open>
+        <DialogContent className="flex flex-col overflow-hidden">
+          <DialogTitle>Pinned</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    expect(popup().className).toContain("overflow-hidden");
+    expect(popup().className).not.toContain("overflow-y-auto");
+  });
+});
