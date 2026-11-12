@@ -82,7 +82,7 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
           <IpasSignerListEditor />
         </>
       ) : (
-        <IpasOptionListEditor key={optionList} list={optionList} />
+        <IpasOptionListEditor key={optionList} list={optionList} isSuperAdmin={isSuperAdmin} />
       )}
     </div>
   );

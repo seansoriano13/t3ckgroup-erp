@@ -9,6 +9,7 @@ import {
   IPAS_DOCUMENT_APPLIES_TO_VALUES,
   IPAS_DOCUMENT_USED_FOR,
   IPAS_DOCUMENT_USED_FOR_VALUES,
+  IPAS_REQUIRED_BEFORE_VALUES,
   IPAS_ERROR,
   IPAS_LANDED_COST_SPLITS,
   IPAS_NOTIFICATION,
@@ -325,7 +326,7 @@ export const ipasService = {
     if (error) throw error;
     if (!row) return null;
 
-    const [sorsByIpas, events, payments, charges, options, documents, bank, slips, signoffs, landed, workedOn] = await Promise.all([
+    const [sorsByIpas, events, payments, charges, options, fileRules, documents, bank, slips, signoffs, landed, workedOn] = await Promise.all([
       readSorHeaders([id]),
       supabase
         .from("ipas_events")
@@ -345,6 +346,7 @@ export const ipasService = {
         .order("charged_on", { ascending: true })
         .order("created_at", { ascending: true }),
       supabase.from("ipas_options").select("*"),
+      supabase.from("ipas_file_rules").select("*").maybeSingle(),
       supabase.from("ipas_documents").select("*").eq("ipas_id", id).order("created_at", { ascending: true }),
       readBankDetails(id),
       transmittalService.forIpas(id),
@@ -352,7 +354,7 @@ export const ipasService = {
       supabase.rpc("ipas_landed_cost", { p_ipas_id: id }),
       readWorkedOn([id]),
     ]);
-    for (const result of [events, payments, charges, options, documents, signoffs, landed]) {
+    for (const result of [events, payments, charges, options, fileRules, documents, signoffs, landed]) {
       if (result.error) throw result.error;
     }
 
@@ -378,6 +380,8 @@ export const ipasService = {
       // Every option row, inactive ones too: a row that holds a deactivated
       // option still resolves it, and the pickers filter it out for new rows.
       options: options.data || [],
+      // The two file switches (#959): proof on every payment, a file on every charge.
+      fileRules: fileRules.data ?? null,
       events: events.data || [],
       // Bank details (#245): null when none is typed OR the caller may not read
       // them; canReadBankDetails says which, so the page shows the section only
@@ -977,7 +981,7 @@ export const ipasService = {
    * Purchasing access and Super Admins only (row level security). A label is
    * unique within its list, ignoring case.
    */
-  async saveOption({ id = null, list, label, appliesTo, usedFor }) {
+  async saveOption({ id = null, list, label, appliesTo, usedFor, requiredBefore }) {
     requireOneOf(list, [...Object.values(IPAS_OPTION_LIST), ...Object.values(TRANSMITTAL_OPTION_LIST)], "Pick a list.");
     const name = (label || "").trim();
     if (!name) {
@@ -995,6 +999,11 @@ export const ipasService = {
       if (usedFor !== undefined) {
         requireOneOf(usedFor, IPAS_DOCUMENT_USED_FOR_VALUES, "Pick documentation, filing or both for the document kind.");
         marks.used_for = usedFor;
+      }
+      // "Required before" (#959): null = not required. Super Admins only (the database refuses others).
+      if (requiredBefore !== undefined) {
+        if (requiredBefore !== null) requireOneOf(requiredBefore, IPAS_REQUIRED_BEFORE_VALUES, "Pick 1 Order, 3 Costs, 6 Sign-offs or not required.");
+        marks.required_before = requiredBefore;
       }
     }
 
@@ -1033,11 +1042,29 @@ export const ipasService = {
           ? {
               applies_to: marks.applies_to ?? IPAS_DOCUMENT_APPLIES_TO.BOTH,
               used_for: marks.used_for ?? IPAS_DOCUMENT_USED_FOR.DOCUMENTATION,
+              ...(marks.required_before != null ? { required_before: marks.required_before } : {}),
             }
           : {}),
       })
       .select()
       .single();
+    if (error) throw error;
+    return data;
+  },
+
+  /** The two file switches (#959). Both on when the row is not there (the seeded value). */
+  async getFileRules() {
+    const { data, error } = await supabase.from("ipas_file_rules").select("*").maybeSingle();
+    if (error) throw error;
+    return { proof_on_every_payment: true, file_on_every_charge: true, ...(data ?? {}) };
+  },
+
+  /** Sets one or both file switches (#959). Super Admins only: the database refuses others. */
+  async setFileRules({ proofOnEveryPayment, fileOnEveryCharge }) {
+    const changes = {};
+    if (proofOnEveryPayment !== undefined) changes.proof_on_every_payment = Boolean(proofOnEveryPayment);
+    if (fileOnEveryCharge !== undefined) changes.file_on_every_charge = Boolean(fileOnEveryCharge);
+    const { data, error } = await supabase.from("ipas_file_rules").update(changes).eq("id", true).select().single();
     if (error) throw error;
     return data;
   },

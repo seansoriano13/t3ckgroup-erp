@@ -14,6 +14,8 @@ export const ipasRecentSorsKey = ["ipas", "recent-sors"];
 export const ipasOptionsKey = (list) => ["ipas", "options", list];
 /** The options a filed IPAS uses: those can't be renamed. */
 export const ipasFiledOptionsKey = ["ipas", "filed-options"];
+/** The two file switches (#959). */
+export const ipasFileRulesKey = ["ipas", "file-rules"];
 export const ipasSignerListsKey = ["ipas", "signer-lists"];
 /** Who changed the sign-off lists (Super Admins). */
 export const ipasSignerListLogKey = ["ipas", "signer-list-log"];

@@ -40,7 +40,8 @@ import {
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   ODOO_PO_STATE_LABELS,
 } from '../../constants/ipas';
-import { SECTION_DOCUMENT_KINDS, filingChecklist } from '../../utils/ipasDocuments';
+import { filingChecklist } from '../../utils/ipasDocuments';
+import { IPAS_REQUIRED_BEFORE } from '../../constants/ipas';
 import { landedTable } from '../../utils/ipasLandedTable';
 import { formatDay } from '../../utils/ipasPayments';
 import { isLandedCostFinal } from '../../utils/ipasSignoffs';
@@ -261,16 +262,18 @@ function landedCostOf(ipas, filed, charges) {
   };
 }
 
-/** The documents that sit under one part (#711): its own kinds; Filing's items; Finance holds the rest. */
+/**
+ * The documents that sit under one part (#711): the kinds required before Order and Costs (the
+ * kind's "Required before" setting, #959); Filing's items; Finance holds the rest.
+ */
 function documentsOf(part, documents) {
-  const own = (key) => new Set(Object.values(SECTION_DOCUMENT_KINDS[key] ?? {}).flat().map((label) => label.toLowerCase()));
-  const kindOf = (doc) => String(doc.kind?.label ?? doc.label ?? '').trim().toLowerCase();
-  const claimed = new Set([...own('purchasing'), ...own('costing')]);
+  const before = (doc) => doc.kind?.required_before;
+  const claimed = (doc) => before(doc) === IPAS_REQUIRED_BEFORE.ORDER || before(doc) === IPAS_REQUIRED_BEFORE.COSTS;
   const pick = {
-    purchasing: (doc) => own('purchasing').has(kindOf(doc)),
-    costing: (doc) => own('costing').has(kindOf(doc)),
+    purchasing: (doc) => before(doc) === IPAS_REQUIRED_BEFORE.ORDER,
+    costing: (doc) => before(doc) === IPAS_REQUIRED_BEFORE.COSTS,
     filing: (doc) => doc.isFiling,
-    finance: (doc) => !doc.isFiling && !claimed.has(kindOf(doc)),
+    finance: (doc) => !doc.isFiling && !claimed(doc),
   }[part];
   return documents.filter(pick).map((doc) => ({ label: doc.label, have: Boolean(doc.purchasingHas || doc.financeHas || doc.attachmentUrl) }));
 }

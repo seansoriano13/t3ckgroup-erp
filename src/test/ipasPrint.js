@@ -16,7 +16,7 @@ const OPTIONS = [
   { id: "opt-bank-tt", list: "payment_method", label: "Bank TT", active: true, sort: 1 },
   { id: "opt-brokerage", list: "charge_kind", label: "Brokerage Fee", active: true, sort: 1 },
   { id: "opt-duties", list: "charge_kind", label: "Duties & Taxes", active: true, sort: 2 },
-  { id: "opt-pi", list: "document_kind", label: "Proforma Invoice", applies_to: "import", used_for: "doc", active: true, sort: 1 },
+  { id: "opt-pi", list: "document_kind", label: "Proforma Invoice", applies_to: "import", used_for: "doc", required_before: 1, active: true, sort: 1 },
   { id: "opt-waybill", list: "document_kind", label: "Waybill", applies_to: "import", used_for: "both", active: true, sort: 2 },
   { id: "opt-2307", list: "document_kind", label: "BIR 2307", applies_to: "both", used_for: "filing", active: true, sort: 3 },
   { id: "opt-loc", list: "item_location", label: "BM Office", active: true, sort: 1 },

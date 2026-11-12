@@ -1877,6 +1877,15 @@ export function seedIpasOptions(seed) {
   }
 
   // Document kinds (#246): label, the Source it is suggested for, documentation / filing / both.
+  // The seeded "Required before" (#959) is below: the migration's rules, BIR 2307 not required.
+  const requiredBefore = {
+    "Proforma Invoice": 1,
+    "Quotation (Local)": 1,
+    "BL or Waybill": 3,
+    "Packing List": 3,
+    "Commercial Invoice": 3,
+    "Freight Billing": 3,
+  }
   const kinds = [
     ["Proforma Invoice", "import", "both"],
     ["Quotation (Local)", "local", "documentation"],
@@ -1902,6 +1911,7 @@ export function seedIpasOptions(seed) {
       active: true,
       applies_to,
       used_for,
+      required_before: requiredBefore[label] ?? null,
     })
   })
 
