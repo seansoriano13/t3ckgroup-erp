@@ -25,6 +25,7 @@ import { useAuth } from "../context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { notificationService } from "../services/notificationService";
 import { groupChatNotifications } from "../utils/groupChatNotifications";
+import { mayHaveMore } from "../utils/notificationPaging";
 import { activeChatService } from "../services/tasks/activeChatService";
 import NotificationDrawer from "./NotificationDrawer";
 import { usePushNotificationClick } from "../hooks/usePushNotificationClick";
@@ -364,6 +365,7 @@ export default function SideNav() {
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sidebar-primary px-1 text-[9px] font-bold text-primary-foreground shadow-sm ring-2 ring-sidebar">
                   {unreadCount}
+                  {mayHaveMore(notifications) ? "+" : ""}
                 </span>
               )}
             </Button>

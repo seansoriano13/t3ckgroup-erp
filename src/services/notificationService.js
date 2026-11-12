@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { sameDepartment } from '../utils/compareDepartment.js';
 import { isPushNotificationType } from '../constants/pushNotificationTypes.js';
+import { NOTIFICATION_PAGE } from '../utils/notificationPaging.js';
 
 /**
  * Writes one notification per recipient, routing each through the
@@ -60,7 +61,28 @@ export const notificationService = {
       `)
       .eq('recipient_id', userId)
       .order('created_at', { ascending: false })
-      .limit(50); // cap to 50 for performance
+      .limit(NOTIFICATION_PAGE); // newest page only, for performance
+
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
+   * The next page of older notifications, for the drawer's "Load older" button.
+   */
+  async getOlderNotifications(userId, beforeCreatedAt) {
+    if (!userId || !beforeCreatedAt) return [];
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .select(`
+        *,
+        sender:employees!notifications_sender_id_fkey(name, department, avatar_path)
+      `)
+      .eq('recipient_id', userId)
+      .lt('created_at', beforeCreatedAt)
+      .order('created_at', { ascending: false })
+      .limit(NOTIFICATION_PAGE);
 
     if (error) throw new Error(error.message);
     return data || [];
