@@ -3,11 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@/lib/utils";
 import { Button } from "../../ui/button";
+import { Checkbox } from "../../ui/checkbox";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../ui/table";
 import StatusBadge from "../../StatusBadge";
 import { Cell } from "../GridCell";
 import { costingMatrixService } from "../../../services/costingMatrixService";
-import { COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
+import { ABC_MODE, COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
 import { factorLabel, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
 import LinerList from "../../record/LinerList";
@@ -239,6 +240,10 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const lines = matrix.tenderLines;
   const { totals } = matrix;
   const showAbc = tierReads(matrix.tier, "abc_unit");
+  // Total only (#960): the lines' own ABC cells go; one typed total stands in the header strip.
+  const totalOnly = showAbc && matrix.abc?.mode === ABC_MODE.TOTAL_ONLY;
+  const showAbcLines = showAbc && !totalOnly;
+  const canAbc = canWrite && matrix.bands.includes(COSTING_BAND.SALES) && matrix.abc != null;
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const showCost = tierReadsCost(matrix.tier, "acquire_unit");
   const showLanded = showCost && tierReadsLandedCost(matrix.tier);
@@ -267,7 +272,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const phoneRows = lines.map((line) => {
     const status = lineBuyingStatus(line);
     const bits = [];
-    if (showAbc) bits.push(`ABC ${pesos(line.totals.abcTotal)}`);
+    if (showAbcLines) bits.push(`ABC ${pesos(line.totals.abcTotal)}`);
     if (showOffer) bits.push(`Offer ${pesos(line.totals.finalOfferTotal)}`);
     if (showCost) bits.push(`Cost ${pesos(line.totals.acquireTotal)}`);
     return {
@@ -294,6 +299,11 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   // The multiplier lives on each part of the row; a blank puts the row back on the default.
   const saveFactor = (line) => async (value) => {
     for (const part of line.components) await costingMatrixService.updateComponent(part.id, { markupFactor: value });
+    await writes.refresh();
+  };
+
+  const saveAbc = async (patch) => {
+    await costingMatrixService.setAbc(matrix.matrixId, patch);
     await writes.refresh();
   };
 
@@ -335,8 +345,35 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           </Fact>
         )}
         {showAbc && (
-          <Fact label="ABC total" sub={totals.missingAbc ? `${totals.missingAbc} without one` : undefined}>
-            {pesos(totals.abcTotal)}
+          <Fact
+            label="ABC total"
+            sub={totalOnly ? undefined : totals.missingAbc ? `${totals.missingAbc} without one` : undefined}
+          >
+            {totalOnly ? (
+              <Cell
+                label="ABC total"
+                noun="The ABC total"
+                value={matrix.abc.total}
+                numeric
+                money
+                placeholder="Type the total"
+                readOnly={!canAbc}
+                onSave={(value) => saveAbc({ total: value })}
+                className="w-36"
+              />
+            ) : (
+              pesos(totals.abcTotal)
+            )}
+            {canAbc && (
+              <div className="mt-1 flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                <Checkbox
+                  aria-label="Type the ABC as one total"
+                  checked={totalOnly}
+                  onCheckedChange={(value) => saveAbc({ mode: value ? ABC_MODE.TOTAL_ONLY : ABC_MODE.BY_LINE })}
+                />
+                Total only
+              </div>
+            )}
           </Fact>
         )}
         {showOffer && (
@@ -379,7 +416,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
             <TableRow>
               <th className={cn(GROUP, FROZEN)}>S0 line</th>
               <th className={GROUP} />
-              <th colSpan={1 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0)} className={GROUP}>
+              <th colSpan={1 + (showAbcLines ? 1 : 0) + (showOffer ? 1 : 0)} className={GROUP}>
                 Sales · the client&apos;s ask
               </th>
               {showCost && (
@@ -397,7 +434,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
               <th className={cn(HEAD, FROZEN)}>Item</th>
               <th className={cn(HEAD, "text-right")}>Qty</th>
               <th className={HEAD}>Client asks for</th>
-              {showAbc && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
+              {showAbcLines && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
               {showOffer && <th className={cn(HEAD, "text-right")}>Final Offer / unit</th>}
               {showCost && <th className={cn(HEAD, "text-right")}>Price</th>}
               {showCost && <th className={cn(HEAD, "text-right")}>In pesos</th>}
@@ -410,7 +447,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           <TableBody>
             {lines.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={3 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
+                <TableCell colSpan={3 + (showAbcLines ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
                   No S0 lines yet.
                 </TableCell>
               </TableRow>
@@ -472,7 +509,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                       />
                     )}
                   </TableCell>
-                  {showAbc && (
+                  {showAbcLines && (
                     <TableCell className={cn(CELL, NUM, "w-36")}>
                       {kid ? (
                         <span className="text-muted-foreground">incl.</span>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { summaryLineShown } from "../constants/costing";
-import { complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
+import { abcSettingOf, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -643,5 +643,72 @@ describe("a row costed by Acquire only (#787)", () => {
   it("still prefers an old deal's Final Acquire", () => {
     const m = { ...matrix, costRows: [{ quantity: 1, acquire_unit: "5.00", final_acquire_unit: "7.00" }] };
     expect(finalAcquireTotal(m.costRows)).toBe(finalAcquireTotal([{ quantity: 1, final_acquire_unit: "7.00" }]));
+  });
+});
+
+describe("ABC typed as one total (#960)", () => {
+  const lines = [
+    { id: "a", quantity: 2, abc_unit: 1000, final_offer_unit: 400 },
+    { id: "b", quantity: 1, abc_unit: 500, final_offer_unit: 100 },
+  ];
+  const totalOnly = (total) => ({ mode: "total_only", total });
+
+  it("By line is unchanged and ignores a typed total", () => {
+    const t = matrixTotals(lines, { mode: "by_line", total: 99 });
+    expect(t).toMatchObject({ abcTotal: 2500, missingAbc: 0, overAbc: false });
+    expect(matrixTotals(lines, null)).toEqual(matrixTotals(lines));
+  });
+
+  it("Total only uses the typed total, not the lines", () => {
+    const t = matrixTotals(lines, totalOnly(800));
+    expect(t.abcTotal).toBe(800);
+    expect(t.finalOfferTotal).toBe(900);
+    expect(t.overAbc).toBe(true);
+    expect(t.percentOfAbc).toBe(112.5);
+    expect(t.missingAbc).toBe(0);
+  });
+
+  it("Total only needs no per-line ABC", () => {
+    const bare = lines.map(({ abc_unit: _a, ...rest }) => rest);
+    expect(matrixTotals(bare, totalOnly(10000)).abcTotal).toBe(10000);
+    expect(matrixTotals(bare).abcTotal).toBeNull();
+  });
+
+  it("is over the ABC at one centavo", () => {
+    expect(matrixTotals(lines, totalOnly(900)).overAbc).toBe(false);
+    expect(matrixTotals(lines, totalOnly(899.99)).overAbc).toBe(true);
+  });
+
+  it("a blank total is never zero", () => {
+    for (const blank of [null, undefined, ""]) {
+      const t = matrixTotals(lines, totalOnly(blank));
+      expect(t.abcTotal).toBeNull();
+      expect(t.overAbc).toBe(false);
+      expect(t.percentOfAbc).toBeNull();
+      expect(t.missingAbc).toBe(1);
+    }
+    expect(matrixTotals(lines, totalOnly(0)).abcTotal).toBe(0);
+  });
+
+  it("the summary and the whole-offer warning use the typed total; the per-line warning is hidden", () => {
+    const farBelow = [{ id: "a", number: 1, quantity: 1, abc_unit: 1000, final_offer_unit: 100 }];
+    const byLine = offerVsAbc(farBelow);
+    expect(byLine.lines).toHaveLength(1);
+    const typed = offerVsAbc(farBelow, totalOnly(1000));
+    expect(typed.lines).toEqual([]);
+    expect(typed.low).toBe(true);
+    expect(typed.percent).toBe(10);
+    expect(offerVsAbc(farBelow, totalOnly(null)).low).toBe(false);
+
+    const s = summary({ tenderLines: lines, costRows: [], abc: totalOnly(800) }, { vatDivisor: 1.12 });
+    expect(s.abcTotal).toBe(800);
+    expect(s.overAbc).toBe(true);
+  });
+
+  it("reads the setting off a matrix row", () => {
+    expect(abcSettingOf({ abc_mode: "total_only", abc_total: "1500.50" })).toEqual({ mode: "total_only", total: 1500.5 });
+    expect(abcSettingOf({ abc_mode: "by_line", abc_total: null })).toEqual({ mode: "by_line", total: null });
+    expect(abcSettingOf({ id: 1 })).toBeNull();
+    expect(abcSettingOf(null)).toBeNull();
   });
 });

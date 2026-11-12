@@ -21,7 +21,7 @@ export function stubCostingConditionRpcs() {
       const price = rows("costing_tender_line_prices").find((p) => p.tender_line_id === l.id)
       return { quantity: l.quantity, abc_unit: price?.abc_unit ?? null, final_offer_unit: price?.final_offer_unit ?? null }
     })
-    const totals = matrixTotals(priced)
+    const totals = matrixTotals(priced, matrix.abc_mode === "total_only" ? { mode: "total_only", total: matrix.abc_total ?? null } : null)
 
     const components = rows("costing_components").filter((c) => lines.some((l) => l.id === c.tender_line_id))
     const costRows = rows("costing_cost_rows").filter((r) => r.matrix_id === matrix.id)

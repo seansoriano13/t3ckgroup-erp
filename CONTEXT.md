@@ -866,7 +866,10 @@ reference material in [docs/procurement-glossary.md](docs/procurement-glossary.m
 
 **ABC (Approved Budget for the Contract)**:
 The ceiling a government client publishes for a project. A bid above it is
-disqualified, so it is a constraint on the offer, never merely a column.
+disqualified, so it is a constraint on the offer, never merely a column. It can be
+typed per Tender Line, or as one total when the client publishes only a total
+(an evaluation's "Total only" mode). Per-line values typed earlier are kept and
+come back in "By line"; a typed total is never spread over the lines.
 _Avoid_: Budget, Client Budget
 
 **Notice of Award**:

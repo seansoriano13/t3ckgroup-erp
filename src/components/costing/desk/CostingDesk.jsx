@@ -150,7 +150,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   }
 
   const { totals } = matrix;
-  const showAbc = tierReads(matrix.tier, "abc_unit");
+  const showAbc = tierReads(matrix.tier, "abc_unit") && matrix.abc?.mode !== "total_only";
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const showCost = tierReadsCost(matrix.tier, "acquire_unit");
   const showClosedBook = tierReadsCost(matrix.tier, "markup_factor");

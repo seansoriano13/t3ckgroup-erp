@@ -42,6 +42,15 @@ export const TENDER_PRICE_TIERS = {
   quotation_price_unit: [COSTING_TIER.PRICE, COSTING_TIER.CLOSED_BOOK],
 };
 
+/** How an evaluation's ABC is typed (`costing_matrices.abc_mode`, #960): per Tender Line, or as one total. */
+export const ABC_MODE = { BY_LINE: "by_line", TOTAL_ONLY: "total_only" };
+
+/** The evaluation's own ABC columns (`costing_matrices`, #960): read by the tiers that read `abc_unit`, written by the Sales band. */
+export const MATRIX_ABC_TIERS = {
+  abc_mode: [COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+  abc_total: [COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+};
+
 /** Does this tier receive the named Tender Line price column? */
 export const tierReads = (tier, column) => (TENDER_PRICE_TIERS[column] ?? []).includes(tier);
 
@@ -299,6 +308,8 @@ export const COSTING_COLUMN_LABEL = {
   "costing_tender_lines.sor_line_snapshot": "A Tender Line's picked SOR line",
   "costing_tender_line_prices.*": "A Tender Line's prices",
   "costing_tender_line_prices.abc_unit": "ABC",
+  "costing_matrices.abc_mode": "ABC mode",
+  "costing_matrices.abc_total": "ABC (total)",
   "costing_tender_line_prices.final_offer_unit": "Final Offer",
   "costing_matrices.sales_incharge_id": "The Sales incharge",
   "costing_matrices.purchasing_incharge_id": "The Purchasing incharge",
