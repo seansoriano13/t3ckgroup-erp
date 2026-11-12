@@ -163,11 +163,86 @@ describe("Table scrollCue", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("adds no cue without the prop", () => {
+  it("adds no cue when switched off", () => {
     setSize(900, 300);
-    const { container } = render(<Sample />);
+    const { container } = render(<Sample scrollCue={false} />);
     expect(
       container.querySelector('[data-slot="table-scroll-cue"]'),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Table stackOnPhone", () => {
+  function Cards({ onRow, onPick }) {
+    return (
+      <Table stackOnPhone>
+        <TableHeader>
+          <TableRow>
+            <TableHead phone="select" />
+            <TableHead phone="title">Ref</TableHead>
+            <TableHead phone="badge">Status</TableHead>
+            <TableHead>Buyer</TableHead>
+            <TableHead phone="hide">Notes</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow data-testid="row" tabIndex={0} onClick={onRow}>
+            <TableCell>
+              <input type="checkbox" aria-label="pick" onChange={onPick} />
+            </TableCell>
+            <TableCell>PR-1</TableCell>
+            <TableCell>Open</TableCell>
+            <TableCell label="Assigned to">Ana</TableCell>
+            <TableCell>secret</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    );
+  }
+
+  it("places each cell by role and label", () => {
+    render(<Cards />);
+    const cells = screen.getByTestId("row").querySelectorAll("td");
+    expect(cells[1]).toHaveAttribute("data-phone", "title");
+    expect(cells[2]).toHaveAttribute("data-phone", "badge");
+    expect(cells[3]).toHaveAttribute("data-phone", "meta");
+    expect(cells[3]).toHaveAttribute("data-label", "Assigned to");
+    expect(cells[4]).toHaveAttribute("data-phone", "hide");
+  });
+
+  it("falls back to the heading text as the label", () => {
+    render(
+      <Table stackOnPhone>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Buyer</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell data-testid="c">Ana</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    expect(screen.getByTestId("c")).toHaveAttribute("data-label", "Buyer");
+  });
+
+  it("keeps row click, focus and the checkbox working", () => {
+    const onRow = vi.fn();
+    const onPick = vi.fn();
+    render(<Cards onRow={onRow} onPick={onPick} />);
+    const row = screen.getByTestId("row");
+    row.focus();
+    expect(row).toHaveFocus();
+    fireEvent.click(screen.getByText("PR-1"));
+    expect(onRow).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByLabelText("pick"));
+    expect(onPick).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing to a table without the prop", () => {
+    render(<Sample />);
+    expect(screen.getByTestId("cell")).not.toHaveAttribute("data-phone");
   });
 });

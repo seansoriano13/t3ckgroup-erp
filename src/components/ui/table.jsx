@@ -47,7 +47,72 @@ function writeWidths(storageKey, widths) {
 // `resetAbove` puts the "Reset columns" button just above the table instead of
 // over its header, and lets it fade out slowly so the pointer can reach it.
 // The table's parents must not clip it (no overflow-hidden around the table).
-function Table({ className, tableId, style, scrollCue = false, resetAbove = false, ...props }) {
+//
+// Density (#978): cells use px-3 py-2 from 768px to the end of the laptop band
+// (ADR 0051) and px-4 py-3.5 elsewhere. Headings never wrap. `scrollCue` is on
+// by default; while the table is wider than its frame the first column stays
+// put as the rest scrolls sideways.
+//
+// `stackOnPhone` (opt-in): below 768px each row is a card, same DOM (CSS grid on
+// the tr), so sorting, paging, selection and row clicks keep working. A column's
+// place on the card is its `phone` prop on TableHead (or on a TableCell to
+// override): "title" (top line), "badge" (top right), "select" (top left, for a
+// checkbox; also the default for a column whose heading is empty), "meta"
+// (default; "Label value" lines, the label from the cell's `label` prop or the
+// matching heading, at most three, any further ones are dropped) or "hide".
+// The heading row is not shown in card mode, so resize handles are gone too.
+const CARD_TABLE =
+  "max-md:block max-md:[&_thead]:hidden max-md:[&_tbody]:block " +
+  "max-md:[&_tr]:grid max-md:[&_tr]:grid-cols-[auto_minmax(0,1fr)_auto] max-md:[&_tr]:px-3 max-md:[&_tr]:py-2.5 " +
+  "max-md:[&_td]:min-w-0 max-md:[&_td]:p-0 max-md:[&_td]:whitespace-normal " +
+  "max-md:[&_td[data-phone=title]]:col-start-2 max-md:[&_td[data-phone=title]]:row-start-1 max-md:[&_td[data-phone=title]]:truncate max-md:[&_td[data-phone=title]]:text-sm max-md:[&_td[data-phone=title]]:font-medium " +
+  "max-md:[&_td[data-phone=badge]]:col-start-3 max-md:[&_td[data-phone=badge]]:row-start-1 max-md:[&_td[data-phone=badge]]:ml-2 max-md:[&_td[data-phone=badge]]:justify-self-end " +
+  "max-md:[&_td[data-phone=select]]:col-start-1 max-md:[&_td[data-phone=select]]:row-start-1 max-md:[&_td[data-phone=select]]:mr-2 " +
+  "max-md:[&_td[data-phone=meta]]:col-span-3 max-md:[&_td[data-phone=meta]]:flex max-md:[&_td[data-phone=meta]]:gap-1.5 max-md:[&_td[data-phone=meta]]:pt-0.5 max-md:[&_td[data-phone=meta]]:text-muted-foreground max-md:[&_td[data-phone=meta]]:before:shrink-0 max-md:[&_td[data-phone=meta]]:before:content-[attr(data-label)] max-md:[&_td[data-phone=meta]]:before:text-[11px] max-md:[&_td[data-phone=meta]]:before:font-semibold max-md:[&_td[data-phone=meta]]:before:uppercase max-md:[&_td[data-phone=meta]]:before:tracking-wider " +
+  "max-md:[&_td[data-phone=hide]]:hidden";
+
+const STICKY_FIRST =
+  "md:[&_tr>:first-child]:sticky md:[&_tr>:first-child]:left-0 md:[&_tr>:first-child]:z-[1] md:[&_tbody_tr>:first-child]:bg-card md:[&_thead_tr>:first-child]:bg-muted";
+
+const MAX_META = 3;
+
+// Fills in each cell's card role and label from its column heading. A role or
+// label set on the cell itself wins.
+function placeCardCells(table) {
+  const heads = Array.from(
+    table.querySelectorAll("thead tr:last-child > th"),
+  ).map((th) => ({
+    phone:
+      th.getAttribute("data-phone") ||
+      (th.textContent.trim() ? "meta" : "select"),
+    label: th.textContent.trim(),
+  }));
+  table.querySelectorAll("tbody > tr, tfoot > tr").forEach((tr) => {
+    let metas = 0;
+    Array.from(tr.children).forEach((td, i) => {
+      const head = heads[i];
+      if (!td.hasAttribute("data-label"))
+        td.setAttribute("data-label", head?.label ?? "");
+      let role = td.getAttribute("data-phone-set");
+      if (!role) {
+        role = td.getAttribute("data-phone") || head?.phone || "meta";
+        td.setAttribute("data-phone-set", role);
+      }
+      if (role === "meta" && ++metas > MAX_META) role = "hide";
+      td.setAttribute("data-phone", role);
+    });
+  });
+}
+
+function Table({
+  className,
+  tableId,
+  style,
+  scrollCue = true,
+  resetAbove = false,
+  stackOnPhone = false,
+  ...props
+}) {
   const userId = useUserId();
   const storageKey = tableId ? `erp_colwidths_${userId}_${tableId}` : null;
   const tableRef = React.useRef(null);
@@ -97,10 +162,13 @@ function Table({ className, tableId, style, scrollCue = false, resetAbove = fals
   // Opt-in: fade the edge that still has content off-screen. Nothing shows when the table fits.
   const containerRef = React.useRef(null);
   const [cue, setCue] = React.useState({ left: false, right: false });
+  const [overflows, setOverflows] = React.useState(false);
   React.useEffect(() => {
     const el = containerRef.current;
-    if (!scrollCue || !el) return undefined;
+    if (!el) return undefined;
     const update = () => {
+      setOverflows(el.scrollWidth > el.clientWidth + 1);
+      if (!scrollCue) return;
       const left = el.scrollLeft > 1;
       const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
       setCue((prev) =>
@@ -121,6 +189,22 @@ function Table({ className, tableId, style, scrollCue = false, resetAbove = fals
     };
   }, [scrollCue]);
 
+  // Card mode: give every cell its role and label before paint, and again
+  // whenever rows are added or swapped.
+  React.useLayoutEffect(() => {
+    const table = tableRef.current;
+    if (!stackOnPhone || !table) return undefined;
+    placeCardCells(table);
+    if (typeof MutationObserver === "undefined") return undefined;
+    const mo = new MutationObserver(() => {
+      mo.disconnect();
+      placeCardCells(table);
+      mo.observe(table, { childList: true, subtree: true });
+    });
+    mo.observe(table, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, [stackOnPhone]);
+
   const scroller = (
     <div
       ref={containerRef}
@@ -130,7 +214,12 @@ function Table({ className, tableId, style, scrollCue = false, resetAbove = fals
       <table
         ref={tableRef}
         data-slot="table"
-        className={cn("w-full border-collapse text-left text-xs", className)}
+        className={cn(
+          "w-full border-collapse text-left text-xs",
+          overflows && STICKY_FIRST,
+          stackOnPhone && CARD_TABLE,
+          className,
+        )}
         style={resized ? { tableLayout: "fixed", ...style } : style}
         {...props}
       />
@@ -221,7 +310,10 @@ function TableRow({ className, ...props }) {
   );
 }
 
-function TableHead({ className, id, style, children, ...props }) {
+const WIDE_TALL = "[@media(min-width:1536px)_and_(min-height:821px)]";
+const CELL_PAD = `px-4 py-3.5 md:px-3 md:py-2 ${WIDE_TALL}:px-4 ${WIDE_TALL}:py-3.5`;
+
+function TableHead({ className, id, style, children, phone, ...props }) {
   const ctx = React.useContext(ColumnWidthsContext);
   const resizable = Boolean(ctx && id);
   const width = resizable ? ctx.widths[id] : undefined;
@@ -257,8 +349,11 @@ function TableHead({ className, id, style, children, ...props }) {
     <th
       data-slot="table-head"
       data-col-id={resizable ? id : undefined}
+      data-phone={phone}
       className={cn(
-        "select-none px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground",
+        "select-none whitespace-nowrap",
+        CELL_PAD,
+        "text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground",
         resizable && "relative",
         className,
       )}
@@ -312,11 +407,13 @@ function SortHead({ sortKey, sort, onSort, children, className, ...props }) {
   );
 }
 
-function TableCell({ className, ...props }) {
+function TableCell({ className, phone, label, ...props }) {
   return (
     <td
       data-slot="table-cell"
-      className={cn("px-4 py-3.5 align-middle", className)}
+      data-phone={phone}
+      data-label={label}
+      className={cn(CELL_PAD, "align-middle", className)}
       {...props}
     />
   );
