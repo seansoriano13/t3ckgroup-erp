@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import Avatar from '../../../../components/Avatar';
 import EmptyState from '@/components/ui/EmptyState';
 import { StatusPill } from './LeaveParts';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LABEL, TYPE_META, fmtRange, hoursOf, recordKey, relTime, windowOf } from './leaveDisplay';
 
-const COLS = 'grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.1fr)_minmax(0,1fr)_80px]';
 const PAGE_SIZES = [20, 100, 500];
 
 /**
@@ -26,70 +26,75 @@ export default function PendingList({ rows, total, loading, availableHoursFor, a
   return (
     <div className="flex flex-col gap-5">
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="overflow-x-auto">
-          <div className="min-w-[720px]">
-            <div className={`grid ${COLS} h-12 items-center gap-5 border-b border-border bg-muted/40 px-6`}>
-              <span className={LABEL}>Employee</span>
-              <span className={LABEL}>Type</span>
-              <span className={LABEL}>Date</span>
-              <span className={`${LABEL} text-right`}>Hours</span>
-              <span className={LABEL}>Status</span>
-              <span className={`${LABEL} text-right`}>Filed</span>
-            </div>
-
-            {loading ? (
-              <PageLoading label="pending requests" />
-            ) : shown.length === 0 ? (
-              <EmptyState
-                icon={CheckCircle2}
-                title="Nothing waiting on HR"
-                description={
-                  total > 0
-                    ? 'Filters hide every request. Clear one above.'
-                    : 'Requests land here once a department head approves them.'
-                }
-              />
-            ) : (
-              <div className="divide-y divide-border">
-                {shown.map((r) => {
-                  const h = hoursOf(r);
-                  const available = availableHoursFor(r);
-                  const sub = r.dayCount > 1 ? `${r.dayCount} days` : windowOf(r);
-                  return (
-                    <div
-                      key={recordKey(r)}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Open ${r.employee?.name}'s ${TYPE_META[r.type].label} request`}
-                      onClick={() => onOpen(r, sorted)}
-                      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(r, sorted))}
-                      className={`group grid ${COLS} min-h-[68px] cursor-pointer items-center gap-5 px-6 py-3 text-sm outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40`}
-                    >
+        {loading ? (
+          <PageLoading label="pending requests" />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle2}
+            title="Nothing waiting on HR"
+            description={
+              total > 0
+                ? 'Filters hide every request. Clear one above.'
+                : 'Requests land here once a department head approves them.'
+            }
+          />
+        ) : (
+          <Table stackOnPhone tableId="hr-pending" className="md:min-w-[720px]">
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead id="employee" phone="title" className={LABEL}>Employee</TableHead>
+                <TableHead id="type" phone="meta" className={LABEL}>Type</TableHead>
+                <TableHead id="date" phone="meta" className={LABEL}>Date</TableHead>
+                <TableHead id="hours" phone="meta" className={`${LABEL} md:text-right`}>Hours</TableHead>
+                <TableHead id="status" phone="badge" className={LABEL}>Status</TableHead>
+                <TableHead id="filed" phone="hide" className={`${LABEL} text-right`}>Filed</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {shown.map((r) => {
+                const h = hoursOf(r);
+                const available = availableHoursFor(r);
+                const sub = r.dayCount > 1 ? `${r.dayCount} days` : windowOf(r);
+                return (
+                  <TableRow
+                    key={recordKey(r)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ${r.employee?.name}'s ${TYPE_META[r.type].label} request`}
+                    onClick={() => onOpen(r, sorted)}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(r, sorted))}
+                    className="group cursor-pointer outline-none focus-visible:bg-muted/40"
+                  >
+                    <TableCell>
                       <span className="flex min-w-0 items-center gap-3">
                         <Avatar name={r.employee?.name} src={r.employee?.avatar_path} size="sm" />
                         <span className="min-w-0">
                           <span className="block truncate font-bold text-foreground">{r.employee?.name}</span>
-                          <span className="block truncate text-xs font-medium text-muted-foreground">{r.employee?.department}</span>
+                          <span className="block truncate text-xs font-medium text-muted-foreground max-md:hidden">{r.employee?.department}</span>
                         </span>
                       </span>
+                    </TableCell>
+                    <TableCell>
                       <span className="flex items-center gap-2 truncate font-medium text-foreground">
                         <span className={`size-2 shrink-0 rounded-full ${TYPE_META[r.type].dot}`} />
                         {TYPE_META[r.type].label}
                       </span>
-                      <span className="min-w-0">
-                        <span className="block truncate font-semibold text-foreground">{fmtRange(r, true)}</span>
-                        {sub && <span className="block truncate text-xs font-medium text-muted-foreground">{sub}</span>}
-                      </span>
-                      <span className="text-right">
-                        <span className="block font-mono tabular-nums text-foreground">{h.requested} hrs</span>
-                        {/* Balance minus every pending application, not the raw balance (#106). */}
-                        {available !== null && (
-                          <span className={`block text-xs font-semibold ${available < 0 ? 'text-red-11' : 'text-muted-foreground'}`}>
-                            {available} hrs available
-                          </span>
-                        )}
-                      </span>
-                      <span><StatusPill record={r} /></span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="block truncate font-semibold text-foreground">{fmtRange(r, true)}</span>
+                      {sub && <span className="block truncate text-xs font-medium text-muted-foreground max-md:hidden">{sub}</span>}
+                    </TableCell>
+                    <TableCell className="md:text-right">
+                      <span className="block font-mono tabular-nums text-foreground">{h.requested} hrs</span>
+                      {/* Balance minus every pending application, not the raw balance (#106). */}
+                      {available !== null && (
+                        <span className={`block text-xs font-semibold max-md:hidden ${available < 0 ? 'text-red-11' : 'text-muted-foreground'}`}>
+                          {available} hrs available
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell><StatusPill record={r} /></TableCell>
+                    <TableCell>
                       <span className="flex items-center justify-end gap-2 font-mono text-xs text-muted-foreground">
                         {r.attachments?.length > 0 && (
                           <span className="flex items-center gap-0.5" title={pluralize(r.attachments.length, "attachment")}>
@@ -99,13 +104,13 @@ export default function PendingList({ rows, total, loading, availableHoursFor, a
                         {relTime(r.created_at)}
                         <ChevronRight size={15} className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
                       </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       {rows.length > 0 && (
