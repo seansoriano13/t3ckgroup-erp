@@ -6,6 +6,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
+import { stubRoomyScreen } from "@/test/roomyScreen";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import CalendarPage from "@/pages/calendar/index";
 import { renderWithProviders } from "@/test/support";
@@ -24,6 +25,7 @@ vi.mock("@/context/AuthContext", () => ({
 const tomorrow = manilaDate(new Date(Date.now() + 24 * 3600 * 1000));
 
 beforeEach(() => {
+  stubRoomyScreen();
   window.localStorage.clear();
   const head = makeHead({ name: "Head Honcho", department: "SALES" });
   mocks.user = makeEmployee({ name: "Ana Reyes", department: "SALES" });

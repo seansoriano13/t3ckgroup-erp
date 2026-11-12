@@ -6,7 +6,8 @@
         "changes": [
             "Screens use less space on laptops, so more of each page shows without scrolling.",
             "The side menu is slimmer on laptops and starts as icons on smaller screens.",
-            "Report a bug is now in the side menu instead of floating over your tables."
+            "Report a bug is now in the side menu instead of floating over your tables.",
+            "Calendar: the day panel opens from a button on smaller screens, more weeks fit on a laptop, and a phone shows an agenda list instead of a cut-off grid."
         ]
     },
     {

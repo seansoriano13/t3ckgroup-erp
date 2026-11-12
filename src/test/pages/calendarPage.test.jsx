@@ -8,6 +8,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
+import { stubRoomyScreen } from "@/test/roomyScreen";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import CalendarPage from "@/pages/calendar/index";
 import { renderWithProviders } from "@/test/support";
@@ -49,6 +50,7 @@ const renderPage = () =>
   );
 
 beforeEach(() => {
+  stubRoomyScreen();
   window.localStorage.clear();
   mocks.user = makeEmployee({ name: "Dana Reyes" });
   mocks.entries = [
