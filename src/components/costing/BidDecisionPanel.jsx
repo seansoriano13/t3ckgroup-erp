@@ -167,7 +167,7 @@ export default function BidDecisionPanel({
   const marginPercent =
     revenue === null || !Number(totals.finalOfferTotal) ? null : (Number(revenue) / Number(totals.finalOfferTotal)) * 100;
 
-  const offerCheck = offerVsAbc(tenderLines);
+  const offerCheck = offerVsAbc(tenderLines, matrix.abc);
 
   const decide = (verdict) =>
     writes.run(async () => {

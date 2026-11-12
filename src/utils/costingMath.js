@@ -1,4 +1,4 @@
-import { COST_SOURCE } from "../constants/costing";
+import { ABC_MODE, COST_SOURCE } from "../constants/costing";
 
 /**
  * The Costing Matrix's figures (#267, spec #266). Pure: no network, no React.
@@ -183,10 +183,21 @@ export function landedCostRollup(components) {
 }
 
 /**
+ * The evaluation's ABC setting from its `costing_matrices` row (#960): `{ mode, total }`, or null
+ * when the tier was not sent the columns (the lines are then judged one by one, as before).
+ */
+export function abcSettingOf(matrixRow) {
+  if (!matrixRow || !("abc_mode" in matrixRow)) return null;
+  const total = matrixRow.abc_total;
+  return { mode: matrixRow.abc_mode, total: total === undefined || total === null || total === "" ? null : Number(total) };
+}
+
+/**
  * The whole matrix's totals over its Tender Lines.
  *
  *   finalOfferTotal   the sum, null while any Tender Line has no Final Offer
- *   abcTotal          the sum, null unless every Tender Line has an ABC
+ *   abcTotal          the sum, null unless every Tender Line has an ABC; in Total only (`abcSetting` is
+ *                     `{ mode: "total_only", total }`, #960) the typed total, null while blank
  *                     (a government ceiling only means something when it covers every line)
  *   missingOffer      how many Tender Lines have no Final Offer
  *   missingAbc        how many have no ABC
@@ -195,8 +206,9 @@ export function landedCostRollup(components) {
  *
  * No Tender Lines gives nulls and zero counts.
  */
-export function matrixTotals(tenderLines) {
+export function matrixTotals(tenderLines, abcSetting = null) {
   const lines = tenderLines ?? [];
+  const totalOnly = abcSetting?.mode === ABC_MODE.TOTAL_ONLY;
   let abc = 0n;
   let offer = 0n;
   let missingAbc = 0;
@@ -209,7 +221,10 @@ export function matrixTotals(tenderLines) {
     if (o === null) missingOffer += 1;
     else offer += o;
   }
-  const abcTotal = lines.length > 0 && missingAbc === 0 ? abc : null;
+  // Total only (#960): the typed total stands in for the lines' ABC, which stay in the database untouched.
+  const typed = totalOnly ? extendedCentavos(abcSetting?.total, 1) : null;
+  if (totalOnly) missingAbc = lines.length > 0 && typed === null ? 1 : 0;
+  const abcTotal = totalOnly ? (lines.length > 0 ? typed : null) : lines.length > 0 && missingAbc === 0 ? abc : null;
   const finalOfferTotal = lines.length > 0 && missingOffer === 0 ? offer : null;
   const both = abcTotal !== null && finalOfferTotal !== null;
   return {
@@ -232,6 +247,7 @@ export function matrixTotals(tenderLines) {
  *
  *   matrix.tenderLines   each with `quantity`, `final_offer_unit`, `abc_unit` and its `components`
  *                        (each with `quantity` and `final_acquire_unit`)
+ *   matrix.abc           optional `{ mode, total }` (#960); Total only uses the typed total as the ABC
  *   matrix.costRows      the cost-only rows (`quantity`, `final_acquire_unit`)
  *   matrix.money         `{ marketing, opex }`, typed by Finance access or the Final Acquire list
  *   settings             `{ vatDivisor, taxRate, retentionRate, itrRate, itrAllowance }`
@@ -291,7 +307,7 @@ export function summary(matrix, settings) {
   const itr = taxed === null || itrRate === null ? null : roundDiv(taxed * itrRate, MICRO);
   const revenue = revenueCentavos(offer, acquire, taxed, itrRate);
 
-  const ceiling = matrixTotals(lines);
+  const ceiling = matrixTotals(lines, matrix?.abc);
 
   return {
     finalOfferTotal: pesosFromCentavos(offer),
@@ -321,13 +337,14 @@ export const LOW_OFFER_SHARE_OF_ABC = 50;
  * the whole-number share. `lines` lists the Tender Lines whose own offer is under 50% of their own
  * ABC, each as `{ id, number, name, percent }`. It only warns; it blocks nothing.
  */
-export function offerVsAbc(tenderLines) {
+export function offerVsAbc(tenderLines, abc = null) {
   const lines = tenderLines ?? [];
-  const totals = matrixTotals(lines);
+  const totals = matrixTotals(lines, abc);
   const percent = totals.percentOfAbc;
   const low = percent !== null && percent < LOW_OFFER_SHARE_OF_ABC;
   const lowLines = [];
-  for (const line of lines) {
+  // The per-line warning is hidden in Total only; the whole-offer warning stays.
+  for (const line of abc?.mode === ABC_MODE.TOTAL_ONLY ? [] : lines) {
     const a = extendedCentavos(line?.abc_unit, line?.quantity);
     const o = extendedCentavos(line?.final_offer_unit, line?.quantity);
     if (a === null || o === null || a <= 0n) continue;

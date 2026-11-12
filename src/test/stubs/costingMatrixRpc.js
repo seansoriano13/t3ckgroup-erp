@@ -285,6 +285,10 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
     const prices = rowsOf("costing_tender_line_prices")
     const totals = matrixTotals(
       lines.map((l) => ({ quantity: l.quantity, ...(prices.find((p) => p.tender_line_id === l.id) ?? {}) })),
+      (() => {
+        const m = rowsOf("costing_matrices").find((x) => x.id === args.p_matrix_id)
+        return m?.abc_mode === "total_only" ? { mode: "total_only", total: m.abc_total ?? null } : null
+      })(),
     )
     if (lines.length === 0 || totals.missingOffer > 0) {
       refuse("23514", "every Tender Line needs a Final Offer before the bid can be decided", 400)

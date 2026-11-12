@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
-import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
-import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
+import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
+import { abcSettingOf, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
@@ -335,7 +335,8 @@ export function shapeMatrix(read, settings = null) {
     matrixId: read.matrix_id,
     matrix,
     tenderLines,
-    totals: matrixTotals(tenderLines),
+    abc: abcSettingOf(matrix),
+    totals: matrixTotals(tenderLines, abcSettingOf(matrix)),
     // Cost tiers only: no key means the viewer was not sent it (#702).
     importAddonPercent: matrix && "import_addon_percent" in matrix ? numberOrNull(matrix.import_addon_percent) : undefined,
     defaultFactor: money ? (defaultFactor === null ? null : Number(defaultFactor)) : undefined,
@@ -367,7 +368,7 @@ export function shapeMatrix(read, settings = null) {
   if (tierReadsSummary(read.tier)) {
     shaped.money = money;
     shaped.rates = settings ?? DEFAULT_COSTING_SETTINGS;
-    shaped.summary = summary({ tenderLines, costRows, money }, shaped.rates);
+    shaped.summary = summary({ tenderLines, costRows, money, abc: shaped.abc }, shaped.rates);
   }
   return shaped;
 }
@@ -508,7 +509,7 @@ async function withPurchases(shaped, opportunityId) {
     line.totals = money ? { ...totals, landedCost: landedCostRollup(line.components) } : totals;
   }
   const { landedCost: _none, ...totals } = shaped.totals;
-  shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines).landedCost } : totals;
+  shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines, shaped.abc).landedCost } : totals;
   // Planned Revenue is `summary.revenue`, untouched; Actual sits beside it, never inside it.
   if (actual) {
     const inputs = revenueInputs(shaped, { ipasShort: (ipases.data ?? []).some(ipasShortOfLcOdooDone) });
@@ -635,6 +636,23 @@ export const costingMatrixService = {
       .upsert({ id: true, import_addon_percent: Number(importPercent), local_addon_percent: Number(local) }, { onConflict: "id" });
     if (error) fail(error);
     return costingMatrixService.getLandedDefaults();
+  },
+
+  /**
+   * Sets how the evaluation's ABC is typed (#960, the Sales band): `mode` is "by_line" or "total_only",
+   * `total` the typed ABC total (blank clears it). Per-line ABC values are never touched.
+   */
+  async setAbc(matrixId, { mode, total } = {}) {
+    const columns = {};
+    if (mode !== undefined) {
+      if (!Object.values(ABC_MODE).includes(mode)) throw new CostingRuleError("The ABC is typed by line or as a total.", "23514");
+      columns.abc_mode = mode;
+    }
+    if (total !== undefined) columns.abc_total = blankToNull(total);
+    if (Object.keys(columns).length === 0) return;
+    const { data, error } = await supabase.from("costing_matrices").update(columns).eq("id", matrixId).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("The ABC could not be changed.");
   },
 
   /** Types the matrix's Import add-on percent (Purchasing). Null clears it back to blank. */
