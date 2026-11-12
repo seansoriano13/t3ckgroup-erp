@@ -1,41 +1,36 @@
 [
     {
         "date": "2026-11-12",
-<<<<<<< HEAD
-        "title": "Commission and Retail fit small screens",
-        "version": "1.10.3",
+        "title": "Fits small laptops and phones",
+        "version": "1.10.4",
         "changes": [
+            "Screens use less space on laptops, so more of each page shows without scrolling.",
+            "The side menu is slimmer on laptops and starts as icons on smaller screens.",
+            "Report a bug is now in the side menu instead of floating over your tables.",
+            "Calendar: the day panel opens from a button on smaller screens, more weeks fit on a laptop, and a phone shows an agenda list instead of a cut-off grid.",
+            "Purchasing lists and the Purchasing Dashboard fit a small laptop on one toolbar row, and show each record as a card on a phone.",
             "Commission Pool shows its chart and legend smaller on laptops, so the SORs and People list starts higher.",
             "Retail's date range is a drop-down on phones, so nothing is cut off.",
             "SOR, People and Retail order lists show as cards on phones."
-=======
+        ]
+    },
+    {
+        "date": "2026-11-12",
         "title": "Dialogs that scroll, % on IPAS payments, choose the required files",
         "version": "1.10.3",
         "changes": [
             "Dialogs never grow past the screen any more: the content scrolls and the title and buttons stay in view.",
             "IPAS payments: a Down payment or Payment can be a % of the order. The amount is worked out for you and the % shows on the printed form.",
             "IPAS Settings: choose which files each IPAS needs and when (Order, Costs or Sign-offs). A filed IPAS keeps the rules it was filed under."
->>>>>>> origin/staging
         ]
     },
     {
         "date": "2026-11-12",
-<<<<<<< HEAD
-        "title": "Fits small laptops better",
-        "version": "1.10.2",
-        "changes": [
-            "Screens use less space on laptops, so more of each page shows without scrolling.",
-            "The side menu is slimmer on laptops and starts as icons on smaller screens.",
-            "Report a bug is now in the side menu instead of floating over your tables.",
-            "Calendar: the day panel opens from a button on smaller screens, more weeks fit on a laptop, and a phone shows an agenda list instead of a cut-off grid.",
-            "Purchasing lists and the Purchasing Dashboard fit a small laptop on one toolbar row, and show each record as a card on a phone."
-=======
         "title": "Notifications: older ones reachable",
         "version": "1.10.2",
         "changes": [
             "Notifications: the list no longer grows past 50 while the page stays open.",
             "Notifications: a Load older button shows the rest, and the bell shows a plus when there is more."
->>>>>>> origin/staging
         ]
     },
     {
