@@ -60,6 +60,9 @@ import { salesFlowService } from "../../services/salesFlowService";
 import { flowStageTone } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
+import { useHiddenColumns } from "../../hooks/useHiddenColumns";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
+import ColumnsMenu from "../../components/purchasing/list/ColumnsMenu";
 import HighlightText from "../../components/HighlightText";
 import { sorCodeOf, matchesSorSearch } from "../../utils/sorCode";
 import { Building2, Users, Layers, Tag } from "lucide-react";
@@ -92,7 +95,7 @@ const TH_ALIGN = {
  * during render is a new type on every render, so React unmounts and remounts
  * every header on each keystroke in the search box.
  */
-function SortableTh({ field, sortField, sortOrder, onSort, align = "left", className = "", children }) {
+function SortableTh({ field, sortField, sortOrder, onSort, align = "left", phone = "hide", className = "", children }) {
   const active = sortField === field;
   const { cell, inner } = TH_ALIGN[align] ?? TH_ALIGN.left;
 
@@ -108,6 +111,7 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
     <TableHead
       id={field}
       scope="col"
+      phone={phone}
       aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
       className={`${cell} px-2.5 py-2.5 whitespace-nowrap overflow-hidden hover:text-foreground transition-colors ${className}`}
     >
@@ -123,6 +127,26 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
     </TableHead>
   );
 }
+
+// The list's columns, in order. SOR is always shown; the others can be hidden
+// with the Columns picker. `w` is the column's width (px) in the fixed layout.
+const REGISTER_COLUMNS = [
+  { key: "serial_no", label: "SOR", w: 76, locked: true },
+  { key: "sales_reference", label: "Sales Ref.", w: 72 },
+  { key: "registration_date", label: "Date", w: 84 },
+  { key: "lead_source", label: "Lead Source", w: 112 },
+  { key: "client_name", label: "Company", w: 168 },
+  { key: "project_title", label: "Project", w: 176 },
+  { key: "expected_value", label: "Expected Value", w: 128 },
+  { key: "project_type", label: "Div.", w: 44 },
+  { key: "deal_owner", label: "Deal Owner", w: 120 },
+  { key: "status", label: "Status", w: 140, locked: true },
+];
+const REGISTER_COLUMN_KEYS = REGISTER_COLUMNS.map((c) => c.key);
+// Below 1440px wide, someone who never chose columns starts without these two.
+const NARROW_HIDDEN_COLUMNS = ["lead_source", "project_type"];
+const NARROW_QUERY = "(max-width: 1439.98px)";
+const LOST_REASON_WIDTH = 220;
 
 // The view a person last used, kept across visits so Sales staff who live in
 // the List are not sent back to My work every time. Storage can be missing or
@@ -167,6 +191,12 @@ export default function OpportunitiesPage() {
   const [employeeFilter, setEmployeeFilter] = useState(
     () => location.state?.filterEmployeeId || "ALL",
   );
+  const narrowScreen = useMediaQuery(NARROW_QUERY);
+  const columns = useHiddenColumns(`erp_sor_register_columns_${user?.id ?? "anon"}`, {
+    defaults: narrowScreen ? NARROW_HIDDEN_COLUMNS : [],
+    known: REGISTER_COLUMN_KEYS,
+  });
+  const showColumn = (key) => REGISTER_COLUMNS.find((c) => c.key === key)?.locked || columns.show(key);
   // Who can read the register itself (`sor_read`). Everyone else, someone
   // called into an SOR from another team, gets only My work: the register's
   // list would come back empty for them.
@@ -621,6 +651,9 @@ export default function OpportunitiesPage() {
   ];
 
   const showLostReason = stageFilter === "LOST";
+  const tableMinWidth =
+    REGISTER_COLUMNS.filter((c) => showColumn(c.key)).reduce((sum, c) => sum + c.w, 0) +
+    (showLostReason ? LOST_REASON_WIDTH : 0);
 
   const currentStageLabel =
     stageOptions.find((o) => o.value === stageFilter)?.label || "All Stages";
@@ -729,8 +762,8 @@ export default function OpportunitiesPage() {
   // goes to the content. It is the one-line filter form: search, the result
   // readout, and a Filters popover carrying every other filter with a count.
   const toolbar = supportsFiltering && (
-    <div className="flex w-full min-w-0 items-center gap-2 sm:gap-3">
-      <div className="flex h-9 min-w-[7rem] max-w-[360px] flex-1 items-center gap-2 rounded-xl border border-border bg-muted/30 px-2.5 focus-within:border-mauve-7 sm:px-3 2xl:max-w-[520px]">
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap sm:gap-3">
+      <div className="flex h-9 w-full min-w-[7rem] basis-full items-center gap-2 sm:w-auto rounded-xl border border-border bg-muted/30 px-2.5 focus-within:border-mauve-7 sm:max-w-[360px] sm:flex-1 sm:basis-auto sm:px-3 2xl:max-w-[520px]">
         <Search size={15} className="shrink-0 text-muted-foreground" />
         <Input
           value={search}
@@ -768,6 +801,14 @@ export default function OpportunitiesPage() {
       )}
 
       <div className="flex-1" />
+
+          {view === "list" && (
+            <ColumnsMenu
+              columns={REGISTER_COLUMNS}
+              hidden={columns.hidden}
+              onToggle={columns.toggle}
+            />
+          )}
 
           {/* Filters popover — every filter the register offers lives here, so
               the row stays one line regardless of how many are active, and the
@@ -1109,7 +1150,12 @@ export default function OpportunitiesPage() {
         ) : (
           <div className="border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <Table tableId="sor-register" className="table-fixed min-w-[1120px]">
+              <Table
+                tableId="sor-register"
+                stackOnPhone
+                className="md:table-fixed"
+                style={{ minWidth: `${tableMinWidth}px` }}
+              >
                 <TableHeader>
                   {/* Sortable headers. The interaction styling is
                       TaskTableView's — cursor-pointer hover:text-foreground
@@ -1118,16 +1164,16 @@ export default function OpportunitiesPage() {
                       content gets at 1440 px, and px-4 gutters would push Status
                       out of view. */}
                   <TableRow>
-                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">SOR</SortableTh>
-                    <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[72px]">Sales Ref.</SortableTh>
-                    <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
-                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[112px]">Lead Source</SortableTh>
-                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[168px]">Company</SortableTh>
-                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[176px]">Project</SortableTh>
-                    <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[128px]">Expected Value</SortableTh>
-                    <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
-                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[120px]">Deal Owner</SortableTh>
-                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Status</SortableTh>
+                    {showColumn("serial_no") && <SortableTh field="serial_no" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">SOR</SortableTh>}
+                    {showColumn("sales_reference") && <SortableTh field="sales_reference" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[72px]">Sales Ref.</SortableTh>}
+                    {showColumn("registration_date") && <SortableTh field="registration_date" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>}
+                    {showColumn("lead_source") && <SortableTh field="lead_source" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[112px]">Lead Source</SortableTh>}
+                    {showColumn("client_name") && <SortableTh field="client_name" phone="title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[168px]">Company</SortableTh>}
+                    {showColumn("project_title") && <SortableTh field="project_title" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[176px]">Project</SortableTh>}
+                    {showColumn("expected_value") && <SortableTh field="expected_value" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[128px]">Expected Value</SortableTh>}
+                    {showColumn("project_type") && <SortableTh field="project_type" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>}
+                    {showColumn("deal_owner") && <SortableTh field="deal_owner" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[120px]">Deal Owner</SortableTh>}
+                    {showColumn("status") && <SortableTh field="status" phone="badge" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Status</SortableTh>}
                     {showLostReason && <TableHead className="w-[220px] px-2.5 py-2.5">Reason</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -1162,9 +1208,12 @@ export default function OpportunitiesPage() {
         }}
                         className="cursor-pointer outline-none focus-visible:bg-muted"
                       >
-                        <TableCell className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
+                        {showColumn("serial_no") && (
+<TableCell className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
                           <HighlightText text={sorCodeOf(o)} search={search} />
                         </TableCell>
+)}
+{showColumn("sales_reference") && (
                         <TableCell
                           className="px-2.5 py-2.5 font-mono text-xs whitespace-nowrap truncate"
                           title={o.sales_reference || ""}
@@ -1175,33 +1224,47 @@ export default function OpportunitiesPage() {
                             <span className="text-muted-foreground/50">—</span>
                           )}
                         </TableCell>
+)}
+{showColumn("registration_date") && (
                         <TableCell className="px-2.5 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
                           {dateFormatted}
                         </TableCell>
+)}
+{showColumn("lead_source") && (
                         <TableCell
                           className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
                           title={leadSourceText}
                         >
                           <HighlightText text={leadSourceText} search={search} />
                         </TableCell>
+)}
+{showColumn("client_name") && (
                         <TableCell
                           className="px-2.5 py-2.5 font-semibold text-xs truncate whitespace-nowrap"
                           title={o.client_name}
                         >
                           <HighlightText text={o.client_name} search={search} />
                         </TableCell>
+)}
+{showColumn("project_title") && (
                         <TableCell
                           className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
                           title={o.project_title}
                         >
                           <HighlightText text={o.project_title} search={search} />
                         </TableCell>
+)}
+{showColumn("expected_value") && (
                         <TableCell className="px-2.5 py-2.5 text-right font-bold text-xs whitespace-nowrap">
                           {formatPHP(o.expected_value)}
                         </TableCell>
+)}
+{showColumn("project_type") && (
                         <TableCell className="px-2 py-2.5 text-center text-xs font-bold text-muted-foreground whitespace-nowrap">
                           {PROJECT_TYPE_SHORT[o.project_type] || o.project_type}
                         </TableCell>
+)}
+{showColumn("deal_owner") && (
                         <TableCell
                           className="px-2.5 py-2.5 whitespace-nowrap"
                           title={o.deal_owner?.name || ""}
@@ -1221,6 +1284,8 @@ export default function OpportunitiesPage() {
                             <span className="text-muted-foreground/60">—</span>
                           )}
                         </TableCell>
+)}
+{showColumn("status") && (
                         <TableCell className="px-2.5 py-2.5 whitespace-nowrap overflow-hidden">
                           <div className="flex items-center gap-1.5 min-w-0">
                             {(() => {
@@ -1267,6 +1332,8 @@ export default function OpportunitiesPage() {
                             )}
                           </div>
                         </TableCell>
+                        
+)}
                         {showLostReason && (
                           <TableCell className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap" title={formatLostReason(o)}>
                             {formatLostReason(o) || <span className="text-muted-foreground/50">—</span>}
