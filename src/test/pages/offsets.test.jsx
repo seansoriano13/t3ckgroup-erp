@@ -43,8 +43,8 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
   it('renders the My Requests header and both balances', () => {
     renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/My\s*Requests/i);
-    expect(screen.getByText(/Offset balance/i)).toBeInTheDocument();
-    expect(screen.getByText(/SIL balance/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Offset$/)).toBeInTheDocument();
+    expect(screen.getByText(/^SIL$/)).toBeInTheDocument();
   });
 
   it('shows every request type in one list, newest first', async () => {
