@@ -36,7 +36,7 @@ import {
 } from "@/constants/ipas";
 import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "@/utils/attachments";
 import { formatAmount } from "@/utils/ipas";
-import { SECTION_DOCUMENT_KINDS, kindsToAdd } from "@/utils/ipasDocuments";
+import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
 import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateDay, formatRateNumber, rateDivergence } from "@/utils/referenceRate";
@@ -626,11 +626,9 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
   const savedById = new Map((ipas.documents ?? []).map((document) => [document.id, document]));
   const suggested = ipas.suggestedDocuments ?? [];
   const hasKinds = kindsToAdd(ipas.options ?? [], ipas.documents ?? []).length > 0;
-  // The kinds a sign-off waits on for this Source (#711), matched by label like missingDocumentsByPart.
-  const requiredLabels = new Set(
-    Object.values(SECTION_DOCUMENT_KINDS).flatMap((part) => part[ipas.source] ?? []).map((label) => label.toLowerCase()),
-  );
-  const isRequired = (document) => !document.byHand && requiredLabels.has(String(document.kind?.label ?? document.label ?? "").trim().toLowerCase());
+  // The kinds a sign-off waits on for this Source (#711), from the settings (#959) like missingDocumentsByPart.
+  const requiredIds = new Set(Object.values(requiredKindsByPart(fileRulesOf(ipas), ipas.source)).flat().map((kind) => kind.id));
+  const isRequired = (document) => !document.byHand && requiredIds.has(document.kind_id);
   return (
     <div data-testid="ipas-documents">
       <Titled

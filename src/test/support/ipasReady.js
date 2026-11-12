@@ -1,5 +1,5 @@
 import { db } from "@/test/db/store";
-import { SECTION_DOCUMENT_KINDS } from "@/utils/ipasDocuments";
+import { requiredKindsByPart } from "@/utils/ipasDocuments";
 
 /**
  * Makes an IPAS "ready" for the rail's second stretch, "Sign the final IPAS":
@@ -9,10 +9,8 @@ import { SECTION_DOCUMENT_KINDS } from "@/utils/ipasDocuments";
  * person the Logistics sign-off is recorded for.
  */
 export function makeReady(row, logisticsBy, { source = "local" } = {}) {
-  const wanted = Object.values(SECTION_DOCUMENT_KINDS).flatMap((byWhere) => byWhere[source] ?? []);
-  for (const label of wanted) {
-    const kind = db.rows("ipas_options").find((o) => o.list === "document_kind" && o.label === label);
-    if (!kind) continue;
+  const wanted = Object.values(requiredKindsByPart({ options: db.rows("ipas_options") }, source)).flat();
+  for (const kind of wanted) {
     db.seed("ipas_documents", {
       ipas_id: row.id,
       kind_id: kind.id,
