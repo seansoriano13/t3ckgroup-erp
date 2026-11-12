@@ -783,7 +783,7 @@ export default function GroupTaskDetailModal({
         <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
 
         {/* HEADER */}
-        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-mauve-3/40 shrink-0 relative overflow-hidden bg-card">
+        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-mauve-3/40 shrink-0 relative overflow-hidden bg-card max-sm:px-4 laptop:pt-3 laptop:pb-2">
           <div className="space-y-1 mt-1 flex-1 max-w-3xl">
             <div className="flex items-center justify-between mb-2.5 w-full">
               <div className="flex items-center gap-2">
@@ -972,7 +972,7 @@ export default function GroupTaskDetailModal({
         </div>
 
         {/* TASK CONTENT */}
-        <div className="overflow-y-auto min-h-0 custom-scrollbar bg-card/50 p-6 space-y-8 flex-1">
+        <div className="overflow-y-auto min-h-0 custom-scrollbar bg-card/50 p-6 max-sm:p-4 laptop:py-4 space-y-8 flex-1">
           {activeTab === "overview" ? (
             <>
               {isReadOnly && (
@@ -1034,7 +1034,7 @@ export default function GroupTaskDetailModal({
               {/* MEMBERS — detail / master. The selected assignment (the
                   viewer's own, on open) leads; the member rail sits to its
                   left, and below it on narrow screens. */}
-              <div className="animate-content-in stagger-2 flex-1 flex flex-col md:flex-row min-h-[420px] border border-border rounded-2xl overflow-hidden bg-card">
+              <div className="animate-content-in stagger-2 flex flex-col xl:flex-row border border-border rounded-2xl overflow-hidden bg-card max-sm:rounded-none max-sm:border-x-0 max-sm:bg-transparent">
                 <div className="flex-1 flex flex-col min-w-0 min-h-0">
                   {draft ? (
                     <>
@@ -1108,7 +1108,7 @@ export default function GroupTaskDetailModal({
                       const isDone = member.status === "DONE";
 
                       return (
-                        <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar px-6 py-5 flex flex-col gap-5">
+                        <div className="flex-1 min-h-0 px-6 py-5 max-sm:px-3 flex flex-col gap-5">
                           {/* Identity + controls */}
                           <div className="flex items-start justify-between gap-2 border-b border-border/50 pb-3">
                             <div className="flex flex-wrap items-center gap-2">
@@ -1365,7 +1365,7 @@ export default function GroupTaskDetailModal({
                   )}
                 </div>
 
-                <div className="w-full md:w-[220px] shrink-0 h-[200px] md:h-auto md:min-h-0 md:order-first border-t md:border-t-0 md:border-r border-border">
+                <div className="order-first w-full shrink-0 border-b border-border xl:w-[220px] xl:border-b-0 xl:border-r xl:min-h-[420px]">
                   <GroupTaskMemberRail
                     members={orderedMembers}
                     selectedId={draft && !draft.id ? null : effectiveMemberId}
@@ -1383,6 +1383,7 @@ export default function GroupTaskDetailModal({
                       name: m.employee?.name,
                     })}
                     mode="detail"
+                    chipsBelow="xl"
                     className="border-r-0"
                   />
                 </div>

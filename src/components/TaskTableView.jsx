@@ -198,11 +198,12 @@ export default function TaskTableView({
     <div className="space-y-4">
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-          <Table tableId="all-tasks" className="md:min-w-[900px]">
+          <Table stackOnPhone tableId="all-tasks" className="md:min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead
                   id="title"
+                  phone="title"
                   onClick={() => handleSort("title")}
                   className="cursor-pointer hover:text-foreground transition-colors"
                 >
@@ -213,7 +214,7 @@ export default function TaskTableView({
                 <TableHead
                   id="assignee"
                   onClick={() => handleSort("assignee")}
-                  className="cursor-pointer hover:text-foreground transition-colors w-[180px] hidden md:table-cell"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[180px]"
                 >
                   <div className="flex items-center gap-1">
                     Assignee {renderSortIcon("assignee")}
@@ -221,6 +222,7 @@ export default function TaskTableView({
                 </TableHead>
                 <TableHead
                   id="status"
+                  phone="badge"
                   onClick={() => handleSort("status")}
                   className="px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
                 >
@@ -231,7 +233,7 @@ export default function TaskTableView({
                 <TableHead
                   id="priority"
                   onClick={() => handleSort("priority")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[110px] hidden md:table-cell"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[110px]"
                 >
                   <div className="flex items-center gap-1">
                     Priority {renderSortIcon("priority")}
@@ -240,14 +242,14 @@ export default function TaskTableView({
                 <TableHead
                   id="dueDate"
                   onClick={() => handleSort("dueDate")}
-                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[130px] hidden md:table-cell"
+                  className="px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
                 >
                   <div className="flex items-center gap-1">
                     Due Date {renderSortIcon("dueDate")}
                   </div>
                 </TableHead>
-                <TableHead id="progress" className="px-3 w-[140px] hidden md:table-cell">Progress</TableHead>
-                <TableHead id="action" className="text-right w-[80px]">Action</TableHead>
+                <TableHead id="progress" phone="hide" className="px-3 w-[140px] hidden md:table-cell">Progress</TableHead>
+                <TableHead id="action" phone="hide" className="text-right w-[80px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -303,7 +305,7 @@ export default function TaskTableView({
                     </TableCell>
 
                     {/* Assignee & Dept */}
-                    <TableCell className="hidden md:table-cell">
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.loggedByName || "User"}
@@ -348,7 +350,7 @@ export default function TaskTableView({
                     </TableCell>
 
                     {/* Priority */}
-                    <TableCell className="px-3 hidden md:table-cell">
+                    <TableCell className="px-3">
                       {task.priority ? (
                         <div className="flex items-center gap-1.5 font-bold text-label uppercase tracking-wider">
                           {task.priority === "HIGH" && (
@@ -382,7 +384,7 @@ export default function TaskTableView({
                     </TableCell>
 
                     {/* Due Date & Overdue */}
-                    <TableCell className="px-3 hidden md:table-cell">
+                    <TableCell className="px-3">
                       <div className="flex flex-col">
                         <span
                           className={`text-[12px] font-medium ${isOverdue
