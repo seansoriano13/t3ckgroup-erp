@@ -231,7 +231,8 @@ describe("the printed S0 Evaluation, view model", () => {
   it("sets each Component's Offer Specification, Compliance, note and Inclusions covered count on the appendix", () => {
     const { appendix } = build(COSTING_TIER.CLOSED_BOOK);
     const [stretcher] = appendix.lines[0].components.slice(1);
-    expect(appendix.lines[0].components[0]).toMatchObject({ number: "1.1", brand: "Toyota", complianceLabel: "Complies", sourcing: "Source Out · Available · Local", po: "PO / RFQ P02574" });
+    expect(appendix.lines[0].components[0]).toMatchObject({ number: "1.1", brand: "Toyota", complianceLabel: "Complies", sourcing: "Source Out · Local" })
+    expect(appendix.lines[0].components[0]).not.toHaveProperty("po");
     expect(stretcher).toMatchObject({ number: "1.2", complianceLabel: "Deviates", note: "Offered 1,900 mm against 2,000 mm required", alternative: "Redleaf RL-FS200 (2,000 mm model)" });
     expect(appendix.lines[0].inclusions).toEqual([
       expect.objectContaining({ owner: "1.1", covered: "2 of 3 covered", outstanding: 1 }),

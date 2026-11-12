@@ -24,7 +24,7 @@
  * Strings are raw text. The composer escapes them.
  */
 
-import { COSTING_TIER, BID_VERDICT_LABEL, COMPONENT_AVAILABILITY_LABEL, COMPONENT_SOURCE_LABEL, COMPONENT_STATUS_LABEL, summaryLineShown } from '../../constants/costing';
+import { COSTING_TIER, BID_VERDICT_LABEL, COMPONENT_SOURCE_LABEL, COMPONENT_STATUS_LABEL, summaryLineShown } from '../../constants/costing';
 import { costIncomplete, factorLabel, finalAcquireTotal, offerIncomplete } from '../../utils/costingMath';
 import { printAmount, printDate, printDateTime } from './ipasViewModel';
 
@@ -259,16 +259,13 @@ function inclusionsOf(component) {
 function appendixComponent(component) {
   const sourcing = [
     COMPONENT_STATUS_LABEL[component.status],
-    COMPONENT_AVAILABILITY_LABEL[component.availability],
     COMPONENT_SOURCE_LABEL[component.source],
   ].filter(Boolean);
-  const po = text(component.po_rfq_no);
   return {
     number: component.number,
     name: text(component.name) ?? BLANK,
     brand: text(component.brand),
     sourcing: sourcing.join(' · '),
-    po: po ? `PO / RFQ ${po}` : null,
     offerLines: specLines(component.offer_specification),
     compliance: component.compliance ?? null,
     complianceLabel: COMPLIANCE_WORDS[component.compliance] ?? 'Not evaluated',

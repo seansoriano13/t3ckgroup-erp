@@ -106,9 +106,7 @@ export const COMPONENT_BANDS = {
   brand: [SALES, PURCHASING],
   status: [SALES],
   offer_specification: [PURCHASING],
-  availability: [PURCHASING],
   source: [PURCHASING],
-  po_rfq_no: [PURCHASING],
   sales_incharge_id: [SALES],
   purchasing_incharge_id: [PURCHASING],
   // The Canvass fill (#278): which winning Offer filled Offer Specification, and the Component's documents.

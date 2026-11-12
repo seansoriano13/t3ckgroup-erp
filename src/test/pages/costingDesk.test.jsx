@@ -302,7 +302,7 @@ describe("the Costing Desk", () => {
       expect(within(rows[0]).getByLabelText("Component name 1.1")).toHaveValue("4x4 pick-up");
       expect(within(rows[0]).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
       expect(within(rows[0]).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
-      expect(within(rows[0]).getByLabelText("P.O./RFQ No. 1.1")).toHaveValue("RFQ-2231");
+      expect(within(rows[0]).queryByLabelText("P.O./RFQ No. 1.1")).toBeNull();
       expect(within(rows[0]).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
       expect(within(rows[0]).getByLabelText("Odoo SRP 1.1")).toHaveValue(2200000);
       // The bundle at 1 x 2,160,500 totals 2,160,500, never 0.00; the part with no Acquire shows a dash.
@@ -314,7 +314,7 @@ describe("the Costing Desk", () => {
 
       // Each part's fields sit under the band that writes them.
       expect(within(rows[0]).getByRole("region", { name: "Sales" })).toHaveTextContent("Brand");
-      expect(within(rows[0]).getByRole("region", { name: "Purchasing" })).toHaveTextContent("P.O./RFQ No.");
+      expect(within(rows[0]).getByRole("region", { name: "Purchasing" })).toHaveTextContent("Source");
       expect(within(rows[0]).getByRole("region", { name: "Purchasing" })).toHaveTextContent("Acquire / unit");
     });
 
@@ -332,8 +332,7 @@ describe("the Costing Desk", () => {
       expect(within(row).getByLabelText("Odoo SRP 1.1")).toHaveValue(2200000);
       // Purchasing's columns read as text.
       expect(within(row).getByLabelText("Offer Specification 1.1").tagName).toBe("SPAN");
-      expect(within(row).getByLabelText("P.O./RFQ No. 1.1").tagName).toBe("SPAN");
-      expect(within(row).getByLabelText("Availability 1.1")).toHaveTextContent("For Order");
+      expect(within(row).queryByLabelText("Availability 1.1")).toBeNull();
       expect(within(row).getByLabelText("Source 1.1")).toHaveTextContent("Import");
       // No Acquire, no Final Acquire, no factor: not hidden, absent. The peso Markup Price is there (#269).
       expect(within(block).queryByLabelText("Acquire 1.1")).not.toBeInTheDocument();

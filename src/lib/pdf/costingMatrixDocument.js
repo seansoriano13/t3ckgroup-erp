@@ -228,7 +228,7 @@ function entry(line, c) {
     <div><span class="k">What the client asked for</span>${list(line.specLines)}</div>
     <div><span class="k">${esc(c.number)} · what we offer${c.brand ? ` · ${esc(c.brand)}` : ''}</span>
       <div class="name">${esc(c.name)}</div>${list(c.offerLines)}
-      ${c.sourcing || c.po ? `<div class="src">${esc([c.sourcing, c.po].filter(Boolean).join(' · '))}</div>` : ''}
+      ${c.sourcing ? `<div class="src">${esc(c.sourcing)}</div>` : ''}
       ${verdict(c)}</div>
   </div>`;
 }
