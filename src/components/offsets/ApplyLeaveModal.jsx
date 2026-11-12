@@ -585,7 +585,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       <DialogContent showCloseButton={false} className="max-w-md sm:max-w-md flex flex-col overflow-hidden p-0 gap-0">
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-border flex items-center justify-between bg-muted/30 shrink-0 max-sm:pt-[calc(0.75rem+env(safe-area-inset-top))]">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
             Time Off & Overtime
           </h2>
@@ -599,21 +599,24 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           </Button>
         </div>
 
-        {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
-          <TabGroup
-            variant="pill"
-            tabs={[
-              { value: 'overtime', label: 'Overtime' },
-              { value: 'offset', label: 'Offset' },
-              { value: 'sil', label: 'Leave' },
-              { value: 'undertime', label: 'Undertime' },
-            ]}
-            activeTab={activeTab}
-            onChange={setActiveTab}
-            size="sm"
-          />
+        {/* Type tabs stay pinned under the header while the form scrolls */}
+        <div className="shrink-0 border-b border-border bg-popover px-4 py-2 sm:px-6">
+        <TabGroup
+          variant="pill"
+          tabs={[
+            { value: 'overtime', label: 'Overtime' },
+            { value: 'offset', label: 'Offset' },
+            { value: 'sil', label: 'Leave' },
+            { value: 'undertime', label: 'Undertime' },
+          ]}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          size="sm"
+        />
+        </div>
 
+        {/* Content */}
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {showEmployeeSelector && (
             <div>
               <FieldBox label="Employee" className="block mb-1.5" />
