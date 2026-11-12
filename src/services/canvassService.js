@@ -546,6 +546,18 @@ export const canvassService = {
   },
 
   /**
+   * The ids, among `itemIds`, of lines a Super Admin has unlocked (`request_canvass_line_unlocks`),
+   * as a Set: a Purchased line in it is open to change again. The history itself is the table's.
+   */
+  async unlockedItemIds(itemIds = []) {
+    const ids = [...new Set((itemIds || []).filter(Boolean))];
+    if (ids.length === 0) return new Set();
+    const { data, error } = await supabase.from("request_canvass_line_unlocks").select("item_id").in("item_id", ids);
+    if (error) throw error;
+    return new Set((data || []).map((row) => row.item_id));
+  },
+
+  /**
    * Each quote's Acquire (PHP) and Markup Price if it won (`canvass_offer_projection`), for the
    * Closed Book and Cost tiers; null for anyone else or when no line names a Component.
    */

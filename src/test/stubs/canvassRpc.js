@@ -17,9 +17,77 @@ const rowsOf = (table) => db.internal.rowsOf(table)
  *                            ones join it. The supplier and its rate row are written together.
  *   canvass_save_quote       one supplier's answer on one line, and its price row, together
  *   canvass_list             one row per Canvass, for the Canvasses page
+ *
+ * And the rules RPCs of #969 (20261206100000_969_canvass_rules.sql), the ones the grid calls:
+ *
+ *   canvass_pick_supplier_for_all   "This supplier wins every line": one reason, skips the lines it
+ *                                   did not quote and any cancelled or locked line
+ *   canvass_use_same_reason         copies one reason to every picked line that isn't locked
+ *   canvass_unlock_line             a Super Admin lifts a Purchased line's lock, with the reason
+ *   canvass_offer_projection        whatever the test passes as `projection` (null by default, as
+ *                                   the database answers a caller outside the Closed Book and Cost)
+ *
+ * Who may call them, and the three-supplier gate on a single pick, are the database's (policy
+ * tier 969-canvass-rules.test.js); the fake has no caller. A blank reason is refused, as there.
  */
-export function stubCanvassMoneyRpc({ money = true } = {}) {
+const lockedItem = (item) => ["purchased", "received"].includes(item?.status)
+const hasUnlock = (itemId) => rowsOf("request_canvass_line_unlocks").some((u) => u.item_id === itemId)
+const lineIsLocked = (item) => lockedItem(item) && !hasUnlock(item.id)
+const needsReason = () => pgrstError("22023", "A winner needs a reason.", { status: 400 })
+
+export function stubCanvassMoneyRpc({ money = true, projection = null } = {}) {
   stubRpc("canvass_can_read_money", () => money)
+
+  stubRpc("canvass_pick_supplier_for_all", (args) => {
+    const canvass = rowsOf("request_canvasses").find((c) => c.id === args.p_canvass_id)
+    if (!canvass) throw pgrstError("P0002", "canvass_pick_supplier_for_all: not found", { status: 404 })
+    const reason = String(args.p_reason ?? "").trim()
+    if (!reason) throw needsReason()
+    let picked = 0
+    let skipped = 0
+    const quotes = rowsOf("request_canvass_quotes").filter((q) => q.canvass_id === canvass.id && q.supplier_id === args.p_supplier_id)
+    for (const quote of quotes) {
+      const item = rowsOf("purchase_request_items").find((i) => i.id === quote.item_id)
+      if (item?.status === "cancelled" || lineIsLocked(item)) {
+        skipped += 1
+        continue
+      }
+      const fields = { supplier_id: args.p_supplier_id, reason, chosen_at: new Date().toISOString() }
+      const winner = rowsOf("request_canvass_winners").find((w) => w.item_id === quote.item_id)
+      if (winner) Object.assign(winner, fields)
+      else insertRow("request_canvass_winners", { item_id: quote.item_id, ...fields })
+      picked += 1
+    }
+    return { canvass_id: canvass.id, supplier_id: args.p_supplier_id, picked, skipped }
+  })
+
+  stubRpc("canvass_use_same_reason", (args) => {
+    const reason = String(args.p_reason ?? "").trim()
+    if (!reason) throw needsReason()
+    let changed = 0
+    for (const winner of rowsOf("request_canvass_winners")) {
+      const quote = rowsOf("request_canvass_quotes").find(
+        (q) => q.canvass_id === args.p_canvass_id && q.item_id === winner.item_id && q.supplier_id === winner.supplier_id,
+      )
+      const item = rowsOf("purchase_request_items").find((i) => i.id === winner.item_id)
+      if (!quote || lineIsLocked(item)) continue
+      winner.reason = reason
+      changed += 1
+    }
+    return { canvass_id: args.p_canvass_id, changed }
+  })
+
+  stubRpc("canvass_unlock_line", (args) => {
+    const reason = String(args.p_reason ?? "").trim()
+    if (!reason) throw pgrstError("22023", "canvass_unlock_line: say why it is being unlocked", { status: 400 })
+    const item = rowsOf("purchase_request_items").find((i) => i.id === args.p_item_id)
+    if (!item) throw pgrstError("P0002", "canvass_unlock_line: not found", { status: 404 })
+    if (!lockedItem(item) || hasUnlock(item.id)) return { item_id: item.id, unlocked: false }
+    insertRow("request_canvass_line_unlocks", { item_id: item.id, reason })
+    return { item_id: item.id, unlocked: true }
+  })
+
+  stubRpc("canvass_offer_projection", () => projection)
 
   stubRpc("canvass_add_supplier", (args) => {
     const supplierInput = args.p_supplier ?? {}
