@@ -78,6 +78,7 @@ describe("the S0 Evaluation page", () => {
     authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
     db.seed("costing_settings", { id: 1 });
     stubRpc("costing_matrix_page", rows);
+    stubRpc("costing_standalone_page", []);
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -175,7 +176,7 @@ describe("the S0 Evaluation page", () => {
     await rowFor("SOR-101");
 
     await user.type(screen.getByPlaceholderText(/search so number/i), "no such project");
-    expect(await screen.findByText("No matching SOR")).toBeInTheDocument();
+    expect(await screen.findByText("No matching evaluation")).toBeInTheDocument();
   });
 
   it("shows an empty register its own message", async () => {
@@ -215,6 +216,7 @@ describe("the S0 Evaluation page filters", () => {
     authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
     db.seed("costing_settings", { id: 1 });
     stubRpc("costing_matrix_page", rows);
+    stubRpc("costing_standalone_page", []);
   });
 
   const pick = async (user, chip, option) => {
@@ -261,6 +263,7 @@ describe("the S0 Evaluation page with a loss-making SOR (#892)", () => {
   beforeEach(() => {
     authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
     db.seed("costing_settings", { id: 1 });
+    stubRpc("costing_standalone_page", []);
     // SOR-257's figures: an offer of 8,550 against 29,928.06 of cost and no project expenses, under the ITR allowance.
     stubRpc("costing_matrix_page", [
       {
@@ -284,5 +287,88 @@ describe("the S0 Evaluation page with a loss-making SOR (#892)", () => {
     expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("-₱22,379.63");
     expect(within(row).getByTestId("costing-matrix-planned")).not.toHaveTextContent("—");
     expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("-₱22,379.63");
+  });
+});
+
+describe("the S0 Evaluation page with evaluations started from an S0 (#966)", () => {
+  const standaloneRow = {
+    matrix_id: "cccccccc-0000-4000-8000-000000000001",
+    s0_number: "S09001",
+    created_by: "bbbbbbbb-0000-4000-8000-000000000001",
+    created_at: "2026-12-01T00:00:00Z",
+    sales_incharge_id: "bbbbbbbb-0000-4000-8000-000000000001",
+    purchasing_incharge_id: "bbbbbbbb-0000-4000-8000-000000000009",
+    tier: "closed_book",
+    line_count: 2,
+    final_offer_total: "370000.00",
+    final_acquire_total: "125104.00",
+    project_expenses_total: "89160.00",
+    marketing: "0",
+  };
+
+  beforeEach(() => {
+    authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
+    db.seed("costing_settings", { id: 1 });
+    stubRpc("costing_matrix_page", rows);
+    stubRpc("costing_standalone_page", [standaloneRow]);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("marks a standalone one No SOR, with its S0 and the sheet's Revenue", async () => {
+    renderPage();
+
+    const row = (await screen.findByTestId("costing-matrix-no-sor")).closest("tr");
+    expect(row).toHaveTextContent("S09001");
+    expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("₱102,793.14");
+    expect(within(row).getByTestId("costing-matrix-actual")).toHaveTextContent("—");
+    expect(within(row).getByTestId("costing-matrix-items")).toHaveTextContent("—");
+    expect(screen.getAllByTestId("costing-matrix-row")).toHaveLength(4);
+  });
+
+  it("filters on No SOR", async () => {
+    const user = setupUser();
+    renderPage();
+    await rowFor("SOR-101");
+
+    // The fourth chip folds into the Filters popover.
+    await user.click(screen.getByRole("button", { name: /^filters/i }));
+    await user.click(screen.getByRole("button", { name: /with or without a sor/i }));
+    await user.click(await screen.findByRole("button", { name: "No SOR" }));
+
+    await waitFor(() => expect(screen.getAllByTestId("costing-matrix-row")).toHaveLength(1));
+    expect(screen.getByTestId("costing-matrix-row")).toHaveTextContent("S09001");
+  });
+
+  it("opens a standalone one by its own id", async () => {
+    const user = setupUser();
+    renderPage();
+
+    await user.click((await screen.findByTestId("costing-matrix-no-sor")).closest("tr"));
+
+    expect(await screen.findByTestId("opened-desk")).toHaveTextContent(standaloneRow.matrix_id);
+  });
+
+  it("offers a new evaluation from an S0", async () => {
+    renderPage();
+    expect(await screen.findByTestId("new-standalone")).toHaveTextContent("New evaluation from an S0");
+  });
+
+  it("lets someone named on a standalone evaluation in, to see only that one, and never asks for the SORs", async () => {
+    authUser = { id: "bbbbbbbb-0000-4000-8000-000000000009", isStandaloneReader: true };
+    const asked = vi.fn();
+    stubRpc("costing_matrix_page", () => {
+      asked();
+      return rows;
+    });
+    stubRpc("costing_standalone_page", [{ ...standaloneRow, tier: "price", final_acquire_total: null, project_expenses_total: null, marketing: null }]);
+    renderPage();
+
+    const row = (await screen.findByTestId("costing-matrix-no-sor")).closest("tr");
+    expect(row).toHaveTextContent("₱370,000.00");
+    expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("—");
+    expect(screen.queryByText("SOR-101")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("new-standalone")).not.toBeInTheDocument();
+    expect(asked).not.toHaveBeenCalled();
   });
 });

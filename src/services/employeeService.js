@@ -140,6 +140,19 @@ async function onEvaluationList(employee) {
 }
 
 /**
+ * Does the caller read a standalone S0 Evaluation (#966): started it, or named on it, or reads them all? They then
+ * get the S0 Evaluation page, which lists only what they read. A failure reads as "no": the database is the gate.
+ */
+async function readsStandaloneEvaluation() {
+  try {
+    const { data, error } = await supabase.rpc("costing_standalone_anywhere");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Does the signed-in caller see the money side of at least one Costing Matrix (a Super Admin, Purchasing,
  * or on any SOR's Deal Team)? They then get the Bid Decisions queue and the Costing Matrix page, which list
  * only their own SORs. A failure reads as "no": the database is the gate.
@@ -177,6 +190,7 @@ export const employeeService = {
     const ipasLists = await ipasListMembership(data);
     const isFinalAcquire = await onFinalAcquireList(data);
     const isCostingOpen = await costingOpenAnywhere();
+    const isStandaloneReader = await readsStandaloneEvaluation();
     const isTechnicalIncharge = await onTechnicalInchargeSomewhere(data);
     const isOnEvaluationList = await onEvaluationList(data);
     return {
@@ -205,6 +219,8 @@ export const employeeService = {
       isFinalAcquire,
       // Sees the money side of at least one Costing Matrix: Bid Decisions and the Costing Matrix page.
       isCostingOpen,
+      // Reads a standalone S0 Evaluation (#966): the nav shows S0 Evaluation.
+      isStandaloneReader,
       // Named the Technical in-charge of an S0 Evaluation: the nav shows Technical.
       isTechnicalIncharge,
       // On the Evaluation list: the nav shows Technical, where the evaluations waiting for approval are.

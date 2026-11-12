@@ -3,6 +3,8 @@ import { REFUSAL } from "../constants/refusal";
 import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
 import { DEFAULT_FINAL_ACQUIRE_PERCENT, abcSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
+import { isS0Number, linesFromOdoo, normalizeS0, shapeStandalonePage } from "../utils/standaloneEvaluation";
+import { odooService } from "./odooService";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 import { canvassService } from "./canvassService";
@@ -1345,7 +1347,90 @@ export const costingMatrixService = {
     if (read.error) throw read.error;
     return shapeMatrixPage(read.data, settings ?? DEFAULT_COSTING_SETTINGS);
   },
+
+  /**
+   * The evaluations that stand alone, started from an S0 and tied to no SOR (#966): the ones the caller reads, with the
+   * figures their tier may see. Each row opens by its matrix id.
+   */
+  async standalonePage() {
+    const [read, settings] = await Promise.all([supabase.rpc("costing_standalone_page"), costingMatrixService.getSettings()]);
+    if (read.error) throw read.error;
+    return shapeStandalonePage(read.data, settings ?? DEFAULT_COSTING_SETTINGS);
+  },
+
+  /** True when the caller reads at least one standalone evaluation (the page's door for someone named on one). */
+  async standaloneAnywhere() {
+    const { data, error } = await supabase.rpc("costing_standalone_anywhere");
+    return !error && data === true;
+  },
+
+  /**
+   * Starts an evaluation from an S0 number (#966). If the S0 already has one (standalone or on a SOR) that one is
+   * opened and Odoo is not asked. Otherwise the lines and quantities are pulled from the sale order in Odoo; the
+   * three ways it can fail are told apart with a `StandaloneStartError` whose `kind` is "not_s0", "not_found" or
+   * "odoo_down". Resolves to `{ subjectId, existed, standalone }`: `subjectId` is what the window opens by.
+   */
+  async startStandalone({ s0Number, salesIncharge, pmsIncharge }) {
+    if (!isS0Number(s0Number)) {
+      throw new StandaloneStartError("not_s0", "That is not an S0 number. Type S0 and its digits, like S01237.");
+    }
+    const ref = normalizeS0(s0Number);
+    const existing = await supabase.rpc("costing_s0_existing", { p_s0_number: ref });
+    if (existing.error) throw standaloneError(existing.error);
+    if (existing.data) return { subjectId: existing.data.subject_id, existed: true, standalone: existing.data.standalone };
+
+    let reply;
+    try {
+      reply = await odooService.fetchOrderLines(ref);
+    } catch {
+      throw new StandaloneStartError("odoo_down", "Odoo could not be reached. Try again in a moment.");
+    }
+    if (reply?.success !== true) {
+      if (reply?.found === false) throw new StandaloneStartError("not_found", `No sale order ${ref} in Odoo.`);
+      throw new StandaloneStartError("odoo_down", reply?.message || "Odoo could not be reached. Try again in a moment.");
+    }
+    const { data, error } = await supabase.rpc("costing_standalone_open", {
+      p_s0_number: ref,
+      p_sales_incharge: salesIncharge,
+      p_pms_incharge: pmsIncharge,
+      p_lines: linesFromOdoo(reply.items),
+    });
+    if (error) throw standaloneError(error);
+    return { subjectId: data.subject_id, existed: Boolean(data.existed), standalone: Boolean(data.standalone) };
+  },
+
+  /** Changes the Sales incharge and the PMS incharge of a standalone evaluation (#966). Both must be named. */
+  async setStandaloneIncharge(matrixId, { sales, pms }) {
+    const { error } = await supabase.rpc("costing_standalone_set_incharge", {
+      p_matrix_id: matrixId,
+      p_sales_incharge: blankToNull(sales),
+      p_pms_incharge: blankToNull(pms),
+    });
+    if (error) throw standaloneError(error);
+  },
+
+  /** Attaches a standalone evaluation to a SOR that has none (#966). From then on the SOR's rules decide who reads it. */
+  async linkStandaloneToSor(matrixId, opportunityId) {
+    const { data, error } = await supabase.rpc("costing_standalone_link", { p_matrix_id: matrixId, p_opportunity_id: opportunityId });
+    if (error) throw standaloneError(error);
+    return data;
+  },
 };
+
+/** Why an evaluation could not be started from an S0 (#966): `kind` is "not_s0", "not_found" or "odoo_down". */
+export class StandaloneStartError extends Error {
+  constructor(kind, message) {
+    super(message);
+    this.name = "StandaloneStartError";
+    this.kind = kind;
+  }
+}
+
+/** A refusal from the standalone functions, in the database's own words; anything else as it came. */
+function standaloneError(error) {
+  const match = /^costing_standalone: (.+)$/.exec(error?.message ?? "");
+  return match ? new Error(match[1].replace(/^./, (c) => c.toUpperCase()).replace(/([^.])$/, "$1.")) : error;
+}
 
 /** A duplicate preset name in words; anything else as it came. */
 function presetError(error) {

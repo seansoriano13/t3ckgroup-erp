@@ -1158,6 +1158,16 @@ prices, and only the Closed Book the summary and the spread between the two;
 anyone else called into the SOR sees the matrix without money. Besides its place
 on each SOR, the Closed Book has an S0 Evaluation page listing every SOR's
 matrix with its Planned and Actual Revenue.
+It can also stand alone (ADR 0052): started from just an S0 number, with the lines and
+quantities pulled from that sale order in Odoo, one evaluation per S0 and no SOR. A
+standalone evaluation names a Sales incharge and a PMS incharge when it is started
+(changeable after). Its readers: the person who started it and the Sales incharge
+read the price side; the PMS incharge and anyone with Purchasing access read the cost
+side; the decider list and Super Admins read everything (the Closed Book); the
+Technical in-charge and the Evaluation list read it without money. Anyone else reads
+nothing. "Link to a SOR" attaches it to a SOR that has none; from then on the SOR's
+rules decide and the standalone readers no longer apply. The list marks standalone
+ones "No SOR" and filters on it.
 _Avoid_: Costing Matrix (the old name), PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
 
 **Revenue**:

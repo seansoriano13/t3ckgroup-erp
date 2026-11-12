@@ -45,10 +45,11 @@ export function shapeMatrixPage(rows, settings) {
  * The page's slices over shaped rows. `stage` and `entity` are exact; `belowPlanned` keeps rows whose
  * Actual Revenue is below Planned; `search` matches the SO number, SOR number and project name (a
  * case-insensitive "contains", like the IPAS list), or the SO number and project written together
- * the way Purchasing writes them ("S04081 BFP Command Bus").
+ * the way Purchasing writes them ("S04081 BFP Command Bus"). `noSor` keeps only the evaluations that stand alone (#966).
  */
-export function filterMatrixPage(rows, { stage = null, entity = null, belowPlanned = false, search = "" } = {}) {
+export function filterMatrixPage(rows, { stage = null, entity = null, belowPlanned = false, noSor = false, search = "" } = {}) {
   return rows.filter((row) => {
+    if (noSor && !row.standalone) return false;
     if (stage && row.stage !== stage) return false;
     if (entity && !row.entities.includes(entity)) return false;
     if (belowPlanned && !row.comparison.actualLower) return false;
