@@ -20,6 +20,7 @@ import NowTab from "../NowTab";
 import ItemsTab from "../ItemsTab";
 import JourneyTab from "../JourneyTab";
 import PmsTab from "../PmsTab";
+import ScrollCueNav from "./ScrollCueNav";
 import NotesDrawer, { NotesButton } from "./NotesDrawer";
 import { goToDetails } from "./goToDetails";
 import { blockedLabels, EditBody, showMoney, useWarmTabs } from "./shared";
@@ -106,8 +107,8 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
       {p.windowsBanner}
 
       {!ctx.isEditing && (
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border/60 px-6 py-2">
-          <nav className="flex min-w-0 items-center gap-1 overflow-x-auto" aria-label="Breadcrumb">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border/60 px-6 py-2 max-sm:gap-2 max-sm:px-3">
+          <ScrollCueNav className="flex min-w-0 items-center gap-1" aria-label="Breadcrumb">
             {nav === "pills" ? (
               <>
                 <Button type="button" variant={view === "summary" ? "secondary" : "ghost"} size="sm" onClick={() => setView("summary")} className="shrink-0 font-bold">
@@ -148,7 +149,7 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
                 )}
               </>
             )}
-          </nav>
+          </ScrollCueNav>
           <NotesButton p={p} open={notesOpen} onToggle={() => setNotesOpen((v) => !v)} className="shrink-0" />
         </div>
       )}

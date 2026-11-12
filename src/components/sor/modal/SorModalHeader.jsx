@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
   CircleX,
@@ -28,6 +29,7 @@ import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
 import { sorCodeOf } from "../../../utils/sorCode";
 import { blockedLabels } from "./summary/shared";
+import { useMediaQuery } from "../../../hooks/useMediaQuery";
 
 const TONE_CLASSES = {
   green: { current: "bg-green-9 text-white hover:bg-green-9 hover:text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
@@ -77,6 +79,10 @@ export default function SorModalHeader({
 }) {
   const activeChevronRef = useRef(null);
   const [markLostOpen, setMarkLostOpen] = useState(false);
+  // On a screen at most 820px tall (a small laptop) the header saves height:
+  // one line for reference, title and client, and the stage ribbon behind a chip.
+  const compact = useMediaQuery("(max-height: 820px)");
+  const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -246,11 +252,86 @@ export default function SorModalHeader({
             </div>
   );
 
+  const fullStageControl = (onAfterMove) => (
+      <div className="w-full">
+        {!isFlowDeal && <div className="mb-1.5">{stageLine}</div>}
+        {isFlowDeal ? (
+          <FlowStageControl
+            opportunity={opportunity}
+            leading={stageLine}
+            trailing={stageTrailing}
+            showMarkLost={false}
+            isMoving={stageMutation.isPending}
+            disabled={moveDisabled}
+            blockedBy={blockedLabelList}
+            returnStageIds={returnStageIds}
+            onMove={(flowStageId) =>
+              {
+                onAfterMove?.();
+                stageMutation.mutate({ next: flowStageId, reason: null, salesReference: null });
+              }
+            }
+          />
+        ) : (
+          <>
+            {legacyRibbon}
+            {/* Mark as Lost lives in the "…" menu (#814). */}
+            {/* #813: Reopen takes the same spot on a Lost deal. */}
+            {isLostCode(opportunity.status, pipelineStages) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <ReopenButton opportunity={opportunity} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+  );
+
+  const currentStageLabel = isFlowDeal
+    ? currentFlowStage?.name || currentFlowStage?.label || "—"
+    : pipelineStages[currentIndex]?.label || opportunity.status;
+
+  // Short screens: the ribbon sits behind one chip that opens it in a popover.
+  const stageControl = compact ? (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <Dropdown
+        usePortal
+        isOpen={stagePopoverOpen}
+        onToggle={() => setStagePopoverOpen((v) => !v)}
+        onClose={() => setStagePopoverOpen(false)}
+        matchTriggerWidth={false}
+        popoverClassName="popover-enter z-[10001] w-[min(92vw,56rem)] rounded-xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
+        className="min-w-0 max-w-full"
+        trigger={
+          <Button type="button" variant="outline" size="sm" className="max-w-full gap-1.5" aria-label={`Stage: ${currentStageLabel}. Open the stage ribbon`}>
+            <span className="text-muted-foreground">Stage:</span>
+            <span className="truncate font-bold">{currentStageLabel}</span>
+            <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
+          </Button>
+        }
+      >
+        {() => fullStageControl(() => setStagePopoverOpen(false))}
+      </Dropdown>
+      <span
+        aria-live="polite"
+        className={cn(
+          "rounded-full px-2 py-0.5 text-[11px] font-bold tracking-widest uppercase",
+          blockersPending ? "bg-muted text-muted-foreground" : blockedCount > 0 ? "bg-red-9/15 text-red-11" : "bg-green-9/15 text-green-11",
+        )}
+      >
+        {blockersPending ? "Checking…" : blockedCount > 0 ? `Blocked: ${blockedCount}` : "Clear to move"}
+      </span>
+      {isFlowDeal && stageTrailing}
+    </div>
+  ) : (
+    fullStageControl()
+  );
+
   return (
     <div className="flex shrink-0 flex-col gap-2.5 border-b border-border/60 px-5 pt-3 pb-3 sm:px-8">
       <div className="flex items-start justify-between gap-3 sm:gap-6">
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex min-w-0 items-center gap-x-2.5">
+          <div className={cn("flex min-w-0 items-center gap-x-2.5", !(compact && !isEditing) && "mb-1")}>
             <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Target size={13} strokeWidth={2.5} />
             </div>
@@ -264,6 +345,12 @@ export default function SorModalHeader({
             )}
             {/* The stage strip below shows the stage, so only a lost/old deal's badge is kept here. */}
             {!isFlowDeal && <StatusBadge status={opportunity.status} />}
+            {compact && !isEditing && (
+              <h2 className="min-w-0 truncate text-base leading-tight font-black tracking-[-0.02em] text-foreground max-sm:hidden" title={opportunity.project_title}>
+                {opportunity.project_title}
+                <span className="font-medium text-muted-foreground"> · {opportunity.client_name}</span>
+              </h2>
+            )}
           </div>
           {isEditing ? (
             <div className="space-y-2 mt-2 max-w-xl">
@@ -283,8 +370,9 @@ export default function SorModalHeader({
             </div>
           ) : (
             <>
-              <h2 className="truncate text-xl leading-tight font-black tracking-[-0.02em] text-foreground" title={opportunity.project_title}>{opportunity.project_title}</h2>
-              <p className="truncate text-sm font-medium text-muted-foreground">{opportunity.client_name}</p>
+              {/* Phones: the title wraps to two lines instead of being cut. */}
+              <h2 className={cn("text-xl leading-tight font-black tracking-[-0.02em] text-foreground max-sm:line-clamp-2 sm:truncate", compact && "sm:hidden")} title={opportunity.project_title}>{opportunity.project_title}</h2>
+              <p className={cn("truncate text-sm font-medium text-muted-foreground", compact && "sm:hidden")}>{opportunity.client_name}</p>
             </>
           )}
         </div>
@@ -423,35 +511,7 @@ export default function SorModalHeader({
         </div>
       </div>
 
-      <div className="w-full">
-        {!isFlowDeal && <div className="mb-1.5">{stageLine}</div>}
-        {isFlowDeal ? (
-          <FlowStageControl
-            opportunity={opportunity}
-            leading={stageLine}
-            trailing={stageTrailing}
-            showMarkLost={false}
-            isMoving={stageMutation.isPending}
-            disabled={moveDisabled}
-            blockedBy={blockedLabelList}
-            returnStageIds={returnStageIds}
-            onMove={(flowStageId) =>
-              stageMutation.mutate({ next: flowStageId, reason: null, salesReference: null })
-            }
-          />
-        ) : (
-          <>
-            {legacyRibbon}
-            {/* Mark as Lost lives in the "…" menu (#814). */}
-            {/* #813: Reopen takes the same spot on a Lost deal. */}
-            {isLostCode(opportunity.status, pipelineStages) && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <ReopenButton opportunity={opportunity} />
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      {stageControl}
       <MarkLostDialogHost
         opportunity={opportunity}
         lostStages={lostStages}
