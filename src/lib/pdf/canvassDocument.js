@@ -1,121 +1,100 @@
 /**
- * The printed Canvass as HTML (issue #282, spec #275, ADR 0014): one A4 portrait sheet in the IPAS
- * print's furniture (rail, serif name, hairlines, the signature band), so it reads as part of the
- * same Purchasing paper set. The recommendation leads (variant C of the prototype); every Offer is
- * compared beneath as evidence, suppliers side by side as columns and the details as rows (a
- * Canvass usually has three or more), four suppliers to a table; the signatures close the page.
+ * The printed Canvass as HTML (spec #956, issue #971): landscape A4, one sheet per page, in the
+ * shared paper set (rail, `.hdr` facts, `.sec` sections, the signature band). Lines go down,
+ * suppliers go across three to a page, laid out like the PMS 3 CANVASS MATRIX tab; a fourth
+ * supplier continues on the next page with the line column repeated. The winner of each line is
+ * marked, the reasons are listed under the grid on the last page, and only "Canvassed by" signs.
  *
- * Pure: a view model (canvassViewModel.js) in, a document string out. Everything typed or read
- * from outside goes through `escapeHtml`.
+ * Pure: a view model (canvassViewModel.js) in, a document string out. It draws only what the view
+ * model carries, so a reader without money gets no price, rate or total markup at all. Everything
+ * typed goes through `escapeHtml`.
  */
 
 import { MARK } from './brandMark';
-import { PAPER_CSS as CSS } from './paperSet';
+import { PAPER_CSS, pageCss } from './paperSet';
 import { escapeHtml as esc, sigBlock } from './sigBlock';
+import { SUPPLIERS_PER_PAGE } from './canvassViewModel';
 
 const EXTRA_CSS = `
-  .head .r .x { font-family: var(--mono); font-size: var(--t-fine); color: var(--ink-faint); margin-top: var(--s-1); }
-  .cnv-compare { table-layout: fixed; page-break-inside: avoid; break-inside: avoid; }
-  .cnv-compare + .cnv-group { margin-top: var(--s-2); }
-  .cnv-compare th, .cnv-compare td { overflow-wrap: anywhere; padding-left: 6px; }
-  .cnv-compare thead th { vertical-align: top; padding-top: 3px; }
-  .cnv-compare thead th b { color: var(--ink); font-weight: 600; }
-  .cnv-compare th.cnv-label { padding-left: 0; font-size: var(--t-micro); font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-faint); }
-  .cnv-compare td.num { padding-right: 6px; }
-  .cnv-compare .chosen { background: var(--wash); }
-  .cnv-compare .sub { margin-top: 2px; }
-  .cnv-compare td.num .sub { color: var(--ink-faint); white-space: normal; }
-  .cnv-group { font-family: var(--mono); font-size: var(--t-fine); color: var(--ink-faint); }
-  .cnv-slots { table-layout: fixed; }
-  .cnv-slots th { font-size: var(--t-micro); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; border-bottom-color: var(--rule); padding-top: 0; }
-  .cnv-slots td { overflow-wrap: anywhere; }
-  .cnv-slots .cnv-by { font-size: var(--t-fine); color: var(--ink-faint); }
-  .cnv-warning { font-size: var(--t-body); font-weight: 600; color: var(--flag); border-top: 1px solid var(--ink); padding-top: var(--s-1); }
+  .sheet { width: 297mm; min-height: 209mm; }
+  ${pageCss({ landscape: true })}
+  .cnv-grid { table-layout: fixed; }
+  .cnv-grid th, .cnv-grid td { border: 1px solid var(--rule); padding: 3px 5px; overflow-wrap: anywhere; }
+  .cnv-grid thead { display: table-header-group; }
+  .cnv-grid tr { break-inside: avoid; page-break-inside: avoid; }
+  .cnv-grid thead th { color: var(--ink); font-weight: 600; }
+  .cnv-grid .sub { display: block; font-weight: 400; color: var(--ink-faint); font-size: var(--t-fine); }
+  .cnv-grid td.no { font-family: var(--mono); font-weight: 600; text-align: center; }
+  .cnv-grid td.q { font-family: var(--mono); text-align: right; white-space: nowrap; }
+  .cnv-grid .win { background: var(--wash); }
+  .cnv-grid .none { color: var(--ink-faint); font-style: italic; }
+  .cnv-grid .price { font-family: var(--mono); white-space: nowrap; }
+  .cnv-reasons { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: var(--t-table); }
+  .cnv-reasons .n { font-family: var(--mono); font-weight: 600; margin-right: 6px; }
+  .cnv-reasons .off { color: var(--ink-faint); font-style: italic; }
+  .cnv-note { font-size: var(--t-body); }
+  .cnv-warning { font-size: var(--t-body); font-weight: 600; color: var(--flag); }
 `;
 
 const field = (label, value, { mono = false } = {}) =>
   `<div class="f"><span class="k">${esc(label)}</span><span class="v${mono ? ' mono' : ''}">${esc(value)}</span></div>`;
 
-/** The head: the chosen supplier in the serif name slot, its unit price in the big-figure slot. */
-function headHtml(d) {
-  const price = d.price
-    ? `<div class="k">Unit price</div><div class="big">${esc(d.price)}</div>${d.foreign ? `<div class="x">${esc(d.foreign)}</div>` : ''}`
-    : '';
-  return `<div class="head">
-    <div class="l"><div class="kind">Canvass · Recommended</div>
-      <div class="who">${esc(d.supplier)}</div>
-      ${d.detail ? `<div class="meta">${esc(d.detail)}</div>` : ''}</div>
-    <div class="r">${price}</div>
-  </div>`;
+const sub = (value) => (value ? `<span class="sub">${esc(value)}</span>` : '');
+
+function supplierHead(s) {
+  const facts = [s.currency, s.rate].filter(Boolean).join(' · ');
+  return `<th><b>${esc(s.name)}</b>${sub(facts)}${sub(s.holds)}${sub(`Lead time ${s.leadTime}`)}</th>`;
 }
 
-/** The reason the winner was chosen, printed as the canvasser typed it. */
-function reasonHtml(reason) {
-  const body = reason ? `<p class="lede">${esc(reason)}</p>` : '<div class="empty">No reason recorded.</div>';
-  return `<section class="sec"><h3><span>Why this supplier</span></h3><div class="body">${body}</div></section>`;
+function cellHtml(cell) {
+  if (cell.state === 'none') return '<td class="none">Not quoted</td>';
+  const parts = [
+    cell.brand ? `<b>${esc(cell.brand)}</b>` : '',
+    cell.description ? esc(cell.description) : '',
+    cell.remarks ? `<span class="sub">${esc(cell.remarks)}</span>` : '',
+    cell.price !== undefined ? `<div class="price">${esc(cell.price)}<span class="sub">Total ${esc(cell.total)}</span></div>` : '',
+    cell.winner ? '<span class="prov final">Winner</span>' : '',
+  ].filter(Boolean);
+  return `<td class="${cell.winner ? 'win' : ''}">${parts.join('<br>')}</td>`;
 }
 
-/**
- * The details compared, one row each, in the order a purchaser reads a comparison: what it is,
- * what it costs, how fast, how good, how long the quote holds, then the papers and notes.
- */
-const COMPARE_ROWS = [
-  { label: 'Offered', cell: (o) => esc(o.offered) },
-  { label: 'Quoted', num: true, cell: (o) => esc(o.quoted) },
-  { label: 'In PHP', num: true, cell: (o) => `${esc(o.php)}${o.foreign ? `<div class="sub">${esc(o.foreign)}</div>` : ''}` },
-  { label: 'Lead time', cell: (o) => esc(o.leadTime) },
-  { label: 'Quality', cell: (o) => esc(o.quality) },
-  { label: 'Valid to', cell: (o) => esc(o.validUntil) },
-  { label: 'Brochure', cell: (o) => (o.brochure ? esc(o.brochure) : '<span class="empty">None</span>') },
-  { label: 'Remarks', cell: (o) => (o.remarks ? esc(o.remarks) : '<span class="empty">—</span>') },
-];
-
-/**
- * One comparison table: the suppliers as columns (the chosen one marked), the details as rows.
- * A short last group keeps the full column count, so its columns line up with the table above.
- */
-function compareTable(group, perTable) {
-  const pad = Math.max(0, perTable - group.offers.length);
-  const blank = '<td class="cnv-pad"></td>'.repeat(pad);
-  const width = `${(82 / perTable).toFixed(2)}%`;
-  const head = group.offers
+/** The grid of one page: the line column, then up to three suppliers; short pages keep the column count. */
+function gridHtml(page) {
+  const pad = Math.max(0, SUPPLIERS_PER_PAGE - page.suppliers.length);
+  const head = `<thead><tr><th style="width:4%">No.</th><th style="width:22%">Asked for</th><th style="width:5%">Qty</th><th style="width:5%">Unit</th>${page.suppliers
+    .map(supplierHead)
+    .join('')}${'<th></th>'.repeat(pad)}</tr></thead>`;
+  const body = page.rows
     .map(
-      (o) => `<th class="${o.chosen ? 'chosen' : ''}" style="width:${width}"><b>${esc(o.supplier)}</b>${o.chosen ? ' <span class="prov final">Chosen</span>' : ''}${o.brand ? `<div class="sub">${esc(o.brand)}</div>` : ''}</th>`,
+      (row) =>
+        `<tr><td class="no">${row.no}</td><td>${row.brand ? `<b>${esc(row.brand)}</b><br>` : ''}${esc(row.description)}</td><td class="q">${esc(row.quantity)}</td><td>${esc(row.unit)}</td>${row.cells
+          .map(cellHtml)
+          .join('')}${'<td></td>'.repeat(pad)}</tr>`,
     )
     .join('');
-  const rows = COMPARE_ROWS.map(
-    (row) =>
-      `<tr><th class="cnv-label" scope="row">${row.label}</th>${group.offers
-        .map((o) => `<td class="${[row.num ? 'num' : '', o.chosen ? 'chosen' : ''].filter(Boolean).join(' ')}">${row.cell(o)}</td>`)
-        .join('')}${blank}</tr>`,
-  ).join('');
-  return `${group.label ? `<div class="cnv-group">${esc(group.label)}</div>` : ''}<table class="cnv-compare"><thead><tr>
-      <th class="cnv-label" style="width:18%"></th>${head}${'<th class="cnv-pad"></th>'.repeat(pad)}
-    </tr></thead><tbody>${rows}</tbody></table>`;
+  const empty = page.rows.length === 0 ? '<div class="empty">No lines on this request.</div>' : '';
+  return `<table class="cnv-grid">${head}<tbody>${body}</tbody></table>${empty}`;
 }
 
-/** Every Offer side by side, the chosen one marked; past four suppliers the comparison continues below. */
-function offersHtml(offers, groups) {
-  const count = `${offers.length} ${offers.length === 1 ? 'offer' : 'offers'}`;
-  if (offers.length === 0) {
-    return `<section class="sec"><h3><span>Offers</span><b>${count}</b></h3><div class="body"><div class="empty">No offers recorded.</div></div></section>`;
-  }
-  const perTable = Math.max(...groups.map((g) => g.offers.length), 1);
-  return `<section class="sec"><h3><span>Offers</span><b>${count}</b></h3><div class="body">
-    ${groups.map((group) => compareTable(group, groups.length > 1 ? perTable : group.offers.length)).join('')}</div></section>`;
+const OUTCOME_TEXT = { 'no-winner': 'No winner chosen', unquoted: 'No supplier quoted' };
+
+function reasonsHtml(vm) {
+  const items = vm.reasons
+    .map((r) => {
+      const body =
+        r.outcome === 'won'
+          ? `<b>${esc(r.supplier)}</b> — ${r.reason ? esc(r.reason) : '<span class="off">no reason recorded</span>'}`
+          : `<span class="off">${OUTCOME_TEXT[r.outcome]}</span>`;
+      return `<li data-testid="print-reason-${r.no}"><span class="n">${r.no}</span>${body}</li>`;
+    })
+    .join('');
+  const note = vm.noOtherSupplier
+    ? `<div class="cnv-note" data-testid="print-no-other"><b>No other supplier:</b> ${esc(vm.noOtherSupplier.reason)}${vm.noOtherSupplier.by ? ` <span class="off">${esc(vm.noOtherSupplier.by)}</span>` : ''}</div>`
+    : '';
+  const warning = vm.warning ? `<div class="cnv-warning" data-testid="more-offers-warning">${esc(vm.warning)}</div>` : '';
+  return `<section class="sec"><h3><span>Winners and reasons</span></h3><div class="body">${items ? `<ul class="cnv-reasons">${items}</ul>` : '<div class="empty">No lines.</div>'}${note}${warning}</div></section>`;
 }
 
-/** The three supplier slots, with the reason for each "No other supplier" (#721). */
-function slotsHtml(slots) {
-  if (slots.length === 0) return '';
-  const cell = (s) =>
-    `<td data-testid="print-slot-${s.slot}"><b>${esc(s.label)}</b>${s.reason ? `<div>${esc(s.reason)}</div>` : ''}${s.by ? `<div class="cnv-by">${esc(s.by)}</div>` : ''}</td>`;
-  return `<section class="sec"><h3><span>Supplier slots</span><b>3</b></h3><div class="body"><table class="cnv-slots"><tr>${slots
-    .map((s) => `<th>Supplier ${s.slot}</th>`)
-    .join('')}</tr><tr>${slots.map(cell).join('')}</tr></table></div></section>`;
-}
-
-/** The signature plates (Canvassed by, and Approved by on an old signed Canvass) through `sigBlock`, in the band every Purchasing form closes with. */
 function bandHtml(blocks) {
   return `<div class="band"><div class="sigs n${blocks.length}">${blocks
     .map((b) =>
@@ -131,27 +110,32 @@ function bandHtml(blocks) {
     .join('')}</div></div>`;
 }
 
-/** The whole sheet as markup, in the same furniture as the IPAS, Transmittal and Packing List. */
-export function buildCanvassSheetHtml(vm) {
+function pageHtml(vm, page) {
   const h = vm.header;
-  const approved = vm.signatures.some((b) => b.role === 'Approved by' && b.state === 'signed');
-  return `<div class="sheet">
+  const last = page.number === page.of;
+  const forWhom = [h.client, h.project].filter(Boolean).join(' · ');
+  return `<div class="sheet" data-testid="canvass-page-${page.number}">
     <div class="rail"><span class="mark">${MARK}</span>
       <span class="org"><b>T3CKGROUP</b>Purchasing department</span>
-      <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">Canvass${approved ? ' · Approved' : ''}</div></span></div>
-    ${headHtml(vm.decision)}
+      <span class="doc"><div class="t">${esc(vm.number)}</div><div class="s">Canvass${page.of > 1 ? ` · Page ${page.number} of ${page.of}` : ''}</div></span></div>
     <div class="hdr">
-      ${field(h.subjectKind === 'Component' ? 'SOR · Component' : h.subjectKind, h.subject)}
-      ${field('Raised', h.raised)}
-      ${field('Offers', String(h.offerCount), { mono: true })}
+      ${field('Purchase Request', h.request)}
+      ${field('Client · Project', forWhom || '—')}
+      ${field('Date', h.date ?? '—')}
+      ${field('Canvassed by', vm.signatures[0].who || '—')}
+      ${h.sor ? field('SOR', h.sor, { mono: true }) : ''}
+      ${field('Suppliers', String(h.supplierCount), { mono: true })}
     </div>
-    ${reasonHtml(vm.decision.reason)}
-    ${slotsHtml(vm.slots ?? [])}
-    ${offersHtml(vm.offers, vm.offerGroups ?? [{ offers: vm.offers, label: null }])}
-    ${vm.warning ? `<div class="cnv-warning" data-testid="more-offers-warning">${esc(vm.warning)}</div>` : ''}
-    ${bandHtml(vm.signatures)}
+    <section class="sec"><h3><span>Canvass</span><b>${h.lineCount} ${h.lineCount === 1 ? 'line' : 'lines'}</b></h3><div class="body">${gridHtml(page)}</div></section>
+    ${last ? reasonsHtml(vm) : ''}
+    ${last ? bandHtml(vm.signatures) : ''}
     <div class="foot"><span>${esc(vm.number)}</span><span class="mid">${vm.printedOn ? `Printed ${esc(vm.printedOn)}${vm.printedBy ? ` by ${esc(vm.printedBy)}` : ''}` : ''}</span><span class="r">Purchasing</span></div>
   </div>`;
+}
+
+/** Every page as markup, one `.sheet` each. */
+export function buildCanvassSheetHtml(vm) {
+  return vm.pages.map((page) => pageHtml(vm, page)).join('\n');
 }
 
 /** The full printable document: the same HTML the browser prints and "Save as PDF" converts. */
@@ -163,7 +147,7 @@ export function buildCanvassDocument(vm) {
 <title>${esc(vm.number)} · Canvass</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap">
-<style>${CSS}${EXTRA_CSS}</style>
+<style>${PAPER_CSS}${EXTRA_CSS}</style>
 </head>
 <body>
 ${buildCanvassSheetHtml(vm)}
