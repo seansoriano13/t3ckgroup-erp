@@ -9,7 +9,7 @@ import { employeeService } from '../../../services/employeeService';
 import { companyService, matchesCompanyFilter } from '../../../services/companyService';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, Building2, CalendarDays, Plus } from 'lucide-react';
+import { ArrowDownWideNarrow, Building2, CalendarDays, Plus } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
 import { Button } from '@/components/ui/button';
 import PageShell from '../../../components/ui/PageShell';
@@ -373,9 +373,9 @@ export default function HrLeavesManagerPage() {
     <>
       {usesPeriod && <FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} />}
       <WhoIsOut approvedLeaves={approvedLeaves} />
-      <Button type="button" onClick={() => setIsApplyModalOpen(true)}>
+      <Button type="button" aria-label="File for Employee" onClick={() => setIsApplyModalOpen(true)}>
         <Plus size={16} />
-        File for Employee
+        File<span className="max-sm:hidden">{' for Employee'}</span>
       </Button>
     </>
   );
@@ -546,12 +546,20 @@ export default function HrLeavesManagerPage() {
         }
         hasActiveFilters={filtersActive}
         onClearAll={clearFilters}
-        actions={activeTab === 'pending' && (
-          <Button type="button" variant="outline" size="lg" onClick={() => setPendingAsc((v) => !v)} className="gap-2 sm:ml-auto">
-            {pendingAsc ? <ArrowUpNarrowWide /> : <ArrowDownWideNarrow />}
-            {pendingAsc ? 'Soonest first' : 'Latest first'}
-          </Button>
+        filters={activeTab === 'pending' && (
+          <FilterSelect
+            icon={ArrowDownWideNarrow}
+            label="Sort"
+            value={pendingAsc ? 'ASC' : 'DESC'}
+            onChange={(v) => setPendingAsc(v === 'ASC')}
+            options={[
+              { value: 'ASC', label: 'Soonest first' },
+              { value: 'DESC', label: 'Latest first' },
+            ]}
+            allValue="ASC"
+          />
         )}
+        activeCount={activeTab === 'pending' && !pendingAsc ? 1 : 0}
       />
     </>
   );
