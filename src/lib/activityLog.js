@@ -11,6 +11,17 @@ export const DEFAULT_LOG_FILTERS = {
   search: "",
 };
 
+// "May 16, 4:00 PM": the short form for laptops and phones.
+export function formatWhenShort(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function formatWhen(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleString(undefined, {
