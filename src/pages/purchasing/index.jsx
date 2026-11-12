@@ -103,8 +103,10 @@ function StageCell({ row, tones, search }) {
   return <StatusBadge label={label} status={row.sor_status} title={label}>{text}</StatusBadge>;
 }
 
-// Stage, Progress, Last activity and Age hide below md so Request, Buyer and Status stay in view; the row sheet has the rest.
-const NARROW_HIDDEN = new Set(["Stage", "Progress", "Last activity", "Age"]);
+// Last activity and Age hide below md (and on a phone card); the row sheet has the rest.
+const NARROW_HIDDEN = new Set(["Last activity", "Age"]);
+// A column's place on a phone card (Table `stackOnPhone`).
+const PHONE_ROLE = { Request: "title", State: "badge", Stage: "meta", Progress: "meta", Buyer: "meta", "Last activity": "hide", Age: "hide" };
 
 const REQUEST_SORT = {
   request: (r) => requestIdentity(r).title,
@@ -122,7 +124,7 @@ function ProgressCell({ row }) {
   if (!row.item_count) return <span className="text-xs text-muted-foreground">No items yet</span>;
   const done = row.item_count - row.open_count;
   return (
-    <div className="w-full min-w-[8rem]">
+    <div className="w-full min-w-24">
       <div className="flex gap-0.5" aria-hidden="true">
         {Array.from({ length: row.item_count }, (_, i) => (
           <span key={i} className={`h-1 flex-1 rounded-full ${i < done ? "bg-green-9" : "bg-mauve-5"}`} />
@@ -188,17 +190,15 @@ function QueueRow({ row, selected, onOpen, canTake, stageTones, awardedOn, searc
         reference={direct ? undefined : reference}
         word={direct ? reference : undefined}
         name={title}
+        // Two lines only (reference, name); the PR number rides in the name's tooltip.
+        tooltip={row.pr_number ? `${title} · ${row.pr_number}` : undefined}
         search={search}
-      >
-        {row.pr_number ? <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
-            <HighlightText text={row.pr_number} search={search} />
-          </span> : null}
-      </IdentityCell>
-      <TableCell className="hidden md:table-cell">
+      />
+      <TableCell>
         <StageCell row={row} tones={stageTones} search={search} />
         <AwardedBadge date={awardedOn} className="mt-1" />
       </TableCell>
-      <TableCell className="hidden md:table-cell">
+      <TableCell>
         <ProgressCell row={row} />
       </TableCell>
       <TableCell>
@@ -393,12 +393,13 @@ function PurchaseRequests() {
         {!isLoading && !isError && visible.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="overflow-x-auto">
-              <Table tableId="purchasing" className="md:min-w-[52rem]">
+              <Table tableId="purchasing" stackOnPhone className="md:min-w-[44rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
                     {["Request", "Stage", "Progress", "Buyer", "Last activity", "Age", "State"].map((heading) => (
                       <SortHead
                         key={heading}
+                        phone={PHONE_ROLE[heading]}
                         id={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
                         sortKey={heading.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
                         sort={sort}

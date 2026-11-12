@@ -116,7 +116,7 @@ export default function IpasRow({ row, onOpen, search = "", show = () => true })
       )}
       {show("entity") && (
       <TableCell className="hidden md:table-cell">
-        <span className="text-xs text-muted-foreground">{row.entity || "—"}</span>
+        <span className="whitespace-nowrap text-xs text-muted-foreground">{row.entity || "—"}</span>
       </TableCell>
       )}
       {show("purpose") && (
