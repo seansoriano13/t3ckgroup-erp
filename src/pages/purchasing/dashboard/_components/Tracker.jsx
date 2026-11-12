@@ -19,7 +19,6 @@ import { IdentityCell } from "@/components/purchasing/list/IdentityCell";
 import ExportButton from "@/components/purchasing/list/ExportButton";
 import ColumnsMenu from "@/components/purchasing/list/ColumnsMenu";
 import { useHiddenColumns } from "@/hooks/useHiddenColumns";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useAuth } from "@/context/AuthContext";
 import { usePaging } from "@/hooks/usePaging";
 import { useTableSort } from "@/hooks/useTableSort";
@@ -38,6 +37,7 @@ import { TRACKER_COLUMNS, TRACKER_EXPORT_HEADER, TRACKER_SORT, trackerExportRows
 import { Age, DeadlineText, MoveText, StageCircle } from "./trackerParts";
 import { ALL, FILED_INCLUDED, NO_CANVASS } from "./useTrackerFilters";
 import { useStandingLabel } from "./useStandingLabel";
+import { useIsPhone, useLaptopBand } from "@/hooks/useScreenBand";
 
 /**
  * The Purchasing Dashboard's tracker: one row per SOR, one circle per stage of
@@ -58,8 +58,6 @@ const sorIdentity = (sor) => ({
 const TRACKER_COLUMN_KEYS = TRACKER_COLUMNS.map((column) => column.key);
 const HEAD = "whitespace-nowrap text-label font-bold uppercase tracking-wider";
 // Phones are below Tailwind's md; the laptop band is ADR 0051's `laptop:` query.
-const PHONE_QUERY = "(max-width: 767.98px)";
-const LAPTOP_QUERY = "(min-width: 1024px) and (max-width: 1535.98px), (min-width: 1024px) and (max-height: 820px)";
 // The Filed circle column is the first to go when the table is short of room (below 1440px).
 const FILED_NARROW = "max-[1439px]:laptop:hidden";
 const CHIP = "h-9 w-auto gap-2 px-2.5";
@@ -251,8 +249,8 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
   const shown = TRACKER_COLUMNS.filter((column) => column.locked || columns.show(column.key));
 
   const [order, chooseOrder] = useTrackerOrder(user?.id);
-  const onPhone = useMediaQuery(PHONE_QUERY);
-  const inLaptopBand = useMediaQuery(LAPTOP_QUERY);
+  const onPhone = useIsPhone();
+  const inLaptopBand = useLaptopBand();
   const compact = onPhone || inLaptopBand;
 
   const today = useMemo(() => new Date(), []);
@@ -354,7 +352,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
                         sort={sort}
                         onSort={toggle}
                         phone={column.key === "sor" ? "title" : "meta"}
-                        className={HEAD}
+                        className={cn(HEAD, column.key === "next-move" && "min-w-[14rem]")}
                       >
                         {column.label}
                       </SortHead>
@@ -412,7 +410,7 @@ export default function Tracker({ filters: f, handlers, suspended = false }) {
                         }
                         if (column.key === "next-move") {
                           return (
-                            <TableCell key={column.key} className="min-w-56 max-w-[18rem]">
+                            <TableCell key={column.key} className="min-w-[14rem] max-w-[18rem]">
                               <MoveText next={sor.next} />
                             </TableCell>
                           );

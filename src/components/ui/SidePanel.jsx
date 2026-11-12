@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "../../lib/utils";
 import { Button } from "./button";
 import { Drawer, DrawerContent, DrawerTitle, DrawerTrigger, DrawerClose } from "./drawer";
 import { X } from "lucide-react";
+import { useIsPhone, useRoomy } from "@/hooks/useScreenBand";
 
-const PHONE_QUERY = "(max-width: 767.98px)";
 
 /**
  * A side column that is not the page's main job. Wide and tall enough, it is a
@@ -25,10 +24,11 @@ export default function SidePanel({
   onOpenChange,
   trigger = "button",
   className,
+  layer,
   children,
 }) {
-  const roomy = useMediaQuery(`(min-width: ${inlineFrom}px) and (min-height: 701px)`);
-  const phone = useMediaQuery(PHONE_QUERY);
+  const roomy = useRoomy(inlineFrom);
+  const phone = useIsPhone();
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
   const setOpen = (next) => {
@@ -90,7 +90,7 @@ export default function SidePanel({
       <DrawerContent
         side={phone ? "bottom" : "right"}
         style={phone ? undefined : { width }}
-        className={phone ? undefined : "max-w-[90vw]"}
+        className={cn(layer, !phone && "max-w-[90vw]")}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
           <DrawerTitle>{label}</DrawerTitle>

@@ -1,6 +1,6 @@
 import SidePanel from "@/components/ui/SidePanel";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 /**
  * A record's body and its "Your move" rail (#989). The rail is a SidePanel: a right
@@ -12,13 +12,13 @@ import { cn } from "@/lib/utils";
  * the body; `rail` is the card.
  */
 export default function RecordWithRail({ status, rail, children, className }) {
-  const phone = useMediaQuery("(max-width: 767.98px)");
+  const phone = useIsPhone();
   const label = phone && status ? `Your move · ${status}` : "Your move";
   return (
     <div className={cn("flex min-w-0 flex-col gap-4 max-md:pb-16 min-[1440px]:flex-row min-[1440px]:gap-8", className)}>
       <div className="min-w-0 flex-1 space-y-6">{children}</div>
       <div className="order-first min-[1440px]:sticky min-[1440px]:top-2 min-[1440px]:order-last min-[1440px]:self-start">
-        <SidePanel label={label} trigger="sticky" width="25rem" inlineFrom={1440}>
+        <SidePanel label={label} trigger="sticky" width="25rem" inlineFrom={1440} layer="z-[75]">
           {rail}
         </SidePanel>
       </div>
