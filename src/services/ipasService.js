@@ -51,6 +51,7 @@ import {
   shapeIpas,
 } from "../utils/ipas";
 import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
+import { parsePercentInput, percentApplies } from "../utils/ipasPaymentPercent";
 import { sumPesos } from "../utils/landedCost";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
@@ -1803,7 +1804,7 @@ function unavailable(po) {
 
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, checkNo, proofUrl } = payment || {};
+  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, checkNo, proofUrl } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -1811,6 +1812,9 @@ function paymentArgs(payment, isPhpPo) {
   if (!amountRead.ok || amountRead.value === null || amountRead.value <= 0) {
     throw new IpasError(IPAS_ERROR.INVALID, "The amount must be a number more than zero.");
   }
+
+  const percentRead = percentApplies(kind) ? parsePercentInput(percentOfOrder) : { ok: true, value: null };
+  if (!percentRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The % of order must be a number more than zero, or left blank.");
 
   const rateRead = parseAmountInput(forexRate);
   if (!rateRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The forex rate paid must be a number.");
@@ -1836,6 +1840,7 @@ function paymentArgs(payment, isPhpPo) {
     p_kind: kind,
     p_paid_on: paidOn,
     p_amount: amountRead.value,
+    p_percent_of_order: percentRead.value,
     p_forex_rate: isPhpPo ? null : rateRead.value,
     p_doc_stamp_php: fees[1],
     p_misc_fee_php: fees[2],

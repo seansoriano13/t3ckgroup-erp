@@ -20,7 +20,6 @@ import {
   IPAS_TYPED_STATUS_LABELS,
   IPAS_LANDED_COST_SPLIT_LABELS,
   IPAS_OVERRIDE,
-  IPAS_PAYMENT_KIND_LABELS,
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
   IPAS_SIGNOFF_ROLE_LABELS,
@@ -35,6 +34,7 @@ import { ipasKey } from "./ipasKeys";
 import { Input } from "../ui/input";
 import { buildBuyerTrack } from "../../utils/ipasDocuments";
 import { formatDay } from "../../utils/ipasPayments";
+import { formatPercent, paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
 import { formatDate } from "../../utils/formatDate.js";
 import ReadTick from "@/components/record/ReadTick";
 import { Link } from "react-router";
@@ -759,6 +759,7 @@ const PAYMENT_FIELD_NAMES = {
   kind: "kind",
   paid_on: "date",
   amount: "amount",
+  percent_of_order: "% of order",
   php_debited: "pesos taken from the bank",
   charge_fee_php: "charge fee",
   forex_rate: "forex rate",
@@ -791,19 +792,23 @@ const money = (value) => formatAmount(value, null);
 /** What a payment or charge event says beside its label, from the snapshot it kept. */
 function moneyEventDetail(event) {
   const d = event.detail ?? {};
-  const kind = IPAS_PAYMENT_KIND_LABELS[d.kind] ?? d.kind ?? null;
   const currency = d.currency ? `${d.currency} ` : "";
   switch (event.kind) {
     case "payment_added":
     case "payment_removed": {
-      const parts = [kind, d.amount != null ? `${currency}${money(d.amount)}` : null];
+      const parts = [paymentKindWithPercent(d.kind, d.percent_of_order), d.amount != null ? `${currency}${money(d.amount)}` : null];
       if (d.php_debited != null) parts.push(`PHP ${money(d.php_debited)} taken from the bank`);
       if (d.method) parts.push(d.method);
       return parts.filter(Boolean).join(" · ");
     }
     case "payment_changed": {
-      const changed = Object.keys(d.changes ?? {}).map((key) => PAYMENT_FIELD_NAMES[key] ?? key);
-      return [kind, changed.length ? `changed ${changed.join(", ")}` : null].filter(Boolean).join(" · ");
+      const changes = d.changes ?? {};
+      const changed = Object.keys(changes).map((key) => {
+        if (key !== "percent_of_order") return PAYMENT_FIELD_NAMES[key] ?? key;
+        const to = changes[key]?.to;
+        return to == null ? "% of order cleared" : `% of order to ${formatPercent(to)}%`;
+      });
+      return [paymentKindWithPercent(d.kind, d.percent_of_order), changed.length ? `changed ${changed.join(", ")}` : null].filter(Boolean).join(" · ");
     }
     case "charge_added":
     case "charge_removed":

@@ -834,7 +834,8 @@ create table if not exists public."ipas_payments" (
   "updated_at" timestamp with time zone not null default now(),
   "forex_rate" numeric(14,6),
   "doc_stamp_php" numeric(14,2) not null default 0,
-  "misc_fee_php" numeric(14,2) not null default 0
+  "misc_fee_php" numeric(14,2) not null default 0,
+  "percent_of_order" numeric(7,4)
 );
 
 create table if not exists public."ipas_signer_list_log" (
@@ -2240,6 +2241,8 @@ alter table ipas_payments add constraint "ipas_payments_charge_fee_chk" CHECK ((
 alter table ipas_payments add constraint "ipas_payments_check_no_chk" CHECK (((check_no IS NULL) OR (length(btrim(check_no)) > 0)));
 alter table ipas_payments add constraint "ipas_payments_kind_chk" CHECK ((kind = ANY (ARRAY['down_payment'::text, 'payment'::text, 'full_payment'::text, 'shipping_fee'::text])));
 alter table ipas_payments add constraint "ipas_payments_money_chk" CHECK ((((forex_rate IS NULL) OR (forex_rate > (0)::numeric)) AND (doc_stamp_php >= (0)::numeric) AND (misc_fee_php >= (0)::numeric)));
+alter table ipas_payments add constraint "ipas_payments_percent_chk" CHECK ((percent_of_order > (0)::numeric));
+alter table ipas_payments add constraint "ipas_payments_percent_max_chk" CHECK ((percent_of_order <= (1000)::numeric));
 alter table ipas_payments add constraint "ipas_payments_php_debited_chk" CHECK (((php_debited IS NULL) OR (php_debited > (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_proof_url_chk" CHECK (((proof_url IS NULL) OR (proof_url ~* '^https?://'::text)));
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_action_chk" CHECK ((action = ANY (ARRAY['added'::text, 'removed'::text])));
@@ -5089,6 +5092,28 @@ begin
     'charge_fee_php', v_fee,
     'method_label', v_label
   );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_clean_percent(p_fn text, p_kind text, p_percent numeric)
+ RETURNS numeric
+ LANGUAGE plpgsql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+declare
+  v numeric := round(p_percent, 4);
+begin
+  if v is null then
+    return null;
+  end if;
+  if v <= 0 or v > 1000 then
+    raise exception '%: the percent of the order must be more than 0 and at most 1000', p_fn using errcode = '22023';
+  end if;
+  if p_kind not in ('down_payment', 'payment') then
+    raise exception '%: only a Down payment or a Payment can be a percent of the order', p_fn using errcode = '22023';
+  end if;
+  return v;
 end;
 $function$
 ;
@@ -15123,7 +15148,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_add_payment(p_ipas_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text)
+CREATE OR REPLACE FUNCTION public.ipas_add_payment(p_ipas_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric)
  RETURNS ipas_payments
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -15135,6 +15160,7 @@ declare
   v_clean jsonb;
   v_check text := nullif(btrim(p_check_no), '');
   v_proof text := nullif(btrim(p_proof_url), '');
+  v_percent numeric := public._ipas_clean_percent('ipas_add_payment', p_kind, p_percent_of_order);
   v_row public.ipas_payments;
 begin
   v_ipas := public._ipas_lock_open('ipas_add_payment', p_ipas_id);
@@ -15146,13 +15172,13 @@ begin
   end if;
 
   insert into public.ipas_payments (
-    ipas_id, kind, paid_on, amount, php_debited, charge_fee_php, method_id, check_no, proof_url, created_by
+    ipas_id, kind, paid_on, amount, php_debited, charge_fee_php, method_id, check_no, proof_url, percent_of_order, created_by
   ) values (
     v_ipas.id, p_kind, p_paid_on,
     (v_clean->>'amount')::numeric,
     (v_clean->>'php_debited')::numeric,
     (v_clean->>'charge_fee_php')::numeric,
-    p_method_id, v_check, v_proof, v_actor
+    p_method_id, v_check, v_proof, v_percent, v_actor
   )
   returning * into v_row;
 
@@ -15161,6 +15187,7 @@ begin
     'kind', v_row.kind,
     'paid_on', v_row.paid_on,
     'amount', v_row.amount,
+    'percent_of_order', v_row.percent_of_order,
     'php_debited', v_row.php_debited,
     'charge_fee_php', v_row.charge_fee_php,
     'method_id', v_row.method_id,
@@ -16449,7 +16476,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text)
+CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric)
  RETURNS ipas_payments
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -16483,10 +16510,10 @@ begin
   -- One transaction: if any step refuses, nothing is kept.
   if p_payment_id is null then
     v_row := public.ipas_add_payment(v_ipas.id, p_kind, p_paid_on, p_amount, v_pesos, p_charge_fee_php,
-                                     p_method_id, p_check_no, p_proof_url);
+                                     p_method_id, p_check_no, p_proof_url, p_percent_of_order);
   else
     v_row := public.ipas_update_payment(p_payment_id, p_kind, p_paid_on, p_amount, v_pesos, p_charge_fee_php,
-                                        p_method_id, p_check_no, p_proof_url);
+                                        p_method_id, p_check_no, p_proof_url, p_percent_of_order);
   end if;
   return public.ipas_set_payment_money(v_row.id, v_rate, p_doc_stamp_php, p_misc_fee_php);
 end;
@@ -18387,7 +18414,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_update_payment(p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text)
+CREATE OR REPLACE FUNCTION public.ipas_update_payment(p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric)
  RETURNS ipas_payments
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -18402,6 +18429,7 @@ declare
   v_clean jsonb;
   v_check text := nullif(btrim(p_check_no), '');
   v_proof text := nullif(btrim(p_proof_url), '');
+  v_percent numeric := public._ipas_clean_percent('ipas_update_payment', p_kind, p_percent_of_order);
   v_changes jsonb := '{}'::jsonb;
 begin
   select ipas_id into v_ipas_id from public.ipas_payments where id = p_payment_id;
@@ -18433,6 +18461,10 @@ begin
     v_changes := v_changes || jsonb_build_object('amount',
       jsonb_build_object('from', v_before.amount, 'to', (v_clean->>'amount')::numeric));
   end if;
+  if v_before.percent_of_order is distinct from v_percent then
+    v_changes := v_changes || jsonb_build_object('percent_of_order',
+      jsonb_build_object('from', v_before.percent_of_order, 'to', v_percent));
+  end if;
   if v_before.php_debited is distinct from (v_clean->>'php_debited')::numeric then
     v_changes := v_changes || jsonb_build_object('php_debited',
       jsonb_build_object('from', v_before.php_debited, 'to', (v_clean->>'php_debited')::numeric));
@@ -18462,6 +18494,7 @@ begin
      set kind = p_kind,
          paid_on = p_paid_on,
          amount = (v_clean->>'amount')::numeric,
+         percent_of_order = v_percent,
          php_debited = (v_clean->>'php_debited')::numeric,
          charge_fee_php = (v_clean->>'charge_fee_php')::numeric,
          method_id = p_method_id,
@@ -18473,6 +18506,7 @@ begin
   perform public._ipas_write_event(v_ipas.id, v_actor, 'payment_changed', jsonb_build_object(
     'payment_id', v_row.id,
     'kind', v_row.kind,
+    'percent_of_order', v_row.percent_of_order,
     'changes', v_changes
   ));
 

@@ -164,9 +164,9 @@ function paymentsTable(vm) {
   const s = vm.section1;
   return s.payments.length
     ? `<table class="pay"><thead><tr>
-        <th style="width:15%">Payment</th><th style="width:13%">Date</th><th class="num" style="width:16%">Amount</th>
-        <th class="num" style="width:18%">Pesos taken from the bank</th><th class="num" style="width:14%">Charge fee</th>
-        <th style="width:16%">Method</th><th class="center" style="width:8%">Proof</th>
+        <th style="width:19%">Payment</th><th style="width:12%">Date</th><th class="num" style="width:15%">Amount</th>
+        <th class="num" style="width:17%">Pesos taken from the bank</th><th class="num" style="width:12%">Charge fee</th>
+        <th style="width:17%">Method</th><th class="center" style="width:8%">Proof</th>
       </tr></thead><tbody>${s.payments
         .map(
           (p) => `<tr><td style="font-weight:600">${esc(p.kind)}</td><td class="m">${esc(p.date)}</td>

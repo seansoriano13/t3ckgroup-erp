@@ -27,7 +27,6 @@ import {
   IPAS_LANDED_COST_REASON,
   IPAS_LANDED_COST_SPLIT_LABELS,
   IPAS_LANDED_COST_STATUS,
-  IPAS_PAYMENT_KIND_LABELS,
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
   ipasSectionName,
@@ -41,6 +40,7 @@ import {
   ODOO_PO_STATE_LABELS,
 } from '../../constants/ipas';
 import { SECTION_DOCUMENT_KINDS, filingChecklist } from '../../utils/ipasDocuments';
+import { paymentKindWithPercent } from '../../utils/ipasPaymentPercent';
 import { landedTable } from '../../utils/ipasLandedTable';
 import { formatDay } from '../../utils/ipasPayments';
 import { isLandedCostFinal } from '../../utils/ipasSignoffs';
@@ -360,7 +360,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       const method = text(payment.methodLabel);
       const checkNo = text(payment.check_no);
       return {
-        kind: IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? text(payment.kind) ?? BLANK,
+        kind: paymentKindWithPercent(payment.kind, payment.percent_of_order) || text(payment.kind) || BLANK,
         date: payment.paid_on ? formatDay(payment.paid_on) : BLANK,
         amount: printAmount(payment.amount, currency),
         // A PHP PO is paid in pesos: the amount is what was debited.
