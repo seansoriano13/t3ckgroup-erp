@@ -36,6 +36,8 @@ import {
 } from "@/constants/ipas";
 import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "@/utils/attachments";
 import { formatAmount } from "@/utils/ipas";
+import { odooPoTotal } from "@/utils/ipasFigures";
+import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase } from "@/utils/ipasPaymentPercent";
 import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
 import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
@@ -282,7 +284,7 @@ function ProofField({ row, disabled, onPatch }) {
   );
 }
 
-function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, onRemove }) {
+function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPatch, onRemove }) {
   const { isPhp } = form;
   const currency = ipas.currency || "Odoo PO currency";
   const methods = optionsForPicker(ipas.options ?? [], IPAS_OPTION_LIST.PAYMENT_METHOD, saved?.method_id ?? null).map(asOption);
@@ -302,6 +304,8 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the reference rate arrives
   }, [referenceRate?.php_per_unit]);
   const kindLabel = IPAS_PAYMENT_KIND_LABELS[saved?.kind] ?? "payment";
+  const showPercent = percentApplies(row.kind);
+  const percent = parsePercentInput(row.percentOfOrder);
   return (
     <DraftRow
       label={`Payment ${index + 1}`}
@@ -319,8 +323,26 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
       }
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS} value={row.kind} disabled={disabled} onChange={(v) => onPatch({ kind: v })} />
+        <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS} value={row.kind} disabled={disabled} onChange={(v) => onPatch(afterPercentEdit(row, { field: "kind", value: v }))} />
         <Field id={id("paidOn")} label="Date" kind="date" required value={row.paidOn} disabled={disabled} onChange={(v) => onPatch({ paidOn: v })} />
+        {showPercent && (
+          <div className="min-w-0">
+            <Field
+              id={id("percentOfOrder")}
+              label="% of order"
+              placeholder="e.g. 30"
+              value={row.percentOfOrder}
+              disabled={disabled}
+              error={row.percentOfOrder !== "" && !percent.ok ? "Not a percent" : undefined}
+              onChange={(v) => onPatch(afterPercentEdit(row, { field: "percent", value: v, base }))}
+            />
+            <p className="mt-1 pl-1 text-xs text-muted-foreground" data-testid="payment-percent-base">
+              {base
+                ? `Worked out from the ${base.label} (${formatAmount(base.amount, ipas.currency)}). Type a different amount and the % is cleared.`
+                : "No P.I/QT Amount or PO total yet, so the % can't fill the amount."}
+            </p>
+          </div>
+        )}
         <Field
           id={id("amount")}
           label={isPhp ? "Amount (PHP)" : `Amount (${currency})`}
@@ -330,7 +352,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, o
           value={row.amount}
           disabled={disabled}
           error={row.amount !== "" && !amount.ok ? "Not a number" : undefined}
-          onChange={(v) => onPatch({ amount: v })}
+          onChange={(v) => onPatch(afterPercentEdit(row, { field: "amount", value: v, base }))}
         />
         {!isPhp && (
           <div className="min-w-0">
@@ -394,6 +416,10 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
   const sum = ipas.paymentSummary;
   const currency = ipas.currency;
   const savedById = new Map((ipas.payments ?? []).map((payment) => [payment.id, payment]));
+  // The % is taken from the P.I/QT Amount as typed on the form, else the PO total (#958).
+  const poTotal = odooPoTotal(ipas.odoo_copy)?.total ?? null;
+  const base = percentBase({ piQtAmount: parseAmountInput(form.piQtAmount).value, poTotal });
+  const warnings = paymentWarnings(form.payments, base?.amount ?? null);
   return (
     <Titled title="Payments" action={canRecord && <AddButton onClick={() => rows.add("payments", newPaymentDraft())}>Add payment</AddButton>}>
       <div className={GRID}>
@@ -403,6 +429,18 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
           {sum.count > 0 ? `${formatAmount(sum.totalDebitedPhp, "PHP")}${sum.missingPhp > 0 ? " (pesos missing)" : ""}` : null}
         </ReadValue>
       </div>
+      {warnings.percentOver && (
+        <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400" role="status" data-testid="payment-percent-warning">
+          <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
+          The percents add up to {formatPercent(warnings.percentOver.total)}%, more than the whole order. You can still save.
+        </p>
+      )}
+      {warnings.amountOver && (
+        <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400" role="status" data-testid="payment-amount-warning">
+          <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
+          The payments add up to {formatAmount(warnings.amountOver.paid, currency)}, which is {formatAmount(warnings.amountOver.over, currency)} more than the order amount of {formatAmount(warnings.amountOver.order, currency)}. You can still save.
+        </p>
+      )}
       {form.payments.length === 0 ? (
         <EmptyNote>
           No payments recorded yet.
@@ -420,6 +458,7 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
             saved={savedById.get(row.id) ?? null}
             fresh={fresh === row.key}
             disabled={!canRecord}
+            base={base}
             onPatch={(patch) => rows.patch("payments", row.key, patch)}
             onRemove={() => (row.id ? onRemoveSaved("payment", savedById.get(row.id)) : rows.drop("payments", row.key))}
           />
