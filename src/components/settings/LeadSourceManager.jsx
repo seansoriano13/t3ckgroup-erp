@@ -73,7 +73,7 @@ export default function LeadSourceManager() {
         {isAdding && (
           <form
             onSubmit={handleAdd}
-            className="flex items-end gap-3 mb-6 p-4 rounded-xl border border-border bg-muted/20"
+            className="flex flex-col sm:flex-row sm:items-end gap-3 mb-6 p-4 rounded-xl border border-border bg-muted/20"
           >
             <div className="flex-1 space-y-1">
               <FieldBox label="Value (ID)" />
