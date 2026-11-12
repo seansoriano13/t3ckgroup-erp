@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
+import { FieldBox } from "../ui/FieldBox";
 import { Switch } from "../ui/switch";
 import { ipasService } from "../../services/ipasService";
 import { ipasErrorMessage } from "../../utils/ipas";
@@ -37,7 +38,7 @@ export default function IpasFileRulesSwitches({ isSuperAdmin = false }) {
     <section className="space-y-2 rounded-xl border border-border bg-card p-4" data-testid="ipas-file-rules">
       <h3 className="text-sm font-semibold text-foreground">Files on payments and charges</h3>
       {rows.map((row) => (
-        <label key={row.key} className="flex items-center justify-between gap-3">
+        <FieldBox key={row.key} inline className="justify-between gap-3">
           <span className="min-w-0">
             <span className="block text-[13px] font-medium text-foreground">{row.label}</span>
             <span className="block text-xs text-muted-foreground">{row.hint}</span>
@@ -49,7 +50,7 @@ export default function IpasFileRulesSwitches({ isSuperAdmin = false }) {
             aria-label={row.label}
             onCheckedChange={(on) => save.mutate({ [row.key]: on })}
           />
-        </label>
+        </FieldBox>
       ))}
       {!isSuperAdmin && <p className="text-xs text-muted-foreground">Only a Super Admin changes these.</p>}
     </section>

@@ -135,6 +135,7 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
       "Full Payment",
       "Remaining Balance",
       "Status",
+      "Payments (% of order)",
     ]);
     expect(sheet.rows).toHaveLength(1);
     const [number, , createdBy, project, supplier, po, amount, scheme, down, full, remaining, status] = sheet.rows[0];
@@ -150,8 +151,8 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
     expect(full).toBeNull();
     expect(remaining.value).toBe(6000);
     expect(status).toBe("Ongoing");
-    // Nothing but the sheet's twelve columns: no bank details, no extras.
-    expect(sheet.rows[0]).toHaveLength(12);
+    // Nothing but the sheet's twelve columns and the % column at the end (#958): no bank details, no extras.
+    expect(sheet.rows[0]).toHaveLength(13);
   });
 
   it("exports only the rows the filters leave, each amount in its own currency's format", async () => {
