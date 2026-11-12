@@ -1,6 +1,4 @@
-import { CANVASS_KIND, MIN_CANVASS_OFFERS } from "../constants/canvass";
-import { ITEM_STATUS_LABELS, ITEM_STATUS_THEME } from "../constants/purchaseRequest";
-import { STATUS_THEME } from "../constants/status";
+import { MIN_CANVASS_OFFERS } from "../constants/canvass";
 
 /**
  * The Canvasses page (#973, spec #956): one row per Canvass, which is one per Purchase Request.
@@ -104,60 +102,3 @@ export function filterCanvasses(rows, { search = "", canvasserId = ANY, status =
     return haystack.includes(needle);
   });
 }
-
-// ---------------------------------------------------------------------------------------------
-// Still read by the old per-line CanvassPanel and CanvassRequestBadge, which #970 replaces with the
-// request's grid. Remove with them.
-// ---------------------------------------------------------------------------------------------
-
-/**
- * Whether a Purchase Request still has to be made from a Canvass, for the list column and the panel
- * strip: "Needs winner", "Ready to request", or the status of the request's item ("Not checked",
- * "Cancelled"); the request's own name rides along as `requestLabel` for a tooltip. A Canvass on a Component has no request in its flow, so it has no state (null).
- * `theme` is a StatusBadge theme.
- */
-export function canvassRequestState({ kind, winner, requestId, requestLabel, requestItemStatus } = {}) {
-  if (requestId) {
-    const status = ITEM_STATUS_LABELS[requestItemStatus];
-    return {
-      key: "created",
-      label: status || requestLabel || "Purchase Request",
-      requestLabel: requestLabel || "Purchase Request",
-      requestId,
-      theme: ITEM_STATUS_THEME[requestItemStatus] || STATUS_THEME.MAUVE,
-    };
-  }
-  if (kind !== CANVASS_KIND.NONE) return null;
-  return winner
-    ? { key: "ready", label: "Ready to request", requestId: null, theme: STATUS_THEME.BLUE }
-    : { key: "needs_winner", label: "Needs winner", requestId: null, theme: STATUS_THEME.MAUVE };
-}
-
-/** A Canvass's own state for the State badge: Signed off (old history), Requested (a Purchase Request was made), Winner picked, or Open. */
-export const CANVASS_ROW_STATE = { OPEN: "open", WON: "won", REQUESTED: "requested", SIGNED: "signed" };
-
-/** State -> StatusBadge tone, the one place this list maps them. A made request shows its item's status, so those tones ride along. */
-export const CANVASS_STATE_TONES = {
-  ...ITEM_STATUS_THEME,
-  [CANVASS_ROW_STATE.OPEN]: "amber",
-  [CANVASS_ROW_STATE.REQUESTED]: "blue",
-  [CANVASS_ROW_STATE.WON]: "green",
-  [CANVASS_ROW_STATE.SIGNED]: "mauve",
-};
-
-/**
- * `{ state, label }` for a StateCell. Open means no winner yet. Once a request was made it is the
- * live status of the request's item ("Still canvassing", "Purchased", "Cancelled"); "Requested" is
- * only the fallback when that status is not known.
- */
-export function canvassStateOf(row) {
-  if (row.signedOffAt) return { state: CANVASS_ROW_STATE.SIGNED, label: "Signed off" };
-  if (row.requestId) {
-    const label = ITEM_STATUS_LABELS[row.requestItemStatus];
-    if (label) return { state: row.requestItemStatus, label };
-    return { state: CANVASS_ROW_STATE.REQUESTED, label: "Requested" };
-  }
-  if (row.winner) return { state: CANVASS_ROW_STATE.WON, label: "Winner picked" };
-  return { state: CANVASS_ROW_STATE.OPEN, label: "Open" };
-}
-
