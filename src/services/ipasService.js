@@ -9,6 +9,7 @@ import {
   IPAS_DOCUMENT_APPLIES_TO_VALUES,
   IPAS_DOCUMENT_USED_FOR,
   IPAS_DOCUMENT_USED_FOR_VALUES,
+  IPAS_FILE_RULE_DEFAULTS,
   IPAS_REQUIRED_BEFORE_VALUES,
   IPAS_ERROR,
   IPAS_LANDED_COST_SPLITS,
@@ -52,7 +53,7 @@ import {
   shapeIpas,
 } from "../utils/ipas";
 import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
-import { parsePercentInput, percentApplies } from "../utils/ipasPaymentPercent";
+import { PERCENT_ERROR, parsePercentInput, percentApplies } from "../utils/ipasPaymentPercent";
 import { sumPesos } from "../utils/landedCost";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
@@ -1057,7 +1058,7 @@ export const ipasService = {
   async getFileRules() {
     const { data, error } = await supabase.from("ipas_file_rules").select("*").maybeSingle();
     if (error) throw error;
-    return { proof_on_every_payment: true, file_on_every_charge: true, ...(data ?? {}) };
+    return { ...IPAS_FILE_RULE_DEFAULTS, ...(data ?? {}) };
   },
 
   /** Sets one or both file switches (#959). Super Admins only: the database refuses others. */
@@ -1841,7 +1842,7 @@ function paymentArgs(payment, isPhpPo) {
   }
 
   const percentRead = percentApplies(kind) ? parsePercentInput(percentOfOrder) : { ok: true, value: null };
-  if (!percentRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The % of order must be a number more than zero, or left blank.");
+  if (!percentRead.ok) throw new IpasError(IPAS_ERROR.INVALID, PERCENT_ERROR);
 
   const rateRead = parseAmountInput(forexRate);
   if (!rateRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The forex rate paid must be a number.");

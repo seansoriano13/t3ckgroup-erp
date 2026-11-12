@@ -230,3 +230,34 @@ describe("who can change the settings", () => {
         expect(wrongList.code).toBe("23514")
     })
 })
+
+describe("a filed IPAS keeps the rules it was filed under", () => {
+    const snapshotOf = async (ipasId) =>
+        (await sql().query(`select file_rules_snapshot as s from public.ipas where id = $1`, [ipasId])).rows[0].s
+
+    it("writes the snapshot at filing and does not move when the settings change", async () => {
+        const ipas = await raise("local")
+        expect(await snapshotOf(ipas.id)).toBeNull()
+
+        await setRequired("Sales Contract", 3)
+        const filed = await sql().query(`update public.ipas set state = 'filed', filed_at = now() where id = $1`, [ipas.id])
+        expect(filed.rowCount).toBe(1)
+
+        const kind = await kindId("Sales Contract")
+        const before = await snapshotOf(ipas.id)
+        expect(before.options[kind]).toBe(3)
+        expect(before.proof_on_every_payment).toBe(true)
+
+        await setRequired("Sales Contract", 6)
+        await setRequired("Quotation (Local)", null)
+        await setSwitches(false, false)
+        expect(await snapshotOf(ipas.id)).toEqual(before)
+    })
+
+    it("leaves an open IPAS without a snapshot, following the live settings", async () => {
+        const ipas = await raise("local")
+        await setRequired("Sales Contract", 3)
+        expect(await snapshotOf(ipas.id)).toBeNull()
+        expect(await missing(ipas.id, 6)).toEqual(["Sales Contract"])
+    })
+})

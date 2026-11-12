@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { Switch } from "../ui/switch";
 import { ipasService } from "../../services/ipasService";
 import { ipasErrorMessage } from "../../utils/ipas";
-import { ipasFileRulesKey } from "./ipasKeys";
+import { ipasAllRecordsKey, ipasFileRulesKey } from "./ipasKeys";
 
 /**
  * The two file switches on the Document kinds tab (#959): proof of payment on every payment,
@@ -20,7 +20,7 @@ export default function IpasFileRulesSwitches({ isSuperAdmin = false }) {
     onSuccess: () => {
       toast.success("Saved. Open IPAS follow it now.");
       queryClient.invalidateQueries({ queryKey: ipasFileRulesKey });
-      queryClient.invalidateQueries({ queryKey: ["ipas", "one"] });
+      queryClient.invalidateQueries({ queryKey: ipasAllRecordsKey });
     },
     onError: (error) => {
       toast.error(ipasErrorMessage(error));

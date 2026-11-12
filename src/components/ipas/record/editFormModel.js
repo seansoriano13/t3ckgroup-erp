@@ -17,7 +17,7 @@ import {
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
 import { isIsoDate, parseAmountInput } from "@/utils/ipasPayments";
-import { parsePercentInput, percentApplies } from "@/utils/ipasPaymentPercent";
+import { PERCENT_ERROR, parsePercentInput, percentApplies } from "@/utils/ipasPaymentPercent";
 import { isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { isPhpCurrency } from "@/utils/landedCost";
 
@@ -372,7 +372,7 @@ function positive(raw) {
 function paymentProblem(p, isPhp) {
   if (!isIsoDate(p.paidOn)) return "Give the date of the payment.";
   if (!positive(p.amount)) return "Amount must be a number more than zero.";
-  if (percentApplies(p.kind) && !parsePercentInput(p.percentOfOrder).ok) return "% of order must be a number more than 0, or left blank.";
+  if (percentApplies(p.kind) && !parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
   // Blank is fine (#604); a figure that is given has to be a number above zero.
   if (!isPhp && !blank(p.forexRate) && !positive(p.forexRate))
     return "Forex rate paid must be a number more than zero, or left blank.";

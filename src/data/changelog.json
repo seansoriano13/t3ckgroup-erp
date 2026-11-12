@@ -1,5 +1,15 @@
 [
     {
+        "date": "2026-11-12",
+        "title": "Dialogs that scroll, % on IPAS payments, choose the required files",
+        "version": "1.10.2",
+        "changes": [
+            "Dialogs never grow past the screen any more: the content scrolls and the title and buttons stay in view.",
+            "IPAS payments: a Down payment or Payment can be a % of the order. The amount is worked out for you and the % shows on the printed form.",
+            "IPAS Settings: choose which files each IPAS needs and when (Order, Costs or Sign-offs). A filed IPAS keeps the rules it was filed under."
+        ]
+    },
+    {
         "date": "2026-11-11",
         "title": "Phone notifications and leave records",
         "version": "1.10.1",

@@ -28,6 +28,7 @@ import {
   IPAS_LANDED_COST_SPLIT_LABELS,
   IPAS_LANDED_COST_STATUS,
   IPAS_PRIORITY_LABELS,
+  IPAS_REQUIRED_BEFORE,
   IPAS_PURPOSE_LABELS,
   ipasSectionName,
   ipasSectionNo,
@@ -40,7 +41,6 @@ import {
   ODOO_PO_STATE_LABELS,
 } from '../../constants/ipas';
 import { filingChecklist } from '../../utils/ipasDocuments';
-import { IPAS_REQUIRED_BEFORE } from '../../constants/ipas';
 import { paymentKindWithPercent } from '../../utils/ipasPaymentPercent';
 import { landedTable } from '../../utils/ipasLandedTable';
 import { formatDay } from '../../utils/ipasPayments';
@@ -266,8 +266,9 @@ function landedCostOf(ipas, filed, charges) {
  * The documents that sit under one part (#711): the kinds required before Order and Costs (the
  * kind's "Required before" setting, #959); Filing's items; Finance holds the rest.
  */
-function documentsOf(part, documents) {
-  const before = (doc) => doc.kind?.required_before;
+function documentsOf(part, documents, snapshot) {
+  // Once filed, the rules at filing (#959) so a print never moves; open IPAS read the kind as it is now.
+  const before = (doc) => (snapshot ? (snapshot.options?.[doc.kind_id] ?? null) : (doc.kind?.required_before ?? null));
   const claimed = (doc) => before(doc) === IPAS_REQUIRED_BEFORE.ORDER || before(doc) === IPAS_REQUIRED_BEFORE.COSTS;
   const pick = {
     purchasing: (doc) => before(doc) === IPAS_REQUIRED_BEFORE.ORDER,
@@ -375,7 +376,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     }),
     totalDebited: peso(summary.totalDebitedPhp ?? 0),
     missingPhp: Number(summary.missingPhp) || 0,
-    docs: documentsOf('purchasing', documents),
+    docs: documentsOf('purchasing', documents, ipas.file_rules_snapshot ?? null),
     signoffs: signoffPair(1, ipas.signoffSections?.[1]),
   };
 
@@ -422,7 +423,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       finance: Boolean(doc.financeHas),
     })),
     bank,
-    docs: documentsOf('finance', documents),
+    docs: documentsOf('finance', documents, ipas.file_rules_snapshot ?? null),
     signoffs: signoffPair(3, ipas.signoffSections?.[3]),
   };
 
@@ -462,7 +463,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     computation,
     landedCost,
     landedTable: landedTableOf(ipas),
-    docs: documentsOf('costing', documents),
+    docs: documentsOf('costing', documents, ipas.file_rules_snapshot ?? null),
     // Section 3's sign-offs (stored section 6): Submitted and Approved.
     signoffs: signoffPair(6, ipas.signoffSections?.[6]),
     // The legend prints whenever a status carries the mark.
@@ -491,7 +492,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   ];
   const section7 = {
     checklist,
-    docs: documentsOf('filing', documents),
+    docs: documentsOf('filing', documents, ipas.file_rules_snapshot ?? null),
     signoffs: [
       signoffBox(IPAS_SIGNOFF_ROLE.RECEIVED, 7, state7.received),
       signoffBox(IPAS_SIGNOFF_ROLE.NOTED, 7, state7.noted),

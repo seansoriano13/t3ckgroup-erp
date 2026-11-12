@@ -20,6 +20,12 @@ export const PERCENT_BASE_LABELS = {
   [PERCENT_BASE.PO_TOTAL]: "PO total",
 };
 
+/** The refusal for a percent that is not a number above zero (the form and the service say the same). */
+export const PERCENT_ERROR = "The % of order must be a number more than zero, or left blank.";
+
+/** Percents are kept to four decimals; the one rounding used everywhere. */
+export const roundPercent = (value) => Math.round(value * 1e4) / 1e4;
+
 /** Only these kinds can be a percent of the order. */
 export const percentApplies = (kind) => kind === IPAS_PAYMENT_KIND.DOWN_PAYMENT || kind === IPAS_PAYMENT_KIND.PAYMENT;
 
@@ -41,7 +47,7 @@ export function parsePercentInput(raw) {
   const read = parseAmountInput(text);
   if (!read.ok) return { ok: false, value: null };
   if (read.value === null) return { ok: true, value: null };
-  return read.value > 0 && read.value <= 1000 ? { ok: true, value: Math.round(read.value * 1e4) / 1e4 } : { ok: false, value: null };
+  return read.value > 0 && read.value <= 1000 ? { ok: true, value: roundPercent(read.value) } : { ok: false, value: null };
 }
 
 /** percent x base, rounded to the centavo. `null` when either is missing or the percent is not usable. */
@@ -55,7 +61,7 @@ export function amountFromPercent(percent, base) {
 /** 30 -> "30", 12.5 -> "12.5", 33.3333 -> "33.3333". */
 export function formatPercent(value) {
   const n = finiteNumber(value);
-  return n === null ? "" : String(Math.round(n * 1e4) / 1e4);
+  return n === null ? "" : String(roundPercent(n));
 }
 
 /** "Payment · 30%" when the payment carries a percent, else just the kind label. */
@@ -97,6 +103,26 @@ export function afterPercentEdit(row, edit) {
 }
 
 /**
+ * The amounts to re-fill when the base the percents are taken from changes (the P.I/QT Amount
+ * is edited): every Down payment / Payment row that has a percent gets percent x the new base,
+ * so the label, the amount and the printed percent agree. Returns [{ key, amount }] for the
+ * rows whose amount differs; empty with no base. Rows without a percent are left alone.
+ */
+export function refillAmountsFromPercent(payments = [], base) {
+  if (!base) return [];
+  const patches = [];
+  for (const payment of payments) {
+    if (!percentApplies(payment?.kind)) continue;
+    const amount = amountFromPercent(payment.percentOfOrder, base);
+    if (amount === null) continue;
+    const current = parseAmountInput(payment.amount);
+    if (current.ok && current.value === amount) continue;
+    patches.push({ key: payment.key, amount: String(amount) });
+  }
+  return patches;
+}
+
+/**
  * The two warnings, never a block.
  *   percentOver   the percents of the payments add up to more than 100%: { total }
  *   amountOver    the payments add up to more than the order amount: { paid, order, over }
@@ -108,7 +134,7 @@ export function paymentWarnings(payments = [], orderAmount = null) {
   let paidCents = 0;
   for (const payment of payments) {
     const percent = parsePercentInput(payment?.percentOfOrder ?? payment?.percent_of_order);
-    if (percent.ok && percent.value !== null) percentCents += Math.round(percent.value * 1e4);
+    if (percent.ok && percent.value !== null) percentCents += Math.round(roundPercent(percent.value) * 1e4);
     const amount = parseAmountInput(payment?.amount);
     if (amount.ok && amount.value !== null) paidCents += toCents(amount.value);
   }

@@ -37,7 +37,7 @@ import {
 import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "@/utils/attachments";
 import { formatAmount } from "@/utils/ipas";
 import { odooPoTotal } from "@/utils/ipasFigures";
-import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase } from "@/utils/ipasPaymentPercent";
+import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase, refillAmountsFromPercent } from "@/utils/ipasPaymentPercent";
 import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
 import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
@@ -95,6 +95,16 @@ function RowHeader({ title, badge, removeLabel, onRemove, canRemove }) {
 
 function EmptyNote({ children }) {
   return <p className="text-[13px] text-muted-foreground">{children}</p>;
+}
+
+/** An amber heads-up under a figure: never blocks the save. */
+function AmberNote({ testId, children }) {
+  return (
+    <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400" role="status" data-testid={testId}>
+      <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
+      {children}
+    </p>
+  );
 }
 
 function Titled({ title, action, children }) {
@@ -231,7 +241,7 @@ function RateNote({ ipas, row }) {
   );
 }
 
-function ProofField({ row, disabled, onPatch }) {
+function ProofField({ row, disabled, required, onPatch }) {
   const [uploading, setUploading] = useState(false);
   const attach = async ([file]) => {
     if (!file) return;
@@ -255,7 +265,7 @@ function ProofField({ row, disabled, onPatch }) {
   };
   return (
     <div className="min-w-0" data-missing-file={!row.proofUrl && !disabled ? "payments" : undefined}>
-      <FieldBox label={<>Proof of payment<RequiredMark /></>} />
+      <FieldBox label={<>Proof of payment{required && <RequiredMark />}</>} />
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         {row.proofUrl ? (
           <>
@@ -406,7 +416,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
         <PickField id={id("methodId")} label="Method" required placeholder="Pick a method" options={methods} value={row.methodId} disabled={disabled} onChange={(v) => onPatch({ methodId: v })} />
         <Field id={id("checkNo")} label="Check No." placeholder="When paid by check" value={row.checkNo} disabled={disabled} onChange={(v) => onPatch({ checkNo: v })} />
       </div>
-      <ProofField row={row} disabled={disabled} onPatch={onPatch} />
+      <ProofField row={row} disabled={disabled} required={fileRulesOf(ipas).proofOnEveryPayment} onPatch={onPatch} />
     </DraftRow>
   );
 }
@@ -420,6 +430,16 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
   const poTotal = odooPoTotal(ipas.odoo_copy)?.total ?? null;
   const base = percentBase({ piQtAmount: parseAmountInput(form.piQtAmount).value, poTotal });
   const warnings = paymentWarnings(form.payments, base?.amount ?? null);
+  // When the base changes while editing, a payment with a % follows it (#958): the label, amount and
+  // printed % must agree. Not on first paint: opening a saved IPAS never edits it.
+  const lastBase = useRef(base?.amount ?? null);
+  useEffect(() => {
+    const before = lastBase.current;
+    lastBase.current = base?.amount ?? null;
+    if (!canRecord || before === null || before === lastBase.current) return;
+    for (const { key, amount } of refillAmountsFromPercent(form.payments, base)) rows.patch("payments", key, { amount });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the base amount changes
+  }, [base?.amount]);
   return (
     <Titled title="Payments" action={canRecord && <AddButton onClick={() => rows.add("payments", newPaymentDraft())}>Add payment</AddButton>}>
       <div className={GRID}>
@@ -430,16 +450,14 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
         </ReadValue>
       </div>
       {warnings.percentOver && (
-        <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400" role="status" data-testid="payment-percent-warning">
-          <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
+        <AmberNote testId="payment-percent-warning">
           The percents add up to {formatPercent(warnings.percentOver.total)}%, more than the whole order. You can still save.
-        </p>
+        </AmberNote>
       )}
       {warnings.amountOver && (
-        <p className="flex items-start gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400" role="status" data-testid="payment-amount-warning">
-          <TriangleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
+        <AmberNote testId="payment-amount-warning">
           The payments add up to {formatAmount(warnings.amountOver.paid, currency)}, which is {formatAmount(warnings.amountOver.over, currency)} more than the order amount of {formatAmount(warnings.amountOver.order, currency)}. You can still save.
-        </p>
+        </AmberNote>
       )}
       {form.payments.length === 0 ? (
         <EmptyNote>

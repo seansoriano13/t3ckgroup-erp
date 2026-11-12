@@ -319,11 +319,10 @@ export const IPAS_REQUIRED_BEFORE_PARTS = {
   [IPAS_REQUIRED_BEFORE.SIGN_OFFS]: "filing",
 };
 
-export const IPAS_REQUIRED_BEFORE_VALUES = [
-  IPAS_REQUIRED_BEFORE.ORDER,
-  IPAS_REQUIRED_BEFORE.COSTS,
-  IPAS_REQUIRED_BEFORE.SIGN_OFFS,
-];
+export const IPAS_REQUIRED_BEFORE_VALUES = Object.values(IPAS_REQUIRED_BEFORE);
+
+/** The two file switches when no settings row came: both on (the seeded value, #959). */
+export const IPAS_FILE_RULE_DEFAULTS = Object.freeze({ proof_on_every_payment: true, file_on_every_charge: true });
 
 export const IPAS_REQUIRED_BEFORE_LABELS = {
   [IPAS_REQUIRED_BEFORE.ORDER]: "1 Order",

@@ -5,6 +5,7 @@
 
 import {
   IPAS_DOCUMENT_APPLIES_TO,
+  IPAS_FILE_RULE_DEFAULTS,
   IPAS_DOCUMENT_USED_FOR,
   IPAS_OPTION_LIST,
   IPAS_REQUIRED_BEFORE_PARTS,
@@ -146,12 +147,20 @@ export function requiredDocuments(documents = [], source) {
  * row (a document kind's "Required before") and the two switches. This is the one place the
  * screen learns what is required; the database's _ipas_missing_documents reads the same
  * settings. The switches default to on when the row did not come (the seeded value).
+ * A filed IPAS carries `file_rules_snapshot`, the rules at filing, and is read from that
+ * instead: a filed IPAS is never changed or re-checked.
  */
 export function fileRulesOf(ipas) {
+  const snapshot = ipas?.file_rules_snapshot ?? null;
+  const switches = { ...IPAS_FILE_RULE_DEFAULTS, ...(snapshot ?? ipas?.fileRules ?? {}) };
+  const options = ipas?.options ?? [];
   return {
-    options: ipas?.options ?? [],
-    proofOnEveryPayment: ipas?.fileRules?.proof_on_every_payment ?? true,
-    fileOnEveryCharge: ipas?.fileRules?.file_on_every_charge ?? true,
+    // A filed IPAS keeps the rules it was filed under (a kind absent from the snapshot was not required).
+    options: snapshot
+      ? options.map((option) => (option.list === IPAS_OPTION_LIST.DOCUMENT_KIND ? { ...option, required_before: snapshot.options?.[option.id] ?? null } : option))
+      : options,
+    proofOnEveryPayment: switches.proof_on_every_payment,
+    fileOnEveryCharge: switches.file_on_every_charge,
   };
 }
 
