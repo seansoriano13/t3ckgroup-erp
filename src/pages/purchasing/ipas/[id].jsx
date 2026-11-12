@@ -24,6 +24,7 @@ import IpasJourney from "../../../components/ipas/record/IpasJourney";
 import { journeyFor } from "../../../components/ipas/record/journey";
 import RecordHeader from "../../../components/record/RecordHeader";
 import PropertyPills from "../../../components/record/PropertyPills";
+import RecordWithRail from "../../../components/record/RecordWithRail";
 import { ipasBadge, ipasLine, ipasPills } from "../../../components/ipas/record/recordFacts";
 import InlineError from "../../../components/record/InlineError";
 import EditableSections from "../../../components/ipas/record/EditableSections";
@@ -1098,14 +1099,15 @@ function IpasPage({ onClose }) {
 
           {/* Top to bottom: the money, then every section as a block that opens in place; Your move is the rail beside them. */}
           {/* Rows: the money summary keeps its own height, the sections row takes whatever the tall rail adds (no gap between them). */}
-          <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_25rem] xl:grid-rows-[auto_1fr] xl:gap-y-8">
-            <div data-testid="ipas-money-summary-slot" className="min-w-0 xl:col-start-1 xl:row-start-1">
+          {/* Your move is a SidePanel: a right rail from 1440px, a button on a small laptop, a sticky bottom bar on a phone. */}
+          <RecordWithRail
+            status={journey.headline}
+            rail={<IpasJourney ctx={ctx} digest={digest} journey={journey} onEdit={openEdit} onGoToSignoff={sections.showSignoff} next={nextIpas} />}
+          >
+            <div data-testid="ipas-money-summary-slot" className="min-w-0">
               <MoneySummary digest={digest} onOpen={sections.show} />
             </div>
-            <aside className="min-w-0 xl:sticky xl:top-2 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start">
-              <IpasJourney ctx={ctx} digest={digest} journey={journey} onEdit={openEdit} onGoToSignoff={sections.showSignoff} next={nextIpas} />
-            </aside>
-            <div className="min-w-0 xl:col-start-1 xl:row-start-2">
+            <div className="min-w-0">
               <EditableSections
                 ctx={ctx}
                 blocks={blocks}
@@ -1129,7 +1131,7 @@ function IpasPage({ onClose }) {
                 failure={editFailure}
               />
             </div>
-          </div>
+          </RecordWithRail>
         </div>
       </ModalShell>
 

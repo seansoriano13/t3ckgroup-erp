@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
  */
 export default function RecordHeader({ reference, name, badge, line, mono = true, className }) {
   return (
-    <header className={cn("space-y-1", className)}>
+    <header className={cn("space-y-1 laptop:space-y-0.5", className)}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="min-w-0 text-xl font-black tracking-tight text-foreground">
+        <h2 className="min-w-0 text-xl font-black tracking-tight text-foreground laptop:text-lg">
           {reference && <span className={cn(mono && "font-mono")}>{reference}</span>}
           {reference && name && <span>{" · "}</span>}
           {name && <span>{name}</span>}

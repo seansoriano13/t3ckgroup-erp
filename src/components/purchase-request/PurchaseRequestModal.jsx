@@ -1,8 +1,14 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router";
+import { ArrowUpRight, Briefcase } from "lucide-react";
 
 import ModalShell from "@/components/ui/ModalShell";
 import RecordHeader from "@/components/record/RecordHeader";
 import NewOdooPoLink from "@/components/ui/NewOdooPoLink";
+import RecordMoreMenu from "@/components/record/RecordMoreMenu";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { sorHref } from "@/utils/sorLink";
+import { ODOO_NEW_PO_URL } from "@/utils/odooLinks";
 import OpenSorButton from "./OpenSorButton";
 import PurchaseRequestView from "./PurchaseRequestView";
 import { usePurchaseRequest } from "./requestHooks";
@@ -46,6 +52,28 @@ export default function PurchaseRequestModal({ requestId, focusChat = false, tab
   useEffect(clearOldOpenAsChoice, []);
   const { reference, title } = requestIdentity(request);
   const { state, label } = request ? requestStateOf(request) : {};
+  const navigate = useNavigate();
+  const phone = useMediaQuery("(max-width: 767.98px)");
+  // On a phone the two header actions go into a More menu so the breadcrumb has room.
+  const moreItems = [
+    {
+      key: "po",
+      label: "Create a PO in Odoo",
+      icon: ArrowUpRight,
+      onSelect: () => window.open(ODOO_NEW_PO_URL, "_blank", "noopener,noreferrer"),
+    },
+  ];
+  if (request && requestKind(request) === REQUEST_KIND.PROJECT) {
+    moreItems.push({
+      key: "sor",
+      label: "Open SOR",
+      icon: Briefcase,
+      onSelect: () => {
+        onClose();
+        navigate(sorHref(request.opportunity_id));
+      },
+    });
+  }
 
   return (
     <ModalShell
@@ -53,7 +81,16 @@ export default function PurchaseRequestModal({ requestId, focusChat = false, tab
       onOpenChange={(open) => !open && onClose()}
       size="record"
       crumbs={["Purchase Request", request ? reference : null].filter(Boolean)}
-      headerActions={<><NewOdooPoLink /><OpenSorButton request={request} onBeforeOpen={onClose} /></>}
+      headerActions={
+        phone ? (
+          <RecordMoreMenu items={moreItems} />
+        ) : (
+          <>
+            <NewOdooPoLink />
+            <OpenSorButton request={request} onBeforeOpen={onClose} />
+          </>
+        )
+      }
       className={className}
     >
       {request && (

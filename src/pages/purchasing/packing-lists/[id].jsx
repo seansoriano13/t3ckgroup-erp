@@ -20,6 +20,7 @@ import RecordHeader from "../../../components/record/RecordHeader";
 import PropertyPills from "../../../components/record/PropertyPills";
 import LinerList from "../../../components/record/LinerList";
 import YourMoveCard from "../../../components/record/YourMoveCard";
+import RecordWithRail from "../../../components/record/RecordWithRail";
 import { CHROME } from "../../../components/record/sectionChrome";
 import { useMoveConfirm } from "../../../components/record/useMoveConfirm";
 import SectionTitle from "../../../components/transmittals/SectionTitle";
@@ -455,31 +456,9 @@ function PackingListPage({ onClose }) {
               badge={{ label: packed ? "Packed" : "Draft", theme: packed ? "green" : "mauve" }}
               line={[list.sorReference, list.creatorName && `made by ${list.creatorName}`].filter(Boolean).join(" · ")}
             />
-            <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_25rem]">
-              <div className="min-w-0 space-y-6">
-                <PropertyPills items={pills} />
-                <section>
-                  <SectionTitle
-                    title={`Boxes · ${boxes.length}`}
-                    aside={
-                      canEdit && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5"
-                          onClick={() => setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 }))}
-                        >
-                          <Plus size={14} /> Add a box
-                        </Button>
-                      )
-                    }
-                  />
-                  <LinerList label="Boxes" rows={boxRows} empty="No boxes yet. Add a box, then list what is in it." />
-                </section>
-              </div>
-
-              <aside className="min-w-0 xl:sticky xl:top-2 xl:self-start">
+            <RecordWithRail
+              status={status}
+              rail={
                 <YourMoveCard
                   status={status}
                   steps={[
@@ -501,8 +480,29 @@ function PackingListPage({ onClose }) {
                     },
                   ]}
                 />
-              </aside>
-            </div>
+              }
+            >
+              <PropertyPills items={pills} />
+              <section>
+                <SectionTitle
+                  title={`Boxes · ${boxes.length}`}
+                  aside={
+                    canEdit && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => setBoxDialog((s) => ({ open: true, box: null, seq: s.seq + 1 }))}
+                      >
+                        <Plus size={14} /> Add a box
+                      </Button>
+                    )
+                  }
+                />
+                <LinerList label="Boxes" rows={boxRows} empty="No boxes yet. Add a box, then list what is in it." />
+              </section>
+            </RecordWithRail>
           </div>
           {dialog}
 

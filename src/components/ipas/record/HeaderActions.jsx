@@ -1,5 +1,7 @@
-import { Ban, CirclePause, CirclePlay, FileLock2, Pencil, Printer } from "lucide-react";
+import { useState } from "react";
+import { Ban, CirclePause, CirclePlay, Eye, FileLock2, Pencil, Printer } from "lucide-react";
 
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Button } from "@/components/ui/button";
 import RecordMoreMenu from "@/components/record/RecordMoreMenu";
 import { PrintPreviewButton } from "./PrintPreview";
@@ -12,9 +14,11 @@ import { PrintPreviewButton } from "./PrintPreview";
  */
 export default function HeaderActions({ ctx }) {
   const { ipas, can, on, busy } = ctx;
-  const items = [
-    { key: "print", label: busy.print ? "Preparing…" : "Print", icon: Printer, disabled: busy.print, onSelect: on.print },
-  ];
+  const phone = useMediaQuery("(max-width: 767.98px)");
+  const [previewing, setPreviewing] = useState(false);
+  // On a phone Preview goes into More so the breadcrumb has room.
+  const items = phone ? [{ key: "preview", label: "Preview", icon: Eye, onSelect: () => setPreviewing(true) }] : [];
+  items.push({ key: "print", label: busy.print ? "Preparing…" : "Print", icon: Printer, disabled: busy.print, onSelect: on.print });
   if (can.printFiling) {
     items.push({ key: "filing", label: "Print filing copy", icon: FileLock2, disabled: busy.print, onSelect: on.printFiling });
   }
@@ -32,7 +36,7 @@ export default function HeaderActions({ ctx }) {
   }
   return (
     <>
-      <PrintPreviewButton ctx={ctx} />
+      <PrintPreviewButton ctx={ctx} open={phone ? previewing : undefined} onOpenChange={phone ? setPreviewing : undefined} showButton={!phone} />
       {can.change && (
         <Button size="sm" variant="outline" className="gap-1.5" onClick={on.edit}>
           <Pencil size={14} aria-hidden="true" />
