@@ -115,19 +115,19 @@ export function ApprovalTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <Table tableId="approvals">
+      <Table tableId="approvals" stackOnPhone>
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead className="hidden w-10 pl-4 md:table-cell">
+            <TableHead phone="select" className="w-10 pl-4">
               {selectable && <Checkbox checked={allChecked} onCheckedChange={(v) => onToggleAll?.(v, rows)} aria-label="Select all" />}
             </TableHead>
-            <SortHead id="request" sortKey="request" sort={sort} onSort={toggle} className={HEAD}>Request</SortHead>
-            <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>{personLabel}</SortHead>
-            <SortHead id="submitted" sortKey="submitted" sort={sort} onSort={toggle} className={`${HEAD} hidden lg:table-cell`}>Submitted</SortHead>
-            <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle} className={`${HEAD} hidden md:table-cell`}>Waiting</SortHead>
-            <SortHead id="stage" sortKey="stage" sort={sort} onSort={toggle} className={`${HEAD} hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>Stage</SortHead>
-            <SortHead id="status" sortKey="status" sort={sort} onSort={toggle} className={HEAD}>Status</SortHead>
-            <TableHead className="w-12 md:w-24">
+            <SortHead id="request" phone="title" sortKey="request" sort={sort} onSort={toggle} className={HEAD}>Request</SortHead>
+            <SortHead id="person" sortKey="person" sort={sort} onSort={toggle} className={`${HEAD} md:table-cell`}>{personLabel}</SortHead>
+            <SortHead id="submitted" sortKey="submitted" sort={sort} onSort={toggle} phone="hide" className={`${HEAD} hidden lg:table-cell`}>Submitted</SortHead>
+            <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle} className={`${HEAD} md:table-cell`}>Waiting</SortHead>
+            <SortHead id="stage" sortKey="stage" sort={sort} onSort={toggle} phone="hide" className={`${HEAD} hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>Stage</SortHead>
+            <SortHead id="status" phone="badge" sortKey="status" sort={sort} onSort={toggle} className={HEAD}>Status</SortHead>
+            <TableHead phone="hide" className="w-12 md:w-24">
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>
@@ -154,12 +154,12 @@ export function ApprovalTable({
                     onOpen(item);
                   }
                 }}
-                className={`group h-14 cursor-pointer outline-none focus-visible:bg-muted ${cursor === item.id && keyboard ? "bg-muted/60" : ""}`}
+                className={`group h-14 cursor-pointer laptop:h-12 max-md:h-auto outline-none focus-visible:bg-muted ${cursor === item.id && keyboard ? "bg-muted/60" : ""}`}
               >
-                <TableCell className="hidden pl-4 md:table-cell" onClick={(e) => e.stopPropagation()}>
+                <TableCell phone="select" className="pl-4" onClick={(e) => e.stopPropagation()}>
                   {selectable && <Checkbox checked={checked} onCheckedChange={() => onToggle?.(item.id)} aria-label={`Select ${item.title}`} />}
                 </TableCell>
-                <TableCell className="w-full max-w-0 md:w-auto md:max-w-[280px] 2xl:max-w-[360px]">
+                <TableCell phone="title" className="w-full max-w-0 max-md:w-auto max-md:max-w-none md:w-auto md:max-w-[280px] 2xl:max-w-[360px]">
                   <div className="flex items-center gap-2.5">
                     <span className="hidden size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground sm:grid">
                       <QueueIcon size={14} />
@@ -187,20 +187,20 @@ export function ApprovalTable({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="hidden max-w-[180px] md:table-cell">
+                <TableCell className="max-w-[180px] md:table-cell">
                   <PersonChip person={item.person} />
                 </TableCell>
-                <TableCell className="hidden whitespace-nowrap font-mono text-xs text-muted-foreground lg:table-cell">{shortDate(item.submittedAt)}</TableCell>
-                <TableCell className={`hidden font-mono text-xs tabular-nums md:table-cell ${item.isStale ? "font-bold text-amber-11" : "text-muted-foreground"}`}>
+                <TableCell phone="hide" className="hidden whitespace-nowrap font-mono text-xs text-muted-foreground lg:table-cell">{shortDate(item.submittedAt)}</TableCell>
+                <TableCell className={`font-mono text-xs tabular-nums md:table-cell ${item.isStale ? "font-bold text-amber-11" : "text-muted-foreground"}`}>
                   {item.done ? "—" : shortAge(item.clockAt)}
                 </TableCell>
-                <TableCell className={`hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>
+                <TableCell phone="hide" className={`hidden ${showStage ? "md:table-cell" : "2xl:table-cell"}`}>
                   <StageMeter chain={item.chain} />
                 </TableCell>
-                <TableCell>
+                <TableCell phone="badge">
                   <StatusPill item={item} />
                 </TableCell>
-                <TableCell className="pr-2 text-right md:pr-4" onClick={(e) => e.stopPropagation()}>
+                <TableCell phone="hide" className="pr-2 text-right md:pr-4" onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-end gap-1 max-md:opacity-100 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{renderRowAction?.(item)}</div>
                 </TableCell>
               </TableRow>
