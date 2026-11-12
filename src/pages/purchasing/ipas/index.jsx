@@ -29,6 +29,7 @@ import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView } from "../../../utils/ipasList
 import ExportButton from "../../../components/purchasing/list/ExportButton";
 import ColumnsMenu from "../../../components/purchasing/list/ColumnsMenu";
 import { useHiddenColumns } from "../../../hooks/useHiddenColumns";
+import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -122,6 +123,11 @@ const LIST_HEADINGS = [
 const LOCKED_HEADING = "IPAS";
 // Someone who has never chosen columns starts without these three; a saved choice (even "show all") is kept.
 const DEFAULT_HIDDEN_COLUMNS = ["raised-by", "dp", "fp"];
+// In the laptop band (ADR 0051) Purpose and Costing start hidden too, so Project / SO fits.
+const LAPTOP_QUERY = "(min-width: 1024px) and (max-width: 1535.98px), (min-width: 1024px) and (max-height: 820px)";
+const LAPTOP_HIDDEN_COLUMNS = [...DEFAULT_HIDDEN_COLUMNS, "purpose", "costing"];
+// A column's place on a phone card (Table `stackOnPhone`); a heading not listed is hidden there.
+const PHONE_ROLE = { IPAS: "title", State: "badge", "Odoo PO": "meta", Purpose: "meta", Amount: "meta" };
 
 const COLUMNS = LIST_HEADINGS.map((heading) => ({ key: slug(heading), label: heading, locked: heading === LOCKED_HEADING }));
 const KNOWN_COLUMN_KEYS = COLUMNS.map((column) => column.key);
@@ -142,7 +148,11 @@ function IpasList() {
   const [view, setView] = useState(null);
   const [creating, setCreating] = useState(false);
   // Remembered per employee on this browser.
-  const columns = useHiddenColumns(`erp_ipas_columns_${user?.id ?? "anon"}`, { defaults: DEFAULT_HIDDEN_COLUMNS, known: KNOWN_COLUMN_KEYS });
+  const inLaptopBand = useMediaQuery(LAPTOP_QUERY);
+  const columns = useHiddenColumns(`erp_ipas_columns_${user?.id ?? "anon"}`, {
+    defaults: inLaptopBand ? LAPTOP_HIDDEN_COLUMNS : DEFAULT_HIDDEN_COLUMNS,
+    known: KNOWN_COLUMN_KEYS,
+  });
   const { show } = columns;
 
   const { data: listed = [], isLoading, isError, refetch } = useQuery({
@@ -318,13 +328,14 @@ function IpasList() {
           // No overflow-hidden here: the table's "Reset columns" sits just above this card.
           <div className="rounded-xl border border-border bg-card [&_thead_tr]:rounded-t-xl [&_th:first-child]:rounded-tl-xl [&_th:last-child]:rounded-tr-xl">
             <div>
-              <Table tableId="ipas" resetAbove className="md:min-w-[60rem]">
+              <Table tableId="ipas" resetAbove stackOnPhone className="md:min-w-[60rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
                     {LIST_HEADINGS.filter((heading) => heading === LOCKED_HEADING || show(slug(heading))).map((heading) => (
                       <SortHead
                         key={heading}
                         id={slug(heading)}
+                        phone={PHONE_ROLE[heading] ?? "hide"}
                         sortKey={slug(heading)}
                         sort={sort}
                         onSort={toggle}

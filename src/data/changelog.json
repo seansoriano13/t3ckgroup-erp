@@ -6,7 +6,8 @@
         "changes": [
             "Screens use less space on laptops, so more of each page shows without scrolling.",
             "The side menu is slimmer on laptops and starts as icons on smaller screens.",
-            "Report a bug is now in the side menu instead of floating over your tables."
+            "Report a bug is now in the side menu instead of floating over your tables.",
+            "Purchasing lists and the Purchasing Dashboard fit a small laptop on one toolbar row, and show each record as a card on a phone."
         ]
     },
     {

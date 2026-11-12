@@ -105,14 +105,15 @@ function ProgressCell({ row }) {
 }
 
 const COLUMNS = [
-  { id: "tg03", label: "TG03" },
-  { id: "prepared", label: "Prepared" },
-  { id: "origin", label: "Origin" },
-  { id: "priority", label: "Priority" },
-  { id: "lines", label: "Lines" },
-  { id: "na", label: "NA" },
-  { id: "progress", label: "Progress" },
-  { id: "state", label: "State" },
+  // `phone` is the column's place on a phone card (Table `stackOnPhone`).
+  { id: "tg03", label: "TG03", phone: "title" },
+  { id: "prepared", label: "Prepared", phone: "meta" },
+  { id: "origin", label: "Origin", phone: "hide" },
+  { id: "priority", label: "Priority", phone: "meta" },
+  { id: "lines", label: "Lines", phone: "hide" },
+  { id: "na", label: "NA", phone: "hide" },
+  { id: "progress", label: "Progress", phone: "meta" },
+  { id: "state", label: "State", phone: "badge" },
 ];
 
 const SORT = {
@@ -316,12 +317,13 @@ function TransmittalsList() {
       {!isLoading && !isError && visible.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           <div className="overflow-x-auto">
-            <Table tableId="transmittals" className="md:min-w-[48rem]">
+            <Table tableId="transmittals" stackOnPhone className="md:min-w-[48rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  {COLUMNS.map(({ id, label }) => (
+                  {COLUMNS.map(({ id, label, phone }) => (
                     <SortHead
                       key={id}
+                      phone={phone}
                       id={id}
                       sortKey={id}
                       sort={sort}

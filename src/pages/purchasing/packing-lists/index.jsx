@@ -43,11 +43,12 @@ const STATE_TONES = { draft: "amber", packed: "green" };
 const stateLabel = (row) => (row.state === "packed" ? "Packed" : "Draft");
 
 const COLUMNS = [
-  { id: "number", label: "Number" },
-  { id: "sor", label: "SOR" },
-  { id: "boxes", label: "Boxes" },
-  { id: "odoo-ref", label: "Odoo ref" },
-  { id: "state", label: "State" },
+  // `phone` is the column's place on a phone card (Table `stackOnPhone`).
+  { id: "number", label: "Number", phone: "title" },
+  { id: "sor", label: "SOR", phone: "meta" },
+  { id: "boxes", label: "Boxes", phone: "meta" },
+  { id: "odoo-ref", label: "Odoo ref", phone: "meta" },
+  { id: "state", label: "State", phone: "badge" },
 ];
 
 const SORT = {
@@ -199,12 +200,13 @@ function PackingListsList() {
       {!isLoading && !isError && visible.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           <div className="overflow-x-auto">
-            <Table tableId="packing-lists" className="md:min-w-[40rem]">
+            <Table tableId="packing-lists" stackOnPhone className="md:min-w-[40rem]">
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  {COLUMNS.map(({ id, label }) => (
+                  {COLUMNS.map(({ id, label, phone }) => (
                     <SortHead
                       key={id}
+                      phone={phone}
                       id={id}
                       sortKey={id}
                       sort={sort}

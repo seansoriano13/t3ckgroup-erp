@@ -24,14 +24,14 @@ export default function ExportButton({ name, sheetName, header, rows }) {
     <Button
       size="sm"
       variant="outline"
-      className="h-9 gap-1.5 laptop:w-9 laptop:px-0"
+      className="h-9 w-9 px-0"
       onClick={exportToExcel}
       disabled={rows.length === 0}
       aria-label="Export to Excel"
       title="Export to Excel"
     >
       <Download size={14} />
-      <span className="laptop:sr-only">Export</span>
+      <span className="sr-only">Export</span>
     </Button>
   );
 }
