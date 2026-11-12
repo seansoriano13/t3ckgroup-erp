@@ -281,16 +281,17 @@ describe("Component costs: who writes", () => {
         expect(await setCost("outsider", plainId, { acquire_unit: 18250.5 })).toBeNull()
     })
 
-    it("lets Sales, Purchasing, a Super Admin and the Final Acquire list write Final Acquire, and the Markup list and a Super Admin the markup factor (#703)", async () => {
+    it("lets the Final Acquire list alone write Final Acquire (#962), and the Markup list and a Super Admin the markup factor (#703)", async () => {
         for (const who of ["outsider", "dealOwner", "superAdmin"]) {
-            expect(await setCost(who, plainId, { final_acquire_unit: 1 }), who).toBeNull()
+            const refused = await setCost(who, plainId, { final_acquire_unit: 1 })
+            expect(refused?.message, who).toBe("costing_band:costing_component_costs.final_acquire_unit:management")
         }
         expect(await setCost("superAdmin", plainId, { markup_factor: 1.2 })).toBeNull()
         // The multiplier belongs to the Markup list: Sales and Purchasing no longer write it.
         for (const who of ["outsider", "dealOwner", "stageParticipant"]) {
             expect((await setCost(who, plainId, { markup_factor: 1.5 }))?.message, who).toBe("costing_band:costing_component_costs.markup_factor:markup")
         }
-        expect((await setCost("stageParticipant", plainId, { final_acquire_unit: 2 }))?.message).toBe("costing_band:costing_component_costs.final_acquire_unit:sales,purchasing,management")
+        expect((await setCost("stageParticipant", plainId, { final_acquire_unit: 2 }))?.message).toBe("costing_band:costing_component_costs.final_acquire_unit:management")
         expect(await setCost("ipasSigner", plainId, { final_acquire_unit: 17900, markup_factor: 1.35 })).toBeNull()
         const row = await asSvc(svc().from("costing_component_costs").select("*").eq("component_id", plainId).single(), "costs")
         expect(Number(row.final_acquire_unit)).toBe(17900)
@@ -572,7 +573,7 @@ describe("who reads what", () => {
       const read = await readMatrix(who)
       expect(read.tier).toBe("closed_book")
       const costs = tableOf(read, "costing_component_costs").find((c) => c.component_id === plainId)
-      expect(Object.keys(costs).sort(), who).toEqual(["acquire_from_offer_id", "acquire_source", "acquire_unit", "component_id", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit", "p0_currency", "p0_quoted_unit_price", "p0_unit_price"])
+      expect(Object.keys(costs).sort(), who).toEqual(["acquire_from_offer_id", "acquire_source", "acquire_unit", "component_id", "final_acquire_percent", "final_acquire_typed", "final_acquire_unit", "markup_factor", "markup_price_unit", "odoo_unit", "p0_currency", "p0_quoted_unit_price", "p0_unit_price"])
       const [row] = tableOf(read, "costing_cost_rows")
       expect(Object.keys(row), who).toEqual(expect.arrayContaining(["acquire_unit", "odoo_unit", "final_acquire_unit", "markup_factor", "description", "quantity"]))
       // The id of an old Inclusion is internal and never served.

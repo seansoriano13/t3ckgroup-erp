@@ -404,3 +404,15 @@ export function bandRefusalMessage(table, column, bands) {
   const who = bands.map((b) => COSTING_BAND_LABEL[b] ?? b).join(" or ");
   return `${subject} is written by ${who}.`;
 }
+
+/** Why an evaluation could not be started from an S0 (`StandaloneStartError.kind`, #966). */
+export const STANDALONE_START_PROBLEM = {
+  NOT_S0: "not_s0",
+  NOT_FOUND: "not_found",
+  ODOO_DOWN: "odoo_down",
+  OTHER: "other",
+};
+
+/** The evaluation's default percent on the Odoo SRP (#962): it must be above the low bound and at most the high one. */
+export const FINAL_ACQUIRE_PERCENT_LOW = -100;
+export const FINAL_ACQUIRE_PERCENT_HIGH = 1000;

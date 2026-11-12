@@ -451,7 +451,7 @@ language plpgsql
 stable
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_s0    text := upper(btrim(coalesce(p_s0_number, '')));
   v_found record;
@@ -477,7 +477,7 @@ begin
   end if;
   return jsonb_build_object('subject_id', v_found.subject, 'matrix_id', v_found.id, 'standalone', v_found.standalone);
 end;
-$;
+$$;
 
 -- Starts an evaluation from an S0 number, with the lines pulled from Odoo. One per S0: if the S0 already has one
 -- (standalone, or on a SOR), nothing is made and the existing subject is returned with existed = true.

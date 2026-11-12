@@ -11,11 +11,16 @@ import SorPicker from "../ipas/SorPicker";
 import { RequiredMark } from "../ipas/record/FormFields";
 import { useEmployeeOptions } from "./useEmployeeOptions";
 import { costingMatrixService, StandaloneStartError } from "../../services/costingMatrixService";
+import { STANDALONE_START_PROBLEM } from "../../constants/costing";
 import { isS0Number } from "../../utils/standaloneEvaluation";
 import { useAuth } from "../../context/AuthContext";
 import InchargeSelects from "./InchargeSelects";
 
-const PROBLEM_ICON = { not_s0: CircleAlert, not_found: SearchX, odoo_down: CloudOff };
+const PROBLEM_ICON = {
+  [STANDALONE_START_PROBLEM.NOT_S0]: CircleAlert,
+  [STANDALONE_START_PROBLEM.NOT_FOUND]: SearchX,
+  [STANDALONE_START_PROBLEM.ODOO_DOWN]: CloudOff,
+};
 
 /**
  * "New evaluation from an S0" (#966): the S0 number, the Sales incharge and the PMS incharge. The lines and quantities
@@ -50,7 +55,7 @@ export function NewStandaloneDialog({ open, onOpenChange, onOpen }) {
       onOpen(result.subjectId);
     } catch (error) {
       setBusy(false);
-      setProblem({ kind: error instanceof StandaloneStartError ? error.kind : "other", message: error.message });
+      setProblem({ kind: error instanceof StandaloneStartError ? error.kind : STANDALONE_START_PROBLEM.OTHER, message: error.message });
     }
   };
 

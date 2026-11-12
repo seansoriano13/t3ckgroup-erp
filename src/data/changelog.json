@@ -1,6 +1,20 @@
 [
     {
         "date": "2026-11-12",
+        "title": "S0 Evaluation: cleaner figures and a start from just an S0",
+        "version": "1.10.5",
+        "changes": [
+            "ABC can now be one total for the whole sheet instead of a price on every line.",
+            "The Odoo column shows Odoo's selling price (SRP), not its cost.",
+            "Final Acquire is back: stockable parts follow the SRP with a percent (starting at 20% below), Source Out parts follow their Acquire, and the decider list can still type over it.",
+            "Other costs can be typed as a percent of the ABC, and Project expenses add them up.",
+            "The summary now follows the sheet: Less tax, OPEX worked out for you, Revenue, and a 20% Go line that warns (but never blocks) a low-revenue bid.",
+            "The IPAS column on the sheet shows which IPAS a part is on; P.O./RFQ No. and Availability are gone.",
+            "New evaluation from an S0: type an S0 number and its lines come from Odoo, with no SOR needed. The S0 Evaluation list marks these as No SOR and can filter to them."
+        ]
+    },
+    {
+        "date": "2026-11-12",
         "title": "Fits small laptops and phones",
         "version": "1.10.4",
         "changes": [

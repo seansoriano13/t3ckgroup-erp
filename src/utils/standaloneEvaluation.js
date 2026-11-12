@@ -1,4 +1,5 @@
 import { revenueComparison } from "./costingMath";
+import { numberOrNull } from "./numberOrNull";
 
 /**
  * The S0 Evaluation that starts from just an S0 number (#966, spec #955). Pure helpers: the S0 number's shape,
@@ -34,18 +35,21 @@ export function linesFromOdoo(items) {
     .filter((line) => line.name);
 }
 
-const numberOrNull = (value) => (value === null || value === undefined || value === "" ? null : Number(value));
-
 /**
  * The standalone evaluations the caller reads, shaped like the SOR rows of the S0 Evaluation list so the
  * list shows both. Only the Closed Book gets the figures a Revenue needs, so the others show blanks there.
- * `matrixId` opens the evaluation; `standalone` marks the row "No SOR".
+ * `subjectId` (its own id) opens the evaluation; `standalone` marks the row "No SOR". `projectNote`, `stageLabel` and
+ * `itemsLabel` are what the table shows where a SOR row shows its project, stage and bought items.
  */
 export function shapeStandalonePage(rows, settings) {
   return (rows ?? []).map((row) => ({
     standalone: true,
     matrixId: row.matrix_id,
     opportunityId: null,
+    subjectId: row.matrix_id,
+    projectNote: "Started from the S0 alone",
+    stageLabel: "—",
+    itemsLabel: "—",
     tier: row.tier,
     createdAt: row.created_at,
     createdBy: row.created_by,
