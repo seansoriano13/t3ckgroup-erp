@@ -5,6 +5,8 @@ import Spinner from "../ui/Spinner";
 import TabGroup from "../ui/TabGroup";
 import EmptyState from "../ui/EmptyState";
 import { Input } from "../ui/input";
+import { SelectField } from "../ui/SelectField";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import MarketplaceBreakdown from "./MarketplaceBreakdown";
 import RetailHeadline from "./RetailHeadline";
 import OrdersByMonth from "./OrdersByMonth";
@@ -26,6 +28,8 @@ import {
 
 /** Retail's time range: the header's action slot on the Retail page. */
 export function RetailRangeControl({ range, onRangeChange, custom, onCustomChange }) {
+  // Five pills do not fit a phone (Custom was cut off): there it is a Select.
+  const phone = useMediaQuery("(max-width: 767.98px)");
   return (
     <>
       {range === "custom" && (
@@ -48,13 +52,24 @@ export function RetailRangeControl({ range, onRangeChange, custom, onCustomChang
           />
         </>
       )}
-      <TabGroup
-        tabs={RETAIL_RANGES}
-        activeTab={range}
-        onChange={onRangeChange}
-        size="sm"
-        className="max-w-full"
-      />
+      {phone ? (
+        <SelectField
+          aria-label="Range"
+          options={RETAIL_RANGES}
+          value={range}
+          onChange={onRangeChange}
+          containerClassName="w-full"
+          className="h-9"
+        />
+      ) : (
+        <TabGroup
+          tabs={RETAIL_RANGES}
+          activeTab={range}
+          onChange={onRangeChange}
+          size="sm"
+          className="max-w-full"
+        />
+      )}
     </>
   );
 }
