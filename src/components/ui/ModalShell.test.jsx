@@ -31,6 +31,16 @@ describe("ModalShell record size", () => {
     expect(dialog.className).toContain("max-sm:!w-screen");
   });
 
+  it("renders compact and wide as full-height sheets on a phone (#980)", () => {
+    for (const size of ["compact", "wide"]) {
+      const { unmount } = render(shell({ size }));
+      const dialog = screen.getByRole("dialog");
+      expect(dialog.className).toContain("max-sm:!h-dvh");
+      expect(dialog.className).toContain("max-sm:rounded-t-2xl");
+      unmount();
+    }
+  });
+
   it("still gives the other sizes their footer and Expand", () => {
     render(shell({ size: "wide", expandable: true }));
 

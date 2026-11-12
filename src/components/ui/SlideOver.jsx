@@ -120,5 +120,18 @@ export function SlideOverBody({ children }) {
 
 /** The decision, pinned to the bottom of a slide-over. */
 export function SlideOverFooter({ children }) {
-  return <div className="space-y-3 border-t border-border bg-muted/30 px-6 py-4">{children}</div>;
+  // In the laptop band and on phones the footer stays short (#980): the quick-reply chips
+  // (NotePresets) sit in one row that scrolls sideways, and the note box starts one line
+  // tall and grows when focused.
+  return (
+    <div
+      className={
+        "space-y-3 border-t border-border bg-muted/30 px-6 py-4 max-sm:space-y-2 max-sm:px-4 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))] laptop:space-y-2 laptop:py-3 " +
+        "max-sm:[&_textarea:not(:focus)]:!h-9 max-sm:[&_textarea:not(:focus)]:!min-h-0 laptop:[&_textarea:not(:focus)]:!h-9 laptop:[&_textarea:not(:focus)]:!min-h-0 " +
+        "[&_textarea]:transition-[height]"
+      }
+    >
+      {children}
+    </div>
+  );
 }
