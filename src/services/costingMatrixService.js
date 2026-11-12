@@ -420,7 +420,7 @@ async function withCanvass(shaped, opportunityId) {
   for (const component of components) {
     const canvass = byComponent.get(component.id) ?? null;
     component.canvass = canvass
-      ? { id: canvass.id, number: canvass.number, signed: Boolean(canvass.signed_off_at), winner: canvass.winner }
+      ? { id: canvass.id, number: canvass.number, signed: false, winner: canvass.winner }
       : null;
     component.brandProposal = brandProposal(component, canvass?.winner);
     component.fromCanvass = {
@@ -457,9 +457,9 @@ async function attachSupplierMismatch(components, opportunityId) {
   const withPo = withWinner.filter((c) => poByComponent.has(c.id));
   if (withPo.length === 0) return;
 
-  // The winner's Odoo id is not on the Canvass chip; the Offer row has it (not money).
+  // The winner's Odoo id is not on the Canvass chip; the supplier row has it (not money).
   const { data: offers, error: offersError } = await supabase
-    .from("sor_canvass_offers")
+    .from("request_canvass_suppliers")
     .select("id, odoo_supplier_id")
     .in("id", withPo.map((c) => c.canvass.winner.id));
   if (offersError) throw offersError;

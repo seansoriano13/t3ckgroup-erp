@@ -83,11 +83,6 @@ export const SEED_TABLES = [
   "notifications",
   "sor_inclusions",
   "sor_procurement_requests",
-  "sor_canvasses",
-  "sor_canvass_offers",
-  "sor_canvass_offer_prices",
-  "sor_canvass_signoff_events",
-  "sor_canvass_no_other_supplier",
   "sor_purchase_order_links",
   // Purchase Requests (#303). After sales_opportunities, flow_stage_actions
   // and sor_stage_visits, which the request points at; the rest point at it.
@@ -96,6 +91,15 @@ export const SEED_TABLES = [
   "purchase_request_items",
   // #582: the winning Offer price per item, after the items it points at.
   "purchase_request_item_prices",
+  // The Canvass of a Purchase Request (#967): after the request and its items, which it points at, and
+  // in the order each points at the one before.
+  "request_canvasses",
+  "request_canvass_suppliers",
+  "request_canvass_supplier_prices",
+  "request_canvass_quotes",
+  "request_canvass_quote_prices",
+  "request_canvass_winners",
+  "request_canvass_no_other_supplier",
   "purchase_request_messages",
   // IPAS (#242). After sales_opportunities and employees, which they point at;
   // ipas_sors and ipas_events point at ipas. ipas_options (#244) comes first:
@@ -236,7 +240,7 @@ export function loadDotEnvLocal(repoRoot) {
 // sequences stay at 1 and the first new row collides (issue #794).
 export const NUMBER_SEQUENCES = [
   { sequence: "purchase_request_number_seq", table: "purchase_requests", column: "pr_number" },
-  { sequence: "sor_canvass_number_seq", table: "sor_canvasses", column: "number" },
+  { sequence: "sor_canvass_number_seq", table: "request_canvasses", column: "number" },
   { sequence: "packing_list_number_seq", table: "packing_lists", column: "number" },
   { sequence: "transmittal_number_seq", table: "transmittals", column: "number" },
 ]

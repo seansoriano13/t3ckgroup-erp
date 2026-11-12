@@ -109,10 +109,17 @@ describe("a foreign P0's Actual cost is in pesos", () => {
         await asSvc(svc().from("costing_component_costs").upsert({ component_id: id, acquire_unit: 24641.49 }, { onConflict: "component_id" }), "costs row")
         return id
     }
+    // The request's Canvass (#967) with one supplier that won the Component's line.
     const makeWinner = async (component, currency, price) => {
-        const canvass = (await asSvc(svc().from("sor_canvasses").insert({ component_id: component, created_by: ids.outsider }).select("id").single(), "Canvass")).id
-        const offer = (await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvass, supplier_name: "Shenzhen Coming Technology", currency, is_winner: true }).select("id").single(), "Offer")).id
-        await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer, ...price }), "Offer price")
+        const line = await makeItem(component)
+        const found = (await svc().from("request_canvasses").select("id").eq("request_id", requestId).maybeSingle()).data
+        const canvassRow = found ?? (await asSvc(svc().from("request_canvasses").insert({ request_id: requestId, number: "x", created_by: ids.outsider }).select("id").single(), "Canvass"))
+        const canvass = canvassRow.id
+        const supplier = (await asSvc(svc().from("request_canvass_suppliers").insert({ canvass_id: canvass, supplier_name: `Shenzhen Coming Technology ${component.slice(0, 4)}`, currency }).select("id").single(), "supplier")).id
+        await asSvc(svc().from("request_canvass_supplier_prices").insert({ supplier_id: supplier, comparison_rate: price.comparison_rate }), "rate")
+        const quote = (await asSvc(svc().from("request_canvass_quotes").insert({ canvass_id: canvass, supplier_id: supplier, item_id: line }).select("id").single(), "quote")).id
+        await asSvc(svc().from("request_canvass_quote_prices").insert({ quote_id: quote, unit_price: price.unit_price }), "quote price")
+        await asSvc(svc().from("request_canvass_winners").insert({ item_id: line, supplier_id: supplier }), "winner")
         return canvass
     }
 
@@ -123,7 +130,7 @@ describe("a foreign P0's Actual cost is in pesos", () => {
     })
 
     afterAll(async () => {
-        await svc().from("sor_canvasses").delete().eq("id", canvassId ?? NO_ID)
+        await svc().from("request_canvasses").delete().eq("id", canvassId ?? NO_ID)
     })
 
     it("is the P0's price at the Canvass winner's rate, with the price as quoted kept beside it", async () => {
@@ -142,14 +149,14 @@ describe("a foreign P0's Actual cost is in pesos", () => {
 
     it("is never stored as pesos when no Canvass winner is in the P0's currency", async () => {
         const otherComponent = await makeComponent(3)
-        const otherCanvass = await makeWinner(otherComponent, "USD", { unit_price: 388, comparison_rate: 63.509 })
+        await makeWinner(otherComponent, "USD", { unit_price: 388, comparison_rate: 63.509 })
         try {
             const { error } = await setPrice("outsider", await makeItem(otherComponent), 350, "EUR")
             expect(error).toBeNull()
             expect(await actualOn(otherComponent)).toMatchObject({ p0_unit_price: null, p0_currency: "EUR" })
             expect(Number((await actualOn(otherComponent)).p0_quoted_unit_price)).toBe(350)
         } finally {
-            await svc().from("sor_canvasses").delete().eq("id", otherCanvass)
+            await svc().from("request_canvasses").delete().eq("request_id", requestId)
         }
     })
 

@@ -6,8 +6,7 @@
  *
  *   costing_landed_costs         per-Component Landed Cost: no rows
  *   ipas_summaries_for_sor       the IPAS rows still come, the Landed Cost total and mark are null
- *   sor_canvass_offer_prices     row policy: no rows; canvass_subject_can_read_money: false
- *   canvass_offer_projection     unchanged: closed_book and cost get it, price is refused
+ *   request_canvass_*_prices     row policy: no rows; canvass_can_read_money: false (a member of the request still reads the names)
  *
  * The cast, on one SOR:
  *   dealOwner    Deal Team                       -> closed_book tier
@@ -31,7 +30,7 @@ const COST = ["outsider"]
 const CLOSED_BOOK = ["ipasSigner", "superAdmin", "dealOwner"]
 
 let saleTypeId, flowId, stageId
-let sorId, compId, canvassId, offerId, ipasId, poNumber
+let sorId, compId, canvassId, supplierId, quoteId, ipasId, poNumber
 const sorIds = []
 const ipasIds = []
 
@@ -60,13 +59,9 @@ beforeAll(async () => {
     ).id
     compId = (await asSvc(svc().from("costing_components").insert({ tender_line_id: lineId, position: 1, name: "Hose", quantity: 2 }).select("id").single(), "component")).id
 
-    canvassId = (await asSvc(svc().from("sor_canvasses").insert({ component_id: compId, created_by: ids.outsider }).select("id").single(), "Canvass")).id
-    offerId = (await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvassId, supplier_name: "Redleaf Inc." }).select("id").single(), "Offer")).id
-    await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offerId, unit_price: 78000 }), "Offer price")
-
     poNumber = `P101${RUN}`
     const requestId = (await asSvc(svc().from("purchase_requests").insert({ opportunity_id: sorId, created_by: ids.dealOwner }).select("id").single(), "request")).id
-    await asSvc(
+    const item = await asSvc(
         svc().from("purchase_request_items").insert({
             request_id: requestId,
             source: "component",
@@ -77,9 +72,17 @@ beforeAll(async () => {
             po_number: poNumber,
             odoo_po_line_ids: [11],
             requested_by: ids.dealOwner,
-        }),
+        }).select("id").single(),
         "item",
     )
+    // One Canvass on the request (#967); every cast member below is a member of it, so what differs is the tier.
+    for (const who of ["dealOwner", "ordinary", "outsider", "ipasSigner"]) {
+        await asSvc(svc().from("purchase_request_members").upsert({ request_id: requestId, employee_id: ids[who], side: "sales" }, { onConflict: "request_id,employee_id" }), "member")
+    }
+    canvassId = (await asSvc(svc().from("request_canvasses").insert({ request_id: requestId, number: "x", created_by: ids.outsider }).select("id").single(), "Canvass")).id
+    supplierId = (await asSvc(svc().from("request_canvass_suppliers").insert({ canvass_id: canvassId, supplier_name: "Redleaf Inc." }).select("id").single(), "supplier")).id
+    quoteId = (await asSvc(svc().from("request_canvass_quotes").insert({ canvass_id: canvassId, supplier_id: supplierId, item_id: item.id }).select("id").single(), "quote")).id
+    await asSvc(svc().from("request_canvass_quote_prices").insert({ quote_id: quoteId, unit_price: 78000 }), "quote price")
     const copy = {
         po: { id: 1, name: poNumber, state: "purchase", currency: "Php" },
         supplier: { id: 1, name: "Supplier" },
@@ -108,7 +111,7 @@ beforeAll(async () => {
 afterAll(async () => {
     await svc().from("purchase_request_items").delete().eq("component_id", compId)
     await svc().from("purchase_requests").delete().eq("opportunity_id", sorId)
-    await svc().from("sor_canvasses").delete().eq("id", canvassId)
+    await svc().from("request_canvasses").delete().eq("id", canvassId)
     await purgeIpas(ipasIds)
     await svc().from("costing_signer_lists").delete().eq("employee_id", ids.ipasSigner)
     await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
@@ -181,41 +184,28 @@ describe("Landed Cost total in the SOR's IPAS summaries", () => {
     })
 })
 
-describe("Canvass Offer prices", () => {
+describe("Canvass prices", () => {
     it.each([...COST, ...CLOSED_BOOK])("%s reads the price and the read function says yes", async (who) => {
         const client = await clientFor(who)
-        const { data } = await client.from("sor_canvass_offer_prices").select("*").eq("offer_id", offerId)
+        const { data } = await client.from("request_canvass_quote_prices").select("*").eq("quote_id", quoteId)
         expect(data).toEqual([expect.objectContaining({ unit_price: 78000 })])
-        const money = await client.rpc("canvass_subject_can_read_money", { p_component_id: compId, p_requested_item_id: null })
+        const money = await client.rpc("canvass_can_read_money", { p_canvass_id: canvassId })
         expect(money.data).toBe(true)
     })
 
-    it.each(PRICE)("%s (price tier) reads the Offer and not the price", async (who) => {
+    it.each(PRICE)("%s (price tier) reads the quote and not the price", async (who) => {
         const client = await clientFor(who)
-        const offer = await client.from("sor_canvass_offers").select("id").eq("id", offerId)
-        expect(offer.data).toHaveLength(1)
-        const { data, error } = await client.from("sor_canvass_offer_prices").select("*").eq("offer_id", offerId)
+        const quote = await client.from("request_canvass_quotes").select("id").eq("id", quoteId)
+        expect(quote.data).toHaveLength(1)
+        const { data, error } = await client.from("request_canvass_quote_prices").select("*").eq("quote_id", quoteId)
         expect(error).toBeNull()
         expect(data).toEqual([])
-        const money = await client.rpc("canvass_subject_can_read_money", { p_component_id: compId, p_requested_item_id: null })
+        const money = await client.rpc("canvass_can_read_money", { p_canvass_id: canvassId })
         expect(money.data).toBe(false)
     })
 
-    it("refuses a price-tier write of an Offer price", async () => {
-        const { data } = await (await clientFor("ordinary")).from("sor_canvass_offer_prices").insert({ offer_id: offerId, unit_price: 1 }).select()
+    it("refuses a price-tier write of a quote price", async () => {
+        const { data } = await (await clientFor("ordinary")).from("request_canvass_quote_prices").update({ unit_price: 1 }).eq("quote_id", quoteId).select()
         expect(data ?? []).toEqual([])
-    })
-})
-
-describe("the Offer projection is unchanged", () => {
-    it.each([...COST, ...CLOSED_BOOK])("%s still gets it", async (who) => {
-        const { data, error } = await (await clientFor(who)).rpc("canvass_offer_projection", { p_canvass_id: canvassId })
-        expect(error).toBeNull()
-        expect(data.map((r) => r.offer_id)).toContain(offerId)
-    })
-
-    it.each(PRICE)("still refuses %s (price tier)", async (who) => {
-        const { data, error } = await (await clientFor(who)).rpc("canvass_offer_projection", { p_canvass_id: canvassId })
-        expect(error ? true : (data ?? []).length === 0).toBe(true)
     })
 })

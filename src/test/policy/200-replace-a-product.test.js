@@ -47,8 +47,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-    const items = (await svc().from("purchase_request_items").select("id").eq("request_id", requestId ?? NO_ID)).data ?? []
-    await svc().from("sor_canvasses").delete().in("requested_item_id", items.map((i) => i.id))
+    await svc().from("request_canvasses").delete().eq("request_id", requestId ?? NO_ID)
     await svc().from("purchase_request_items").delete().eq("request_id", requestId ?? NO_ID)
     await svc().from("purchase_request_members").delete().eq("request_id", requestId ?? NO_ID)
     await svc().from("purchase_requests").delete().eq("id", requestId ?? NO_ID)
@@ -58,18 +57,20 @@ afterAll(async () => {
 })
 
 describe("Replace", () => {
-    it("cancels A with the reason, stops its open Canvass and adds B, in one call", async () => {
+    it("cancels A with the reason and adds B, in one call; A's quotes stay as the record", async () => {
         const a = await makeItem({ status: "to_purchase" })
-        const canvass = await asSvc(svc().from("sor_canvasses").insert({ requested_item_id: a, created_by: ids.outsider }).select("id").single(), "Canvass")
+        const found = (await svc().from("request_canvasses").select("id").eq("request_id", requestId).maybeSingle()).data
+        const canvass = found ?? (await asSvc(svc().from("request_canvasses").insert({ request_id: requestId, number: "x", created_by: ids.outsider }).select("id").single(), "Canvass"))
+        const supplier = await asSvc(svc().from("request_canvass_suppliers").insert({ canvass_id: canvass.id, supplier_name: `${MARKER} Replace` }).select("id").single(), "supplier")
+        await asSvc(svc().from("request_canvass_quotes").insert({ canvass_id: canvass.id, supplier_id: supplier.id, item_id: a }), "quote")
 
         const { data: bId, error } = await replace("outsider", a, "Other brand", "Brand out of stock")
         expect(error).toBeNull()
 
         expect(await itemRow(a)).toMatchObject({ status: "cancelled", replaced_reason: "Brand out of stock", s0_still_lists: false })
         expect(await itemRow(bId)).toMatchObject({ name: "Other brand", quantity: 3, unit: "pc", status: "not_checked", source: "new", substitute_for_item_id: a, sor_item_id: null })
-        const stopped = await asSvc(svc().from("sor_canvasses").select("stopped_reason, stopped_at").eq("id", canvass.id).single(), "Canvass")
-        expect(stopped.stopped_reason).toBe("Stopped · replaced by Other brand")
-        expect(stopped.stopped_at).not.toBeNull()
+        const kept = await asSvc(svc().from("request_canvass_quotes").select("id").eq("item_id", a), "quotes")
+        expect(kept).toHaveLength(1)
     })
 
     it("flags an S0 line, tells Sales in the chat, and Purchasing is not blocked", async () => {
