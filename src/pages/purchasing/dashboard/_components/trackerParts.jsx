@@ -42,7 +42,7 @@ const stageTitle = (stage, state) =>
 /** One stage's circle for a SOR: the count when work is outstanding, a tick when cleared. */
 export function StageCircle({ stage, state }) {
   return (
-    <Circle tone={state.tone} size="size-6" title={stageTitle(stage, state)}>
+    <Circle tone={state.tone} size="size-6 laptop:size-5" title={stageTitle(stage, state)}>
       {state.n > 0 ? (state.n > 99 ? "99+" : state.n) : <Check size={12} strokeWidth={3} />}
     </Circle>
   );

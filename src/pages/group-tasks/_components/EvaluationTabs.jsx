@@ -28,7 +28,6 @@ export default function EvaluationTabs({ statusFilter, count, holdCount = 0, onC
       ]}
       activeTab={activeTab}
       onChange={(tab) => onChange(filterOf[tab])}
-      className="mb-4"
     />
   );
 }

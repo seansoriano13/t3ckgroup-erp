@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ListTree, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { AlertTriangle, Gavel, ListTree, Plus, RefreshCw, Sparkles } from "lucide-react";
 
 import { Button } from "../../ui/button";
 import SlideOver, { SlideOverBody } from "../../ui/SlideOver";
 import StatusBadge from "../../StatusBadge";
-import NumbersStrip from "../../record/NumbersStrip";
+import SidePanel from "../../ui/SidePanel";
 import RecordHeader from "../../record/RecordHeader";
 import { costingMatrixService, requestsByComponent } from "../../../services/costingMatrixService";
 import { canvassService } from "../../../services/canvassService";
 import { opportunityService } from "../../../services/opportunityService";
-import { COMPONENT_BANDS, COSTING_BAND, inAnyBand, tierReads, tierReadsBidDecision, tierReadsCost } from "../../../constants/costing";
+import { BID_VERDICT_LABEL, COMPONENT_BANDS, COSTING_BAND, inAnyBand, tierReads, tierReadsBidDecision, tierReadsCost } from "../../../constants/costing";
 import { matrixPlay } from "../../../utils/costingPlayground";
 import { useAuth } from "../../../context/AuthContext";
 import { useCostingMatrix } from "../useCostingMatrix";
@@ -31,6 +31,7 @@ import CostingSheet from "./CostingSheet";
 import MarkupPlayground from "./MarkupPlayground";
 import { useMarkupPlay } from "./useMarkupPlay";
 import S0LinkSuggestions from "./S0LinkSuggestions";
+import { useRoomy } from "@/hooks/useScreenBand";
 
 const firstLine = (text) => (text ?? "").split("\n")[0].trim();
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -104,6 +105,8 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   // The markup being tried (#931): the bar above the Lines table and the table's per-line preview share it.
   const markup = useMarkupPlay(matrix, writes, { enabled: Boolean(matrix) && tierReadsCost(matrix.tier, "markup_factor") });
   const lines = matrix?.tenderLines ?? [];
+  // The Bid Decision is a side column only where there is room (SidePanel's own rule); elsewhere a button in the header.
+  const roomy = useRoomy();
   // The line open in the slide-over, by id, so it stays open while lines are moved or refreshed.
   const [openLineId, setOpenLineId] = useState(null);
 
@@ -166,11 +169,23 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     stockData: stockSnapshot?.data,
   };
 
-  const stats = [];
+  // Our cost and Margin sit in the record header row as two figures.
+  const figures = [];
+  if (showCost) figures.push({ key: "cost", label: "Our cost", value: pesos(play.cost), title: play.cost == null ? "Some costs are blank" : "Products, parts and other costs", warn: play.cost == null });
   if (showCost)
-    stats.push({ key: "cost", label: "Our cost (Acquire)", value: pesos(play.cost), sub: play.cost == null ? "Some costs are blank" : "Products, parts and other costs", tone: play.cost == null ? "warning" : undefined });
-  if (showCost)
-    stats.push({ key: "margin", label: "Margin", value: pesos(margin), sub: margin == null ? "Needs every offer and cost" : `${((margin / totals.finalOfferTotal) * 100).toFixed(1)}% of the offer` });
+    figures.push({
+      key: "margin",
+      label: "Margin",
+      value: pesos(margin),
+      title: margin == null ? "Needs every offer and cost" : `${((margin / totals.finalOfferTotal) * 100).toFixed(1)}% of the offer`,
+      sub: margin == null ? null : `${((margin / totals.finalOfferTotal) * 100).toFixed(1)}%`,
+    });
+  const bidPanel = tierReadsBidDecision(matrix.tier) ? (
+    <SidePanel label="Bid decision" icon={Gavel} badge={matrix.bidDecision ? (BID_VERDICT_LABEL[matrix.bidDecision.verdict] ?? matrix.bidDecision.verdict) : null} inlineFrom={1440} width="25rem" className="xl:sticky xl:top-2 xl:self-start">
+      <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} opportunity={opportunity} />
+      {roomy && <div className="mt-4"><SignoffBar matrix={matrix} nameOf={incharge.nameOf} /></div>}
+    </SidePanel>
+  ) : null;
 
   const openIndex = lines.findIndex((l) => l.id === openLineId);
   const openLine = openIndex >= 0 ? lines[openIndex] : null;
@@ -190,15 +205,29 @@ export default function CostingDesk({ opportunityId, opportunity }) {
 
   return (
     <div className="space-y-6 pb-2" data-testid="costing-desk">
-      <RecordHeader
-        reference={opportunity?.sor_code ?? "SOR"}
-        name={opportunity?.project_title ?? "S0 Evaluation"}
-        line={[opportunity?.sales_reference && `SO ${opportunity.sales_reference}`, opportunity?.client_name].filter(Boolean).join(" · ") || null}
-      />
-      {stats.length > 0 && <NumbersStrip stats={stats} />}
+      <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-3 border-b border-border pb-4" data-testid="costing-desk-header">
+        <RecordHeader
+          className="min-w-0 flex-1"
+          reference={opportunity?.sor_code ?? "SOR"}
+          name={opportunity?.project_title ?? "S0 Evaluation"}
+          line={[opportunity?.sales_reference && `SO ${opportunity.sales_reference}`, opportunity?.client_name].filter(Boolean).join(" · ") || null}
+        />
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          {figures.map((figure) => (
+            <div key={figure.key} className="flex flex-col" title={figure.title} data-testid={`desk-figure-${figure.key}`}>
+              <span className="text-xs text-muted-foreground">{figure.label}</span>
+              <span className={`font-mono text-lg font-semibold tabular-nums ${figure.warn ? "text-amber-11" : "text-foreground"}`}>
+                {figure.value}
+                {figure.sub && <span className="ml-2 text-xs font-normal text-muted-foreground">{figure.sub}</span>}
+              </span>
+            </div>
+          ))}
+          {!roomy && bidPanel}
+        </div>
+      </div>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_25rem]">
-        <div className="min-w-0 space-y-6">
+      <div className={roomy ? "flex items-start gap-8" : undefined}>
+        <div className="min-w-0 flex-1 space-y-6">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-muted/40 px-3 py-2 text-[13px]" data-testid="fill-note">
             <Sparkles size={14} aria-hidden="true" className="text-muted-foreground" />
             <span className="min-w-0 flex-1">
@@ -278,12 +307,9 @@ export default function CostingDesk({ opportunityId, opportunity }) {
           <OtherCosts matrix={matrix} writes={writes} />
           <CostingSummary matrix={matrix} writes={writes} />
           <CostGuide opportunityId={opportunityId} />
+          {(!roomy || !bidPanel) && <SignoffBar matrix={matrix} nameOf={incharge.nameOf} />}
         </div>
-
-        <aside className="min-w-0 space-y-4 xl:sticky xl:top-2 xl:self-start">
-          {tierReadsBidDecision(matrix.tier) && <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} opportunity={opportunity} />}
-          <SignoffBar matrix={matrix} nameOf={incharge.nameOf} />
-        </aside>
+        {roomy && bidPanel}
       </div>
 
       <SlideOver

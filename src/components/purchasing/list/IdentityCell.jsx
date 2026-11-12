@@ -13,10 +13,10 @@ import HighlightText from "@/components/HighlightText";
  * `search`     the list's search text; matches are highlighted.
  * `children` render under the name (a second quiet line).
  */
-export function IdentityCell({ reference, word, name, search, hairline = false, className = "", children }) {
+export function IdentityCell({ reference, word, name, tooltip, search, hairline = false, className = "", children }) {
   return (
     <TableCell className={`${hairline ? "border-l-2 border-l-mauve-7" : ""} ${className}`.trim()}>
-      <IdentityText reference={reference} word={word} name={name} search={search}>
+      <IdentityText reference={reference} word={word} name={name} tooltip={tooltip} search={search}>
         {children}
       </IdentityText>
     </TableCell>
@@ -24,7 +24,7 @@ export function IdentityCell({ reference, word, name, search, hairline = false, 
 }
 
 /** The same two lines without the cell, for a list that draws its own cell. */
-export function IdentityText({ reference, word, name, search, children }) {
+export function IdentityText({ reference, word, name, tooltip, search, children }) {
   return (
     <>
       {word ? (
@@ -38,7 +38,7 @@ export function IdentityText({ reference, word, name, search, children }) {
       )}
       {name ? (
         // A name can be a long Odoo product name: two lines, the rest on hover.
-        <span title={name} className="mt-0.5 line-clamp-2 max-w-[22rem] break-words text-sm text-foreground">
+        <span title={tooltip ?? name}className="mt-0.5 line-clamp-2 max-w-[22rem] break-words text-sm text-foreground">
           <HighlightText text={name} search={search} />
         </span>
       ) : null}

@@ -11,7 +11,7 @@ export default function LogTaskFooter({
   onClose,
 }) {
   return (
-    <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
+    <div className="px-5 py-4 max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
       <div className="flex items-center gap-4">
         <FieldBox inline className="flex items-center gap-2 cursor-pointer group">
           <Checkbox checked={createMore} onCheckedChange={setCreateMore} />

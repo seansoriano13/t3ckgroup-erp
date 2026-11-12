@@ -84,6 +84,39 @@ describe("Dialog height", () => {
     expect(className).toContain("overflow-y-auto");
   });
 
+  it("caps its height to the screen and scrolls its body (#980)", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>File Time Off</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    expect(popup().className).toContain("supports-[height:1dvh]:max-h-[calc(100dvh-2rem)]");
+    expect(popup().className).toContain("overflow-y-auto");
+  });
+
+  it("opens as a full-height sheet below 640px unless it opts out (#980)", () => {
+    const { unmount } = render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Sheet</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    expect(popup().className).toContain("max-md:!h-dvh");
+    expect(popup().className).toContain("max-md:rounded-t-2xl");
+    unmount();
+    render(
+      <Dialog open>
+        <DialogContent sheet={false}>
+          <DialogTitle>Small</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    expect(popup().className).not.toContain("max-md:!h-dvh");
+  });
+
   it("lets a caller keep its own overflow for a pinned header and footer", () => {
     render(
       <Dialog open>

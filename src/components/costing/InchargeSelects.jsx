@@ -30,12 +30,12 @@ export default function InchargeSelects({
 
   return (
     <div className="space-y-2 text-sm">
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-2 text-sm">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 text-sm sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-4 sm:gap-y-2">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
           <span className="text-xs font-medium text-muted-foreground">Sales incharge</span>
           <SelectCell
             label={`${labelPrefix}Sales incharge`}
-            className="w-44"
+            className="w-full sm:w-44"
             clearable={false}
             readOnly={!canSales}
             value={sales ?? "__empty__"}
@@ -43,11 +43,11 @@ export default function InchargeSelects({
             onSave={pick("sales")}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
           <span className="text-xs font-medium text-muted-foreground">Purchasing incharge</span>
           <SelectCell
             label={`${labelPrefix}Purchasing incharge`}
-            className="w-44"
+            className="w-full sm:w-44"
             clearable={false}
             readOnly={!canPurchasing}
             value={purchasing ?? "__empty__"}
@@ -56,11 +56,11 @@ export default function InchargeSelects({
           />
         </div>
         {technicalOptions && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
             <span className="text-xs font-medium text-muted-foreground">Technical in-charge</span>
             <SelectCell
               label="Technical in-charge"
-              className="w-44"
+              className="w-full sm:w-44"
               clearable={false}
               readOnly={!canTechnical}
               value={technical ?? "__empty__"}

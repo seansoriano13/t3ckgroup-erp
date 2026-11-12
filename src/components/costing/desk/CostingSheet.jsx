@@ -10,7 +10,9 @@ import { costingMatrixService } from "../../../services/costingMatrixService";
 import { COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
 import { factorLabel, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
+import LinerList from "../../record/LinerList";
 import { lineBuyingStatus } from "../../../utils/buyingStatus";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 /** The line's buying status in the Purchase Request's own words (utils/buyingStatus); nothing before a request. */
 function BuyingBadge({ line }) {
@@ -50,8 +52,8 @@ const firstLine = (text) => (text ?? "").split("\n")[0].trim();
 
 function Fact({ label, children, sub, title }) {
   return (
-    <div className="min-w-0 px-4 py-3" title={title}>
-      <div className="text-label font-bold uppercase tracking-wider text-muted-foreground">{label}</div>
+    <div className="min-w-0 px-4 py-3 max-sm:px-0 max-sm:py-0" title={title}>
+      <div className="whitespace-nowrap text-label font-bold uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm font-semibold leading-snug tabular-nums">{children}</div>
       {sub && <div className="text-xs font-normal text-muted-foreground">{sub}</div>}
     </div>
@@ -258,6 +260,31 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const kidsOf = new Map();
   for (const line of lines) if (line.included && line.includedIn) kidsOf.set(line.includedIn, [...(kidsOf.get(line.includedIn) ?? []), line]);
   const priced = lines.filter((line) => !line.included);
+  const phone = useIsPhone();
+
+  // On a phone each line is one Liner row: item and quantity, the buying status on the right, the figures as the
+  // sub line; the row opens to the line's own window.
+  const phoneRows = lines.map((line) => {
+    const status = lineBuyingStatus(line);
+    const bits = [];
+    if (showAbc) bits.push(`ABC ${pesos(line.totals.abcTotal)}`);
+    if (showOffer) bits.push(`Offer ${pesos(line.totals.finalOfferTotal)}`);
+    if (showCost) bits.push(`Cost ${pesos(line.totals.acquireTotal)}`);
+    return {
+      key: line.id,
+      testId: "sheet-row",
+      main: `${line.number}. ${itemName(line)}`,
+      quantity: `${line.quantity} ${line.unit ?? ""}`.trim(),
+      badge: status ? { label: status.label, theme: status.theme } : undefined,
+      sub: line.included ? "comes with another line" : bits.join(" · "),
+      subWrap: true,
+      children: onOpenLine ? (
+        <Button type="button" variant="outline" size="sm" onClick={() => onOpenLine(line.id)}>
+          Open line {line.number}
+        </Button>
+      ) : undefined,
+    };
+  });
 
   const save = (line, fields) => async (value) => {
     await costingMatrixService.updateTenderLine(line.id, fields(value));
@@ -285,7 +312,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
 
   return (
     <div className="space-y-3" data-testid="costing-sheet">
-      <div className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-xl border border-border bg-card sm:grid-flow-col sm:auto-cols-fr sm:divide-y-0">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-flow-col sm:auto-cols-fr sm:gap-0 sm:divide-x sm:divide-border sm:overflow-hidden sm:rounded-xl sm:border sm:border-border sm:bg-card">
         <Fact label="S0 · client">
           <span className="font-mono text-xs">{opportunity?.sales_reference ?? opportunity?.sor_code ?? "—"}</span>
           {opportunity?.client_name ? ` · ${opportunity.client_name}` : ""}
@@ -294,7 +321,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           {lines.length}
         </Fact>
         {closed && (
-          <Fact label="Default multiplier" sub={canMarkup ? "rows can override it" : "set by the Markup list"}>
+          <Fact label="Multiplier" title="The default multiplier" sub={canMarkup ? "rows can override it" : "set by the Markup list"}>
             <Cell
               label="Default multiplier"
               noun="The default multiplier"
@@ -314,14 +341,15 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
         )}
         {showOffer && (
           <Fact
-            label="Final Offer total"
+            label="Offer total"
+            title="Final Offer total"
             sub={totals.missingOffer ? `${totals.missingOffer} without one` : totals.percentOfAbc == null ? undefined : `${totals.percentOfAbc.toFixed(1)}% of the ABC`}
           >
             {pesos(totals.finalOfferTotal)}
           </Fact>
         )}
         {showLanded && (
-          <Fact label="Import add-on" sub="on the peso price" title="On the peso price, until the IPAS has the real one">
+          <Fact label="Add-on" sub="on the peso price" title="Import add-on: on the peso price, until the IPAS has the real one">
             <Cell
               label="Import add-on percent"
               noun="The Import add-on"
@@ -342,6 +370,9 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
 
       {toolbar}
 
+      {phone ? (
+        <LinerList label="Lines" rows={phoneRows} empty="No S0 lines yet." />
+      ) : (
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table className="border-separate border-spacing-0 text-[13px]">
           <TableHeader className="bg-transparent">
@@ -494,6 +525,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           </TableBody>
         </Table>
       </div>
+      )}
       <p className="text-xs text-muted-foreground">A box you can type in is yours to change. Click an item to open its parts, costs and evaluation. An S0 line priced at ₱0 reads as included in the line above it.</p>
     </div>
   );

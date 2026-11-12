@@ -1,0 +1,4431 @@
+{
+ "desktop/activity-log": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 18,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/approvals-bid-decisions": {
+  "error": "page.goto: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/approvals/bid-decisions\", waiting until \"domcontentloaded\"\u001b[22m\n"
+ },
+ "desktop/approvals-hr-verification": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": true
+ },
+ "desktop/approvals-ipas": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/approvals-leaves": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/approvals-leaves-sheet": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 7,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 950,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/approvals-meetings": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/approvals-tasks": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 210,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 18,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/approvals-tasks-sheet": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 210,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 19,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 950,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/approvals-transmittals": {
+  "error": "page.goto: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/approvals/transmittals\", waiting until \"domcontentloaded\"\u001b[22m\n"
+ },
+ "desktop/bug-reports": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 160,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/calendar": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/canvasses": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/commission": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/commission-formula": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/costing-list": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/costing-record": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 13,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 918,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/dashboard": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/flow-canvas": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/flow-snapshot": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 18,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/group-task-templates": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/group-tasks": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/hr-directory": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/hr-time-off": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/hr-time-off-sheet": {
+  "error": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('table tbody tr').first()\u001b[22m\n"
+ },
+ "desktop/ipas-list": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/ipas-record": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 7,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 918,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/lead-sources": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/login": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/my-requests": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 249,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/nav-drawer": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/not-found": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/notifications": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 500,
+    "h": 950,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/packing-list-record": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 918,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/packing-lists": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/profile": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/purchase-request-record": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 7,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 918,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/purchase-requests": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/purchasing-dashboard": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/qa-group-task": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 3,
+  "dialogs": [
+   {
+    "w": 1120,
+    "h": 784,
+    "top": 83,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/qa-log-task": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 560,
+    "top": 195,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/qa-meeting": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 760,
+    "top": 95,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/qa-purchase-request": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 709,
+    "top": 121,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/qa-register-sor": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 11,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 855,
+    "top": 48,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/qa-time-off": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 448,
+    "h": 725,
+    "top": 113,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/release-notes": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/retail": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/settings": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/sor-window": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 918,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": true
+ },
+ "desktop/sors": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/sors-board": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 138,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/sors-list": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 138,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 11,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/sors-overview": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/super-admin-commission": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/task-window": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/tasks": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/technical-list": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "desktop/technical-record": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 918,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/transmittal-new": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [
+   {
+    "w": 1100,
+    "h": 320,
+    "top": 315,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/transmittal-record": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 918,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "desktop/transmittals": {
+  "vw": 1920,
+  "vh": 950,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/activity-log": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 14,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/approvals-bid-decisions": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/approvals-hr-verification": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 210,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/approvals-ipas": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/approvals-leaves": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/approvals-leaves-sheet": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 7,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 730,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/approvals-meetings": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/approvals-tasks": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/approvals-tasks-sheet": {
+  "error": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('table tbody tr').first()\u001b[22m\n"
+ },
+ "laptopL/approvals-transmittals": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": true
+ },
+ "laptopL/bug-reports": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 160,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/calendar": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/canvasses": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/commission": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/commission-formula": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/costing-list": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/costing-record": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 13,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 698,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/dashboard": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/flow-canvas": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/flow-snapshot": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 18,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/group-task-templates": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/group-tasks": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/hr-directory": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/hr-time-off": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/hr-time-off-sheet": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 234,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 730,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/ipas-list": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 7,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/ipas-record": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 7,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 698,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/lead-sources": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/login": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/my-requests": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 249,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/nav-drawer": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/not-found": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/notifications": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 500,
+    "h": 730,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/packing-list-record": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 698,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/packing-lists": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/profile": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/purchase-request-record": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 7,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 698,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/purchase-requests": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/purchasing-dashboard": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/qa-group-task": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 3,
+  "dialogs": [
+   {
+    "w": 1120,
+    "h": 657,
+    "top": 37,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/qa-log-task": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 560,
+    "top": 85,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/qa-meeting": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 657,
+    "top": 37,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/qa-purchase-request": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 657,
+    "top": 37,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/qa-register-sor": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 657,
+    "top": 37,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/qa-time-off": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 448,
+    "h": 725,
+    "top": 3,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/release-notes": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/retail": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/settings": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/sor-window": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 698,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/sors": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/sors-board": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 138,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/sors-list": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 138,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 11,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/sors-overview": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/super-admin-commission": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/task-window": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/tasks": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/technical-list": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopL/technical-record": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 698,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/transmittal-new": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [
+   {
+    "w": 1100,
+    "h": 320,
+    "top": 205,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/transmittal-record": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [
+   {
+    "w": 1400,
+    "h": 698,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopL/transmittals": {
+  "vw": 1536,
+  "vh": 730,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/activity-log": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 13,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/approvals-bid-decisions": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/approvals-hr-verification": {
+  "error": "page.goto: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/approvals/hr-verification\", waiting until \"domcontentloaded\"\u001b[22m\n"
+ },
+ "laptopM/approvals-ipas": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/approvals-leaves": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/approvals-leaves-sheet": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 650,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/approvals-meetings": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/approvals-tasks": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 210,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 14,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/approvals-tasks-sheet": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 210,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 15,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 650,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/approvals-transmittals": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": true
+ },
+ "laptopM/bug-reports": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 160,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/calendar": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/canvasses": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/commission": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/commission-formula": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/costing-list": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/costing-record": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 11,
+  "dialogs": [
+   {
+    "w": 1334,
+    "h": 618,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/dashboard": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/flow-canvas": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/flow-snapshot": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 18,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/group-task-templates": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/group-tasks": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": true
+ },
+ "laptopM/hr-directory": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/hr-time-off": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 197,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/hr-time-off-sheet": {
+  "error": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('table tbody tr').first()\u001b[22m\n"
+ },
+ "laptopM/ipas-list": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/ipas-record": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 6,
+  "dialogs": [
+   {
+    "w": 1334,
+    "h": 618,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/lead-sources": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/login": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/my-requests": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 249,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/nav-drawer": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/not-found": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/notifications": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 500,
+    "h": 650,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/packing-list-record": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [
+   {
+    "w": 1334,
+    "h": 618,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/packing-lists": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/profile": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/purchase-request-record": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 1334,
+    "h": 618,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/purchase-requests": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/purchasing-dashboard": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/qa-group-task": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 3,
+  "dialogs": [
+   {
+    "w": 1120,
+    "h": 585,
+    "top": 33,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/qa-log-task": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 560,
+    "top": 45,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/qa-meeting": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 585,
+    "top": 33,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/qa-purchase-request": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 585,
+    "top": 33,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/qa-register-sor": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 7,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 585,
+    "top": 33,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/qa-time-off": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 448,
+    "h": 725,
+    "top": -37,
+    "fitsW": true,
+    "fitsH": false
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/release-notes": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/retail": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 194,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/settings": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/sor-window": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 1334,
+    "h": 618,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/sors": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/sors-board": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 138,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/sors-list": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 138,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 11,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/sors-overview": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/super-admin-commission": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/task-window": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/tasks": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/technical-list": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopM/technical-record": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 1334,
+    "h": 618,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/transmittal-new": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 1100,
+    "h": 320,
+    "top": 165,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/transmittal-record": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [
+   {
+    "w": 1334,
+    "h": 618,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopM/transmittals": {
+  "vw": 1366,
+  "vh": 650,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/activity-log": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 11,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/approvals-bid-decisions": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/approvals-hr-verification": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 210,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/approvals-ipas": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/approvals-leaves": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/approvals-leaves-sheet": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 600,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/approvals-meetings": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/approvals-tasks": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/approvals-tasks-sheet": {
+  "error": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('table tbody tr').first()\u001b[22m\n"
+ },
+ "laptopS/approvals-transmittals": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": true
+ },
+ "laptopS/bug-reports": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 160,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/calendar": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/canvasses": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/commission": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/commission-formula": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/costing-list": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/costing-record": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 11,
+  "dialogs": [
+   {
+    "w": 1248,
+    "h": 568,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/dashboard": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/flow-canvas": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/flow-snapshot": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 18,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/group-task-templates": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/group-tasks": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/hr-directory": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/hr-time-off": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 277,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/hr-time-off-sheet": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 277,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 600,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/ipas-list": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/ipas-record": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 5,
+  "dialogs": [
+   {
+    "w": 1248,
+    "h": 568,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/lead-sources": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/login": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/my-requests": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 266,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/nav-drawer": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/not-found": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/notifications": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 500,
+    "h": 600,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/packing-list-record": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [
+   {
+    "w": 1248,
+    "h": 568,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/packing-lists": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/profile": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/purchase-request-record": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 1248,
+    "h": 568,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/purchase-requests": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 6,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/purchasing-dashboard": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/qa-group-task": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 3,
+  "dialogs": [
+   {
+    "w": 1120,
+    "h": 540,
+    "top": 30,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/qa-log-task": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 540,
+    "top": 30,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/qa-meeting": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 540,
+    "top": 30,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/qa-purchase-request": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 540,
+    "top": 30,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/qa-register-sor": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 540,
+    "top": 30,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/qa-time-off": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 448,
+    "h": 725,
+    "top": -62,
+    "fitsW": true,
+    "fitsH": false
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/release-notes": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/retail": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 194,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/settings": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/sor-window": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 1248,
+    "h": 568,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/sors": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/sors-board": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 138,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/sors-list": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 138,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 11,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/sors-overview": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 86,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/super-admin-commission": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/task-window": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 1248,
+    "h": 568,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/tasks": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/technical-list": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "laptopS/technical-record": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 1248,
+    "h": 568,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/transmittal-new": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [
+   {
+    "w": 1100,
+    "h": 320,
+    "top": 140,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/transmittal-record": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [
+   {
+    "w": 1248,
+    "h": 568,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "laptopS/transmittals": {
+  "vw": 1280,
+  "vh": 600,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 8,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/activity-log": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 308,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 12,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/approvals-bid-decisions": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 193,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/approvals-hr-verification": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 321,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/approvals-ipas": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/approvals-leaves": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/approvals-leaves-sheet": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 233,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 3,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/approvals-meetings": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 193,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/approvals-tasks": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/approvals-tasks-sheet": {
+  "error": "locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('table tbody tr').first()\u001b[22m\n"
+ },
+ "phone/approvals-transmittals": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": true
+ },
+ "phone/bug-reports": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 163,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/calendar": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 209,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/canvasses": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 361,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/commission": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 228,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/commission-formula": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 228,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/costing-list": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 269,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/costing-record": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 269,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 3,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/dashboard": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/flow-canvas": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 101,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/flow-snapshot": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 125,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 13,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/group-task-templates": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 228,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/group-tasks": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 425,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/hr-directory": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 368,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/hr-time-off": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 276,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/hr-time-off-sheet": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 421,
+  "docOverflowX": 0,
+  "sideScrollers": 3,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/ipas-list": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 357,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/ipas-record": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 357,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/lead-sources": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 212,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/login": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/my-requests": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 373,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/nav-drawer": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 240,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/not-found": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 113,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/notifications": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/packing-list-record": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 313,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 4,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/packing-lists": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 313,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 4,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/profile": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 157,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/purchase-request-record": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 357,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 4,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/purchase-requests": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 357,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/purchasing-dashboard": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 337,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/qa-group-task": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 371,
+    "h": 760,
+    "top": 42,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/qa-log-task": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 371,
+    "h": 599,
+    "top": 123,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/qa-meeting": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [
+   {
+    "w": 371,
+    "h": 760,
+    "top": 42,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/qa-purchase-request": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 371,
+    "h": 745,
+    "top": 50,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/qa-register-sor": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 9,
+  "dialogs": [
+   {
+    "w": 371,
+    "h": 760,
+    "top": 42,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/qa-time-off": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 283,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 739,
+    "top": 52,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/release-notes": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 200,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/retail": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 361,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/settings": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 212,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/sor-window": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 161,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 358,
+    "h": 812,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/sors": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 161,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/sors-board": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 213,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/sors-list": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 213,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/sors-overview": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 161,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/super-admin-commission": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 228,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/task-window": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 385,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 358,
+    "h": 812,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/tasks": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 385,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/technical-list": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 229,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "phone/technical-record": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 229,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/transmittal-new": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 317,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 4,
+  "dialogs": [
+   {
+    "w": 371,
+    "h": 339,
+    "top": 253,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/transmittal-record": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 317,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 4,
+  "dialogs": [
+   {
+    "w": 390,
+    "h": 844,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "phone/transmittals": {
+  "vw": 390,
+  "vh": 844,
+  "pageBodyTop": 317,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 4,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/activity-log": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 277,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 20,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/approvals-bid-decisions": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 4,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/approvals-hr-verification": {
+  "error": "page.goto: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/approvals/hr-verification\", waiting until \"domcontentloaded\"\u001b[22m\n"
+ },
+ "tablet/approvals-ipas": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/approvals-leaves": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 206,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 4,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/approvals-leaves-sheet": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 206,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 5,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 1180,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/approvals-meetings": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 162,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/approvals-tasks": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/approvals-tasks-sheet": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 210,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 21,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 1180,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/approvals-transmittals": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 210,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 20,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/bug-reports": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 160,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/calendar": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/canvasses": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 354,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/commission": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 197,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/commission-formula": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 197,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/costing-list": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 4,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/costing-record": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 3,
+  "smallTargets": 11,
+  "dialogs": [
+   {
+    "w": 788,
+    "h": 1148,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/dashboard": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/flow-canvas": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/flow-snapshot": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 98,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 18,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/group-task-templates": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/group-tasks": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/hr-directory": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 277,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/hr-time-off": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 213,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/hr-time-off-sheet": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 381,
+  "docOverflowX": 0,
+  "sideScrollers": 3,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 560,
+    "h": 1180,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/ipas-list": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 310,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/ipas-record": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/lead-sources": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/login": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/my-requests": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 310,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/nav-drawer": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/not-found": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/notifications": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 500,
+    "h": 1180,
+    "top": 0,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/packing-list-record": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [
+   {
+    "w": 788,
+    "h": 1148,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/packing-lists": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 5,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/profile": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 126,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/purchase-request-record": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 788,
+    "h": 1148,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/purchase-requests": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/purchasing-dashboard": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/qa-group-task": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 1120,
+    "h": 784,
+    "top": 198,
+    "fitsW": false,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/qa-log-task": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 560,
+    "top": 310,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/qa-meeting": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 6,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 760,
+    "top": 210,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/qa-purchase-request": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 709,
+    "top": 236,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/qa-register-sor": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 13,
+  "dialogs": [
+   {
+    "w": 680,
+    "h": 1062,
+    "top": 59,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/qa-time-off": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 252,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 2,
+  "dialogs": [
+   {
+    "w": 448,
+    "h": 725,
+    "top": 228,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/release-notes": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/retail": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 254,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/settings": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 181,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 3,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/sor-window": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 130,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/sors": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 130,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/sors-board": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 182,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 2,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/sors-list": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 182,
+  "docOverflowX": 0,
+  "sideScrollers": 2,
+  "smallTargets": 8,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/sors-overview": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 130,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/super-admin-commission": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 197,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/task-window": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": null,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/tasks": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 222,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 1,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/technical-list": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 0,
+  "smallTargets": 0,
+  "dialogs": [],
+  "loading": false
+ },
+ "tablet/technical-record": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 178,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 0,
+  "dialogs": [
+   {
+    "w": 788,
+    "h": 1148,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/transmittal-new": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 310,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 7,
+  "dialogs": [
+   {
+    "w": 1100,
+    "h": 320,
+    "top": 430,
+    "fitsW": false,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/transmittal-record": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 310,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 7,
+  "dialogs": [
+   {
+    "w": 788,
+    "h": 1148,
+    "top": 16,
+    "fitsW": true,
+    "fitsH": true
+   }
+  ],
+  "loading": false
+ },
+ "tablet/transmittals": {
+  "vw": 820,
+  "vh": 1180,
+  "pageBodyTop": 310,
+  "docOverflowX": 0,
+  "sideScrollers": 1,
+  "smallTargets": 7,
+  "dialogs": [],
+  "loading": false
+ }
+}

@@ -37,17 +37,17 @@ export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
   const { sorted: rows, sort, toggle } = useTableSort(unsortedRows, REQUEST_SORT);
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card animate-in fade-in duration-300">
-      <Table tableId="my-offset-requests" className="whitespace-nowrap">
+      <Table tableId="my-offset-requests" className="whitespace-nowrap" stackOnPhone>
         <TableHeader>
           <TableRow>
             <SortHead id="applied-on" sortKey="applied-on" sort={sort} onSort={toggle}>Applied On</SortHead>
             <SortHead id="type" sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
-            <SortHead id="date" sortKey="date" sort={sort} onSort={toggle}>Date</SortHead>
+            <SortHead id="date" sortKey="date" sort={sort} onSort={toggle} phone="title">Date</SortHead>
             <SortHead id="hours" sortKey="hours" sort={sort} onSort={toggle}>Hours</SortHead>
             <SortHead id="files" sortKey="files" sort={sort} onSort={toggle}>Files</SortHead>
-            <SortHead id="stage" sortKey="stage" sort={sort} onSort={toggle}>Stage</SortHead>
+            <SortHead id="stage" sortKey="stage" sort={sort} onSort={toggle} phone="badge">Stage</SortHead>
             <SortHead id="note" sortKey="note" sort={sort} onSort={toggle}>Note</SortHead>
-            <TableHead id="actions" className="text-right">Actions</TableHead>
+            <TableHead id="actions" className="text-right" phone="meta">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -112,7 +112,7 @@ export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
                 <TableCell className="text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={stage.note || ''}>
                   {stage.note || '—'}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right" label="">
                   <div className="flex items-center justify-end gap-2">
                   {req.verification_token && (
                     <Link

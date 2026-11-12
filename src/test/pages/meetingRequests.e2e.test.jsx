@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase"
 import { db, insertRow } from "@/test/db/store"
 import { makeEmployee, makeHead, makeHrEmployee } from "@/test/factories"
 import { stubRpc } from "@/test/msw/server"
+import { stubRoomyScreen } from "@/test/roomyScreen"
 import { renderWithProviders, setupUser } from "@/test/support"
 
 /**
@@ -36,6 +37,7 @@ const STEP = {
 }
 
 beforeEach(() => {
+    stubRoomyScreen()
     window.localStorage.clear()
     head = makeHead({ name: "Head Honcho", department: "SALES" })
     hr = makeHrEmployee({ name: "Hana Resources" })

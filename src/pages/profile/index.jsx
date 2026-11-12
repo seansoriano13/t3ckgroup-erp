@@ -31,6 +31,7 @@ import PageShell from "../../components/ui/PageShell";
 import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
+import { useIsPhone } from "@/hooks/useScreenBand";
 const UNSPLASH_BANNER_POOL = [
   "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80",
   "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1600&q=80",
@@ -329,32 +330,38 @@ export default function ProfilePage() {
 
   useUnsavedGuard(hasChanges && !isSaving);
 
+  // Phones: Save sits in the header only until there is something to save,
+  // then it sticks to the bottom of the screen beside the fields it saves.
+  const phone = useIsPhone();
+  const saveButton = (
+    <Button
+      type="button"
+      onClick={() => savePreferencesMutation.mutate()}
+      disabled={isSaving || !hasChanges}
+      className={phone ? "w-full" : undefined}
+    >
+      {isSaving ? <Spinner size="sm" /> : <Save size={16} />}
+      Save settings
+    </Button>
+  );
+
   return (
     <PageShell
       frame="narrow"
       title="My Profile"
       description="Manage your employee information and access levels."
-      action={
-        <Button
-          type="button"
-          onClick={() => savePreferencesMutation.mutate()}
-          disabled={isSaving || !hasChanges}
-        >
-          {isSaving ? <Spinner size="sm" /> : <Save size={16} />}
-          Save settings
-        </Button>
-      }
+      action={!phone && saveButton}
     >
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN: The ID Card */}
         <div className="lg:col-span-1 h-full">
-          <div className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3 items-center text-center shadow-sm h-full justify-center">
+          <div className="bg-card border border-border rounded-2xl p-4 md:p-6 flex flex-col gap-3 items-center text-center shadow-sm h-full justify-center">
             <div className="relative">
               <Image
                 src={user?.picture || "/default-avatar.png"}
                 alt="Profile"
-                className="w-24 h-24 rounded-full border border-border shadow-sm mb-3 object-cover"
+                className="size-[72px] md:size-24 rounded-full border border-border shadow-sm mb-3 object-cover"
                 referrerPolicy="no-referrer"
               />
               {/* Role Badges floating on the avatar */}
@@ -397,7 +404,7 @@ export default function ProfilePage() {
         {/* RIGHT COLUMN: Details & Stats */}
         <div className="lg:col-span-2 space-y-6 flex flex-col">
           {/* Department Info */}
-          <div className="bg-card border border-border rounded-2xl p-8 shadow-sm flex-1">
+          <div className="bg-card border border-border rounded-2xl p-4 md:p-8 shadow-sm flex-1">
             <h3 className="text-base font-semibold text-foreground mb-5 border-b border-border pb-3">
               Organizational details
             </h3>
@@ -448,7 +455,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Signature */}
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+          <div className="bg-card border border-border rounded-2xl p-4 md:p-6 shadow-sm">
             <div className="flex items-center justify-between border-b border-border pb-3 mb-5">
               <h3 className="text-base font-semibold text-foreground">
                 Signature
@@ -506,7 +513,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <div className="lg:col-span-3 bg-card border border-border rounded-2xl p-5 md:p-6 shadow-sm space-y-5">
+        <div className="lg:col-span-3 bg-card border border-border rounded-2xl p-4 md:p-6 shadow-sm space-y-5">
           <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
             <div>
               <h3 className="text-base font-semibold text-foreground">
@@ -765,6 +772,11 @@ export default function ProfilePage() {
         employeeId={user?.id}
         onSuccess={(updated) => updateUserPreferences({ signaturePath: updated.signature_path })}
       />
+      {phone && hasChanges && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg">
+          {saveButton}
+        </div>
+      )}
     </PageShell>
   );
 }

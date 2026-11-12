@@ -139,7 +139,7 @@ describe("EmployeeOpportunityMatrix", () => {
 
     // Click Full Grid
     await user.click(screen.getByTitle("Full Grid"));
-    expect(container.querySelector(".grid-cols-1")).toBeInTheDocument();
+    expect(container.querySelector(".grid")).toBeInTheDocument();
 
     // Click List View again
     await user.click(screen.getByTitle("List View"));

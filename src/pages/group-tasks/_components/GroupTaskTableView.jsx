@@ -131,12 +131,13 @@ export default function GroupTaskTableView({
     <div className="space-y-4">
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <Table tableId="group-tasks" className="md:min-w-[900px]">
+        <div>
+          <Table stackOnPhone tableId="group-tasks" className="md:min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead
                   id="title"
+                  phone="title"
                   aria-sort={ariaSort("title")}
                   className="hover:text-foreground transition-colors"
                 >
@@ -152,7 +153,7 @@ export default function GroupTaskTableView({
                 <TableHead
                   id="creator"
                   aria-sort={ariaSort("creator")}
-                  className="hover:text-foreground transition-colors w-[170px] hidden md:table-cell"
+                  className="hover:text-foreground transition-colors w-[170px]"
                 >
                   <Button
                     type="button"
@@ -163,9 +164,10 @@ export default function GroupTaskTableView({
                     Creator {renderSortIcon("creator")}
                   </Button>
                 </TableHead>
-                <TableHead id="members" className="w-[160px] hidden md:table-cell">Members</TableHead>
+                <TableHead id="members" className="w-[160px]">Members</TableHead>
                 <TableHead
                   id="status"
+                  phone="badge"
                   aria-sort={ariaSort("status")}
                   className="px-3 hover:text-foreground transition-colors w-[150px]"
                 >
@@ -181,7 +183,7 @@ export default function GroupTaskTableView({
                 <TableHead
                   id="dueDate"
                   aria-sort={ariaSort("dueDate")}
-                  className="px-3 hover:text-foreground transition-colors w-[130px] hidden md:table-cell"
+                  className="px-3 hover:text-foreground transition-colors w-[130px]"
                 >
                   <Button
                     type="button"
@@ -194,6 +196,7 @@ export default function GroupTaskTableView({
                 </TableHead>
                 <TableHead
                   id="progress"
+                  phone="hide"
                   aria-sort={ariaSort("progress")}
                   className="px-3 hover:text-foreground transition-colors w-[140px] hidden md:table-cell"
                 >
@@ -206,7 +209,7 @@ export default function GroupTaskTableView({
                     Progress {renderSortIcon("progress")}
                   </Button>
                 </TableHead>
-                <TableHead id="action" className="text-right w-[80px]">Action</TableHead>
+                <TableHead id="action" phone="hide" className="text-right w-[80px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -256,16 +259,18 @@ export default function GroupTaskTableView({
                           <span className="font-semibold text-foreground group-hover:text-primary transition-colors text-[13px] line-clamp-1">
                             <HighlightText text={task.title} search={searchTerm} />
                           </span>
+                          {task.opportunity && (
+                            <SorLinkChip
+                              opportunityId={task.opportunity_id}
+                              opportunity={task.opportunity}
+                              className="max-w-[90px]"
+                            />
+                          )}
                         </div>
                         {task.description && (
                           <p className="text-[11px] text-muted-foreground line-clamp-1">
                             <HighlightText text={task.description} search={searchTerm} />
                           </p>
-                        )}
-                        {task.opportunity && (
-                          <div className="flex flex-wrap items-center gap-1">
-                            <SorLinkChip opportunityId={task.opportunity_id} opportunity={task.opportunity} />
-                          </div>
                         )}
                         {(task.status === "ACTIVE" || task.status === "AWAITING_EVALUATION") && task.hr_remarks && (
                           <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-destructive">
@@ -276,7 +281,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Creator */}
-                    <TableCell className="align-middle hidden md:table-cell">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.creator?.name || "Unknown"}
@@ -291,7 +296,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Members Avatar Group */}
-                    <TableCell className="align-middle hidden md:table-cell">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-1.5">
                         {memberPeople.length > 0 ? (
                           <div className="flex items-center gap-2">
@@ -342,7 +347,7 @@ export default function GroupTaskTableView({
                     </TableCell>
 
                     {/* Due Date */}
-                    <TableCell className="align-middle hidden md:table-cell">
+                    <TableCell className="align-middle">
                       {task.due_date ? (
                         <div className="flex flex-col">
                           <span

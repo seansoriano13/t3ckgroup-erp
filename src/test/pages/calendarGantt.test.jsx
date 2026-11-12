@@ -69,6 +69,7 @@ describe("Calendar Gantt", () => {
     mocks.user = makeHrEmployee();
     const user = await renderGantt();
     expect(await screen.findAllByTestId("people-bar")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
     await user.click(screen.getByLabelText("Show pending"));
     await screen.findByTestId("person-p2");
 
@@ -96,6 +97,7 @@ describe("Calendar Gantt", () => {
   it("groups people by department and narrows the rows by name or department", async () => {
     mocks.user = makeHrEmployee();
     const user = await renderGantt();
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
     await user.click(screen.getByLabelText("Show pending"));
     await screen.findByTestId("person-p2");
     expect(screen.getByRole("button", { name: /^IT/ })).toHaveAttribute("aria-expanded", "true");

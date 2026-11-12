@@ -9,6 +9,7 @@ import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
+import { stubRoomyScreen } from "@/test/roomyScreen";
 import { findOtherDialog, queryOtherDialog } from "@/test/support/dialogs"
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -90,6 +91,8 @@ const pick = async (user, scope, label, optionName) => {
   await user.click(within(scope).getByRole("combobox", { name: label }));
   await user.click(await screen.findByRole("option", { name: optionName }));
 };
+
+beforeEach(() => stubRoomyScreen());
 
 describe("IPAS page: payments, charges and Landed Cost", () => {
   let purchaser, finance, reader, options;

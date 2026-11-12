@@ -49,7 +49,7 @@ export function ApprovalToolbar({
   return (
     <>
       <TabGroup className="max-w-full" size="sm" tabs={views} activeTab={view} onChange={onViewChange} />
-      <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+      <div data-toolbar-no-stretch className="flex flex-wrap items-center gap-2 md:ml-auto">
         {onPersonChange && people.length > 0 && (
           <PillFilter label={personLabel} icon={<UserRound size={13} className="text-muted-foreground" />} value={person} options={personOptions} onChange={onPersonChange} />
         )}
@@ -60,7 +60,7 @@ export function ApprovalToolbar({
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search requests"
           aria-label="Search requests"
-          containerClassName="w-full sm:w-56"
+          containerClassName="w-full sm:w-56 laptop:w-44"
           className="h-8 rounded-lg text-[13px]"
         />
         {onAdvancedToggle && (
@@ -77,7 +77,7 @@ export function ApprovalToolbar({
 export function SelectionBar({ count, onClear, children }) {
   if (!count) return null;
   return (
-    <div role="region" aria-label="Selection" aria-live="polite" className="fixed bottom-6 pb-[env(safe-area-inset-bottom)] left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2.5 shadow-lg">
+    <div role="region" aria-label="Selection" aria-live="polite" className="fixed bottom-6 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2.5 shadow-lg max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:max-w-none max-md:translate-x-0 max-md:rounded-none max-md:border-x-0 max-md:border-b-0 max-md:pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
       <span className="text-[13px] font-bold">{count} selected</span>
       {children}
       <Button variant="ghost" size="sm" onClick={onClear}>

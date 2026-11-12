@@ -42,7 +42,7 @@ export default function PageShell({
       maxWidth={FRAME_WIDTH[frame] ?? "7xl"}
       fill={full}
       spaceY="4"
-      className={className}
+      className={`laptop:space-y-3 ${className}`}
     >
       {banner && <div className={pinned}>{banner}</div>}
       <PageHeader title={title} description={description}>
@@ -56,7 +56,11 @@ export default function PageShell({
       {toolbar && (
         <div
           data-testid="page-toolbar"
-          className={`flex flex-wrap items-center gap-3 ${pinned}`}
+          // From 1024px the pills and the FilterBar share one row; if they
+          // cannot fit, the pills take the first row and the FilterBar the
+          // second (flex-wrap). Never three rows. A last child that must keep its
+          // own size (pills, not a FilterBar) sets `data-toolbar-no-stretch`.
+          className={`flex flex-wrap items-center gap-3 lg:[&>*:last-child:not(:first-child):not([data-toolbar-no-stretch])]:min-w-[min(100%,28rem)] lg:[&>*:last-child:not(:first-child):not([data-toolbar-no-stretch])]:flex-1 ${pinned}`}
         >
           {toolbar}
         </div>

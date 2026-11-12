@@ -1,12 +1,11 @@
-import { useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronRight, ChevronsUpDown, Scale } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Fragment, useState } from 'react';
+import { ChevronRight, Scale } from 'lucide-react';
+import { SortHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { SelectField } from '@/components/ui/SelectField';
 import Avatar from '../../../../components/Avatar';
 import EmptyState from '@/components/ui/EmptyState';
 import { TYPE_META, num, usePendingByEmployee } from './leaveDisplay';
 
-const COLS = 'grid-cols-[minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_90px_120px_130px_16px]';
 const GROUP_KEY = {
   none: () => '',
   company: (e) => e.company?.name || 'No company set',
@@ -35,6 +34,8 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
     const y = get[sort.key](b);
     return sort.dir * (typeof x === 'string' ? x.localeCompare(y) : x - y);
   });
+  const tableSort = { key: sort.key, dir: sort.dir > 0 ? 'asc' : 'desc' };
+  const toggleSort = (k) => setSort((s) => ({ key: k, dir: s.key === k ? -s.dir : 1 }));
   const groups = [];
   sorted.forEach((e) => {
     const k = GROUP_KEY[group](e);
@@ -63,80 +64,72 @@ export default function BalancesTable({ employees, pendingLeaves, onOpenPerson }
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="overflow-x-auto">
-          <div className="min-w-[900px]">
-            <div className={`grid ${COLS} h-12 items-center gap-6 border-b border-border bg-muted/40 px-6`}>
-              <SortHead label="Employee" k="name" sort={sort} setSort={setSort} />
-              <SortHead label="Company" k="company" sort={sort} setSort={setSort} />
-              <SortHead label="Offset hrs" k="offset" sort={sort} setSort={setSort} />
-              <SortHead label="SIL hrs" k="sil" sort={sort} setSort={setSort} />
-              <SortHead label="Pending" k="held" sort={sort} setSort={setSort} right />
-              <SortHead label="Undertime (mo)" k="ut" sort={sort} setSort={setSort} right />
-              <SortHead label="LWOP this month" k="lwop" sort={sort} setSort={setSort} right />
-              <span />
-            </div>
-            {groups.map(([label, rows]) => (
-              <div key={label || 'all'}>
-                {group !== 'none' && (
-                  <div className="flex h-10 items-center gap-3 border-b border-border bg-muted/60 px-6 text-sm">
-                    <span className="font-bold text-foreground">{label}</span>
-                    <span className="font-mono text-xs tabular-nums text-muted-foreground">{rows.length}</span>
-                  </div>
-                )}
-                {rows.map((e) => (
-                  <div
-                    key={e.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Open ${e.name}'s time off`}
-                    onClick={() => onOpenPerson(e.id)}
-                    onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && (ev.preventDefault(), onOpenPerson(e.id))}
-                    className={`group grid ${COLS} h-[68px] cursor-pointer items-center gap-6 border-b border-border/70 px-6 text-sm outline-none transition-colors last:border-b-0 hover:bg-muted/40 focus-visible:bg-muted/40`}
-                  >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <Avatar name={e.name} src={e.avatar_path} size="sm" />
-                      <span className="min-w-0">
-                        <span className="block truncate font-bold text-foreground">{e.name}</span>
-                        <span className="block truncate text-xs font-medium text-muted-foreground">{e.department || 'No department'}</span>
-                      </span>
-                    </span>
-                    <span className="truncate text-muted-foreground">
-                      {e.company?.name || <span className="font-semibold text-amber-11">No company set</span>}
-                    </span>
-                    <Bar value={get.offset(e)} max={maxOffset} tone={TYPE_META.OFFSET.solid} />
-                    <Bar value={get.sil(e)} max={maxSil} tone={TYPE_META.SIL.solid} />
-                    <span className={`text-right font-mono tabular-nums ${held(e) ? 'text-foreground' : 'text-muted-foreground'}`}>{held(e) || '—'}</span>
-                    {/* Derived from approved undertime this month; never a stored balance (#148). */}
-                    <span className="text-right font-mono tabular-nums text-muted-foreground">{get.ut(e) || '—'}</span>
-                    {/* Derived from approved LWOP this Manila month, in hours; never a stored balance (#620). */}
-                    <span className="text-right font-mono tabular-nums text-muted-foreground">{get.lwop(e) || '—'}</span>
-                    <ChevronRight size={16} className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-                  </div>
-                ))}
-              </div>
-            ))}
-            {employees.length === 0 && <EmptyState icon={Scale} title="No employees match" description="Clear the search or company filter." />}
-          </div>
-        </div>
+        {employees.length === 0 ? (
+          <EmptyState icon={Scale} title="No employees match" description="Clear the search or company filter." />
+        ) : (
+          <Table stackOnPhone tableId="hr-balances" className="md:min-w-[900px]">
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <SortHead id="name" phone="title" sortKey="name" sort={tableSort} onSort={toggleSort}>Employee</SortHead>
+                <SortHead id="company" phone="meta" sortKey="company" sort={tableSort} onSort={toggleSort}>Company</SortHead>
+                <SortHead id="offset" phone="meta" sortKey="offset" sort={tableSort} onSort={toggleSort}>Offset hrs</SortHead>
+                <SortHead id="sil" phone="meta" sortKey="sil" sort={tableSort} onSort={toggleSort}>SIL hrs</SortHead>
+                <SortHead id="held" phone="meta" sortKey="held" sort={tableSort} onSort={toggleSort} className="text-right">Pending</SortHead>
+                <SortHead id="ut" phone="hide" sortKey="ut" sort={tableSort} onSort={toggleSort} className="text-right">Undertime (mo)</SortHead>
+                <SortHead id="lwop" phone="meta" sortKey="lwop" sort={tableSort} onSort={toggleSort} className="text-right">LWOP this month</SortHead>
+                <TableHead id="open" phone="hide" className="w-6"><span className="sr-only">Open</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {groups.map(([label, rows]) => (
+                <Fragment key={label || 'all'}>
+                  {group !== 'none' && (
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableCell colSpan={8} phone="title" className="text-sm">
+                        <span className="font-bold text-foreground">{label}</span>
+                        <span className="ml-3 font-mono text-xs tabular-nums text-muted-foreground">{rows.length}</span>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {rows.map((e) => (
+                    <TableRow
+                      key={e.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open ${e.name}'s time off`}
+                      onClick={() => onOpenPerson(e.id)}
+                      onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && (ev.preventDefault(), onOpenPerson(e.id))}
+                      className="group cursor-pointer outline-none focus-visible:bg-muted/40"
+                    >
+                      <TableCell>
+                        <span className="flex min-w-0 items-center gap-3">
+                          <Avatar name={e.name} src={e.avatar_path} size="sm" />
+                          <span className="min-w-0">
+                            <span className="block truncate font-bold text-foreground">{e.name}</span>
+                            <span className="block truncate text-xs font-medium text-muted-foreground max-md:hidden">{e.department || 'No department'}</span>
+                          </span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {e.company?.name || <span className="font-semibold text-amber-11">No company set</span>}
+                      </TableCell>
+                      <TableCell><Bar value={get.offset(e)} max={maxOffset} tone={TYPE_META.OFFSET.solid} /></TableCell>
+                      <TableCell><Bar value={get.sil(e)} max={maxSil} tone={TYPE_META.SIL.solid} /></TableCell>
+                      <TableCell className={`font-mono tabular-nums md:text-right ${held(e) ? 'text-foreground' : 'text-muted-foreground'}`}>{held(e) || '—'}</TableCell>
+                      {/* Derived from approved undertime this month; never a stored balance (#148). */}
+                      <TableCell className="font-mono tabular-nums text-muted-foreground md:text-right">{get.ut(e) || '—'}</TableCell>
+                      {/* Derived from approved LWOP this Manila month, in hours; never a stored balance (#620). */}
+                      <TableCell className="font-mono tabular-nums text-muted-foreground md:text-right">{get.lwop(e) || '—'}</TableCell>
+                      <TableCell><ChevronRight size={16} className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" /></TableCell>
+                    </TableRow>
+                  ))}
+                </Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </div>
-  );
-}
-
-function SortHead({ label, k, right, sort, setSort }) {
-  const on = sort.key === k;
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="xs"
-      onClick={() => setSort((s) => ({ key: k, dir: s.key === k ? -s.dir : 1 }))}
-      aria-sort={on ? (sort.dir > 0 ? 'ascending' : 'descending') : undefined}
-      className={`-mx-2 gap-1 text-label font-bold uppercase tracking-wider ${right ? 'justify-end' : 'justify-start'} ${on ? 'text-foreground' : 'text-muted-foreground'}`}
-    >
-      {label}
-      {on ? (sort.dir > 0 ? <ArrowUp /> : <ArrowDown />) : <ChevronsUpDown className="opacity-40" />}
-    </Button>
   );
 }
 

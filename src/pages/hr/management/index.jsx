@@ -19,6 +19,7 @@ import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
 import StatusBadge from "../../../components/StatusBadge";
 import TabGroup from "../../../components/ui/TabGroup";
+import { SelectField } from "@/components/ui/SelectField";
 import HighlightText from "../../../components/HighlightText";
 import Avatar from "@/components/Avatar";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
@@ -37,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 export default function EmployeeManagement() {
   const queryClient = useQueryClient();
@@ -224,6 +226,12 @@ export default function EmployeeManagement() {
   };
 
   const isEmployees = activeTab === "employees";
+  const phone = useIsPhone();
+  const viewTabs = [
+    { value: "employees", label: "Employees" },
+    { value: "categories", label: "Categories Config" },
+    { value: "leave_config", label: "Leave & Form Config" },
+  ];
 
   return (
     <ProtectedRoute requireHr={true}>
@@ -241,17 +249,22 @@ export default function EmployeeManagement() {
           )
         }
         tabs={
-          <TabGroup
-            variant="underline"
-            tabs={[
-              { value: "employees", label: "Employees" },
-              { value: "categories", label: "Categories Config" },
-              { value: "leave_config", label: "Leave & Form Config" },
-            ]}
-            activeTab={activeTab}
-            onChange={setActiveTab}
-            size="md"
-          />
+          phone ? (
+            <SelectField
+              aria-label="Section"
+              options={viewTabs}
+              value={activeTab}
+              onChange={setActiveTab}
+            />
+          ) : (
+            <TabGroup
+              variant="underline"
+              tabs={viewTabs}
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              size="md"
+            />
+          )
         }
         toolbar={
           activeTab === "employees" && (
@@ -281,19 +294,20 @@ export default function EmployeeManagement() {
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="overflow-hidden rounded-xl border border-border bg-card">
             <div className="overflow-x-auto">
-              <Table scrollCue tableId="hr-employees" className="whitespace-nowrap">
+              <Table scrollCue stackOnPhone tableId="hr-employees" className="whitespace-nowrap">
                 <TableHeader>
                   <TableRow>
-                    <TableHead id="name">Name</TableHead>
-                    <TableHead id="email">Email</TableHead>
-                    <TableHead id="department">Department</TableHead>
-                    <TableHead id="sub-dept">Sub-Dept</TableHead>
-                    <TableHead id="role">Role</TableHead>
-                    <TableHead id="status">Status</TableHead>
-                    <TableHead id="company">Company</TableHead>
-                    <TableHead id="balances">Balances</TableHead>
-                    <TableHead id="role-flags">Role Flags</TableHead>
-                    <TableHead id="actions" className="text-right">Actions</TableHead>
+                    <TableHead id="name" phone="title">Name</TableHead>
+                    <TableHead id="email" phone="meta">Email</TableHead>
+                    <TableHead id="department" phone="meta">Department</TableHead>
+                    {/* Sub-department only has room from 1440px. */}
+                    <TableHead id="sub-dept" phone="hide" className="hidden min-[1440px]:table-cell">Sub-Dept</TableHead>
+                    <TableHead id="role" phone="badge">Role</TableHead>
+                    <TableHead id="status" phone="hide">Status</TableHead>
+                    <TableHead id="company" phone="hide">Company</TableHead>
+                    <TableHead id="balances" phone="hide">Balances</TableHead>
+                    <TableHead id="role-flags" phone="hide">Role Flags</TableHead>
+                    <TableHead id="actions" phone="meta" className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -322,7 +336,7 @@ export default function EmployeeManagement() {
                             src={resolvedAvatars[emp.id]}
                             name={emp.name}
                             size="md"
-                            className="w-9 h-9"
+                            className="size-8"
                           />
                           <div className="truncate">
                             <p className="font-black text-foreground">
@@ -347,7 +361,7 @@ export default function EmployeeManagement() {
                             search={searchTerm}
                           />
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="hidden text-sm text-muted-foreground min-[1440px]:table-cell">
                           <HighlightText
                             text={emp.subDepartment || "-"}
                             search={searchTerm}
@@ -429,7 +443,7 @@ export default function EmployeeManagement() {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right space-x-2">
+                        <TableCell label="" className="text-right space-x-2">
                           {!!user?.isSuperAdmin && emp.isIssuedPassword && (
                             <Button
                               variant="ghost"

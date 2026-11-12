@@ -64,18 +64,23 @@ export function PreviewFrame({ ctx, filingCopy, frame }) {
 }
 
 /** The header's Preview button, and the dialog it opens. */
-export function PrintPreviewButton({ ctx }) {
-  const [open, setOpen] = useState(false);
+export function PrintPreviewButton({ ctx, open: openProp, onOpenChange, showButton = true }) {
+  const [openState, setOpenState] = useState(false);
+  // Controlled when the host opens it from elsewhere (the phone's More menu).
+  const open = openProp ?? openState;
+  const setOpen = onOpenChange ?? setOpenState;
   const [filingCopy, setFilingCopy] = useState(false);
   const frame = useRef(null);
   const { ipas, can } = ctx;
 
   return (
     <>
-      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setOpen(true)}>
-        <Eye size={14} />
-        Preview
-      </Button>
+      {showButton && (
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setOpen(true)}>
+          <Eye size={14} />
+          Preview
+        </Button>
+      )}
 
       <ModalShell
         open={open}

@@ -13,14 +13,17 @@ export function TablePager({ total, page, pageSize, totalPages, setPage, setPage
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const last = Math.min(page * pageSize, total);
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2 text-[11px] text-muted-foreground ${className}`}>
+    <div className={`flex flex-wrap items-center justify-between gap-3 max-md:flex-nowrap max-md:gap-2 border-t border-border px-4 py-2 text-[11px] text-muted-foreground ${className}`}>
       <div className="flex items-center gap-3">
-        <span>
+        <span className="md:hidden" data-testid="pager-compact">
+          <span className="font-semibold text-foreground">{first}–{last}</span> of <span className="font-semibold text-foreground">{total}</span>
+        </span>
+        <span className="max-md:hidden">
           Showing <span className="font-semibold text-foreground">{first}</span> to <span className="font-semibold text-foreground">{last}</span> of{" "}
           <span className="font-semibold text-foreground">{total}</span> {noun}
         </span>
-        <span className="text-border">|</span>
-        <div className="flex items-center gap-1.5">
+        <span className="text-border max-md:hidden">|</span>
+        <div className="flex items-center gap-1.5 max-md:hidden">
           <span>Rows:</span>
           <SelectField
             value={pageSize}
@@ -36,7 +39,7 @@ export function TablePager({ total, page, pageSize, totalPages, setPage, setPage
           <Button variant="outline" size="icon-sm" disabled={page === 1} onClick={() => setPage(page - 1)} title="Previous Page" aria-label="Previous page">
             <ChevronLeft size={14} />
           </Button>
-          <span className="px-2 text-xs font-semibold text-foreground">
+          <span className="px-2 text-xs font-semibold text-foreground max-md:hidden">
             Page {page} of {totalPages}
           </span>
           <Button variant="outline" size="icon-sm" disabled={page === totalPages} onClick={() => setPage(page + 1)} title="Next Page" aria-label="Next page">

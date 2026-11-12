@@ -1,6 +1,25 @@
 [
     {
         "date": "2026-11-12",
+        "title": "Fits small laptops and phones",
+        "version": "1.10.4",
+        "changes": [
+            "Screens use less space on laptops, so more of each page shows without scrolling.",
+            "The side menu is slimmer on laptops and starts as icons on smaller screens.",
+            "Report a bug is now in the side menu instead of floating over your tables.",
+            "Calendar: the day panel opens from a button on smaller screens, more weeks fit on a laptop, and a phone shows an agenda list instead of a cut-off grid.",
+            "Purchasing lists and the Purchasing Dashboard fit a small laptop on one toolbar row, and show each record as a card on a phone.",
+            "Commission Pool shows its chart and legend smaller on laptops, so the SORs and People list starts higher.",
+            "Retail's date range is a drop-down on phones, so nothing is cut off.",
+            "SOR, People and Retail order lists show as cards on phones.",
+            "Windows and dialogs always fit the screen. On a phone they open full screen with the main button pinned at the bottom.",
+            "On a phone, IPAS, Transmittal and Packing List show Your move as a bar at the bottom of the screen.",
+            "Tasks, Group Tasks, SORs, S0 Evaluation, Costing Desk, Technical, Approvals and HR lists show as cards on a phone.",
+            "Create Group Task stacks its member list on small screens, so you can assign people from a phone."
+        ]
+    },
+    {
+        "date": "2026-11-12",
         "title": "Dialogs that scroll, % on IPAS payments, choose the required files",
         "version": "1.10.3",
         "changes": [
