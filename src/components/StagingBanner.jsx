@@ -23,7 +23,7 @@ export function StagingBanner() {
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[9999999] flex flex-col items-center">
       <div className="h-[3px] w-full" style={{ backgroundColor: bannerColor }} />
       <div
-        className="flex items-center gap-1.5 rounded-b-md px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white shadow-sm"
+        className="hidden md:flex items-center gap-1.5 rounded-b-md px-2.5 py-0.5 text-[10px] font-black tracking-wide text-white shadow-sm"
         style={{ backgroundColor: bannerColor }}
       >
         <AlertTriangle size={11} strokeWidth={3} />
