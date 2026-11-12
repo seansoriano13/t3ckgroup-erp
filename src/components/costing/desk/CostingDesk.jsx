@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
 import { AlertTriangle, Gavel, ListTree, Plus, RefreshCw, Sparkles } from "lucide-react";
 
 import { Button } from "../../ui/button";
@@ -23,6 +24,7 @@ import CostGuide from "./CostGuide";
 import CostingSummary from "../CostingSummary";
 import EvaluationBar from "../EvaluationBar";
 import InchargeSelects from "../InchargeSelects";
+import { StandaloneBar } from "../StandaloneDialogs";
 import TechnicalVerdict from "../TechnicalVerdict";
 import SignoffBar from "../SignoffBar";
 import { LandedCostRollup } from "../LandedCost";
@@ -50,7 +52,7 @@ function lineBadge(line, { showAbc, showOffer, showCost }) {
  * viewer may fill it; "Refresh from the SOR" adds any product added since, and both then ask Odoo for
  * the products' costs. Nothing a person typed is ever overwritten.
  */
-function useFill(matrix, opportunityId, writes) {
+function useFill(matrix, opportunityId, writes, standalone = false) {
   const queryClient = useQueryClient();
   const [odooNote, setOdooNote] = useState(null);
   const tried = useRef(false);
@@ -58,7 +60,8 @@ function useFill(matrix, opportunityId, writes) {
 
   const fill = () =>
     writes.run(async () => {
-      const { added, leftOut } = await costingMatrixService.fillFromSor(opportunityId);
+      // A standalone evaluation (#966) has no SOR to refresh from; its lines came from the S0 and only Odoo's prices are read again.
+      const { added, leftOut } = standalone ? { added: 0, leftOut: [] } : await costingMatrixService.fillFromSor(opportunityId);
       const odoo = await costingMatrixService.fillOdooCosts(opportunityId);
       await queryClient.refetchQueries({ queryKey: costingKeys.all(opportunityId) });
       // A Go locks the sheet, so S0 lines that match no row are not added; say which ones.
@@ -66,15 +69,15 @@ function useFill(matrix, opportunityId, writes) {
       const left = leftOut.length
         ? ` ${plural(leftOut.length, "S0 line")} left out while the sheet is locked by a Go: ${shown}${leftOut.length > 3 ? `, and ${leftOut.length - 3} more` : ""}.`
         : "";
-      if (!odoo?.success) setOdooNote({ tone: "warning", text: `${added ? `${plural(added, "line")} added. ` : ""}Odoo's costs could not be read (${odoo?.message ?? "no answer"}); type them in, or try again.${left}` });
-      else if (added || odoo.filled || left) setOdooNote({ tone: left ? "warning" : "info", text: `${added ? `${plural(added, "line")} added from the SOR. ` : ""}${odoo.filled ? `${plural(odoo.filled, "cost")} filled from Odoo.` : ""}${odoo.unpriced ? ` ${plural(odoo.unpriced, "product")} have no cost in Odoo.` : ""}${left}`.trim() });
-      else setOdooNote({ tone: "info", text: "Everything on the SOR is already here." });
+      if (!odoo?.success) setOdooNote({ tone: "warning", text: `${added ? `${plural(added, "line")} added. ` : ""}Odoo's prices could not be read (${odoo?.message ?? "no answer"}); the Odoo SRP and costs stay as they were, type them in or try again.${left}` });
+      else if (added || odoo.filled || left) setOdooNote({ tone: left ? "warning" : "info", text: `${added ? `${plural(added, "line")} added from the SOR. ` : ""}${odoo.filled ? `${plural(odoo.filled, "line")} updated from Odoo.` : ""}${odoo.unpriced ? ` ${plural(odoo.unpriced, "product")} have no price in Odoo.` : ""}${left}`.trim() });
+      else setOdooNote({ tone: "info", text: standalone ? "Odoo has nothing new for these lines." : "Everything on the SOR is already here." });
     });
 
   useEffect(() => {
     if (!matrix || tried.current || !canFill) return;
     const needsFill =
-      matrix.tenderLines.length === 0 ||
+      (!standalone && matrix.tenderLines.length === 0) ||
       matrix.tenderLines.some((line) =>
         line.components?.some((c) => c.odoo_product_id && (c.odoo_unit == null || c.acquire_unit == null)),
       );
@@ -101,7 +104,10 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   const { data: matrix, isLoading, isError, error } = useCostingMatrix(opportunityId);
   const writes = useCostingWrites(opportunityId);
   const incharge = useInchargeOptions(opportunity);
-  const { canFill, fill, odooNote } = useFill(matrix, opportunityId, writes);
+  const standalone = Boolean(opportunity?.standalone);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { canFill, fill, odooNote } = useFill(matrix, opportunityId, writes, standalone);
   // The markup being tried (#931): the bar above the Lines table and the table's per-line preview share it.
   const markup = useMarkupPlay(matrix, writes, { enabled: Boolean(matrix) && tierReadsCost(matrix.tier, "markup_factor") });
   const lines = matrix?.tenderLines ?? [];
@@ -128,7 +134,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   const { data: s0Suggestions } = useQuery({
     queryKey: costingKeys.s0Suggestions(opportunityId),
     queryFn: () => costingMatrixService.s0LinkSuggestions(opportunityId),
-    enabled: canFill && lines.some((l) => l.source === "typed" && !l.sor_item_id),
+    enabled: canFill && !standalone && lines.some((l) => l.source === "typed" && !l.sor_item_id),
     retry: false,
   });
   const componentIds = lines.flatMap((l) => l.components.map((c) => c.id));
@@ -150,7 +156,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   }
 
   const { totals } = matrix;
-  const showAbc = tierReads(matrix.tier, "abc_unit");
+  const showAbc = tierReads(matrix.tier, "abc_unit") && matrix.abc?.mode !== "total_only";
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const showCost = tierReadsCost(matrix.tier, "acquire_unit");
   const showClosedBook = tierReadsCost(matrix.tier, "markup_factor");
@@ -208,9 +214,9 @@ export default function CostingDesk({ opportunityId, opportunity }) {
       <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-3 border-b border-border pb-4" data-testid="costing-desk-header">
         <RecordHeader
           className="min-w-0 flex-1"
-          reference={opportunity?.sor_code ?? "SOR"}
+          reference={standalone ? "No SOR" : (opportunity?.sor_code ?? "SOR")}
           name={opportunity?.project_title ?? "S0 Evaluation"}
-          line={[opportunity?.sales_reference && `SO ${opportunity.sales_reference}`, opportunity?.client_name].filter(Boolean).join(" · ") || null}
+          line={standalone ? "Started from the S0 alone" : [opportunity?.sales_reference && `SO ${opportunity.sales_reference}`, opportunity?.client_name].filter(Boolean).join(" · ") || null}
         />
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           {figures.map((figure) => (
@@ -234,13 +240,13 @@ export default function CostingDesk({ opportunityId, opportunity }) {
               {odooNote ? (
                 <span className={odooNote.tone === "warning" ? "text-amber-11" : undefined}>{odooNote.text}</span>
               ) : (
-                <>Lines come from the SOR&apos;s products, with their Odoo cost.</>
+                <>{standalone ? "Lines were pulled from the sale order in Odoo, with their Odoo SRP." : "Lines come from the SOR's products, with their Odoo SRP."}</>
               )}
             </span>
             {canFill && (
               <Button type="button" variant="ghost" size="xs" disabled={writes.busy} onClick={fill}>
                 <RefreshCw size={12} aria-hidden="true" />
-                Refresh from the SOR
+                {standalone ? "Refresh from Odoo" : "Refresh from the SOR"}
               </Button>
             )}
           </div>
@@ -259,21 +265,41 @@ export default function CostingDesk({ opportunityId, opportunity }) {
             </p>
           )}
 
-          <InchargeSelects
-            sales={matrix.matrix?.sales_incharge_id ?? opportunity?.deal_owner_id}
-            purchasing={matrix.matrix?.purchasing_incharge_id}
-            salesOptions={incharge.salesOptions}
-            purchasingOptions={incharge.purchasingOptions}
-            canSales={canSalesIncharge}
-            canPurchasing={canPurchasingIncharge}
-            technical={matrix.matrix?.technical_incharge_id}
-            technicalOptions={incharge.technicalOptions}
-            canTechnical={canPickTechnical}
-            onSave={async (who) => {
-              await costingMatrixService.setIncharge({ matrixId: matrix.matrixId }, who);
-              await writes.refresh();
-            }}
-          />
+          {standalone ? (
+            <StandaloneBar
+              matrix={matrix}
+              technicalOptions={incharge.technicalOptions}
+              nameOf={incharge.nameOf}
+              canTechnical={canPickTechnical}
+              onSaved={async (who) => {
+                if ("technical" in who) await costingMatrixService.setIncharge({ matrixId: matrix.matrixId }, { technical: who.technical });
+                else await costingMatrixService.setStandaloneIncharge(matrix.matrixId, who);
+                await writes.refresh();
+              }}
+              onLinked={(linkedOpportunityId) => {
+                // From now on the SOR's rules decide, and the window opens by the SOR.
+                queryClient.invalidateQueries({ queryKey: costingKeys.matrixPage });
+                queryClient.invalidateQueries({ queryKey: costingKeys.standalonePage });
+                navigate(`/costing-matrix/${linkedOpportunityId}`, { replace: true });
+              }}
+            />
+          ) : (
+            <InchargeSelects
+              sales={matrix.matrix?.sales_incharge_id ?? opportunity?.deal_owner_id}
+              purchasing={matrix.matrix?.purchasing_incharge_id}
+              salesOptions={incharge.salesOptions}
+              purchasingOptions={incharge.purchasingOptions}
+              canSales={canSalesIncharge}
+              canPurchasing={canPurchasingIncharge}
+              technical={matrix.matrix?.technical_incharge_id}
+              technicalOptions={incharge.technicalOptions}
+              canTechnical={canPickTechnical}
+              onSave={async (who) => {
+                await costingMatrixService.setIncharge({ matrixId: matrix.matrixId }, who);
+                await writes.refresh();
+              }}
+            />
+          )}
 
           <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
 
@@ -291,7 +317,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
             {canWrite && (
               <Button type="button" variant="outline" size="sm" disabled={writes.busy} onClick={() => writes.run(() => costingMatrixService.addTenderLine(matrix.matrixId, {}, actorId))}>
                 <Plus size={14} aria-hidden="true" />
-                Add a line that is not on the SOR
+                {standalone ? "Add a line" : "Add a line that is not on the SOR"}
               </Button>
             )}
             {"landedCost" in totals && (

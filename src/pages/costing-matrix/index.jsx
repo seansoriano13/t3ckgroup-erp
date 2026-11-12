@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Calculator, Layers, TrendingDown } from "lucide-react";
+import { Building2, Calculator, Layers, Link2Off, Plus, TrendingDown } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import HighlightText from "../../components/HighlightText";
 import PageShell from "../../components/ui/PageShell";
+import { Button } from "../../components/ui/button";
+import { NewStandaloneDialog } from "../../components/costing/StandaloneDialogs";
 import EmptyState from "../../components/ui/EmptyState";
 import QueryError from "../../components/ui/QueryError";
 import PageLoading from "../../components/ui/PageLoading";
@@ -36,6 +38,7 @@ const CHIP = "h-9 w-auto gap-2 px-2.5";
 const CHIP_WRAPPER = "w-auto shrink-0";
 const ALL = "__all__";
 const BELOW = "below";
+const NO_SOR = "no-sor";
 
 // Stage, Final Offer and Items hide below md so the SOR, project and the three Revenue figures stay in view.
 const NARROW_HIDDEN = "hidden md:table-cell";
@@ -65,6 +68,11 @@ const SORT = {
   items: (r) => (r.comparison.itemsTotal === 0 ? null : r.comparison.itemsBought / r.comparison.itemsTotal),
 };
 
+const SOR_OPTIONS = [
+  { value: ALL, label: "With or without a SOR" },
+  { value: NO_SOR, label: "No SOR" },
+];
+
 const MARGIN_OPTIONS = [
   { value: ALL, label: "Any margin" },
   { value: BELOW, label: "Actual below Planned" },
@@ -90,39 +98,48 @@ function EstimateMark({ testId }) {
 function MatrixRow({ row, search }) {
   const navigate = useNavigate();
   // A row opens that SOR's Costing Matrix in its record window, over this list.
-  const openMatrix = (opportunityId) => navigate(`/costing-matrix/${opportunityId}`);
-  const { comparison } = row;
+  // A standalone evaluation (#966) opens by its own id; the shaper names it as `subjectId`.
+  const openMatrix = (id) => navigate(`/costing-matrix/${id}`);
+  const { comparison, subjectId } = row;
   const lower = comparison.actualLower;
   return (
     <TableRow
       tabIndex={0}
       data-testid="costing-matrix-row"
       data-lower={lower ? "true" : "false"}
-      onClick={() => openMatrix(row.opportunityId)}
+      onClick={() => openMatrix(subjectId)}
       onKeyDown={(e) => {
         if (e.key === "Enter" && e.target === e.currentTarget) {
           e.preventDefault();
-          openMatrix(row.opportunityId);
+          openMatrix(subjectId);
         }
       }}
       className={`group cursor-pointer outline-none focus-visible:bg-muted ${lower ? "bg-destructive/10 hover:bg-destructive/15" : ""}`}
     >
       <TableCell className="whitespace-nowrap">
-        <span className="font-mono text-xs font-semibold text-foreground">
-          <HighlightText text={row.sorNumber} search={search} />
-        </span>
-        <span className="text-xs font-normal text-muted-foreground md:hidden"> · {row.projectTitle}</span>
+        {row.standalone ? (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-semibold text-muted-foreground" data-testid="costing-matrix-no-sor">
+            No SOR
+          </span>
+        ) : (
+          <>
+            <span className="font-mono text-xs font-semibold text-foreground">
+              <HighlightText text={row.sorNumber} search={search} />
+            </span>
+            <span className="text-xs font-normal text-muted-foreground md:hidden"> · {row.projectTitle}</span>
+          </>
+        )}
       </TableCell>
       <TableCell className="whitespace-nowrap">
         <span className="font-mono text-xs text-foreground">{row.soNumber ? <HighlightText text={row.soNumber} search={search} /> : "—"}</span>
       </TableCell>
       <TableCell>
         <span className="block max-w-[22rem] truncate text-xs font-medium text-foreground" title={row.projectTitle}>
-          <HighlightText text={row.projectTitle} search={search} />
+          {row.projectNote ? <span className="font-normal text-muted-foreground">{row.projectNote}</span> : <HighlightText text={row.projectTitle} search={search} />}
         </span>
       </TableCell>
       <TableCell>
-        <span className="text-xs text-muted-foreground">{row.stage || "—"}</span>
+        <span className="text-xs text-muted-foreground">{row.stageLabel}</span>
       </TableCell>
       <TableCell className={`${RIGHT} text-xs tabular-nums max-md:text-left`}>{figure(row.finalOffer)}</TableCell>
       <TableCell className={`${RIGHT} text-xs tabular-nums max-md:text-left`} data-testid="costing-matrix-planned">
@@ -139,7 +156,7 @@ function MatrixRow({ row, search }) {
         {signed(comparison.difference)}
       </TableCell>
       <TableCell className={`${NARROW_HIDDEN} ${RIGHT} text-xs tabular-nums text-muted-foreground`} data-testid="costing-matrix-items">
-        {comparison.itemsBought} of {comparison.itemsTotal}
+        {row.itemsLabel}
       </TableCell>
     </TableRow>
   );
@@ -183,12 +200,31 @@ export function CostingMatrixList() {
   const [stage, setStage] = useState(null);
   const [entity, setEntity] = useState(null);
   const [margin, setMargin] = useState(null);
+  const [sorKind, setSorKind] = useState(null);
   const [search, setSearch] = useState("");
+  const [starting, setStarting] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const permissions = getPermissionContext(user);
 
-  const { data: rows = [], isLoading, isError, refetch } = useQuery({
+  // The SORs' rows are the Closed Book's (the database refuses anyone else); someone only named on a standalone
+  // evaluation (#966) sees just those.
+  const { data: sorRows = [], isLoading: sorLoading, isError: sorError, refetch: refetchSors } = useQuery({
     queryKey: costingKeys.matrixPage,
     queryFn: () => costingMatrixService.matrixPage(),
+    enabled: permissions.isBidDecider,
   });
+  const { data: standaloneRows = [], isLoading: standaloneLoading, isError: standaloneError, refetch: refetchStandalone } = useQuery({
+    queryKey: costingKeys.standalonePage,
+    queryFn: () => costingMatrixService.standalonePage(),
+  });
+  const rows = useMemo(() => [...standaloneRows, ...sorRows], [standaloneRows, sorRows]);
+  const isLoading = (permissions.isBidDecider && sorLoading) || standaloneLoading;
+  const isError = sorError || standaloneError;
+  const refetch = () => {
+    if (permissions.isBidDecider) refetchSors();
+    refetchStandalone();
+  };
 
   const stageOptions = useMemo(
     () => [{ value: ALL, label: "Any stage" }, ...[...new Set(rows.map((r) => r.stage).filter(Boolean))].sort().map((s) => ({ value: s, label: s }))],
@@ -200,14 +236,14 @@ export function CostingMatrixList() {
   );
 
   const filtered = useMemo(
-    () => filterMatrixPage(rows, { stage, entity, belowPlanned: margin === BELOW, search }),
-    [rows, stage, entity, margin, search],
+    () => filterMatrixPage(rows, { stage, entity, belowPlanned: margin === BELOW, noSor: sorKind === NO_SOR, search }),
+    [rows, stage, entity, margin, sorKind, search],
   );
   const totals = useMemo(() => matrixPageTotals(filtered), [filtered]);
   const { sorted: visible, sort, toggle } = useTableSort(filtered, SORT);
   const paging = usePaging(visible);
 
-  const hasActiveFilters = search !== "" || stage !== null || entity !== null || margin !== null;
+  const hasActiveFilters = search !== "" || stage !== null || entity !== null || margin !== null || sorKind !== null;
 
   const toolbar = (
     <FilterBar
@@ -244,6 +280,16 @@ export function CostingMatrixList() {
             className={CHIP}
             wrapperClassName={CHIP_WRAPPER}
           />
+          <FilterSelect
+            icon={Link2Off}
+            label="SOR"
+            options={SOR_OPTIONS}
+            value={sorKind ?? ALL}
+            onChange={(v) => setSorKind(v === ALL ? null : v)}
+            allValue={ALL}
+            className={CHIP}
+            wrapperClassName={CHIP_WRAPPER}
+          />
         </>
       }
       hasActiveFilters={hasActiveFilters}
@@ -252,6 +298,7 @@ export function CostingMatrixList() {
         setStage(null);
         setEntity(null);
         setMargin(null);
+        setSorKind(null);
       }}
     />
   );
@@ -259,9 +306,18 @@ export function CostingMatrixList() {
   return (
     <PageShell
       title="S0 Evaluation"
-      description="Every SOR's costing you can see, with Planned and Actual Revenue. Open one to work its matrix."
+      description="Every SOR's costing you can see, with Planned and Actual Revenue, and the evaluations started from an S0 alone. Open one to work its matrix."
       toolbar={toolbar}
+      action={
+        permissions.isBidDecider ? (
+          <Button type="button" size="sm" onClick={() => setStarting(true)} data-testid="new-standalone">
+            <Plus size={14} aria-hidden="true" />
+            New evaluation from an S0
+          </Button>
+        ) : null
+      }
     >
+      <NewStandaloneDialog open={starting} onOpenChange={setStarting} onOpen={(subjectId) => navigate(`/costing-matrix/${subjectId}`)} />
       {isLoading && <PageLoading label="S0 Evaluation" />}
 
       {isError && <QueryError title="The S0 Evaluation page could not be loaded." onRetry={refetch} />}
@@ -269,10 +325,10 @@ export function CostingMatrixList() {
       {!isLoading && !isError && visible.length === 0 && (
         <EmptyState
           icon={Calculator}
-          title={rows.length === 0 ? "No S0 Evaluation yet" : "No matching SOR"}
+          title={rows.length === 0 ? "No S0 Evaluation yet" : "No matching evaluation"}
           description={
             rows.length === 0
-              ? "An SOR appears here once it has an S0 Evaluation."
+              ? "An SOR appears here once it has an S0 Evaluation, or start one from an S0 with the button above."
               : "Nothing matches. Try another search or clear the filters."
           }
         />
@@ -301,7 +357,7 @@ export function CostingMatrixList() {
               </TableHeader>
               <TableBody>
                 {paging.rows.map((row) => (
-                  <MatrixRow key={row.opportunityId} row={row} search={search} />
+                  <MatrixRow key={row.subjectId} row={row} search={search} />
                 ))}
                 <TotalsRow totals={totals} />
               </TableBody>
@@ -314,20 +370,20 @@ export function CostingMatrixList() {
   );
 }
 
-// Every employee can type the address; only the Closed Book gets past this, and the database refuses
-// the read to anyone else whatever the screen does.
-function ClosedBookOnly({ children }) {
+// Every employee can type the address; only the Closed Book and the people named on a standalone evaluation (#966)
+// get past this, and the database refuses the read to anyone else whatever the screen does.
+function CostingPageReaders({ children }) {
   const { user } = useAuth();
-  if (!getPermissionContext(user).isBidDecider) return <Navigate to="/" replace />;
+  if (!getPermissionContext(user).canOpenCostingPage) return <Navigate to="/" replace />;
   return children;
 }
 
 export default function CostingMatrixPage() {
   return (
     <ProtectedRoute>
-      <ClosedBookOnly>
+      <CostingPageReaders>
         <CostingMatrixList />
-      </ClosedBookOnly>
+      </CostingPageReaders>
     </ProtectedRoute>
   );
 }

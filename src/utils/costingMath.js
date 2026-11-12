@@ -1,4 +1,4 @@
-import { COST_SOURCE } from "../constants/costing";
+import { ABC_MODE, COST_SOURCE } from "../constants/costing";
 
 /**
  * The Costing Matrix's figures (#267, spec #266). Pure: no network, no React.
@@ -116,13 +116,96 @@ export function costRowsTotals(rows) {
   };
 }
 
+/** The evaluation's percent on the Odoo SRP until it is changed (#962). */
+export const DEFAULT_FINAL_ACQUIRE_PERCENT = -20;
+
+/** The Go line (#964): a bid goes ahead when Revenue is this percent of the Final Offer or more. */
+export const DEFAULT_GO_LINE_PERCENT = 20;
+
 /**
- * The cost a row counts at: its Final Acquire (old deals, kept as signed) or else its Acquire
- * (#787; Final Acquire left the screen in #703). Same rule as the database's costing_settled_met.
+ * A percent of the ABC as pesos (#963): `pct` x `abcTotal` ÷ 100 to the centavo, or null while either
+ * is blank (never zero: an unknown ABC leaves the amount blank).
+ */
+export function percentOfAbcAmount(pct, abcTotal) {
+  const p = scaled(pct);
+  const a = scaled(abcTotal);
+  if (p === null || a === null) return null;
+  // micro x micro = 10^12; ÷ 100 for the percent; a centavo is 10^10 of the product
+  return pesosFromCentavos(roundDiv(p * a, CENTAVO * 100n));
+}
+
+/**
+ * Cost-only rows with their percent rows worked (#963). A row with `abc_pct` counts at that percent of
+ * `abcTotal` (its Acquire is overwritten here, its Final cost dropped so the amount is the one counted),
+ * and carries `abcAmount` (the row's peso amount, null while the ABC is unknown) and `abcMissing`.
+ * Rows without a percent pass through untouched, so a viewer who was never sent `abc_pct` sees no change.
+ */
+export function applyPercentRows(rows, abcTotal) {
+  return (rows ?? []).map((row) => {
+    const pct = row?.abc_pct;
+    if (pct === null || pct === undefined || pct === "") return row;
+    const amount = percentOfAbcAmount(pct, abcTotal);
+    const quantity = Number(row.quantity);
+    const unit = amount === null || !(quantity > 0) ? null : Number((amount / quantity).toFixed(6));
+    const next = { ...row, acquire_unit: unit, abcAmount: amount, abcMissing: amount === null };
+    if ("final_acquire_unit" in next) next.final_acquire_unit = null;
+    return next;
+  });
+}
+
+/**
+ * The project expenses total (#963): the sum of every Other costs row, Equipment & Tools included. A row
+ * with nothing typed yet (no percent, no cost) is skipped; a row that has a percent or a cost but no
+ * amount worked (the ABC is unknown) makes the total null. Rows come through `applyPercentRows`.
+ */
+export function projectExpensesTotal(rows) {
+  const amounts = [];
+  for (const row of rows ?? []) {
+    const typed = [row?.abc_pct, row?.acquire_unit, row?.final_acquire_unit].some((v) => v !== null && v !== undefined && v !== "");
+    const worked = extendedCentavos(costUnit(row), row?.quantity);
+    if (worked === null && !typed && !row?.abcMissing) continue;
+    amounts.push(worked);
+  }
+  return pesosFromCentavos(sumUnlessBlank(amounts));
+}
+
+/** The cost guide categories among `keys` that no Other costs row has yet, in order (#963's "Add the usual rows"). */
+export function usualRowsToAdd(rows, keys) {
+  const have = new Set((rows ?? []).map((r) => r?.category_key));
+  return (keys ?? []).filter((key) => !have.has(key));
+}
+
+/**
+ * Final Acquire by the rule (#962), per unit, or null while an input is blank (never zero):
+ *   Stockable   Odoo SRP x (1 + percent / 100), rounded half away from zero to the centavo
+ *   Source Out  the line's Acquire (the attached P0's price when there is one), no percent
+ *   no Status   blank
+ * The percent is the line's own, else `defaultPercent` (the evaluation's). Same sum as the database's
+ * costing_final_acquire_rule; policy test 962 holds the two together.
+ */
+export function finalAcquireByRule(row, defaultPercent = DEFAULT_FINAL_ACQUIRE_PERCENT) {
+  if (row?.status === "source_out") {
+    const acquire = scaled(effectiveAcquireUnit(row));
+    return acquire === null ? null : pesosFromCentavos(roundDiv(acquire * 100n, MICRO));
+  }
+  if (row?.status !== "stockable") return null;
+  const own = row?.final_acquire_percent;
+  const percent = scaled(own !== null && own !== undefined && own !== "" ? own : defaultPercent);
+  const srp = scaled(row?.odoo_unit);
+  if (percent === null || srp === null) return null;
+  // (100 + percent) is scaled by 10^6, so SRP x factor over 10^12 is centavos.
+  return pesosFromCentavos(roundDiv(srp * (100n * MICRO + percent), MICRO * MICRO));
+}
+
+/**
+ * The cost a row counts at: its Final Acquire. A Component's is the one the database worked out by
+ * the rule or a decider typed (#962); with none the Component is unknown, never its Acquire. A
+ * cost-only row has no Status, so it keeps its Final Acquire, else its Acquire (#787).
  */
 export function costUnit(row) {
   const final = row?.final_acquire_unit;
-  return final !== null && final !== undefined && final !== "" ? final : row?.acquire_unit;
+  if (final !== null && final !== undefined && final !== "") return final;
+  return row && "tender_line_id" in row ? null : row?.acquire_unit;
 }
 
 /**
@@ -183,10 +266,21 @@ export function landedCostRollup(components) {
 }
 
 /**
+ * The evaluation's ABC setting from its `costing_matrices` row (#960): `{ mode, total }`, or null
+ * when the tier was not sent the columns (the lines are then judged one by one, as before).
+ */
+export function abcSettingOf(matrixRow) {
+  if (!matrixRow || !("abc_mode" in matrixRow)) return null;
+  const total = matrixRow.abc_total;
+  return { mode: matrixRow.abc_mode, total: total === undefined || total === null || total === "" ? null : Number(total) };
+}
+
+/**
  * The whole matrix's totals over its Tender Lines.
  *
  *   finalOfferTotal   the sum, null while any Tender Line has no Final Offer
- *   abcTotal          the sum, null unless every Tender Line has an ABC
+ *   abcTotal          the sum, null unless every Tender Line has an ABC; in Total only (`abcSetting` is
+ *                     `{ mode: "total_only", total }`, #960) the typed total, null while blank
  *                     (a government ceiling only means something when it covers every line)
  *   missingOffer      how many Tender Lines have no Final Offer
  *   missingAbc        how many have no ABC
@@ -195,8 +289,9 @@ export function landedCostRollup(components) {
  *
  * No Tender Lines gives nulls and zero counts.
  */
-export function matrixTotals(tenderLines) {
+export function matrixTotals(tenderLines, abcSetting = null) {
   const lines = tenderLines ?? [];
+  const totalOnly = abcSetting?.mode === ABC_MODE.TOTAL_ONLY;
   let abc = 0n;
   let offer = 0n;
   let missingAbc = 0;
@@ -209,7 +304,10 @@ export function matrixTotals(tenderLines) {
     if (o === null) missingOffer += 1;
     else offer += o;
   }
-  const abcTotal = lines.length > 0 && missingAbc === 0 ? abc : null;
+  // Total only (#960): the typed total stands in for the lines' ABC, which stay in the database untouched.
+  const typed = totalOnly ? extendedCentavos(abcSetting?.total, 1) : null;
+  if (totalOnly) missingAbc = lines.length > 0 && typed === null ? 1 : 0;
+  const abcTotal = totalOnly ? (lines.length > 0 ? typed : null) : lines.length > 0 && missingAbc === 0 ? abc : null;
   const finalOfferTotal = lines.length > 0 && missingOffer === 0 ? offer : null;
   const both = abcTotal !== null && finalOfferTotal !== null;
   return {
@@ -232,9 +330,10 @@ export function matrixTotals(tenderLines) {
  *
  *   matrix.tenderLines   each with `quantity`, `final_offer_unit`, `abc_unit` and its `components`
  *                        (each with `quantity` and `final_acquire_unit`)
- *   matrix.costRows      the cost-only rows (`quantity`, `final_acquire_unit`)
- *   matrix.money         `{ marketing, opex }`, typed by Finance access or the Final Acquire list
- *   settings             `{ vatDivisor, taxRate, retentionRate, itrRate, itrAllowance }`
+ *   matrix.abc           optional `{ mode, total }` (#960); Total only uses the typed total as the ABC
+ *   matrix.costRows      the Other costs rows, their amounts worked (`applyPercentRows`)
+ *   matrix.money         `{ marketing }`, typed by Finance access or the Final Acquire list
+ *   settings             `{ vatDivisor, taxRate, retentionRate, itrRate, itrAllowance, goLinePercent }`
  *
  * Returns, in pesos to the centavo (each worked in exact decimals and rounded half away from zero
  * once, on return):
@@ -242,24 +341,29 @@ export function matrixTotals(tenderLines) {
  *   finalOfferTotal       the Tender Lines' Final Offers added up
  *   vatExclusive          Final Offer / VAT divisor (1.12)
  *   finalVat              VAT-exclusive x final VAT rate (12%, #705)
- *   tax                   Final Offer x tax rate (6%), on the gross offer
+ *   tax                   VAT-exclusive x tax rate (6%), the sheet's Less tax (#964)
  *   retention             Final Offer x retention rate (1%)
  *   collected             Final Offer - tax - retention
- *   operationalExpenses   the Final Acquire total (every Component and cost-only row)
- *   marketing, opex       as typed
+ *   landedCost            Landed Cost (planned): the Final Acquire total of the Components
+ *   projectExpenses       the Other costs rows added up
+ *   marketing             as typed
+ *   opex                  retention + landed cost + project expenses + marketing (worked out, never typed, #964)
  *   itr                   (Final Offer - allowance) x ITR rate (8%); zero at or below the allowance, so it never adds to Revenue
- *   revenue               (Final Offer - Final Acquire total) - ITR
+ *   revenue               VAT-exclusive - OPEX - ITR, the sheet's figure (#964)
+ *   revenuePercent        Revenue as a percent of the Final Offer; the Go line is read against it
+ *   goLinePercent         the Settings line (20); `underGoLine` is true when Revenue is below it
  *   abcTotal, percentOfAbc, overAbc   the ABC ceiling, only when every Tender Line has an ABC
  *
  * A figure that cannot be computed is null and says why in `incomplete`: `missingOffer` Tender Lines
- * have no Final Offer (every offer figure is null), `missingCost` Components and cost-only rows have
- * no Final Acquire (operational expenses and revenue are null). `noTenderLines` and `noCostRows`
- * say the matrix has nothing to add up yet, so an empty matrix never reads as zero cost.
+ * have no Final Offer (every offer figure is null), `missingCost` Components have no Final Acquire
+ * (landed cost, OPEX and revenue are null). `noTenderLines` and `noCostRows` (no Components) say the
+ * matrix has nothing to add up yet; `noExpenses` says the Other costs rows are missing or an amount is
+ * not worked, `noMarketing` that Marketing is not typed. An empty matrix never reads as zero cost.
  * A blank is never zero.
  */
 export function summary(matrix, settings) {
   const lines = matrix?.tenderLines ?? [];
-  const costed = [...lines.flatMap((line) => line?.components ?? []), ...(matrix?.costRows ?? [])];
+  const costed = lines.flatMap((line) => line?.components ?? []);
 
   const offers = lines.map((line) => extendedCentavos(line?.final_offer_unit, line?.quantity));
   const missingOffer = offers.filter((o) => o === null).length;
@@ -281,17 +385,22 @@ export function summary(matrix, settings) {
   const vatExclusive = offer === null || divisor === null || divisor <= 0n ? null : roundDiv(offer * MICRO, divisor);
   const finalVatRate = scaled(settings?.finalVatRate ?? 0.12);
   const finalVat = byRate(vatExclusive, finalVatRate);
-  const tax = byRate(offer, taxRate);
+  // Less tax is on the VAT-exclusive figure (#964), worked from the exact quotient so it rounds once.
+  const tax = offer === null || taxRate === null || divisor === null || divisor <= 0n ? null : roundDiv(offer * taxRate, divisor);
   const retention = byRate(offer, retentionRate);
-  const collected =
-    offer === null || taxRate === null || retentionRate === null ? null : roundDiv(offer * (MICRO - taxRate - retentionRate), MICRO);
+  const collected = offer === null || tax === null || retention === null ? null : offer - tax - retention;
   // Only the part of the offer above the allowance is taxed. Below it the sheet's formula goes
   // negative and would add to Revenue, so the taxed amount stops at zero.
   const taxed = taxedOffer(offer, allowance);
   const itr = taxed === null || itrRate === null ? null : roundDiv(taxed * itrRate, MICRO);
-  const revenue = revenueCentavos(offer, acquire, taxed, itrRate);
+  const expenses = extendedCentavos(projectExpensesTotal(matrix?.costRows), 1);
+  const marketing = extendedCentavos(matrix?.money?.marketing, 1);
+  const worked = sheetRevenue({ offer, landed: acquire, expenses, marketing }, settings);
+  const revenue = worked.revenue;
+  const goLine = Number(settings?.goLinePercent ?? DEFAULT_GO_LINE_PERCENT);
+  const revenuePercent = percentOf(pesosFromCentavos(revenue), pesosFromCentavos(offer));
 
-  const ceiling = matrixTotals(lines);
+  const ceiling = matrixTotals(lines, matrix?.abc);
 
   return {
     finalOfferTotal: pesosFromCentavos(offer),
@@ -300,15 +409,26 @@ export function summary(matrix, settings) {
     tax: pesosFromCentavos(tax),
     retention: pesosFromCentavos(retention),
     collected: pesosFromCentavos(collected),
-    operationalExpenses: pesosFromCentavos(acquire),
-    marketing: pesosFromCentavos(extendedCentavos(matrix?.money?.marketing, 1)),
-    opex: pesosFromCentavos(extendedCentavos(matrix?.money?.opex, 1)),
+    landedCost: pesosFromCentavos(acquire),
+    projectExpenses: pesosFromCentavos(expenses),
+    marketing: pesosFromCentavos(marketing),
+    opex: pesosFromCentavos(worked.opex),
     itr: pesosFromCentavos(itr),
     revenue: pesosFromCentavos(revenue),
+    revenuePercent,
+    goLinePercent: goLine,
+    underGoLine: revenuePercent !== null && revenuePercent < goLine,
     abcTotal: ceiling.abcTotal,
     percentOfAbc: ceiling.percentOfAbc,
     overAbc: ceiling.overAbc,
-    incomplete: { missingCost, missingOffer, noTenderLines: lines.length === 0, noCostRows: costed.length === 0 },
+    incomplete: {
+      missingCost,
+      missingOffer,
+      noTenderLines: lines.length === 0,
+      noCostRows: costed.length === 0,
+      noExpenses: expenses === null,
+      noMarketing: marketing === null,
+    },
   };
 }
 
@@ -321,13 +441,14 @@ export const LOW_OFFER_SHARE_OF_ABC = 50;
  * the whole-number share. `lines` lists the Tender Lines whose own offer is under 50% of their own
  * ABC, each as `{ id, number, name, percent }`. It only warns; it blocks nothing.
  */
-export function offerVsAbc(tenderLines) {
+export function offerVsAbc(tenderLines, abc = null) {
   const lines = tenderLines ?? [];
-  const totals = matrixTotals(lines);
+  const totals = matrixTotals(lines, abc);
   const percent = totals.percentOfAbc;
   const low = percent !== null && percent < LOW_OFFER_SHARE_OF_ABC;
   const lowLines = [];
-  for (const line of lines) {
+  // The per-line warning is hidden in Total only; the whole-offer warning stays.
+  for (const line of abc?.mode === ABC_MODE.TOTAL_ONLY ? [] : lines) {
     const a = extendedCentavos(line?.abc_unit, line?.quantity);
     const o = extendedCentavos(line?.final_offer_unit, line?.quantity);
     if (a === null || o === null || a <= 0n) continue;
@@ -343,10 +464,24 @@ export function offerVsAbc(tenderLines) {
   return { low, percent: percent === null ? null : Math.round(percent), lines: lowLines };
 }
 
-/** Revenue in centavos: (Final Offer - cost) - ITR on the taxed part of the offer. Null while any input is blank. */
-function revenueCentavos(offer, cost, taxed, itrRate) {
-  if (offer === null || cost === null || taxed === null || itrRate === null) return null;
-  return roundDiv((offer - cost) * MICRO - taxed * itrRate, MICRO);
+/**
+ * The sheet's Revenue (#964), in centavos, each step rounded to the centavo: VAT-exclusive less OPEX
+ * (retention + landed cost + project expenses + marketing) less ITR. A blank input blanks OPEX and
+ * Revenue; a blank is never zero. Same sum as the database's costing_planned_revenue.
+ */
+function sheetRevenue({ offer, landed, expenses, marketing }, settings) {
+  const divisor = scaled(settings?.vatDivisor);
+  const retentionRate = scaled(settings?.retentionRate);
+  const itrRate = scaled(settings?.itrRate);
+  const taxed = taxedOffer(offer, extendedCentavos(settings?.itrAllowance, 1));
+  const byRate = (centavos, rate) => (centavos === null || rate === null ? null : roundDiv(centavos * rate, MICRO));
+  const vatExclusive = offer === null || divisor === null || divisor <= 0n ? null : roundDiv(offer * MICRO, divisor);
+  const retention = byRate(offer, retentionRate);
+  const itr = taxed === null || itrRate === null ? null : roundDiv(taxed * itrRate, MICRO);
+  const parts = [retention, landed, expenses, marketing];
+  const opex = parts.some((p) => p === null) ? null : parts.reduce((sum, p) => sum + p, 0n);
+  const revenue = vatExclusive === null || opex === null || itr === null ? null : vatExclusive - opex - itr;
+  return { vatExclusive, retention, opex, itr, revenue };
 }
 
 /** The part of the offer above the ITR allowance, in centavos (zero at or below it); null while blank. */
@@ -361,7 +496,9 @@ function taxedOffer(offer, allowance) {
  * share one set of maths (`revenueComparison`). Pesos, or null where a figure cannot be worked.
  *
  *   finalOfferTotal         the Tender Lines' Final Offers added up (null while any is blank)
- *   finalAcquireTotal       every Component and cost-only row at Final Acquire (null while any is blank)
+ *   finalAcquireTotal       every Component at Final Acquire, the planned Landed Cost (null while any is blank)
+ *   projectExpensesTotal    the Other costs rows added up (null while none, or an amount is not worked)
+ *   marketing               as typed (null while blank)
  *   landedCostTotal         the Landed Cost of the bought Components; 0 when none is bought
  *   boughtFinalAcquireTotal the Final Acquire of those same bought Components; 0 when none is bought
  *   itemsBought, itemsTotal bought Components out of all Components (cost-only rows are never bought)
@@ -388,7 +525,7 @@ export function revenueInputs(matrix, { ipasShort = false } = {}) {
   const offers = lines.map((line) => extendedCentavos(line?.final_offer_unit, line?.quantity));
   const offer = lines.length > 0 && offers.every((o) => o !== null) ? offers.reduce((sum, o) => sum + o, 0n) : null;
 
-  const costed = [...components, ...costRows].map((row) => extendedCentavos(costUnit(row), row?.quantity));
+  const costed = components.map((row) => extendedCentavos(costUnit(row), row?.quantity));
   const acquire = costed.length > 0 && costed.every((c) => c !== null) ? costed.reduce((sum, c) => sum + c, 0n) : null;
 
   let landed = 0n;
@@ -411,6 +548,8 @@ export function revenueInputs(matrix, { ipasShort = false } = {}) {
   return {
     finalOfferTotal: pesosFromCentavos(offer),
     finalAcquireTotal: pesosFromCentavos(acquire),
+    projectExpensesTotal: projectExpensesTotal(costRows),
+    marketing: pesosFromCentavos(extendedCentavos(matrix?.money?.marketing, 1)),
     landedCostTotal: pesosFromCentavos(landed),
     boughtFinalAcquireTotal: boughtAcquireKnown ? pesosFromCentavos(boughtAcquire) : null,
     itemsBought,
@@ -424,9 +563,9 @@ export function revenueInputs(matrix, { ipasShort = false } = {}) {
  * Revenue"). Takes the per-SOR totals of `revenueInputs` and the summary's rates (`itrRate`,
  * `itrAllowance`), so the SOR's summary and the Costing Matrix page work the same figures.
  *
- *   planned      exactly the summary's Revenue: (Final Offer - Final Acquire total) - ITR
+ *   planned      exactly the summary's Revenue (#964): VAT-exclusive - OPEX - ITR
  *   actual       the same Revenue with each bought Component at its Landed Cost instead of its
- *                Final Acquire; an unbought Component, and every cost-only row, stays at Final Acquire.
+ *                Final Acquire; an unbought Component stays at Final Acquire. Project expenses and Marketing are the same for both.
  *                ITR is on the offer, so it is the same for both.
  *   difference   actual - planned: negative when buying cost more than planned
  *   actualLower  actual is below planned (the highlight)
@@ -442,12 +581,12 @@ export function revenueComparison(totals, settings) {
   const acquire = extendedCentavos(totals?.finalAcquireTotal, 1);
   const landed = extendedCentavos(totals?.landedCostTotal, 1);
   const boughtAcquire = extendedCentavos(totals?.boughtFinalAcquireTotal, 1);
-  const itrRate = scaled(settings?.itrRate);
-  const taxed = taxedOffer(offer, extendedCentavos(settings?.itrAllowance, 1));
+  const expenses = extendedCentavos(totals?.projectExpensesTotal, 1);
+  const marketing = extendedCentavos(totals?.marketing, 1);
 
   const actualCost = acquire === null || landed === null || boughtAcquire === null ? null : acquire - boughtAcquire + landed;
-  const planned = revenueCentavos(offer, acquire, taxed, itrRate);
-  const actual = revenueCentavos(offer, actualCost, taxed, itrRate);
+  const planned = sheetRevenue({ offer, landed: acquire, expenses, marketing }, settings).revenue;
+  const actual = sheetRevenue({ offer, landed: actualCost, expenses, marketing }, settings).revenue;
   const itemsBought = Number(totals?.itemsBought) || 0;
   const itemsTotal = Number(totals?.itemsTotal) || 0;
 
@@ -460,6 +599,7 @@ export function revenueComparison(totals, settings) {
     itemsBought,
     itemsTotal,
     notBought: Math.max(itemsTotal - itemsBought, 0),
+    plannedPercent: percentOf(pesosFromCentavos(planned), pesosFromCentavos(offer)),
     plannedCost: pesosFromCentavos(acquire),
     actualCost: pesosFromCentavos(actualCost),
   };
@@ -735,8 +875,28 @@ export function offerIncomplete(incomplete) {
 
 /** What stands in for a cost-based summary figure while a Component or cost-only row has no Final Acquire. Null when nothing is missing. */
 export function costIncomplete(incomplete) {
-  if (incomplete.missingCost > 0) return `Incomplete — ${countOf(incomplete.missingCost, "row has", "rows have")} no cost`;
-  return incomplete.noCostRows ? "Incomplete — no Components or cost-only rows yet" : null;
+  if (incomplete.missingCost > 0) return `Incomplete — ${countOf(incomplete.missingCost, "Component has", "Components have")} no Final Acquire`;
+  return incomplete.noCostRows ? "Incomplete — no Components yet" : null;
+}
+
+/** What stands in for Project expenses while no Other costs row has an amount (#964). Null when it is worked. */
+export function expensesIncomplete(incomplete) {
+  return incomplete.noExpenses ? "Incomplete — no project expenses worked yet" : null;
+}
+
+/** What stands in for Marketing while it is not typed (#964). Null when it is. */
+export function marketingIncomplete(incomplete) {
+  return incomplete.noMarketing ? "Incomplete — Marketing not typed" : null;
+}
+
+/** What stands in for OPEX, which needs the landed cost, project expenses and Marketing (#964). Null when it is worked. */
+export function opexIncomplete(incomplete) {
+  return costIncomplete(incomplete) ?? expensesIncomplete(incomplete) ?? marketingIncomplete(incomplete);
+}
+
+/** What stands in for Revenue, which needs the offer and OPEX (#964). Null when it is worked. */
+export function revenueIncomplete(incomplete) {
+  return opexIncomplete(incomplete) ?? offerIncomplete(incomplete);
 }
 
 /** A markup factor as the sheet writes it: ×1.35, with up to four decimals when it needs them (×2.0644). */
@@ -779,7 +939,7 @@ const hasValue = (value) => value !== null && value !== undefined && value !== "
 /**
  * A Component's cost and where it came from, or null while it has none. A typed cost wins over
  * every other source (a fill never replaces it); then the Canvass winner, the attached P0's price,
- * Odoo's `standard_price`.
+ * an Acquire filled from Odoo's cost (`standard_price`). The Odoo SRP (`odoo_unit`) is never a cost (#961).
  *
  * Returns `{ source, pesos, price, currency }`: `source` is "typed" | "canvass" | "p0" | "odoo",
  * `pesos` the unit cost in pesos, `price` the figure as quoted (the same as `pesos`, except for a
@@ -800,7 +960,6 @@ export function resolveCost(component) {
     };
   }
   if (hasValue(acquire)) return own(c.acquire_source === COST_SOURCE.ODOO ? COST_SOURCE.ODOO : COST_SOURCE.TYPED);
-  if (hasValue(c.odoo_unit)) return { source: COST_SOURCE.ODOO, pesos: c.odoo_unit, price: c.odoo_unit, currency: "PHP" };
   return null;
 }
 

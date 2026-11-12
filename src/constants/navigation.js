@@ -129,7 +129,7 @@ export const NAV_MODULES = {
         label: "S0 Evaluation",
         link: "/costing-matrix",
         icon: Calculator,
-        isPermitted: (ctx) => ctx.isBidDecider,
+        isPermitted: (ctx) => ctx.canOpenCostingPage,
         exactMatch: true,
       },
       // The Technical list (#706, #908): the S0 Evaluations the caller is the Technical in-charge of, to give the

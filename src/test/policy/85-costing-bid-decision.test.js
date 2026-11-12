@@ -486,14 +486,14 @@ describe("what a No-go or a Revise does", () => {
 
 describe("a Go locks the sheet", () => {
     it("stamps the planned cost with the Go, the way the Costing Matrix page adds it", async () => {
-        // The Component at 950 x 2 and the cost-only row at 2500 x 1.
+        // The Component at 950 x 2. The cost-only row (2500) is a Project expense, not part of the planned cost (#964).
         await approveEvaluation()
         const { id, error } = await decide("ipasSigner", "go", "Locking the sheet")
         expect(error).toBeNull()
         const [decision] = await live()
         expect(decision.id).toBe(id)
         expect(decision.verdict).toBe("go")
-        expect(Number(decision.planned_cost_total)).toBe(4400)
+        expect(Number(decision.planned_cost_total)).toBe(1900)
     })
 
     it("refuses any change to the numbers while the Go is live, for everyone, and keeps the Go", async () => {
@@ -546,7 +546,11 @@ describe("a Go locks the sheet", () => {
 })
 
 describe("a Go on a loss needs a Super Admin or the decider list (#880)", () => {
-    // The sheet here is a loss: the Final Offers total 3,942.88 and the planned cost is 4,400 (the Go lock test above).
+    // The sheet here is a loss: the Final Offers total 3,942.88 and the sheet costs 1,900 of Components plus 2,500 of
+    // Project expenses (the Go lock test above). Revenue is only worked once Marketing is typed (#964), so type it.
+    beforeAll(async () => {
+        await asSvc(svc().from("costing_matrix_money").upsert({ matrix_id: matrixId, marketing: 0 }), "marketing")
+    })
     const lossRule = "costing_bid: a Go on a loss needs a Super Admin or the decider list"
 
     it("says who may take a loss, and nobody else", async () => {
@@ -578,7 +582,7 @@ describe("a Go on a loss needs a Super Admin or the decider list (#880)", () => 
         expect(error).toBeNull()
         const [decision] = await live()
         expect(decision).toMatchObject({ verdict: "go", reason: "Bid at a loss on purpose" })
-        expect(Number(decision.planned_cost_total)).toBe(4400)
+        expect(Number(decision.planned_cost_total)).toBe(1900)
 
         expect(await unlock("superAdmin", "Re-deciding for the decider list")).toBeNull()
         const second = await decide("ipasSigner", "go", "The decider list takes it")
@@ -588,11 +592,11 @@ describe("a Go on a loss needs a Super Admin or the decider list (#880)", () => 
 
     it("lets the Deal Team take a Go once the planned revenue is no longer a loss", async () => {
         expect(await unlock("ipasSigner", "Lowering the cost for the test")).toBeNull()
-        // The cost-only row falls from 2,500 to 1,000: planned cost 950 x 2 + 1,000 = 2,900, below the 3,942.88 offers.
+        // The cost-only row falls from 2,500 to 1,000: Project expenses 1,000 on top of the 1,900 Components, so Revenue is no longer below zero.
         expect(await setMoney("ipasSigner", "costing_cost_rows", costRowId, { final_acquire_unit: 1000 })).toBeNull()
         await approveEvaluation()
         const { error } = await decide("dealOwner", "go", "Profitable, go")
         expect(error).toBeNull()
-        expect(Number((await live())[0].planned_cost_total)).toBe(2900)
+        expect(Number((await live())[0].planned_cost_total)).toBe(1900)
     })
 })

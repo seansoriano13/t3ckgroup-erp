@@ -10,7 +10,7 @@ const other = { id: "c2", quantity: 1, acquire_unit: 10000, final_acquire_unit: 
 const line = { id: "l1", quantity: 2, final_offer_unit: 150000, components: [component, other] };
 
 function closedBookMatrix() {
-  const matrix = { tenderLines: [line], costRows: [], money: { marketing: 0, opex: 0 }, rates: RATES };
+  const matrix = { tenderLines: [line], costRows: [{ quantity: 1, final_acquire_unit: 0 }], money: { marketing: 0 }, rates: RATES };
   return { ...matrix, summary: summary(matrix, RATES) };
 }
 
@@ -49,8 +49,8 @@ describe("what the Closed Book also sees", () => {
   it("projects what the matrix summary would become", () => {
     const matrix = closedBookMatrix();
     const p = projectOffer({ projection: row, componentId: "c1", matrix });
-    expect(p.summary.operationalExpenses.from).toBe(matrix.summary.operationalExpenses);
-    expect(p.summary.operationalExpenses.to).toBe(110000);
+    expect(p.summary.landedCost.from).toBe(matrix.summary.landedCost);
+    expect(p.summary.landedCost.to).toBe(110000);
     // the summary's own arithmetic, over the matrix with the Component taken at this Offer's Acquire
     const swapped = {
       ...matrix,

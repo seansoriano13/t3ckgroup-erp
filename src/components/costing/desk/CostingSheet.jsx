@@ -1,15 +1,18 @@
 import { ChevronRight, CornerDownRight } from "lucide-react";
+import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@/lib/utils";
 import { Button } from "../../ui/button";
+import { Checkbox } from "../../ui/checkbox";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../ui/table";
 import StatusBadge from "../../StatusBadge";
 import { Cell } from "../GridCell";
 import { costingMatrixService } from "../../../services/costingMatrixService";
-import { COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
-import { factorLabel, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
+import { ABC_MODE, COSTING_BAND, COSTING_TIER, COST_SOURCE, LANDED_COST_MARK_LABEL, tierReads, tierReadsCost, tierReadsLandedCost } from "../../../constants/costing";
+import { factorLabel, finalAcquireTotal, lineCost, lineLanded, lineSheetMarkup } from "../../../utils/costingMath";
 import { pesos } from "../gridFormat";
+import { IPAS_STATE_LABELS } from "../../../constants/ipas";
 import LinerList from "../../record/LinerList";
 import { lineBuyingStatus } from "../../../utils/buyingStatus";
 import { useIsPhone } from "@/hooks/useScreenBand";
@@ -19,6 +22,40 @@ function BuyingBadge({ line }) {
   const status = lineBuyingStatus(line);
   if (!status) return null;
   return <StatusBadge label={status.label} theme={status.theme} />;
+}
+
+/**
+ * The IPAS that pay for a line, from its parts (the data ItemRoad reads): the number and its state, a link to
+ * the IPAS when `linkIpas` (the IPAS page still decides who may open it), a dash when there is none. No money,
+ * so every tier sees it. Several are listed, one under another, never a table inside the cell.
+ */
+function IpasCell({ line, linkIpas }) {
+  const seen = new Set();
+  const ipas = [];
+  for (const component of line.components ?? []) {
+    for (const i of component.purchases?.ipas ?? []) {
+      if (!i.ipasId || seen.has(i.ipasId)) continue;
+      seen.add(i.ipasId);
+      ipas.push(i);
+    }
+  }
+  if (ipas.length === 0) return <span className="text-muted-foreground">-</span>;
+  return (
+    <ul className="space-y-1" data-testid="sheet-ipas">
+      {ipas.map((i) => (
+        <li key={i.ipasId} className="whitespace-nowrap">
+          {linkIpas ? (
+            <Link to={`/purchasing/ipas/${i.ipasId}`} className="font-medium underline underline-offset-2 hover:text-foreground">
+              {i.number}
+            </Link>
+          ) : (
+            <span className="font-medium">{i.number}</span>
+          )}
+          <span className="text-xs text-muted-foreground"> {IPAS_STATE_LABELS[i.state] || i.state}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** The word and colour under a price for where it came from; a cost Purchasing typed is amber. */
@@ -108,6 +145,22 @@ function CostCells({ line, canCost, onSave }) {
  * Landed / unit (#702): the IPAS's real Landed Cost once the row's item has one, else an estimate on the
  * peso price plus the Import add-on (Local rows take the Local default). The words under it say which.
  */
+/** Final Acquire per unit and as a total for the line (#962): its parts added up; blank while any part has none. */
+function FinalAcquireCells({ line }) {
+  const total = line.components.length > 0 ? finalAcquireTotal(line.components) : null;
+  const unit = total !== null && Number(line.quantity) > 0 ? Math.round((total / Number(line.quantity)) * 100) / 100 : null;
+  return (
+    <>
+      <TableCell className={cn(CELL, NUM, "w-36")} data-testid="sheet-final-acquire-unit">
+        {unit === null ? <span className="text-muted-foreground">—</span> : pesos(unit)}
+      </TableCell>
+      <TableCell className={cn(CELL, NUM, "w-36")} data-testid="sheet-final-acquire-total">
+        {total === null ? <span className="text-muted-foreground">—</span> : pesos(total)}
+      </TableCell>
+    </>
+  );
+}
+
 function LandedCell({ line, addons }) {
   const landed = lineLanded(line, addons);
   return (
@@ -239,6 +292,10 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const lines = matrix.tenderLines;
   const { totals } = matrix;
   const showAbc = tierReads(matrix.tier, "abc_unit");
+  // Total only (#960): the lines' own ABC cells go; one typed total stands in the header strip.
+  const totalOnly = showAbc && matrix.abc?.mode === ABC_MODE.TOTAL_ONLY;
+  const showAbcLines = showAbc && !totalOnly;
+  const canAbc = canWrite && matrix.bands.includes(COSTING_BAND.SALES) && matrix.abc != null;
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const showCost = tierReadsCost(matrix.tier, "acquire_unit");
   const showLanded = showCost && tierReadsLandedCost(matrix.tier);
@@ -252,6 +309,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const closed = matrix.tier === COSTING_TIER.CLOSED_BOOK;
   const showSuggested = closed || matrix.tier === COSTING_TIER.PRICE;
   const markupCols = closed ? 3 : showSuggested ? 1 : 0;
+  const canFinalPercent = closed && matrix.bands.includes(COSTING_BAND.MANAGEMENT);
   const canMarkup = closed && matrix.bands.includes(COSTING_BAND.MARKUP);
   // Margin counts the landed cost per unit: the IPAS's real figure, else the estimate (#702).
   const landedOf = (line) => lineLanded(line, addons)?.unit ?? null;
@@ -267,7 +325,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
   const phoneRows = lines.map((line) => {
     const status = lineBuyingStatus(line);
     const bits = [];
-    if (showAbc) bits.push(`ABC ${pesos(line.totals.abcTotal)}`);
+    if (showAbcLines) bits.push(`ABC ${pesos(line.totals.abcTotal)}`);
     if (showOffer) bits.push(`Offer ${pesos(line.totals.finalOfferTotal)}`);
     if (showCost) bits.push(`Cost ${pesos(line.totals.acquireTotal)}`);
     return {
@@ -297,8 +355,18 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
     await writes.refresh();
   };
 
+  const saveAbc = async (patch) => {
+    await costingMatrixService.setAbc(matrix.matrixId, patch);
+    await writes.refresh();
+  };
+
   const saveDefault = async (value) => {
     await costingMatrixService.setDefaultMarkup(matrix.matrixId, { factor: value === "" || value == null ? null : value });
+    await writes.refresh();
+  };
+
+  const saveFinalPercent = async (value) => {
+    await costingMatrixService.setFinalAcquirePercent(matrix.matrixId, value);
     await writes.refresh();
   };
 
@@ -334,9 +402,51 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
             />
           </Fact>
         )}
+        {closed && (
+          <Fact label="Final Acquire %" title="The default percent on the Odoo SRP" sub={canFinalPercent ? "a part can carry its own" : "set by the decider list"}>
+            <Cell
+              label="Default Final Acquire percent"
+              noun="The Final Acquire percent"
+              value={matrix.finalAcquirePercent}
+              numeric
+              align="right"
+              placeholder="-20"
+              readOnly={!canFinalPercent}
+              onSave={saveFinalPercent}
+              className="w-24"
+            />
+          </Fact>
+        )}
         {showAbc && (
-          <Fact label="ABC total" sub={totals.missingAbc ? `${totals.missingAbc} without one` : undefined}>
-            {pesos(totals.abcTotal)}
+          <Fact
+            label="ABC total"
+            sub={totalOnly ? undefined : totals.missingAbc ? `${totals.missingAbc} without one` : undefined}
+          >
+            {totalOnly ? (
+              <Cell
+                label="ABC total"
+                noun="The ABC total"
+                value={matrix.abc.total}
+                numeric
+                money
+                placeholder="Type the total"
+                readOnly={!canAbc}
+                onSave={(value) => saveAbc({ total: value })}
+                className="w-36"
+              />
+            ) : (
+              pesos(totals.abcTotal)
+            )}
+            {canAbc && (
+              <div className="mt-1 flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                <Checkbox
+                  aria-label="Type the ABC as one total"
+                  checked={totalOnly}
+                  onCheckedChange={(value) => saveAbc({ mode: value ? ABC_MODE.TOTAL_ONLY : ABC_MODE.BY_LINE })}
+                />
+                Total only
+              </div>
+            )}
           </Fact>
         )}
         {showOffer && (
@@ -378,13 +488,18 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           <TableHeader className="bg-transparent">
             <TableRow>
               <th className={cn(GROUP, FROZEN)}>S0 line</th>
-              <th className={GROUP} />
-              <th colSpan={1 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0)} className={GROUP}>
+              <th colSpan={2} className={GROUP} />
+              <th colSpan={1 + (showAbcLines ? 1 : 0) + (showOffer ? 1 : 0)} className={GROUP}>
                 Sales · the client&apos;s ask
               </th>
               {showCost && (
                 <th colSpan={2 + (showLanded ? 1 : 0)} className={GROUP}>
                   Purchasing · cost
+                </th>
+              )}
+              {closed && (
+                <th colSpan={2} className={GROUP}>
+                  Final Acquire
                 </th>
               )}
               {markupCols > 0 && (
@@ -396,12 +511,15 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
             <TableRow>
               <th className={cn(HEAD, FROZEN)}>Item</th>
               <th className={cn(HEAD, "text-right")}>Qty</th>
+              <th className={HEAD}>IPAS</th>
               <th className={HEAD}>Client asks for</th>
-              {showAbc && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
+              {showAbcLines && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
               {showOffer && <th className={cn(HEAD, "text-right")}>Final Offer / unit</th>}
               {showCost && <th className={cn(HEAD, "text-right")}>Price</th>}
               {showCost && <th className={cn(HEAD, "text-right")}>In pesos</th>}
               {showLanded && <th className={cn(HEAD, "text-right")}>Landed / unit</th>}
+              {closed && <th className={cn(HEAD, "text-right")}>Final Acquire / unit</th>}
+              {closed && <th className={cn(HEAD, "text-right")}>Final Acquire total</th>}
               {closed && <th className={cn(HEAD, "text-right")}>Multiplier</th>}
               {showSuggested && <th className={cn(HEAD, "text-right")}>Suggested / unit</th>}
               {closed && <th className={cn(HEAD, "text-right border-r-0")}>Margin / unit</th>}
@@ -410,7 +528,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
           <TableBody>
             {lines.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={3 + (showAbc ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
+                <TableCell colSpan={4 + (showAbcLines ? 1 : 0) + (showOffer ? 1 : 0) + (showCost ? 2 : 0) + (showLanded ? 1 : 0) + (closed ? 2 : 0) + markupCols} className="px-3 py-4 text-sm text-muted-foreground">
                   No S0 lines yet.
                 </TableCell>
               </TableRow>
@@ -459,6 +577,9 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                     {line.quantity}
                     {line.unit && <div className={SUB}>{line.unit}</div>}
                   </TableCell>
+                  <TableCell className={cn(CELL, "min-w-[8rem]")}>
+                    <IpasCell line={line} linkIpas={matrix.tier !== COSTING_TIER.PARTICIPANT} />
+                  </TableCell>
                   <TableCell className={cn(CELL, "min-w-[14rem] max-w-[17rem]")}>
                     {kid ? null : (
                       <Cell
@@ -472,7 +593,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                       />
                     )}
                   </TableCell>
-                  {showAbc && (
+                  {showAbcLines && (
                     <TableCell className={cn(CELL, NUM, "w-36")}>
                       {kid ? (
                         <span className="text-muted-foreground">incl.</span>
@@ -518,6 +639,7 @@ export default function CostingSheet({ matrix, opportunity, writes, canWrite, on
                   )}
                   {showCost && <CostCells line={line} canCost={canCost} onSave={saveCost(line)} />}
                   {showLanded && <LandedCell line={line} addons={addons} />}
+                  {closed && <FinalAcquireCells line={line} />}
                   {showSuggested && <MarkupCells line={line} kid={kid} figures={figures} tier={matrix.tier} canMarkup={canMarkup} onSaveFactor={saveFactor(line)} />}
                 </TableRow>
               );

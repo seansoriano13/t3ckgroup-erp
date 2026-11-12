@@ -1,5 +1,6 @@
 import { revenueComparison } from "./costingMath";
 import { sumPesos } from "./landedCost";
+import { numberOrNull } from "./numberOrNull";
 import { matchesSearch, sorSearchFields } from "./sorSearch";
 
 /**
@@ -8,8 +9,6 @@ import { matchesSearch, sorSearchFields } from "./sorSearch";
  * each SOR's totals; the Revenue figures are worked here with `revenueComparison`, the same maths the
  * SOR's own summary uses, so the page and the SOR can never disagree.
  */
-
-const numberOrNull = (value) => (value === null || value === undefined || value === "" ? null : Number(value));
 
 /**
  * Shapes the read's rows with the summary's rates: camelCase, numbers for numerics (PostgREST may
@@ -20,6 +19,8 @@ export function shapeMatrixPage(rows, settings) {
     const totals = {
       finalOfferTotal: numberOrNull(row.final_offer_total),
       finalAcquireTotal: numberOrNull(row.final_acquire_total),
+      projectExpensesTotal: numberOrNull(row.project_expenses_total),
+      marketing: numberOrNull(row.marketing),
       landedCostTotal: numberOrNull(row.landed_cost_total),
       boughtFinalAcquireTotal: numberOrNull(row.bought_final_acquire_total),
       itemsBought: Number(row.items_bought) || 0,
@@ -27,7 +28,12 @@ export function shapeMatrixPage(rows, settings) {
       ipasShort: Boolean(row.ipas_short),
     };
     return {
+      standalone: false,
       opportunityId: row.opportunity_id,
+      subjectId: row.opportunity_id,
+      projectNote: null,
+      stageLabel: row.stage || "—",
+      itemsLabel: `${totals.itemsBought} of ${totals.itemsTotal}`,
       sorNumber: row.sor_code ?? "",
       soNumber: row.sales_reference ?? "",
       projectTitle: row.project_title ?? "",
@@ -43,10 +49,11 @@ export function shapeMatrixPage(rows, settings) {
  * The page's slices over shaped rows. `stage` and `entity` are exact; `belowPlanned` keeps rows whose
  * Actual Revenue is below Planned; `search` matches the SO number, SOR number and project name (a
  * case-insensitive "contains", like the IPAS list), or the SO number and project written together
- * the way Purchasing writes them ("S04081 BFP Command Bus").
+ * the way Purchasing writes them ("S04081 BFP Command Bus"). `noSor` keeps only the evaluations that stand alone (#966).
  */
-export function filterMatrixPage(rows, { stage = null, entity = null, belowPlanned = false, search = "" } = {}) {
+export function filterMatrixPage(rows, { stage = null, entity = null, belowPlanned = false, noSor = false, search = "" } = {}) {
   return rows.filter((row) => {
+    if (noSor && !row.standalone) return false;
     if (stage && row.stage !== stage) return false;
     if (entity && !row.entities.includes(entity)) return false;
     if (belowPlanned && !row.comparison.actualLower) return false;

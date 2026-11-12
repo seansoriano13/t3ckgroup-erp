@@ -259,7 +259,9 @@ create table if not exists public."costing_component_costs" (
   "p0_unit_price" numeric,
   "p0_quoted_unit_price" numeric,
   "p0_currency" text,
-  "acquire_source" text
+  "acquire_source" text,
+  "final_acquire_percent" numeric(7,2),
+  "final_acquire_typed" boolean not null default false
 );
 
 create table if not exists public."costing_components" (
@@ -308,7 +310,8 @@ create table if not exists public."costing_cost_rows" (
   "final_acquire_unit" numeric(18,2),
   "markup_factor" numeric(10,4) default 1.00,
   "created_at" timestamp with time zone not null default now(),
-  "category_key" text
+  "category_key" text,
+  "abc_pct" numeric(7,2)
 );
 
 create table if not exists public."costing_events" (
@@ -353,7 +356,7 @@ create table if not exists public."costing_markup_presets" (
 
 create table if not exists public."costing_matrices" (
   "id" uuid not null default gen_random_uuid(),
-  "opportunity_id" uuid not null,
+  "opportunity_id" uuid,
   "sales_incharge_id" uuid,
   "purchasing_incharge_id" uuid,
   "bid_submitted_at" timestamp with time zone,
@@ -364,7 +367,11 @@ create table if not exists public."costing_matrices" (
   "compliance" text,
   "compliance_note" text,
   "compliance_by" uuid,
-  "compliance_at" timestamp with time zone
+  "compliance_at" timestamp with time zone,
+  "abc_mode" text not null default 'by_line'::text,
+  "abc_total" numeric(18,2),
+  "s0_number" text,
+  "created_by" uuid
 );
 
 create table if not exists public."costing_matrix_money" (
@@ -374,7 +381,8 @@ create table if not exists public."costing_matrix_money" (
   "default_factor" numeric(10,4),
   "default_preset_id" uuid,
   "marketing" numeric(18,2),
-  "opex" numeric(18,2)
+  "opex" numeric(18,2),
+  "final_acquire_percent" numeric(7,2) not null default '-20'::integer
 );
 
 create table if not exists public."costing_settings" (
@@ -387,7 +395,8 @@ create table if not exists public."costing_settings" (
   "updated_at" timestamp with time zone not null default now(),
   "updated_by" uuid,
   "final_vat_rate" numeric(10,6) not null default 0.12,
-  "summary_hidden_lines" text[] not null default '{finalVat}'::text[]
+  "summary_hidden_lines" text[] not null default '{finalVat}'::text[],
+  "go_line_percent" numeric(7,2) not null default 20
 );
 
 create table if not exists public."costing_signer_lists" (
@@ -2150,6 +2159,7 @@ alter table costing_component_costs add constraint "costing_component_costs_acqu
 alter table costing_component_costs add constraint "costing_component_costs_acquire_source_chk" CHECK ((acquire_source = ANY (ARRAY['canvass'::text, 'odoo'::text, 'typed'::text])));
 alter table costing_component_costs add constraint "costing_component_costs_factor_chk" CHECK (((markup_factor IS NULL) OR (markup_factor > (0)::numeric)));
 alter table costing_component_costs add constraint "costing_component_costs_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
+alter table costing_component_costs add constraint "costing_component_costs_final_percent_chk" CHECK (((final_acquire_percent IS NULL) OR ((final_acquire_percent > ('-100'::integer)::numeric) AND (final_acquire_percent <= (1000)::numeric))));
 alter table costing_component_costs add constraint "costing_component_costs_odoo_chk" CHECK (((odoo_unit IS NULL) OR (odoo_unit >= (0)::numeric)));
 alter table costing_components add constraint "costing_components_availability_chk" CHECK (((availability IS NULL) OR (availability = ANY (ARRAY['available'::text, 'for_order'::text]))));
 alter table costing_components add constraint "costing_components_compliance_chk" CHECK (((compliance IS NULL) OR (compliance = ANY (ARRAY['complies'::text, 'deviates'::text]))));
@@ -2159,6 +2169,7 @@ alter table costing_components add constraint "costing_components_source_chk" CH
 alter table costing_components add constraint "costing_components_status_chk" CHECK (((status IS NULL) OR (status = ANY (ARRAY['source_out'::text, 'stockable'::text]))));
 alter table costing_cost_categories add constraint "costing_cost_categories_key_chk" CHECK ((key ~ '^[a-z][a-z_]*$'::text));
 alter table costing_cost_categories add constraint "costing_cost_categories_range_chk" CHECK (((low_pct >= (0)::numeric) AND (high_pct <= (100)::numeric) AND (low_pct <= high_pct)));
+alter table costing_cost_rows add constraint "costing_cost_rows_abc_pct_chk" CHECK (((abc_pct IS NULL) OR ((abc_pct >= (0)::numeric) AND (abc_pct <= (1000)::numeric))));
 alter table costing_cost_rows add constraint "costing_cost_rows_acquire_chk" CHECK (((acquire_unit IS NULL) OR (acquire_unit >= (0)::numeric)));
 alter table costing_cost_rows add constraint "costing_cost_rows_factor_chk" CHECK (((markup_factor IS NULL) OR (markup_factor > (0)::numeric)));
 alter table costing_cost_rows add constraint "costing_cost_rows_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
@@ -2171,13 +2182,18 @@ alter table costing_landed_defaults add constraint "costing_landed_defaults_impo
 alter table costing_landed_defaults add constraint "costing_landed_defaults_local_chk" CHECK ((local_addon_percent >= (0)::numeric));
 alter table costing_landed_defaults add constraint "costing_landed_defaults_one_row_chk" CHECK ((id = true));
 alter table costing_markup_presets add constraint "costing_markup_presets_factor_chk" CHECK ((factor > (0)::numeric));
+alter table costing_matrices add constraint "costing_matrices_abc_mode_chk" CHECK ((abc_mode = ANY (ARRAY['by_line'::text, 'total_only'::text])));
+alter table costing_matrices add constraint "costing_matrices_abc_total_chk" CHECK (((abc_total IS NULL) OR (abc_total >= (0)::numeric)));
 alter table costing_matrices add constraint "costing_matrices_compliance_chk" CHECK (((compliance IS NULL) OR (compliance = ANY (ARRAY['complies'::text, 'deviates'::text]))));
+alter table costing_matrices add constraint "costing_matrices_has_subject_chk" CHECK (((opportunity_id IS NOT NULL) OR (s0_number IS NOT NULL)));
 alter table costing_matrices add constraint "costing_matrices_import_addon_chk" CHECK (((import_addon_percent IS NULL) OR (import_addon_percent >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_factor_chk" CHECK (((default_factor IS NULL) OR (default_factor > (0)::numeric)));
+alter table costing_matrix_money add constraint "costing_matrix_money_final_percent_chk" CHECK (((final_acquire_percent > ('-100'::integer)::numeric) AND (final_acquire_percent <= (1000)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_marketing_chk" CHECK (((marketing IS NULL) OR (marketing >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_opex_chk" CHECK (((opex IS NULL) OR (opex >= (0)::numeric)));
 alter table costing_settings add constraint "costing_settings_allowance_chk" CHECK ((itr_allowance >= (0)::numeric));
 alter table costing_settings add constraint "costing_settings_final_vat_chk" CHECK (((final_vat_rate >= (0)::numeric) AND (final_vat_rate <= (1)::numeric)));
+alter table costing_settings add constraint "costing_settings_go_line_chk" CHECK (((go_line_percent >= (0)::numeric) AND (go_line_percent <= (100)::numeric)));
 alter table costing_settings add constraint "costing_settings_itr_chk" CHECK (((itr_rate >= (0)::numeric) AND (itr_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_retention_chk" CHECK (((retention_rate >= (0)::numeric) AND (retention_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_single_chk" CHECK ((id = 1));
@@ -2426,6 +2442,7 @@ alter table costing_events add constraint "costing_events_matrix_id_fkey" FOREIG
 alter table costing_inclusions add constraint "costing_inclusions_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
 alter table costing_landed_defaults add constraint "costing_landed_defaults_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_compliance_by_fkey" FOREIGN KEY (compliance_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_matrices add constraint "costing_matrices_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table costing_matrices add constraint "costing_matrices_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
@@ -2740,6 +2757,7 @@ CREATE INDEX costing_events_matrix_idx ON public.costing_events USING btree (mat
 CREATE INDEX costing_inclusions_component_idx ON public.costing_inclusions USING btree (component_id, "position");
 CREATE UNIQUE INDEX costing_inclusions_legacy_key ON public.costing_inclusions USING btree (legacy_sor_inclusion_id) WHERE (legacy_sor_inclusion_id IS NOT NULL);
 CREATE UNIQUE INDEX costing_markup_presets_label_key ON public.costing_markup_presets USING btree (lower(btrim(label)));
+CREATE UNIQUE INDEX costing_matrices_s0_uidx ON public.costing_matrices USING btree (upper(btrim(s0_number))) WHERE (s0_number IS NOT NULL);
 CREATE UNIQUE INDEX costing_signoffs_live_key ON public.costing_signoffs USING btree (matrix_id, role) WHERE (cleared_at IS NULL);
 CREATE INDEX costing_signoffs_matrix_idx ON public.costing_signoffs USING btree (matrix_id, signed_at DESC);
 CREATE INDEX costing_tender_lines_matrix_idx ON public.costing_tender_lines USING btree (matrix_id, "position");
@@ -3451,13 +3469,13 @@ create policy "costing_matrices_read" on public."costing_matrices"
   as permissive
   for select
   to authenticated
-  using (costing_can_read(opportunity_id));
+  using (costing_can_read(COALESCE(opportunity_id, id)));
 create policy "costing_matrices_update" on public."costing_matrices"
   as permissive
   for update
   to authenticated
-  using (costing_can_read(opportunity_id))
-  with check (costing_can_read(opportunity_id));
+  using (costing_can_read(COALESCE(opportunity_id, id)))
+  with check (costing_can_read(COALESCE(opportunity_id, id)));
 create policy "costing_matrix_money_read" on public."costing_matrix_money"
   as permissive
   for select
@@ -9454,6 +9472,44 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_abc_moved_line()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_percent_rows(case when tg_op = 'DELETE' then old.matrix_id else new.matrix_id end);
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_abc_moved_matrix()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_percent_rows(new.id);
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_abc_moved_price()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_percent_rows(
+    (select l.matrix_id from public.costing_tender_lines l
+      where l.id = case when tg_op = 'DELETE' then old.tender_line_id else new.tender_line_id end));
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_accept_brand(p_component_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -9498,19 +9554,36 @@ CREATE OR REPLACE FUNCTION public.costing_actor_can_fill(p_opportunity_id uuid, 
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select exists (
-    select 1
-    from public.employees e
-    join public.sales_opportunities o on o.id = p_opportunity_id
-    where e.id = p_actor
-      and not coalesce(e.is_deleted, false)
-      and (
-        coalesce(e.is_super_admin, false)
-        or public._employee_has_purchasing_access(e.id)
-        or public.sor_is_deal_team(o, e.id)
-        or exists (select 1 from public.costing_signer_lists l where l.list_key = 'final_acquire' and l.employee_id = e.id)
-      )
-  )
+  select case
+    when public.costing_is_standalone(p_opportunity_id) then exists (
+      select 1
+      from public.employees e
+      join public.costing_matrices m on m.id = p_opportunity_id
+      where e.id = p_actor
+        and not coalesce(e.is_deleted, false)
+        and (
+          coalesce(e.is_super_admin, false)
+          or public._employee_has_purchasing_access(e.id)
+          or m.created_by = e.id
+          or m.sales_incharge_id = e.id
+          or m.purchasing_incharge_id = e.id
+          or exists (select 1 from public.costing_signer_lists l where l.list_key = 'final_acquire' and l.employee_id = e.id)
+        )
+    )
+    else exists (
+      select 1
+      from public.employees e
+      join public.sales_opportunities o on o.id = p_opportunity_id
+      where e.id = p_actor
+        and not coalesce(e.is_deleted, false)
+        and (
+          coalesce(e.is_super_admin, false)
+          or public._employee_has_purchasing_access(e.id)
+          or public.sor_is_deal_team(o, e.id)
+          or exists (select 1 from public.costing_signer_lists l where l.list_key = 'final_acquire' and l.employee_id = e.id)
+        )
+    )
+  end
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_add_cost_row(p_matrix_id uuid, p_description text DEFAULT ''::text, p_quantity numeric DEFAULT 1, p_category_key text DEFAULT NULL::text)
@@ -9597,16 +9670,20 @@ CREATE OR REPLACE FUNCTION public.costing_bid_totals(p_matrix_id uuid)
  SET search_path TO 'public'
 AS $function$
   select
-    case when count(*) > 0 and count(*) filter (where p.final_offer_unit is null) = 0
+    case when count(l.id) > 0 and count(l.id) filter (where p.final_offer_unit is null) = 0
          then sum(round(p.final_offer_unit * l.quantity, 2)) end,
-    case when count(*) > 0 and count(*) filter (where p.abc_unit is null) = 0
+    case when m.abc_mode = 'total_only' then (case when count(l.id) > 0 then m.abc_total end)
+         when count(l.id) > 0 and count(l.id) filter (where p.abc_unit is null) = 0
          then sum(round(p.abc_unit * l.quantity, 2)) end,
-    count(*)::integer,
-    (count(*) filter (where p.final_offer_unit is null))::integer,
-    (count(*) filter (where p.abc_unit is null))::integer
-  from public.costing_tender_lines l
+    count(l.id)::integer,
+    (count(l.id) filter (where p.final_offer_unit is null))::integer,
+    case when m.abc_mode = 'total_only' then (case when count(l.id) > 0 and m.abc_total is null then 1 else 0 end)
+         else (count(l.id) filter (where p.abc_unit is null))::integer end
+  from public.costing_matrices m
+  left join public.costing_tender_lines l on l.matrix_id = m.id
   left join public.costing_tender_line_prices p on p.tender_line_id = l.id
-  where l.matrix_id = p_matrix_id
+  where m.id = p_matrix_id
+  group by m.abc_mode, m.abc_total
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_bundle_keeps_inclusions()
@@ -9698,6 +9775,10 @@ begin
     return new;
   end if;
   select * into v_sor from public.sales_opportunities where id = v_opp;
+  -- A row of a standalone matrix has no SOR to check the names against.
+  if v_sor.id is null then
+    return new;
+  end if;
 
   if new.sales_incharge_id is not null
      and (tg_op = 'INSERT' or new.sales_incharge_id is distinct from old.sales_incharge_id)
@@ -10275,6 +10356,20 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_cost_rows_percent_unit()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.abc_pct is not null then
+    new.acquire_unit := public.costing_percent_row_unit(new.matrix_id, new.abc_pct, new.quantity);
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_decide_bid(p_matrix_id uuid, p_verdict text, p_reason text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -10289,9 +10384,6 @@ declare
   v_title  text;
   v_label  text;
   v_member record;
-  v_cost     numeric;
-  v_rate     numeric;
-  v_allow    numeric;
   v_revenue  numeric;
 begin
   if v_actor is null then
@@ -10331,17 +10423,9 @@ begin
 
   -- #880: a Go on a loss (planned revenue below zero) is the Super Admin's or the decider list's to take.
   if p_verdict = 'go' then
-    v_cost := public.costing_planned_cost_total(p_matrix_id);
-    if v_cost is not null then
-      select coalesce(s.itr_rate, 0.08), coalesce(s.itr_allowance, 250000)
-        into v_rate, v_allow
-        from (select 1) one
-        left join public.costing_settings s on s.id = 1;
-      v_revenue := (v_totals.final_offer_total - v_cost)
-                   - round(greatest(v_totals.final_offer_total - v_allow, 0) * v_rate, 2);
-      if v_revenue < 0 and not public.costing_can_decide_loss() then
-        raise exception 'costing_bid: a Go on a loss needs a Super Admin or the decider list' using errcode = '42501';
-      end if;
+    v_revenue := public.costing_planned_revenue(p_matrix_id);
+    if v_revenue is not null and v_revenue < 0 and not public.costing_can_decide_loss() then
+      raise exception 'costing_bid: a Go on a loss needs a Super Admin or the decider list' using errcode = '42501';
     end if;
   end if;
 
@@ -10597,7 +10681,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.costing_fill_odoo_costs(p_actor uuid, p_opportunity_id uuid, p_costs jsonb)
+CREATE OR REPLACE FUNCTION public.costing_fill_odoo_costs(p_actor uuid, p_opportunity_id uuid, p_costs jsonb, p_srps jsonb DEFAULT '{}'::jsonb)
  RETURNS integer
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -10606,6 +10690,7 @@ AS $function$
 declare
   v_target record;
   v_cost   numeric;
+  v_srp    numeric;
   v_filled integer := 0;
 begin
   if not public.costing_actor_can_fill(p_opportunity_id, p_actor) then
@@ -10613,20 +10698,112 @@ begin
   end if;
   perform set_config('costing.fill_source', 'odoo', true);
   for v_target in select * from public.costing_odoo_cost_targets(p_actor, p_opportunity_id) loop
-    v_cost := nullif(p_costs ->> v_target.odoo_product_id::text, '')::numeric;
-    if v_cost is null or v_cost <= 0 then
+    v_cost := nullif(coalesce(p_costs, '{}'::jsonb) ->> v_target.odoo_product_id::text, '')::numeric;
+    v_srp  := nullif(coalesce(p_srps, '{}'::jsonb) ->> v_target.odoo_product_id::text, '')::numeric;
+    if v_cost is not null and v_cost <= 0 then v_cost := null; end if;
+    if v_srp is not null and v_srp <= 0 then v_srp := null; end if;
+    if v_cost is null and v_srp is null then
       continue;
     end if;
     v_cost := round(v_cost, 2);
+    v_srp  := round(v_srp, 2);
     insert into public.costing_component_costs (component_id, odoo_unit, acquire_unit)
-    values (v_target.component_id, v_cost, v_cost)
+    values (v_target.component_id, v_srp, v_cost)
     on conflict (component_id) do update
-      set odoo_unit = coalesce(public.costing_component_costs.odoo_unit, excluded.odoo_unit),
+      set odoo_unit = coalesce(excluded.odoo_unit, public.costing_component_costs.odoo_unit),
           acquire_unit = coalesce(public.costing_component_costs.acquire_unit, excluded.acquire_unit);
     v_filled := v_filled + 1;
   end loop;
   perform set_config('costing.fill_source', '', true);
   return v_filled;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_final_acquire_apply()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_status  text;
+  v_matrix  uuid;
+  v_default numeric;
+  v_wrote   boolean;
+begin
+  v_wrote := case when tg_op = 'INSERT' then new.final_acquire_unit is not null
+                  else new.final_acquire_unit is distinct from old.final_acquire_unit end;
+  -- A value written is typed; written blank, the line goes back on the rule.
+  if v_wrote then
+    new.final_acquire_typed := new.final_acquire_unit is not null;
+  end if;
+  if new.final_acquire_unit is null then
+    new.final_acquire_typed := false;
+  end if;
+  if new.final_acquire_typed then
+    return new;
+  end if;
+
+  select c.status into v_status from public.costing_components c where c.id = new.component_id;
+  v_matrix := public.costing_matrix_of('costing_component_costs', jsonb_build_object('component_id', new.component_id));
+  select m.final_acquire_percent into v_default from public.costing_matrix_money m where m.matrix_id = v_matrix;
+  new.final_acquire_unit := public.costing_final_acquire_rule(
+    v_status, new.odoo_unit, coalesce(new.final_acquire_percent, v_default, -20), new.acquire_unit, new.p0_unit_price);
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_final_acquire_rule(p_status text, p_odoo numeric, p_percent numeric, p_acquire numeric, p_p0 numeric)
+ RETURNS numeric
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select case p_status
+    when 'stockable' then
+      case when p_odoo is null or p_percent is null then null else round(p_odoo * (100 + p_percent) / 100, 2) end
+    when 'source_out' then coalesce(p_p0, p_acquire)
+    else null
+  end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_final_acquire_touch_component()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_was text := coalesce(current_setting('costing.bypass', true), '');
+begin
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_component_costs cc
+     set component_id = cc.component_id
+   where cc.component_id = new.id and not cc.final_acquire_typed;
+  perform set_config('costing.bypass', v_was, true);
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_final_acquire_touch_matrix()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_was text := coalesce(current_setting('costing.bypass', true), '');
+begin
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_component_costs cc
+     set component_id = cc.component_id
+    from public.costing_components c
+    join public.costing_tender_lines t on t.id = c.tender_line_id
+   where cc.component_id = c.id
+     and t.matrix_id = new.matrix_id
+     and not cc.final_acquire_typed
+     and cc.final_acquire_percent is null;
+  perform set_config('costing.bypass', v_was, true);
+  return new;
 end;
 $function$
 ;
@@ -10644,7 +10821,7 @@ begin
   if v_tier is null then
     return null;
   end if;
-  select id into v_matrix from public.costing_matrices where opportunity_id = p_opportunity_id;
+  select public.costing_subject_matrix(p_opportunity_id) into v_matrix;
   if v_matrix is null then
     return null;
   end if;
@@ -10704,7 +10881,19 @@ AS $function$
         select 1 from public.sales_opportunities o
         where o.id = p_opportunity_id and public.sor_is_deal_team(o, public.get_employee_id())
       )
-    when 'purchasing' then coalesce(public.is_super_admin(), false) or public.has_purchasing_access()
+      or exists (
+        select 1 from public.costing_matrices m
+        where m.id = p_opportunity_id and m.opportunity_id is null
+          and (m.created_by = public.get_employee_id() or m.sales_incharge_id = public.get_employee_id())
+      )
+    when 'purchasing' then
+      coalesce(public.is_super_admin(), false)
+      or public.has_purchasing_access()
+      or exists (
+        select 1 from public.costing_matrices m
+        where m.id = p_opportunity_id and m.opportunity_id is null
+          and m.purchasing_incharge_id = public.get_employee_id()
+      )
     when 'management' then public.costing_on_list('final_acquire')
     when 'technical' then coalesce(public.is_super_admin(), false) or public.costing_is_technical(p_opportunity_id)
     when 'finance' then public.has_finance_access() or public.costing_on_list('final_acquire')
@@ -10760,6 +10949,15 @@ AS $function$
     )
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_is_standalone(p_subject uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (select 1 from public.costing_matrices where id = p_subject and opportunity_id is null)
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -10769,7 +10967,7 @@ AS $function$
   select public.has_purchasing_access()
     or exists (
       select 1 from public.costing_matrices m
-      where m.opportunity_id = p_opportunity_id
+      where coalesce(m.opportunity_id, m.id) = p_opportunity_id
         and m.technical_incharge_id = public.get_employee_id()
     )
 $function$
@@ -11226,9 +11424,23 @@ AS $function$
 declare
   v_tier text := public.costing_tier(p_opportunity_id);
   v_opp record;
+  v_m   record;
 begin
   if v_tier is null then
     return null;
+  end if;
+  select m.id, m.s0_number, m.sales_incharge_id into v_m
+    from public.costing_matrices m where m.id = p_opportunity_id and m.opportunity_id is null;
+  if v_m.id is not null then
+    return jsonb_build_object(
+      'id', v_m.id,
+      'sor_code', null,
+      'client_name', null,
+      'project_title', v_m.s0_number,
+      'sales_reference', v_m.s0_number,
+      'deal_owner_id', v_m.sales_incharge_id,
+      'standalone', true
+    );
   end if;
   select id, sor_code, client_name, project_title, sales_reference, deal_owner_id
     into v_opp
@@ -11294,11 +11506,11 @@ CREATE OR REPLACE FUNCTION public.costing_matrix_opp(p_matrix_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select opportunity_id from public.costing_matrices where id = p_matrix_id
+  select coalesce(opportunity_id, id) from public.costing_matrices where id = p_matrix_id
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_matrix_page()
- RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, stage text, entities text[], final_offer_total numeric, final_acquire_total numeric, landed_cost_total numeric, bought_final_acquire_total numeric, items_bought integer, items_total integer, ipas_short boolean)
+ RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, stage text, entities text[], final_offer_total numeric, final_acquire_total numeric, project_expenses_total numeric, marketing numeric, landed_cost_total numeric, bought_final_acquire_total numeric, items_bought integer, items_total integer, ipas_short boolean)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -11325,6 +11537,8 @@ begin
     coalesce(ent.names, '{}'::text[]),
     offer.total,
     acquire.total,
+    expenses.total,
+    mm.marketing,
     lc.landed,
     lc.bought_acquire,
     lc.bought,
@@ -11344,17 +11558,15 @@ begin
     select case when count(*) > 0 and bool_and(x.fa is not null)
                 then sum(round(x.fa * x.q, 2)) end as total
     from (
-      select coalesce(cc.final_acquire_unit, cc.acquire_unit) as fa, c.quantity as q
+      select cc.final_acquire_unit as fa, c.quantity as q
       from public.costing_components c
       join public.costing_tender_lines t on t.id = c.tender_line_id
       left join public.costing_component_costs cc on cc.component_id = c.id
       where t.matrix_id = m.id
-      union all
-      select coalesce(r.final_acquire_unit, r.acquire_unit), r.quantity
-      from public.costing_cost_rows r
-      where r.matrix_id = m.id
     ) x
   ) acquire
+  cross join lateral (select public.costing_project_expenses_total(m.id) as total) expenses
+  left join public.costing_matrix_money mm on mm.matrix_id = m.id
   cross join lateral (
     select
       count(*)::integer as total_items,
@@ -11363,8 +11575,8 @@ begin
                     where pi.component_id = c.id and pi.status in ('purchased', 'received'))))::integer as bought,
       -- Each Component's Landed Cost is rounded to the centavo before it is added, as the SOR summary does.
       coalesce(sum(round(l.total_php, 2)) filter (where l.total_php is not null), 0) as landed,
-      case when coalesce(bool_and(l.total_php is null or coalesce(cc.final_acquire_unit, cc.acquire_unit) is not null), true)
-           then coalesce(sum(round(coalesce(cc.final_acquire_unit, cc.acquire_unit) * c.quantity, 2)) filter (where l.total_php is not null), 0)
+      case when coalesce(bool_and(l.total_php is null or cc.final_acquire_unit is not null), true)
+           then coalesce(sum(round(cc.final_acquire_unit * c.quantity, 2)) filter (where l.total_php is not null), 0)
       end as bought_acquire,
       coalesce(bool_or(l.total_php is not null and l.mark is distinct from 'final'), false) as provisional
     from public.costing_components c
@@ -11422,7 +11634,7 @@ begin
   if v_tier is null then
     return null;
   end if;
-  select id into v_matrix from public.costing_matrices where opportunity_id = p_opportunity_id;
+  select public.costing_subject_matrix(p_opportunity_id) into v_matrix;
   if v_matrix is null then
     return null;
   end if;
@@ -11568,10 +11780,8 @@ begin
   from public.costing_components c
   join public.costing_tender_lines l on l.id = c.tender_line_id
   join public.costing_matrices m on m.id = l.matrix_id
-  left join public.costing_component_costs cc on cc.component_id = c.id
-  where m.opportunity_id = p_opportunity_id
-    and c.odoo_product_id is not null
-    and (cc.component_id is null or cc.odoo_unit is null or cc.acquire_unit is null);
+  where coalesce(m.opportunity_id, m.id) = p_opportunity_id
+    and c.odoo_product_id is not null;
 end;
 $function$
 ;
@@ -11756,6 +11966,19 @@ AS $function$
   order by 9, m.id
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_percent_row_unit(p_matrix_id uuid, p_pct numeric, p_quantity numeric)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+           when p_pct is null or p_quantity is null or p_quantity <= 0 or b.abc_total is null then null
+           else round(round(p_pct * b.abc_total / 100, 2) / p_quantity, 2)
+         end
+  from public.costing_bid_totals(p_matrix_id) b
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_pick(p_row jsonb, p_cols text[])
  RETURNS jsonb
  LANGUAGE sql
@@ -11772,17 +11995,54 @@ CREATE OR REPLACE FUNCTION public.costing_planned_cost_total(p_matrix_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select case when count(*) > 0 and bool_and(x.fa is not null) then sum(round(x.fa * x.q, 2)) end
+  select case when count(*) > 0 and bool_and(cc.final_acquire_unit is not null)
+              then sum(round(cc.final_acquire_unit * c.quantity, 2)) end
+  from public.costing_components c
+  join public.costing_tender_lines t on t.id = c.tender_line_id
+  left join public.costing_component_costs cc on cc.component_id = c.id
+  where t.matrix_id = p_matrix_id
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_planned_revenue(p_matrix_id uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case when t.offer is null or t.landed is null or t.expenses is null or mm.marketing is null then null
+         else round(t.offer / s.vat_divisor, 2)
+              - (round(t.offer * s.retention_rate, 2) + t.landed + t.expenses + mm.marketing)
+              - round(greatest(t.offer - s.itr_allowance, 0) * s.itr_rate, 2)
+         end
+  from public.costing_settings s
+  cross join lateral (
+    select (select case when count(l.id) > 0 and count(l.id) filter (where p.final_offer_unit is null) = 0
+                        then sum(round(p.final_offer_unit * l.quantity, 2)) end
+              from public.costing_tender_lines l
+              left join public.costing_tender_line_prices p on p.tender_line_id = l.id
+             where l.matrix_id = p_matrix_id) as offer,
+           public.costing_planned_cost_total(p_matrix_id) as landed,
+           public.costing_project_expenses_total(p_matrix_id) as expenses
+  ) t
+  left join public.costing_matrix_money mm on mm.matrix_id = p_matrix_id
+  where s.id = 1
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_project_expenses_total(p_matrix_id uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case when count(*) > 0 and bool_and(x.amount is not null) then sum(x.amount) end
   from (
-    select coalesce(cc.final_acquire_unit, cc.acquire_unit) as fa, c.quantity as q
-    from public.costing_components c
-    join public.costing_tender_lines t on t.id = c.tender_line_id
-    left join public.costing_component_costs cc on cc.component_id = c.id
-    where t.matrix_id = p_matrix_id
-    union all
-    select coalesce(r.final_acquire_unit, r.acquire_unit), r.quantity
+    select case
+             when r.abc_pct is not null then round(r.abc_pct * (select b.abc_total from public.costing_bid_totals(p_matrix_id) b) / 100, 2)
+             else round(coalesce(r.final_acquire_unit, r.acquire_unit) * r.quantity, 2)
+           end as amount
     from public.costing_cost_rows r
     where r.matrix_id = p_matrix_id
+      and (r.abc_pct is not null or r.acquire_unit is not null or r.final_acquire_unit is not null)
   ) x
 $function$
 ;
@@ -11819,6 +12079,28 @@ begin
      set compliance = v_new, compliance_by = technical_incharge_id, compliance_at = now()
    where id = p_matrix_id;
   perform set_config('costing.derive', 'off', true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_refresh_percent_rows(p_matrix_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_was text := coalesce(current_setting('costing.bypass', true), '');
+begin
+  if p_matrix_id is null then
+    return;
+  end if;
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_cost_rows r
+     set acquire_unit = public.costing_percent_row_unit(r.matrix_id, r.abc_pct, r.quantity)
+   where r.matrix_id = p_matrix_id
+     and r.abc_pct is not null
+     and r.acquire_unit is distinct from public.costing_percent_row_unit(r.matrix_id, r.abc_pct, r.quantity);
+  perform set_config('costing.bypass', v_was, true);
 end;
 $function$
 ;
@@ -11913,6 +12195,39 @@ CREATE OR REPLACE FUNCTION public.costing_row_tier(p_table text, p_row jsonb)
  SET search_path TO 'public'
 AS $function$
   select public.costing_tier(public.costing_matrix_opp(public.costing_matrix_of(p_table, p_row)))
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_s0_existing(p_s0_number text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_s0    text := upper(btrim(coalesce(p_s0_number, '')));
+  v_found record;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_standalone: sign in first' using errcode = '42501';
+  end if;
+  select m.id, coalesce(m.opportunity_id, m.id) as subject, (m.opportunity_id is null) as standalone into v_found
+    from public.costing_matrices m
+   where upper(btrim(m.s0_number)) = v_s0
+   limit 1;
+  if v_found.id is null then
+    select m.id, o.id as subject, false as standalone into v_found
+      from public.sales_opportunities o
+      join public.costing_matrices m on m.opportunity_id = o.id
+     where upper(btrim(o.sales_reference)) = v_s0
+       and not coalesce(o.is_deleted, false)
+     order by o.created_at
+     limit 1;
+  end if;
+  if v_found.id is null then
+    return null;
+  end if;
+  return jsonb_build_object('subject_id', v_found.subject, 'matrix_id', v_found.id, 'standalone', v_found.standalone);
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_s0_link_suggestions(p_opportunity_id uuid)
@@ -12270,6 +12585,251 @@ AS $function$
   where l.id = p_tender_line_id
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_standalone_anywhere()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from public.costing_matrices m
+    where m.opportunity_id is null and public.costing_standalone_tier(m.id) is not null
+  )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_link(p_matrix_id uuid, p_opportunity_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_prior text := current_setting('costing.bypass', true);
+  v_s0    text;
+  v_sor   public.sales_opportunities;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_standalone: sign in first' using errcode = '42501';
+  end if;
+  select s0_number into v_s0 from public.costing_matrices where id = p_matrix_id and opportunity_id is null;
+  if not found then
+    raise exception 'costing_standalone: this evaluation is already on a SOR' using errcode = '22023';
+  end if;
+  if coalesce(public.costing_standalone_tier(p_matrix_id), '') not in ('closed_book', 'price') then
+    raise exception 'costing_standalone: only the starter, the Sales incharge or the decider list can link it' using errcode = '42501';
+  end if;
+  select * into v_sor from public.sales_opportunities where id = p_opportunity_id and not coalesce(is_deleted, false);
+  if v_sor.id is null then
+    raise exception 'costing_standalone: SOR not found' using errcode = '22023';
+  end if;
+  -- The caller must be someone the SOR's own rules let into its evaluation.
+  if not (public.costing_on_list('final_acquire') or public.costing_is_open(p_opportunity_id)) then
+    raise exception 'costing_standalone: you cannot open the S0 Evaluation of that SOR' using errcode = '42501';
+  end if;
+  if exists (select 1 from public.costing_matrices where opportunity_id = p_opportunity_id) then
+    raise exception 'costing_standalone: that SOR already has an S0 Evaluation' using errcode = '22023';
+  end if;
+  if nullif(btrim(coalesce(v_sor.sales_reference, '')), '') is not null
+     and upper(btrim(v_sor.sales_reference)) <> upper(btrim(v_s0)) then
+    raise exception 'costing_standalone: that SOR is on %, not %', v_sor.sales_reference, v_s0 using errcode = '22023';
+  end if;
+
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_matrices set opportunity_id = p_opportunity_id where id = p_matrix_id;
+  -- The SOR's own products join the lines already here (matched by Odoo line, then by Odoo product), never by name.
+  if exists (select 1 from public.sales_opportunity_items where opportunity_id = p_opportunity_id and not coalesce(removed_from_s0, false)) then
+    perform public.costing_fill_from_sor(p_opportunity_id);
+  end if;
+  perform set_config('costing.bypass', coalesce(v_prior, ''), true);
+  return jsonb_build_object('opportunity_id', p_opportunity_id, 'matrix_id', p_matrix_id);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_open(p_s0_number text, p_sales_incharge uuid, p_pms_incharge uuid, p_lines jsonb DEFAULT '[]'::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor  uuid := public.get_employee_id();
+  v_s0     text := upper(btrim(coalesce(p_s0_number, '')));
+  v_prior  text := current_setting('costing.bypass', true);
+  v_existing jsonb;
+  v_matrix uuid;
+  v_line   uuid;
+  v_pos    integer := 0;
+  v_item   jsonb;
+  v_qty    numeric;
+  v_unit   text;
+  v_name   text;
+begin
+  if v_actor is null then
+    raise exception 'costing_standalone: sign in first' using errcode = '42501';
+  end if;
+  if not (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire') or public.costing_is_open_anywhere()) then
+    raise exception 'costing_standalone: only Super Admins, Purchasing, the Deal Team and the decider list start an evaluation' using errcode = '42501';
+  end if;
+  if v_s0 !~ '^S0[0-9]+$' then
+    raise exception 'costing_standalone: % is not an S0 number', coalesce(nullif(v_s0, ''), 'that') using errcode = '22023';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('costing_standalone:' || v_s0));
+
+  -- One evaluation per S0: a standalone one, or one on a SOR that carries this S0.
+  v_existing := public.costing_s0_existing(v_s0);
+  if v_existing is not null then
+    return v_existing || jsonb_build_object('existed', true);
+  end if;
+
+  if p_sales_incharge is null or p_pms_incharge is null then
+    raise exception 'costing_standalone: name a Sales incharge and a PMS incharge' using errcode = '22023';
+  end if;
+  if (select count(*) from public.employees e where e.id in (p_sales_incharge, p_pms_incharge) and not coalesce(e.is_deleted, false))
+     < (select count(distinct x) from (values (p_sales_incharge), (p_pms_incharge)) v(x)) then
+    raise exception 'costing_standalone: that incharge is not an active employee' using errcode = '22023';
+  end if;
+
+  perform set_config('costing.bypass', 'on', true);
+
+  insert into public.costing_matrices (opportunity_id, s0_number, created_by, sales_incharge_id, purchasing_incharge_id)
+  values (null, v_s0, v_actor, p_sales_incharge, p_pms_incharge)
+  returning id into v_matrix;
+
+  insert into public.costing_matrix_money (matrix_id) values (v_matrix) on conflict (matrix_id) do nothing;
+
+  if jsonb_typeof(coalesce(p_lines, '[]'::jsonb)) = 'array' then
+    for v_item in select * from jsonb_array_elements(p_lines) loop
+      v_name := nullif(btrim(coalesce(v_item ->> 'name', '')), '');
+      if v_name is null then
+        continue;
+      end if;
+      v_qty := coalesce(nullif(v_item ->> 'quantity', '')::numeric, 1);
+      if v_qty <= 0 then v_qty := 1; end if;
+      v_unit := nullif(btrim(coalesce(v_item ->> 'unit', '')), '');
+      v_pos := v_pos + 1;
+      insert into public.costing_tender_lines (matrix_id, position, source, odoo_line_id, odoo_product_id, tender_specification, unit, quantity, created_by)
+      values (v_matrix, v_pos, 'typed', nullif(v_item ->> 'odoo_line_id', '')::bigint, nullif(v_item ->> 'odoo_product_id', '')::integer,
+              v_name, v_unit, v_qty, v_actor)
+      returning id into v_line;
+      -- The product is its own first Component, as it is when a SOR's line is filled in.
+      insert into public.costing_components (tender_line_id, position, name, quantity, unit, odoo_product_id)
+      values (v_line, 1, v_name, v_qty, v_unit, nullif(v_item ->> 'odoo_product_id', '')::integer);
+    end loop;
+  end if;
+
+  perform set_config('costing.bypass', coalesce(v_prior, ''), true);
+  return jsonb_build_object('subject_id', v_matrix, 'matrix_id', v_matrix, 'existed', false, 'standalone', true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_page()
+ RETURNS TABLE(matrix_id uuid, s0_number text, created_by uuid, created_at timestamp with time zone, sales_incharge_id uuid, purchasing_incharge_id uuid, tier text, line_count integer, final_offer_total numeric, final_acquire_total numeric, project_expenses_total numeric, marketing numeric)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_standalone_page: not signed in' using errcode = '42501';
+  end if;
+  return query
+  select
+    m.id, m.s0_number, m.created_by, m.created_at, m.sales_incharge_id, m.purchasing_incharge_id,
+    t.tier,
+    lines.n,
+    case when t.tier in ('price', 'closed_book') then offer.total end,
+    case when t.tier in ('cost', 'closed_book') then acquire.total end,
+    case when t.tier in ('cost', 'closed_book') then public.costing_project_expenses_total(m.id) end,
+    case when t.tier = 'closed_book' then mm.marketing end
+  from public.costing_matrices m
+  cross join lateral (select public.costing_standalone_tier(m.id) as tier) t
+  left join public.costing_matrix_money mm on mm.matrix_id = m.id
+  cross join lateral (select count(*)::integer as n from public.costing_tender_lines l where l.matrix_id = m.id) lines
+  cross join lateral (
+    select case when count(*) > 0 and bool_and(p.final_offer_unit is not null)
+                then sum(round(p.final_offer_unit * l.quantity, 2)) end as total
+    from public.costing_tender_lines l
+    left join public.costing_tender_line_prices p on p.tender_line_id = l.id
+    where l.matrix_id = m.id
+  ) offer
+  cross join lateral (
+    select case when count(*) > 0 and bool_and(x.fa is not null)
+                then sum(round(x.fa * x.q, 2)) end as total
+    from (
+      select cc.final_acquire_unit as fa, c.quantity as q
+      from public.costing_components c
+      join public.costing_tender_lines l on l.id = c.tender_line_id
+      left join public.costing_component_costs cc on cc.component_id = c.id
+      where l.matrix_id = m.id
+    ) x
+  ) acquire
+  where m.opportunity_id is null
+    and t.tier is not null
+  order by m.created_at desc;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_set_incharge(p_matrix_id uuid, p_sales_incharge uuid, p_pms_incharge uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_prior text := current_setting('costing.bypass', true);
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_standalone: sign in first' using errcode = '42501';
+  end if;
+  if not public.costing_is_standalone(p_matrix_id) then
+    raise exception 'costing_standalone: this evaluation sits on a SOR, whose own incharges apply' using errcode = '22023';
+  end if;
+  if coalesce(public.costing_standalone_tier(p_matrix_id), '') not in ('closed_book', 'price') then
+    raise exception 'costing_standalone: only the starter, the Sales incharge or the decider list can change the incharges' using errcode = '42501';
+  end if;
+  if p_sales_incharge is null or p_pms_incharge is null then
+    raise exception 'costing_standalone: name a Sales incharge and a PMS incharge' using errcode = '22023';
+  end if;
+  if (select count(*) from public.employees e where e.id in (p_sales_incharge, p_pms_incharge) and not coalesce(e.is_deleted, false))
+     < (select count(distinct x) from (values (p_sales_incharge), (p_pms_incharge)) v(x)) then
+    raise exception 'costing_standalone: that incharge is not an active employee' using errcode = '22023';
+  end if;
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_matrices
+     set sales_incharge_id = p_sales_incharge, purchasing_incharge_id = p_pms_incharge
+   where id = p_matrix_id;
+  perform set_config('costing.bypass', coalesce(v_prior, ''), true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_tier(p_matrix_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire') then 'closed_book'
+    when public.get_employee_id() is null then null
+    when m.created_by = public.get_employee_id() or m.sales_incharge_id = public.get_employee_id() then 'price'
+    when m.purchasing_incharge_id = public.get_employee_id() or public.has_purchasing_access() then 'cost'
+    when m.technical_incharge_id = public.get_employee_id() or public.costing_on_list('evaluation') then 'participant'
+    else null
+  end
+  from public.costing_matrices m
+  where m.id = p_matrix_id and m.opportunity_id is null
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_subject_matrix(p_subject uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select id from public.costing_matrices where opportunity_id = p_subject or (opportunity_id is null and id = p_subject)
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_technical_list()
  RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, client_name text, stage text, team text, rows_total integer, rows_judged integer, approved boolean, is_mine boolean, rows_deviates integer, compliance text)
  LANGUAGE plpgsql
@@ -12448,6 +13008,7 @@ CREATE OR REPLACE FUNCTION public.costing_tier(p_opportunity_id uuid)
  SET search_path TO 'public'
 AS $function$
   select case
+    when public.costing_is_standalone(p_opportunity_id) then public.costing_standalone_tier(p_opportunity_id)
     when not exists (select 1 from public.sales_opportunities o where o.id = p_opportunity_id) then null
     when public.costing_on_list('final_acquire') or public.costing_is_open(p_opportunity_id) then 'closed_book'
     when exists (
@@ -29870,6 +30431,7 @@ CREATE TRIGGER costing_print_clear_factor AFTER INSERT OR DELETE OR UPDATE ON pu
 CREATE TRIGGER costing_print_clear_final_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('final_approved', 'A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER trg_canvass_null_fill_mark BEFORE UPDATE OF acquire_unit ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION canvass_null_fill_mark();
 CREATE TRIGGER trg_costing_acquire_source BEFORE INSERT OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_set_acquire_source();
+CREATE TRIGGER trg_costing_final_acquire BEFORE INSERT OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_final_acquire_apply();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_bundle_keeps_inclusions();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
@@ -29881,10 +30443,12 @@ CREATE TRIGGER costing_components_cleanup BEFORE DELETE ON public.costing_compon
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER trg_canvass_null_fill_mark BEFORE UPDATE OF offer_specification ON public.costing_components FOR EACH ROW EXECUTE FUNCTION canvass_null_fill_mark();
+CREATE TRIGGER trg_costing_final_acquire_status AFTER UPDATE OF status ON public.costing_components FOR EACH ROW WHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION costing_final_acquire_touch_component();
 CREATE TRIGGER costing_cost_categories_touch BEFORE UPDATE ON public.costing_cost_categories FOR EACH ROW EXECUTE FUNCTION costing_cost_categories_touch();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_cost_row AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_cost_rows_keep_category BEFORE UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_cost_rows_keep_category();
+CREATE TRIGGER costing_cost_rows_percent_unit BEFORE INSERT OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_cost_rows_percent_unit();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'An Acquire changed', 'acquire_unit');
@@ -29898,6 +30462,7 @@ CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costi
 CREATE TRIGGER costing_inclusion_needs_bundle BEFORE INSERT OR UPDATE OF component_id ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_inclusion_needs_bundle();
 CREATE TRIGGER costing_landed_defaults_stamp BEFORE INSERT OR UPDATE ON public.costing_landed_defaults FOR EACH ROW EXECUTE FUNCTION costing_landed_defaults_stamp();
 CREATE TRIGGER costing_markup_presets_touch BEFORE UPDATE ON public.costing_markup_presets FOR EACH ROW EXECUTE FUNCTION costing_markup_presets_touch();
+CREATE TRIGGER costing_abc_moved AFTER UPDATE OF abc_mode, abc_total ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_abc_moved_matrix();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_check_technical_incharge BEFORE INSERT OR UPDATE OF technical_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_technical_incharge();
@@ -29911,15 +30476,18 @@ CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.c
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_matrix_money_touch BEFORE UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
 CREATE TRIGGER costing_print_clear_default_factor AFTER UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'A markup factor changed', 'default_factor');
+CREATE TRIGGER trg_costing_final_acquire_percent AFTER INSERT OR UPDATE OF final_acquire_percent ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_final_acquire_touch_matrix();
 CREATE TRIGGER costing_settings_stamp BEFORE UPDATE ON public.costing_settings FOR EACH ROW EXECUTE FUNCTION costing_settings_stamp();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_signoffs_guard BEFORE UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_signoffs_guard();
+CREATE TRIGGER costing_abc_moved AFTER INSERT OR DELETE OR UPDATE OF abc_unit ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_abc_moved_price();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'final_offer_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_final_offer_log AFTER INSERT OR UPDATE OF final_offer_unit ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_log_final_offer_change();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('prepared,final_approved', 'The Final Offer changed', 'final_offer_unit');
+CREATE TRIGGER costing_abc_moved AFTER INSERT OR DELETE OR UPDATE OF quantity ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_abc_moved_line();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_clear_evaluation_lines AFTER INSERT OR DELETE OR UPDATE OF tender_specification ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();

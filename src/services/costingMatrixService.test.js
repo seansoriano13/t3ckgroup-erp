@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { CostingBandError, CostingRuleError, costingMatrixService, toBandError, toRuleError } from "./costingMatrixService"
+import { CostingBandError, CostingRuleError, StandaloneStartError, costingMatrixService, toBandError, toRuleError } from "./costingMatrixService"
 import { opportunityService } from "./opportunityService"
 import { db, deleteRows } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc"
-import { stubRpc } from "@/test/msw/server"
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { COSTING_TIER } from "@/constants/costing"
 
 /**
@@ -419,7 +419,7 @@ describe("costingMatrixService", () => {
 
       stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing"] });
       const odoo = await costingMatrixService.updateComponent(id, { odooUnit: 6 }).catch((e) => e);
-      expect(odoo.message).toBe("Odoo unit cost is written by Sales (the Deal Team).");
+      expect(odoo.message).toBe("Odoo SRP is written by Sales (the Deal Team).");
       stubCostingMatrixRpcs({ tier: COSTING_TIER.COST, bands: ["purchasing", "markup"] });
       await costingMatrixService.updateComponent(id, { markupFactor: 2 });
       const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Permits" });
@@ -476,14 +476,23 @@ describe("costingMatrixService", () => {
 
     const read = () => costingMatrixService.get(opportunity.id);
 
+    /** One Other costs row of 100,000 and Marketing typed as 0: the two inputs the sheet's Revenue needs besides the Components (#964). */
+    const fillTheRest = async () => {
+      const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge", quantity: 1 });
+      await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 100000 });
+      await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 0 });
+    };
+
     it("works the summary for Closed Book from the rates, to the centavo (#229 sample)", async () => {
       db.seed("costing_settings", { id: 1 });
       const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1 });
       await costingMatrixService.updateComponent(component, { finalAcquireUnit: 2338500 });
+      await fillTheRest();
 
       const { summary, money } = await read();
       expect(money).toMatchObject({ matrix_id: matrix.id });
-      expect(summary).toMatchObject({ finalOfferTotal: 2980000, operationalExpenses: 2338500, revenue: 423100, itr: 218400, tax: 178800 });
+      // VAT-exclusive 2,660,714.29 - OPEX (29,800 + 2,338,500 + 100,000 + 0) - ITR 218,400
+      expect(summary).toMatchObject({ finalOfferTotal: 2980000, landedCost: 2338500, projectExpenses: 100000, opex: 2468300, revenue: -25985.71, itr: 218400, tax: 159642.86, goLinePercent: 20 });
       expect(summary.percentOfAbc.toFixed(1)).toBe("93.1");
       expect(summary.incomplete).toMatchObject({ missingCost: 0, missingOffer: 0 });
     });
@@ -493,20 +502,20 @@ describe("costingMatrixService", () => {
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1 });
       const { summary } = await read();
       expect(summary.incomplete.missingCost).toBe(1);
-      expect(summary).toMatchObject({ operationalExpenses: null, revenue: null, collected: 2771400, vatExclusive: 2660714.29 });
+      expect(summary).toMatchObject({ landedCost: null, opex: null, revenue: null, collected: 2790557.14, vatExclusive: 2660714.29 });
     });
 
-    it("counts a cost-only row's Final Acquire in Operational Expenses, and Marketing and OPEX as typed", async () => {
+    it("counts an Other costs row in Project expenses, and Marketing as typed; OPEX is worked out (#964)", async () => {
       db.seed("costing_settings", { id: 1 });
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2000000 });
       const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery Charge", quantity: 1 });
-      expect((await read()).summary.incomplete.missingCost).toBe(1);
+      expect((await read()).summary.incomplete.noExpenses).toBe(true);
 
       await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 100000 });
-      await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 12000.5, opex: 8000 });
+      await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 12000.5 });
       const { summary } = await read();
-      // (2,980,000 - 2,100,000) - ITR of 218,400
-      expect(summary).toMatchObject({ operationalExpenses: 2100000, marketing: 12000.5, opex: 8000, revenue: 661600 });
+      // VAT-exclusive 2,660,714.29 - OPEX (29,800 + 2,000,000 + 100,000 + 12,000.50) - ITR 218,400
+      expect(summary).toMatchObject({ landedCost: 2000000, projectExpenses: 100000, marketing: 12000.5, opex: 2141800.5, revenue: 300513.79 });
 
       await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: null });
       expect((await read()).summary.marketing).toBeNull();
@@ -515,16 +524,18 @@ describe("costingMatrixService", () => {
     it("changes the figures when a rate changes", async () => {
       db.seed("costing_settings", { id: 1 });
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2338500 });
-      expect((await read()).summary.tax).toBe(178800);
+      await fillTheRest();
+      expect((await read()).summary.tax).toBe(159642.86);
 
-      const changed = await costingMatrixService.setSettings({ taxRate: 0.05, itrAllowance: 0 });
-      expect(changed).toMatchObject({ taxRate: 0.05, itrAllowance: 0, vatDivisor: 1.12, retentionRate: 0.01, itrRate: 0.08 });
-      expect((await read()).summary).toMatchObject({ tax: 149000, itr: 238400, revenue: 403100 });
+      const changed = await costingMatrixService.setSettings({ taxRate: 0.05, itrAllowance: 0, goLinePercent: 25 });
+      expect(changed).toMatchObject({ taxRate: 0.05, itrAllowance: 0, vatDivisor: 1.12, retentionRate: 0.01, itrRate: 0.08, goLinePercent: 25 });
+      expect((await read()).summary).toMatchObject({ tax: 133035.71, itr: 238400, revenue: -45985.71, goLinePercent: 25 });
     });
 
     it("falls back to the sheet's rates when the row cannot be read", async () => {
       await costingMatrixService.addComponent(lineId, { name: "Vehicle", quantity: 1, finalAcquireUnit: 2338500 });
-      expect((await read()).summary.revenue).toBe(423100);
+      await fillTheRest();
+      expect((await read()).summary).toMatchObject({ revenue: -25985.71, goLinePercent: 20 });
     });
 
     it("gives every other tier no summary and no Marketing or OPEX, the keys absent", async () => {
@@ -548,6 +559,8 @@ describe("costingMatrixService", () => {
     it("writes Final Acquire through updateComponent and updateCostRow, and refuses a Technical caller", async () => {
       const component = await costingMatrixService.addComponent(lineId, { name: "Vehicle" });
       const rowId = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Permits" });
+      // The decider list types a Component's Final Acquire over the rule (#962).
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management"] });
       await costingMatrixService.updateComponent(component, { finalAcquireUnit: 100 });
       await costingMatrixService.updateCostRow(rowId, { finalAcquireUnit: 7 });
       const shaped = await read();
@@ -557,7 +570,7 @@ describe("costingMatrixService", () => {
       stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["technical"] });
       const refused = await costingMatrixService.updateComponent(component, { finalAcquireUnit: 1 }).catch((e) => e);
       expect(refused).toBeInstanceOf(CostingBandError);
-      expect(refused.message).toBe("Final cost is written by Sales (the Deal Team) or Purchasing or the decider list.");
+      expect(refused.message).toBe("Final Acquire is written by the decider list.");
       const marketing = await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 1 }).catch((e) => e);
       expect(marketing).toBeInstanceOf(CostingBandError);
       expect(marketing.message).toBe("Marketing is written by Finance or Sales (the Deal Team) or Purchasing or the decider list.");
@@ -895,8 +908,12 @@ describe("costingMatrixService", () => {
     });
 
     it("refuses a Go on a loss to anyone but a Super Admin or the decider list, in words, and still takes a Revise (#880)", async () => {
-      // Final Offers total 3,942.88; a Component at 4,000 Final Acquire makes the planned revenue a loss.
+      // Final Offers total 3,942.88; a Component at 4,000 Final Acquire makes the planned revenue a loss. Revenue is only
+      // worked once Project expenses and Marketing are in (#964), so the sheet has an Other costs row and Marketing at 0.
+      db.seed("costing_cost_rows", { id: "cost-row-880", matrix_id: matrix.id, position: 1, description: "Delivery", quantity: 1, acquire_unit: 100 });
+      db.seed("costing_matrix_money", { matrix_id: matrix.id, marketing: 0 });
       const component = await costingMatrixService.addComponent(lineId, { name: "Head", quantity: 1 });
+      stubCostingMatrixRpcs({ tier: COSTING_TIER.CLOSED_BOOK, bands: ["sales", "purchasing", "management"] });
       await costingMatrixService.updateComponent(component, { finalAcquireUnit: 4000 });
       // A cost change clears the evaluation approval (#881), so approve it again for the Go.
       db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: salesperson.id });
@@ -927,3 +944,70 @@ describe("costingMatrixService", () => {
     });
   });
 });
+
+describe("starting an evaluation from an S0 (#966)", () => {
+  const ids = { salesIncharge: "emp-sales", pmsIncharge: "emp-pms" }
+  const start = (s0Number) => costingMatrixService.startStandalone({ s0Number, ...ids })
+  const kindOf = async (promise) => {
+    const error = await promise.then(
+      () => null,
+      (e) => e,
+    )
+    expect(error).toBeInstanceOf(StandaloneStartError)
+    return error.kind
+  }
+
+  beforeEach(() => {
+    stubRpc("costing_s0_existing", null)
+  })
+
+  it("says it is not an S0 number before asking anything", async () => {
+    expect(await kindOf(start("SOR-12"))).toBe("not_s0")
+    expect(await kindOf(start(""))).toBe("not_s0")
+  })
+
+  it("says Odoo has no such S0, apart from Odoo being unreachable", async () => {
+    stubEdgeFunction("odoo-sor-lookup", { success: false, found: false, message: 'No Odoo quotation found matching "S09999".' })
+    expect(await kindOf(start("s09999"))).toBe("not_found")
+
+    stubEdgeFunction("odoo-sor-lookup", { success: false, message: "Odoo integration is not configured on the server." })
+    expect(await kindOf(start("S09999"))).toBe("odoo_down")
+  })
+
+  it("hands the database the lines Odoo sent, and returns what to open", async () => {
+    let sent
+    stubEdgeFunction("odoo-sor-lookup", {
+      success: true,
+      found: true,
+      items: [{ product_name: "Rescue vehicle", quantity: 2, unit: "Unit", odoo_product_id: 4242, odoo_line_id: 91001 }],
+    })
+    stubRpc("costing_standalone_open", (args) => {
+      sent = args
+      return { subject_id: "m-1", matrix_id: "m-1", existed: false, standalone: true }
+    })
+
+    const result = await start(" s09001 ")
+
+    expect(result).toEqual({ subjectId: "m-1", existed: false, standalone: true })
+    expect(sent).toMatchObject({ p_s0_number: "S09001", p_sales_incharge: "emp-sales", p_pms_incharge: "emp-pms" })
+    expect(sent.p_lines).toEqual([{ name: "Rescue vehicle", quantity: 2, unit: "Unit", odoo_product_id: 4242, odoo_line_id: 91001 }])
+  })
+
+  it("opens the evaluation the S0 already has, without asking Odoo", async () => {
+    stubRpc("costing_s0_existing", { subject_id: "sor-7", matrix_id: "m-7", standalone: false })
+    stubEdgeFunction("odoo-sor-lookup", () => {
+      throw new Error("Odoo should not be asked")
+    })
+    expect(await start("S09001")).toEqual({ subjectId: "sor-7", existed: true, standalone: false })
+  })
+
+  it("puts a refusal from the database in words", async () => {
+    stubEdgeFunction("odoo-sor-lookup", { success: true, found: true, items: [] })
+    stubRpc("costing_standalone_open", () => {
+      const error = new Error("costing_standalone: only Super Admins, Purchasing, the Deal Team and the decider list start an evaluation")
+      error.code = "42501"
+      throw error
+    })
+    await expect(start("S09001")).rejects.toThrow(/^Only Super Admins/)
+  })
+})

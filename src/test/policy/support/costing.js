@@ -15,7 +15,7 @@
 import { sql } from "./stack.js"
 
 /** Deletes the matrices (and everything under them) for the given SOR ids, plus events the given actors wrote. */
-async function purge(client, { sorIds = null, emailLike = null } = {}) {
+async function purge(client, { sorIds = null, matrixIds: byMatrix = null, emailLike = null } = {}) {
     const { rows: registered } = await client.query(
         `select table_name, parent_table from public.costing_tables where table_name <> 'costing_matrices'`,
     )
@@ -29,6 +29,10 @@ async function purge(client, { sorIds = null, emailLike = null } = {}) {
     if (sorIds) {
         args.push(sorIds)
         matrixFilter.push(`opportunity_id = any($${args.length}::uuid[])`)
+    }
+    if (byMatrix) {
+        args.push(byMatrix)
+        matrixFilter.push(`id = any($${args.length}::uuid[])`)
     }
     if (emailLike) {
         args.push(emailLike)
@@ -87,6 +91,12 @@ async function withoutTriggers(work) {
     } finally {
         client.release()
     }
+}
+
+/** Removes Costing Matrices by their own ids (standalone ones have no SOR to go by), with their history. */
+export async function purgeCostingMatrices(matrixIds) {
+    if (!matrixIds?.length) return
+    await withoutTriggers((client) => purge(client, { matrixIds }))
 }
 
 /** Removes the Costing Matrices of the given SORs, with their history. */

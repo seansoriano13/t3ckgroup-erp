@@ -866,7 +866,10 @@ reference material in [docs/procurement-glossary.md](docs/procurement-glossary.m
 
 **ABC (Approved Budget for the Contract)**:
 The ceiling a government client publishes for a project. A bid above it is
-disqualified, so it is a constraint on the offer, never merely a column.
+disqualified, so it is a constraint on the offer, never merely a column. It can be
+typed per Tender Line, or as one total when the client publishes only a total
+(an evaluation's "Total only" mode). Per-line values typed earlier are kept and
+come back in "By line"; a typed total is never spread over the lines.
 _Avoid_: Budget, Client Budget
 
 **Notice of Award**:
@@ -1155,12 +1158,40 @@ prices, and only the Closed Book the summary and the spread between the two;
 anyone else called into the SOR sees the matrix without money. Besides its place
 on each SOR, the Closed Book has an S0 Evaluation page listing every SOR's
 matrix with its Planned and Actual Revenue.
+It can also stand alone (ADR 0052): started from just an S0 number, with the lines and
+quantities pulled from that sale order in Odoo, one evaluation per S0 and no SOR. A
+standalone evaluation names a Sales incharge and a PMS incharge when it is started
+(changeable after). Its readers: the person who started it and the Sales incharge
+read the price side; the PMS incharge and anyone with Purchasing access read the cost
+side; the decider list and Super Admins read everything (the Closed Book); the
+Technical in-charge and the Evaluation list read it without money. Anyone else reads
+nothing. "Link to a SOR" attaches it to a SOR that has none; from then on the SOR's
+rules decide and the standalone readers no longer apply. The list marks standalone
+ones "No SOR" and filters on it.
 _Avoid_: Costing Matrix (the old name), PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
 
+**Revenue**:
+The S0 Evaluation summary's bottom line, worked the way the sheet works it:
+the VAT-exclusive offer (Final Offer ÷ 1.12) less OPEX less ITR. The bid goes
+ahead when Revenue is 20% of the Final Offer or more (the Go line, set in S0
+Evaluation Settings); under it the Bid Decision shows "Revenue ÷ Final Offer"
+with a warning, and a Go is never blocked. A blank input blanks Revenue and the
+summary says why; a blank is never zero.
+_Avoid_: Margin, Profit, Net
+
+**OPEX**:
+In the S0 Evaluation summary, worked out and never typed: the retention plus
+the Landed Cost (planned) plus the project expenses plus Marketing. Marketing is
+the only part typed on the summary. The old typed OPEX field is gone; its values
+stay in the database but nothing reads them.
+_Avoid_: Operational Expenses (the old line, which was the cost total alone)
+
 **Planned Revenue / Actual Revenue**:
-The S0 Evaluation summary's Revenue worked two ways, side by side. Planned
-Revenue takes each item's cost as its Final Acquire, what Purchasing expected to
-pay; Actual Revenue takes its Landed Cost, what was really paid. Actual is an
+The S0 Evaluation summary's Revenue worked two ways, side by side, by the same
+formula. Planned Revenue takes the Landed Cost (planned), the Final Acquire total
+of the Components, what Purchasing expected to pay; Actual Revenue swaps in the
+Landed Cost of the items bought, what was really paid. Project expenses and
+Marketing are the same in both. Actual is an
 estimate while any of the SOR's IPAS has not reached LC Odoo Done, and an item
 nobody has bought yet counts at its Final Acquire, marked not bought yet. The
 gap between the two is what buying cost or saved against the plan.
@@ -1200,12 +1231,29 @@ component it buys for, and the Landed Cost of the purchase arrives beside the
 component's estimates without replacing any of them.
 _Avoid_: Offer component, Part, Sub-item, Child row
 
+**Odoo SRP**:
+The ODOO column of the S0 Evaluation: the product's Sales Price in Odoo
+(`list_price`), taken as is, pulled from Odoo for every line linked to an Odoo
+product and typed by Sales where there is none. Shown per unit and as a total.
+It is not a cost: no cost, markup or Final Acquire reads it as one. Acquire
+filled from Odoo still reads Odoo's cost (`standard_price`), a separate figure.
+_Avoid_: Odoo cost, Odoo unit cost
+
 **Final Acquire**:
 The cost Management sets on a Component — the figure the S0 Evaluation summary
-reads as Operational Expenses and takes Revenue from. Written only by the people
-on the list Super Admins keep for it, never by a whole role. Neither Acquire,
-which is Purchasing's proposed cost and the one markup is taken from, nor Landed
-Cost, which is what the item turned out to cost once bought.
+reads as the Landed Cost (planned), and the OPEX and Revenue that follow. It is filled by a rule,
+per line, from the Status: Stockable is the Odoo SRP plus or minus a percent
+(the evaluation has one default, starting at minus 20%, and a line may carry its
+own); Source Out is the line's Acquire as is, the attached P0's price when
+there is one, with no percent; no Status yet is blank, and the cell says to pick
+one. A rule-filled value is worked again whenever the SRP, the percent, the
+Status or the Acquire changes. Anyone on the list Super Admins keep for it can
+type over a line; a typed value wins over the rule, is marked typed, never
+moves, and goes back to the rule on "Back to the rule". Values stored before the
+rule are kept as typed. A blank on any line makes the total unknown, never
+smaller. Written only by the people on that list, never by a whole role. Neither
+Acquire, which is Purchasing's proposed cost and the one markup is taken from,
+nor Landed Cost, which is what the item turned out to cost once bought.
 _Avoid_: Final Cost, Approved Cost, Management Price
 
 **Closed Book**:
@@ -1429,3 +1477,5 @@ side; not real time. The thread also shows when the report was ticked Resolved
 or Reopened. The sender sees their own reports, and only those, under My Bug
 Reports so they can reply.
 _Avoid_: Comment, Chat, Message
+
+**Project expenses (#963, spec #955):** the sum of every Other costs row, Equipment & Tools included. An Other costs row can be typed as a **% of ABC** (`costing_cost_rows.abc_pct`, same tiers and Purchasing band as its Acquire): its amount is the percent times the ABC total (the typed total in Total only, the sum of the lines in By line), worked again whenever the ABC changes, and blank (never zero) while the ABC is unknown. Typing the peso amount by hand clears the percent. "Add the usual rows" adds one blank row for each of Labor, Logistics, Equipment & Tools, Permits and Overhead that has none.

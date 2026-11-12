@@ -7,7 +7,8 @@ import ConfirmDialog from "../../ui/ConfirmDialog";
 import { SelectField } from "../../ui/SelectField";
 import { costingKeys } from "../costingKeys";
 import { costingMatrixService } from "../../../services/costingMatrixService";
-import { COST_ROW_BANDS, ROW_EDIT_BANDS, inAnyBand, tierReadsCostRow } from "../../../constants/costing";
+import { COST_ROW_BANDS, ROW_EDIT_BANDS, USUAL_COST_CATEGORIES, inAnyBand, tierReadsCostRow } from "../../../constants/costing";
+import { usualRowsToAdd } from "../../../utils/costingMath";
 import { cn } from "../../../lib/utils";
 import { Cell, Readout } from "../GridCell";
 import { pesos } from "../gridFormat";
@@ -34,11 +35,13 @@ export default function OtherCosts({ matrix, writes }) {
   });
   const categoryOptions = categories.map((c) => ({ value: c.key, label: c.label }));
 
-  const { bands, tier, costRows, costRowsTotals } = matrix;
+  const { bands, tier, costRows } = matrix;
   const canEditRows = inAnyBand(bands, ROW_EDIT_BANDS);
   const can = (column) => inAnyBand(bands, COST_ROW_BANDS[column]);
   const showAcquire = tierReadsCostRow(tier, "acquire_unit");
   const showFinal = tierReadsCostRow(tier, "final_acquire_unit");
+  const showPct = tierReadsCostRow(tier, "abc_pct");
+  const missingUsual = usualRowsToAdd(costRows, USUAL_COST_CATEGORIES).filter((key) => categories.some((c) => c.key === key));
 
   if (costRows.length === 0 && !canEditRows) return null;
 
@@ -47,10 +50,24 @@ export default function OtherCosts({ matrix, writes }) {
     await refresh();
   };
 
+  // A percent row's peso amount is worked by the database (it follows the percent, the quantity and the ABC), so only the percent is sent (#963).
+  const savePercent = (row, value) => save(row, { abcPct: value });
+  // Typing the peso amount by hand clears the percent.
+  const saveAmount = (row, value) => save(row, row.abc_pct == null ? { acquireUnit: value } : { acquireUnit: value, abcPct: null });
+  const saveQuantity = (row, value) => save(row, { quantity: value });
+  const addUsual = () =>
+    run(async () => {
+      for (const key of missingUsual) {
+        const label = categories.find((c) => c.key === key)?.label ?? "";
+        await costingMatrixService.addCostRow(matrix.matrixId, { description: label, categoryKey: key });
+      }
+    });
+
   const columns = [
     { key: "description", label: "Description", width: "minmax(0,1fr)", wide: true },
     { key: "category", label: "Category", width: "12rem" },
     { key: "quantity", label: "Qty", width: "5rem" },
+    showPct && { key: "pct", label: "% of ABC", width: "6rem" },
     showAcquire && { key: "acquire", label: "Acquire / unit", width: "9rem" },
     showFinal && { key: "final", label: "Final cost / unit", width: "9rem" },
     showAcquire && { key: "total", label: "Total", width: "8rem" },
@@ -91,6 +108,12 @@ export default function OtherCosts({ matrix, writes }) {
               <Plus aria-hidden="true" />
               Add another cost
             </Button>
+            {missingUsual.length > 0 && (
+              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={addUsual}>
+                <Plus aria-hidden="true" />
+                Add the usual rows
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -131,12 +154,32 @@ export default function OtherCosts({ matrix, writes }) {
               </div>
               <div>
                 {caption("quantity")}
-                <Cell label={`Other cost ${row.number} quantity`} noun="Quantity" value={row.quantity} numeric required readOnly={!can("quantity")} onSave={(value) => save(row, { quantity: value })} />
+                <Cell label={`Other cost ${row.number} quantity`} noun="Quantity" value={row.quantity} numeric required readOnly={!can("quantity")} onSave={(value) => saveQuantity(row, value)} />
               </div>
+              {showPct && (
+                <div>
+                  {caption("pct")}
+                  <Cell label={`Other cost ${row.number} percent of ABC`} noun="Percent of ABC" value={row.abc_pct} numeric placeholder="%" readOnly={!can("abc_pct")} onSave={(value) => savePercent(row, value)} />
+                </div>
+              )}
               {showAcquire && (
                 <div>
                   {caption("acquire")}
-                  <Cell label={`Other cost ${row.number} Acquire`} noun="Acquire" value={row.acquire_unit} numeric money placeholder="0.00" readOnly={!can("acquire_unit")} onSave={(value) => save(row, { acquireUnit: value })} />
+                  <Cell
+                    label={`Other cost ${row.number} Acquire`}
+                    noun="Acquire"
+                    value={row.acquire_unit}
+                    numeric
+                    money
+                    placeholder={row.abcMissing ? "ABC missing" : "0.00"}
+                    readOnly={!can("acquire_unit")}
+                    onSave={(value) => saveAmount(row, value)}
+                  />
+                  {row.abc_pct != null && (
+                    <p className="mt-1 text-xs text-muted-foreground" data-testid="cost-row-pct-note">
+                      {row.abcMissing ? `${Number(row.abc_pct)}% of ABC: the ABC is missing` : `${Number(row.abc_pct)}% of ABC`}
+                    </p>
+                  )}
                 </div>
               )}
               {showFinal && (
@@ -169,8 +212,8 @@ export default function OtherCosts({ matrix, writes }) {
           ))}
           {showAcquire && (
             <div className="flex items-center justify-between gap-4 rounded-b-xl bg-muted/40 px-4 py-2.5" data-testid="cost-row-totals">
-              <span className={CAPTION}>Other costs total</span>
-              <span className="text-sm font-semibold tabular-nums text-foreground">{pesos(costRowsTotals.acquireTotal)}</span>
+              <span className={CAPTION}>Project expenses total</span>
+              <span className="text-sm font-semibold tabular-nums text-foreground">{pesos(matrix.projectExpensesTotal)}</span>
             </div>
           )}
         </div>

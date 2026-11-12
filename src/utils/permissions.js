@@ -49,6 +49,9 @@ export function getPermissionContext(user) {
   // The Technical page: the in-charge gives the verdict there, the Evaluation list approves it. Super Admins read it all.
   const canOpenTechnical = isSuperAdmin || isTechnicalIncharge || isOnEvaluationList;
   const isBidDecider = isSuperAdmin || isFinalAcquire || isCostingOpen;
+  // Named on, or started, a standalone S0 Evaluation (#966); derived by employeeService. Reaches the S0 Evaluation page for those.
+  const isStandaloneReader = !!(user?.is_standalone_reader ?? user?.isStandaloneReader);
+  const canOpenCostingPage = isBidDecider || isStandaloneReader;
   const hasRetailAccess = !!(user?.has_retail_access ?? user?.hasRetailAccess);
   const hasBugReportAccess = !!(user?.has_bug_report_access ?? user?.hasBugReportAccess);
   const canEditSalesFlows = !!(user?.can_edit_sales_flows || user?.canEditSalesFlows);
@@ -77,6 +80,8 @@ export function getPermissionContext(user) {
     isFinalAcquire,
     isCostingOpen,
     isBidDecider,
+    isStandaloneReader,
+    canOpenCostingPage,
     isTechnicalIncharge,
     isOnEvaluationList,
     canOpenTechnical,

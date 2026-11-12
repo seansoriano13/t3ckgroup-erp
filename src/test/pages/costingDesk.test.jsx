@@ -27,6 +27,13 @@ function openDesk(deal) {
   return renderCostingDesk(deal);
 }
 
+/** The rest of the sheet's Revenue (#964): one Other costs row at the given amount, and Marketing typed as 0. */
+function seedRestOfSheet(matrixId, expenses = 50000) {
+  if (!db.rows("costing_cost_categories").some((c) => c.key === "delivery")) db.seed("costing_cost_categories", { key: "delivery", label: "Delivery", low_pct: 1, high_pct: 5, sort: 1 });
+  db.seed("costing_cost_rows", { matrix_id: matrixId, position: 1, category_key: "delivery", description: "Delivery", quantity: 1, final_acquire_unit: expenses });
+  db.seed("costing_matrix_money", { matrix_id: matrixId, marketing: 0 });
+}
+
 describe("the Costing Desk", () => {
   let deal;
 
@@ -178,7 +185,7 @@ describe("the Costing Desk", () => {
     await waitFor(() => {
       expect(screen.getAllByText("₱850.00").length).toBeGreaterThan(0);
     });
-    expect(await screen.findByText(/1 cost filled from Odoo/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 line updated from Odoo/)).toBeInTheDocument();
   });
 
   it("updates the screen at once when Refresh from the SOR is pressed (#834)", async () => {
@@ -215,7 +222,7 @@ describe("the Costing Desk", () => {
     await waitFor(() => {
       expect(screen.getAllByText("₱950.00").length).toBeGreaterThan(0);
     });
-    expect(await screen.findByText(/1 cost filled from Odoo/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 line updated from Odoo/)).toBeInTheDocument();
   });
 
   it("shows what the SOR line now says when the Product List changed", async () => {
@@ -302,9 +309,9 @@ describe("the Costing Desk", () => {
       expect(within(rows[0]).getByLabelText("Component name 1.1")).toHaveValue("4x4 pick-up");
       expect(within(rows[0]).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
       expect(within(rows[0]).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
-      expect(within(rows[0]).getByLabelText("P.O./RFQ No. 1.1")).toHaveValue("RFQ-2231");
+      expect(within(rows[0]).queryByLabelText("P.O./RFQ No. 1.1")).toBeNull();
       expect(within(rows[0]).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
-      expect(within(rows[0]).getByLabelText("Odoo unit cost 1.1")).toHaveValue(2200000);
+      expect(within(rows[0]).getByLabelText("Odoo SRP 1.1")).toHaveValue(2200000);
       // The bundle at 1 x 2,160,500 totals 2,160,500, never 0.00; the part with no Acquire shows a dash.
       expect(within(rows[0]).getByText("₱2,160,500.00")).toBeInTheDocument();
       expect(within(rows[1]).getByText("₱120,000.00")).toBeInTheDocument();
@@ -314,7 +321,7 @@ describe("the Costing Desk", () => {
 
       // Each part's fields sit under the band that writes them.
       expect(within(rows[0]).getByRole("region", { name: "Sales" })).toHaveTextContent("Brand");
-      expect(within(rows[0]).getByRole("region", { name: "Purchasing" })).toHaveTextContent("P.O./RFQ No.");
+      expect(within(rows[0]).getByRole("region", { name: "Purchasing" })).toHaveTextContent("Source");
       expect(within(rows[0]).getByRole("region", { name: "Purchasing" })).toHaveTextContent("Acquire / unit");
     });
 
@@ -329,11 +336,10 @@ describe("the Costing Desk", () => {
       const row = within(block).getAllByTestId("component")[0];
       // Sales writes Brand and the Odoo unit cost.
       expect(within(row).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
-      expect(within(row).getByLabelText("Odoo unit cost 1.1")).toHaveValue(2200000);
+      expect(within(row).getByLabelText("Odoo SRP 1.1")).toHaveValue(2200000);
       // Purchasing's columns read as text.
       expect(within(row).getByLabelText("Offer Specification 1.1").tagName).toBe("SPAN");
-      expect(within(row).getByLabelText("P.O./RFQ No. 1.1").tagName).toBe("SPAN");
-      expect(within(row).getByLabelText("Availability 1.1")).toHaveTextContent("For Order");
+      expect(within(row).queryByLabelText("Availability 1.1")).toBeNull();
       expect(within(row).getByLabelText("Source 1.1")).toHaveTextContent("Import");
       // No Acquire, no Final Acquire, no factor: not hidden, absent. The peso Markup Price is there (#269).
       expect(within(block).queryByLabelText("Acquire 1.1")).not.toBeInTheDocument();
@@ -353,7 +359,7 @@ describe("the Costing Desk", () => {
       const row = within(await screen.findByTestId("components")).getAllByTestId("component")[0];
       // Brand is written by Sales and Purchasing; the Odoo unit cost stays Sales'.
       expect(within(row).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
-      expect(within(row).getByLabelText("Odoo unit cost 1.1").tagName).toBe("SPAN");
+      expect(within(row).getByLabelText("Odoo SRP 1.1").tagName).toBe("SPAN");
       expect(within(row).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
       expect(within(row).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
     });
@@ -621,7 +627,8 @@ describe("the Costing Desk", () => {
     let component;
 
     // One Tender Line at a Final Offer of 2,980,000 against an ABC of 3,200,000, with one Component.
-    function seedSummary({ finalAcquire = null, acquire = 2300000, extraLine = false } = {}) {
+    // With `sheet`, also one Other costs row of 50,000 and Marketing typed as 0: the rest of the sheet's Revenue (#964).
+    function seedSummary({ finalAcquire = null, acquire = 2300000, extraLine = false, sheet = false } = {}) {
       matrix = db.seed("costing_matrices", { opportunity_id: deal.id });
       db.seed("costing_settings", { id: 1 });
       const line = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 1, tender_specification: "Rescue vehicle", unit: "unit", quantity: 1 });
@@ -632,6 +639,7 @@ describe("the Costing Desk", () => {
       }
       component = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "4x4 pick-up", quantity: 1, unit: "unit" });
       db.seed("costing_component_costs", { component_id: component.id, acquire_unit: acquire, final_acquire_unit: finalAcquire });
+      if (sheet) seedRestOfSheet(matrix.id);
     }
 
     it("renders the incomplete summary in words while a Component has no cost (#787: Acquire stands in for Final Acquire)", async () => {
@@ -642,60 +650,67 @@ describe("the Costing Desk", () => {
       await openLines();
 
       const summary = await screen.findByTestId("costing-summary");
-      expect(within(summary).getByTestId("summary-revenue")).toHaveTextContent("Incomplete — 1 row has no cost");
-      expect(within(summary).getByTestId("summary-opex-total")).toHaveTextContent("Incomplete — 1 row has no cost");
+      expect(within(summary).getByTestId("summary-revenue")).toHaveTextContent("Incomplete — 1 Component has no Final Acquire");
+      expect(within(summary).getByTestId("summary-landed-cost")).toHaveTextContent("Incomplete — 1 Component has no Final Acquire");
+      expect(within(summary).getByTestId("summary-revenue-percent")).toHaveTextContent("Incomplete — 1 Component has no Final Acquire");
       // The offer figures still work, to the centavo.
       expect(within(summary).getByTestId("summary-final-offer")).toHaveTextContent("₱2,980,000.00");
       expect(within(summary).getByTestId("summary-vat")).toHaveTextContent("₱2,660,714.29");
-      expect(within(summary).getByTestId("summary-tax")).toHaveTextContent("₱178,800.00");
+      expect(within(summary).getByTestId("summary-tax")).toHaveTextContent("₱159,642.86");
       expect(within(summary).getByTestId("summary-retention")).toHaveTextContent("₱29,800.00");
-      expect(within(summary).getByTestId("summary-collected")).toHaveTextContent("₱2,771,400.00");
+      expect(within(summary).getByTestId("summary-collected")).toHaveTextContent("₱2,790,557.14");
       expect(within(summary).getByTestId("summary-itr")).toHaveTextContent("₱218,400.00");
     });
 
-    it("shows Revenue and the ABC gauge once every cost is in (#229 sample)", async () => {
-      seedSummary({ finalAcquire: 2338500 });
+    it("shows Revenue, Revenue ÷ Final Offer and the ABC gauge once every cost is in (#229 sample)", async () => {
+      seedSummary({ finalAcquire: 2338500, sheet: true });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
       openDesk(deal);
 
       await openLines();
 
       const summary = await screen.findByTestId("costing-summary");
-      expect(within(summary).getByTestId("summary-opex-total")).toHaveTextContent("₱2,338,500.00");
-      expect(within(summary).getByTestId("summary-revenue")).toHaveTextContent("₱423,100.00");
+      expect(within(summary).getByTestId("summary-landed-cost")).toHaveTextContent("₱2,338,500.00");
+      expect(within(summary).getByTestId("summary-project-expenses")).toHaveTextContent("₱50,000.00");
+      // OPEX = retention 29,800 + 2,338,500 + 50,000 + 0
+      expect(within(summary).getByTestId("summary-opex")).toHaveTextContent("₱2,418,300.00");
+      expect(within(summary).getByTestId("summary-revenue")).toHaveTextContent("₱24,014.29");
+      expect(within(summary).getByTestId("summary-revenue-percent")).toHaveTextContent("0.81%");
       expect(within(summary).queryByText(/Incomplete/)).not.toBeInTheDocument();
       expect(screen.getByText("93.1% of the ABC")).toBeInTheDocument();
     });
 
     it("marks the offer figures incomplete while a Tender Line has no Final Offer", async () => {
-      seedSummary({ finalAcquire: 2338500, extraLine: true });
+      seedSummary({ finalAcquire: 2338500, extraLine: true, sheet: true });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
       openDesk(deal);
 
       await openLines();
 
       const summary = await screen.findByTestId("costing-summary");
-      for (const id of ["summary-final-offer", "summary-vat", "summary-tax", "summary-retention", "summary-collected", "summary-itr", "summary-revenue"]) {
+      for (const id of ["summary-final-offer", "summary-vat", "summary-tax", "summary-retention", "summary-collected", "summary-itr", "summary-revenue", "summary-revenue-percent"]) {
         expect(within(summary).getByTestId(id), id).toHaveTextContent("Incomplete — 1 tender line has no Final Offer");
       }
     });
 
-    it("lets the Final Acquire list type Marketing, and the summary follows (Final Acquire has left the screen, #703)", async () => {
-      seedSummary({ finalAcquire: 2338500 });
+    it("lets the Final Acquire list type Marketing, and the summary follows (Final Acquire is back on the screen, #962)", async () => {
+      seedSummary({ finalAcquire: 2338500, sheet: true });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management", "finance"] });
       const user = openDesk(deal);
 
       await openLines();
       const row = await screen.findByTestId("component");
-      expect(within(row).queryByLabelText("Final Acquire 1.1")).not.toBeInTheDocument();
-      await waitFor(() => expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱423,100.00"));
+      // The figure is shown to the Closed Book; with no Status the cell says to pick one.
+      expect(within(row).getByLabelText("Final Acquire 1.1")).toHaveValue(2338500);
+      expect(within(row).getByTestId("final-acquire-rule")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱24,014.29"));
 
       await user.type(within(screen.getByTestId("summary-marketing")).getByLabelText("Marketing"), "12000");
       await user.tab();
       await waitFor(() => expect(db.rows("costing_matrix_money")[0]?.marketing).toBe(12000));
     });
 
-    it("makes Marketing and OPEX read-only for a Closed Book reader outside Sales and Purchasing", async () => {
+    it("makes Marketing read-only for a Closed Book reader outside Sales and Purchasing, and OPEX is never typed (#964)", async () => {
       seedSummary({ finalAcquire: 2338500 });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["technical"] });
       openDesk(deal);
@@ -704,7 +719,7 @@ describe("the Costing Desk", () => {
 
       await screen.findByTestId("component");
       expect(within(screen.getByTestId("summary-marketing")).getByLabelText("Marketing").tagName).toBe("SPAN");
-      expect(within(screen.getByTestId("summary-opex")).getByLabelText("OPEX").tagName).toBe("SPAN");
+      expect(within(screen.getByTestId("summary-opex")).queryByLabelText("OPEX")).not.toBeInTheDocument();
     });
 
     it("shows a refused Marketing beside its cell", async () => {
@@ -725,6 +740,7 @@ describe("the Costing Desk", () => {
     it("types another cost's Final Acquire", async () => {
       seedSummary({ finalAcquire: 100 });
       const costRow = db.seed("costing_cost_rows", { matrix_id: matrix.id, position: 1, description: "Delivery Charge", quantity: 1 });
+      db.seed("costing_matrix_money", { matrix_id: matrix.id, marketing: 0 });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "purchasing", "management"] });
       const user = openDesk(deal);
 
@@ -734,8 +750,8 @@ describe("the Costing Desk", () => {
       await user.tab();
 
       await waitFor(() => expect(db.rows("costing_cost_rows").find((r) => r.id === costRow.id).final_acquire_unit).toBe(2500));
-      // (2,980,000 - 2,600) - ITR of 218,400
-      await waitFor(() => expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱2,759,000.00"));
+      // VAT-exclusive 2,660,714.29 - OPEX (29,800 + 100 + 2,500) - ITR 218,400
+      await waitFor(() => expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱2,409,914.29"));
     });
 
     it.each([
@@ -859,6 +875,7 @@ describe("the Costing Desk", () => {
       const line = db.rows("costing_tender_lines")[0];
       const part = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "4x4 pick-up", quantity: 1, unit: "unit" });
       db.seed("costing_component_costs", { component_id: part.id, acquire_unit: 3500000, final_acquire_unit: 3500000 });
+      seedRestOfSheet(matrix.id);
       // A cost change clears the evaluation approval (#881), so the approval is seated again after it.
       db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: decider.id });
     }
@@ -884,6 +901,24 @@ describe("the Costing Desk", () => {
       expect(within(panel).getByTestId("bid-decision-none")).toBeInTheDocument();
     });
 
+    it("shows Revenue ÷ Final Offer beside the verdict buttons, warns under the Go line and never blocks a Go (#964)", async () => {
+      seedPriced();
+      const line = db.rows("costing_tender_lines")[0];
+      const part = db.seed("costing_components", { tender_line_id: line.id, position: 1, name: "4x4 pick-up", quantity: 1, unit: "unit" });
+      db.seed("costing_component_costs", { component_id: part.id, acquire_unit: 2338500, final_acquire_unit: 2338500 });
+      seedRestOfSheet(matrix.id);
+      db.seed("costing_signoffs", { matrix_id: matrix.id, role: "evaluation_approved", signed_by: decider.id });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await screen.findByTestId("bid-decision");
+      // Revenue 24,014.29 of a 2,980,000 offer: under the 20% Go line.
+      expect(within(panel).getByTestId("bid-decision-revenue-percent")).toHaveTextContent("Revenue ÷ Final Offer 0.81%");
+      expect(within(panel).getByTestId("bid-decision-under-go-line")).toHaveTextContent("Under the 20% Go line");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Strategic account");
+      expect(within(panel).getByRole("button", { name: "Go" })).toBeEnabled();
+    });
+
     it("warns on a loss, and lets a Super Admin or the decider list take the Go (#880)", async () => {
       seedLoss();
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: true });
@@ -895,8 +930,8 @@ describe("the Costing Desk", () => {
       await user.click(within(panel).getByRole("button", { name: "Go" }));
 
       const dialog = await screen.findByRole("dialog");
-      // (2,980,000 - 3,500,000) less the ITR of 218,400 on the 2,730,000 above the allowance.
-      expect(within(dialog).getByTestId("bid-decision-go-revenue")).toHaveTextContent("-₱738,400.00");
+      // VAT-exclusive 2,660,714.29 - OPEX (29,800 + 3,500,000 + 50,000 + 0) - ITR 218,400
+      expect(within(dialog).getByTestId("bid-decision-go-revenue")).toHaveTextContent("-₱1,137,485.71");
       expect(within(dialog).getByTestId("bid-decision-go-loss-warning")).toHaveTextContent("loses money");
       await user.click(within(dialog).getByRole("button", { name: "Go" }));
 

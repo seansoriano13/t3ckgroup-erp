@@ -5,7 +5,6 @@ import { Button } from "../../ui/button";
 import { Checkbox } from "../../ui/checkbox";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import {
-  COMPONENT_AVAILABILITY_LABEL,
   COMPONENT_BANDS,
   COMPONENT_COST_BANDS,
   COMPONENT_SOURCE_LABEL,
@@ -17,7 +16,7 @@ import {
   tierReadsLandedCost,
 } from "../../../constants/costing";
 import { unitOptionsWith } from "../../../constants/procurement";
-import { extended } from "../../../utils/costingMath";
+import { DEFAULT_FINAL_ACQUIRE_PERCENT, extended, finalAcquireByRule } from "../../../utils/costingMath";
 import { cn } from "../../../lib/utils";
 import { Cell, Readout, SelectCell, StockBadge } from "../GridCell";
 import { factorLabel, percentLabel, pesos } from "../gridFormat";
@@ -34,7 +33,6 @@ import { costComparisonText } from "../../../utils/costComparison";
 
 const toOptions = (labels) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const STATUS_OPTIONS = toOptions(COMPONENT_STATUS_LABEL);
-const AVAILABILITY_OPTIONS = toOptions(COMPONENT_AVAILABILITY_LABEL);
 const SOURCE_OPTIONS = toOptions(COMPONENT_SOURCE_LABEL);
 
 const CAPTION = "text-balance text-label font-bold uppercase tracking-wider text-muted-foreground";
@@ -75,8 +73,8 @@ export function Band({ title, hint, children, className }) {
 
 /**
  * Everything about one Component (#268), one band per writer: what we supply (name, quantity, the Offer
- * Specification beside the tender's words), Sales (Brand, Status, Odoo unit cost), Purchasing (availability,
- * source, P.O./RFQ, Acquire), the Final Acquire and the Landed Cost the IPAS brought back, the markup,
+ * Specification beside the tender's words), Sales (Brand, Status, Odoo SRP), Purchasing (source,
+ * Acquire), the Final Acquire and the Landed Cost the IPAS brought back, the markup,
  * Technical's verdict, then its Odoo link, bundle and incharge. Under them the Canvass, what is being
  * bought for it and, for a bundle, its Inclusions. A total sits beside its unit figure, never under it. A
  * field outside the viewer's band reads; a cost the tier was never sent is not drawn. Labels end in the
@@ -93,7 +91,12 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
   const canEditRows = inAnyBand(bands, COMPONENT_BANDS.name);
   const showAcquire = tierReadsCost(tier, "acquire_unit");
   const showOdoo = tierReadsCost(tier, "odoo_unit");
-  const showFinal = false; // Final Acquire left the screen (#703); the data stays for a later clean-up.
+  // #962: Final Acquire is back for the Closed Book tier; the decider list types over the rule.
+  const showFinal = tierReadsCost(tier, "final_acquire_unit");
+  const canFinalAcquire = canCost("final_acquire_unit");
+  const finalAcquireTyped = Boolean(component.final_acquire_typed);
+  const ruleValue = finalAcquireByRule(component, matrix.finalAcquirePercent);
+  const finalAcquireHint = component.status ? (component.status === "source_out" ? "Needs the Acquire" : "Needs the Odoo SRP") : "Pick a Status";
   const showFactor = tierReadsCost(tier, "markup_factor");
   const showMarkupPrice = tierReadsCost(tier, "markup_price_unit");
   const showLanded = tierReadsLandedCost(tier);
@@ -173,10 +176,10 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
         </Field>
         {showOdoo && (
           <>
-            <Field label="Odoo cost / unit">
-              <Cell label={label("Odoo unit cost")} noun="Odoo unit cost" value={component.odoo_unit} numeric money placeholder="0.00" readOnly={!canCost("odoo_unit")} onSave={(value) => save({ odooUnit: value })} />
+            <Field label="Odoo SRP / unit">
+              <Cell label={label("Odoo SRP")} noun="Odoo SRP" value={component.odoo_unit} numeric money placeholder="0.00" readOnly={!canCost("odoo_unit")} onSave={(value) => save({ odooUnit: value })} />
             </Field>
-            <Field label="Odoo total">
+            <Field label="Odoo SRP total">
               <Readout>{pesos(component.totals.odooTotal)}</Readout>
             </Field>
           </>
@@ -184,14 +187,10 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
       </Band>
 
       <Band title="Purchasing">
-        <Field label="Availability">
-          <SelectCell label={label("Availability")} value={component.availability} options={AVAILABILITY_OPTIONS} readOnly={!can("availability")} onSave={(value) => save({ availability: value })} />
-        </Field>
         <Field label="Source">
           <SelectCell label={label("Source")} value={component.source} options={SOURCE_OPTIONS} readOnly={!can("source")} onSave={(value) => save({ source: value })} />
         </Field>
-        <Field label="P.O./RFQ No." wide>
-          <Cell label={label("P.O./RFQ No.")} value={component.po_rfq_no} placeholder="Once it is ordered or quoted" readOnly={!can("po_rfq_no")} onSave={(value) => save({ poRfqNo: value })} />
+        <Field label="Bought through" wide>
           <SupplierMismatch mismatch={component.supplierMismatch} />
           <ComponentPurchases component={component} linkIpas={tier !== COSTING_TIER.PARTICIPANT} canPick={inAnyBand(bands, [COSTING_BAND.PURCHASING])} onPicked={refresh} />
         </Field>
@@ -219,13 +218,48 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
       </Band>
 
       {(showFinal || showLanded) && (
-        <Band title="Final cost">
+        <Band title={showFinal ? "Final Acquire" : "Landed Cost"} hint={showFinal ? "The planned cost, by the rule" : undefined}>
           {showFinal && (
             <>
-              <Field label="Final cost / unit">
-                <Cell label={label("Final cost")} noun="Final cost" value={component.final_acquire_unit} numeric money placeholder="0.00" readOnly={!canCost("final_acquire_unit")} onSave={(value) => save({ finalAcquireUnit: value })} />
+              <Field label="Percent on the Odoo SRP">
+                <Cell
+                  label={label("Final Acquire percent")}
+                  noun="The Final Acquire percent"
+                  value={component.final_acquire_percent}
+                  numeric
+                  placeholder={`${matrix.finalAcquirePercent ?? DEFAULT_FINAL_ACQUIRE_PERCENT} (the evaluation's)`}
+                  readOnly={!canFinalAcquire}
+                  onSave={(value) => save({ finalAcquirePercent: value })}
+                />
+                <p className={HINT}>{component.status === "source_out" ? "Not used on a Source Out line." : "Blank follows the evaluation's percent."}</p>
               </Field>
-              <Field label="Final cost total">
+              <Field label="Final Acquire / unit">
+                <Cell
+                  label={label("Final Acquire")}
+                  noun="Final Acquire"
+                  value={component.final_acquire_unit}
+                  numeric
+                  money
+                  placeholder={finalAcquireHint ?? "0.00"}
+                  readOnly={!canFinalAcquire}
+                  onSave={(value) => save({ finalAcquireUnit: value })}
+                />
+                {finalAcquireTyped ? (
+                  <p className={HINT} data-testid="final-acquire-typed">
+                    Typed{ruleValue === null ? "" : `; the rule gives ${pesos(ruleValue)}`}.{" "}
+                    {canFinalAcquire && (
+                      <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" aria-label={label("Back to the rule")} disabled={busy} onClick={() => save({ finalAcquireUnit: null })}>
+                        Back to the rule
+                      </Button>
+                    )}
+                  </p>
+                ) : (
+                  <p className={HINT} data-testid="final-acquire-rule">
+                    {component.final_acquire_unit === null || component.final_acquire_unit === undefined ? finalAcquireHint : "From the rule."}
+                  </p>
+                )}
+              </Field>
+              <Field label="Final Acquire total">
                 <Readout>{pesos(extended(component.final_acquire_unit, component.quantity))}</Readout>
               </Field>
             </>

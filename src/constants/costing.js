@@ -42,13 +42,22 @@ export const TENDER_PRICE_TIERS = {
   quotation_price_unit: [COSTING_TIER.PRICE, COSTING_TIER.CLOSED_BOOK],
 };
 
+/** How an evaluation's ABC is typed (`costing_matrices.abc_mode`, #960): per Tender Line, or as one total. */
+export const ABC_MODE = { BY_LINE: "by_line", TOTAL_ONLY: "total_only" };
+
+/** The evaluation's own ABC columns (`costing_matrices`, #960): read by the tiers that read `abc_unit`, written by the Sales band. */
+export const MATRIX_ABC_TIERS = {
+  abc_mode: [COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+  abc_total: [COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
+};
+
 /** Does this tier receive the named Tender Line price column? */
 export const tierReads = (tier, column) => (TENDER_PRICE_TIERS[column] ?? []).includes(tier);
 
 /**
  * The tiers that receive each unit-cost column of a Component (costing_component_costs) and of a
  * cost-only row (costing_cost_rows) (#268, shaped by #319). Final Acquire and the markup factor are
- * Closed Book only; Acquire is the cost side's; the Odoo unit cost is Sales's own column and
+ * Closed Book only; Acquire is the cost side's; the Odoo SRP is Sales's own column and
  * Purchasing reads it. A tier that is not listed is not sent the key at all.
  */
 export const COMPONENT_COST_TIERS = {
@@ -72,6 +81,8 @@ export const tierReadsCost = (tier, column) => (COMPONENT_COST_TIERS[column] ?? 
 export const COST_ROW_TIERS = {
   ...COMPONENT_COST_TIERS,
   markup_price_unit: [COSTING_TIER.CLOSED_BOOK],
+  // #963: the row typed as a percent of the ABC; read by the tiers that read its Acquire.
+  abc_pct: [COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
   // #723: the cost guide category is a label, not money; every tier that reads the row reads it.
   category_key: [COSTING_TIER.PARTICIPANT, COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
 };
@@ -95,9 +106,7 @@ export const COMPONENT_BANDS = {
   brand: [SALES, PURCHASING],
   status: [SALES],
   offer_specification: [PURCHASING],
-  availability: [PURCHASING],
   source: [PURCHASING],
-  po_rfq_no: [PURCHASING],
   sales_incharge_id: [SALES],
   purchasing_incharge_id: [PURCHASING],
   // The Canvass fill (#278): which winning Offer filled Offer Specification, and the Component's documents.
@@ -131,8 +140,22 @@ export const COMPONENT_CANVASS_COST_BANDS = {
 export const COMPONENT_COST_BANDS = {
   acquire_unit: [PURCHASING],
   odoo_unit: [SALES],
-  final_acquire_unit: [SALES, PURCHASING, MANAGEMENT],
+  // #962: Final Acquire is the decider list's: it types over the rule and sets the percents.
+  final_acquire_unit: [MANAGEMENT],
   markup_factor: [COSTING_BAND.MARKUP],
+};
+
+/**
+ * Final Acquire's own columns on a Component's costs row (#962), not on a cost-only row: the line's own
+ * percent on the Odoo SRP (blank = the evaluation's), and whether a decider typed the figure over the rule.
+ */
+export const COMPONENT_FINAL_ACQUIRE_TIERS = {
+  final_acquire_percent: [COSTING_TIER.CLOSED_BOOK],
+  final_acquire_typed: [COSTING_TIER.CLOSED_BOOK],
+};
+export const COMPONENT_FINAL_ACQUIRE_BANDS = {
+  final_acquire_percent: [MANAGEMENT],
+  final_acquire_typed: [MANAGEMENT],
 };
 
 /**
@@ -152,7 +175,17 @@ export const COST_ROW_BANDS = {
   category_key: [SALES, PURCHASING],
   quantity: [SALES, PURCHASING],
   ...COMPONENT_COST_BANDS,
+  // #963: Sales and Purchasing type the percent; the database works the amount (Purchasing alone types an amount).
+  abc_pct: [SALES, PURCHASING],
+  // A cost-only row keeps the band it had; only a Component's Final Acquire moved to the decider list (#962).
+  final_acquire_unit: [SALES, PURCHASING, MANAGEMENT],
 };
+
+/**
+ * The cost guide categories "Add the usual rows" fills (#963): the sheet's project expenses. Products
+ * are the Components and Profit Margin is not a cost.
+ */
+export const USUAL_COST_CATEGORIES = ["labor", "logistics", "equipment", "permits", "overhead"];
 
 /**
  * The matrix's own money row (costing_matrix_money): the default markup factor (#269), and Marketing and OPEX (#270)
@@ -162,13 +195,15 @@ export const COST_ROW_BANDS = {
 export const MATRIX_MONEY_TIERS = {
   default_factor: [COSTING_TIER.CLOSED_BOOK],
   default_preset_id: [COSTING_TIER.CLOSED_BOOK],
+  final_acquire_percent: [COSTING_TIER.CLOSED_BOOK],
   marketing: [COSTING_TIER.CLOSED_BOOK],
-  opex: [COSTING_TIER.CLOSED_BOOK],
+  opex: [COSTING_TIER.CLOSED_BOOK], // kept in the database, no longer read or written (#964)
 };
 
 export const MATRIX_MONEY_BANDS = {
   default_factor: [COSTING_BAND.MARKUP],
   default_preset_id: [COSTING_BAND.MARKUP],
+  final_acquire_percent: [MANAGEMENT],
   marketing: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
   opex: [COSTING_BAND.FINANCE, SALES, PURCHASING, MANAGEMENT],
 };
@@ -252,6 +287,7 @@ export const DEFAULT_COSTING_SETTINGS = {
   itrRate: 0.08,
   itrAllowance: 250000,
   finalVatRate: 0.12,
+  goLinePercent: 20,
   hiddenLines: ["finalVat"],
 };
 
@@ -262,10 +298,12 @@ export const SUMMARY_LINES = [
   { key: "tax", label: "Less Tax (withholding)" },
   { key: "retention", label: "Retention" },
   { key: "collected", label: "Collected Amount" },
-  { key: "operationalExpenses", label: "Operational Expenses" },
+  { key: "landedCost", label: "Landed Cost (planned)" },
+  { key: "projectExpenses", label: "Project expenses" },
   { key: "marketing", label: "Marketing" },
   { key: "opex", label: "OPEX" },
   { key: "itr", label: "ITR" },
+  { key: "revenuePercent", label: "Revenue ÷ Final Offer" },
 ];
 
 /** Does Settings leave this summary line on? */
@@ -299,6 +337,8 @@ export const COSTING_COLUMN_LABEL = {
   "costing_tender_lines.sor_line_snapshot": "A Tender Line's picked SOR line",
   "costing_tender_line_prices.*": "A Tender Line's prices",
   "costing_tender_line_prices.abc_unit": "ABC",
+  "costing_matrices.abc_mode": "ABC mode",
+  "costing_matrices.abc_total": "ABC (total)",
   "costing_tender_line_prices.final_offer_unit": "Final Offer",
   "costing_matrices.sales_incharge_id": "The Sales incharge",
   "costing_matrices.purchasing_incharge_id": "The Purchasing incharge",
@@ -329,8 +369,11 @@ export const COSTING_COLUMN_LABEL = {
   "costing_components.recommended_alternative": "The recommended alternative",
   "costing_component_costs.*": "A Component's costs",
   "costing_component_costs.acquire_unit": "Acquire",
-  "costing_component_costs.odoo_unit": "Odoo unit cost",
-  "costing_component_costs.final_acquire_unit": "Final cost",
+  "costing_component_costs.odoo_unit": "Odoo SRP",
+  "costing_component_costs.final_acquire_unit": "Final Acquire",
+  "costing_component_costs.final_acquire_percent": "Final Acquire percent",
+  "costing_component_costs.final_acquire_typed": "Final Acquire",
+  "costing_matrix_money.final_acquire_percent": "The Final Acquire percent",
   "costing_component_costs.markup_factor": "The markup factor",
   "costing_inclusions.*": "Adding or removing an Inclusion",
   "costing_inclusions.component_id": "Which bundle an Inclusion sits under",
@@ -345,7 +388,8 @@ export const COSTING_COLUMN_LABEL = {
   "costing_cost_rows.description": "A cost-only row's description",
   "costing_cost_rows.quantity": "A cost-only row's quantity",
   "costing_cost_rows.acquire_unit": "Acquire",
-  "costing_cost_rows.odoo_unit": "Odoo unit cost",
+  "costing_cost_rows.abc_pct": "A cost-only row's percent of the ABC",
+  "costing_cost_rows.odoo_unit": "Odoo SRP",
   "costing_cost_rows.final_acquire_unit": "Final cost",
   "costing_cost_rows.markup_factor": "The markup factor",
   "costing_matrix_money.marketing": "Marketing",
@@ -360,3 +404,15 @@ export function bandRefusalMessage(table, column, bands) {
   const who = bands.map((b) => COSTING_BAND_LABEL[b] ?? b).join(" or ");
   return `${subject} is written by ${who}.`;
 }
+
+/** Why an evaluation could not be started from an S0 (`StandaloneStartError.kind`, #966). */
+export const STANDALONE_START_PROBLEM = {
+  NOT_S0: "not_s0",
+  NOT_FOUND: "not_found",
+  ODOO_DOWN: "odoo_down",
+  OTHER: "other",
+};
+
+/** The evaluation's default percent on the Odoo SRP (#962): it must be above the low bound and at most the high one. */
+export const FINAL_ACQUIRE_PERCENT_LOW = -100;
+export const FINAL_ACQUIRE_PERCENT_HIGH = 1000;
