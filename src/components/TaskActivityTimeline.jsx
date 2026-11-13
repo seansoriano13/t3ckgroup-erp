@@ -526,7 +526,9 @@ export default function TaskActivityTimeline({
 
 
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(async (e) => {
+    // The composer is a <form>; without this, clicking Send reloads the page to "/tasks?".
+    e?.preventDefault?.();
     const hasText = message.trim();
     const hasFiles = attachments.length > 0;
     if ((!hasText && !hasFiles) || !taskId || !user?.id) return;
