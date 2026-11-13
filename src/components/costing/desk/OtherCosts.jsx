@@ -64,16 +64,18 @@ export default function OtherCosts({ matrix, writes }) {
     });
 
   const columns = [
-    { key: "description", label: "Description", width: "minmax(0,1fr)", wide: true },
-    { key: "category", label: "Category", width: "12rem" },
-    { key: "quantity", label: "Qty", width: "5rem" },
-    showPct && { key: "pct", label: "% of ABC", width: "6rem" },
-    showAcquire && { key: "acquire", label: "Acquire / unit", width: "9rem" },
-    showFinal && { key: "final", label: "Final cost / unit", width: "9rem" },
-    showAcquire && { key: "total", label: "Total", width: "8rem" },
+    { key: "description", label: "Description", width: "minmax(11rem,1fr)", min: 11, wide: true },
+    { key: "category", label: "Category", width: "10rem" },
+    { key: "quantity", label: "Qty", width: "4.5rem" },
+    showPct && { key: "pct", label: "% of ABC", width: "5rem" },
+    showAcquire && { key: "acquire", label: "Acquire / unit", width: "7.5rem" },
+    showFinal && { key: "final", label: "Final cost / unit", width: "7.5rem" },
+    showAcquire && { key: "total", label: "Total", width: "6.5rem" },
     canEditRows && { key: "remove", label: "", width: "2.25rem" },
   ].filter(Boolean);
-  const grid = { "--cost-columns": columns.map((c) => c.width).join(" ") };
+  // The description keeps a readable width: when the panel is too narrow for every column, the table scrolls sideways instead of squeezing it to nothing.
+  const minRem = columns.reduce((sum, c) => sum + (c.min ?? parseFloat(c.width)), 0) + (columns.length - 1) + 2;
+  const grid = { "--cost-columns": columns.map((c) => c.width).join(" "), "--cost-min": `${minRem}rem` };
   const rowClass = "grid grid-cols-2 items-start gap-x-4 gap-y-2 px-4 py-3 sm:[grid-template-columns:var(--cost-columns)]";
   // A phone has no caption row above, so each box carries its own.
   const caption = (key) => <p className={cn(CAPTION, "mb-1 sm:hidden")}>{columns.find((c) => c.key === key).label}</p>;
@@ -119,7 +121,8 @@ export default function OtherCosts({ matrix, writes }) {
       </div>
 
       {costRows.length > 0 && (
-        <div className="divide-y divide-border/70 rounded-xl border border-border/70 bg-card" style={grid}>
+        <div className="overflow-x-auto rounded-xl border border-border/70 bg-card">
+        <div className="divide-y divide-border/70 sm:min-w-[var(--cost-min)]" style={grid}>
           <div className={cn(rowClass, "hidden py-2 sm:grid")} aria-hidden="true">
             {columns.map((c) => (
               <p key={c.key} className={CAPTION}>
@@ -216,6 +219,7 @@ export default function OtherCosts({ matrix, writes }) {
               <span className="text-sm font-semibold tabular-nums text-foreground">{pesos(matrix.projectExpensesTotal)}</span>
             </div>
           )}
+        </div>
         </div>
       )}
 
