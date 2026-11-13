@@ -1,5 +1,4 @@
 import { Fragment, useMemo, useState } from "react";
-import { Info } from "lucide-react";
 import {
   SortHead,
   Table,
@@ -19,9 +18,10 @@ import { SOURCE_DEAL_TEAM, SOURCE_MENTION } from "../../utils/mySorsFilters";
  * My SOR Work as a work list: one row per SOR, grouped by whether the person
  * owes something on it. "Needs you" leads, with the move waiting longest on
  * top; "Watching" holds SORs they can see but owe nothing on; "Access ended"
- * shows only when the Access filter lets it. Why the person can see an SOR
- * (Deal Team, called in, mentioned) is hover detail on the info mark, never a
- * standing column: it answers a question nobody asks while working the list.
+ * shows only when the Access filter lets it. "Why you're on it" says in words
+ * how the person got onto each SOR (Task, Mention by Ana, Deal Team), with the
+ * full list of reasons on hover: someone called in from another team needs to
+ * know what pulled them in before they open it.
  */
 const VIA_LABEL = {
   [SOURCE_DEAL_TEAM]: "Deal Team",
@@ -49,11 +49,15 @@ const describeWindow = (w) =>
     w.calledInAtStageName ? ` at ${w.calledInAtStageName}` : ""
   } · sees ${w.reachLabel}${w.closedAt ? " (ended)" : ""}`;
 
+/** The column's short answer: "Task", "Mention by Ana", "Deal Team". */
+const whyLabel = (w) => `${VIA_LABEL[w.source] || "Called in"}${w.mentionedBy ? ` by ${w.mentionedBy}` : ""}`;
+
 const oldestMove = (r) => r.moves?.[0];
 
 const MY_SORS_SORT = {
   sor: (r) => r.salesReference || r.sorCode,
   move: (r) => oldestMove(r)?.label,
+  why: (r) => (r.windows[0] ? whyLabel(r.windows[0]) : null),
   "now-on": (r) => r.currentStageName,
   // Oldest first reads as "longest waiting first" when sorted ascending.
   waiting: (r) => {
@@ -118,6 +122,48 @@ function MoveCell({ moves }) {
   );
 }
 
+/**
+ * Why this person is on the SOR: the first reason in words, the Stage it came
+ * at below it, and every reason in full on hover when there are several.
+ */
+function WhyCell({ windows }) {
+  if (!windows.length) return <span className="text-muted-foreground">—</span>;
+  const [first, ...rest] = windows;
+  return (
+    <Tooltip
+      content={
+        <div className="space-y-1 font-medium">
+          <p className="text-muted-foreground">Why you can see this</p>
+          <ul className="space-y-1">
+            {windows.map((w) => (
+              <li key={w.id}>{describeWindow(w)}</li>
+            ))}
+          </ul>
+        </div>
+      }
+    >
+      <span
+        tabIndex={0}
+        aria-label="Why you can see this SOR"
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex min-w-0 max-w-full flex-col"
+      >
+        <span className="inline-flex min-w-0 items-center gap-2">
+          <span className="truncate font-medium text-foreground">{whyLabel(first)}</span>
+          {rest.length > 0 && (
+            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-black text-muted-foreground">
+              +{rest.length}
+            </span>
+          )}
+        </span>
+        {first.calledInAtStageName && (
+          <span className="truncate text-xs text-muted-foreground">at {first.calledInAtStageName}</span>
+        )}
+      </span>
+    </Tooltip>
+  );
+}
+
 function WaitingCell({ row, now }) {
   const move = oldestMove(row);
   if (!move) {
@@ -155,6 +201,7 @@ export default function MySorsTable({ rows: unsortedRows, onOpen }) {
         <TableHeader>
           <TableRow>
             <SortHead id="sor" sortKey="sor" sort={sort} onSort={toggle}>SOR</SortHead>
+            <SortHead id="why" sortKey="why" sort={sort} onSort={toggle}>Why you're on it</SortHead>
             <SortHead id="move" sortKey="move" sort={sort} onSort={toggle}>Your move</SortHead>
             <SortHead id="now-on" sortKey="now-on" sort={sort} onSort={toggle}>Now on</SortHead>
             <SortHead id="waiting" sortKey="waiting" sort={sort} onSort={toggle}>Waiting</SortHead>
@@ -164,7 +211,7 @@ export default function MySorsTable({ rows: unsortedRows, onOpen }) {
           {groups.map((group) => (
             <Fragment key={group.key}>
               <TableRow className="hover:bg-transparent" data-testid={`my-sors-group-${group.key}`}>
-                <TableHead colSpan={4} className="h-9 bg-muted/40 text-xs font-semibold text-foreground">
+                <TableHead colSpan={5} className="h-9 bg-muted/40 text-xs font-semibold text-foreground">
                   {group.label}
                   <span className="ml-2 tabular-nums font-normal text-muted-foreground">{group.rows.length}</span>
                 </TableHead>
@@ -182,40 +229,18 @@ export default function MySorsTable({ rows: unsortedRows, onOpen }) {
                   }}
                   className="group cursor-pointer"
                 >
-                  <TableCell className="w-[32%]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-[13px] font-semibold text-foreground">
-                        {row.salesReference || row.sorCode || "—"}
-                      </span>
-                      {row.windows.length > 0 && (
-                        <Tooltip
-                          content={
-                            <div className="space-y-1 font-medium">
-                              <p className="text-muted-foreground">Why you can see this</p>
-                              <ul className="space-y-1">
-                                {row.windows.map((w) => (
-                                  <li key={w.id}>{describeWindow(w)}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          }
-                        >
-                          <span
-                            tabIndex={0}
-                            aria-label="Why you can see this SOR"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex text-muted-foreground/70 hover:text-foreground"
-                          >
-                            <Info size={13} />
-                          </span>
-                        </Tooltip>
-                      )}
-                    </div>
+                  <TableCell className="w-[26%]">
+                    <span className="font-mono text-[13px] font-semibold text-foreground">
+                      {row.salesReference || row.sorCode || "—"}
+                    </span>
                     <div className="max-w-xs truncate text-muted-foreground">
                       {row.projectTitle || "Untitled"}
                     </div>
                   </TableCell>
-                  <TableCell className="max-w-0 w-[36%]">
+                  <TableCell className="max-w-0 w-[20%]">
+                    <WhyCell windows={row.windows} />
+                  </TableCell>
+                  <TableCell className="max-w-0 w-[30%]">
                     <MoveCell moves={row.moves} />
                   </TableCell>
                   <TableCell>
