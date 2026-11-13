@@ -95,7 +95,7 @@ function DialogHeader({ className, ...props }) {
       data-slot="dialog-header"
       className={cn(
         // Pinned: stays at the top of the dialog while the body scrolls (#980).
-        "sticky top-0 z-10 -mx-4 -mt-4 flex flex-col gap-2 bg-popover px-4 pt-4 pb-2",
+        "sticky -top-4 z-10 -mx-4 -mt-4 flex flex-col gap-2 bg-popover px-4 pt-4 pb-2",
         className,
       )}
       {...props}
@@ -113,7 +113,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "sticky bottom-0 z-10 -mx-4 -mb-4 mt-0 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted p-4 max-md:mt-auto max-md:rounded-b-none max-md:pb-[calc(1rem+env(safe-area-inset-bottom))] md:flex-row md:justify-end",
+        "sticky -bottom-4 z-10 -mx-4 -mb-4 mt-0 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted p-4 max-md:mt-auto max-md:rounded-b-none max-md:pb-[calc(1rem+env(safe-area-inset-bottom))] md:flex-row md:justify-end",
         className,
       )}
       {...props}
