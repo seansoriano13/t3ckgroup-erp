@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { Scale } from "lucide-react";
 
-import { Button } from "../ui/button";
+import { Button, buttonVariants } from "../ui/button";
 import { ExternalLink } from "../ui/external-link";
-import CanvassPanel from "../CanvassPanel";
 import { canvassService } from "../../services/canvassService";
 import { refusalMessage } from "./gridFormat";
+import { canvassHref } from "../../utils/canvassList";
 
 /** "from Canvass" beside a field a winning Offer filled; it goes the moment someone edits the field (#278). */
 export function FromCanvass({ what, number, className = "" }) {
@@ -72,52 +73,88 @@ function Citations({ documents }) {
 }
 
 /**
- * The Canvass of a Component (#276), opened from its row. Where a Canvass exists, a chip shows its
- * number and how many Offers it holds; every reader of the matrix may open it (what they see inside
- * is what their tier allows). Where none exists, only Purchasing gets the "Canvass" action that
- * starts one. An old Canvass that was signed off says so (#279, read-only history since #728).
+ * The Canvass button on an S0 Evaluation line (#972, spec #956). A Canvass belongs to the Purchase
+ * Request, so the button opens the Canvass of the request that carries this line, at the line
+ * (`canvassHref`, the request's grid from #970). With no request yet it is off and says to raise
+ * the request first, with a link to the SOR where its Purchase Request step is, for a viewer who may
+ * use it (`canRaise`). A line on more than one request (#798) lists each request's Canvass.
+ * `items` are the line's Requested Items (`{ id, request_id, request_label }`).
  */
-export default function ComponentCanvass({ component, canvass, canWrite, opportunityId, actorId }) {
-  const [open, setOpen] = useState(false);
-  if (!canvass && !canWrite) return null;
+function CanvassButton({ component, items = [], canRaise, opportunityId }) {
+  const name = `Canvass ${component.number || ""}`.trim();
+  const onRequests = [...new Map(items.filter((i) => i.request_id && i.status !== "cancelled").map((i) => [i.request_id, i])).values()];
 
-  const label = `Component ${component.number || ""}`.trim();
-  const offers = canvass?.offerCount ?? 0;
+  if (onRequests.length === 0) {
+    return (
+      <>
+        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-xs" disabled aria-label={name}>
+          <Scale aria-hidden="true" />
+          Canvass
+        </Button>
+        <span>Raise the Purchase Request first</span>
+        {canRaise && opportunityId && (
+          <Link className="underline underline-offset-2" to="/sors" state={{ openOpportunityId: opportunityId }}>
+            Raise it from the SOR
+          </Link>
+        )}
+      </>
+    );
+  }
+
+  if (onRequests.length === 1) {
+    const [item] = onRequests;
+    return (
+      <Link
+        className={buttonVariants({ variant: "outline", size: "sm", className: "h-6 px-2 text-xs" })}
+        to={canvassHref({ requestId: item.request_id, itemId: item.id })}
+        aria-label={name}
+      >
+        <Scale aria-hidden="true" />
+        Canvass
+      </Link>
+    );
+  }
+
+  return (
+    <>
+      <span className="inline-flex items-center gap-1">
+        <Scale size={12} aria-hidden="true" />
+        Canvass on
+      </span>
+      <ul className="flex flex-wrap items-center gap-x-2" aria-label={`Canvasses of ${component.number || component.name}`}>
+        {onRequests.map((item) => (
+          <li key={item.request_id}>
+            <Link className="underline underline-offset-2" to={canvassHref({ requestId: item.request_id, itemId: item.id })}>
+              {item.request_label || "Purchase Request"}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/**
+ * What a Component's row says about its Canvass (#967, #972): the Canvass button, and where one of
+ * its Requested Items has been quoted, the Canvass number, the brochures cited from it and how many
+ * suppliers quoted it.
+ */
+export default function ComponentCanvass({ component, canvass, items, canRaise = false, opportunityId }) {
+  const suppliers = canvass?.offerCount ?? 0;
 
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid="component-canvass">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-7 gap-1 px-2 text-xs"
-        aria-label={canvass ? `Open Canvass ${canvass.number} for ${label}` : `Canvass ${label}`}
-        onClick={() => setOpen(true)}
-      >
-        <Scale size={12} aria-hidden="true" />
-        {canvass ? canvass.number : "Canvass"}
-      </Button>
-      <Citations documents={component.documents} />
+      <CanvassButton component={component} items={items} canRaise={canRaise} opportunityId={opportunityId} />
       {canvass && (
-        <span>
-          {offers} offer{offers === 1 ? "" : "s"}
-        </span>
-      )}
-      {canvass?.signed_off_at && (
-        <span data-testid="canvass-signed-state" className="font-semibold text-green-11">
-          Signed off
-        </span>
-      )}
-      {open && (
-        <CanvassPanel
-          open={open}
-          onOpenChange={setOpen}
-          subject={{ componentId: component.id }}
-          subjectLabel={`${component.number ? `${component.number} ` : ""}${component.name || "Component"}`}
-          userId={actorId}
-          canEdit={canWrite}
-          opportunityId={opportunityId}
-        />
+        <>
+          <span className="font-medium text-foreground" aria-label={`Canvass ${canvass.number} for Component ${component.number || ""}`.trim()}>
+            {canvass.number}
+          </span>
+          <Citations documents={component.documents} />
+          <span>
+            {suppliers} supplier{suppliers === 1 ? "" : "s"}
+          </span>
+        </>
       )}
     </div>
   );

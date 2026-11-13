@@ -217,7 +217,7 @@ describe("what the Costing Matrix grid reads", () => {
             [`${hose} not_checked`, `${hose} purchased`, `${bundle} not_checked`].sort(),
         )
         for (const row of rows) {
-            expect(Object.keys(row).sort()).toEqual(["component_id", "id", "request_id", "status"])
+            expect(Object.keys(row).sort()).toEqual(["component_id", "id", "request_id", "request_label", "status"])
             expect(row.request_id).toBe(requestId)
         }
     })

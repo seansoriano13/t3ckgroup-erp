@@ -1,4 +1,5 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useInRouterContext, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import QueryError from "@/components/ui/QueryError";
 import { ChevronRight } from "lucide-react";
@@ -18,6 +19,7 @@ import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
 import BulkStatusBar from "./BulkStatusBar";
 import LineButtons from "./LineButtons";
+import { CanvassGridModal } from "./CanvassGrid";
 import AttachFollowUpHost from "./AttachFollowUpHost";
 import { AskedSub, ColumnHeads, COLUMNS, ForCell, NotesCell, P0Cell, ProductCode, QtyCell, StockCell } from "./ProductLineCells";
 import { YoursBadge } from "./YoursDialog";
@@ -169,6 +171,31 @@ function ItemSection({ section, rowFor, open, onOpenChange, sectionRef }) {
 }
 
 /**
+ * #972: the S0 Evaluation's Canvass button links to the request with `?canvass=1&line=<item>`
+ * (`canvassHref`). This opens the grid at that line, then takes both params off the address so a
+ * refresh or Back does not open it again. Only mounted inside a router.
+ */
+function CanvassLinkOpener({ onOpen }) {
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get("canvass") === "1";
+  const line = params.get("line");
+  useEffect(() => {
+    if (!wanted) return;
+    onOpen({ itemId: line });
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("canvass");
+        next.delete("line");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [wanted, line, onOpen, setParams]);
+  return null;
+}
+
+/**
  * Issue #305 / #678 — a Purchase Request's products in two sections: "From the S0" (one item per
  * S0 line, made and kept in step by the database) and "Other requests" (items with no S0 line).
  * Each shows its status beside it; the way to add an Other request sits on top.
@@ -182,6 +209,9 @@ export default function RequestedItems({ request, renderActions }) {
   // #852: the ticked lines, for the bulk bar.
   const [ticked, setTicked] = useState(() => new Set());
   const [openSections, setOpenSections] = useState({ s0: true, other: true });
+  // #970: the request's Canvass grid, open (at a line, or at the top) or closed.
+  const [canvassAt, setCanvassAt] = useState(null);
+  const inRouter = useInRouterContext();
   const sectionRefs = { s0: useRef(null), other: useRef(null) };
 
   const itemsQuery = useQuery({
@@ -294,6 +324,7 @@ export default function RequestedItems({ request, renderActions }) {
         <NotesCell
           item={item}
           replacedBy={replacedBy}
+          onOpenCanvass={(line) => setCanvassAt({ itemId: line.id })}
           yours={
             item.new_on_s0 ? (
               <YoursBadge
@@ -320,8 +351,20 @@ export default function RequestedItems({ request, renderActions }) {
             </span>
           )}
         </h3>
-        <AddRequestedItems request={request} />
+        <div className="flex items-center gap-2">
+          {/* #970: one Canvass for the whole request, for Purchasing. A line's notes open it at that line. */}
+          {!renderActions && actor?.side === MEMBER_SIDE.PURCHASING && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setCanvassAt({ itemId: null })}>
+              Canvass
+            </Button>
+          )}
+          <AddRequestedItems request={request} />
+        </div>
       </div>
+      {inRouter && !renderActions && <CanvassLinkOpener onOpen={setCanvassAt} />}
+      {canvassAt && (
+        <CanvassGridModal open onOpenChange={(open) => !open && setCanvassAt(null)} request={request} focusItemId={canvassAt.itemId} />
+      )}
       <AttachFollowUpHost requestId={requestId} />
       {itemsQuery.isLoading ? (
         <div className="flex justify-center py-8">

@@ -23,76 +23,43 @@ function raise(message) {
 
 
 /**
- * sor_canvasses (20261019100000_canvass_repoint.sql, #276): the number comes from a sequence in
- * the database (CNV_ and four digits; here, one past the highest held). Since
- * 20261024103000_canvass_before_purchase_request.sql (ADR 0034) a Canvass has at most one subject,
- * and one with none says what is being bought. The fake parses simple CHECKs only, so the
- * cross-column ones are mirrored here; the policy tier proves the real ones (90-canvass-tables,
- * 110-canvass-before-purchase-request).
+ * request_canvasses (20261205100000_967_canvass_per_request.sql, spec #956): the number comes from
+ * a sequence in the database (CNV_ and four digits; here, one past the highest held), and is never
+ * changed. The fake parses simple CHECKs only, so the cross-column ones are mirrored here; the
+ * policy tier proves the real ones (90-canvass-tables).
  */
 function assignCanvassNumber(row, context) {
-  const taken = context.rowsOf("sor_canvasses").map((r) => Number(String(r.number ?? "").replace(/\D/g, "")) || 0)
+  const taken = context.rowsOf("request_canvasses").map((r) => Number(String(r.number ?? "").replace(/\D/g, "")) || 0)
   row.number = `CNV_${String(Math.max(0, ...taken) + 1).padStart(4, "0")}`
-}
-
-function checkCanvassSubject(row) {
-  const violates = (constraint) =>
-    pgrstError("23514", `new row for relation "sor_canvasses" violates check constraint "${constraint}"`, { status: 400 })
-  if ((row.component_id ? 1 : 0) + (row.requested_item_id ? 1 : 0) > 1) throw violates("sor_canvasses_at_most_one_subject_chk")
-  if (!row.component_id && !row.requested_item_id && !String(row.product_name ?? "").trim()) {
-    throw violates("sor_canvasses_says_what_chk")
-  }
-}
-
-/** sor_canvasses_default_canvasser() (20261024103000): a subject-less Canvass is its starter's. */
-function defaultCanvasser(row) {
-  if (!row.canvasser_id && !row.component_id && !row.requested_item_id) row.canvasser_id = row.created_by ?? null
-}
-
-/** sor_canvasses_refuse_component_item() (20261019140000_canvass_requested_item_subject.sql, #280). */
-function refuseComponentItem(row, context) {
-  if (!row.requested_item_id) return
-  const item = context.rowsOf("purchase_request_items").find((i) => i.id === row.requested_item_id)
-  if (item?.component_id) {
-    throw pgrstError("23514", "This Requested Item names a Component. Canvass the Component instead.", { status: 400 })
-  }
-}
-
-/**
- * sor_canvasses_mark_canvassing() (20261019170000_canvass_review_fixes.sql, spec #275): a new
- * Canvass moves each Requested Item that is its subject, or that names its subject Component, from
- * Not checked, Available, To purchase or Cannot source to Still canvassing (#682). An item at any
- * other status is left alone. The fake has no caller, so the
- * actor is null and the status is set directly (the real one also posts the status event).
- */
-function markItemsCanvassing(row, old, context) {
-  if (old !== null) return
-  for (const item of context.rowsOf("purchase_request_items")) {
-    if (!["not_checked", "available", "to_purchase", "cannot_source"].includes(item.status)) continue
-    if (item.id === row.requested_item_id || (row.component_id && item.component_id === row.component_id)) {
-      item.status = "still_canvassing"
-      item.status_changed_at = new Date().toISOString()
-    }
-  }
 }
 
 function keepCanvassNumber(row, old) {
   if (row.number !== old.number) throw pgrstError("42501", "A Canvass number is never changed.", { status: 403 })
+  if (row.request_id !== old.request_id) throw pgrstError("42501", "A Canvass stays on its Purchase Request.", { status: 403 })
 }
 
-/** sor_canvass_offer_prices_check_rate(): a PHP Offer takes no comparison rate. */
+/** request_canvass_supplier_prices_check_rate(): a PHP supplier takes no comparison rate. */
 function refusePhpRate(row, context) {
   if (row.comparison_rate === null || row.comparison_rate === undefined) return
-  const offer = context.rowsOf("sor_canvass_offers").find((o) => o.id === row.offer_id)
-  if (offer?.currency === "PHP") throw pgrstError("23514", "A PHP Offer takes no comparison rate.", { status: 400 })
+  const supplier = context.rowsOf("request_canvass_suppliers").find((s) => s.id === row.supplier_id)
+  if (supplier?.currency === "PHP") throw pgrstError("23514", "A PHP supplier takes no comparison rate.", { status: 400 })
 }
 
-/** sor_canvass_offers_check_currency(): the rate goes before an Offer turns PHP. */
-function refuseRateOnPhpOffer(row, old, context) {
+/** request_canvass_suppliers_check_currency(): the rate goes before a supplier turns PHP. */
+function refuseRateOnPhpSupplier(row, old, context) {
   if (row.currency !== "PHP" || row.currency === old.currency) return
-  const price = context.rowsOf("sor_canvass_offer_prices").find((p) => p.offer_id === row.id)
+  const price = context.rowsOf("request_canvass_supplier_prices").find((p) => p.supplier_id === row.id)
   if (price?.comparison_rate !== null && price?.comparison_rate !== undefined) {
-    throw pgrstError("23514", "Clear the comparison rate before changing an Offer to PHP.", { status: 400 })
+    throw pgrstError("23514", "Clear the comparison rate before changing a supplier to PHP.", { status: 400 })
+  }
+}
+
+/** request_canvass_quotes_check_line(): a quote is on a line of the Canvass's own request. */
+function refuseForeignLine(row, context) {
+  const canvass = context.rowsOf("request_canvasses").find((c) => c.id === row.canvass_id)
+  const item = context.rowsOf("purchase_request_items").find((i) => i.id === row.item_id)
+  if (!canvass || !item || item.request_id !== canvass.request_id) {
+    throw pgrstError("23514", "That line is not on this Canvass's Purchase Request.", { status: 400 })
   }
 }
 
@@ -125,11 +92,6 @@ function nullFillMark(markColumn, fieldColumn) {
     if (canvassFill.on) return
     if (row[fieldColumn] !== old[fieldColumn]) row[markColumn] = null
   }
-}
-
-/** sor_canvass_signoff_events_append_only(): the history is never edited or removed. */
-function refuseHistoryEdit() {
-  throw pgrstError("42501", "The sign-off history is append-only.", { status: 403 })
 }
 
 function requireBundleParent(row, context) {
@@ -451,23 +413,22 @@ export const TRIGGERS = {
     beforeUpdate: [nullFillMark("acquire_from_offer_id", "acquire_unit"), setAcquireSource],
   },
 
-  sor_canvasses: {
-    beforeInsert: [assignCanvassNumber, defaultCanvasser, checkCanvassSubject, refuseComponentItem],
-    beforeUpdate: [checkCanvassSubject, keepCanvassNumber, (row, old, context) => refuseComponentItem(row, context)],
-    afterWrite: [markItemsCanvassing],
+  request_canvasses: {
+    beforeInsert: [assignCanvassNumber],
+    beforeUpdate: [keepCanvassNumber],
   },
 
-  sor_canvass_signoff_events: {
-    beforeUpdate: [refuseHistoryEdit],
-  },
-
-  sor_canvass_offer_prices: {
+  request_canvass_supplier_prices: {
     beforeInsert: [(row, context) => refusePhpRate(row, context)],
     beforeUpdate: [(row, old, context) => refusePhpRate(row, context)],
   },
 
-  sor_canvass_offers: {
-    beforeUpdate: [refuseRateOnPhpOffer],
+  request_canvass_suppliers: {
+    beforeUpdate: [refuseRateOnPhpSupplier],
+  },
+
+  request_canvass_quotes: {
+    beforeInsert: [(row, context) => refuseForeignLine(row, context)],
   },
 
   // costing_inclusions: costing_inclusion_needs_bundle() (20261018110000_costing_matrix_components.sql,

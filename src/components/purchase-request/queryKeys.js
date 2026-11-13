@@ -16,5 +16,13 @@ export const purchaseRequestKeys = {
   members: (requestId) => ["purchase-request", requestId, "members"],
 };
 
+/** The request's Canvass grid (#970). Under ["canvass"], so `useRefreshRequest` refreshes it after any change. */
+export const canvassKeys = {
+  request: (requestId) => ["canvass", "request", requestId],
+  unlocks: (requestId) => ["canvass", "request", requestId, "unlocks"],
+  projection: (requestId) => ["canvass", "request", requestId, "projection"],
+  money: (requestId) => ["canvass", "request", requestId, "money"],
+};
+
 /** The Purchase Requests list (#308, #179): every request the signed-in employee may read. */
 export const procurementQueueKey = ["procurement-queue"];

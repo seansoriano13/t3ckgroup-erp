@@ -364,20 +364,11 @@ describe("the Costing Desk", () => {
       expect(within(row).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
     });
 
-    it("lets Purchasing start a Canvass from the Component (#720), and gives Sales no such button", async () => {
+    // A Canvass belongs to the Purchase Request (#967), so a Component row has no Canvass button; the
+    // S0 Evaluation's Canvass button (#972) opens the request's Canvass at the line.
+    it("offers no Canvass button on a Component, to Purchasing or to Sales", async () => {
       seedComponents();
       stubCostingMatrixRpcs({ tier: "cost", bands: ["purchasing"] });
-      openDesk(deal);
-
-      await openLines();
-
-      const row = within(await screen.findByTestId("components")).getAllByTestId("component")[0];
-      expect(within(row).getByRole("button", { name: "Canvass Component 1.1" })).toBeInTheDocument();
-    });
-
-    it("shows a Sales viewer no Canvass button on a Component that has none", async () => {
-      seedComponents();
-      stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
       openDesk(deal);
 
       await openLines();

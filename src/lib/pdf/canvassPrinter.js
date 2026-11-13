@@ -1,10 +1,10 @@
 /**
- * Printing a Canvass (issue #282, ADR 0014): the I/O around the pure pieces.
+ * Printing a Canvass (spec #956, issue #971): the I/O around the pure pieces.
  *
- *   canvassService.get          the Canvass, as the printing reader may see it
+ *   canvassService.get          the Canvass of the request, as the printing reader may see it
  *   buildCanvassViewModel       what the paper says (canvassViewModel.js)
- *   hydrateCanvassSignatures    stored signatures, fetched as images
- *   buildCanvassDocument        the A4 portrait sheet (canvassDocument.js)
+ *   hydrateCanvassSignatures    the Canvasser's stored signature, fetched as an image
+ *   buildCanvassDocument        the landscape A4 sheets (canvassDocument.js)
  *   printIntoWindow             the browser's own print dialog
  *
  * The caller opens the window in the click (`openCanvassPrintWindow`): the reads are network round
@@ -15,7 +15,7 @@ import { supabase } from '../supabase';
 import { canvassService } from '../../services/canvassService';
 import { signatureService } from '../../services/signatureService';
 import { buildCanvassDocument } from './canvassDocument';
-import { buildCanvassViewModel, canPrintCanvass } from './canvassViewModel';
+import { buildCanvassViewModel } from './canvassViewModel';
 import { blobToDataUrl, openPrintWindow, printIntoWindow } from './htmlPrinter';
 
 /** Opens the window the Canvass will print into. Call it synchronously in the click. Null when a popup blocker refused. */
@@ -52,56 +52,72 @@ export async function hydrateCanvassSignatures(vm) {
   return vm;
 }
 
-/** Name and stored signature of each employee wanted, by id. */
-async function readPeople(ids) {
-  const wanted = [...new Set(ids.filter(Boolean))];
-  if (wanted.length === 0) return new Map();
-  const { data, error } = await supabase.from('employees').select('id, name, signature_path').in('id', wanted);
+async function readOrThrow(query) {
+  const { data, error } = await query;
   if (error) throw error;
-  return new Map((data ?? []).map((row) => [row.id, { name: row.name, signaturePath: row.signature_path || null }]));
-}
-
-/** The SOR's reference ("S07983"), or null when there is none to read. */
-async function readSorReference(opportunityId) {
-  if (!opportunityId) return null;
-  const { data, error } = await supabase.from('sales_opportunities').select('sales_reference').eq('id', opportunityId).maybeSingle();
-  if (error) throw error;
-  return data?.sales_reference ?? null;
+  return data;
 }
 
 /**
- * The Canvass as a view model with its signatures, ready to compose. `subject` is the service's
- * `{ canvassId }`, `{ componentId }` or `{ requestedItemId }`; `subjectLabel` is the panel's name
- * for it (a Component's number and name, the Requested Item's name, or the product). What kind of
- * subject it prints as is read from the Canvass itself. "Canvassed by" is the Canvasser where one
- * is set (a Canvass started with no subject), else whoever started it. Refuses for a reader
- * without the money tier: the sheet is prices.
+ * The request as the sheet names it, its lines in order (a cancelled line stays, marked), and the
+ * Canvasser. The brand asked for comes from the Component a line names.
  */
-export async function prepareCanvassForPrint(subject, { subjectLabel = '', opportunityId = null, printedBy = null, now = new Date() } = {}) {
-  const canvass = await canvassService.get(subject);
-  if (!canvass) throw new Error("This subject has no Canvass yet, or you don't have access to it.");
-  if (!canPrintCanvass(canvass)) throw new Error("Printing a Canvass shows prices, and you don't have access to them.");
-
-  const canvasserId = canvass.canvasser_id ?? canvass.created_by;
-  const [sor, people] = await Promise.all([
-    readSorReference(opportunityId),
-    readPeople([canvasserId, canvass.signed_off_by]),
+async function readRequest(canvass) {
+  const request = await readOrThrow(
+    supabase.from('purchase_requests').select('id, pr_number, title, opportunity_id, for_opportunity_id').eq('id', canvass.request_id).maybeSingle(),
+  );
+  const opportunityId = request?.for_opportunity_id ?? request?.opportunity_id ?? null;
+  const [opportunity, items, canvasser] = await Promise.all([
+    opportunityId
+      ? readOrThrow(supabase.from('sales_opportunities').select('client_name, project_title, sales_reference').eq('id', opportunityId).maybeSingle())
+      : null,
+    readOrThrow(
+      supabase
+        .from('purchase_request_items')
+        .select('id, name, description, unit, quantity, status, component_id, created_at')
+        .eq('request_id', canvass.request_id)
+        .order('created_at', { ascending: true }),
+    ),
+    (async () => {
+      const id = canvass.canvasser_id ?? canvass.created_by;
+      if (!id) return null;
+      const row = await readOrThrow(supabase.from('employees').select('name, signature_path').eq('id', id).maybeSingle());
+      return row ? { name: row.name, signaturePath: row.signature_path || null } : null;
+    })(),
   ]);
-  const label = String(subjectLabel ?? '').trim() || String(canvass.product_name ?? '').trim();
-  const printedSubject = canvass.component_id
-    ? { sor, component: { name: label } }
-    : canvass.requested_item_id
-      ? { sor, requestedItem: { name: label } }
-      : { product: { name: label } };
-  const vm = buildCanvassViewModel(
-    {
-      canvass,
-      subject: printedSubject,
-      people: {
-        creator: people.get(canvasserId),
-        approver: people.get(canvass.signed_off_by),
-      },
+
+  const kept = items ?? [];
+  const componentIds = [...new Set(kept.map((item) => item.component_id).filter(Boolean))];
+  const components = componentIds.length
+    ? await readOrThrow(supabase.from('costing_components').select('id, brand').in('id', componentIds))
+    : [];
+  const brandOf = new Map((components ?? []).map((c) => [c.id, c.brand]));
+
+  return {
+    request: {
+      number: request?.pr_number ?? null,
+      title: request?.title ?? null,
+      client: opportunity?.client_name ?? null,
+      project: opportunity?.project_title ?? null,
+      sor: opportunity?.sales_reference ?? null,
     },
+    lines: kept.map((item) => ({ ...item, brand: brandOf.get(item.component_id) ?? null })),
+    canvasser,
+  };
+}
+
+/**
+ * The request's Canvass as a view model with its signature, ready to compose. `subject` is the
+ * service's `{ requestId }` or `{ canvassId }`. A reader without the money tier gets the sheet
+ * without prices, rates and totals (the service leaves those keys off).
+ */
+export async function prepareCanvassForPrint(subject, { printedBy = null, now = new Date() } = {}) {
+  const canvass = await canvassService.get(subject);
+  if (!canvass) throw new Error("This request has no Canvass yet, or you don't have access to it.");
+
+  const { request, lines, canvasser } = await readRequest(canvass);
+  const vm = buildCanvassViewModel(
+    { canvass, request, lines, people: { creator: canvasser } },
     { printedAt: now.toISOString(), printedBy },
   );
   return hydrateCanvassSignatures(vm);
@@ -111,9 +127,9 @@ export async function prepareCanvassForPrint(subject, { subjectLabel = '', oppor
  * Prints one Canvass into `printWindow` (from `openCanvassPrintWindow`). Closes the window and
  * rethrows when anything fails, so no blank tab is left behind.
  */
-export async function printCanvass(subject, { printWindow, subjectLabel = '', opportunityId = null, printedBy = null } = {}) {
+export async function printCanvass(subject, { printWindow, printedBy = null } = {}) {
   try {
-    const vm = await prepareCanvassForPrint(subject, { subjectLabel, opportunityId, printedBy });
+    const vm = await prepareCanvassForPrint(subject, { printedBy });
     await printIntoWindow(printWindow, buildCanvassDocument(vm));
   } catch (error) {
     try {

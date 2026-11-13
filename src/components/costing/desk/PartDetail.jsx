@@ -82,7 +82,7 @@ export function Band({ title, hint, children, className }) {
  *
  * `asProduct`: the line's only Component, the product it is priced from, so the line's words are not repeated.
  */
-export default function PartDetail({ component, line, matrix, writes, incharge, requests, canvasses, bundles, stockData, opportunityId, actorId, asProduct = false, onRemove }) {
+export default function PartDetail({ component, line, matrix, writes, incharge, requests, canvasses, bundles, stockData, opportunityId, asProduct = false, onRemove }) {
   const { busy, run, refresh } = writes;
   const [inchargeOpen, setInchargeOpen] = useState(false);
   const { bands, tier } = matrix;
@@ -369,7 +369,14 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
 
       <div className="space-y-3 empty:hidden">
         <ComponentRequests items={requests.get(component.id)} />
-        <ComponentCanvass component={component} canvass={canvasses?.get(component.id)} canWrite={can("source")} opportunityId={opportunityId} actorId={actorId} />
+        <ComponentCanvass
+          component={component}
+          canvass={canvasses?.get(component.id)}
+          items={requests.get(component.id)}
+          // Sales and Purchasing raise the request from the SOR's step; others just read the note.
+          canRaise={can("brand")}
+          opportunityId={opportunityId}
+        />
         {component.is_bundle && (
           <div data-testid="component-inclusions">
             <InclusionList component={component} bands={bands} otherBundles={bundles.filter((b) => b.id !== component.id)} writes={writes} />

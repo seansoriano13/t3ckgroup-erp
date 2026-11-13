@@ -10,7 +10,7 @@
  *     Odoo's. Nothing is typed in by hand and nothing is written to Odoo.
  *   - Each chosen SOR gets one Purchase Request listing its own S0 lines. A line that a real
  *     P0 bought is Purchased or Received, the rest are spread over Not checked, To purchase,
- *     Still canvassing (with Offers) and Available. Real P0s that are still RFQs keep the
+ *     Still canvassing (quoted on the request's one Canvass, #967) and Available. Real P0s that are still RFQs keep the
  *     line at To purchase, like the app does.
  *   - IPAS are raised for some of the real P0s through the app's own "raise" path, so each
  *     one holds Odoo's own copy of the PO. A few get a payment.
@@ -238,6 +238,8 @@ async function writePlan(c, plan, staff, ctx) {
   const actor = buyer ?? staff.purchasing[0]
   const made = { request: pr.id, number: pr.pr_number, items: items.length, canvasses: 0 }
   const events = []
+  // The still-canvassing lines, quoted after the loop on the request's one Canvass (#967).
+  const canvassed = []
 
   for (const line of plan.lines) {
     const itemId = itemFor.get(line.item.id)
@@ -247,47 +249,56 @@ async function writePlan(c, plan, staff, ctx) {
       : line.status === "not_checked"
         ? null
         : new Date(opened.getTime() + between(r, 1, Math.max(2, Math.floor((Date.now() - opened.getTime()) / DAY))) * DAY)
-    const canvass = line.status === "still_canvassing"
-    const writeStatus = canvass ? "to_purchase" : line.status
+    if (line.status === "still_canvassing") canvassed.push({ itemId, item: line.item, when: changedAt ?? new Date(opened.getTime() + DAY) })
     await c.query(
       `update purchase_request_items set status = $2, po_number = $3, po_verification = $4, po_state = $5, po_ordered = $6, po_received = $7,
               po_eta = $8, odoo_po_line_ids = $9::int[], bought_as = $10, po_synced_at = $11, status_changed_by = $12, status_changed_at = $13,
               closed_note = $14
         where id = $1`,
       [
-        itemId, writeStatus,
+        itemId, line.status,
         line.po?.number ?? null, line.po ? "VERIFIED" : "UNVERIFIED", line.po?.state ?? null, line.po?.ordered ?? null, line.po?.received ?? null,
         line.po?.eta ?? null, line.po ? [line.po.lineId] : [], line.po?.boughtAs ?? null, line.po ? iso(new Date()) : null,
         changedAt ? actor : null, changedAt ? iso(changedAt) : null,
         line.status === "cancelled" ? pick(r, ["Client dropped this line from the tender", "Covered by another line"]) : null,
       ],
     )
-    if (canvass) {
-      const when = changedAt ?? new Date(opened.getTime() + DAY)
-      const { rows: [cv] } = await c.query(
-        // No request_made_at: that stamp locks the Canvass, and these are still open.
-        `insert into sor_canvasses (requested_item_id, product_name, created_by, canvasser_id, created_at, updated_at)
-         values ($1, $2, $3, $3, $4, $4) returning id`,
-        [itemId, line.item.name, actor, iso(when)],
+  }
+
+  // One Canvass for the request (#967), made the way the app makes it: when its first supplier is saved,
+  // which is also when it gets its CNV_ number. Suppliers are added once; each then quotes the lines it
+  // can supply and skips the rest, so the grid has gaps like a real one.
+  if (canvassed.length) {
+    const since = new Date(Math.min(...canvassed.map((l) => l.when.getTime())))
+    const { rows: [cv] } = await c.query(
+      `insert into request_canvasses (request_id, number, created_by, canvasser_id, created_at, updated_at)
+       values ($1, 'pending', $2, $2, $3, $3) returning id`,
+      [pr.id, actor, iso(since)],
+    )
+    const suppliers = [...new Set([...ctx.suppliers].sort(() => r() - 0.5).slice(0, between(r, 2, 4)))]
+    for (const [k, name] of suppliers.entries()) {
+      const usd = /shenzhen|guangzhou|ningbo|china|co\.?, ?ltd|limited/i.test(name)
+      const { rows: [supplier] } = await c.query(
+        `insert into request_canvass_suppliers (canvass_id, supplier_name, currency, lead_time, valid_until, sort_order, created_by, created_at, updated_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $8) returning id`,
+        [cv.id, name, usd ? "USD" : "PHP", pick(r, ["3 days", "1 week", "2 weeks", "3 to 4 weeks"]), day(new Date(since.getTime() + 30 * DAY)), k, actor, iso(since)],
       )
-      const base = Number(line.item.price) > 0 ? Number(line.item.price) * (0.55 + r() * 0.25) : between(r, 800, 24000)
-      const suppliers = [...new Set([...ctx.suppliers].sort(() => r() - 0.5).slice(0, between(r, 2, 4)))]
-      for (const [k, name] of suppliers.entries()) {
-        const usd = /shenzhen|guangzhou|ningbo|china|co\.?, ?ltd|limited/i.test(name)
+      // The rate sits in its own table, which only Purchasing and the money readers can see.
+      await c.query("insert into request_canvass_supplier_prices (supplier_id, comparison_rate, updated_at) values ($1, $2, $3)", [supplier.id, usd ? 63.5 : null, iso(since)])
+      for (const line of canvassed) {
+        // Every line gets its first supplier's quote; later suppliers skip a line now and then.
+        if (k > 0 && r() < 0.25) continue
+        const base = Number(line.item.price) > 0 ? Number(line.item.price) * (0.55 + r() * 0.25) : between(r, 800, 24000)
         const peso = Math.round(base * (0.9 + r() * 0.25) * 100) / 100
-        const { rows: [offer] } = await c.query(
-          `insert into sor_canvass_offers (canvass_id, supplier_name, currency, lead_time, valid_until, sort_order, is_winner, created_by, created_at, updated_at)
-           values ($1, $2, $3, $4, $5, $6, false, $7, $8, $8) returning id`,
-          [cv.id, name, usd ? "USD" : "PHP", pick(r, ["3 days", "1 week", "2 weeks", "3 to 4 weeks"]), day(new Date(when.getTime() + 30 * DAY)), k, actor, iso(when)],
+        const { rows: [quote] } = await c.query(
+          `insert into request_canvass_quotes (canvass_id, supplier_id, item_id, created_by, created_at, updated_at)
+           values ($1, $2, $3, $4, $5, $5) returning id`,
+          [cv.id, supplier.id, line.itemId, actor, iso(line.when)],
         )
-        // The price sits in its own table, which only Purchasing and the money readers can see.
-        await c.query("insert into sor_canvass_offer_prices (offer_id, unit_price, comparison_rate, updated_at) values ($1, $2, $3, $4)", [offer.id, usd ? Math.round((peso / 63.5) * 100) / 100 : peso, usd ? 63.5 : null, iso(when)])
+        await c.query("insert into request_canvass_quote_prices (quote_id, unit_price, updated_at) values ($1, $2, $3)", [quote.id, usd ? Math.round((peso / 63.5) * 100) / 100 : peso, iso(line.when)])
       }
-      // The trigger flipped the line to Still canvassing at "now"; the record and its chat note belong to `when`.
-      await c.query("update purchase_request_items set status_changed_at = $2, status_changed_by = $3 where id = $1", [itemId, iso(when), actor])
-      await c.query("update purchase_request_messages set created_at = $3 where request_id = $1 and created_at = now() and metadata->>'item_id' = $2", [pr.id, itemId, iso(when)])
-      made.canvasses++
     }
+    made.canvasses++
   }
 
   // A short, believable conversation, dated after the request opened.
@@ -295,7 +306,7 @@ async function writePlan(c, plan, staff, ctx) {
   const talk = [[requester, `Hi Purchasing, please check the lines for ${plan.sor.client_name}.`, 0]]
   if (buyer) talk.push([buyer, pick(r, ["Taking this. Checking stock first.", "Got it. I will price what we do not have.", "Noted. Starting with the long lead items."]), 1])
   if (bought && buyer) talk.push([buyer, `${bought.po.number} is with ${bought.po.supplier ?? "the supplier"}${bought.po.eta ? `, ordered ${bought.po.eta}` : ""}.`, 3])
-  else if (plan.lines.some((l) => l.status === "still_canvassing") && buyer) talk.push([buyer, "Canvassing the rest now. Offers are on each line.", 2])
+  else if (plan.lines.some((l) => l.status === "still_canvassing") && buyer) talk.push([buyer, "Canvassing the rest now. The suppliers and their quotes are in the Canvass.", 2])
   for (const [author, content, offset] of talk) {
     await c.query("insert into purchase_request_messages (request_id, author_id, content, created_at) values ($1, $2, $3, $4)", [pr.id, author, content, iso(new Date(Math.min(Date.now() - 3600_000, opened.getTime() + offset * DAY + 3600_000)))])
   }
@@ -437,15 +448,13 @@ async function remove({ apply }) {
     await c.query("begin")
     const ids = manifest.requests
     const items = "(select id from purchase_request_items where request_id = any($1::uuid[]))"
-    await c.query(`delete from sor_canvass_offer_prices where offer_id in (select o.id from sor_canvass_offers o join sor_canvasses v on v.id = o.canvass_id where v.requested_item_id in ${items})`, [ids])
-    await c.query(`delete from sor_canvass_offers where canvass_id in (select id from sor_canvasses where requested_item_id in ${items})`, [ids])
-    await c.query(`delete from sor_canvasses where requested_item_id in ${items}`, [ids])
+    await c.query("delete from request_canvasses where request_id = any($1::uuid[])", [ids])
     await c.query(`delete from purchase_request_item_prices where item_id in ${items}`, [ids])
     await c.query("delete from purchase_request_messages where request_id = any($1::uuid[])", [ids])
     await c.query("delete from purchase_request_items where request_id = any($1::uuid[])", [ids])
     await c.query("delete from purchase_request_members where request_id = any($1::uuid[])", [ids])
     const gone = await c.query("delete from purchase_requests where id = any($1::uuid[])", [ids])
-    console.log(`  ${gone.rowCount} requests removed with their lines, canvasses, offers, chat and members`)
+    console.log(`  ${gone.rowCount} requests removed with their lines, canvasses, suppliers, quotes, chat and members`)
     await c.query(apply ? "commit" : "rollback")
     if (apply) {
       for (const ipas of manifest.ipas) {

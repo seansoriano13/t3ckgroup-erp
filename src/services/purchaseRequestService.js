@@ -311,32 +311,42 @@ export const purchaseRequestService = {
   },
 
   /**
-   * The Canvass of each item that has one (#280), as a Map of item id to
-   * `{ id, number, signed, viaComponent }`. An item that names a Component shows that Component's
-   * Canvass (`viaComponent`); any other shows its own. Only what the caller may read comes back,
-   * so an item with none, or one the caller can't see, simply has no entry.
+   * The Canvass line of each item a supplier has quoted (#967, spec #956), as a Map of item id to
+   * `{ id, number, supplierCount, winnerName }`: the request's Canvass number, how many suppliers
+   * quoted this line, and who won it. Only what the caller may read comes back, so an item with no
+   * quote, or one the caller can't see, simply has no entry. Names and counts, no money.
    */
   async canvassesForItems(items = []) {
-    const own = items.filter((i) => !i.component_id).map((i) => i.id);
-    const componentIds = [...new Set(items.filter((i) => i.component_id).map((i) => i.component_id))];
     const byItem = new Map();
-    if (own.length === 0 && componentIds.length === 0) return byItem;
+    const ids = items.map((i) => i.id);
+    if (ids.length === 0) return byItem;
 
-    const select = "id, number, requested_item_id, component_id, signed_off_at";
-    const [ownRows, componentRows] = await Promise.all([
-      own.length ? supabase.from("sor_canvasses").select(select).in("requested_item_id", own) : { data: [] },
-      componentIds.length ? supabase.from("sor_canvasses").select(select).in("component_id", componentIds) : { data: [] },
+    const { data: quotes, error } = await supabase
+      .from("request_canvass_quotes")
+      .select("canvass_id, supplier_id, item_id")
+      .in("item_id", ids);
+    if (error) throw error;
+    if (!quotes || quotes.length === 0) return byItem;
+
+    const [canvasses, suppliers, winners] = await Promise.all([
+      supabase.from("request_canvasses").select("id, number").in("id", [...new Set(quotes.map((q) => q.canvass_id))]),
+      supabase.from("request_canvass_suppliers").select("id, supplier_name").in("id", [...new Set(quotes.map((q) => q.supplier_id))]),
+      supabase.from("request_canvass_winners").select("item_id, supplier_id").in("item_id", ids),
     ]);
-    if (ownRows.error) throw ownRows.error;
-    if (componentRows.error) throw componentRows.error;
+    for (const result of [canvasses, suppliers, winners]) if (result.error) throw result.error;
+    const numberOf = new Map((canvasses.data || []).map((c) => [c.id, c.number]));
+    const nameOf = new Map((suppliers.data || []).map((s) => [s.id, s.supplier_name]));
+    const winnerOf = new Map((winners.data || []).map((w) => [w.item_id, w.supplier_id]));
 
-    const shape = (c, viaComponent) => ({ id: c.id, number: c.number, signed: Boolean(c.signed_off_at), viaComponent });
-    for (const c of ownRows.data || []) byItem.set(c.requested_item_id, shape(c, false));
-    const byComponent = new Map((componentRows.data || []).map((c) => [c.component_id, c]));
-    for (const item of items) {
-      if (item.component_id && byComponent.has(item.component_id)) {
-        byItem.set(item.id, shape(byComponent.get(item.component_id), true));
-      }
+    for (const quote of quotes) {
+      const entry = byItem.get(quote.item_id) ?? {
+        id: quote.canvass_id,
+        number: numberOf.get(quote.canvass_id) ?? null,
+        supplierCount: 0,
+        winnerName: nameOf.get(winnerOf.get(quote.item_id)) ?? null,
+      };
+      entry.supplierCount += 1;
+      byItem.set(quote.item_id, entry);
     }
     return byItem;
   },

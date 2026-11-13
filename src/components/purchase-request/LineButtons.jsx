@@ -3,7 +3,6 @@ import { useMutation } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
-import ItemCanvass from "./ItemCanvass";
 import ReplaceItemDialog from "./ReplaceItemDialog";
 import { AttachP0Dialog } from "./PoDialogs";
 import { ITEM_STATUS, MEMBER_SIDE } from "../../constants/purchaseRequest";
@@ -11,9 +10,10 @@ import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { refusal, useRefreshRequest } from "./requestHooks";
 
 /**
- * #695 — the buttons under an opened line: Canvass, Attach P0 and Replace. Purchasing only; each is
+ * #695 — the buttons under an opened line: Attach P0 and Replace. Purchasing only; each is
  * switched off, with the reason as its title, when it makes no sense for the line. (They were in the
- * status menu until the list took the prototype's layout.)
+ * status menu until the list took the prototype's layout.) The Canvass is one for the whole request
+ * now (#970): its button is on the request, and a line's notes open it at that line.
  */
 export default function LineButtons({ item, request, actor }) {
   const [attaching, setAttaching] = useState(false);
@@ -35,7 +35,6 @@ export default function LineButtons({ item, request, actor }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Purchasing actions for ${item.name}`}>
-      <ItemCanvass item={item} request={request} actor={actor} />
       <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={!!attachOff} title={attachOff ?? undefined} onClick={() => setAttaching(true)}>
         Attach P0
       </Button>

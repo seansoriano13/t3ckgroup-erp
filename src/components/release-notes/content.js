@@ -419,8 +419,9 @@ export const SECTIONS = [
       {
         id: "canvasses",
         title: "Canvasses: compare suppliers",
-        body: "A Canvass holds up to three supplier offers, each with its price, lead time and brochure. Pick the winner and say why; on an S0 Evaluation line, the winner fills in the cost. Dollar and euro offers use the day's exchange rate. Finished Canvasses can become a Purchase Request.",
+        body: "A Purchase Request has one Canvass for all its lines, shown as one grid: the lines go down and the suppliers across, like the sheet. Add each supplier once with its currency, rate, how long the quote holds and its lead time, then type its price on each line it quotes; a blank means it did not quote that line. Pick a winner for each line and say why, or let one supplier win every line. A winner needs three suppliers, or a “No other supplier” note. On an S0 Evaluation line, the winner fills in the cost. A line locks when it is marked Purchased.",
         who: ["Purchasing"],
+        sample: "canvass-grid",
       },
       {
         id: "ipas",

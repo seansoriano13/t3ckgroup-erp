@@ -1,4 +1,4 @@
-import { BidDecisionSample, IpasPaymentsSample, PmsIpasSample } from "./purchasingSamples"
+import { BidDecisionSample, CanvassGridSample, IpasPaymentsSample, PmsIpasSample } from "./purchasingSamples"
 import { FieldTypesSample } from "./adminSamples"
 import { RetailIncomeSample, RetrySample } from "./everydaySamples"
 import { CalendarSample, LeaveRangeSample, MeetingRequestSample } from "./timeOffSamples"
@@ -37,6 +37,7 @@ export const SAMPLES = {
   "field-types": FieldTypesSample,
   // Purchasing (Beta)
   "s0-evaluation": BidDecisionSample,
+  "canvass-grid": CanvassGridSample,
   ipas: IpasPaymentsSample,
   "pms-tab": PmsIpasSample,
 }
