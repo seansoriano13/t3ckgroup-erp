@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { summaryLineShown } from "../constants/costing";
-import { opexIncomplete, revenueIncomplete, resolveCost, lineCost, abcSettingOf, applyPercentRows, percentOfAbcAmount, projectExpensesTotal, usualRowsToAdd, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireByRule, costUnit, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
+import { opexIncomplete, revenueIncomplete, resolveCost, lineCost, abcSettingOf, offerSettingOf, offerTotalCentavos, applyPercentRows, percentOfAbcAmount, projectExpensesTotal, usualRowsToAdd, complianceRollup, componentTotals, costRowsTotals, costRowTotals, describeComplianceRollup, extended, finalAcquireByRule, costUnit, finalAcquireTotal, lineTotals, matrixTotals, offerVsAbc, offersNotEntered, percentOf, revenueComparison, revenueInputs, summary } from "./costingMath";
 
 describe("extended", () => {
   it("multiplies a unit price by a quantity to the centavo", () => {
@@ -941,5 +941,60 @@ describe("Final Acquire by the rule (#962)", () => {
   it("lets a cost-only row (no Status) keep its Acquire when it has no Final Acquire", () => {
     expect(costUnit({ matrix_id: "m", acquire_unit: 900, final_acquire_unit: null })).toBe(900);
     expect(finalAcquireTotal([{ matrix_id: "m", quantity: 2, acquire_unit: 900 }])).toBe(1800);
+  });
+});
+
+describe("the Final Offer as one total (the sheet's way)", () => {
+  // The sheet (docs/gsheet/…FloridaBlanca…): every line's own offer is 0.00 and Y14 = 370,000 is typed once.
+  const part = (q, fa) => ({ tender_line_id: "t", quantity: q, final_acquire_unit: fa });
+  const lines = [
+    { quantity: 1, abc_unit: null, final_offer_unit: null, components: [part(1, 39840), part(3, 7984), part(1, 5344), part(1, 7040)] },
+    { quantity: 2, abc_unit: null, final_offer_unit: null, components: [part(2, 13440), part(2, 7984), part(2, 3040)] },
+  ];
+  const abc = { mode: "total_only", total: 371500 };
+  const offer = { mode: "total_only", total: 370000 };
+  const settings = { vatDivisor: 1.12, taxRate: 0.06, retentionRate: 0.01, itrRate: 0.08, itrAllowance: 250000, goLinePercent: 20 };
+
+  it("reads the setting from the matrix row, or nothing when the tier was not sent it", () => {
+    expect(offerSettingOf({ offer_mode: "total_only", offer_total: "370000.00" })).toEqual(offer);
+    expect(offerSettingOf({ offer_mode: "by_line", offer_total: null })).toEqual({ mode: "by_line", total: null });
+    expect(offerSettingOf({ abc_mode: "by_line" })).toBeNull();
+  });
+
+  it("takes the typed total and sets the lines' own offers aside; a blank total is one thing missing", () => {
+    expect(offerTotalCentavos(lines, offer)).toEqual({ offer: 37000000n, missing: 0 });
+    expect(offerTotalCentavos(lines, { mode: "total_only", total: null })).toEqual({ offer: null, missing: 1 });
+    expect(offerTotalCentavos([], offer)).toEqual({ offer: null, missing: 0 });
+    // By line, as before: a blank line offer blanks the total.
+    expect(offerTotalCentavos(lines, null)).toEqual({ offer: null, missing: 2 });
+  });
+
+  it("gives matrixTotals the typed offer against the typed ABC", () => {
+    const totals = matrixTotals(lines, abc, offer);
+    expect(totals.finalOfferTotal).toBe(370000);
+    expect(totals.missingOffer).toBe(0);
+    expect(totals.overAbc).toBe(false);
+    expect(totals.percentOfAbc).toBeCloseTo(99.6, 1);
+    expect(matrixTotals(lines, abc, { mode: "total_only", total: 380000 }).overAbc).toBe(true);
+  });
+
+  it("works the sheet's summary to the centavo: Revenue 102,793.14, 27.78%", () => {
+    const costRows = [{ quantity: 1, acquire_unit: 37150 }, { quantity: 1, acquire_unit: 26005 }, { quantity: 1, acquire_unit: 7430 }, { quantity: 1, acquire_unit: 18575 }];
+    const s = summary({ tenderLines: lines, costRows, money: { marketing: 0 }, abc, offer }, settings);
+    expect(s.finalOfferTotal).toBe(370000);
+    expect(s.vatExclusive).toBe(330357.14);
+    expect(s.landedCost).toBe(125104);
+    expect(s.projectExpenses).toBe(89160);
+    expect(s.opex).toBe(217964);
+    expect(s.itr).toBe(9600);
+    expect(s.revenue).toBe(102793.14);
+    expect(s.revenuePercent).toBeCloseTo(27.78, 2);
+    expect(s.incomplete.missingOffer).toBe(0);
+  });
+
+  it("drops the per-line low-offer warning when the offer is one total", () => {
+    const byLine = [{ id: "a", number: 1, quantity: 1, abc_unit: 1000, final_offer_unit: 100 }];
+    expect(offerVsAbc(byLine, null, null).lines).toHaveLength(1);
+    expect(offerVsAbc(byLine, null, { mode: "total_only", total: 900 }).lines).toHaveLength(0);
   });
 });

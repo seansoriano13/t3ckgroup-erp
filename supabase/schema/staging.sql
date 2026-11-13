@@ -371,7 +371,9 @@ create table if not exists public."costing_matrices" (
   "abc_mode" text not null default 'by_line'::text,
   "abc_total" numeric(18,2),
   "s0_number" text,
-  "created_by" uuid
+  "created_by" uuid,
+  "offer_mode" text not null default 'by_line'::text,
+  "offer_total" numeric(18,2)
 );
 
 create table if not exists public."costing_matrix_money" (
@@ -2200,6 +2202,8 @@ alter table costing_matrices add constraint "costing_matrices_abc_total_chk" CHE
 alter table costing_matrices add constraint "costing_matrices_compliance_chk" CHECK (((compliance IS NULL) OR (compliance = ANY (ARRAY['complies'::text, 'deviates'::text]))));
 alter table costing_matrices add constraint "costing_matrices_has_subject_chk" CHECK (((opportunity_id IS NOT NULL) OR (s0_number IS NOT NULL)));
 alter table costing_matrices add constraint "costing_matrices_import_addon_chk" CHECK (((import_addon_percent IS NULL) OR (import_addon_percent >= (0)::numeric)));
+alter table costing_matrices add constraint "costing_matrices_offer_mode_chk" CHECK ((offer_mode = ANY (ARRAY['by_line'::text, 'total_only'::text])));
+alter table costing_matrices add constraint "costing_matrices_offer_total_chk" CHECK (((offer_total IS NULL) OR (offer_total >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_factor_chk" CHECK (((default_factor IS NULL) OR (default_factor > (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_final_percent_chk" CHECK (((final_acquire_percent > ('-100'::integer)::numeric) AND (final_acquire_percent <= (1000)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_marketing_chk" CHECK (((marketing IS NULL) OR (marketing >= (0)::numeric)));
@@ -9675,20 +9679,20 @@ CREATE OR REPLACE FUNCTION public.costing_bid_totals(p_matrix_id uuid)
  SET search_path TO 'public'
 AS $function$
   select
-    case when count(l.id) > 0 and count(l.id) filter (where p.final_offer_unit is null) = 0
-         then sum(round(p.final_offer_unit * l.quantity, 2)) end,
+    public.costing_offer_total(m.id),
     case when m.abc_mode = 'total_only' then (case when count(l.id) > 0 then m.abc_total end)
          when count(l.id) > 0 and count(l.id) filter (where p.abc_unit is null) = 0
          then sum(round(p.abc_unit * l.quantity, 2)) end,
     count(l.id)::integer,
-    (count(l.id) filter (where p.final_offer_unit is null))::integer,
+    case when m.offer_mode = 'total_only' then (case when count(l.id) > 0 and m.offer_total is null then 1 else 0 end)
+         else (count(l.id) filter (where p.final_offer_unit is null))::integer end,
     case when m.abc_mode = 'total_only' then (case when count(l.id) > 0 and m.abc_total is null then 1 else 0 end)
          else (count(l.id) filter (where p.abc_unit is null))::integer end
   from public.costing_matrices m
   left join public.costing_tender_lines l on l.matrix_id = m.id
   left join public.costing_tender_line_prices p on p.tender_line_id = l.id
   where m.id = p_matrix_id
-  group by m.abc_mode, m.abc_total
+  group by m.id, m.abc_mode, m.abc_total, m.offer_mode, m.offer_total
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_bundle_keeps_inclusions()
@@ -10285,12 +10289,8 @@ begin
     return null;
   end if;
 
-  select count(*) filter (where p.final_offer_unit is null),
-         sum(p.final_offer_unit * l.quantity)
-    into v_missing_offer, v_offer
-    from public.costing_tender_lines l
-    left join public.costing_tender_line_prices p on p.tender_line_id = l.id
-   where l.matrix_id = v_matrix;
+  v_offer := public.costing_offer_total(v_matrix);
+  v_missing_offer := case when v_offer is null then 1 else 0 end;
   if not exists (select 1 from public.costing_tender_lines where matrix_id = v_matrix) or v_missing_offer > 0 then
     v_offer := null;
   end if;
@@ -11558,13 +11558,7 @@ begin
   from public.costing_matrices m
   join public.sales_opportunities o on o.id = m.opportunity_id
   left join public.flow_stages fs on fs.id = o.flow_stage_id
-  cross join lateral (
-    select case when count(*) > 0 and bool_and(p.final_offer_unit is not null)
-                then sum(round(p.final_offer_unit * t.quantity, 2)) end as total
-    from public.costing_tender_lines t
-    left join public.costing_tender_line_prices p on p.tender_line_id = t.id
-    where t.matrix_id = m.id
-  ) offer
+  cross join lateral (select public.costing_offer_total(m.id) as total) offer
   cross join lateral (
     select case when count(*) > 0 and bool_and(x.fa is not null)
                 then sum(round(x.fa * x.q, 2)) end as total
@@ -11794,6 +11788,24 @@ begin
   where coalesce(m.opportunity_id, m.id) = p_opportunity_id
     and c.odoo_product_id is not null;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_offer_total(p_matrix_id uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when m.offer_mode = 'total_only' then (case when count(l.id) > 0 then m.offer_total end)
+    when count(l.id) > 0 and count(l.id) filter (where p.final_offer_unit is null) = 0
+      then sum(round(p.final_offer_unit * l.quantity, 2))
+  end
+  from public.costing_matrices m
+  left join public.costing_tender_lines l on l.matrix_id = m.id
+  left join public.costing_tender_line_prices p on p.tender_line_id = l.id
+  where m.id = p_matrix_id
+  group by m.offer_mode, m.offer_total
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_on_list(p_list_key text)
@@ -12027,11 +12039,7 @@ AS $function$
          end
   from public.costing_settings s
   cross join lateral (
-    select (select case when count(l.id) > 0 and count(l.id) filter (where p.final_offer_unit is null) = 0
-                        then sum(round(p.final_offer_unit * l.quantity, 2)) end
-              from public.costing_tender_lines l
-              left join public.costing_tender_line_prices p on p.tender_line_id = l.id
-             where l.matrix_id = p_matrix_id) as offer,
+    select public.costing_offer_total(p_matrix_id) as offer,
            public.costing_planned_cost_total(p_matrix_id) as landed,
            public.costing_project_expenses_total(p_matrix_id) as expenses
   ) t
@@ -12112,6 +12120,26 @@ begin
      and r.abc_pct is not null
      and r.acquire_unit is distinct from public.costing_percent_row_unit(r.matrix_id, r.abc_pct, r.quantity);
   perform set_config('costing.bypass', v_was, true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_refuse_totals_when_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is null or coalesce(auth.role(), '') = 'service_role' then
+    return new;
+  end if;
+  if (new.abc_mode, new.abc_total, new.offer_mode, new.offer_total)
+       is distinct from (old.abc_mode, old.abc_total, old.offer_mode, old.offer_total)
+     and exists (select 1 from public.costing_bid_decisions d
+                  where d.matrix_id = new.id and d.cleared_at is null and d.verdict = 'go') then
+    raise exception 'costing_bid: the sheet is locked by a Go. Unlock it, with a reason, to change it' using errcode = '42501';
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -12760,13 +12788,7 @@ begin
   cross join lateral (select public.costing_standalone_tier(m.id) as tier) t
   left join public.costing_matrix_money mm on mm.matrix_id = m.id
   cross join lateral (select count(*)::integer as n from public.costing_tender_lines l where l.matrix_id = m.id) lines
-  cross join lateral (
-    select case when count(*) > 0 and bool_and(p.final_offer_unit is not null)
-                then sum(round(p.final_offer_unit * l.quantity, 2)) end as total
-    from public.costing_tender_lines l
-    left join public.costing_tender_line_prices p on p.tender_line_id = l.id
-    where l.matrix_id = m.id
-  ) offer
+  cross join lateral (select public.costing_offer_total(m.id) as total) offer
   cross join lateral (
     select case when count(*) > 0 and bool_and(x.fa is not null)
                 then sum(round(x.fa * x.q, 2)) end as total
@@ -30573,6 +30595,7 @@ CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_
 CREATE TRIGGER costing_check_technical_incharge BEFORE INSERT OR UPDATE OF technical_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_technical_incharge();
 CREATE TRIGGER costing_clear_evaluation_matrix AFTER UPDATE OF compliance, compliance_note ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_go_lock_totals BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_refuse_totals_when_locked();
 CREATE TRIGGER costing_matrices_touch BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
 CREATE TRIGGER costing_matrix_verdict_guard BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_matrix_verdict_guard();
 CREATE TRIGGER trg_zz_costing_matrices_default_addon BEFORE INSERT ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_matrices_default_addon();

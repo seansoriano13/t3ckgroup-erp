@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
 import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, FINAL_ACQUIRE_PERCENT_HIGH, FINAL_ACQUIRE_PERCENT_LOW, STANDALONE_START_PROBLEM, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
-import { DEFAULT_FINAL_ACQUIRE_PERCENT, abcSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
+import { DEFAULT_FINAL_ACQUIRE_PERCENT, abcSettingOf, offerSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { numberOrNull } from "../utils/numberOrNull";
 import { isS0Number, linesFromOdoo, normalizeS0, shapeStandalonePage } from "../utils/standaloneEvaluation";
@@ -329,6 +329,8 @@ export function shapeMatrix(read, settings = null) {
   // A cost-only row with no factor of its own is x1.00, not the matrix default.
   // A row typed as a percent of the ABC counts at that percent of the ABC total (#963).
   const abcSetting = abcSettingOf(matrix);
+  // The Final Offer typed as one total (layout F, the sheet's way), the twin of the ABC setting.
+  const offerSetting = offerSettingOf(matrix);
   const abcTotal = matrixTotals(tenderLines, abcSetting).abcTotal;
   const costRows = applyPercentRows(tables.costing_cost_rows ?? [], abcTotal).map((row, index) => ({
     ...row,
@@ -344,7 +346,8 @@ export function shapeMatrix(read, settings = null) {
     matrix,
     tenderLines,
     abc: abcSetting,
-    totals: matrixTotals(tenderLines, abcSetting),
+    offer: offerSetting,
+    totals: matrixTotals(tenderLines, abcSetting, offerSetting),
     // Cost tiers only: no key means the viewer was not sent it (#702).
     importAddonPercent: matrix && "import_addon_percent" in matrix ? numberOrNull(matrix.import_addon_percent) : undefined,
     defaultFactor: money ? (defaultFactor === null ? null : Number(defaultFactor)) : undefined,
@@ -379,7 +382,7 @@ export function shapeMatrix(read, settings = null) {
   if (tierReadsSummary(read.tier)) {
     shaped.money = money;
     shaped.rates = settings ?? DEFAULT_COSTING_SETTINGS;
-    shaped.summary = summary({ tenderLines, costRows, money, abc: shaped.abc }, shaped.rates);
+    shaped.summary = summary({ tenderLines, costRows, money, abc: shaped.abc, offer: shaped.offer }, shaped.rates);
   }
   return shaped;
 }
@@ -520,7 +523,7 @@ async function withPurchases(shaped, opportunityId) {
     line.totals = money ? { ...totals, landedCost: landedCostRollup(line.components) } : totals;
   }
   const { landedCost: _none, ...totals } = shaped.totals;
-  shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines, shaped.abc).landedCost } : totals;
+  shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines, shaped.abc, shaped.offer).landedCost } : totals;
   // Planned Revenue is `summary.revenue`, untouched; Actual sits beside it, never inside it.
   if (actual) {
     const inputs = revenueInputs(shaped, { ipasShort: (ipases.data ?? []).some(ipasShortOfLcOdooDone) });
@@ -664,6 +667,24 @@ export const costingMatrixService = {
     const { data, error } = await supabase.from("costing_matrices").update(columns).eq("id", matrixId).select("id");
     if (error) fail(error);
     if (!data?.length) throw new Error("The ABC could not be changed.");
+  },
+
+  /**
+   * Sets how the evaluation's Final Offer is typed (the Sales band), the twin of setAbc: `mode` is "by_line" or
+   * "total_only" (one offer for the whole bid, as the sheet types it), `total` the typed offer total (blank clears
+   * it). Per-line offers are never touched. A Go locks it, as it locks every price.
+   */
+  async setOffer(matrixId, { mode, total } = {}) {
+    const columns = {};
+    if (mode !== undefined) {
+      if (!Object.values(ABC_MODE).includes(mode)) throw new CostingRuleError("The Final Offer is typed by line or as a total.", "23514");
+      columns.offer_mode = mode;
+    }
+    if (total !== undefined) columns.offer_total = blankToNull(total);
+    if (Object.keys(columns).length === 0) return;
+    const { data, error } = await supabase.from("costing_matrices").update(columns).eq("id", matrixId).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("The Final Offer could not be changed.");
   },
 
   /** Types the matrix's Import add-on percent (Purchasing). Null clears it back to blank. */

@@ -276,9 +276,37 @@ export function abcSettingOf(matrixRow) {
 }
 
 /**
+ * The evaluation's Final Offer setting from its `costing_matrices` row: `{ mode, total }`, the twin of
+ * abcSettingOf. "total_only" is the sheet's way: one typed offer for the whole bid. Null when the tier was not
+ * sent the columns (then the lines' own offers are added up, as before).
+ */
+export function offerSettingOf(matrixRow) {
+  if (!matrixRow || !("offer_mode" in matrixRow)) return null;
+  const total = matrixRow.offer_total;
+  return { mode: matrixRow.offer_mode, total: total === undefined || total === null || total === "" ? null : Number(total) };
+}
+
+/**
+ * The Final Offer total in centavos, one rule for every figure (the database's costing_offer_total): in Total only
+ * the typed total (null while blank, or while there is no Tender Line); otherwise the lines' offers added up, null
+ * while any is blank. `missing` counts what is blank: 1 for a blank typed total, else the lines without an offer.
+ */
+export function offerTotalCentavos(tenderLines, offerSetting = null) {
+  const lines = tenderLines ?? [];
+  if (offerSetting?.mode === ABC_MODE.TOTAL_ONLY) {
+    const typed = lines.length > 0 ? extendedCentavos(offerSetting.total, 1) : null;
+    return { offer: typed, missing: lines.length > 0 && typed === null ? 1 : 0 };
+  }
+  const offers = lines.map((line) => extendedCentavos(line?.final_offer_unit, line?.quantity));
+  const missing = offers.filter((o) => o === null).length;
+  return { offer: lines.length > 0 && missing === 0 ? offers.reduce((sum, o) => sum + o, 0n) : null, missing };
+}
+
+/**
  * The whole matrix's totals over its Tender Lines.
  *
- *   finalOfferTotal   the sum, null while any Tender Line has no Final Offer
+ *   finalOfferTotal   the sum, null while any Tender Line has no Final Offer; with `offerSetting` in Total only
+ *                     the typed offer total (offerTotalCentavos), the lines' own offers set aside
  *   abcTotal          the sum, null unless every Tender Line has an ABC; in Total only (`abcSetting` is
  *                     `{ mode: "total_only", total }`, #960) the typed total, null while blank
  *                     (a government ceiling only means something when it covers every line)
@@ -289,7 +317,7 @@ export function abcSettingOf(matrixRow) {
  *
  * No Tender Lines gives nulls and zero counts.
  */
-export function matrixTotals(tenderLines, abcSetting = null) {
+export function matrixTotals(tenderLines, abcSetting = null, offerSetting = null) {
   const lines = tenderLines ?? [];
   const totalOnly = abcSetting?.mode === ABC_MODE.TOTAL_ONLY;
   let abc = 0n;
@@ -308,7 +336,10 @@ export function matrixTotals(tenderLines, abcSetting = null) {
   const typed = totalOnly ? extendedCentavos(abcSetting?.total, 1) : null;
   if (totalOnly) missingAbc = lines.length > 0 && typed === null ? 1 : 0;
   const abcTotal = totalOnly ? (lines.length > 0 ? typed : null) : lines.length > 0 && missingAbc === 0 ? abc : null;
-  const finalOfferTotal = lines.length > 0 && missingOffer === 0 ? offer : null;
+  // One offer total (the sheet's way): the typed total stands in for the lines' offers, which stay untouched.
+  const offerRule = offerTotalCentavos(lines, offerSetting);
+  missingOffer = offerRule.missing;
+  const finalOfferTotal = offerSetting?.mode === ABC_MODE.TOTAL_ONLY ? offerRule.offer : lines.length > 0 && missingOffer === 0 ? offer : null;
   const both = abcTotal !== null && finalOfferTotal !== null;
   return {
     abcTotal: pesosFromCentavos(abcTotal),
@@ -331,6 +362,7 @@ export function matrixTotals(tenderLines, abcSetting = null) {
  *   matrix.tenderLines   each with `quantity`, `final_offer_unit`, `abc_unit` and its `components`
  *                        (each with `quantity` and `final_acquire_unit`)
  *   matrix.abc           optional `{ mode, total }` (#960); Total only uses the typed total as the ABC
+ *   matrix.offer         optional `{ mode, total }`; Total only uses the typed total as the Final Offer
  *   matrix.costRows      the Other costs rows, their amounts worked (`applyPercentRows`)
  *   matrix.money         `{ marketing }`, typed by Finance access or the Final Acquire list
  *   settings             `{ vatDivisor, taxRate, retentionRate, itrRate, itrAllowance, goLinePercent }`
@@ -365,9 +397,7 @@ export function summary(matrix, settings) {
   const lines = matrix?.tenderLines ?? [];
   const costed = lines.flatMap((line) => line?.components ?? []);
 
-  const offers = lines.map((line) => extendedCentavos(line?.final_offer_unit, line?.quantity));
-  const missingOffer = offers.filter((o) => o === null).length;
-  const offer = lines.length > 0 && missingOffer === 0 ? offers.reduce((sum, o) => sum + o, 0n) : null;
+  const { offer, missing: missingOffer } = offerTotalCentavos(lines, matrix?.offer);
 
   const costs = costed.map((row) => extendedCentavos(costUnit(row), row?.quantity));
   const missingCost = costs.filter((c) => c === null).length;
@@ -400,7 +430,7 @@ export function summary(matrix, settings) {
   const goLine = Number(settings?.goLinePercent ?? DEFAULT_GO_LINE_PERCENT);
   const revenuePercent = percentOf(pesosFromCentavos(revenue), pesosFromCentavos(offer));
 
-  const ceiling = matrixTotals(lines, matrix?.abc);
+  const ceiling = matrixTotals(lines, matrix?.abc, matrix?.offer);
 
   return {
     finalOfferTotal: pesosFromCentavos(offer),
@@ -441,14 +471,15 @@ export const LOW_OFFER_SHARE_OF_ABC = 50;
  * the whole-number share. `lines` lists the Tender Lines whose own offer is under 50% of their own
  * ABC, each as `{ id, number, name, percent }`. It only warns; it blocks nothing.
  */
-export function offerVsAbc(tenderLines, abc = null) {
+export function offerVsAbc(tenderLines, abc = null, offerSetting = null) {
   const lines = tenderLines ?? [];
-  const totals = matrixTotals(lines, abc);
+  const totals = matrixTotals(lines, abc, offerSetting);
   const percent = totals.percentOfAbc;
   const low = percent !== null && percent < LOW_OFFER_SHARE_OF_ABC;
   const lowLines = [];
   // The per-line warning is hidden in Total only; the whole-offer warning stays.
-  for (const line of abc?.mode === ABC_MODE.TOTAL_ONLY ? [] : lines) {
+  // Either total typed as one leaves the lines nothing to compare.
+  for (const line of abc?.mode === ABC_MODE.TOTAL_ONLY || offerSetting?.mode === ABC_MODE.TOTAL_ONLY ? [] : lines) {
     const a = extendedCentavos(line?.abc_unit, line?.quantity);
     const o = extendedCentavos(line?.final_offer_unit, line?.quantity);
     if (a === null || o === null || a <= 0n) continue;
@@ -522,8 +553,7 @@ export function revenueInputs(matrix, { ipasShort = false } = {}) {
   const components = lines.flatMap((line) => line?.components ?? []);
   const costRows = matrix?.costRows ?? [];
 
-  const offers = lines.map((line) => extendedCentavos(line?.final_offer_unit, line?.quantity));
-  const offer = lines.length > 0 && offers.every((o) => o !== null) ? offers.reduce((sum, o) => sum + o, 0n) : null;
+  const { offer } = offerTotalCentavos(lines, matrix?.offer);
 
   const costed = components.map((row) => extendedCentavos(costUnit(row), row?.quantity));
   const acquire = costed.length > 0 && costed.every((c) => c !== null) ? costed.reduce((sum, c) => sum + c, 0n) : null;

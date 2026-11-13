@@ -51,6 +51,13 @@ export const MATRIX_ABC_TIERS = {
   abc_total: [COSTING_TIER.PRICE, COSTING_TIER.COST, COSTING_TIER.CLOSED_BOOK],
 };
 
+/** The evaluation's own Final Offer columns (`costing_matrices.offer_mode` / `offer_total`): the twin of the ABC's,
+ * read by the tiers that read `final_offer_unit`, written by the Sales band. "total_only" types one offer for the bid. */
+export const MATRIX_OFFER_TIERS = {
+  offer_mode: [COSTING_TIER.PRICE, COSTING_TIER.CLOSED_BOOK],
+  offer_total: [COSTING_TIER.PRICE, COSTING_TIER.CLOSED_BOOK],
+};
+
 /** Does this tier receive the named Tender Line price column? */
 export const tierReads = (tier, column) => (TENDER_PRICE_TIERS[column] ?? []).includes(tier);
 
@@ -339,6 +346,8 @@ export const COSTING_COLUMN_LABEL = {
   "costing_tender_line_prices.abc_unit": "ABC",
   "costing_matrices.abc_mode": "ABC mode",
   "costing_matrices.abc_total": "ABC (total)",
+  "costing_matrices.offer_mode": "Final Offer mode",
+  "costing_matrices.offer_total": "Final Offer (total)",
   "costing_tender_line_prices.final_offer_unit": "Final Offer",
   "costing_matrices.sales_incharge_id": "The Sales incharge",
   "costing_matrices.purchasing_incharge_id": "The Purchasing incharge",

@@ -1,39 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { AlertTriangle, Gavel, ListTree, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { ListTree, Plus, RefreshCw, Sparkles } from "lucide-react";
 
 import { Button } from "../../ui/button";
 import SlideOver, { SlideOverBody } from "../../ui/SlideOver";
 import StatusBadge from "../../StatusBadge";
-import SidePanel from "../../ui/SidePanel";
-import RecordHeader from "../../record/RecordHeader";
 import { costingMatrixService, requestsByComponent } from "../../../services/costingMatrixService";
 import { canvassService } from "../../../services/canvassService";
 import { opportunityService } from "../../../services/opportunityService";
-import { BID_VERDICT_LABEL, COMPONENT_BANDS, COSTING_BAND, inAnyBand, tierReads, tierReadsBidDecision, tierReadsCost } from "../../../constants/costing";
-import { matrixPlay } from "../../../utils/costingPlayground";
+import { COSTING_BAND, inAnyBand, tierReads, tierReadsCost } from "../../../constants/costing";
 import { useAuth } from "../../../context/AuthContext";
 import { useCostingMatrix } from "../useCostingMatrix";
 import { useCostingWrites, useInchargeOptions } from "../useCostingWrites";
 import { costingKeys } from "../costingKeys";
 import { pesos } from "../gridFormat";
-import BidDecisionPanel from "../BidDecisionPanel";
-import OtherCosts from "./OtherCosts";
-import CostGuide from "./CostGuide";
-import CostingSummary from "../CostingSummary";
-import EvaluationBar from "../EvaluationBar";
-import InchargeSelects from "../InchargeSelects";
 import { StandaloneBar } from "../StandaloneDialogs";
-import TechnicalVerdict from "../TechnicalVerdict";
-import SignoffBar from "../SignoffBar";
-import { LandedCostRollup } from "../LandedCost";
 import LineDetail from "./LineDetail";
-import CostingSheet from "./CostingSheet";
-import MarkupPlayground from "./MarkupPlayground";
-import { useMarkupPlay } from "./useMarkupPlay";
 import S0LinkSuggestions from "./S0LinkSuggestions";
-import { useRoomy } from "@/hooks/useScreenBand";
+import CorridorScreen from "./corridor/CorridorScreen";
+import Overview from "./corridor/Overview";
+import { corridorSaves } from "./corridor/corridorSaves";
+import { waterfallSteps } from "./corridor/sheetModel";
 
 const firstLine = (text) => (text ?? "").split("\n")[0].trim();
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -91,12 +79,12 @@ function useFill(matrix, opportunityId, writes, standalone = false) {
 }
 
 /**
- * The Costing Desk: one SOR's Costing Matrix in its record window (layout A, chosen 2026-10-22). The
- * overview first (ABC, Final Offer, cost, margin), then the lines as one sheet, the other costs and the
- * summary. A line's parts, costs and evaluation open in a slide-over from its row, so the sheet stays
- * one table, with the markup playground as a bar right above it (#931); on the right the Bid Decision
- * and the sign-offs. Lines come from the SOR's products, each priced from its product until it is broken
- * down into parts. Every figure and every write is the database's to allow; a tier sees only its columns.
+ * The Costing Desk: one SOR's S0 Evaluation in its record window, drawn as the price corridor (layout F, picked
+ * 2026-11-13; corridor/CorridorScreen). On top the deal's corridor, Go floor to ABC, with the offer and Revenue;
+ * then the relay in work order (Costs, Final Acquire, Other costs, Offers, Specs), and on the right the decision
+ * card. Overview swaps in the whole sheet with the waterfall (layout B). Kept from the desk before it: the fill
+ * from the SOR and Odoo, the S0 link suggestions, a standalone evaluation's people, adding a line, and a line's
+ * slide-over with its parts, costs and canvass. Every figure and every write is the database's to allow.
  */
 export default function CostingDesk({ opportunityId, opportunity }) {
   const { user } = useAuth();
@@ -108,13 +96,11 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canFill, fill, odooNote } = useFill(matrix, opportunityId, writes, standalone);
-  // The markup being tried (#931): the bar above the Lines table and the table's per-line preview share it.
-  const markup = useMarkupPlay(matrix, writes, { enabled: Boolean(matrix) && tierReadsCost(matrix.tier, "markup_factor") });
   const lines = matrix?.tenderLines ?? [];
-  // The Bid Decision is a side column only where there is room (SidePanel's own rule); elsewhere a button in the header.
-  const roomy = useRoomy();
   // The line open in the slide-over, by id, so it stays open while lines are moved or refreshed.
   const [openLineId, setOpenLineId] = useState(null);
+  // The Overview (layout B) in place of the corridor, and back.
+  const [overview, setOverview] = useState(false);
 
   const { data: stockSnapshot } = useQuery({
     queryKey: costingKeys.stock(opportunityId),
@@ -155,14 +141,12 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     );
   }
 
-  const { totals } = matrix;
   const showAbc = tierReads(matrix.tier, "abc_unit") && matrix.abc?.mode !== "total_only";
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const showCost = tierReadsCost(matrix.tier, "acquire_unit");
-  const showClosedBook = tierReadsCost(matrix.tier, "markup_factor");
   const canWrite = matrix.bands.includes(COSTING_BAND.SALES);
-  const play = showCost ? matrixPlay(matrix, matrix.defaultFactor) : null;
-  const margin = showCost && totals.finalOfferTotal != null && play?.cost != null ? totals.finalOfferTotal - play.cost : null;
+  const fall = waterfallSteps(matrix);
+  const save = corridorSaves(matrix, writes);
 
   const ctx = {
     writes,
@@ -175,24 +159,6 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     stockData: stockSnapshot?.data,
   };
 
-  // Our cost and Margin sit in the record header row as two figures.
-  const figures = [];
-  if (showCost) figures.push({ key: "cost", label: "Our cost", value: pesos(play.cost), title: play.cost == null ? "Some costs are blank" : "Products, parts and other costs", warn: play.cost == null });
-  if (showCost)
-    figures.push({
-      key: "margin",
-      label: "Margin",
-      value: pesos(margin),
-      title: margin == null ? "Needs every offer and cost" : `${((margin / totals.finalOfferTotal) * 100).toFixed(1)}% of the offer`,
-      sub: margin == null ? null : `${((margin / totals.finalOfferTotal) * 100).toFixed(1)}%`,
-    });
-  const bidPanel = tierReadsBidDecision(matrix.tier) ? (
-    <SidePanel label="Bid decision" icon={Gavel} badge={matrix.bidDecision ? (BID_VERDICT_LABEL[matrix.bidDecision.verdict] ?? matrix.bidDecision.verdict) : null} inlineFrom={1440} width="25rem" className="xl:sticky xl:top-2 xl:self-start">
-      <BidDecisionPanel matrix={matrix} writes={writes} nameOf={incharge.nameOf} opportunity={opportunity} />
-      {roomy && <div className="mt-4"><SignoffBar matrix={matrix} nameOf={incharge.nameOf} /></div>}
-    </SidePanel>
-  ) : null;
-
   const openIndex = lines.findIndex((l) => l.id === openLineId);
   const openLine = openIndex >= 0 ? lines[openIndex] : null;
   const lineSummary = (line) => {
@@ -204,139 +170,73 @@ export default function CostingDesk({ opportunityId, opportunity }) {
     return bits.join(" · ");
   };
 
-  const canSalesIncharge = inAnyBand(matrix.allBands ?? matrix.bands, COMPONENT_BANDS.sales_incharge_id);
-  const canPurchasingIncharge = inAnyBand(matrix.allBands ?? matrix.bands, COMPONENT_BANDS.purchasing_incharge_id);
-  // The Technical in-charge (#908) is named by Sales or Purchasing, as the other incharges are.
-  const canPickTechnical = inAnyBand(matrix.allBands ?? matrix.bands, [COSTING_BAND.SALES, COSTING_BAND.PURCHASING]);
+  // What today's desk did around the sheet, kept under the corridor's header: the fill note, the S0 link
+  // suggestions, a standalone evaluation's people, and adding a line that is not on the SOR.
+  const banner = (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-muted/40 px-3 py-2 text-[13px]" data-testid="fill-note">
+        <Sparkles size={14} aria-hidden="true" className="text-muted-foreground" />
+        <span className="min-w-0 flex-1">
+          {odooNote ? (
+            <span className={odooNote.tone === "warning" ? "text-amber-11" : undefined}>{odooNote.text}</span>
+          ) : (
+            <>{standalone ? "Lines were pulled from the sale order in Odoo, with their Odoo SRP." : "Lines come from the SOR's products, with their Odoo SRP."}</>
+          )}
+        </span>
+        {canFill && (
+          <Button type="button" variant="ghost" size="xs" disabled={writes.busy} onClick={fill}>
+            <RefreshCw size={12} aria-hidden="true" />
+            {standalone ? "Refresh from Odoo" : "Refresh from the SOR"}
+          </Button>
+        )}
+        {canWrite && (
+          <Button type="button" variant="ghost" size="xs" disabled={writes.busy} onClick={() => writes.run(() => costingMatrixService.addTenderLine(matrix.matrixId, {}, actorId))}>
+            <Plus size={12} aria-hidden="true" />
+            {standalone ? "Add a line" : "Add a line that is not on the SOR"}
+          </Button>
+        )}
+      </div>
+      <S0LinkSuggestions
+        suggestions={s0Suggestions}
+        canConfirm={matrix.bands.includes(COSTING_BAND.SALES)}
+        busy={writes.busy}
+        onConfirm={(s) => writes.run(() => costingMatrixService.linkToS0Line(s.tenderLineId, s.sorItemId))}
+      />
+      {standalone && (
+        <StandaloneBar
+          matrix={matrix}
+          technicalOptions={incharge.technicalOptions}
+          nameOf={incharge.nameOf}
+          canTechnical={inAnyBand(matrix.allBands ?? matrix.bands, [COSTING_BAND.SALES, COSTING_BAND.PURCHASING])}
+          onSaved={async (who) => {
+            if ("technical" in who) await costingMatrixService.setIncharge({ matrixId: matrix.matrixId }, { technical: who.technical });
+            else await costingMatrixService.setStandaloneIncharge(matrix.matrixId, who);
+            await writes.refresh();
+          }}
+          onLinked={(linkedOpportunityId) => {
+            // From now on the SOR's rules decide, and the window opens by the SOR.
+            queryClient.invalidateQueries({ queryKey: costingKeys.matrixPage });
+            queryClient.invalidateQueries({ queryKey: costingKeys.standalonePage });
+            navigate(`/costing-matrix/${linkedOpportunityId}`, { replace: true });
+          }}
+        />
+      )}
+    </div>
+  );
 
   return (
-    <div className="space-y-6 pb-2" data-testid="costing-desk">
-      <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-3 border-b border-border pb-4" data-testid="costing-desk-header">
-        <RecordHeader
-          className="min-w-0 flex-1"
-          reference={standalone ? "No SOR" : (opportunity?.sor_code ?? "SOR")}
-          name={opportunity?.project_title ?? "S0 Evaluation"}
-          line={standalone ? "Started from the S0 alone" : [opportunity?.sales_reference && `SO ${opportunity.sales_reference}`, opportunity?.client_name].filter(Boolean).join(" · ") || null}
+    <div className="pb-2" data-testid="costing-desk">
+      {overview ? (
+        <Overview matrix={matrix} fall={fall} opportunity={opportunity} opportunityId={opportunityId} onBack={() => setOverview(false)} />
+      ) : (
+        <CorridorScreen
+          data={{ matrix, save, fall, writes, opportunityId }}
+          opportunity={opportunity}
+          onOverview={() => setOverview(true)}
+          onOpenLine={setOpenLineId}
+          banner={banner}
         />
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          {figures.map((figure) => (
-            <div key={figure.key} className="flex flex-col" title={figure.title} data-testid={`desk-figure-${figure.key}`}>
-              <span className="text-xs text-muted-foreground">{figure.label}</span>
-              <span className={`font-mono text-lg font-semibold tabular-nums ${figure.warn ? "text-amber-11" : "text-foreground"}`}>
-                {figure.value}
-                {figure.sub && <span className="ml-2 text-xs font-normal text-muted-foreground">{figure.sub}</span>}
-              </span>
-            </div>
-          ))}
-          {!roomy && bidPanel}
-        </div>
-      </div>
-
-      <div className={roomy ? "flex items-start gap-8" : undefined}>
-        <div className="min-w-0 flex-1 space-y-6">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-muted/40 px-3 py-2 text-[13px]" data-testid="fill-note">
-            <Sparkles size={14} aria-hidden="true" className="text-muted-foreground" />
-            <span className="min-w-0 flex-1">
-              {odooNote ? (
-                <span className={odooNote.tone === "warning" ? "text-amber-11" : undefined}>{odooNote.text}</span>
-              ) : (
-                <>{standalone ? "Lines were pulled from the sale order in Odoo, with their Odoo SRP." : "Lines come from the SOR's products, with their Odoo SRP."}</>
-              )}
-            </span>
-            {canFill && (
-              <Button type="button" variant="ghost" size="xs" disabled={writes.busy} onClick={fill}>
-                <RefreshCw size={12} aria-hidden="true" />
-                {standalone ? "Refresh from Odoo" : "Refresh from the SOR"}
-              </Button>
-            )}
-          </div>
-
-          <S0LinkSuggestions
-            suggestions={s0Suggestions}
-            canConfirm={matrix.bands.includes(COSTING_BAND.SALES)}
-            busy={writes.busy}
-            onConfirm={(s) => writes.run(() => costingMatrixService.linkToS0Line(s.tenderLineId, s.sorItemId))}
-          />
-
-          {writes.notice && (
-            <p role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-              {writes.notice}
-            </p>
-          )}
-
-          {standalone ? (
-            <StandaloneBar
-              matrix={matrix}
-              technicalOptions={incharge.technicalOptions}
-              nameOf={incharge.nameOf}
-              canTechnical={canPickTechnical}
-              onSaved={async (who) => {
-                if ("technical" in who) await costingMatrixService.setIncharge({ matrixId: matrix.matrixId }, { technical: who.technical });
-                else await costingMatrixService.setStandaloneIncharge(matrix.matrixId, who);
-                await writes.refresh();
-              }}
-              onLinked={(linkedOpportunityId) => {
-                // From now on the SOR's rules decide, and the window opens by the SOR.
-                queryClient.invalidateQueries({ queryKey: costingKeys.matrixPage });
-                queryClient.invalidateQueries({ queryKey: costingKeys.standalonePage });
-                navigate(`/costing-matrix/${linkedOpportunityId}`, { replace: true });
-              }}
-            />
-          ) : (
-            <InchargeSelects
-              sales={matrix.matrix?.sales_incharge_id ?? opportunity?.deal_owner_id}
-              purchasing={matrix.matrix?.purchasing_incharge_id}
-              salesOptions={incharge.salesOptions}
-              purchasingOptions={incharge.purchasingOptions}
-              canSales={canSalesIncharge}
-              canPurchasing={canPurchasingIncharge}
-              technical={matrix.matrix?.technical_incharge_id}
-              technicalOptions={incharge.technicalOptions}
-              canTechnical={canPickTechnical}
-              onSave={async (who) => {
-                await costingMatrixService.setIncharge({ matrixId: matrix.matrixId }, who);
-                await writes.refresh();
-              }}
-            />
-          )}
-
-          <EvaluationBar matrix={matrix} opportunityId={opportunityId} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
-
-          <section className="space-y-3">
-            <h3 className="text-sm font-bold text-foreground">Lines · {lines.length}</h3>
-            <CostingSheet
-              matrix={matrix}
-              opportunity={opportunity}
-              writes={writes}
-              canWrite={canWrite}
-              onOpenLine={setOpenLineId}
-              preview={showClosedBook ? markup?.preview : null}
-              toolbar={showClosedBook && markup ? <MarkupPlayground markup={markup} matrix={matrix} busy={writes.busy} /> : null}
-            />
-            {canWrite && (
-              <Button type="button" variant="outline" size="sm" disabled={writes.busy} onClick={() => writes.run(() => costingMatrixService.addTenderLine(matrix.matrixId, {}, actorId))}>
-                <Plus size={14} aria-hidden="true" />
-                {standalone ? "Add a line" : "Add a line that is not on the SOR"}
-              </Button>
-            )}
-            {"landedCost" in totals && (
-              <p className="flex flex-wrap items-center gap-2 text-sm" data-testid="matrix-landed-cost">
-                <span className="text-muted-foreground">Landed Cost, every Component</span>
-                <LandedCostRollup rollup={totals.landedCost} />
-              </p>
-            )}
-          </section>
-
-          <TechnicalVerdict matrix={matrix} actorId={actorId} nameOf={incharge.nameOf} writes={writes} />
-
-          <OtherCosts matrix={matrix} writes={writes} />
-          <CostingSummary matrix={matrix} writes={writes} />
-          <CostGuide opportunityId={opportunityId} />
-          {(!roomy || !bidPanel) && <SignoffBar matrix={matrix} nameOf={incharge.nameOf} />}
-        </div>
-        {roomy && bidPanel}
-      </div>
+      )}
 
       <SlideOver
         record={openLine}
