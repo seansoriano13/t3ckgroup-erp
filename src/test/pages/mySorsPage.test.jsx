@@ -98,7 +98,11 @@ describe("SORS: My work view", () => {
     // Called in with nothing owed: Watching, not Needs you.
     expect(screen.getByTestId("my-sors-group-watching")).toBeInTheDocument();
     expect(screen.getByText("Nothing owed")).toBeInTheDocument();
-    // Why they can see it is hover detail: the Stage that pulled them in, how, and the reach.
+    // The Why column says it in words without a hover: how, and at which Stage.
+    expect(screen.getByRole("columnheader", { name: /Why you're on it/ })).toBeInTheDocument();
+    expect(screen.getByText("Task")).toBeInTheDocument();
+    expect(screen.getByText("at Technical Review")).toBeInTheDocument();
+    // The hover adds the full detail: the Stage that pulled them in, how, and the reach.
     const why = await whyText(user);
     expect(why).toMatch(/Task at Technical Review/);
     expect(why).toMatch(/this Stage only/);
