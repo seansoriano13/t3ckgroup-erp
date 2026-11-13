@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { openLines, openOverview, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * Planned and Actual Revenue in the Costing Matrix summary (#605), Closed Book only. One Tender Line at
@@ -77,7 +77,8 @@ describe("Planned and Actual Revenue on the summary", () => {
 
   it("shows Planned as today's Revenue and Actual equal to it while nothing is bought, with the not-bought note", async () => {
     mount();
-    await openLines();
+    // The summary, with Planned vs Actual, is in the Overview (2026-11-13).
+    await openOverview();
     const block = await screen.findByTestId("summary-planned-actual");
     expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱74,014.29");
     expect(within(block).getByTestId("summary-planned-revenue")).toHaveTextContent("₱74,014.29");
@@ -89,7 +90,8 @@ describe("Planned and Actual Revenue on the summary", () => {
   it("highlights the difference when buying cost more, and marks Actual an estimate while the IPAS is short of LC Odoo Done", async () => {
     buy(1100000, "encoded");
     mount();
-    await openLines();
+    // The summary, with Planned vs Actual, is in the Overview (2026-11-13).
+    await openOverview();
     const block = await screen.findByTestId("summary-planned-actual");
     expect(await within(block).findByTestId("summary-actual-estimate")).toHaveTextContent("estimate");
     // The first Component at 1,100,000 instead of 1,000,000: Actual Revenue 100,000 below Planned.
@@ -103,7 +105,8 @@ describe("Planned and Actual Revenue on the summary", () => {
   it("drops the estimate mark once the IPAS reached LC Odoo Done, and does not highlight a saving", async () => {
     buy(900000, "lc_odoo_done");
     mount();
-    await openLines();
+    // The summary, with Planned vs Actual, is in the Overview (2026-11-13).
+    await openOverview();
     const block = await screen.findByTestId("summary-planned-actual");
     expect(within(block).getByTestId("summary-actual-revenue")).toHaveTextContent("₱174,014.29");
     expect(within(block).queryByTestId("summary-actual-estimate")).not.toBeInTheDocument();

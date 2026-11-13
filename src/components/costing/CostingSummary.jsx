@@ -10,10 +10,10 @@ const rateLabel = (rate) => `${Number((Number(rate) * 100).toFixed(4))}%`;
 
 function Row({ label, hint, children, strong = false, testId }) {
   return (
-    <div className={`flex items-baseline justify-between gap-4 py-1.5 ${strong ? "border-t border-border/70 pt-2.5" : ""}`} data-testid={testId}>
+    <div className={`grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 py-1.5 ${strong ? "border-t border-border/70 pt-2.5" : ""}`} data-testid={testId}>
       <dt className={`min-w-0 text-sm ${strong ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
         {label}
-        {hint && <span className="ml-2 text-xs text-muted-foreground/80">{hint}</span>}
+        {hint && <span className="block text-xs font-normal text-muted-foreground/80">{hint}</span>}
       </dt>
       <dd className={`text-right text-sm tabular-nums ${strong ? "font-semibold text-foreground" : "text-foreground"}`}>{children}</dd>
     </div>
@@ -25,9 +25,9 @@ function Row({ label, hint, children, strong = false, testId }) {
  * today's) and on Landed Cost where an item was bought (Actual), then the difference, highlighted when
  * Actual is lower. Actual reads "estimate" while any IPAS of the SOR is short of LC Odoo Done, and the
  * items nobody has bought yet are said to be counted at Final Acquire. A figure that cannot be worked
- * says why in words, like the rest of the summary.
+ * shows a dash; why is said once, under the summary's title.
  */
-function PlannedVsActual({ comparison, revenueNote }) {
+function PlannedVsActual({ comparison }) {
   const { planned, actual, difference, actualLower, estimate, notBought, itemsTotal, plannedCost, actualCost } = comparison;
   const figure = (value) => (value === null || value === undefined ? <span className="font-normal text-muted-foreground">—</span> : pesos(value));
   const actualMark = estimate && (
@@ -37,8 +37,9 @@ function PlannedVsActual({ comparison, revenueNote }) {
   );
   return (
     <div className="mt-3 space-y-1.5 border-t border-border/70 pt-3" data-testid="summary-planned-actual">
-      <div className="grid grid-cols-[minmax(0,1fr)_7.5rem_7.5rem] items-baseline gap-x-3 text-sm sm:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem]">
-        <h4 className="text-sm font-semibold text-foreground">Planned vs Actual</h4>
+      <h4 className="text-sm font-semibold text-foreground">Planned vs Actual</h4>
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(6.5rem,auto)_minmax(6.5rem,auto)] items-baseline gap-x-3 text-sm">
+        <span aria-hidden="true" />
         <span className="text-right text-xs font-medium uppercase tracking-wide text-muted-foreground" data-testid="summary-planned-head">Planned</span>
         <span className="text-right text-xs font-medium uppercase tracking-wide text-muted-foreground" data-testid="summary-actual-head">
           Actual
@@ -47,7 +48,7 @@ function PlannedVsActual({ comparison, revenueNote }) {
 
         <span className="pt-1.5 text-muted-foreground">
           Cost
-          <span className="ml-2 text-xs text-muted-foreground/80">Planned | Landed Cost</span>
+          <span className="block text-xs text-muted-foreground/80">Planned | Landed Cost</span>
         </span>
         <span className="pt-1.5 text-right tabular-nums" data-testid="summary-planned-cost">{figure(plannedCost)}</span>
         <span className="pt-1.5 text-right tabular-nums" data-testid="summary-actual-cost">{figure(actualCost)}</span>
@@ -66,11 +67,6 @@ function PlannedVsActual({ comparison, revenueNote }) {
         <span className={`tabular-nums ${actualLower ? "font-semibold" : ""}`}>{difference === null ? "—" : `${difference > 0 ? "+" : ""}${pesos(difference)}`}</span>
       </div>
 
-      {planned === null && revenueNote && (
-        <p className="text-xs text-muted-foreground" data-testid="summary-planned-actual-note">
-          {revenueNote}
-        </p>
-      )}
       {notBought > 0 && (
         <p className="text-xs text-muted-foreground" data-testid="summary-not-bought">
           {notBought} of {itemsTotal} {itemsTotal === 1 ? "item" : "items"} not bought yet, counted at the planned cost.
@@ -84,8 +80,8 @@ function PlannedVsActual({ comparison, revenueNote }) {
  * The summary at the foot of the grid, copied from the PMS sheet (#270): VAT-exclusive, Tax,
  * Retention, Collected Amount, Landed Cost (planned), Project expenses, Marketing, OPEX (worked out),
  * ITR and Revenue. Closed Book only: the matrix read gives every other tier no `summary`, and
- * this section is not drawn for it. A figure that cannot be worked yet says why in words
- * ("Incomplete — N rows have no cost") instead of a number; a blank cost is never zero.
+ * this section is not drawn for it. A figure that cannot be worked yet shows a dash, and why is said in
+ * words once, under the title ("Incomplete — N rows have no cost"); a blank cost is never zero.
  * Marketing and OPEX are typed here by Finance access or the Final Acquire list. The Revenue row above
  * stays Planned Revenue; Actual Revenue sits beside it in the Planned vs Actual block (#605).
  */
@@ -98,12 +94,19 @@ export default function CostingSummary({ matrix, writes }) {
 
   const offerNote = offerIncomplete(incomplete);
   const costNote = costIncomplete(incomplete);
-  const offerFigure = (value) => (value === null || value === undefined ? <span className="text-muted-foreground">{offerNote ?? "—"}</span> : pesos(value));
-  const costFigure = (value) => (value === null || value === undefined ? <span className="text-muted-foreground">{costNote ?? "—"}</span> : pesos(value));
+  const dash = (note) => (
+    <span className="font-normal text-muted-foreground" title={note ?? undefined}>
+      —
+    </span>
+  );
+  const offerFigure = (value) => (value === null || value === undefined ? dash(offerNote) : pesos(value));
+  const costFigure = (value) => (value === null || value === undefined ? dash(costNote) : pesos(value));
   const expensesNote = expensesIncomplete(incomplete);
   const opexNote = opexIncomplete(incomplete);
   // Revenue needs the offer and OPEX; the cost shortfall is named first.
   const revenueNote = revenueIncomplete(incomplete);
+  // Why some figures are blank, each reason once (2026-11-13: the same "Incomplete" in five rows was unreadable).
+  const notes = [...new Set([offerNote, costNote, expensesNote, opexNote, revenueNote].filter(Boolean))];
 
   const canType = (column) => inAnyBand(bands, MATRIX_MONEY_BANDS[column]);
   const saveMoney = async (fields) => {
@@ -117,6 +120,13 @@ export default function CostingSummary({ matrix, writes }) {
         <Calculator size={14} aria-hidden="true" />
         Summary
       </h3>
+      {notes.length > 0 && (
+        <ul className="space-y-0.5 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground" data-testid="summary-incomplete">
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      )}
       <dl className="divide-y divide-border/40">
         <Row label="Final Offer" testId="summary-final-offer">
           {offerFigure(summary.finalOfferTotal)}
@@ -154,7 +164,7 @@ export default function CostingSummary({ matrix, writes }) {
         {show("projectExpenses") && (
         <Row label="Project expenses" hint="the Other costs rows" testId="summary-project-expenses">
           {summary.projectExpenses === null || summary.projectExpenses === undefined ? (
-            <span className="text-muted-foreground">{expensesNote ?? "—"}</span>
+            dash(expensesNote)
           ) : (
             pesos(summary.projectExpenses)
           )}
@@ -178,7 +188,7 @@ export default function CostingSummary({ matrix, writes }) {
         {show("opex") && (
         <Row label="OPEX" hint="retention + landed cost + project expenses + marketing" testId="summary-opex">
           {summary.opex === null || summary.opex === undefined ? (
-            <span className="text-muted-foreground">{opexNote ?? "—"}</span>
+            dash(opexNote)
           ) : (
             pesos(summary.opex)
           )}
@@ -191,7 +201,7 @@ export default function CostingSummary({ matrix, writes }) {
         )}
         <Row label="Revenue" strong testId="summary-revenue">
           {summary.revenue === null || summary.revenue === undefined ? (
-            <span className="font-normal text-muted-foreground">{revenueNote ?? "—"}</span>
+            dash(revenueNote)
           ) : (
             pesos(summary.revenue)
           )}
@@ -199,14 +209,14 @@ export default function CostingSummary({ matrix, writes }) {
         {show("revenuePercent") && (
         <Row label="Revenue ÷ Final Offer" hint={`the bid goes ahead at ${summary.goLinePercent}% or more`} testId="summary-revenue-percent">
           {summary.revenuePercent === null || summary.revenuePercent === undefined ? (
-            <span className="text-muted-foreground">{revenueNote ?? "—"}</span>
+            dash(revenueNote)
           ) : (
             <span className={summary.underGoLine ? "font-semibold text-amber-600 dark:text-amber-400" : undefined}>{summary.revenuePercent.toFixed(2)}%</span>
           )}
         </Row>
         )}
       </dl>
-      {comparison && <PlannedVsActual comparison={comparison} revenueNote={revenueNote} />}
+      {comparison && <PlannedVsActual comparison={comparison} />}
     </section>
   );
 }

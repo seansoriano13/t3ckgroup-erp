@@ -4,18 +4,19 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { openLines, openOverview, renderCostingDesk } from "@/test/support/costingDesk";
 import { COMPONENT_BANDS } from "@/constants/costing";
 
 /**
- * Spec #955 decision 6 (#965): the sheet grid has an IPAS column (number and state, a link, a dash when
- * none) and P.O./RFQ No. and Availability are gone from the line's detail pane and the write bands on screen.
+ * Spec #955 decision 6 (#965), on the price corridor (2026-11-13): the IPAS of each line (number and state, a
+ * link, a dash when none) is in the Overview's After buying table, out of the steps, since the S0 Evaluation is
+ * the estimate for the Go; P.O./RFQ No. and Availability are gone from the line's detail pane and the write bands.
  */
 
 let authUser;
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }));
 
-describe("the IPAS column on the sheet", () => {
+describe("the IPAS of each line, in After buying", () => {
   let reviewer;
   let deal;
 
@@ -37,14 +38,22 @@ describe("the IPAS column on the sheet", () => {
   });
 
   it("shows the IPAS number and state as a link, and a dash when a line has none", async () => {
-    mount();
-    const rows = await screen.findAllByTestId("sheet-row");
-    expect(screen.getByRole("columnheader", { name: "IPAS" })).toBeInTheDocument();
+    mount("closed_book");
+    await openOverview();
+    const table = await screen.findByTestId("after-buying");
+    const rows = within(table).getAllByTestId("after-buying-line");
+    expect(within(table).getByRole("columnheader", { name: "IPAS" })).toBeInTheDocument();
     const link = within(rows[0]).getByRole("link", { name: "IPAS-0042" });
     expect(link).toHaveAttribute("href", expect.stringMatching(/^\/purchasing\/ipas\/.+/));
     expect(rows[0]).toHaveTextContent(/IPAS-0042\s+\S+/);
-    expect(within(rows[1]).queryByTestId("sheet-ipas")).toBeNull();
-    expect(rows[1]).toHaveTextContent("-");
+    expect(within(rows[1]).queryByTestId("after-buying-ipas")).toBeNull();
+    expect(rows[1]).toHaveTextContent("—");
+  });
+
+  it("keeps After buying out of the steps", async () => {
+    mount("closed_book");
+    await screen.findByRole("list", { name: "Steps" });
+    expect(screen.queryByTestId("after-buying")).not.toBeInTheDocument();
   });
 
   it("drops P.O./RFQ No. and Availability from the line's detail pane", async () => {

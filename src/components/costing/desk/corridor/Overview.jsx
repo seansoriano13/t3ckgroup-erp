@@ -13,10 +13,13 @@ import { buildSheet } from "./sheetModel";
 
 /**
  * The S0 Evaluation's Overview (layout B, 2026-11-13), opened from the price corridor: the whole sheet with each
- * band's total in its header (Totals, or Unit + Total), and on the right, kept in view, the waterfall from the
- * Final Offer to Revenue and the cost shares against the cost guide. Read-only; "Back" returns to the corridor.
+ * band's total in its header (Totals, or Unit + Total), and on the right, kept in view, `aside` (the Costing
+ * Desk passes the full summary, with Planned vs Actual and Marketing), else the waterfall from the Final Offer to
+ * Revenue and the cost shares. `below` sits under the sheet (the desk passes After buying: IPAS and Landed Cost).
+ * The side panel gets 26rem beside the sheet on a wide screen and the full width under it otherwise, so its
+ * words never squeeze. "Back" returns to the corridor.
  */
-export default function Overview({ matrix, fall, opportunity, opportunityId, onBack }) {
+export default function Overview({ matrix, fall, opportunity, opportunityId, onBack, aside = null, below = null }) {
   const [units, setUnits] = useState(false);
   const sheet = useMemo(() => buildSheet(matrix), [matrix]);
   const { data: guide } = useQuery({
@@ -24,7 +27,7 @@ export default function Overview({ matrix, fall, opportunity, opportunityId, onB
     queryFn: () => costingMatrixService.costGuide(opportunityId),
     retry: false,
     staleTime: 0,
-    enabled: Boolean(opportunityId),
+    enabled: Boolean(opportunityId) && !aside,
   });
   const standalone = Boolean(opportunity?.standalone);
 
@@ -50,7 +53,7 @@ export default function Overview({ matrix, fall, opportunity, opportunityId, onB
           </div>
         )}
       </div>
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_21rem]">
+      <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_26rem]">
         <div className="min-w-0 space-y-3">
           <div className="flex items-center justify-end gap-1" role="group" aria-label="Columns">
             <Button type="button" size="xs" variant={units ? "ghost" : "secondary"} aria-pressed={!units} onClick={() => setUnits(false)}>
@@ -61,10 +64,15 @@ export default function Overview({ matrix, fall, opportunity, opportunityId, onB
             </Button>
           </div>
           <SheetTable sheet={sheet} unitCols={units} totalsInHead footer={false} />
+          {below}
         </div>
-        <aside className="space-y-4 xl:sticky xl:top-2">
-          <Waterfall fall={fall} dense />
-          <CostShares guide={guide} />
+        <aside className="max-w-2xl space-y-4 2xl:sticky 2xl:top-2 2xl:max-w-none">
+          {aside ?? (
+            <>
+              <Waterfall fall={fall} dense />
+              <CostShares guide={guide} />
+            </>
+          )}
         </aside>
       </div>
     </div>

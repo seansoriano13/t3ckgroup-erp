@@ -21,7 +21,7 @@ import StatusBadge from "../../../StatusBadge";
 import { MoveToClosedLost } from "../../BidDecisionPanel";
 import { pesos } from "../../gridFormat";
 import { costingMatrixService } from "../../../../services/costingMatrixService";
-import { BID_VERDICT, BID_VERDICT_LABEL, tierDecidesBid, tierReadsBidDecision } from "../../../../constants/costing";
+import { BID_VERDICT, BID_VERDICT_LABEL, COSTING_TIER, tierDecidesBid, tierReadsBidDecision } from "../../../../constants/costing";
 import { offerVsAbc } from "../../../../utils/costingMath";
 import { formatDate } from "../../../../utils/formatDate";
 
@@ -79,11 +79,13 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
   const low = offerVsAbc(tenderLines, matrix.abc, matrix.offer);
   const earlier = bidDecisionHistory[0] ?? null;
 
-  const step = (key) => c.steps.find((s) => s.key === key);
+  // The checks and the figures are the Closed Book's; another tier reading the decision gets the verdict and the reason.
+  const closed = tier === COSTING_TIER.CLOSED_BOOK;
+  const left = (key) => c.steps.find((s) => s.key === key)?.left ?? 0;
   const items = [
     { key: "offers", done: ready, label: "A Final Offer on every line", left: totals.missingOffer ? `${totals.missingOffer} without` : null, step: "offers" },
-    { key: "fa", done: step("finalAcquire").left === 0 && c.rows.length > 0, label: "Every part has a Final Acquire", left: step("finalAcquire").left ? `${step("finalAcquire").left} blank` : null, step: "finalAcquire" },
-    { key: "other", done: step("otherCosts").left === 0, label: "Every other cost has an amount", left: step("otherCosts").left ? `${step("otherCosts").left} blank` : null, step: "otherCosts" },
+    { key: "fa", done: left("finalAcquire") === 0 && c.rows.length > 0, label: "Every part has a Final Acquire", left: left("finalAcquire") ? `${left("finalAcquire")} blank` : null, step: "finalAcquire" },
+    { key: "other", done: left("otherCosts") === 0, label: "Every other cost has an amount", left: left("otherCosts") ? `${left("otherCosts")} blank` : null, step: "otherCosts" },
     { key: "abc", done: !totals.overAbc && totals.abcTotal != null, label: "The offer is within the ABC", left: totals.overAbc ? "over" : totals.abcTotal == null ? "no ABC" : null, step: "offers" },
     { key: "specs", done: evaluated, label: "The specs are approved", left: evaluated ? null : "waiting", step: "specs" },
   ];
@@ -115,11 +117,12 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
         )}
       </div>
 
-      {!locked && <Checks items={items} onJump={onJump} />}
+      {!locked && closed && <Checks items={items} onJump={onJump} />}
 
       <div className="space-y-3 border-t border-border px-4 py-3">
         {/* What the decision is stamped with. */}
-        <dl className="grid grid-cols-3 gap-2 text-xs">
+        {closed && (
+        <dl className="grid grid-cols-3 gap-2 text-xs" data-testid="corridor-decision-figures">
           <div>
             <dt className="text-muted-foreground">Offer</dt>
             <dd className="font-semibold tabular-nums">{totals.finalOfferTotal == null ? "—" : pesos(bidDecision?.finalOfferTotal ?? totals.finalOfferTotal)}</dd>
@@ -133,18 +136,19 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
             <dd className={cn("font-semibold tabular-nums", underGoLine && "text-amber-11", losing && "text-red-11")}>{fall?.revenuePercent == null ? "—" : `${fall.revenuePercent.toFixed(1)}%`}</dd>
           </div>
         </dl>
+        )}
 
         {/* Warnings, only when they apply: one line each. */}
-        {(underGoLine || low.low || losing) && (
+        {closed && (underGoLine || low.low || losing) && (
           <ul className="space-y-1.5 text-xs" data-testid="corridor-decision-warnings">
             {losing && (
-              <li className="flex gap-1.5 text-red-11">
+              <li className="flex gap-1.5 text-red-11" data-testid="corridor-decision-loss">
                 <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
                 Planned revenue is negative: this bid loses money.
               </li>
             )}
             {underGoLine && !losing && (
-              <li className="flex gap-1.5 text-amber-11">
+              <li className="flex gap-1.5 text-amber-11" data-testid="corridor-decision-under-go-line">
                 <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
                 Under the {fall?.goLine ?? 20}% Go line. A Go is still yours to take.
               </li>
@@ -181,9 +185,11 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
             <p className="text-xs text-muted-foreground">
               {nameOf(bidDecision.decidedBy) ?? "Someone"}, {formatDate(bidDecision.decidedAt)}
             </p>
-            <p className="whitespace-pre-wrap text-sm">{bidDecision.reason}</p>
+            <p className="whitespace-pre-wrap text-sm" data-testid="corridor-decision-reason">
+              {bidDecision.reason}
+            </p>
             {locked && (
-              <p className="flex items-center gap-1.5 text-xs font-semibold">
+              <p className="flex items-center gap-1.5 text-xs font-semibold" data-testid="corridor-decision-locked">
                 <Lock size={13} aria-hidden="true" /> The sheet is locked until someone unlocks it.
               </p>
             )}
@@ -191,7 +197,7 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
           </div>
         )}
         {!bidDecision && earlier && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground" data-testid="corridor-decision-cleared">
             Earlier {BID_VERDICT_LABEL[earlier.verdict] ?? earlier.verdict} was cleared: {earlier.clearedReason}.
           </p>
         )}
@@ -234,7 +240,9 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
                 );
               })}
             </div>
-            <p className="text-xs text-muted-foreground">{goBlocked ?? (trimmed === "" ? "Write a reason to decide." : "Go locks the sheet. Revise and No-go tell the Deal Team; nothing on the deal moves.")}</p>
+            <p className="text-xs text-muted-foreground" data-testid="corridor-decision-why">
+              {goBlocked ?? (trimmed === "" ? "Write a reason to decide." : "Go locks the sheet. Revise and No-go tell the Deal Team; nothing on the deal moves.")}
+            </p>
           </>
         )}
 
@@ -244,7 +252,11 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
             Unlock the sheet
           </Button>
         )}
-        {canDecide && locked && !canUnlock && <p className="text-xs text-muted-foreground">Only a Super Admin or the decider list can unlock a bid.</p>}
+        {canDecide && locked && !canUnlock && (
+          <p className="text-xs text-muted-foreground" data-testid="corridor-decision-unlock-blocked">
+            Only a Super Admin or the decider list can unlock a bid.
+          </p>
+        )}
       </div>
 
       <ConfirmDialog
@@ -257,7 +269,7 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
         confirmDisabled={writes.busy}
         onConfirm={() => decide(BID_VERDICT.GO)}
       >
-        <dl className="grid gap-1 text-sm">
+        <dl className="grid gap-1 text-sm" data-testid="corridor-decision-go-figures">
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Final Offer</dt>
             <dd className="font-semibold">{pesos(totals.finalOfferTotal)}</dd>
@@ -268,11 +280,16 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Planned revenue</dt>
-            <dd className="font-semibold">
+            <dd className="font-semibold" data-testid="corridor-decision-go-revenue">
               {revenue === null ? "Not worked yet" : `${pesos(revenue)}${fall?.revenuePercent == null ? "" : ` (${fall.revenuePercent.toFixed(1)}%)`}`}
             </dd>
           </div>
         </dl>
+        {losing && (
+          <p className="mt-2 text-sm font-semibold text-red-11" data-testid="corridor-decision-go-loss">
+            This bid loses money.
+          </p>
+        )}
       </ConfirmDialog>
       {locked && canUnlock && (
         <ConfirmDialog

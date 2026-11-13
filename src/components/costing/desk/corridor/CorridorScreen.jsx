@@ -13,10 +13,12 @@
  */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, ChevronDown, ChevronRight, LayoutDashboard, Users } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, LayoutDashboard, Trash2, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "../../../ui/button";
+import ConfirmDialog from "../../../ui/ConfirmDialog";
+import { SelectField } from "../../../ui/SelectField";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../../ui/table";
 import RecordHeader from "../../../record/RecordHeader";
 import { Cell } from "../../GridCell";
@@ -30,7 +32,7 @@ import DecisionCard from "./DecisionCard";
 import { useInchargeOptions } from "../../useCostingWrites";
 import { costingMatrixService } from "../../../../services/costingMatrixService";
 import { useAuth } from "../../../../context/AuthContext";
-import { ABC_MODE, COMPONENT_BANDS, COSTING_BAND, COSTING_TIER, MATRIX_MONEY_BANDS, USUAL_COST_CATEGORIES, inAnyBand } from "../../../../constants/costing";
+import { ABC_MODE, COMPONENT_BANDS, COSTING_BAND, COSTING_TIER, COST_ROW_BANDS, MATRIX_MONEY_BANDS, ROW_EDIT_BANDS, USUAL_COST_CATEGORIES, inAnyBand, tierReads, tierReadsCost, tierReadsCostRow } from "../../../../constants/costing";
 import { costUnit, finalAcquireTotal, projectExpensesTotal } from "../../../../utils/costingMath";
 
 const num = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
@@ -90,7 +92,20 @@ function useCorridor(matrix) {
     // Every usual category is shown, row or not (2026-11-13: "add all at default"); one without a row is blank.
     const missingUsual = USUAL_COST_CATEGORIES.filter((key) => !costRows.some((row) => row.category_key === key));
     const evaluated = Boolean(matrix.evaluation?.approved);
+    // Each tier gets the steps whose figures it is sent (the Closed Book all of them, a Stage Participant only the specs).
+    const tier = matrix.tier;
+    const sees = {
+      closed: tier === COSTING_TIER.CLOSED_BOOK,
+      cost: tierReadsCost(tier, "acquire_unit"),
+      final: tierReadsCost(tier, "final_acquire_unit"),
+      rows: tierReadsCostRow(tier, "acquire_unit"),
+      abc: tierReads(tier, "abc_unit"),
+      offer: tierReads(tier, "final_offer_unit"),
+    };
+    // A tier sent no money still reads the lines: they get a Lines step of their own.
+    const show = { costs: sees.cost, finalAcquire: sees.final, otherCosts: sees.rows, offers: sees.abc || sees.offer, lines: !sees.cost && !sees.abc && !sees.offer, specs: true };
     return {
+      sees,
       rows,
       floorTotal,
       expenses,
@@ -115,8 +130,9 @@ function useCorridor(matrix) {
           left: offerTotalOnly ? (matrix.totals?.finalOfferTotal == null ? 1 : 0) : rows.filter((r) => r.offerUnit == null).length,
           of: offerTotalOnly ? 1 : rows.length,
         },
+        { key: "lines", label: "Lines", who: "Read only", band: "sales", left: 0, of: 0, words: `${rows.length} S0 lines` },
         { key: "specs", label: "Specs", who: "Technical", band: "technical", left: evaluated ? 0 : 1, of: 1, words: evaluated ? "approved" : "not approved yet" },
-      ],
+      ].filter((step) => show[step.key]),
     };
   }, [matrix]);
 }
@@ -187,11 +203,22 @@ const CELL = "border-b border-border px-3 py-3 align-top text-sm";
 const NUM = "text-right tabular-nums whitespace-nowrap";
 
 /** A part as one line: name and quantity, its Odoo SRP, then the one box this step fills (or the figure, greyed). */
-function PartLiner({ part, step, save, canWrite, factor }) {
+function PartLiner({ part, step, save, canWrite, factor, faPercent }) {
   const srp = num(part.odoo_unit);
   const fa = num(costUnit(part));
+  const markupCol = step === "costs" && factor != null;
+  if (step === "lines") {
+    return (
+      <li className="grid grid-cols-[minmax(0,1fr)_5rem] items-center gap-x-4 py-1.5 text-[13px]" data-testid="corridor-part">
+        <span className="min-w-0 truncate">{partName(part)}</span>
+        <span className="text-right tabular-nums text-muted-foreground">
+          {num(part.quantity)} {part.unit}
+        </span>
+      </li>
+    );
+  }
   return (
-    <li className={cn("grid items-center gap-x-4 py-1.5 text-[13px]", step === "costs" ? "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem_9rem]" : "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem]")} data-testid="corridor-part">
+    <li className={cn("grid items-center gap-x-4 py-1.5 text-[13px]", markupCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem_9rem]" : "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem]")} data-testid="corridor-part">
       <span className="min-w-0 truncate">{partName(part)}</span>
       <span className="text-right tabular-nums text-muted-foreground">
         {num(part.quantity)} {part.unit}
@@ -202,21 +229,24 @@ function PartLiner({ part, step, save, canWrite, factor }) {
       {step === "costs" ? (
         <Cell label={`Acquire / unit ${partName(part)}`} noun="Acquire" value={part.acquire_unit} numeric money align="right" placeholder="Supplier price" readOnly={!canWrite} onSave={(v) => save.part(part.id, { acquireUnit: v })} />
       ) : step === "finalAcquire" ? (
-        <Cell label={`Final Acquire / unit ${partName(part)}`} noun="Final Acquire" value={part.final_acquire_unit} numeric money align="right" placeholder={srp ? `${pesos(srp * 0.8)} by rule` : "Final Acquire"} readOnly={!canWrite} onSave={(v) => save.part(part.id, { finalAcquireUnit: v })} />
+        <Cell label={`Final Acquire / unit ${partName(part)}`} noun="Final Acquire" value={part.final_acquire_unit} numeric money align="right" placeholder={srp ? `${pesos(Math.round(srp * (100 + faPercent)) / 100)} by rule` : "Final Acquire"} readOnly={!canWrite} onSave={(v) => save.part(part.id, { finalAcquireUnit: v })} />
       ) : (
         <span className="text-right tabular-nums text-muted-foreground">FA {money(fa)}</span>
       )}
-      {step === "costs" && (
-        <span className="text-right tabular-nums text-muted-foreground" title="Acquire × markup, worked out by itself">
-          {money(num(part.acquire_unit) === null || factor == null ? null : Math.round(num(part.acquire_unit) * Number(factor) * 100) / 100)}
+      {markupCol && (
+        <span className="text-right tabular-nums text-muted-foreground" title="Acquire × markup (the part's own, else the evaluation's), worked out by itself" data-testid="corridor-markup-price">
+          {money(num(part.acquire_unit) === null ? null : Math.round(num(part.acquire_unit) * Number(num(part.markup_factor) ?? factor) * 100) / 100)}
         </span>
       )}
     </li>
   );
 }
 
-function LineRow({ row, step, save, bands, open, onToggle, abcByLine, offerByLine, factor, onOpenLine }) {
+function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offerByLine, factor, faPercent, onOpenLine }) {
   const { line, kids, parts, qty } = row;
+  const showAbc = sees.abc && abcByLine;
+  const showBar = sees.abc || sees.closed;
+  const columns = 1 + (sees.cost ? 1 : 0) + (showAbc ? 1 : 0) + (showBar ? 1 : 0) + (sees.offer ? 1 : 0) + (sees.closed ? 1 : 0);
   const pricing = step === "offers";
   const showParts = !pricing || open;
   const canOffer = bands.includes(COSTING_BAND.SALES);
@@ -249,11 +279,13 @@ function LineRow({ row, step, save, bands, open, onToggle, abcByLine, offerByLin
             </div>
           </div>
         </TableCell>
-        <TableCell className={cn(CELL, NUM, cut)}>
-          <div>{money(row.cost === null || !qty ? null : row.cost / qty)}</div>
-          <div className="text-xs text-muted-foreground">per unit</div>
-        </TableCell>
-        {abcByLine && (
+        {sees.cost && (
+          <TableCell className={cn(CELL, NUM, cut)}>
+            <div>{money(row.cost === null || !qty ? null : row.cost / qty)}</div>
+            <div className="text-xs text-muted-foreground">per unit</div>
+          </TableCell>
+        )}
+        {showAbc && (
           <TableCell className={cn(CELL, "w-40", cut)}>
             {pricing ? (
               <Cell label={`ABC / unit ${line.number}`} noun="ABC" value={line.abc_unit} numeric money align="right" placeholder="Client budget" readOnly={!canOffer} onSave={(v) => save.line(line.id, { abcUnit: v })} />
@@ -262,8 +294,9 @@ function LineRow({ row, step, save, bands, open, onToggle, abcByLine, offerByLin
             )}
           </TableCell>
         )}
+        {showBar && (
         <TableCell className={cn(CELL, "w-[20rem] min-w-[15rem]", cut)}>
-          {abcByLine ? (
+          {abcByLine && sees.abc ? (
             <Corridor floor={row.floorUnit} abc={row.abcUnit} offer={row.offerUnit} />
           ) : (
             // The ABC is one total, so a line has no ceiling of its own: no bar, just its floor (2026-11-13, option 1).
@@ -274,6 +307,8 @@ function LineRow({ row, step, save, bands, open, onToggle, abcByLine, offerByLin
             </div>
           )}
         </TableCell>
+        )}
+        {sees.offer && (
         <TableCell className={cn(CELL, "w-44", cut)}>
           {!offerByLine ? (
             <div className="text-right text-xs text-muted-foreground">In the offer total</div>
@@ -284,16 +319,17 @@ function LineRow({ row, step, save, bands, open, onToggle, abcByLine, offerByLin
           )}
           <div className="mt-1 text-right text-xs text-muted-foreground">{row.offerTotal === null ? "" : `${pesos(row.offerTotal)} total`}</div>
         </TableCell>
-        <TableCell className={cn(CELL, NUM, cut, row.marginPct !== null && row.marginPct < 0 && "text-red-11")}>{row.marginPct === null ? "—" : `${row.marginPct.toFixed(1)}%`}</TableCell>
+        )}
+        {sees.closed && <TableCell className={cn(CELL, NUM, cut, row.marginPct !== null && row.marginPct < 0 && "text-red-11")}>{row.marginPct === null ? "—" : `${row.marginPct.toFixed(1)}%`}</TableCell>}
       </TableRow>
       {showParts && (
         <TableRow className="hover:bg-transparent">
-          <TableCell colSpan={abcByLine ? 6 : 5} className="border-b border-border bg-mauve-2/60 px-3 pb-2 pt-1">
+          <TableCell colSpan={columns} className="border-b border-border bg-mauve-2/60 px-3 pb-2 pt-1">
             <ul className="ml-8 max-w-3xl divide-y divide-border/60">
               {parts.map(({ part }) => (
-                <PartLiner key={part.id} part={part} step={step} save={save} canWrite={canPart} factor={factor} />
+                <PartLiner key={part.id} part={part} step={step} save={save} canWrite={canPart} factor={factor} faPercent={faPercent} />
               ))}
-              {parts.length === 0 && <li className="py-1.5 text-[13px] text-muted-foreground">No part yet. Add it on today&apos;s screen.</li>}
+              {parts.length === 0 && <li className="py-1.5 text-[13px] text-muted-foreground">No part yet. Open the line to add one.</li>}
             </ul>
           </TableCell>
         </TableRow>
@@ -306,114 +342,202 @@ function LineRow({ row, step, save, bands, open, onToggle, abcByLine, offerByLin
 
 const FALLBACK_LABEL = { labor: "Labor", logistics: "Logistics & Transportation", equipment: "Equipment & Tools", permits: "Permits/Insurance/Compliance", overhead: "Overhead" };
 
-/** A share of the offer beside the cost guide's range; amber when outside it. */
-function Share({ pct, range }) {
-  if (!range) return null;
-  if (pct === null) return <span className="block text-xs text-muted-foreground">aim {range.lowPct}–{range.highPct}%</span>;
-  const off = pct < range.lowPct || pct > range.highPct;
+/** A share as the sheet prints it: 10 -> 10, 9.98321 -> 9.98. */
+const pctOf = (v) => (v === null || !Number.isFinite(v) ? null : Math.round(v * 100) / 100);
+
+/** The range the company expects for a cost; amber, with the word, only when a typed amount falls outside it. */
+function RangeCell({ range, share }) {
+  if (!range) return <span className="text-muted-foreground">—</span>;
+  const off = share ? (share < range.lowPct ? "below" : share > range.highPct ? "above" : null) : null;
   return (
-    <span className={cn("block text-xs tabular-nums", off ? "font-semibold text-amber-11" : "text-muted-foreground")} title="Share of the Final Offer, against the cost guide">
-      {pct.toFixed(1)}% · aim {range.lowPct}–{range.highPct}%
+    <span className={cn("tabular-nums", off ? "font-semibold text-amber-11" : "text-muted-foreground")} title={off ? `This cost is ${off} the range, as a share of the ABC` : undefined} data-testid="other-cost-range">
+      {range.lowPct}–{range.highPct}%{off && <span className="block text-xs font-normal">{off}</span>}
     </span>
   );
 }
 
-function CostLiner({ title, sub, qty, value, onSave, readOnly, amount, extra, pct, onSavePct, pctReadOnly }) {
-  return (
-    <li className="grid grid-cols-[minmax(0,1fr)_4rem_6.5rem_10.5rem_9rem] items-center gap-x-4 py-2" data-testid="corridor-other-cost">
-      <span className="min-w-0">
-        <span className="block truncate text-sm">{title}</span>
-        {sub && <span className="block truncate text-xs text-muted-foreground">{sub}</span>}
-      </span>
-      <span className="text-right text-[13px] tabular-nums text-muted-foreground">{qty}</span>
-      {onSavePct ? (
-        <Cell label={`% of ABC ${title}`} noun="The percent of the ABC" value={pct} numeric align="right" placeholder="% ABC" readOnly={pctReadOnly} onSave={onSavePct} />
-      ) : (
-        <span />
-      )}
-      <Cell label={`Amount ${title}`} noun="The amount" value={value} numeric money align="right" placeholder="Amount" readOnly={readOnly} onSave={onSave} />
-      <span className="text-right">
-        <span className="block text-sm font-medium tabular-nums">{money(amount)}</span>
-        {extra}
-      </span>
-    </li>
-  );
-}
-
 /**
- * What the bid costs us that is no line of the offer. Every usual cost category is listed, row or not, and
- * Marketing with them (it is OPEX too, typed by Finance or the decider list); a category with no row yet takes
- * its amount and the row is made. Each category shows its share of the offer beside the range the company
- * expects (the cost guide). They all count in OPEX, so every amount moves the Go floor as it is typed.
+ * Other costs, the sheet's "Project Cost Summary": each cost, the range the company expects, its amount and
+ * its share of the ABC. Type the amount, or the % of the ABC (the database then works the amount, #963). The
+ * five usual categories are always listed; another cost is added under one of them (a cost needs a category,
+ * #723), named, renamed or removed, and the category's range is checked on its rows together. Marketing is the
+ * last row. They all count in OPEX, so every amount moves the Go floor as it is typed.
  */
-function OtherCostsPanel({ matrix, save, canWrite, canMarketing, expenses, floorTotal, offerTotal }) {
+function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal }) {
   const { data: categories = [] } = useQuery({ queryKey: costingKeys.costCategories(), queryFn: () => costingMatrixService.listCostCategories(), staleTime: 60_000 });
+  const [removing, setRemoving] = useState(null);
   const rows = matrix.costRows ?? [];
   const guide = new Map(categories.map((cat) => [cat.key, cat]));
-  const extraKeys = [...new Set(rows.map((r) => r.category_key).filter((k) => k && !USUAL_COST_CATEGORIES.includes(k)))];
-  const groups = [...USUAL_COST_CATEGORIES, ...extraKeys].map((key) => ({ key, label: guide.get(key)?.label ?? FALLBACK_LABEL[key] ?? key, range: guide.get(key), rows: rows.filter((r) => r.category_key === key) }));
-  const loose = rows.filter((r) => !r.category_key);
+  const can = (column) => inAnyBand(bands, COST_ROW_BANDS[column]);
+  const canRows = inAnyBand(bands, ROW_EDIT_BANDS);
+  const canMarketing = inAnyBand(bands, MATRIX_MONEY_BANDS.marketing);
+  const amountOf = (row) => {
+    const unit = num(costUnit(row));
+    return unit === null ? null : Math.round(unit * (num(row.quantity) ?? 1) * 100) / 100;
+  };
+  const share = (amount) => (amount === null || !abcTotal ? null : (amount / abcTotal) * 100);
   const marketing = num(matrix.money?.marketing);
-  const totalOf = (list) => sum(list.map((r) => (num(costUnit(r)) === null ? null : num(costUnit(r)) * (num(r.quantity) ?? 1))));
-  const share = (amount) => (amount === null || !offerTotal ? null : (amount / offerTotal) * 100);
+
+  // The sheet's order: the usual categories (each row, or one blank to type into), then every other cost.
+  const list = [];
+  for (const cat of USUAL_COST_CATEGORIES) {
+    const own = rows.filter((r) => r.category_key === cat);
+    const label = guide.get(cat)?.label ?? FALLBACK_LABEL[cat] ?? cat;
+    const groupShare = share(sum(own.map(amountOf)));
+    if (own.length === 0) list.push({ key: cat, cat, label, range: guide.get(cat), row: null, share: null });
+    else own.forEach((row, i) => list.push({ key: row.id, cat, label, range: i === 0 ? guide.get(cat) : null, row, share: i === 0 ? groupShare : null, more: i > 0 }));
+  }
+  for (const row of rows.filter((r) => !USUAL_COST_CATEGORIES.includes(r.category_key))) {
+    const range = row.category_key ? guide.get(row.category_key) : null;
+    list.push({ key: row.id, cat: row.category_key, label: range?.label ?? "", range, row, share: share(amountOf(row)) });
+  }
+  const nameOf = (l) => l.row?.description || l.label || "this cost";
+
+  // Typing the amount makes the row one lot of that amount: the percent, a quantity and a typed-over cost give way.
+  const saveAmount = (l, value) => {
+    if (!l.row) return value === "" || value == null ? undefined : save.addCostRow({ categoryKey: l.cat, description: l.label, acquireUnit: value });
+    const fields = { acquireUnit: value };
+    if (l.row.abc_pct != null) fields.abcPct = null;
+    if ((num(l.row.quantity) ?? 1) !== 1) fields.quantity = 1;
+    if (l.row.final_acquire_unit != null) fields.finalAcquireUnit = null;
+    return save.costRow(l.row.id, fields);
+  };
+  const savePercent = (l, value) => {
+    if (!l.row) return value === "" || value == null ? undefined : save.addCostRow({ categoryKey: l.cat, description: l.label, abcPct: value });
+    return save.costRow(l.row.id, l.row.final_acquire_unit != null ? { abcPct: value, finalAcquireUnit: null } : { abcPct: value });
+  };
+  const total = expenses === null ? null : expenses + (marketing ?? 0);
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-card" aria-label="Other costs" data-testid="corridor-other-costs">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border bg-muted px-4 py-2.5">
         <h3 className="text-sm font-semibold">Other costs</h3>
-        <span className="text-xs text-muted-foreground">Every cost category is listed. They count in OPEX and raise the Go floor.</span>
+        <span className="text-xs text-muted-foreground">Type the amount, or the % of the ABC. They count in OPEX and raise the Go floor.</span>
       </div>
-      <ul className="divide-y divide-border/60 px-4">
-        {groups.map((g) =>
-          g.rows.length === 0 ? (
-            <CostLiner
-              key={g.key}
-              title={g.label}
-              sub="No row yet. Type an amount to add it."
-              qty="1 lot"
-              value={null}
-              readOnly={!canWrite}
-              amount={null}
-              onSave={(v) => (v === "" || v == null ? undefined : save.addCostRow({ categoryKey: g.key, description: g.label, acquireUnit: v }))}
-              pct={null}
-              pctReadOnly={!canWrite}
-              onSavePct={(v) => (v === "" || v == null ? undefined : save.addCostRow({ categoryKey: g.key, description: g.label, abcPct: v }))}
-              extra={<Share pct={null} range={g.range} />}
-            />
-          ) : (
-            g.rows.map((row, i) => (
-              <CostLiner
-                key={row.id}
-                title={i === 0 ? g.label : `${g.label} (${i + 1})`}
-                sub={row.abc_pct != null ? `${row.description || ""} · ${row.abc_pct}% of the ABC` : row.description || ""}
-                qty={`${num(row.quantity) ?? 1} ${row.unit ?? ""}`}
-                value={row.acquire_unit}
-                readOnly={!canWrite}
-                amount={totalOf([row])}
-                onSave={(v) => save.costRow(row.id, row.abc_pct == null ? { acquireUnit: v } : { acquireUnit: v, abcPct: null })}
-                pct={row.abc_pct}
-                pctReadOnly={!canWrite}
-                onSavePct={(v) => save.costRow(row.id, { abcPct: v })}
-                extra={i === g.rows.length - 1 ? <Share pct={share(totalOf(g.rows))} range={g.range} /> : null}
-              />
-            ))
-          ),
+      <div className="overflow-x-auto">
+        <Table className="border-separate border-spacing-0">
+          <TableHeader className="bg-transparent">
+            <TableRow className="hover:bg-transparent">
+              <th className={cn(HEAD, "text-left")}>Cost</th>
+              <th className={cn(HEAD, "text-right")}>Range</th>
+              <th className={cn(HEAD, "text-right")}>Amount</th>
+              <th className={cn(HEAD, "text-right")} title="Share of the ABC">%</th>
+              {canRows && <th className={HEAD}><span className="sr-only">Remove</span></th>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.map((l) => (
+              <TableRow key={l.key} className="hover:bg-transparent" data-testid="corridor-other-cost">
+                <TableCell className={cn(CELL, "min-w-[12rem] py-1.5")}>
+                  {l.row ? (
+                    <>
+                      <Cell label={`Name of ${nameOf(l)}`} noun="The name" value={l.row.description} placeholder={l.label ? `Name it (${l.label})` : "Name the cost"} readOnly={!can("description")} onSave={(v) => save.costRow(l.row.id, { description: v })} />
+                      {l.label && l.row.description && l.row.description !== l.label && <span className="mt-0.5 block text-xs text-muted-foreground">under {l.label}</span>}
+                    </>
+                  ) : (
+                    <span className="block py-1.5">{l.label}</span>
+                  )}
+                </TableCell>
+                <TableCell className={cn(CELL, NUM, "w-28 py-1.5 align-middle")}>
+                  {!l.more && <RangeCell range={l.range} share={l.share} />}
+                </TableCell>
+                <TableCell className={cn(CELL, "w-44 py-1.5")}>
+                  <Cell
+                    label={`Amount of ${nameOf(l)}`}
+                    noun="The amount"
+                    value={l.row ? amountOf(l.row) : null}
+                    numeric
+                    money
+                    align="right"
+                    placeholder={l.row?.abcMissing ? "ABC missing" : "0.00"}
+                    readOnly={!can("acquire_unit")}
+                    onSave={(v) => saveAmount(l, v)}
+                  />
+                </TableCell>
+                <TableCell className={cn(CELL, "w-28 py-1.5")}>
+                  <Cell
+                    label={`Percent of the ABC for ${nameOf(l)}`}
+                    noun="The percent of the ABC"
+                    value={l.row ? (l.row.abc_pct != null ? Number(l.row.abc_pct) : pctOf(share(amountOf(l.row)))) : null}
+                    numeric
+                    align="right"
+                    placeholder="%"
+                    readOnly={!can("abc_pct")}
+                    onSave={(v) => savePercent(l, v)}
+                  />
+                </TableCell>
+                {canRows && (
+                  <TableCell className={cn(CELL, "w-12 py-1.5 text-right align-middle")}>
+                    {l.row && (
+                      <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${nameOf(l)}`} onClick={() => setRemoving(l.row)}>
+                        <Trash2 size={14} aria-hidden="true" />
+                      </Button>
+                    )}
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+            <TableRow className="hover:bg-transparent" data-testid="corridor-marketing">
+              <TableCell className={cn(CELL, "py-1.5")}>
+                <span className="block py-1.5">Marketing</span>
+              </TableCell>
+              <TableCell className={cn(CELL, NUM, "py-1.5 align-middle text-muted-foreground")}>—</TableCell>
+              <TableCell className={cn(CELL, "py-1.5")}>
+                <Cell label="Marketing" noun="Marketing" value={marketing} numeric money align="right" placeholder="0.00" readOnly={!canMarketing} onSave={(v) => save.marketing(v)} />
+              </TableCell>
+              <TableCell className={cn(CELL, NUM, "py-1.5 align-middle text-muted-foreground")}>{marketing === null || !abcTotal ? "—" : `${pctOf(share(marketing))}%`}</TableCell>
+              {canRows && <TableCell className={cn(CELL, "py-1.5")} />}
+            </TableRow>
+            <TableRow className="hover:bg-transparent" data-testid="corridor-other-costs-total">
+              <TableCell className="px-3 py-2.5 text-sm font-semibold">Total</TableCell>
+              <TableCell className="px-3 py-2.5" />
+              <TableCell className="px-3 py-2.5 text-right font-mono text-sm font-semibold tabular-nums">{money(total)}</TableCell>
+              <TableCell className="px-3 py-2.5 text-right text-sm tabular-nums text-muted-foreground">{total === null || !abcTotal ? "—" : `${pctOf(share(total))}%`}</TableCell>
+              {canRows && <TableCell className="px-3 py-2.5" />}
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/40 px-4 py-2">
+        {canRows ? (
+          <SelectField
+            size="sm"
+            className="w-56"
+            options={USUAL_COST_CATEGORIES.map((key) => ({ value: key, label: guide.get(key)?.label ?? FALLBACK_LABEL[key] }))}
+            value=""
+            onChange={(key) => key && save.addCost(key)}
+            placeholder="+ Add a cost under…"
+            aria-label="Add a cost under a category"
+          />
+        ) : (
+          <span />
         )}
-        {loose.map((row) => (
-          <CostLiner key={row.id} title={row.description || "Untitled cost"} sub="Uncategorised" qty={`${num(row.quantity) ?? 1} ${row.unit ?? ""}`} value={row.acquire_unit} readOnly={!canWrite || row.abc_pct != null} amount={totalOf([row])} onSave={(v) => save.costRow(row.id, { acquireUnit: v })} pct={row.abc_pct} pctReadOnly={!canWrite} onSavePct={(v) => save.costRow(row.id, { abcPct: v })} />
-        ))}
-        <CostLiner title="Marketing" sub="Typed by Finance or the decider list" qty="" value={marketing} readOnly={!canMarketing} amount={marketing} onSave={(v) => save.marketing(v)} />
-      </ul>
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-t border-border bg-mauve-2/60 px-4 py-2.5 text-sm">
-        <span className="text-muted-foreground">Other costs and Marketing · Go floor now {floorTotal === null ? "—" : pesos(floorTotal)}</span>
-        <span className="font-mono font-semibold tabular-nums">{money(expenses === null ? null : expenses + (marketing ?? 0))}</span>
+        <span className="text-xs text-muted-foreground">Go floor now {floorTotal === null ? "—" : pesos(floorTotal)}</span>
       </div>
+      <ConfirmDialog
+        open={Boolean(removing)}
+        onOpenChange={(isOpen) => !isOpen && setRemoving(null)}
+        title={removing ? `Remove ${removing.description || "this cost"}?` : "Remove this cost?"}
+        description="It comes off our cost. The change stays in the history."
+        confirmLabel="Remove"
+        tone="destructive"
+        onConfirm={() => {
+          const target = removing;
+          setRemoving(null);
+          save.removeCostRow(target.id);
+        }}
+      />
     </section>
   );
 }
 
 /* ------------------------------------------------------------------ the screen */
 
+/**
+ * The S0 Evaluation, for one decision: Go or No-go on the bid. The steps hold the estimate, in the order the
+ * work happens; what happens after buying (IPAS, Landed Cost, Planned vs Actual) is in the Overview and in a
+ * line's detail, never in the steps.
+ */
 export default function CorridorScreen({ data, opportunity, onOverview, onOpenLine, banner = null }) {
   const { matrix, save, fall, writes, opportunityId } = data;
   const { user } = useAuth();
@@ -425,12 +549,21 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
   // Markup is Purchasing's (the sheet's "Markup Price · PMS – Automatic"): Acquire × the evaluation's markup, 1.35 by default.
   const factor = matrix.defaultFactor ?? 1.35;
   const canFactor = inAnyBand(bands, MATRIX_MONEY_BANDS.default_factor);
+  // Final Acquire = the Odoo SRP less this discount (stored signed, -20 by default); every part follows it unless typed over.
+  const discount = matrix.finalAcquirePercent == null ? null : -Number(matrix.finalAcquirePercent) || 0;
+  const canDiscount = inAnyBand(bands, MATRIX_MONEY_BANDS.final_acquire_percent);
   const abcByLine = matrix.abc?.mode !== ABC_MODE.TOTAL_ONLY;
   const canAbc = bands.includes(COSTING_BAND.SALES);
   // The Final Offer by line or as one total (costing_matrices.offer_mode), the twin of the ABC's switch.
   const offerByLine = matrix.offer?.mode !== ABC_MODE.TOTAL_ONLY;
   const canOfferTotal = bands.includes(COSTING_BAND.SALES) && matrix.offer != null;
-  const [step, setStep] = useState(() => c.steps.find((s) => s.left > 0)?.key ?? "offers");
+  const { sees } = c;
+  // Open on the first step with something left; a new evaluation (its lines still filling in) opens on the lines.
+  const [step, setStep] = useState(() => {
+    const lineStep = c.steps.find((s) => ["costs", "offers", "lines"].includes(s.key));
+    const first = c.rows.length === 0 && lineStep ? lineStep : (c.steps.find((s) => s.left > 0) ?? c.steps.find((s) => s.key === "offers") ?? c.steps[0]);
+    return first.key;
+  });
   const [open, setOpen] = useState(() => new Set());
   const [showPeople, setShowPeople] = useState(false);
   const toggle = (id) =>
@@ -451,8 +584,6 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
     .map(([role, id]) => `${role}: ${(id && nameOf(id)) || "not named"}`)
     .join(" · ");
 
-  if (!closed) return <p className="text-sm text-muted-foreground">The price corridor needs the Closed Book (costs and offers together).</p>;
-
   return (
     <div className="space-y-5 pb-16" data-testid="proto-corridor">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -467,10 +598,12 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
             <Users size={14} aria-hidden="true" />
             People
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onOverview} data-testid="corridor-overview">
-            <LayoutDashboard size={14} aria-hidden="true" />
-            Overview
-          </Button>
+          {closed && (
+            <Button type="button" variant="outline" size="sm" onClick={onOverview} data-testid="corridor-overview">
+              <LayoutDashboard size={14} aria-hidden="true" />
+              Overview
+            </Button>
+          )}
         </div>
       </div>
 
@@ -508,19 +641,23 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-w-0 space-y-5">
           {/* The deal's corridor: is the whole bid winnable and paying? */}
+          {(sees.abc || sees.offer) && (
           <section className="sticky top-0 z-20 grid gap-x-8 gap-y-3 rounded-xl border border-border bg-card px-5 py-4 lg:grid-cols-[minmax(0,1fr)_auto]" aria-label="The deal" data-testid="corridor-deal">
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-baseline gap-x-3">
                 <h3 className="text-sm font-semibold">The deal</h3>
-                <span className="text-xs text-muted-foreground">Keep the dot between the Go floor and the client&apos;s ABC</span>
+                <span className="text-xs text-muted-foreground">{closed ? "Keep the dot between the Go floor and the client\u2019s ABC" : "Keep the dot under the client\u2019s ABC"}</span>
               </div>
               <Corridor floor={c.floorTotal} abc={c.abcTotal} offer={c.offerTotal} size="lg" />
             </div>
             <dl className="flex items-end gap-x-6">
+              {sees.abc && (
               <div>
                 <dt className="text-xs text-muted-foreground">Client ABC</dt>
                 <dd className="font-mono text-lg font-semibold tabular-nums">{money(c.abcTotal)}</dd>
               </div>
+              )}
+              {sees.offer && (
               <div>
                 <dt className="text-xs text-muted-foreground">
                   Offer
@@ -528,6 +665,8 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
                 </dt>
                 <dd className="font-mono text-lg font-semibold tabular-nums">{money(c.offerTotal)}</dd>
               </div>
+              )}
+              {fall && (
               <div>
                 <dt className="text-xs text-muted-foreground">Revenue</dt>
                 <dd className={cn("font-mono text-lg font-semibold tabular-nums", fall?.revenuePercent == null ? "" : under ? "text-amber-11" : "text-green-11")}>
@@ -535,8 +674,10 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
                   {fall?.revenuePercent != null && <span className="ml-1.5 text-sm">{fall.revenuePercent.toFixed(1)}%</span>}
                 </dd>
               </div>
+              )}
             </dl>
           </section>
+          )}
 
           {/* The relay, in the order the work happens. */}
           <ol className="grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-2" aria-label="Steps">
@@ -567,17 +708,7 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
             })}
           </ol>
 
-          {step === "otherCosts" && (
-            <OtherCostsPanel
-              matrix={matrix}
-              save={save}
-              canWrite={bands.includes(COSTING_BAND.PURCHASING)}
-              canMarketing={inAnyBand(bands, [COSTING_BAND.FINANCE, COSTING_BAND.MANAGEMENT])}
-              expenses={c.expenses}
-              floorTotal={c.floorTotal}
-              offerTotal={c.offerTotal}
-            />
-          )}
+          {step === "otherCosts" && <OtherCostsPanel matrix={matrix} save={save} bands={bands} abcTotal={c.abcTotal} expenses={c.expenses} floorTotal={c.floorTotal} />}
 
           {step === "specs" && (
             <div className="space-y-4" data-testid="corridor-specs">
@@ -588,7 +719,18 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
 
           {step !== "otherCosts" && step !== "specs" && (
             <div className="space-y-3">
-              {step === "costs" && (
+              {step === "finalAcquire" && (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-2 rounded-xl border border-border bg-card px-4 py-2.5" data-testid="corridor-final-acquire-percent">
+                  <span className="text-sm font-semibold">Final Acquire</span>
+                  <span className="text-sm text-muted-foreground">= Odoo SRP less</span>
+                  <Cell label="Final Acquire discount from the Odoo SRP" noun="The discount" value={discount} numeric align="right" placeholder="20" readOnly={!canDiscount} onSave={(v) => save.finalAcquireDiscount(v)} className="w-20" />
+                  <span className="text-sm text-muted-foreground">%</span>
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    Every part follows it, unless its own Final Acquire is typed below.{!canDiscount && " Management types the discount."}
+                  </span>
+                </div>
+              )}
+              {step === "costs" && closed && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-2.5" data-testid="corridor-markup">
                   <span className="text-sm font-semibold">Markup</span>
                   <Cell label="Markup" noun="The markup" value={matrix.defaultFactor ?? 1.35} numeric align="right" readOnly={!canFactor} onSave={(v) => save.defaultFactor(v)} className="w-20" />
@@ -597,6 +739,8 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
               )}
               {step === "offers" && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-2.5" data-testid="corridor-abc-mode">
+                  {sees.abc && (
+                  <>
                   <span className="text-sm font-semibold">Client ABC</span>
                   <div className="flex gap-1 rounded-lg bg-muted p-0.5" role="group" aria-label="How the ABC is typed">
                     <Button type="button" size="xs" variant={abcByLine ? "outline" : "ghost"} className={cn(abcByLine && "bg-card shadow-sm")} aria-pressed={abcByLine} disabled={!canAbc} onClick={() => save.abc({ mode: ABC_MODE.BY_LINE })}>
@@ -611,10 +755,13 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
                   ) : (
                     <>
                       <Cell label="ABC total" noun="The ABC total" value={matrix.abc?.total} numeric money align="right" placeholder="Type the total" readOnly={!canAbc} onSave={(v) => save.abc({ total: v })} className="w-40" />
-
                     </>
                   )}
-                  <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+                  </>
+                  )}
+                  {sees.abc && sees.offer && <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />}
+                  {sees.offer && (
+                  <>
                   <span className="text-sm font-semibold">Final Offer</span>
                   <div className="flex gap-1 rounded-lg bg-muted p-0.5" role="group" aria-label="How the Final Offer is typed">
                     <Button type="button" size="xs" variant={offerByLine ? "outline" : "ghost"} className={cn(offerByLine && "bg-card shadow-sm")} aria-pressed={offerByLine} disabled={!canOfferTotal} onClick={() => save.offer({ mode: ABC_MODE.BY_LINE })}>
@@ -629,6 +776,8 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
                   ) : (
                     <Cell label="Final Offer total" noun="The Final Offer total" value={matrix.offer?.total} numeric money align="right" placeholder="Type the total" readOnly={!canOfferTotal} onSave={(v) => save.offer({ total: v })} className="w-40" />
                   )}
+                  </>
+                  )}
                 </div>
               )}
               <div className="overflow-x-auto rounded-xl border border-border bg-card">
@@ -636,16 +785,16 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
                   <TableHeader className="bg-transparent">
                     <TableRow className="hover:bg-transparent">
                       <th className={cn(HEAD, "text-left")}>S0 line</th>
-                      <th className={cn(HEAD, "text-right")}>Our cost</th>
-                      {abcByLine && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
-                      <th className={cn(HEAD, "text-left")}>{abcByLine ? "Corridor · per unit" : "Go floor · per unit"}</th>
-                      <th className={cn(HEAD, "text-right")}>Offer / unit</th>
-                      <th className={cn(HEAD, "text-right")}>Margin</th>
+                      {sees.cost && <th className={cn(HEAD, "text-right")}>Our cost</th>}
+                      {sees.abc && abcByLine && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
+                      {(sees.abc || closed) && <th className={cn(HEAD, "text-left")}>{abcByLine && sees.abc ? "Corridor · per unit" : "Go floor · per unit"}</th>}
+                      {sees.offer && <th className={cn(HEAD, "text-right")}>Offer / unit</th>}
+                      {closed && <th className={cn(HEAD, "text-right")}>Margin</th>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {c.rows.map((row) => (
-                      <LineRow key={row.line.id} row={row} step={step} save={save} bands={bands} open={open.has(row.line.id)} onToggle={() => toggle(row.line.id)} abcByLine={abcByLine} offerByLine={offerByLine} factor={factor} onOpenLine={onOpenLine} />
+                      <LineRow key={row.line.id} row={row} step={step} save={save} bands={bands} sees={sees} open={open.has(row.line.id)} onToggle={() => toggle(row.line.id)} abcByLine={abcByLine} offerByLine={offerByLine} factor={closed ? factor : null} faPercent={Number(matrix.finalAcquirePercent ?? -20)} onOpenLine={onOpenLine} />
                     ))}
                   </TableBody>
                 </Table>
@@ -653,9 +802,11 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
             </div>
           )}
 
+          {closed && (
           <p className="max-w-prose text-xs text-muted-foreground">
             Dot = our offer. The Go floor is the lowest offer that keeps Revenue at the Go line, worked with the summary&apos;s own formula; a line&apos;s floor is the deal&apos;s floor shared by its part of the cost. It is a guide, not a rule.
           </p>
+          )}
         </div>
 
         <aside className="space-y-4 xl:sticky xl:top-2" aria-label="Decision">

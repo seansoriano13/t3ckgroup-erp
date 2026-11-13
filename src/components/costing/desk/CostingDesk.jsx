@@ -18,8 +18,10 @@ import { pesos } from "../gridFormat";
 import { StandaloneBar } from "../StandaloneDialogs";
 import LineDetail from "./LineDetail";
 import S0LinkSuggestions from "./S0LinkSuggestions";
+import CostingSummary from "../CostingSummary";
 import CorridorScreen from "./corridor/CorridorScreen";
 import Overview from "./corridor/Overview";
+import AfterBuying from "./corridor/AfterBuying";
 import { corridorSaves } from "./corridor/corridorSaves";
 import { waterfallSteps } from "./corridor/sheetModel";
 
@@ -101,7 +103,6 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   const [openLineId, setOpenLineId] = useState(null);
   // The Overview (layout B) in place of the corridor, and back.
   const [overview, setOverview] = useState(false);
-
   const { data: stockSnapshot } = useQuery({
     queryKey: costingKeys.stock(opportunityId),
     queryFn: () => opportunityService.getStockSnapshot(opportunityId),
@@ -147,7 +148,6 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   const canWrite = matrix.bands.includes(COSTING_BAND.SALES);
   const fall = waterfallSteps(matrix);
   const save = corridorSaves(matrix, writes);
-
   const ctx = {
     writes,
     actorId,
@@ -227,7 +227,15 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   return (
     <div className="pb-2" data-testid="costing-desk">
       {overview ? (
-        <Overview matrix={matrix} fall={fall} opportunity={opportunity} opportunityId={opportunityId} onBack={() => setOverview(false)} />
+        <Overview
+          matrix={matrix}
+          fall={fall}
+          opportunity={opportunity}
+          opportunityId={opportunityId}
+          onBack={() => setOverview(false)}
+          aside={<CostingSummary matrix={matrix} writes={writes} />}
+          below={<AfterBuying matrix={matrix} writes={writes} />}
+        />
       ) : (
         <CorridorScreen
           data={{ matrix, save, fall, writes, opportunityId }}

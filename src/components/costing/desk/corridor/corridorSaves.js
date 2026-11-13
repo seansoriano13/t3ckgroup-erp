@@ -20,7 +20,17 @@ export function corridorSaves(matrix, writes) {
       if (abcPct !== undefined && id) await costingMatrixService.updateCostRow(id, { abcPct });
       await writes.refresh();
     },
+    // Another cost under a category (a cost needs one, #723), named after it is added; removing one goes through
+    // writes.run, which shows a refusal.
+    addCost: (categoryKey) => writes.run(() => costingMatrixService.addCostRow(matrixId, { description: "", quantity: 1, categoryKey })),
+    removeCostRow: (rowId) => writes.run(() => costingMatrixService.removeCostRow(rowId)),
     marketing: (value) => after(costingMatrixService.updateMatrixMoney(matrixId, { marketing: value })),
+    // Final Acquire = Odoo SRP less a discount (typed 20 for the sheet's -20%); stored signed, as #962 keeps it.
+    finalAcquireDiscount: (value) => {
+      const n = Number(value);
+      if (value === "" || value == null || !Number.isFinite(n) || n >= 100) throw new Error("Type a discount below 100, like 20.");
+      return after(costingMatrixService.setFinalAcquirePercent(matrixId, n === 0 ? 0 : -n));
+    },
     // A switch (mode only) has no box to show a refusal under, so it goes through writes.run and its notice;
     // a typed total throws back to its box like every other value.
     abc: (patch) => ("total" in patch ? after(costingMatrixService.setAbc(matrixId, patch)) : writes.run(() => costingMatrixService.setAbc(matrixId, patch))),
