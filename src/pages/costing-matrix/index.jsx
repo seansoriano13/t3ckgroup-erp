@@ -164,7 +164,7 @@ function MatrixRow({ row, search }) {
 
 /** The totals for the rows shown (all of them, not just this page). */
 function TotalsRow({ totals }) {
-  const lower = totals.difference < 0;
+  const lower = totals.difference !== null && totals.difference < 0;
   return (
     <TableRow className="bg-muted/40 font-semibold hover:bg-muted/40 max-md:hidden!" data-testid="costing-matrix-totals">
       <TableCell colSpan={3} className="text-xs">
@@ -180,10 +180,10 @@ function TotalsRow({ totals }) {
         {pesos(totals.finalOffer)}
       </TableCell>
       <TableCell className={`${RIGHT} text-xs tabular-nums`} data-testid="costing-matrix-total-planned">
-        {pesos(totals.planned)}
+        {figure(totals.planned)}
       </TableCell>
       <TableCell className={`${RIGHT} text-xs tabular-nums`} data-testid="costing-matrix-total-actual">
-        {pesos(totals.actual)}
+        {figure(totals.actual)}
         {totals.estimate && <EstimateMark testId="costing-matrix-total-estimate" />}
       </TableCell>
       <TableCell className={`${RIGHT} text-xs tabular-nums ${lower ? "text-destructive" : ""}`} data-testid="costing-matrix-total-difference">

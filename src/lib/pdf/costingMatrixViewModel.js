@@ -72,8 +72,8 @@ const quantityText = (quantity, unit) => {
 // ── Sign-offs ────────────────────────────────────────────────────────────────
 
 const SIGN_BLOCKS = [
-  { key: 'prepared', role: 'Prepared by', title: 'Sales incharge', incharge: 'sales_incharge_id' },
-  { key: 'costed', role: 'Costed by', title: 'Purchasing incharge', incharge: 'purchasing_incharge_id' },
+  { key: 'prepared', role: 'Prepared by', title: 'Sales in-charge', incharge: 'sales_incharge_id' },
+  { key: 'costed', role: 'Costed by', title: 'Purchasing in-charge', incharge: 'purchasing_incharge_id' },
   { key: 'evaluation_approved', role: 'Evaluation approved', title: 'Evaluation of Specification', incharge: null },
   { key: 'final_approved', role: 'Management & offer approved', title: 'Management list', incharge: null },
 ];

@@ -1,13 +1,13 @@
 import { SelectCell } from "./GridCell";
 
 /**
- * Who answers for the matrix, or for one row (#268): a Sales incharge from the Deal Team and a
- * Purchasing incharge with Purchasing access. The matrix also names its Technical in-charge (#909), who
+ * Who answers for the matrix, or for one row (#268): a Sales in-charge from the Deal Team and a
+ * Purchasing in-charge with Purchasing access. The matrix also names its Technical in-charge (#909), who
  * alone gives the one Technical verdict; the picker lists the Technical sub-department. Names only: it
  * grants no access and notifies nobody. `emptyLabel` is what unset means here ("Not set" on the matrix,
  * "Matrix default" on a row that can override it). A select is read-only outside the column's band.
  * The Technical picker is drawn only when `technicalOptions` is passed (the matrix, not a row).
- * `purchasingLabel` renames the second picker: a standalone evaluation (#966) calls it the PMS incharge.
+ * `purchasingLabel` renames the second picker: a standalone evaluation (#966) calls it the Purchasing in-charge.
  */
 export default function InchargeSelects({
   sales,
@@ -22,7 +22,7 @@ export default function InchargeSelects({
   technical,
   technicalOptions,
   canTechnical = false,
-  purchasingLabel = "Purchasing incharge",
+  purchasingLabel = "Purchasing in-charge",
 }) {
   // A named person who is no longer an option (left the Deal Team) still reads by name.
   const withCurrent = (options, current) =>
@@ -34,9 +34,9 @@ export default function InchargeSelects({
     <div className="space-y-2 text-sm">
       <div className="flex flex-col gap-3 text-sm sm:flex-row sm:flex-wrap sm:items-start sm:gap-x-4 sm:gap-y-2">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Sales incharge</span>
+          <span className="text-xs font-medium text-muted-foreground">Sales in-charge</span>
           <SelectCell
-            label={`${labelPrefix}Sales incharge`}
+            label={`${labelPrefix}Sales in-charge`}
             className="w-full sm:w-44"
             clearable={false}
             readOnly={!canSales}

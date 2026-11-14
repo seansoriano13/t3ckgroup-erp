@@ -111,7 +111,7 @@ describe("flowStageKinds", () => {
       ).toBe("Request Packing List · tells Pia Reyes")
     })
 
-    it("names the Purchasing Incharge an Open S0 Evaluation will set, or says there is none", () => {
+    it("names the Purchasing in-charge an Open S0 Evaluation will set, or says there is none", () => {
       const employees = [{ id: "p-1", name: "Raquel Dela Cruz" }]
       expect(
         actionSummary(
@@ -120,7 +120,7 @@ describe("flowStageKinds", () => {
         ),
       ).toBe("Open S0 Evaluation · Purchasing: Raquel Dela Cruz")
       expect(actionSummary({ kind: "open_costing_matrix", config: {} })).toBe(
-        "Open S0 Evaluation · no Purchasing Incharge named",
+        "Open S0 Evaluation · no Purchasing in-charge named",
       )
     })
 

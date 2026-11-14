@@ -68,12 +68,17 @@ export function filterMatrixPage(rows, { stage = null, entity = null, belowPlann
  */
 export function matrixPageTotals(rows) {
   const have = (pick) => rows.map(pick).filter((v) => v !== null && v !== undefined);
+  // No row has a figure: the total is blank (null, shown as a dash), not a worked zero.
+  const sumOrNull = (pick) => {
+    const values = have(pick);
+    return values.length ? sumPesos(values) : null;
+  };
   return {
     count: rows.length,
     finalOffer: sumPesos(have((r) => r.finalOffer)),
-    planned: sumPesos(have((r) => r.comparison.planned)),
-    actual: sumPesos(have((r) => r.comparison.actual)),
-    difference: sumPesos(have((r) => r.comparison.difference)),
+    planned: sumOrNull((r) => r.comparison.planned),
+    actual: sumOrNull((r) => r.comparison.actual),
+    difference: sumOrNull((r) => r.comparison.difference),
     itemsBought: rows.reduce((sum, r) => sum + r.comparison.itemsBought, 0),
     itemsTotal: rows.reduce((sum, r) => sum + r.comparison.itemsTotal, 0),
     estimate: rows.some((r) => r.comparison.estimate && r.comparison.actual !== null),

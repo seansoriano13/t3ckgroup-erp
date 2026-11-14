@@ -75,7 +75,7 @@ export function Band({ title, hint, children, className }) {
  * Everything about one Component (#268), one band per writer: what we supply (name, quantity, the Offer
  * Specification beside the tender's words), Sales (Brand, Status, Odoo SRP), Purchasing (source,
  * Acquire), the Final Acquire and the Landed Cost the IPAS brought back, the markup,
- * Technical's verdict, then its Odoo link, bundle and incharge. Under them the Canvass, what is being
+ * Technical's verdict, then its Odoo link, bundle and in-charge. Under them the Canvass, what is being
  * bought for it and, for a bundle, its Inclusions. A total sits beside its unit figure, never under it. A
  * field outside the viewer's band reads; a cost the tier was never sent is not drawn. Labels end in the
  * Component's number (Brand 1.1) so each field is findable.
@@ -344,9 +344,9 @@ export default function PartDetail({ component, line, matrix, writes, incharge, 
           </span>
         </Field>
         <div className="col-span-2 @3xl:col-span-4">
-          <Button type="button" variant="ghost" size="sm" className="-ml-2.5 text-muted-foreground" aria-expanded={inchargeOpen} aria-label={label("Incharge")} onClick={() => setInchargeOpen((v) => !v)}>
+          <Button type="button" variant="ghost" size="sm" className="-ml-2.5 text-muted-foreground" aria-expanded={inchargeOpen} aria-label={label("In-charge")} onClick={() => setInchargeOpen((v) => !v)}>
             <UserRound aria-hidden="true" />
-            {overridden ? "Its own incharge is set" : "Give it its own incharge"}
+            {overridden ? "Its own in-charge is set" : "Give it its own in-charge"}
           </Button>
           {inchargeOpen && (
             <InchargeSelects
