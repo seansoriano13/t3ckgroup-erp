@@ -85,6 +85,11 @@ export default function TabGroup({
     };
   }, [measure, tabs.length]);
 
+  // Labels and badges change width without the strip itself resizing.
+  useEffect(() => {
+    measure();
+  });
+
   // Keep the active tab visible inside the strip (not the page) when it changes.
   useEffect(() => {
     const el = scrollerRef.current;
