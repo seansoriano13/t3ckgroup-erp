@@ -42,6 +42,7 @@ export type Path =
   | `/purchasing/order-monitoring`
   | `/purchasing/packing-lists`
   | `/purchasing/packing-lists/:id`
+  | `/purchasing/pms/:id`
   | `/purchasing/transmittals`
   | `/purchasing/transmittals/:id`
   | `/purchasing/transmittals/new`
@@ -68,6 +69,7 @@ export type Params = {
   '/flow-versions/:snapshotId': { snapshotId: string }
   '/purchasing/ipas/:id': { id: string }
   '/purchasing/packing-lists/:id': { id: string }
+  '/purchasing/pms/:id': { id: string }
   '/purchasing/transmittals/:id': { id: string }
   '/technical/:id': { id: string }
   '/verify/:token': { token: string }
