@@ -24,10 +24,10 @@ import { useMemo } from "react";
 import { usePaging } from "@/hooks/usePaging";
 import { TablePager } from "@/components/ui/TablePager";
 import { isGroupTaskEvaluator } from "../../utils/groupTaskEvaluator";
+import { openRecordWindow } from "@/utils/recordLink";
 
 // One way to open a task: the global manager reads `?open=group-task:<id>`.
-const openGroupTask = (id) =>
-  window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id, type: "GROUP_TASK" } }));
+const openGroupTask = (id, searchTerm) => openRecordWindow({ id, type: "GROUP_TASK", searchTerm: searchTerm || undefined });
 
 const GROUP_TASK_FILTER_DEFAULTS = {
   statusFilter: "ALL",
@@ -304,7 +304,7 @@ export default function GroupTasksPage() {
             hasAnyTasks={groupTasks.length > 0}
             onClearFilters={clearAllFilters}
             searchTerm={searchTerm}
-            onView={(task) => openGroupTask(task.id)}
+            onView={(task) => openGroupTask(task.id, searchTerm)}
             currentUserId={user?.id}
             isSuperAdmin={isSuperAdmin}
           />
@@ -320,7 +320,7 @@ export default function GroupTasksPage() {
                   task={task}
                   currentUserId={user?.id}
                   isSuperAdmin={isSuperAdmin}
-                  onView={() => openGroupTask(task.id)}
+                  onView={() => openGroupTask(task.id, searchTerm)}
                   searchTerm={searchTerm}
                   // demoProgress={index === 0 ? demoProgress : undefined}
                 />

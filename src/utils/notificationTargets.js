@@ -19,6 +19,7 @@
  * fill different entries touch different lines.
  */
 import { getPermissionContext } from "./permissions";
+import { openRecordWindow } from "./recordLink";
 
 export const MODULES = ["tasks", "sors", "purchasing", "hr", "meetings", "chat", "other"];
 
@@ -29,7 +30,6 @@ export const LEGACY = "legacy";
 export const LEGACY_MESSAGE = "This notification is from an older version of the portal.";
 export const NO_REFERENCE_MESSAGE = "This notification has nothing to open";
 
-const openEntity = (detail) => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail }));
 
 // ---- targets shared by several types ----
 
@@ -51,7 +51,7 @@ const taskTarget = ({ notif, user, navigate }) => {
   if ((isHead || isSuperAdmin || isHr) && APPROVAL_QUEUE_TYPES.has(notif.type)) {
     navigate(`/approvals/tasks?record=${encodeURIComponent(notif.reference_id)}`);
   } else {
-    openEntity({ id: notif.reference_id, type: "TASK" });
+    openRecordWindow({ id: notif.reference_id, type: "TASK" });
   }
 };
 
@@ -66,13 +66,13 @@ const taskMentionTarget = ({ notif, navigate }) => chatLink("task", notif.refere
 const groupChatTarget = ({ notif, navigate }) => chatLink("group-task", notif.reference_id, navigate);
 const groupTaskTarget = ({ notif, navigate }) => {
   navigate("/group-tasks");
-  openEntity({ id: notif.reference_id, type: "GROUP_TASK" });
+  openRecordWindow({ id: notif.reference_id, type: "GROUP_TASK" });
 };
 
 /** Opens through the global window, which branches on access level (works outside the deal team). */
-const sorTarget = ({ notif }) => openEntity({ id: notif.reference_id, type: "OPPORTUNITY" });
+const sorTarget = ({ notif }) => openRecordWindow({ id: notif.reference_id, type: "OPPORTUNITY" });
 /** #941: a Bid Decision opens the SOR on its PMS tab. */
-const sorPmsTarget = ({ notif }) => openEntity({ id: notif.reference_id, type: "OPPORTUNITY", view: "pms" });
+const sorPmsTarget = ({ notif }) => openRecordWindow({ id: notif.reference_id, type: "OPPORTUNITY", view: "pms" });
 /** #706: reference_id is the SOR. Opens the Technical sheet. */
 const technicalSheetTarget = ({ notif, navigate }) =>
   navigate(`/technical/${encodeURIComponent(notif.reference_id)}`);
@@ -85,7 +85,7 @@ const technicalSheetTarget = ({ notif, navigate }) =>
 const purchaseRequestTarget =
   (extra = {}) =>
   ({ notif }) =>
-    openEntity({ id: notif.reference_id, type: "PURCHASE_REQUEST", focusChat: false, ...extra });
+    openRecordWindow({ id: notif.reference_id, type: "PURCHASE_REQUEST", focusChat: false, ...extra });
 const ipasTarget = ({ notif, navigate }) => navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
 
 const transmittalTarget = ({ notif, navigate }) =>

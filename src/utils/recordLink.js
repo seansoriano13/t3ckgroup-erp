@@ -49,3 +49,14 @@ const RECORD_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export function isRecordId(id) {
   return typeof id === "string" && RECORD_ID_RE.test(id);
 }
+
+export const OPEN_ENTITY_EVENT = "OPEN_ENTITY_DETAILS";
+
+/**
+ * Asks GlobalDetailManager to open a record window: `{ id, type }`, plus an
+ * optional `view`, `tab`, `searchTerm` and so on. The one place the event is
+ * dispatched from a page, so the window's address is always written the same way.
+ */
+export function openRecordWindow(detail) {
+  window.dispatchEvent(new CustomEvent(OPEN_ENTITY_EVENT, { detail }));
+}
