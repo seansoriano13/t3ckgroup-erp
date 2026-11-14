@@ -515,6 +515,7 @@ export default function HrLeavesManagerPage() {
       {typeTabs}
       {usesPeriod && <div data-toolbar-no-stretch><FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} /></div>}
       {activeTab !== 'documents' && <FilterBar
+        inlineChips={narrowScreen ? 0 : undefined}
         search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search employees' }}
         chips={
           <>
