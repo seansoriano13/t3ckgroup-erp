@@ -50,7 +50,7 @@ describe("My Requests ?record=", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("No requests found")).toBeInTheDocument();
+    expect(await screen.findByText(/^Nothing filed in /)).toBeInTheDocument();
   });
 
   it("treats a malformed id as not found", async () => {
@@ -62,6 +62,6 @@ describe("My Requests ?record=", () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(screen.getByText("No requests found")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/^Nothing filed in /)).toBeInTheDocument());
   });
 });
