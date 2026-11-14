@@ -171,18 +171,14 @@ describe("EmployeeOpportunityMatrix", () => {
 
     // Click row
     await user.click(screen.getByText("Juan Dela Cruz"));
-    expect(mockNavigate).toHaveBeenCalledWith("/sors", {
-      state: { filterEmployeeId: "user-1", filterStatus: undefined },
-    });
+    expect(mockNavigate).toHaveBeenCalledWith("/sors?employee=user-1");
 
     // Click stage segment or dot
     const proposalLabels = screen.getAllByText(/Proposal/i);
     expect(proposalLabels.length).toBeGreaterThan(0);
     await user.click(proposalLabels[0]);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/sors", {
-      state: { filterEmployeeId: "user-1", filterStatus: "PROPOSAL_SUBMITTED" },
-    });
+    expect(mockNavigate).toHaveBeenCalledWith("/sors?employee=user-1&status=PROPOSAL_SUBMITTED");
   });
 
   it("renders pipeline value badge and win rate in Grid cards", async () => {

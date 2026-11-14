@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { sorsHref } from "@/utils/listLinks";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useRecordParam } from "@/hooks/useRecordParam";
 import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from "recharts";
@@ -35,23 +36,18 @@ function ChartTooltip({ active, payload, canSee }) {
 /**
  * The pool at a glance — the figure, its trend, where it goes by Commission
  * Department — then every SOR and every salesperson behind it. A SOR row opens
- * its receipt; `initialDealId` opens one straight away (the SOR modal's
+ * its receipt. The open deal is `?record=<sor id>` (the SOR modal's
  * "view in Commission Dashboard" link).
  */
-export default function PoolTab({ access, departments, initialDealId }) {
+export default function PoolTab({ access, departments }) {
   const navigate = useNavigate();
   const { dashboard, rates, user, canViewAllFinancials, canViewSalesAmounts } = access;
   const [list, setList] = useState("deals");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  // The open deal is `?record=<sor id>`, so a refresh reopens it. A deal handed over in
-  // router state (the SOR modal's link) is written to the address once, on arrival.
+  // The open deal is `?record=<sor id>`, so a refresh reopens it.
   const { recordId: openDealId, open: openDealRecord, close: closeDealRecord } = useRecordParam();
   const setOpenDealId = (id) => (id == null ? closeDealRecord() : openDealRecord(id));
-  useEffect(() => {
-    if (initialDealId && !openDealId) openDealRecord(initialDealId, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const ledger = useMemo(() => dashboard.dealLedger || [], [dashboard]);
   const months = useMemo(() => monthlyPool(ledger), [ledger]);
@@ -222,7 +218,7 @@ export default function PoolTab({ access, departments, initialDealId }) {
                   const isMe = e.employeeId === user?.id;
                   const share = dashboard.salesDeptTotal ? (e.totalCommissionShare / dashboard.salesDeptTotal) * 100 : 0;
                   return (
-                    <TableRow key={e.employeeId} onClick={() => navigate("/sors", { state: { filterEmployeeId: e.employeeId } })} className="cursor-pointer">
+                    <TableRow key={e.employeeId} onClick={() => navigate(sorsHref({ employee: e.employeeId }))} className="cursor-pointer">
                       <TableCell>
                         <span className="flex items-center gap-2.5">
                           <Avatar name={e.name} src={e.avatarPath} size="sm" />
