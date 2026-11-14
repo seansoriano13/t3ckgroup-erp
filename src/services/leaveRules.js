@@ -101,6 +101,35 @@ export function computeAvailableHours(balance, pendingHours) {
 }
 
 /**
+ * Every employee's hours already committed to pending SIL / Offset applications,
+ * keyed `${employee_id}_${type}`. `type` is read from `type` (HR list) or
+ * `requestType` (Approval Center).
+ */
+export function pendingHoursByEmployee(requests) {
+  const totals = new Map();
+  (requests || []).forEach((req) => {
+    const type = req.type ?? req.requestType;
+    if (type !== 'OFFSET' && type !== 'SIL') return;
+    const key = `${req.employee_id}_${type}`;
+    totals.set(key, (totals.get(key) || 0) + parseFloat(req.hours || 0));
+  });
+  return totals;
+}
+
+/**
+ * What is left for this request's employee once every pending application is
+ * counted (this one included): the HR list's "hrs available". Null for leave
+ * types that do not draw on a balance.
+ */
+export function availableHoursForRequest(req, pendingTotals) {
+  const type = req.type ?? req.requestType;
+  if (type !== 'OFFSET' && type !== 'SIL') return null;
+  const balance = type === 'OFFSET' ? req.employee?.offset_hours_balance : req.employee?.sil_hours_balance;
+  const pending = pendingTotals.get(`${req.employee_id}_${type}`) || 0;
+  return computeAvailableHours(balance, pending);
+}
+
+/**
  * Refuses an application that would exceed what's actually available once
  * pending applications are counted, naming both figures so the employee (or
  * HR, filing on their behalf) understands why — not just the raw balance,
