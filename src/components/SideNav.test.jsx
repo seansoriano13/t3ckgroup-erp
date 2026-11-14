@@ -238,11 +238,62 @@ describe("SideNav Component", () => {
     );
 
     const bar = screen.getByTestId("mobile-top-bar");
-    expect(bar).toHaveTextContent("My Tasks");
+    expect(bar).toHaveTextContent("Tasks");
     expect(bar).toContainElement(screen.getByRole("button", { name: "Open navigation" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Create new" }));
     fireEvent.click(screen.getAllByRole("button", { name: /Log Task/ }).at(-1));
 
     expect(screen.getByTestId("log-task-window")).toBeInTheDocument();
+  });
+
+  function stubMatchMedia() {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+  }
+
+  it("keeps the group of the current page open even when it was saved closed", () => {
+    stubMatchMedia();
+    localStorage.setItem(
+      "erp_sidebar_groups_grp-user",
+      JSON.stringify({ human_resources: false, approvals: false })
+    );
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user: { id: "grp-user", name: "Group Tester", isSuperAdmin: true },
+      isAuthLoading: false,
+    });
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/hr/management"]}>
+        <SideNav />
+      </MemoryRouter>
+    );
+
+    const hrLink = screen.getAllByRole("link", { name: /Employee Directory/ })[0];
+    expect(hrLink.parentElement.className).toContain("max-h-[500px]");
+    // Another group stays as saved.
+    const otherLink = screen.getAllByRole("link", { name: /Task Approvals/ })[0];
+    expect(otherLink.parentElement.className).toContain("max-h-0");
+    // The saved choice itself is untouched.
+    expect(JSON.parse(localStorage.getItem("erp_sidebar_groups_grp-user")).human_resources).toBe(false);
+    // Full label available as a tooltip.
+    expect(hrLink).toHaveAttribute("title", "Employee Directory");
+    localStorage.removeItem("erp_sidebar_groups_grp-user");
+  });
+
+  it("phone top bar: shows the page title on HR Management", () => {
+    stubMatchMedia();
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user: { id: "u-hr", name: "HR", isSuperAdmin: true },
+      isAuthLoading: false,
+    });
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/hr/management"]}>
+        <SideNav />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId("mobile-top-bar")).toHaveTextContent("HR Management");
   });});
