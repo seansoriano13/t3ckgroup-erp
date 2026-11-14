@@ -98,6 +98,13 @@ const packingListTarget = ({ notif, navigate }) =>
 const bugReportTarget = ({ notif, navigate }) =>
   navigate(`/bug-reports?record=${encodeURIComponent(notif.reference_id)}`);
 
+/** A new Meeting Request goes to the approver, whose page reads `?record=`. */
+const meetingApprovalTarget = ({ notif, navigate }) =>
+  navigate(`/approvals/meetings?record=${encodeURIComponent(notif.reference_id)}`);
+/** Everyone else sees the meeting on the Calendar, whose address names the open entry. */
+const calendarMeetingTarget = ({ notif, navigate }) =>
+  navigate(`/calendar?entry=meeting:${encodeURIComponent(notif.reference_id)}`);
+
 export const NOTIFICATION_TARGETS = {
   // ---- tasks ----
   NEW_TASK_SUBMITTED: { module: "tasks", icon: "FileText", target: taskTarget },
@@ -201,12 +208,12 @@ export const NOTIFICATION_TARGETS = {
   UNDERTIME_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
 
   // ---- meetings ----
-  MEETING_REQUEST: { module: "meetings", icon: "Clock", target: PENDING },
-  MEETING_REQUEST_DECISION: { module: "meetings", icon: "CheckCircle2", target: PENDING },
-  MEETING_APPROVED: { module: "meetings", icon: "CheckCircle2", target: PENDING },
-  MEETING_CANCELLED: { module: "meetings", icon: "XCircle", target: PENDING },
-  MEETING_CHANGED: { module: "meetings", icon: "Clock", target: PENDING },
-  MEETING_REMINDER: { module: "meetings", icon: "Clock", target: PENDING },
+  MEETING_REQUEST: { module: "meetings", icon: "Clock", target: meetingApprovalTarget },
+  MEETING_REQUEST_DECISION: { module: "meetings", icon: "CheckCircle2", target: calendarMeetingTarget },
+  MEETING_APPROVED: { module: "meetings", icon: "CheckCircle2", target: calendarMeetingTarget },
+  MEETING_CANCELLED: { module: "meetings", icon: "XCircle", target: calendarMeetingTarget },
+  MEETING_CHANGED: { module: "meetings", icon: "Clock", target: calendarMeetingTarget },
+  MEETING_REMINDER: { module: "meetings", icon: "Clock", target: calendarMeetingTarget },
 
   // ---- chat ----
   // (chat mentions live with the record they belong to: TASK_MENTION, PURCHASE_REQUEST_MENTION, ...)
