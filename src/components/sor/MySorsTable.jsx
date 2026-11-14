@@ -55,7 +55,7 @@ const whyLabel = (w) => `${VIA_LABEL[w.source] || "Called in"}${w.mentionedBy ? 
 const oldestMove = (r) => r.moves?.[0];
 
 const MY_SORS_SORT = {
-  sor: (r) => r.salesReference || r.sorCode,
+  sor: (r) => r.sorCode || r.salesReference,
   move: (r) => oldestMove(r)?.label,
   why: (r) => (r.windows[0] ? whyLabel(r.windows[0]) : null),
   "now-on": (r) => r.currentStageName,
@@ -231,10 +231,10 @@ export default function MySorsTable({ rows: unsortedRows, onOpen }) {
                 >
                   <TableCell className="w-[26%]">
                     <span className="font-mono text-[13px] font-semibold text-foreground">
-                      {row.salesReference || row.sorCode || "—"}
+                      {row.sorCode || row.salesReference || "—"}
                     </span>
                     <div className="max-w-xs truncate text-muted-foreground">
-                      {row.projectTitle || "Untitled"}
+                      {[row.sorCode ? row.salesReference : null, row.projectTitle || "Untitled"].filter(Boolean).join(" · ")}
                     </div>
                   </TableCell>
                   <TableCell className="max-w-0 w-[20%]">

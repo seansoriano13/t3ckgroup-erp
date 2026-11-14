@@ -451,10 +451,10 @@ export default function EmployeeForm({
             />
           )}
 
-          {/* Sales Opportunity access */}
+          {/* SOR access */}
           <AccessSwitch
             label="Sales Opportunities"
-            description="Access to the Sales Opportunity Register"
+            description="Access to the SOR Register"
             icon={Briefcase}
             checked={formData.has_sales_flow}
             onChange={(val) =>

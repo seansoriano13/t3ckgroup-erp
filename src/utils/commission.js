@@ -1,3 +1,4 @@
+import { sorCodeOf } from "./sorCode.js";
 import { manilaToday } from "@/lib/manilaDate.js";
 import {
   isLostOpportunity,
@@ -339,6 +340,7 @@ export function aggregateOpportunityCommissions({
     dealLedger.push({
       id: opp.id,
       opportunityNo: opp.opportunity_no,
+      sorCode: sorCodeOf(opp) || null,
       projectTitle: opp.project_title,
       clientName: opp.client_name,
       status: opp.status,
