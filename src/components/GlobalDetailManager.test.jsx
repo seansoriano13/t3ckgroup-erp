@@ -111,11 +111,7 @@ describe("GlobalDetailManager", () => {
   });
 
   it("opens the SOR on the tab its link names, and a tab change rewrites the address", async () => {
-    let search = "";
-    const Probe = () => {
-      search = useLocation().search;
-      return null;
-    };
+    const Probe = () => <output data-testid="search">{useLocation().search}</output>;
     renderWithProviders(
       <MemoryRouter initialEntries={["/?open=sor:opp-123&view=pms"]}>
         <GlobalDetailManager />
@@ -126,7 +122,20 @@ describe("GlobalDetailManager", () => {
     const pms = await screen.findByRole("button", { name: "PMS" });
     await waitFor(() => expect(pms).toHaveAttribute("aria-current", "page"));
     act(() => screen.getByRole("button", { name: "Summary" }).click());
-    await waitFor(() => expect(search).toBe("?open=sor%3Aopp-123"));
+    await waitFor(() => expect(screen.getByTestId("search")).toHaveTextContent(/^\?open=sor%3Aopp-123$/));
+  });
+
+  it("falls back to the Summary and corrects the address for a tab it does not have", async () => {
+    const Probe = () => <output data-testid="search">{useLocation().search}</output>;
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/?open=sor:opp-123&view=nonsense"]}>
+        <GlobalDetailManager />
+        <Probe />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByTestId("search")).toHaveTextContent(/^\?open=sor%3Aopp-123$/));
+    expect(await screen.findByRole("button", { name: "PMS" })).not.toHaveAttribute("aria-current", "page");
   });
 
   it("says so when a linked task can't be opened", async () => {

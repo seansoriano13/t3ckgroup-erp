@@ -74,6 +74,12 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   const [localView, setLocalView] = useState(start);
   const view = controlled ? asView(p.initialView) : localView;
   const setView = (key) => (controlled ? p.onViewChange(key === "summary" ? null : key) : setLocalView(key));
+  // A tab the address names but this reader has no access to (or that does not exist) shows the Summary, and the address is corrected.
+  const badView = controlled && p.initialView && view !== p.initialView ? p.initialView : null;
+  const onViewChange = p.onViewChange;
+  useEffect(() => {
+    if (badView) onViewChange(null);
+  }, [badView, onViewChange]);
   const [opened, setOpened] = useState(start === "summary" ? ["summary"] : ["summary", start]);
   // A tab the address names (a link, Back) stays mounted once shown, like one clicked open.
   const wasOpened = (key) => opened.includes(key) || view === key;
