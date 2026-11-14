@@ -20,8 +20,14 @@ export default function MarkLostDialogHost({ opportunity, lostStages = [], isOpe
       toast.success("Deal marked Lost.");
       invalidateOpportunityQueries(queryClient);
     },
-    onError: (err) => toast.error(err.message),
+    // #1045: a refusal stays in the dialog until it is dismissed, not a 3s toast.
+    onError: () => {},
   });
+
+  const handleClose = () => {
+    markLost.reset();
+    onClose();
+  };
 
   return (
     <MarkLostDialog
@@ -30,8 +36,12 @@ export default function MarkLostDialogHost({ opportunity, lostStages = [], isOpe
       isPending={markLost.isPending}
       initialReasonCode={initialReasonCode}
       initialNote={initialNote}
-      onCancel={onClose}
-      onConfirm={(args) => markLost.mutate(args)}
+      error={markLost.isError ? markLost.error?.message || "Could not mark this deal Lost." : null}
+      onCancel={handleClose}
+      onConfirm={(args) => {
+        markLost.reset();
+        markLost.mutate(args);
+      }}
     />
   );
 }

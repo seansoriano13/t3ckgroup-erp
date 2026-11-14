@@ -16,6 +16,7 @@ import Dropdown from "../../ui/Dropdown";
 import StatusBadge from "../../StatusBadge";
 import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
+import { NO_LOST_STAGE_REASON, noLostStageOnFlow } from "../markLostAvailability";
 import MarkLostButton from "../MarkLostButton";
 import MarkLostDialogHost from "../MarkLostDialogHost";
 import ReopenButton from "../ReopenButton";
@@ -117,6 +118,10 @@ export default function SorModalHeader({
   const lostStages = flowCanvas
     ? lostStagesOfFlow(flowCanvas.stages, flowCanvas.flow?.won_stage_id)
     : [];
+  // #1045: an Outright flow has no Lost Stage, so the server would refuse.
+  // Say so up front (until #785 lets any Stage go Lost).
+  const noLostStage = noLostStageOnFlow({ isFlowDeal, flowCanvas, lostStages });
+  const markLostPossible = canMarkLost && !noLostStage;
 
   const currentIndex = pipelineStages.findIndex((s) => s.code === opportunity.status);
   const lastIndex = pipelineStages.length - 1;
@@ -459,11 +464,14 @@ export default function SorModalHeader({
                 }
               >
                 {({ close }) => (
-                  <div className="flex flex-col gap-0.5">
+                  <div role="menu" aria-label="More actions" className="flex flex-col gap-0.5">
                     {canMarkLost && (
                       <Button
                         type="button"
+                        role="menuitem"
                         variant="ghost"
+                        disabled={noLostStage}
+                        title={noLostStage ? NO_LOST_STAGE_REASON : undefined}
                         onClick={() => {
                           close();
                           setMarkLostOpen(true);
@@ -471,18 +479,26 @@ export default function SorModalHeader({
                         className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground"
                       >
                         <CircleX size={14} className="text-muted-foreground" />
-                        Mark as Lost
+                        <span className="flex flex-col">
+                          Mark as Lost
+                          {noLostStage && (
+                            <span className="text-xs font-normal text-muted-foreground">{NO_LOST_STAGE_REASON}</span>
+                          )}
+                        </span>
                       </Button>
                     )}
                     {canEdit && (
                       <Button
                         type="button"
+                        role="menuitem"
                         variant="ghost"
                         onClick={() => {
                           close();
                           confirmDeleteToast(
                             `Delete ${sorCodeOf(opportunity) || "this SOR"}?`,
-                            "The record is archived, not erased. Client stopped responding? Mark as Lost instead, so it shows in reports.",
+                            markLostPossible
+                              ? "The record is archived, not erased. Client stopped responding? Mark as Lost instead, so it shows in reports."
+                              : "The record is archived, not erased.",
                             () => deleteMutation.mutate(),
                           );
                         }}
