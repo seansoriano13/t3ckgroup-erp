@@ -75,7 +75,7 @@ export default function SidePanel({
           className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
         >
           <DrawerTrigger
-            render={<Button type="button" variant="outline" className="w-full justify-between" />}
+            render={<Button type="button" variant="outline" className="h-auto min-h-9 w-full justify-between whitespace-normal py-1.5 text-left" />}
           >
             {content}
           </DrawerTrigger>
