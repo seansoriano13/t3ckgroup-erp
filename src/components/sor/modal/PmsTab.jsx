@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { Button } from "@/components/ui/button";
 import PmsSections from "./PmsSections";
 
 /**
@@ -11,9 +12,9 @@ export default function PmsTab({ opportunityId, opportunity }) {
       opportunityId={opportunityId}
       opportunity={opportunity}
       headerAction={
-        <Link to={`/purchasing/pms/${opportunityId}`} className="text-xs font-medium text-primary hover:underline">
-          Open on its own page
-        </Link>
+        <Button variant="link" size="xs" asChild>
+          <Link to={`/purchasing/pms/${opportunityId}`}>Open on its own page</Link>
+        </Button>
       }
     />
   );

@@ -55,6 +55,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { AttachmentPreviews, AttachmentList } from "./ui/Attachments";
 import { ALLOWED_MIME_TYPES } from "../utils/attachments";
 import { Checkbox } from "@/components/ui/checkbox";
+import { splitKindId } from "@/utils/recordLink";
 
 // -------------------------------------------------------------
 //  HELPERS
@@ -143,9 +144,9 @@ const chatParamFor = (chat) => {
   return kind ? `${kind}:${chat.entity_id}` : CHAT_INBOX;
 };
 const parseChatParam = (value) => {
-  const at = value ? value.indexOf(":") : -1;
-  const type = at > 0 ? TYPE_BY_KIND[value.slice(0, at)] : null;
-  return type && at < value.length - 1 ? { type, id: value.slice(at + 1) } : null;
+  const parts = splitKindId(value);
+  const type = parts ? TYPE_BY_KIND[parts.kind] : null;
+  return type ? { type, id: parts.id } : null;
 };
 
 const ENTITY_LABELS = { GROUP_TASK: "Group Task" };
@@ -401,6 +402,10 @@ export default function ComprehensiveChatModal({
   const navigate = useNavigate();
   const { search } = useLocation();
   const chatParam = new URLSearchParams(search).get(CHAT_PARAM);
+  // The live address. A delayed close (Details waits 300ms) must not write back
+  // the address it saw when it was created, or it drops what opened meanwhile.
+  const searchRef = useRef(search);
+  searchRef.current = search;
   const selectedChatRef = useRef(null);
   selectedChatRef.current = selectedChat;
   const prevChatParamRef = useRef(chatParam);
@@ -433,13 +438,13 @@ export default function ComprehensiveChatModal({
 
   const writeChatParam = useCallback(
     (value, { replace = false } = {}) => {
-      const next = new URLSearchParams(search);
+      const next = new URLSearchParams(searchRef.current);
       if (value == null) next.delete(CHAT_PARAM);
       else next.set(CHAT_PARAM, value);
       const text = next.toString().replace(/%3A/gi, ":");
       navigate({ search: text ? `?${text}` : "" }, { replace });
     },
-    [navigate, search],
+    [navigate],
   );
 
   // Opened from the menu with no chat chosen: the address says so.
@@ -674,8 +679,7 @@ export default function ComprehensiveChatModal({
     setSelectedChat(null);
     keepOpenRef.current = true;
     writeChatParam(null, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEntityLookupError, selectedChat?.from_url]);
+  }, [isEntityLookupError, selectedChat?.from_url, writeChatParam]);
 
   const isEntityDeleted =
     selectedEntityData?.status === "DELETED" ||

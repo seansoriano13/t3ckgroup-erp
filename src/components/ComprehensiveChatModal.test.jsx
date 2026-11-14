@@ -1,6 +1,7 @@
+import { useEffect, useRef } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { renderWithProviders, setupUser } from "../test/support";
 import { stubRpc } from "../test/msw/server";
 import ComprehensiveChatModal from "./ComprehensiveChatModal";
@@ -113,5 +114,41 @@ describe("ComprehensiveChatModal — address", () => {
     await user.keyboard("{Escape}");
 
     await waitFor(() => expect(screen.getByTestId("where").textContent).toBe(""));
+  });
+
+  it("Details keeps the record's address when the chat closes after it", async () => {
+    const user = setupUser();
+    // Stands in for GlobalDetailManager: it adds ?open= when asked to open a record.
+    const Opener = () => {
+      const navigate = useNavigate();
+      const { search } = useLocation();
+      const ref = useRef(search);
+      ref.current = search;
+      useEffect(() => {
+        const onOpen = (e) => { 
+          const next = new URLSearchParams(ref.current);
+          next.set("open", `group-task:${e.detail.id}`);
+          navigate({ search: `?${next}` });
+        };
+        window.addEventListener("OPEN_ENTITY_DETAILS", onOpen);
+        return () => window.removeEventListener("OPEN_ENTITY_DETAILS", onOpen);
+      }, [navigate]);
+      return null;
+    };
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/group-tasks?chat=inbox"]}>
+        <ComprehensiveChatModal isOpen onClose={() => {}} />
+        <Opener />
+        <Where />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: /Site survey kickoff/ }));
+    await user.click(await screen.findByRole("button", { name: /Details/ }));
+
+    // The chat closes about 300ms later and must remove only ?chat=.
+    await waitFor(() => expect(screen.getByTestId("where").textContent).not.toContain("chat="), {
+      timeout: 2000,
+    });
+    expect(screen.getByTestId("where").textContent).toContain("open=group-task");
   });
 });

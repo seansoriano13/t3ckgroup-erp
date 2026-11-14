@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { mergeRequestRows } from '../utils/mergeRequests';
+import { isRecordId } from '../utils/recordLink';
 
 /**
  * One of the signed-in employee's own requests, found from a notification's
@@ -16,6 +17,8 @@ const TABLES = {
 };
 
 export async function getMyRequestByRef(employeeId, ref) {
+  // The ref goes into a filter string: anything that is not an id is not found, and no request is sent.
+  if (!isRecordId(ref)) return [];
   const byType = {};
   await Promise.all(
     Object.entries(TABLES).map(async ([type, { table, grouped }]) => {

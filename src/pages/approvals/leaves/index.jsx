@@ -20,6 +20,9 @@ import { LeaveReview } from "../_components/LeaveReview";
 
 const QUEUE = APPROVAL_QUEUES.find((q) => q.key === "leaves");
 
+// The queue's own key is `table:row:group`; a notification carries a bare row or group id.
+const isQueueKey = (recordId) => recordId.includes(":");
+
 /**
  * Leave & Overtime — the department-head stage (issue #137) in the Approval
  * Center: every SIL, Offset, overtime and undertime request routed to the
@@ -67,20 +70,23 @@ function LeaveApprovalsQueue() {
   // #1015: a notification's `?record=` is a row id or a leave group id, not the queue's key.
   const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
-  const fromNotification = recordId && !recordId.includes(":") ? all.find((i) => i.source.id === recordId || i.source.matchValue === recordId) : null;
+  const fromNotification = recordId && !isQueueKey(recordId) ? all.find((i) => i.source.id === recordId || i.source.matchValue === recordId) : null;
   const navigate = useNavigate();
   const queueReady = !q.isLoadingLeaves && !q.isErrorLeaves;
   useEffect(() => {
     if (!queueReady || !recordId || open) return;
     if (fromNotification) {
       stepRecord(fromNotification.id);
-    } else if (!recordId.includes(":")) {
+    } else if (isQueueKey(recordId)) {
+      // A queue key that is not in this queue: gone from it, so say so and clear the address.
+      toast("This request is not waiting on you any more.");
+      closeRecord();
+    } else if (q.roles.isHr) {
       // No longer waiting on this reader: HR can still see it in the Leaves Manager.
-      if (q.roles.isHr) navigate(`/hr/offsets?record=${encodeURIComponent(recordId)}`, { replace: true });
-      else {
-        toast("This request is not waiting on you any more.");
-        closeRecord();
-      }
+      navigate(`/hr/offsets?record=${encodeURIComponent(recordId)}`, { replace: true });
+    } else {
+      toast("This request is not waiting on you any more.");
+      closeRecord();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueReady, recordId, open, fromNotification?.id]);

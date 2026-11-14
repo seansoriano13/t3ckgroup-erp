@@ -14,6 +14,13 @@ import { isRecordId, itemToRecordKey, withRecord } from "../../../utils/recordLi
 // Close with no earlier page to return to lands on the Purchasing Dashboard.
 const LIST_PATH = "/purchasing/dashboard";
 
+// The window's title: the SOR code and its S0 number (`sales_reference`), as the S0 Evaluation page names a deal.
+function headerLabel(opportunity) {
+  if (!opportunity) return "SOR";
+  if (opportunity.standalone) return `${opportunity.sales_reference ?? "S0"} · No SOR`;
+  return [opportunity.sor_code ?? "SOR", opportunity.sales_reference].filter(Boolean).join(" · ");
+}
+
 /**
  * One SOR's PMS file on its own page (#1021, B1), in the record window: the same sections as the
  * SOR window's PMS tab (PmsSections), without the SOR window around it. The URL is the SOR's id and works
@@ -58,7 +65,7 @@ function PmsWindow() {
       open
       onOpenChange={(next) => !next && close()}
       size="record"
-      crumbs={["PMS", opportunity ? [opportunity.sor_code ?? "SOR", opportunity.sales_reference].filter(Boolean).join(" · ") : "SOR"]}
+      crumbs={["PMS", headerLabel(opportunity)]}
       headerActions={
         opportunity && !opportunity.standalone ? (
           <Button type="button" size="sm" variant="outline" onClick={openSor}>

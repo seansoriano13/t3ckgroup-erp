@@ -77,7 +77,7 @@ const CHECKER = { id: "u-check", name: "Maria Check", employee_type: "staff" }
 
 function rawTransmittal(over = {}) {
   return {
-    id: "t1",
+    id: "00000000-0000-4000-8000-0000000000b1",
     number: "TG03_0007",
     prepared_on: "2026-10-01",
     prepared_by: PREPARER,
@@ -118,7 +118,7 @@ function seedTransmittal({ raw, lists }) {
 function seedPackingList(over = {}) {
   auth.user = { id: "u-me", name: "Pat Packer", has_purchasing_flow: true }
   packingListService.get.mockResolvedValue({
-    id: "pl1",
+    id: "00000000-0000-4000-8000-0000000000c1",
     number: "TG04_0003",
     state: "draft",
     sorId: "sor1",
@@ -201,7 +201,7 @@ const RECORDS = [
     name: "Transmittal",
     Page: TransmittalDetailPage,
     route: "/purchasing/transmittals/:id",
-    path: "/purchasing/transmittals/t1",
+    path: "/purchasing/transmittals/00000000-0000-4000-8000-0000000000b1",
     seed: () => seedTransmittal({ raw: rawTransmittal(), lists: ["transmittal_check_by"] }),
     title: /^TG03_0007\s*·\s*Store CDO$/,
     badge: "Awaiting Check by",
@@ -216,7 +216,7 @@ const RECORDS = [
     name: "Packing List",
     Page: PackingListDetailPage,
     route: "/purchasing/packing-lists/:id",
-    path: "/purchasing/packing-lists/pl1",
+    path: "/purchasing/packing-lists/00000000-0000-4000-8000-0000000000c1",
     seed: () => seedPackingList(),
     title: /^TG04_0003\s*·\s*Plant upgrade$/,
     badge: "Draft",
@@ -229,7 +229,7 @@ const RECORDS = [
     name: "Transmittal (cancelled)",
     Page: TransmittalDetailPage,
     route: "/purchasing/transmittals/:id",
-    path: "/purchasing/transmittals/t1",
+    path: "/purchasing/transmittals/00000000-0000-4000-8000-0000000000b1",
     seed: () =>
       seedTransmittal({
         raw: rawTransmittal({ state: "cancelled", cancel_reason: "Wrong slip", stages: [] }),

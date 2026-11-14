@@ -9,27 +9,40 @@
  *
  * Entry shape:
  *   module  "tasks" | "sors" | "purchasing" | "hr" | "meetings" | "chat" | "other"
- *   icon    a lucide-react icon name (plain data; the bell does not read it yet, #1028)
+ *   icon    a lucide-react icon name (plain data; the bell and the popup draw it through NotificationTypeIcon)
  *   target  one of:
  *             - a function ({ notif, user, navigate }) that opens the record
- *             - PENDING: a real type whose click target another ticket is still adding
  *             - LEGACY: an old type from a replaced feature; the click says so in one line
  *
  * Entries are grouped by module and kept one per type on purpose, so tickets that
  * fill different entries touch different lines.
  */
 import { getPermissionContext } from "./permissions";
+import { openRecordWindow } from "./recordLink";
 
 export const MODULES = ["tasks", "sors", "purchasing", "hr", "meetings", "chat", "other"];
 
-/** Click target still to be built by another ticket of spec #1013. The click only closes the bell. */
-export const PENDING = "pending";
 /** Old type from a replaced feature. The click shows LEGACY_MESSAGE. */
 export const LEGACY = "legacy";
+/**
+ * TODO: transition shim, drop after one release.
+ *
+ * The COMMITTEE_* notification types were renamed to GROUP_* and existing rows
+ * backfilled by 0014_group_task_rename.sql. This app is an SPA, so a client
+ * running the pre-rename bundle can still write a COMMITTEE_* row after the
+ * backfill has run. Those rows must keep their GROUP_* twin's click, look and
+ * tab, so the router and the bell's meta both read this map while only GROUP_*
+ * is ever written. Once no COMMITTEE_* rows remain, delete it.
+ */
+export const LEGACY_TYPE_ALIASES = {
+  COMMITTEE_TASK_COMMENT: "GROUP_TASK_COMMENT",
+  COMMITTEE_ASSIGNED: "GROUP_ASSIGNED",
+  COMMITTEE_TASK_READY_FOR_HR: "GROUP_TASK_READY_FOR_HR",
+  COMMITTEE_MEMBER_DONE: "GROUP_MEMBER_DONE",
+};
 export const LEGACY_MESSAGE = "This notification is from an older version of the portal.";
 export const NO_REFERENCE_MESSAGE = "This notification has nothing to open";
 
-const openEntity = (detail) => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail }));
 
 // ---- targets shared by several types ----
 
@@ -51,7 +64,7 @@ const taskTarget = ({ notif, user, navigate }) => {
   if ((isHead || isSuperAdmin || isHr) && APPROVAL_QUEUE_TYPES.has(notif.type)) {
     navigate(`/approvals/tasks?record=${encodeURIComponent(notif.reference_id)}`);
   } else {
-    openEntity({ id: notif.reference_id, type: "TASK" });
+    openRecordWindow({ id: notif.reference_id, type: "TASK" });
   }
 };
 
@@ -66,13 +79,13 @@ const taskMentionTarget = ({ notif, navigate }) => chatLink("task", notif.refere
 const groupChatTarget = ({ notif, navigate }) => chatLink("group-task", notif.reference_id, navigate);
 const groupTaskTarget = ({ notif, navigate }) => {
   navigate("/group-tasks");
-  openEntity({ id: notif.reference_id, type: "GROUP_TASK" });
+  openRecordWindow({ id: notif.reference_id, type: "GROUP_TASK" });
 };
 
 /** Opens through the global window, which branches on access level (works outside the deal team). */
-const sorTarget = ({ notif }) => openEntity({ id: notif.reference_id, type: "OPPORTUNITY" });
+const sorTarget = ({ notif }) => openRecordWindow({ id: notif.reference_id, type: "OPPORTUNITY" });
 /** #941: a Bid Decision opens the SOR on its PMS tab. */
-const sorPmsTarget = ({ notif }) => openEntity({ id: notif.reference_id, type: "OPPORTUNITY", view: "pms" });
+const sorPmsTarget = ({ notif }) => openRecordWindow({ id: notif.reference_id, type: "OPPORTUNITY", view: "pms" });
 /** #706: reference_id is the SOR. Opens the Technical sheet. */
 const technicalSheetTarget = ({ notif, navigate }) =>
   navigate(`/technical/${encodeURIComponent(notif.reference_id)}`);
@@ -85,7 +98,7 @@ const technicalSheetTarget = ({ notif, navigate }) =>
 const purchaseRequestTarget =
   (extra = {}) =>
   ({ notif }) =>
-    openEntity({ id: notif.reference_id, type: "PURCHASE_REQUEST", focusChat: false, ...extra });
+    openRecordWindow({ id: notif.reference_id, type: "PURCHASE_REQUEST", focusChat: false, ...extra });
 const ipasTarget = ({ notif, navigate }) => navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
 
 const transmittalTarget = ({ notif, navigate }) =>
@@ -197,7 +210,8 @@ export const NOTIFICATION_TARGETS = {
   TRANSMITTAL_SIGNATURE_UNDONE: { module: "purchasing", icon: "FileText", target: transmittalTarget },
 
   // ---- hr ----
-  HR_NOTE: { module: "hr", icon: "FileText", target: PENDING },
+  // HR_NOTE is a task-timeline row type, not a notification any page writes; a stray one shows the plain line.
+  HR_NOTE: { module: "hr", icon: "History", target: LEGACY },
   SIL_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
   SIL_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
   SIL_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
@@ -231,14 +245,14 @@ export const NOTIFICATION_TARGETS = {
   BUG_REPORT_SUBMITTED: { module: "other", icon: "ShieldAlert", target: bugReportTarget },
   BUG_REPORT_NOTE: { module: "other", icon: "ShieldAlert", target: bugReportTarget },
   // Old rows still in people's bells from features that were replaced (spec #1013, A8).
-  UNPLANNED_ACTIVITY: { module: "other", icon: "Bell", target: LEGACY },
-  SALES_PLAN_SUBMITTED: { module: "other", icon: "Bell", target: LEGACY },
-  SALES_DAY_CONQUERED: { module: "other", icon: "Bell", target: LEGACY },
-  SALES_COMMENT: { module: "other", icon: "Bell", target: LEGACY },
-  DAY_DELETE_REQUESTED: { module: "other", icon: "Bell", target: LEGACY },
-  ACTIVITY_DELETE_REQUESTED: { module: "other", icon: "Bell", target: LEGACY },
-  EXPENSE_APPROVED: { module: "other", icon: "Bell", target: LEGACY },
-  PLAN_AMENDMENT_RESULT: { module: "other", icon: "Bell", target: LEGACY },
-  DAY_DELETE_RESULT: { module: "other", icon: "Bell", target: LEGACY },
-  SALES_QUOTA_PUBLISHED: { module: "other", icon: "Bell", target: LEGACY },
+  UNPLANNED_ACTIVITY: { module: "other", icon: "History", target: LEGACY },
+  SALES_PLAN_SUBMITTED: { module: "other", icon: "History", target: LEGACY },
+  SALES_DAY_CONQUERED: { module: "other", icon: "History", target: LEGACY },
+  SALES_COMMENT: { module: "other", icon: "History", target: LEGACY },
+  DAY_DELETE_REQUESTED: { module: "other", icon: "History", target: LEGACY },
+  ACTIVITY_DELETE_REQUESTED: { module: "other", icon: "History", target: LEGACY },
+  EXPENSE_APPROVED: { module: "other", icon: "History", target: LEGACY },
+  PLAN_AMENDMENT_RESULT: { module: "other", icon: "History", target: LEGACY },
+  DAY_DELETE_RESULT: { module: "other", icon: "History", target: LEGACY },
+  SALES_QUOTA_PUBLISHED: { module: "other", icon: "History", target: LEGACY },
 };

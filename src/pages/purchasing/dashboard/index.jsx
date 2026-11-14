@@ -21,8 +21,8 @@ import { useTrackerFilters } from "./_components/useTrackerFilters";
 function PurchasingDashboard() {
   const navigate = useNavigate();
   const filters = useTrackerFilters();
-  const { recordId, open, close } = useRecordParam("request");
-  useRequestInGlobalWindow(recordId, close);
+  const { recordId, open } = useRecordParam("request");
+  useRequestInGlobalWindow(recordId);
 
   const openRow = (row) => {
     if (row.target_kind === "purchase_request") {

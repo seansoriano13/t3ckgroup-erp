@@ -46,6 +46,7 @@ describe("the PMS page", () => {
     const user = open(deal.id);
 
     expect(await screen.findByTestId("pms-sections")).toHaveTextContent(deal.id);
+    expect(screen.getByRole("dialog", { name: "SOR-777 · S07070" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open SOR" }));
     expect(await screen.findByTestId("sor-route")).toHaveTextContent(`/sors?open=sor%3A${deal.id}&view=pms`);
   });

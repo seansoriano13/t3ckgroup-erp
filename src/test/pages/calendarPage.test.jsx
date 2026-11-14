@@ -7,7 +7,7 @@
  */
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation, useNavigationType } from "react-router";
 import { stubRoomyScreen } from "@/test/roomyScreen";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import CalendarPage from "@/pages/calendar/index";
@@ -134,6 +134,36 @@ describe("Calendar page", () => {
     await user.click(screen.getByText(/Ana C\. · SIL/));
     expect(await screen.findAllByText("Ana Cruz")).not.toHaveLength(0);
     expect(screen.queryByText("Reason")).toBeNull();
+  });
+
+  it("closing an entry opened from the page steps Back; one opened by a link just clears the address", async () => {
+    const Probe = () => {
+      const { search } = useLocation();
+      return <output data-testid="probe">{`${useNavigationType()}${search.includes("entry=") ? " open" : " closed"}`}</output>;
+    };
+    const user = userEvent.setup();
+    const { unmount } = renderWithProviders(
+      <MemoryRouter initialEntries={[`/calendar?date=${day}`]}>
+        <CalendarPage />
+        <Probe />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByText(/Ben L\. · Offset/));
+    expect(await screen.findByText("Dental")).toBeInTheDocument();
+    expect(screen.getByTestId("probe")).toHaveTextContent("PUSH open");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByTestId("probe")).toHaveTextContent("POP closed");
+    unmount();
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={[`/calendar?date=${day}&entry=offset:b`]}>
+        <CalendarPage />
+        <Probe />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Dental")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByTestId("probe")).toHaveTextContent("REPLACE closed");
   });
 
   it("draws a multi-day request as one bar and opens its whole range", async () => {

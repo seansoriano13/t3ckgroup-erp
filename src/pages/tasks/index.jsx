@@ -24,6 +24,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import TabGroup from "../../components/ui/TabGroup";
 import PageLoading from "@/components/ui/PageLoading";
 import Dot from "../../components/ui/Dot";
+import { openRecordWindow } from "@/utils/recordLink";
 
 // Every mutation and the realtime hook below need the page's own list and the
 // dashboard's shared task list to agree on freshness after any change.
@@ -97,8 +98,7 @@ function taskFilterDefaults(user, { isHr, isManagement }) {
 }
 
 // One way to open a task: the global manager reads `?open=task:<id>`.
-const openTask = (id) =>
-  window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id, type: "TASK" } }));
+const openTask = (id, searchTerm) => openRecordWindow({ id, type: "TASK", searchTerm: searchTerm || undefined });
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -435,7 +435,7 @@ export default function TasksPage() {
             searchTerm={searchTerm}
             filtered={rawTasks.length > 0}
             onClearFilters={clearAllFilters}
-            onView={(task) => openTask(task.id)}
+            onView={(task) => openTask(task.id, searchTerm)}
             onSilentUpdate={(payload) => editTaskMutation.mutateAsync(payload)}
           />
         </div>
@@ -523,7 +523,7 @@ export default function TasksPage() {
                     key={task.id}
                     task={task}
                     searchTerm={searchTerm}
-                    onView={() => openTask(task.id)}
+                    onView={() => openTask(task.id, searchTerm)}
                     onSilentUpdate={(payload) =>
                       editTaskMutation.mutateAsync(payload)
                     }

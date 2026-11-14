@@ -6,5 +6,5 @@ import { Navigate } from "react-router";
  * on the person's work.
  */
 export default function MySorsPage() {
-  return <Navigate to="/sors?view=mine" replace />;
+  return <Navigate to="/sors?scope=mine" replace />;
 }

@@ -21,13 +21,23 @@ export function itemToRecordKey(item) {
   return prefix && item.id ? `${prefix}:${item.id}` : null;
 }
 
+/**
+ * "<kind>:<id>" -> { kind, id }, or null when either side is missing. An id may
+ * contain colons, so only the first one splits. The one parser behind every
+ * address of this shape (`?open=`, `?chat=`, `?entry=`).
+ */
+export function splitKindId(value) {
+  if (!value) return null;
+  const at = value.indexOf(":");
+  if (at < 1 || at === value.length - 1) return null;
+  return { kind: value.slice(0, at), id: value.slice(at + 1) };
+}
+
 /** "task:<id>" -> { id, type }, or null when the key isn't one we know. */
 export function recordKeyToItem(key) {
-  if (!key) return null;
-  const at = key.indexOf(":");
-  const type = at > 0 ? PREFIX_TO_TYPE[key.slice(0, at)] : null;
-  const id = at > 0 ? key.slice(at + 1) : null;
-  return type && id ? { id, type } : null;
+  const parts = splitKindId(key);
+  const type = parts ? PREFIX_TO_TYPE[parts.kind] : null;
+  return type ? { id: parts.id, type } : null;
 }
 
 /**
@@ -48,4 +58,15 @@ const RECORD_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /** True when `id` looks like a record id (a uuid). A malformed one counts as not found: no request is sent. */
 export function isRecordId(id) {
   return typeof id === "string" && RECORD_ID_RE.test(id);
+}
+
+export const OPEN_ENTITY_EVENT = "OPEN_ENTITY_DETAILS";
+
+/**
+ * Asks GlobalDetailManager to open a record window: `{ id, type }`, plus an
+ * optional `view`, `tab`, `searchTerm` and so on. The one place the event is
+ * dispatched from a page, so the window's address is always written the same way.
+ */
+export function openRecordWindow(detail) {
+  window.dispatchEvent(new CustomEvent(OPEN_ENTITY_EVENT, { detail }));
 }

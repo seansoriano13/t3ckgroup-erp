@@ -55,6 +55,8 @@ export default function GlobalDetailManager() {
     const view = requestId ? null : searchParams.get(RECORD_VIEW_PARAM);
     return linked && view && linked.type === "OPPORTUNITY" ? { ...linked, view } : linked;
   }, [requestId, underKey, linkedItem, searchParams]);
+  // Writes go straight to setSearchParams, not through useRecordParam's "held" copy: the window is derived
+  // from the address alone (no list or query in between), so there is no render that reads shut while a write lands.
   // Opening or closing in the app writes the address. A fresh open adds a
   // history entry; swapping one record for another replaces it.
   const setActiveItem = useCallback(
@@ -74,6 +76,8 @@ export default function GlobalDetailManager() {
     [setSearchParams, recordId],
   );
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
+  const [searchHit, setSearchHit] = useState(null);
+  const searchTermFor = (id) => (searchHit && searchHit.id === id ? searchHit.term : undefined);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
   // Quick View's Tasks section opens a Task stacked on top of it —
@@ -95,7 +99,7 @@ export default function GlobalDetailManager() {
 
   useEffect(() => {
     const handleOpenDetails = (e) => {
-      const { id, type, isNew, view, focusChat, tab, replace, dropParams } = e.detail;
+      const { id, type, isNew, view, focusChat, tab, replace, dropParams, searchTerm } = e.detail;
       if (id && type === "PURCHASE_REQUEST") {
         const key = itemToRecordKey({ id, type });
         // The tab a notification names: "chat" or "items" (#850); a mention opens Chat; null leaves an open window as it is.
@@ -113,6 +117,8 @@ export default function GlobalDetailManager() {
           { replace: replace === true || Boolean(requestId), state: stacked ? { under: recordId } : requestId ? location.state : null },
         );
       } else if (id && type) {
+        // The list's search words ride in the event, not the address: the opened task marks them (#1023).
+        setSearchHit(searchTerm ? { id, term: searchTerm } : null);
         // `view` names the tab an SOR opens on (the Costing Matrix page opens "pms"); absent, it opens on its Summary.
         setActiveItem(view ? { id, type, view } : { id, type });
         if (isNew) {
@@ -426,6 +432,7 @@ export default function GlobalDetailManager() {
           isOpen={true}
           onClose={handleClose}
           task={taskData}
+          searchTerm={searchTermFor(activeItem.id)}
           onUpdateTask={(updated) => editTaskMutation.mutateAsync(updated)}
           onDeleteTask={(payload) => deleteTaskMutation.mutateAsync(payload)}
         />
@@ -438,6 +445,7 @@ export default function GlobalDetailManager() {
             isOpen={true}
             onClose={handleClose}
             task={groupTaskData}
+            searchTerm={searchTermFor(activeItem.id)}
             currentUserId={user?.id}
             isSuperAdmin={isSuperAdmin}
             isHr={isHr}

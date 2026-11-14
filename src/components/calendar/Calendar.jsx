@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { CalendarDays } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { cn } from '@/lib/utils';
 import PageLoading from '@/components/ui/PageLoading';
 import QueryError from '@/components/ui/QueryError';
@@ -136,6 +136,12 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   const wanted = parseEntryAddress(params.get(ENTRY_PARAM));
   const found = wanted ? all.find((e) => matchesAddress(e, wanted)) : null;
   const selected = found ? withSpan(found, entries) : null;
+  // An entry opened by a push from this page is closed by stepping Back, so Back
+  // leaves the Calendar's open entry rather than replaying it. One that arrived by
+  // a link (or was swapped for another) has no such step, so it just drops the address.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const openedHere = location.state?.entryOpenedHere === true;
   const open = (e) =>
     setParams(
       (prev) => {
@@ -143,9 +149,13 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
         out.set(ENTRY_PARAM, entryAddress(e));
         return out;
       },
-      { replace: Boolean(wanted) },
+      { replace: Boolean(wanted), state: wanted ? location.state : { entryOpenedHere: true } },
     );
-  const closeEntry = () =>
+  const closeEntry = () => {
+    if (openedHere) {
+      navigate(-1);
+      return;
+    }
     setParams(
       (prev) => {
         const out = new URLSearchParams(prev);
@@ -154,6 +164,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
       },
       { replace: true },
     );
+  };
   // An address for an entry outside the month on screen: look its date up, then move there.
   const lookupDate = Boolean(wanted) && !found && !isLoading && !error;
   const { data: entryDate, isFetched: dateFetched } = useQuery({
