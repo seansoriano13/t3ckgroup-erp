@@ -52,7 +52,7 @@ function renderModal() {
 
 /** The S0 card sits in the edit form's Details section (#859), so open the edit form to see it. */
 async function openEditForm(user) {
-  await user.click(await screen.findByRole("button", { name: "Edit opportunity" }))
+  await user.click(await screen.findByRole("button", { name: "Edit SOR" }))
 }
 
 describe("OpportunityDetailsModal — S0 re-check on open (#817)", () => {

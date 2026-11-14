@@ -83,6 +83,8 @@ export function CustomToast({
 
   return (
     <div
+      role={resolvedVariant === "confirm" ? "alertdialog" : undefined}
+      aria-label={resolvedVariant === "confirm" ? displayTitle || "Confirm" : undefined}
       className={`${
         t.visible ? "animate-in fade-in slide-in-from-bottom-5" : "animate-out fade-out slide-out-to-bottom-5 opacity-0"
       } bg-card shadow-2xl rounded-2xl p-4 flex flex-col gap-4 min-w-[320px] max-w-[420px] pointer-events-auto border border-border transition-all duration-300`}

@@ -23,7 +23,7 @@ const PROBLEM_ICON = {
 };
 
 /**
- * "New evaluation from an S0" (#966): the S0 number, the Sales incharge and the PMS incharge. The lines and quantities
+ * "New evaluation from an S0" (#966): the S0 number, the Sales in-charge and the Purchasing in-charge. The lines and quantities
  * are pulled from the sale order in Odoo. The three ways it can fail are said apart: not an S0 number, no such S0 in
  * Odoo, Odoo unreachable. An S0 that already has an evaluation opens that one instead. `onOpen(subjectId)` is called
  * with what the window opens by.
@@ -88,11 +88,11 @@ export function NewStandaloneDialog({ open, onOpenChange, onOpen }) {
           />
         </FieldBox>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FieldBox label={<>Sales incharge <RequiredMark /></>} bare>
-            <SelectField options={options} value={sales} onChange={setSales} placeholder="Pick" aria-label="Sales incharge" />
+          <FieldBox label={<>Sales in-charge <RequiredMark /></>} bare>
+            <SelectField options={options} value={sales} onChange={setSales} placeholder="Pick" aria-label="Sales in-charge" />
           </FieldBox>
-          <FieldBox label={<>PMS incharge <RequiredMark /></>} bare>
-            <SelectField options={options} value={pms} onChange={setPms} placeholder="Pick" aria-label="PMS incharge" />
+          <FieldBox label={<>Purchasing in-charge <RequiredMark /></>} bare>
+            <SelectField options={options} value={pms} onChange={setPms} placeholder="Pick" aria-label="Purchasing in-charge" />
           </FieldBox>
         </div>
         {busy && (
@@ -152,7 +152,7 @@ export function LinkToSorDialog({ open, onOpenChange, matrixId, s0Number, onLink
       }
     >
       <p className="text-sm text-muted-foreground">
-        Pick the SOR this evaluation belongs to. It must be a SOR with no S0 Evaluation yet. From then on that SOR&apos;s rules decide who reads it, and the Sales and PMS incharge named here no longer give access.
+        Pick the SOR this evaluation belongs to. It must be a SOR with no S0 Evaluation yet. From then on that SOR&apos;s rules decide who reads it, and the Sales and Purchasing in-charge named here no longer give access.
       </p>
       <SorPicker selected={sor} onChange={(list) => setSor(list.slice(-1))} />
       {problem && (
@@ -167,7 +167,7 @@ export function LinkToSorDialog({ open, onOpenChange, matrixId, s0Number, onLink
 
 /**
  * The strip a standalone evaluation shows in place of the SOR's incharges (#966): the S0 it was started from with a "No SOR"
- * mark, the Sales incharge and the PMS incharge (anyone can be named; changeable by the starter, the Sales incharge and
+ * mark, the Sales in-charge and the Purchasing in-charge (anyone can be named; changeable by the starter, the Sales in-charge and
  * the decider list), the Technical in-charge as on any evaluation, and "Link to a SOR".
  */
 export function StandaloneBar({ matrix, technicalOptions, nameOf, canTechnical, onSaved, onLinked }) {
@@ -199,7 +199,7 @@ export function StandaloneBar({ matrix, technicalOptions, nameOf, canTechnical, 
         purchasingOptions={options}
         canSales={canName}
         canPurchasing={canName}
-        purchasingLabel="PMS incharge"
+        purchasingLabel="Purchasing in-charge"
         technical={row.technical_incharge_id}
         technicalOptions={technicalOptions}
         canTechnical={canTechnical}

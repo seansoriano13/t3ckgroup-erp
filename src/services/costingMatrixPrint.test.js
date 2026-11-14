@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 
+import { factorLabel } from "../utils/costingMath";
 import { shapeMatrix } from "./costingMatrixService";
 import { COMPONENT_COST_TIERS, COSTING_TIER, DEFAULT_COSTING_SETTINGS, TENDER_PRICE_TIERS } from "../constants/costing";
 import { buildCostingMatrixViewModel } from "../lib/pdf/costingMatrixViewModel";
@@ -208,6 +209,33 @@ describe("the printed S0 Evaluation, view model", () => {
     const participant = withLanded(COSTING_TIER.PARTICIPANT, { total: 2251234.5, mark: "final" });
     expect("money" in participant).toBe(false);
     expect(JSON.stringify(participant)).not.toContain("2,251,234");
+  });
+
+  it("prints 'in the total' for every line and works Achieved from the typed total in One total mode (#1037)", () => {
+    const tables = rawTables();
+    tables.costing_bid_decisions = [];
+    tables.costing_matrices = [{ ...tables.costing_matrices[0], abc_mode: "total_only", abc_total: 450000, offer_mode: "total_only", offer_total: 430000 }];
+    const vm = build(COSTING_TIER.CLOSED_BOOK, { tables });
+    expect(vm.money.lines[0]).toMatchObject({ abc: "in the total", finalOffer: "in the total" });
+    expect(vm.money.strip.finalOffer).toBe("PHP 430,000.00");
+    expect(vm.money.facts.abc).toBe("PHP 450,000.00");
+    // Cost: Acquire of both Components and the cost-only row, summed.
+    const acquire = 2160500 + 78000 + 100000;
+    expect(vm.money.strip.achieved).toBe(factorLabel(Math.round((430000 / acquire) * 10000) / 10000));
+    const html = buildCostingMatrixDocument(vm);
+    expect(html).not.toContain("3,200,000");
+    expect(html).not.toContain("2,980,000");
+    expect(html).toContain("in the total");
+  });
+
+  it("keeps the per line figures in Per line mode, names the column Final Acquire, and leaves cost-only Landed Cost blank (#1037)", () => {
+    const vm = build(COSTING_TIER.CLOSED_BOOK);
+    expect(vm.money.lines[0].abc).not.toBe("in the total");
+    expect(vm.money.lines[0].finalOffer).not.toBe("in the total");
+    const html = buildCostingMatrixDocument(vm);
+    expect(html).toContain("Final Acquire</th>");
+    expect(html).not.toContain("Final cost");
+    expect(vm.money.costRows[0].landedCost).toBe("");
   });
 
   it("doesn't print the money sheet for a lower tier even when a caller hands over a Closed Book matrix", () => {

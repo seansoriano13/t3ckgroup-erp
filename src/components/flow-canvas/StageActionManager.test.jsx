@@ -148,7 +148,7 @@ describe("StageActionManager", () => {
 
       expect(await screen.findByText("Open S0 Evaluation")).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: /Edit Open S0 Evaluation/i }));
-      expect(await screen.findByRole("combobox", { name: "Sales Incharge" })).toBeInTheDocument();
+      expect(await screen.findByRole("combobox", { name: "Sales in-charge" })).toBeInTheDocument();
     });
   });
 });

@@ -21,8 +21,8 @@ import StatusBadge from "../../../StatusBadge";
 import { MoveToClosedLost } from "../../BidDecisionPanel";
 import { pesos } from "../../gridFormat";
 import { costingMatrixService } from "../../../../services/costingMatrixService";
-import { BID_VERDICT, BID_VERDICT_LABEL, COSTING_TIER, tierDecidesBid, tierReadsBidDecision } from "../../../../constants/costing";
-import { offerVsAbc } from "../../../../utils/costingMath";
+import { ABC_MODE, BID_VERDICT, BID_VERDICT_LABEL, COSTING_TIER, tierDecidesBid, tierReadsBidDecision } from "../../../../constants/costing";
+import { offerVsAbc, extendedCentavos } from "../../../../utils/costingMath";
 import { formatDate } from "../../../../utils/formatDate";
 
 const VERDICT_THEME = { [BID_VERDICT.GO]: "green", [BID_VERDICT.REVISE]: "amber", [BID_VERDICT.NO_GO]: "red" };
@@ -38,7 +38,7 @@ function Checks({ items, onJump }) {
   return (
     <div>
       <div className="flex items-baseline justify-between px-4 pb-1 pt-3">
-        <h4 className="text-xs font-semibold text-muted-foreground">Before a Go</h4>
+        <h4 className="text-xs font-semibold text-muted-foreground">Worth finishing first</h4>
         <span className="text-xs tabular-nums text-muted-foreground">
           {done} of {items.length}
         </span>
@@ -58,6 +58,25 @@ function Checks({ items, onJump }) {
   );
 }
 
+// The lines whose own offer is above their own ABC, in Per line mode (a line can be over while the totals are within).
+function linesOverAbc(tenderLines, abc, offer) {
+  if (abc?.mode === ABC_MODE.TOTAL_ONLY || offer?.mode === ABC_MODE.TOTAL_ONLY) return [];
+  return (tenderLines ?? []).filter((line) => {
+    const a = extendedCentavos(line?.abc_unit, line?.quantity);
+    const o = extendedCentavos(line?.final_offer_unit, line?.quantity);
+    return a !== null && o !== null && o > a;
+  });
+}
+
+// "Unlocked: why." is the reason an Unlock stored; the card words it as one sentence with one full stop.
+function earlierWords(earlier) {
+  const verdict = BID_VERDICT_LABEL[earlier.verdict] ?? earlier.verdict;
+  const raw = String(earlier.clearedReason ?? "").trim();
+  const unlocked = /^unlocked:\s*/i.test(raw);
+  const why = raw.replace(/^unlocked:\s*/i, "").replace(/\.+$/, "").trim();
+  return `Earlier ${verdict} was ${unlocked ? "unlocked" : "cleared"}${why ? `: ${why}` : ""}.`;
+}
+
 export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportunity, onJump }) {
   const { tier, bidDecision, bidDecisionHistory = [], totals, tenderLines, evaluation } = matrix;
   const [reason, setReason] = useState("");
@@ -66,7 +85,8 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
   const [showLow, setShowLow] = useState(false);
   if (!tierReadsBidDecision(tier)) return null;
 
-  const canDecide = tierDecidesBid(tier);
+  // Spec #1031: only the decider list or a Super Admin decides; the read's canDecideLoss is exactly that right.
+  const canDecide = tierDecidesBid(tier) && Boolean(matrix.canDecideLoss);
   const ready = tenderLines.length > 0 && totals.missingOffer === 0;
   const evaluated = Boolean(evaluation?.approved);
   const trimmed = reason.trim();
@@ -78,20 +98,34 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
   const underGoLine = Boolean(matrix.summary?.underGoLine);
   const low = offerVsAbc(tenderLines, matrix.abc, matrix.offer);
   const earlier = bidDecisionHistory[0] ?? null;
+  const offerTyped = matrix.offer?.mode === ABC_MODE.TOTAL_ONLY;
+  const overLines = linesOverAbc(tenderLines, matrix.abc, matrix.offer);
+  const overBy = totals.overAbc ? Math.round((Number(totals.finalOfferTotal) - Number(totals.abcTotal)) * 100) / 100 : 0;
+  const overAbcWarning = totals.overAbc ? `The offer is ${pesos(overBy)} over the ABC. The client cannot accept it.` : null;
+  const overLinesWarning = overLines.length > 0 ? `${overLines.length} ${overLines.length === 1 ? "line" : "lines"} over its ABC` : null;
+  const overAny = Boolean(overAbcWarning || overLinesWarning);
+  const overWords = [overAbcWarning, overLinesWarning && `${overLinesWarning}: ${overLines.map((l) => l.number ?? "?").join(", ")}.`].filter(Boolean).join(" ");
 
   // The checks and the figures are the Closed Book's; another tier reading the decision gets the verdict and the reason.
   const closed = tier === COSTING_TIER.CLOSED_BOOK;
   const left = (key) => c.steps.find((s) => s.key === key)?.left ?? 0;
   const items = [
-    { key: "offers", done: ready, label: "A Final Offer on every line", left: totals.missingOffer ? `${totals.missingOffer} without` : null, step: "offers" },
+    { key: "offers", done: ready, label: offerTyped ? "The Final Offer total is typed" : "A Final Offer on every line", left: totals.missingOffer ? (offerTyped ? "not typed" : `${totals.missingOffer} without`) : null, step: "offers" },
     { key: "fa", done: left("finalAcquire") === 0 && c.rows.length > 0, label: "Every part has a Final Acquire", left: left("finalAcquire") ? `${left("finalAcquire")} blank` : null, step: "finalAcquire" },
     { key: "other", done: left("otherCosts") === 0, label: "Every other cost has an amount", left: left("otherCosts") ? `${left("otherCosts")} blank` : null, step: "otherCosts" },
-    { key: "abc", done: !totals.overAbc && totals.abcTotal != null, label: "The offer is within the ABC", left: totals.overAbc ? "over" : totals.abcTotal == null ? "no ABC" : null, step: "offers" },
+    { key: "abc", done: !totals.overAbc && overLines.length === 0 && totals.abcTotal != null, label: "The offer is within the ABC", left: totals.overAbc ? "over" : overLines.length ? overLinesWarning : totals.abcTotal == null ? "no ABC" : null, step: "offers" },
     { key: "specs", done: evaluated, label: "The specs are approved", left: evaluated ? null : "waiting", step: "specs" },
   ];
 
   // Why a Go cannot be taken right now, in one line; Revise and No-go only need a reason.
-  const goBlocked = !ready ? "Every line needs a Final Offer first." : !evaluated ? "A Go waits for the specs to be approved." : blockedLoss ? "This bid loses money: a Go needs a Super Admin or the decider list." : null;
+  const goBlocked = !ready ? (offerTyped ? "Type the Final Offer total first." : "Every line needs a Final Offer first.") : !evaluated ? "A Go waits for the specs to be approved." : blockedLoss ? "This bid loses money: a Go needs a Super Admin or the decider list." : null;
+
+  const blanks = [
+    c.rows.length === 0 && "there are no parts",
+    left("finalAcquire") > 0 && `Final Acquire is blank on ${left("finalAcquire")} ${left("finalAcquire") === 1 ? "part" : "parts"}`,
+    left("otherCosts") > 0 && `${left("otherCosts")} other ${left("otherCosts") === 1 ? "cost has" : "costs have"} no amount`,
+  ].filter(Boolean);
+  const blankWords = blanks.length ? blanks.join(", ") : "a cost it needs is blank";
 
   const decide = (verdict) =>
     writes.run(async () => {
@@ -125,11 +159,11 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
         <dl className="grid grid-cols-3 gap-2 text-xs" data-testid="corridor-decision-figures">
           <div>
             <dt className="text-muted-foreground">Offer</dt>
-            <dd className="font-semibold tabular-nums">{totals.finalOfferTotal == null ? "—" : pesos(bidDecision?.finalOfferTotal ?? totals.finalOfferTotal)}</dd>
+            <dd className="font-semibold tabular-nums">{totals.finalOfferTotal == null ? "—" : pesos(locked ? (bidDecision?.finalOfferTotal ?? totals.finalOfferTotal) : totals.finalOfferTotal)}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">ABC</dt>
-            <dd className="font-semibold tabular-nums">{totals.abcTotal == null ? "—" : pesos(bidDecision?.abcTotal ?? totals.abcTotal)}</dd>
+            <dd className="font-semibold tabular-nums">{totals.abcTotal == null ? "—" : pesos(locked ? (bidDecision?.abcTotal ?? totals.abcTotal) : totals.abcTotal)}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Revenue</dt>
@@ -139,12 +173,18 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
         )}
 
         {/* Warnings, only when they apply: one line each. */}
-        {closed && (underGoLine || low.low || losing) && (
+        {closed && (underGoLine || low.low || losing || overAny) && (
           <ul className="space-y-1.5 text-xs" data-testid="corridor-decision-warnings">
             {losing && (
               <li className="flex gap-1.5 text-red-11" data-testid="corridor-decision-loss">
                 <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
                 Planned revenue is negative: this bid loses money.
+              </li>
+            )}
+            {overAny && (
+              <li className="flex gap-1.5 font-semibold text-red-11" data-testid="corridor-decision-over-abc">
+                <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>{overWords}</span>
               </li>
             )}
             {underGoLine && !losing && (
@@ -183,6 +223,7 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
         {bidDecision && (
           <div className="space-y-1.5" data-testid="corridor-decision-live">
             <p className="text-xs text-muted-foreground">
+              {bidDecision.finalOfferTotal != null && `${BID_VERDICT_LABEL[bidDecision.verdict] ?? bidDecision.verdict} at ${pesos(bidDecision.finalOfferTotal)} · `}
               {nameOf(bidDecision.decidedBy) ?? "Someone"}, {formatDate(bidDecision.decidedAt)}
             </p>
             <p className="whitespace-pre-wrap text-sm" data-testid="corridor-decision-reason">
@@ -198,7 +239,7 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
         )}
         {!bidDecision && earlier && (
           <p className="text-xs text-muted-foreground" data-testid="corridor-decision-cleared">
-            Earlier {BID_VERDICT_LABEL[earlier.verdict] ?? earlier.verdict} was cleared: {earlier.clearedReason}.
+            {earlierWords(earlier)}
           </p>
         )}
 
@@ -252,9 +293,9 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
             Unlock the sheet
           </Button>
         )}
-        {canDecide && locked && !canUnlock && (
-          <p className="text-xs text-muted-foreground" data-testid="corridor-decision-unlock-blocked">
-            Only a Super Admin or the decider list can unlock a bid.
+        {!canDecide && (
+          <p className="text-xs text-muted-foreground" data-testid="corridor-decision-readonly">
+            Only the decider list or a Super Admin decides a bid.
           </p>
         )}
       </div>
@@ -265,7 +306,7 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
         title="Go on this bid?"
         description="A Go locks the sheet. Nobody can change a number until it is unlocked."
         confirmLabel="Go"
-        tone={losing ? "destructive" : "approve"}
+        tone={losing || overAny ? "destructive" : "approve"}
         confirmDisabled={writes.busy}
         onConfirm={() => decide(BID_VERDICT.GO)}
       >
@@ -285,6 +326,16 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
             </dd>
           </div>
         </dl>
+        {overAny && (
+          <p className="mt-2 text-sm font-semibold text-red-11" data-testid="corridor-decision-go-over-abc">
+            {overWords}
+          </p>
+        )}
+        {revenue === null && (
+          <p className="mt-2 text-sm font-semibold text-amber-11" data-testid="corridor-decision-go-unworked">
+            Planned revenue is not worked yet: {blankWords}.
+          </p>
+        )}
         {losing && (
           <p className="mt-2 text-sm font-semibold text-red-11" data-testid="corridor-decision-go-loss">
             This bid loses money.

@@ -8,7 +8,7 @@ import { costingMatrixService, StandaloneStartError } from "@/services/costingMa
 
 /**
  * "New evaluation from an S0" (#966): the three ways it can fail are said apart, an S0 that
- * already has an evaluation opens that one, and nothing starts until the S0 and both incharges are named.
+ * already has an evaluation opens that one, and nothing starts until the S0 and both in-charges are named.
  */
 
 let authUser;
@@ -19,7 +19,7 @@ describe("NewStandaloneDialog", () => {
   let pms;
 
   const pickPms = async (user) => {
-    await user.click(screen.getByRole("combobox", { name: "PMS incharge" }));
+    await user.click(screen.getByRole("combobox", { name: "Purchasing in-charge" }));
     await user.click(await screen.findByRole("option", { name: pms.name }));
   };
   const open = (props = {}) => {
@@ -35,7 +35,7 @@ describe("NewStandaloneDialog", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("keeps Start off until the S0 number and both incharges are given", async () => {
+  it("keeps Start off until the S0 number and both in-charges are given", async () => {
     const user = setupUser();
     open();
     const start = await screen.findByTestId("standalone-start");

@@ -95,10 +95,10 @@ export function useApprovalRoles() {
     // On the Transmittal Check by list (#254); only a list member sees the queue.
     isTransmittalCheckBy: (listsQuery.data ?? []).includes(TRANSMITTAL_STAFF_LIST.CHECK_BY),
     isTransmittalListsLoading: !!user?.id && listsQuery.isLoading,
-    // A Super Admin, on the Final Acquire list (#320), or open on a Costing Matrix: decides Bid Decisions.
+    // A Super Admin or on the Final Acquire list (#320): decides Bid Decisions.
+    // Spec #1031: only the decider list or a Super Admin decides; being open on a matrix is not enough.
     isBidDecider:
-      user?.is_super_admin === true || user?.isSuperAdmin === true || user?.is_final_acquire === true || user?.isFinalAcquire === true ||
-      user?.is_costing_open === true || user?.isCostingOpen === true,
+      user?.is_super_admin === true || user?.isSuperAdmin === true || user?.is_final_acquire === true || user?.isFinalAcquire === true,
   };
 }
 

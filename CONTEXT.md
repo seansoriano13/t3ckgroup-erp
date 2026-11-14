@@ -285,7 +285,7 @@ The centralized analytics interface and register aggregating live Commission Poo
 _Avoid_: Commission Page, Money Tab
 
 **Realized Commission Pool**:
-The accumulated Commission Pool derived strictly from deals that have reached the Awarded stage or beyond (Awarded, PO Received, Project Delivery, Collection, Closed Won) where each deal is priced using the Commission Rate effective on its Contract Date.
+The accumulated Commission Pool derived strictly from deals that have a Contract Date (ADR 0006: Realized is a property of the deal, not of a stage), where each deal is priced using the Commission Rate effective on its Contract Date.
 _Avoid_: Paid Commission, Settled Pool
 
 **Projected Commission Pool**:
@@ -1151,9 +1151,9 @@ on each SOR, the Closed Book has an S0 Evaluation page listing every SOR's
 matrix with its Planned and Actual Revenue.
 It can also stand alone (ADR 0052): started from just an S0 number, with the lines and
 quantities pulled from that sale order in Odoo, one evaluation per S0 and no SOR. A
-standalone evaluation names a Sales incharge and a PMS incharge when it is started
-(changeable after). Its readers: the person who started it and the Sales incharge
-read the price side; the PMS incharge and anyone with Purchasing access read the cost
+standalone evaluation names a Sales in-charge and a Purchasing in-charge when it is started
+(changeable after). Its readers: the person who started it and the Sales in-charge
+read the price side; the Purchasing in-charge and anyone with Purchasing access read the cost
 side; the decider list and Super Admins read everything (the Closed Book); the
 Technical in-charge and the Evaluation list read it without money. Anyone else reads
 nothing. "Link to a SOR" attaches it to a SOR that has none; from then on the SOR's
@@ -1268,10 +1268,10 @@ the Evaluation list reads it with no money at all. Distinct from the write bands
 column and grant no reading.
 _Avoid_: Margin Tier, Confidential, Management View, Band (which is the write rule)
 
-**Incharge**:
+**In-charge**:
 The salesperson and the purchaser who answer for an S0 Evaluation row — set once
-for the matrix, and overridable row by row. Names only: being Incharge grants no
-access and sends no notifications. The Purchasing Incharge is the purchasing
+for the matrix, and overridable row by row. Names only: being in-charge grants no
+access and sends no notifications. The Purchasing in-charge is the purchasing
 assistant the Purchasing Manager assigns to a bid — the person a sheet or a
 Stage Field once recorded as "Purchasing Involved" — named when the bid enters
 sourcing, before any Canvass opens.

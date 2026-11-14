@@ -43,12 +43,12 @@ describe("SOR window More-actions menu (#814)", () => {
     renderWithProviders(<><Toaster /><SorModalHeader {...baseProps()} /></>)
 
     await openMenu(user)
-    expect(screen.getByRole("button", { name: /delete opportunity/i })).toBeInTheDocument()
+    expect(screen.getByRole("menuitem", { name: /delete opportunity/i })).toBeInTheDocument()
     // Mark as Lost lives only in the menu now; the header no longer has its own button.
-    expect(screen.getAllByRole("button", { name: /^mark as lost$/i })).toHaveLength(1)
-    await user.click(screen.getByRole("button", { name: /^mark as lost$/i }))
+    expect(screen.getAllByRole("menuitem", { name: /^mark as lost$/i })).toHaveLength(1)
+    await user.click(screen.getByRole("menuitem", { name: /^mark as lost$/i }))
 
-    expect(await screen.findByRole("radiogroup", { name: "Why was the deal lost?" })).toBeInTheDocument()
+    expect(await screen.findByRole("radiogroup", { name: "Reason" })).toBeInTheDocument()
   })
 
   it("the Delete confirm points to Mark as Lost, and Delete still deletes", async () => {
@@ -57,7 +57,7 @@ describe("SOR window More-actions menu (#814)", () => {
     renderWithProviders(<><Toaster /><SorModalHeader {...props} /></>)
 
     await openMenu(user)
-    await user.click(screen.getByRole("button", { name: /delete opportunity/i }))
+    await user.click(screen.getByRole("menuitem", { name: /delete opportunity/i }))
 
     expect(
       await screen.findByText(/Client stopped responding\? Mark as Lost instead, so it shows in reports\./),

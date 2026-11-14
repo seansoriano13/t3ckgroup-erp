@@ -15,7 +15,7 @@ import { LOST_REASONS, LOST_REASON_OTHER } from "../../constants/sor";
  * `lostStages` is the flow's Lost Stages. Only with more than one does the
  * person pick, otherwise the database uses the one there is.
  */
-export default function MarkLostDialog({ isOpen, lostStages = [], isPending = false, onCancel, onConfirm, initialReasonCode = null, initialNote = "" }) {
+export default function MarkLostDialog({ isOpen, lostStages = [], isPending = false, onCancel, onConfirm, initialReasonCode = null, initialNote = "", error = null }) {
   const [reasonCode, setReasonCode] = useState(initialReasonCode);
   const [note, setNote] = useState(initialNote);
   const [lostStageId, setLostStageId] = useState(null);
@@ -35,7 +35,10 @@ export default function MarkLostDialog({ isOpen, lostStages = [], isPending = fa
           <DialogTitle>Mark as Lost</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3 px-1 pb-1">
-          <div role="radiogroup" aria-label="Why was the deal lost?" className="flex flex-col gap-1.5">
+          <p id="mark-lost-reason-label" className="text-label font-bold uppercase tracking-widest text-muted-foreground">
+            Reason <span className="text-red-11" aria-hidden="true">*</span>
+          </p>
+          <div role="radiogroup" aria-labelledby="mark-lost-reason-label" aria-required="true" className="flex flex-col gap-1.5">
             {LOST_REASONS.map((reason) => {
               const checked = reasonCode === reason.code;
               return (
@@ -78,6 +81,11 @@ export default function MarkLostDialog({ isOpen, lostStages = [], isPending = fa
                 </Button>
               ))}
             </div>
+          )}
+          {error && (
+            <p role="alert" className="rounded-lg border border-red-9/30 bg-red-9/10 px-3 py-2 text-sm text-red-11">
+              {error}
+            </p>
           )}
           <div className="flex items-center justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onCancel}>

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import { costingKeys } from "../../components/costing/costingKeys";
+import { useCostingMatrix } from "../../components/costing/useCostingMatrix";
 import ModalShell from "../../components/ui/ModalShell";
 import { Button } from "../../components/ui/button";
 import CostingDesk from "../../components/costing/desk/CostingDesk";
@@ -44,6 +45,10 @@ function CostingMatrixWindow() {
     retry: false,
   });
 
+  // The same read the sheet makes (one shared query): when it gives nothing, the header offers no actions.
+  const { data: matrix } = useCostingMatrix(id);
+  const readable = Boolean(matrix);
+
   const close = () => {
     // The list behind the window shows this SOR's figures; closing the sheet brings them up to date (#892).
     queryClient.invalidateQueries({ queryKey: costingKeys.matrixPage });
@@ -68,14 +73,17 @@ function CostingMatrixWindow() {
       size="record"
       crumbs={["S0 Evaluation", opportunity?.standalone ? `${opportunity.sales_reference ?? "S0"} · No SOR` : (opportunity?.sor_code ?? "SOR")]}
       headerActions={
-        <>
-          {!opportunity?.standalone && (
-            <Button type="button" size="sm" variant="outline" onClick={openPms}>
-              SOR PMS tab
-            </Button>
-          )}
-          <PrintButton opportunityId={id} opportunity={opportunity} />
-        </>
+        // Someone who may not read the evaluation gets no actions above "not yours to see" (#1038).
+        readable ? (
+          <>
+            {!opportunity?.standalone && (
+              <Button type="button" size="sm" variant="outline" onClick={openPms}>
+                SOR PMS tab
+              </Button>
+            )}
+            <PrintButton opportunityId={id} opportunity={opportunity} />
+          </>
+        ) : null
       }
     >
       <CostingDesk opportunityId={id} opportunity={opportunity} />

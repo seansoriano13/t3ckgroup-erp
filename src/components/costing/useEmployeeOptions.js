@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { employeeService } from "../../services/employeeService";
 
-/** Everyone who can be named an incharge of a standalone evaluation (#966), as select options. */
+/** Everyone who can be named an in-charge of a standalone evaluation (#966), as select options. */
 export function useEmployeeOptions() {
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],

@@ -22,7 +22,7 @@ const buyerKind = (buyer) => buyer?.type || NO_BUYER;
 
 /**
  * Issue #304 — the Open Purchase Request action's own config: the default
- * Buyer (a person, the Costing Matrix's Purchasing Incharge, or none), extra
+ * Buyer (a person, the Costing Matrix's Purchasing in-charge, or none), extra
  * default members, the Deal Team roles left out, who may request items, and
  * whether it waits for a Decider. The purchasing members' window is the
  * action's detail panel's access window, like every other action's.
@@ -72,7 +72,7 @@ export default function PurchaseRequestActionModal({ isOpen, onClose, initialDat
               options={[
                 { value: NO_BUYER, label: "None — wait in the queue for a Take" },
                 { value: BUYER_EMPLOYEE, label: "A person" },
-                { value: BUYER_COSTING_INCHARGE, label: "The S0 Evaluation's Purchasing Incharge" },
+                { value: BUYER_COSTING_INCHARGE, label: "The S0 Evaluation's Purchasing in-charge" },
               ]}
               className="w-full"
             />

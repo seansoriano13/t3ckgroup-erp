@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, Tooltip } from "recharts";
 import { Download, Search, TrendingUp } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -9,6 +10,8 @@ import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
 import HighlightText from "../../HighlightText";
 import { formatPHP } from "../../../constants/sor";
+import { flowStageTone } from "../../../constants/salesFlow";
+import { salesFlowService } from "../../../services/salesFlowService";
 import { MASK, TONE, compactPHP, downloadLedgerCsv, monthlyPool, projectTypeInfo } from "./commissionView";
 import { Pager, Swatch } from "./parts";
 import ReportFigure from "../../ui/ReportFigure";
@@ -45,11 +48,26 @@ export default function PoolTab({ access, departments, initialDealId }) {
   const [page, setPage] = useState(0);
   const [openDealId, setOpenDealId] = useState(initialDealId ?? null);
 
+  // A SOR on a Sales Flow keeps a stale `status`; the Stage column reads its
+  // flow Stage, as the SORS List does. Only a SOR with no Sale Type shows `status`.
+  const { data: flowStagesIndex } = useQuery({
+    queryKey: ["allFlowStagesIndex"],
+    queryFn: () => salesFlowService.getAllStagesIndex(),
+  });
+  const stageBadgeOf = (d) => {
+    if (!d.saleTypeId) return <StatusBadge status={d.status} />;
+    const stage = flowStagesIndex?.stagesById?.[d.flowStageId];
+    if (!stage) return <StatusBadge label="—" theme="mauve" />;
+    const flow = flowStagesIndex.flowsById[stage.flow_id];
+    const stagesOfFlow = flowStagesIndex.stagesByFlow[stage.flow_id] || [];
+    return <StatusBadge label={stage.name} theme={flowStageTone(stage, flow, stagesOfFlow)} />;
+  };
+
   const ledger = useMemo(() => dashboard.dealLedger || [], [dashboard]);
   const months = useMemo(() => monthlyPool(ledger), [ledger]);
   const needle = search.trim().toLowerCase();
   const deals = ledger.filter(
-    (d) => !needle || [d.opportunityNo, d.clientName, d.projectTitle, d.participants?.dealOwner?.name].filter(Boolean).some((v) => String(v).toLowerCase().includes(needle)),
+    (d) => !needle || [d.sorCode, d.opportunityNo, d.clientName, d.projectTitle, d.participants?.dealOwner?.name].filter(Boolean).some((v) => String(v).toLowerCase().includes(needle)),
   );
   const people = (dashboard.salesEmployees || []).filter((e) => !needle || e.name?.toLowerCase().includes(needle));
   const rows = list === "deals" ? deals : people;
@@ -67,7 +85,7 @@ export default function PoolTab({ access, departments, initialDealId }) {
         stats={[
           { label: "Sales fund", value: canViewSalesAmounts ? formatPHP(dashboard.salesDeptTotal) : MASK },
           {
-            label: "Won SORs",
+            label: "With a Contract Date",
             value: (
               <>
                 {dashboard.wonDealsCount ?? 0} <span className="text-sm font-normal text-muted-foreground">of {dashboard.totalDealsCount ?? 0}</span>
@@ -81,17 +99,12 @@ export default function PoolTab({ access, departments, initialDealId }) {
               <EmptyState icon={TrendingUp} title="No SORs in this period" className="h-full" />
             ) : (
               <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 600, height: 200 }}>
-                <AreaChart data={months} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="commission-pool-area" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--blue-9)" stopOpacity={0.22} />
-                      <stop offset="100%" stopColor="var(--blue-9)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                {/* #1047 S12: bars, so two months do not read as a falling line. */}
+                <BarChart data={months} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
                   <XAxis dataKey="label" tickLine={false} axisLine={false} interval="preserveStartEnd" tick={{ fontSize: 11, fill: "var(--mauve-10)" }} />
-                  <Tooltip content={<ChartTooltip canSee={canViewAllFinancials} />} cursor={{ stroke: "var(--mauve-7)" }} />
-                  <Area type="monotone" dataKey="pool" stroke="var(--blue-9)" strokeWidth={2} fill="url(#commission-pool-area)" activeDot={{ r: 4, strokeWidth: 0 }} />
-                </AreaChart>
+                  <Tooltip content={<ChartTooltip canSee={canViewAllFinancials} />} cursor={{ fill: "var(--mauve-4)", opacity: 0.5 }} />
+                  <Bar dataKey="pool" fill="var(--blue-9)" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                </BarChart>
               </ResponsiveContainer>
             )}
           </div>
@@ -181,10 +194,11 @@ export default function PoolTab({ access, departments, initialDealId }) {
                     <TableCell>
                       <p className="font-medium text-foreground"><HighlightText text={d.clientName} search={search} /></p>
                       <p className="text-xs text-muted-foreground">
-                        <span><HighlightText text={d.opportunityNo} search={search} /></span> · {projectTypeInfo(d.projectType)?.label ?? d.projectType}
+                        <span className="font-mono font-semibold text-foreground"><HighlightText text={d.sorCode || d.opportunityNo} search={search} /></span>
+                        {d.projectTitle ? <> · <span><HighlightText text={d.projectTitle} search={search} /></span></> : null} · {projectTypeInfo(d.projectType)?.label ?? d.projectType}
                       </p>
                     </TableCell>
-                    <TableCell><StatusBadge status={d.status} /></TableCell>
+                    <TableCell>{stageBadgeOf(d)}</TableCell>
                     <TableCell className="text-muted-foreground">{d.participants?.dealOwner?.name ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums text-foreground">{formatPHP(d.contractValue)}</TableCell>
                     <TableCell className="text-right font-medium tabular-nums text-foreground">{canViewAllFinancials ? formatPHP(d.commissionPool) : MASK}</TableCell>

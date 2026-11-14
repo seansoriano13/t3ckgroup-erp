@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   Search,
@@ -14,7 +15,9 @@ import { useAuth } from "../../context/AuthContext";
 import Avatar from "../Avatar";
 import HighlightText from "../HighlightText";
 import { getStatusTheme } from "../../constants/status";
-import { formatPHP, isWonCode } from "../../constants/sor";
+import { formatPHP, isRealizedOpportunity } from "../../constants/sor";
+import { flowStageTone } from "../../constants/salesFlow";
+import { salesFlowService } from "../../services/salesFlowService";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,19 +56,73 @@ const THEME_DOT = {
  */
 export default function EmployeeOpportunityMatrix({
   opportunities,
-  title = "Team opportunity radar",
+  title = "Team SOR radar",
 }) {
   const navigate = useNavigate();
   // Deactivating a stage removes it from pickers, never from opportunities
   // already sitting in it — so a stage an opportunity here occupies stays
   // visible even after a super admin retires it.
   const occupiedStageCodes = useMemo(
-    () => opportunities.map((o) => o.status),
+    () => opportunities.filter((o) => !o.sale_type_id).map((o) => o.status),
     [opportunities],
   );
   const { stages: pipelineStages } = usePipelineStages({
     occupiedCodes: occupiedStageCodes,
   });
+  // A SOR on a Sales Flow keeps a stale `status`; its real Stage is
+  // `flow_stage_id`. Only SORs with no Sale Type are read by `status`, the
+  // same rule the SORS List uses. The query keys match the List's, so the
+  // two share one cache.
+  const hasFlowSors = useMemo(() => opportunities.some((o) => o.sale_type_id), [opportunities]);
+  const { data: flowStagesIndex } = useQuery({
+    queryKey: ["allFlowStagesIndex"],
+    queryFn: () => salesFlowService.getAllStagesIndex(),
+    enabled: hasFlowSors,
+  });
+  const snapshotIds = useMemo(
+    () => [...new Set(opportunities.map((o) => o.flow_snapshot_id).filter(Boolean))].sort(),
+    [opportunities],
+  );
+  const { data: snapshotsById = {} } = useQuery({
+    queryKey: ["flowSnapshotsById", snapshotIds.join(",")],
+    queryFn: () => salesFlowService.getSnapshotsByIds(snapshotIds),
+    enabled: snapshotIds.length > 0,
+  });
+  const stageContext = useMemo(
+    () => ({ snapshotsById, stages: pipelineStages }),
+    [snapshotsById, pipelineStages],
+  );
+  const stageKeyOf = (o) => (o.sale_type_id ? `flow:${o.flow_stage_id}` : o.status);
+  // Legacy Stages first, then the flow Stages that SORs here actually sit on.
+  const segments = useMemo(() => {
+    const legacy = pipelineStages.map((st) => ({
+      key: st.code,
+      label: st.label,
+      theme: st.theme || getStatusTheme(st.code),
+      filterStatus: st.code,
+    }));
+    const flowSegments = [];
+    const seen = new Set();
+    for (const o of opportunities) {
+      if (!o.sale_type_id || seen.has(o.flow_stage_id)) continue;
+      seen.add(o.flow_stage_id);
+      const stage = flowStagesIndex?.stagesById?.[o.flow_stage_id];
+      if (!stage) continue;
+      const flow = flowStagesIndex.flowsById[stage.flow_id];
+      const stagesOfFlow = flowStagesIndex.stagesByFlow[stage.flow_id] || [];
+      flowSegments.push({
+        key: `flow:${stage.id}`,
+        label: stage.name,
+        theme: flowStageTone(stage, flow, stagesOfFlow),
+        // The List's stage filter reads the old status code, which a flow SOR
+        // does not move; the click opens the person's SORs instead.
+        filterStatus: undefined,
+        sortKey: [flow?.name || "", stage.sort_order ?? 0],
+      });
+    }
+    flowSegments.sort((a, b) => a.sortKey[0].localeCompare(b.sortKey[0]) || a.sortKey[1] - b.sortKey[1]);
+    return [...legacy, ...flowSegments];
+  }, [pipelineStages, opportunities, flowStagesIndex]);
   const { user } = useAuth();
   const isHr = user?.is_hr === true || user?.isHr === true;
   const isHead = user?.is_head === true || user?.isHead === true;
@@ -106,10 +163,11 @@ export default function EmployeeOpportunityMatrix({
       const emp = empMap[owner.id];
       emp.total++;
       emp.value += Number(o.expected_value || 0);
-      if (isWonCode(o.status)) {
+      if (isRealizedOpportunity(o, stageContext)) {
         emp.wonCount++;
       }
-      emp.stageCounts[o.status] = (emp.stageCounts[o.status] || 0) + 1;
+      const key = stageKeyOf(o);
+      emp.stageCounts[key] = (emp.stageCounts[key] || 0) + 1;
     });
 
     return Object.values(empMap)
@@ -119,7 +177,7 @@ export default function EmployeeOpportunityMatrix({
           emp.total > 0 ? Math.round((emp.wonCount / emp.total) * 100) : 0,
       }))
       .sort((a, b) => b.value - a.value);
-  }, [opportunities, isHr, isHead, userDepartment]);
+  }, [opportunities, isHr, isHead, userDepartment, stageContext]);
 
   const filteredStats = useMemo(() => {
     if (!searchTerm.trim()) return employeeStats;
@@ -272,19 +330,19 @@ export default function EmployeeOpportunityMatrix({
                   </div>
 
                   <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex">
-                    {pipelineStages.map((stage) => {
-                      const count = emp.stageCounts[stage.code];
+                    {segments.map((stage) => {
+                      const count = emp.stageCounts[stage.key];
                       if (!count) return null;
-                      const theme = stage.theme || getStatusTheme(stage.code);
+                      const theme = stage.theme;
                       return (
                         <div
-                          key={stage.code}
+                          key={stage.key}
                           className={`h-full hover:opacity-80 cursor-pointer ${THEME_BAR[theme] || THEME_BAR.mauve}`}
                           style={{ width: `${(count / emp.total) * 100}%` }}
                           title={`${count} ${stage.label}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            goToEmployee(emp.id, stage.code);
+                            goToEmployee(emp.id, stage.filterStatus);
                           }}
                         />
                       );
@@ -292,22 +350,22 @@ export default function EmployeeOpportunityMatrix({
                   </div>
 
                   <div className="flex items-center gap-3 flex-wrap pt-2">
-                    {pipelineStages.filter((s) => emp.stageCounts[s.code]).map(
+                    {segments.filter((s) => emp.stageCounts[s.key]).map(
                       (stage) => {
-                        const theme = stage.theme || getStatusTheme(stage.code);
+                        const theme = stage.theme;
                         return (
                           <span
-                            key={stage.code}
+                            key={stage.key}
                             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                             onClick={(e) => {
                               e.stopPropagation();
-                              goToEmployee(emp.id, stage.code);
+                              goToEmployee(emp.id, stage.filterStatus);
                             }}
                           >
                             <span
                               className={`w-1.5 h-1.5 rounded-full inline-block ${THEME_DOT[theme] || THEME_DOT.mauve}`}
                             />
-                            {emp.stageCounts[stage.code]} {stage.label}
+                            {emp.stageCounts[stage.key]} {stage.label}
                           </span>
                         );
                       },
@@ -434,13 +492,13 @@ export default function EmployeeOpportunityMatrix({
                   </div>
                 </div>
                 <div className="flex h-[7px] w-full overflow-hidden rounded-sm bg-muted">
-                  {pipelineStages.map((stage) => {
-                    const count = emp.stageCounts[stage.code];
+                  {segments.map((stage) => {
+                    const count = emp.stageCounts[stage.key];
                     if (!count) return null;
-                    const theme = stage.theme || getStatusTheme(stage.code);
+                    const theme = stage.theme;
                     return (
                       <div
-                        key={stage.code}
+                        key={stage.key}
                         className={`h-full ${THEME_BAR[theme] || THEME_BAR.mauve}`}
                         style={{ width: `${(count / emp.total) * 100}%` }}
                         title={`${count} ${stage.label}`}
@@ -493,19 +551,19 @@ export default function EmployeeOpportunityMatrix({
                 </div>
 
                 <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex">
-                  {pipelineStages.map((stage) => {
-                    const count = emp.stageCounts[stage.code];
+                  {segments.map((stage) => {
+                    const count = emp.stageCounts[stage.key];
                     if (!count) return null;
-                    const theme = stage.theme || getStatusTheme(stage.code);
+                    const theme = stage.theme;
                     return (
                       <div
-                        key={stage.code}
+                        key={stage.key}
                         className={`h-full hover:opacity-80 cursor-pointer ${THEME_BAR[theme] || THEME_BAR.mauve}`}
                         style={{ width: `${(count / emp.total) * 100}%` }}
                         title={`${count} ${stage.label}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          goToEmployee(emp.id, stage.code);
+                          goToEmployee(emp.id, stage.filterStatus);
                         }}
                       />
                     );
@@ -514,22 +572,22 @@ export default function EmployeeOpportunityMatrix({
 
                 {/* Legend */}
                 <div className="flex items-center gap-2.5 flex-wrap py-2">
-                  {pipelineStages.filter((s) => emp.stageCounts[s.code]).map(
+                  {segments.filter((s) => emp.stageCounts[s.key]).map(
                     (stage) => {
-                      const theme = stage.theme || getStatusTheme(stage.code);
+                      const theme = stage.theme;
                       return (
                         <span
-                          key={stage.code}
+                          key={stage.key}
                           className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation();
-                            goToEmployee(emp.id, stage.code);
+                            goToEmployee(emp.id, stage.filterStatus);
                           }}
                         >
                           <span
                             className={`w-1.5 h-1.5 rounded-full inline-block ${THEME_DOT[theme] || THEME_DOT.mauve}`}
                           />
-                          {emp.stageCounts[stage.code]} {stage.label}
+                          {emp.stageCounts[stage.key]} {stage.label}
                         </span>
                       );
                     },

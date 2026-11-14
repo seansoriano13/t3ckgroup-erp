@@ -56,8 +56,8 @@ describe("the Costing Desk", () => {
     const panel = screen.getByRole("dialog");
     expect(within(panel).getAllByText("Fire hose, 65 mm").length).toBeGreaterThan(0);
     expect(within(row).getByLabelText("Tender Specification 1")).toHaveValue("Fire hose, 65 mm");
-    expect(within(row).getByLabelText("ABC 1")).toHaveValue(1500);
-    expect(within(row).getByLabelText("Final Offer 1")).toHaveValue(1600);
+    expect(within(row).getByLabelText("ABC 1")).toHaveValue("1,500.00");
+    expect(within(row).getByLabelText("Final Offer 1")).toHaveValue("1,600.00");
     // 4 x 1,500 = 6,000 and 4 x 1,600 = 6,400, so the offer is above the ABC.
     expect(within(panel).getAllByText(/₱6,000\.00/).length).toBeGreaterThan(0);
     expect(within(panel).getAllByText(/₱6,400\.00/).length).toBeGreaterThan(0);
@@ -109,7 +109,7 @@ describe("the Costing Desk", () => {
 
     const row = await screen.findByTestId("tender-line");
     expect(within(row).getAllByText("Fire hose, 65 mm").length).toBeGreaterThan(0);
-    expect(within(row).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(row).queryByRole("textbox", { name: /ABC|Final Offer/ })).not.toBeInTheDocument();
     expect(within(row).getByText("₱1,500.00", { selector: "span[aria-label=\"ABC 1\"]" })).toBeInTheDocument();
     expect(screen.queryByText(/Final Offer/)).not.toBeInTheDocument();
   });
@@ -310,8 +310,8 @@ describe("the Costing Desk", () => {
       expect(within(rows[0]).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
       expect(within(rows[0]).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
       expect(within(rows[0]).queryByLabelText("P.O./RFQ No. 1.1")).toBeNull();
-      expect(within(rows[0]).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
-      expect(within(rows[0]).getByLabelText("Odoo SRP 1.1")).toHaveValue(2200000);
+      expect(within(rows[0]).getByLabelText("Acquire 1.1")).toHaveValue("2,160,500.00");
+      expect(within(rows[0]).getByLabelText("Odoo SRP 1.1")).toHaveValue("2,200,000.00");
       // The bundle at 1 x 2,160,500 totals 2,160,500, never 0.00; the part with no Acquire shows a dash.
       expect(within(rows[0]).getByText("₱2,160,500.00")).toBeInTheDocument();
       expect(within(rows[1]).getByText("₱120,000.00")).toBeInTheDocument();
@@ -336,7 +336,7 @@ describe("the Costing Desk", () => {
       const row = within(block).getAllByTestId("component")[0];
       // Sales writes Brand and the Odoo unit cost.
       expect(within(row).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
-      expect(within(row).getByLabelText("Odoo SRP 1.1")).toHaveValue(2200000);
+      expect(within(row).getByLabelText("Odoo SRP 1.1")).toHaveValue("2,200,000.00");
       // Purchasing's columns read as text.
       expect(within(row).getByLabelText("Offer Specification 1.1").tagName).toBe("SPAN");
       expect(within(row).queryByLabelText("Availability 1.1")).toBeNull();
@@ -360,7 +360,7 @@ describe("the Costing Desk", () => {
       // Brand is written by Sales and Purchasing; the Odoo unit cost stays Sales'.
       expect(within(row).getByLabelText("Brand 1.1")).toHaveValue("Toyota");
       expect(within(row).getByLabelText("Odoo SRP 1.1").tagName).toBe("SPAN");
-      expect(within(row).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
+      expect(within(row).getByLabelText("Acquire 1.1")).toHaveValue("2,160,500.00");
       expect(within(row).getByLabelText("Offer Specification 1.1")).toHaveValue("Double cab, 13-line specification");
     });
 
@@ -723,7 +723,7 @@ describe("the Costing Desk", () => {
       await openLines();
       const row = await screen.findByTestId("component");
       // The figure is shown to the Closed Book; with no Status the cell says to pick one.
-      expect(within(row).getByLabelText("Final Acquire 1.1")).toHaveValue(2338500);
+      expect(within(row).getByLabelText("Final Acquire 1.1")).toHaveValue("2,338,500.00");
       expect(within(row).getByTestId("final-acquire-rule")).toBeInTheDocument();
       await closeLine();
 
@@ -960,17 +960,17 @@ describe("the Costing Desk", () => {
       expect(db.rows("costing_bid_decisions")[0]).toMatchObject({ verdict: "go", reason: "Bid at a loss on purpose" });
     });
 
-    it("keeps Go off on a loss for everyone else, says why, and leaves Revise and No-go on (#880)", async () => {
+    it("gives everyone else the verdict and the reason, no buttons, and one line saying who decides (#1033)", async () => {
       seedLoss();
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: false });
-      const user = openDesk(deal);
+      openDesk(deal);
 
       const panel = await card();
-      await user.type(within(panel).getByLabelText("Reason for the decision"), "Reprice first");
-      expect(within(panel).getByTestId("corridor-decision-why")).toHaveTextContent("a Go needs a Super Admin or the decider list");
-      expect(verdict(panel, "Go")).toBeDisabled();
-      expect(verdict(panel, "Revise")).toBeEnabled();
-      expect(verdict(panel, "No-go")).toBeEnabled();
+      expect(within(panel).getByTestId("corridor-decision-readonly")).toHaveTextContent("Only the decider list or a Super Admin decides a bid.");
+      expect(within(panel).queryByLabelText("Reason for the decision")).not.toBeInTheDocument();
+      expect(within(panel).queryByRole("button", { name: /^Go:/ })).not.toBeInTheDocument();
+      expect(within(panel).queryByRole("button", { name: /^Revise:/ })).not.toBeInTheDocument();
+      expect(within(panel).queryByRole("button", { name: /^No-go:/ })).not.toBeInTheDocument();
     });
 
     it("draws a Go that is off in the neutral style (#899)", async () => {
@@ -997,7 +997,7 @@ describe("the Costing Desk", () => {
       expect(go.className).toMatch(/bg-green-3/);
     });
 
-    it("hides the Unlock controls from people who cannot unlock, and says who can (#899)", async () => {
+    it("hides the Unlock controls from people who cannot decide, and says who can (#899, #1033)", async () => {
       seedPriced();
       seedDecision({ verdict: "go", reason: "Fits the budget" });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: false });
@@ -1005,7 +1005,7 @@ describe("the Costing Desk", () => {
 
       const panel = await card();
       expect(within(panel).getByTestId("corridor-decision-locked")).toBeInTheDocument();
-      expect(within(panel).getByTestId("corridor-decision-unlock-blocked")).toHaveTextContent("Only a Super Admin or the decider list can unlock a bid.");
+      expect(within(panel).getByTestId("corridor-decision-readonly")).toHaveTextContent("Only the decider list or a Super Admin decides a bid.");
       expect(within(panel).queryByRole("button", { name: "Unlock the sheet" })).not.toBeInTheDocument();
       expect(within(panel).queryByLabelText("Reason for unlocking")).not.toBeInTheDocument();
     });
@@ -1055,6 +1055,71 @@ describe("the Costing Desk", () => {
       expect(panel).not.toHaveTextContent("3,200,000");
       expect(within(panel).queryByRole("button", { name: /^Go:/ })).not.toBeInTheDocument();
       expect(within(panel).queryByLabelText("Reason for the decision")).not.toBeInTheDocument();
+    });
+
+    it("allows a Go with the offer over the ABC, but says so in red on the card and in the confirm box (A1)", async () => {
+      seedPriced({ offer: 3300000 });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await card();
+      expect(within(panel).getByTestId("corridor-decision-over-abc")).toHaveTextContent("The offer is ₱100,000.00 over the ABC. The client cannot accept it.");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Client will negotiate");
+      expect(verdict(panel, "Go")).toBeEnabled();
+      await user.click(verdict(panel, "Go"));
+
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByTestId("corridor-decision-go-over-abc")).toHaveTextContent("The offer is ₱100,000.00 over the ABC. The client cannot accept it.");
+      await user.click(within(dialog).getByRole("button", { name: "Go" }));
+      await waitFor(() => expect(db.rows("costing_bid_decisions")).toHaveLength(1));
+      expect(db.rows("costing_bid_decisions")[0]).toMatchObject({ verdict: "go" });
+    });
+
+    it("counts a line over its own ABC even when the totals are within (B4)", async () => {
+      seedPriced({ offer: 3000000 });
+      const second = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 2, tender_specification: "Hose", unit: "unit", quantity: 1 });
+      db.seed("costing_tender_line_prices", { tender_line_id: second.id, abc_unit: 1000000, final_offer_unit: 1100000 });
+      db.rows("costing_tender_line_prices")[0].abc_unit = 3400000;
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      openDesk(deal);
+
+      const panel = await card();
+      expect(within(panel).getByTestId("corridor-decision-over-abc")).toHaveTextContent("1 line over its ABC");
+      expect(panel).toHaveTextContent("The offer is within the ABC1 line over its ABC");
+    });
+
+    it("shows the live offer after a Revise and keeps the stamped figure in the decision line (B1)", async () => {
+      seedPriced({ offer: 430000 });
+      seedDecision({ verdict: "revise", reason: "Reprice", final_offer_total: 410000 });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      openDesk(deal);
+
+      const panel = await card();
+      expect(within(panel).getByTestId("corridor-decision-figures")).toHaveTextContent("Offer₱430,000.00");
+      expect(within(panel).getByTestId("corridor-decision-live")).toHaveTextContent("Revise at ₱410,000.00 · Boss Person");
+    });
+
+    it("warns in amber that Revenue is not worked and says what is blank (A5)", async () => {
+      seedPriced();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await card();
+      expect(panel).toHaveTextContent("Worth finishing first");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Fine");
+      await user.click(verdict(panel, "Go"));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByTestId("corridor-decision-go-unworked")).toHaveTextContent(/Planned revenue is not worked yet: .+/);
+    });
+
+    it("words an Unlock as one sentence with one full stop (C7)", async () => {
+      seedPriced();
+      seedDecision({ verdict: "go", cleared_at: "2026-10-16T03:00:00.000Z", cleared_reason: "Unlocked: E2E test." });
+      stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+      openDesk(deal);
+
+      const panel = await card();
+      expect(within(panel).getByTestId("corridor-decision-cleared").textContent).toBe("Earlier Go was unlocked: E2E test.");
     });
 
     it("says in words when an earlier decision was cleared", async () => {

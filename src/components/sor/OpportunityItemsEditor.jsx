@@ -89,7 +89,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
                   placeholder="0.00"
                   containerClassName="col-span-2 min-w-0" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
                 />
-                <div className="col-span-1 text-xs font-bold text-foreground text-right truncate" title={item.removed_from_s0 ? "Removed from S0: left out of Estimated Value" : undefined}>
+                <div className="col-span-1 text-xs font-bold text-foreground text-right truncate" title={item.removed_from_s0 ? "Removed from S0: left out of Expected Value" : undefined}>
                   {item.removed_from_s0 ? "Removed" : formatPHP(lineTotal(item))}
                 </div>
                 <Button
