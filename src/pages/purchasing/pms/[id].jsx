@@ -4,16 +4,17 @@ import { useQuery } from "@tanstack/react-query";
 import ProtectedRoute from "../../../components/ProtectedRoute";
 import ModalShell from "../../../components/ui/ModalShell";
 import { Button } from "../../../components/ui/button";
+import PageShell from "../../../components/ui/PageShell";
 import PmsSections from "../../../components/sor/modal/PmsSections";
 import { opportunityService } from "../../../services/opportunityService";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import { itemToRecordKey, withRecord } from "../../../utils/recordLink";
-import PurchasingDashboardPage from "../dashboard";
 
+// Close with no earlier page to return to lands on the Purchasing Dashboard.
 const LIST_PATH = "/purchasing/dashboard";
 
 /**
- * One SOR's PMS file on its own page (#1021, B1), over the Purchasing Dashboard: the same sections as the
+ * One SOR's PMS file on its own page (#1021, B1), in the record window: the same sections as the
  * SOR window's PMS tab (PmsSections), without the SOR window around it. The URL is the SOR's id and works
  * as a deep link. Each section keeps its own read rule; the page adds none. An SOR that is gone, or that
  * the reader may not see at all, shows one plain "not found, or not yours to see" block.
@@ -80,8 +81,9 @@ function PmsWindow() {
 export default function PmsRecordPage() {
   return (
     <ProtectedRoute>
-      <PurchasingDashboardPage />
-      <PmsWindow />
+      <PageShell title="PMS file" description="One SOR's purchasing file.">
+        <PmsWindow />
+      </PageShell>
     </ProtectedRoute>
   );
 }

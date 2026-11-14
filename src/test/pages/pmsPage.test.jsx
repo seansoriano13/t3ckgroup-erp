@@ -15,7 +15,6 @@ import { makeEmployee, makeOpportunity } from "@/test/factories";
 
 let authUser;
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser, isAuthLoading: false }) }));
-vi.mock("@/pages/purchasing/dashboard", () => ({ default: () => null }));
 vi.mock("@/components/sor/modal/PmsSections", () => ({
   default: ({ opportunityId }) => <div data-testid="pms-sections">{opportunityId}</div>,
 }));
