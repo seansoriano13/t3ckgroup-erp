@@ -117,13 +117,9 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/group-tasks")
-      expect(dispatched).toEqual([
-        {
-          type: "OPEN_CHAT_MODAL",
-          detail: { entityId: "ct-2", entityType: "GROUP_TASK" },
-        },
-      ])
+      // Opens over the current page: the address names the chat, no jump.
+      expect(navigate).toHaveBeenCalledWith({ search: "?chat=group-task:ct-2" })
+      expect(dispatched).toEqual([])
     })
 
     it("still opens a personal task for a personal task reaction", () => {
@@ -147,13 +143,9 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/group-tasks")
-      expect(dispatched).toEqual([
-        {
-          type: "OPEN_CHAT_MODAL",
-          detail: { entityId: "ct-1", entityType: "GROUP_TASK" },
-        },
-      ])
+      // Opens over the current page: the address names the chat, no jump.
+      expect(navigate).toHaveBeenCalledWith({ search: "?chat=group-task:ct-1" })
+      expect(dispatched).toEqual([])
     })
 
     it("opens the task details for an assignment", () => {
@@ -200,13 +192,9 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/group-tasks")
-      expect(dispatched).toEqual([
-        {
-          type: "OPEN_CHAT_MODAL",
-          detail: { entityId: "ct-9", entityType: "GROUP_TASK" },
-        },
-      ])
+      // Opens over the current page: the address names the chat, no jump.
+      expect(navigate).toHaveBeenCalledWith({ search: "?chat=group-task:ct-9" })
+      expect(dispatched).toEqual([])
     })
 
     it("opens the SOR through the global modal for an SOR mention, not the register", () => {
@@ -235,13 +223,9 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/tasks")
-      expect(dispatched).toEqual([
-        {
-          type: "OPEN_CHAT_MODAL",
-          detail: { entityId: "task-42", entityType: "TASK" },
-        },
-      ])
+      // Opens over the current page: the address names the chat, no jump.
+      expect(navigate).toHaveBeenCalledWith({ search: "?chat=task:task-42" })
+      expect(dispatched).toEqual([])
     })
   })
 

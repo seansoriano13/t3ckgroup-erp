@@ -30,8 +30,6 @@ export const LEGACY_MESSAGE = "This notification is from an older version of the
 export const NO_REFERENCE_MESSAGE = "This notification has nothing to open";
 
 const openEntity = (detail) => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail }));
-const openChat = (entityId, entityType) =>
-  window.dispatchEvent(new CustomEvent("OPEN_CHAT_MODAL", { detail: { entityId, entityType } }));
 
 // ---- targets shared by several types ----
 
@@ -45,15 +43,15 @@ const taskTarget = ({ notif, user, navigate }) => {
   }
 };
 
+/** A chat notification opens Conversations over the page the reader is on: `?chat=<kind>:<id>`. */
+const chatLink = (kind, id, navigate) => {
+  const search = new URLSearchParams(window.location.search);
+  search.set("chat", `${kind}:${id}`);
+  navigate({ search: `?${search.toString().replace(/%3A/gi, ":")}` });
+};
 /** A mention happens inside a Chat thread, not the detail view. */
-const taskMentionTarget = ({ notif, navigate }) => {
-  navigate("/tasks");
-  openChat(notif.reference_id, "TASK");
-};
-const groupChatTarget = ({ notif, navigate }) => {
-  navigate("/group-tasks");
-  openChat(notif.reference_id, "GROUP_TASK");
-};
+const taskMentionTarget = ({ notif, navigate }) => chatLink("task", notif.reference_id, navigate);
+const groupChatTarget = ({ notif, navigate }) => chatLink("group-task", notif.reference_id, navigate);
 const groupTaskTarget = ({ notif, navigate }) => {
   navigate("/group-tasks");
   openEntity({ id: notif.reference_id, type: "GROUP_TASK" });
