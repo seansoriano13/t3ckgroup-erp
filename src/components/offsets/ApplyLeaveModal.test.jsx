@@ -41,7 +41,7 @@ describe("ApplyLeaveModal", () => {
     // needs the department itself, since the self-service path resolves the
     // head straight off `user`, not a fetched employee row.
     makeHead({ name: "Dept Head", department: employee.department })
-    mockUser.current = { id: employee.id, name: employee.name, department: employee.department }
+    mockUser.current = { id: employee.id, name: employee.name, department: employee.department, offset_hours_balance: 16, sil_hours_balance: 40 }
     onClose = vi.fn()
     onSuccess = vi.fn()
     vi.spyOn(toast, "error").mockImplementation(() => "id")
@@ -112,7 +112,7 @@ describe("ApplyLeaveModal", () => {
 
     it("names the custom selects too: Category and Department Head", async () => {
       // No head matches this department, so Department Head stays empty.
-      mockUser.current = { id: employee.id, name: employee.name, department: "Nowhere" }
+      mockUser.current = { id: employee.id, name: employee.name, department: "Nowhere", offset_hours_balance: 16, sil_hours_balance: 40 }
       open()
       const user = setupUser()
       await user.click(screen.getByRole("tab", { name: "Leave" }))
@@ -313,7 +313,7 @@ describe("ApplyLeaveModal", () => {
 
     it("shows the balance in plain ink, and 0 available with the shortfall line", async () => {
       const none = makeEmployee({ name: "Ben Cruz", offset_hours_balance: 0, department: employee.department })
-      mockUser.current = { id: none.id, name: none.name, department: none.department }
+      mockUser.current = { id: none.id, name: none.name, department: none.department, offset_hours_balance: 0 }
       open()
       await goToOffset()
       await fillForm({ date: "2026-03-12", startTime: "09:00", endTime: "17:00", reason: "Rest" })
@@ -370,7 +370,7 @@ describe("ApplyLeaveModal", () => {
 
     it("warns before submit when their balance is short", async () => {
       const short = makeEmployee({ name: "Ben Cruz", sil_hours_balance: 5, department: employee.department })
-      mockUser.current = { id: short.id, name: short.name, department: short.department }
+      mockUser.current = { id: short.id, name: short.name, department: short.department, sil_hours_balance: 5 }
 
       open()
       await goToSil()
