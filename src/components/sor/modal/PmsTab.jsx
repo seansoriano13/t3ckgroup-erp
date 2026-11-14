@@ -1,44 +1,20 @@
-import BetaTag from "@/components/ui/BetaTag";
-import CostingMatrixSection from "../../costing/CostingMatrixSection";
-import { useCostingMatrix, useCostingTier } from "../../costing/useCostingMatrix";
-import IpasSorSection from "../../ipas/IpasSorSection";
-import HandoffsSorSection from "../HandoffsSorSection";
-import DirectRequestsSorSection from "../DirectRequestsSorSection";
-import PurchaseRequestCard from "./PurchaseRequestCard";
+import { Link } from "react-router";
+import PmsSections from "./PmsSections";
 
 /**
- * PMS (#267): one SOR's purchasing file. The Costing Matrix, then the Purchase
- * Request card (#310), the IPAS summaries (#249, #265) and the Transmittals and
- * Packing Lists (#257), which moved here from the Summary and This stage
- * unchanged. Each section but the matrix renders nothing when it has nothing to
- * show; before the matrix opens it says so in one plain line. Either way an SOR
- * with no matrix yet and no orders shows a calm page, not an error.
+ * PMS (#267): one SOR's purchasing file inside the SOR window. The sections are PmsSections, shared with
+ * the PMS page (#1021); this adds the way out to that page.
  */
 export default function PmsTab({ opportunityId, opportunity }) {
-  // The tab is for everyone who can see the SOR (Finance gets the IPAS here, #319); the matrix section
-  // only for a viewer with a Costing Matrix read tier. Each other section keeps its own visibility rule.
-  const { data: costingTier } = useCostingTier(opportunityId);
-  // Start the matrix read now, beside the tier read, so the section does not wait on the tier before it
-  // begins loading. Same query key as the section's own call, so it is one request, not two.
-  useCostingMatrix(opportunityId);
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-8 p-6">
-      {/* #946: the purchasing panel ships as Beta. */}
-      <div className="flex justify-end -mb-6"><BetaTag /></div>
-      {/* #267: the grid once the SOR's S0 Evaluation has been opened (#462); until then one plain line. */}
-      {costingTier && <CostingMatrixSection opportunityId={opportunityId} opportunity={opportunity} />}
-
-      {/* #310: renders nothing for an SOR with no Purchase Request. Moved here from the Summary and This stage (#268). */}
-      <PurchaseRequestCard opportunityId={opportunityId} />
-
-      {/* #249: renders nothing when no IPAS names this SOR (or the viewer cannot read it). */}
-      <IpasSorSection opportunityId={opportunityId} />
-
-      {/* #257: renders nothing when no Transmittal or Packing List names this SOR. */}
-      <HandoffsSorSection opportunityId={opportunityId} />
-
-      {/* #689: renders nothing when no Direct request names this SOR (or the viewer cannot read it). */}
-      <DirectRequestsSorSection opportunityId={opportunityId} />
-    </div>
+    <PmsSections
+      opportunityId={opportunityId}
+      opportunity={opportunity}
+      headerAction={
+        <Link to={`/purchasing/pms/${opportunityId}`} className="text-xs font-medium text-primary hover:underline">
+          Open on its own page
+        </Link>
+      }
+    />
   );
 }
