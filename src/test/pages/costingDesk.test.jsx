@@ -960,17 +960,17 @@ describe("the Costing Desk", () => {
       expect(db.rows("costing_bid_decisions")[0]).toMatchObject({ verdict: "go", reason: "Bid at a loss on purpose" });
     });
 
-    it("keeps Go off on a loss for everyone else, says why, and leaves Revise and No-go on (#880)", async () => {
+    it("gives everyone else the verdict and the reason, no buttons, and one line saying who decides (#1033)", async () => {
       seedLoss();
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: false });
-      const user = openDesk(deal);
+      openDesk(deal);
 
       const panel = await card();
-      await user.type(within(panel).getByLabelText("Reason for the decision"), "Reprice first");
-      expect(within(panel).getByTestId("corridor-decision-why")).toHaveTextContent("a Go needs a Super Admin or the decider list");
-      expect(verdict(panel, "Go")).toBeDisabled();
-      expect(verdict(panel, "Revise")).toBeEnabled();
-      expect(verdict(panel, "No-go")).toBeEnabled();
+      expect(within(panel).getByTestId("corridor-decision-readonly")).toHaveTextContent("Only the decider list or a Super Admin decides a bid.");
+      expect(within(panel).queryByLabelText("Reason for the decision")).not.toBeInTheDocument();
+      expect(within(panel).queryByRole("button", { name: /^Go:/ })).not.toBeInTheDocument();
+      expect(within(panel).queryByRole("button", { name: /^Revise:/ })).not.toBeInTheDocument();
+      expect(within(panel).queryByRole("button", { name: /^No-go:/ })).not.toBeInTheDocument();
     });
 
     it("draws a Go that is off in the neutral style (#899)", async () => {
@@ -997,7 +997,7 @@ describe("the Costing Desk", () => {
       expect(go.className).toMatch(/bg-green-3/);
     });
 
-    it("hides the Unlock controls from people who cannot unlock, and says who can (#899)", async () => {
+    it("hides the Unlock controls from people who cannot decide, and says who can (#899, #1033)", async () => {
       seedPriced();
       seedDecision({ verdict: "go", reason: "Fits the budget" });
       stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"], canDecideLoss: false });
@@ -1005,7 +1005,7 @@ describe("the Costing Desk", () => {
 
       const panel = await card();
       expect(within(panel).getByTestId("corridor-decision-locked")).toBeInTheDocument();
-      expect(within(panel).getByTestId("corridor-decision-unlock-blocked")).toHaveTextContent("Only a Super Admin or the decider list can unlock a bid.");
+      expect(within(panel).getByTestId("corridor-decision-readonly")).toHaveTextContent("Only the decider list or a Super Admin decides a bid.");
       expect(within(panel).queryByRole("button", { name: "Unlock the sheet" })).not.toBeInTheDocument();
       expect(within(panel).queryByLabelText("Reason for unlocking")).not.toBeInTheDocument();
     });

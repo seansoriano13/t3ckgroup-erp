@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
-import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, FINAL_ACQUIRE_PERCENT_HIGH, FINAL_ACQUIRE_PERCENT_LOW, STANDALONE_START_PROBLEM, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
+import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, FINAL_ACQUIRE_PERCENT_HIGH, FINAL_ACQUIRE_PERCENT_LOW, STANDALONE_START_PROBLEM, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
 import { DEFAULT_FINAL_ACQUIRE_PERCENT, abcSettingOf, offerSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { numberOrNull } from "../utils/numberOrNull";
@@ -629,7 +629,7 @@ export const costingMatrixService = {
     const settings = data && tierReadsSummary(data.tier) ? await settingsRead : null;
     const shaped = shapeMatrix(data, settings);
     // #880: only the Bid Decision's deciders need to know whether a Go on a loss is theirs to take.
-    const lossRight = shaped && tierDecidesBid(shaped.tier) ? costingMatrixService.canDecideLoss() : Promise.resolve(false);
+    const lossRight = shaped && tierReadsBidDecision(shaped.tier) ? costingMatrixService.canDecideLoss() : Promise.resolve(false);
     // Canvass and purchases touch different fields of the matrix, so they read side by side.
     const [canLoss] = await Promise.all([lossRight, withCanvass(shaped, opportunityId), withPurchases(shaped, opportunityId)]);
     if (shaped) shaped.canDecideLoss = Boolean(canLoss);

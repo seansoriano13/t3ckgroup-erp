@@ -85,7 +85,8 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
   const [showLow, setShowLow] = useState(false);
   if (!tierReadsBidDecision(tier)) return null;
 
-  const canDecide = tierDecidesBid(tier);
+  // Spec #1031: only the decider list or a Super Admin decides; the read's canDecideLoss is exactly that right.
+  const canDecide = tierDecidesBid(tier) && Boolean(matrix.canDecideLoss);
   const ready = tenderLines.length > 0 && totals.missingOffer === 0;
   const evaluated = Boolean(evaluation?.approved);
   const trimmed = reason.trim();
@@ -292,9 +293,9 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
             Unlock the sheet
           </Button>
         )}
-        {canDecide && locked && !canUnlock && (
-          <p className="text-xs text-muted-foreground" data-testid="corridor-decision-unlock-blocked">
-            Only a Super Admin or the decider list can unlock a bid.
+        {!canDecide && (
+          <p className="text-xs text-muted-foreground" data-testid="corridor-decision-readonly">
+            Only the decider list or a Super Admin decides a bid.
           </p>
         )}
       </div>
