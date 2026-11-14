@@ -12,7 +12,7 @@ export function todayInManila() {
   return formatter.format(new Date());
 }
 
-export function addEntry(existingList, { version, title, changes, date, link } = {}) {
+export function addEntry(existingList, { version, title, changes, date, link, modules } = {}) {
   if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
     throw new Error("Version must follow major.minor.patch format (e.g. 1.8.0)");
   }
@@ -38,10 +38,17 @@ export function addEntry(existingList, { version, title, changes, date, link } =
     throw new Error("A link must be a path in the app, starting with /");
   }
 
+  // Menu group or entry keys (e.g. "purchasing", "purchasing.canvasses");
+  // What's New opens only for people who can open one. None = everyone.
+  const cleanedModules = (Array.isArray(modules) ? modules : [])
+    .map((m) => (typeof m === "string" ? m.trim() : ""))
+    .filter(Boolean);
+
   const newEntry = {
     date: date || todayInManila(),
     title: title.trim(),
     version,
+    ...(cleanedModules.length ? { modules: cleanedModules } : {}),
     changes: cleanedChanges,
     ...(link ? { link } : {}),
   };

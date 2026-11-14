@@ -3,6 +3,9 @@
         "date": "2026-11-13",
         "title": "One Canvass for the whole request",
         "version": "1.10.6",
+        "modules": [
+            "purchasing.canvasses"
+        ],
         "changes": [
             "A Purchase Request now has one Canvass: its lines go down and the suppliers go across, so you compare every line side by side.",
             "Add each supplier once with its currency, rate, how long the quote holds and its lead time, then type its price on each line.",
@@ -17,6 +20,9 @@
         "date": "2026-11-12",
         "title": "S0 Evaluation: cleaner figures and a start from just an S0",
         "version": "1.10.5",
+        "modules": [
+            "sales"
+        ],
         "changes": [
             "ABC can now be one total for the whole sheet instead of a price on every line.",
             "The Odoo column shows Odoo's selling price (SRP), not its cost.",
@@ -50,6 +56,9 @@
         "date": "2026-11-12",
         "title": "Dialogs that scroll, % on IPAS payments, choose the required files",
         "version": "1.10.3",
+        "modules": [
+            "purchasing"
+        ],
         "changes": [
             "Dialogs never grow past the screen any more: the content scrolls and the title and buttons stay in view.",
             "IPAS payments: a Down payment or Payment can be a % of the order. The amount is worked out for you and the % shows on the printed form.",
@@ -90,6 +99,9 @@
         "date": "2026-11-10",
         "title": "IPAS tidy-up",
         "version": "1.9.99",
+        "modules": [
+            "purchasing"
+        ],
         "changes": [
             "One button on an IPAS removes all the blank charges at once.",
             "Landed Cost can no longer be marked final while a charge has no amount.",
@@ -104,6 +116,10 @@
         "date": "2026-11-09",
         "title": "Technical, IPAS, Transmittal and costing improvements",
         "version": "1.9.98",
+        "modules": [
+            "purchasing",
+            "sales"
+        ],
         "changes": [
             "The overall Technical verdict now follows the products: Complies when every product complies, Deviates as soon as one deviates. The Technical page shows progress per product, and the in-charge can give one verdict to many products at once.",
             "A Group Task template that a Stage Action uses can no longer be deleted. The message names the Flow and Stage that use it.",
@@ -120,6 +136,9 @@
         "date": "2026-11-05",
         "title": "Approve evaluations from the Technical page",
         "version": "1.9.97",
+        "modules": [
+            "sales"
+        ],
         "changes": [
             "People on the Evaluation list now find the S0 Evaluations waiting for their approval on the Technical page, and approve them there.",
             "The Technical in-charge of an SOR cannot approve its evaluation, and the page says so.",

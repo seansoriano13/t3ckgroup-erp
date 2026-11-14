@@ -9,6 +9,7 @@
  *   node scripts/add-changelog.mjs --version 1.8.0 --title "Version in Settings" \
  *     --change "Settings now shows which version you are running." \
  *     --change "Another bullet, one flag per line." \
+ *     --modules purchasing,sales.sors   # optional: who gets the popup (menu group or entry keys); omit for everyone
  *     --link /release-notes     # optional: What's New offers it as its main button
  *
  * Refuses to run if --version is already in the file (see scripts/lib/changelog.mjs).
@@ -22,7 +23,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const changelogPath = join(__dirname, "..", "src", "data", "changelog.json");
 
 function parseArgs(argv) {
-  const result = { version: null, title: null, changes: [], link: null };
+  const result = { version: null, title: null, changes: [], link: null, modules: [] };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--version") {
@@ -31,6 +32,8 @@ function parseArgs(argv) {
       result.title = argv[++i];
     } else if (arg === "--change") {
       result.changes.push(argv[++i]);
+    } else if (arg === "--modules") {
+      result.modules.push(...argv[++i].split(",").map((m) => m.trim()).filter(Boolean));
     } else if (arg === "--link") {
       result.link = argv[++i];
     } else {
@@ -41,7 +44,7 @@ function parseArgs(argv) {
 }
 
 function main() {
-  const { version, title, changes, link } = parseArgs(process.argv.slice(2));
+  const { version, title, changes, link, modules } = parseArgs(process.argv.slice(2));
 
   if (!version || !title || changes.length === 0) {
     console.error(
@@ -51,7 +54,7 @@ function main() {
   }
 
   const existing = JSON.parse(readFileSync(changelogPath, "utf8"));
-  const updated = addEntry(existing, { version, title, changes, link });
+  const updated = addEntry(existing, { version, title, changes, link, modules });
 
   writeFileSync(changelogPath, JSON.stringify(updated, null, 4), "utf8");
 
