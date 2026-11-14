@@ -401,6 +401,10 @@ export default function ComprehensiveChatModal({
   const navigate = useNavigate();
   const { search } = useLocation();
   const chatParam = new URLSearchParams(search).get(CHAT_PARAM);
+  // The live address. A delayed close (Details waits 300ms) must not write back
+  // the address it saw when it was created, or it drops what opened meanwhile.
+  const searchRef = useRef(search);
+  searchRef.current = search;
   const selectedChatRef = useRef(null);
   selectedChatRef.current = selectedChat;
   const prevChatParamRef = useRef(chatParam);
@@ -433,13 +437,13 @@ export default function ComprehensiveChatModal({
 
   const writeChatParam = useCallback(
     (value, { replace = false } = {}) => {
-      const next = new URLSearchParams(search);
+      const next = new URLSearchParams(searchRef.current);
       if (value == null) next.delete(CHAT_PARAM);
       else next.set(CHAT_PARAM, value);
       const text = next.toString().replace(/%3A/gi, ":");
       navigate({ search: text ? `?${text}` : "" }, { replace });
     },
-    [navigate, search],
+    [navigate],
   );
 
   // Opened from the menu with no chat chosen: the address says so.
@@ -674,8 +678,7 @@ export default function ComprehensiveChatModal({
     setSelectedChat(null);
     keepOpenRef.current = true;
     writeChatParam(null, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEntityLookupError, selectedChat?.from_url]);
+  }, [isEntityLookupError, selectedChat?.from_url, writeChatParam]);
 
   const isEntityDeleted =
     selectedEntityData?.status === "DELETED" ||
