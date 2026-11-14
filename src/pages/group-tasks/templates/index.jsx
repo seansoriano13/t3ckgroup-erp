@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "@/utils/formatDate";
 import { Navigate } from "react-router";
+import { useRecordParam } from "@/hooks/useRecordParam";
 import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskTemplateService } from "../../../services/groupTaskTemplateService";
@@ -27,8 +28,10 @@ export default function GroupTaskTemplatesPage() {
   const canManage = isHead || isSuperAdmin;
 
   const [statusFilter, setStatusFilter] = useState("ACTIVE"); // ACTIVE | ARCHIVED
-  // undefined = modal closed, null = "new template", an id = editing that template
-  const [editingTemplateId, setEditingTemplateId] = useState(undefined);
+  // `?record=<id>` edits that template, `?record=new` starts a new one; no param = closed.
+  const { recordId, open: openRecord, close: closeRecord } = useRecordParam();
+  const editingTemplateId = recordId == null ? undefined : recordId === "new" ? null : recordId;
+  const setEditingTemplateId = (id) => (id === undefined ? closeRecord() : openRecord(id === null ? "new" : id));
   const [employees, setEmployees] = useState([]);
 
   useEffect(() => {

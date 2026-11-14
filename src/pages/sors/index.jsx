@@ -4,7 +4,8 @@ import { TablePager } from "@/components/ui/TablePager";
 import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "../../utils/formatDate";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
+import { RECORD_LINK_PARAM, RECORD_VIEW_PARAM, itemToRecordKey, openRecordWindow, withRecord } from "@/utils/recordLink";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -29,7 +30,6 @@ import Avatar from "../../components/Avatar";
 import Dropdown from "../../components/ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../../components/ui/FilterDropdown";
 import OpportunityFormModal from "../../components/sor/OpportunityFormModal";
-import OpportunityDetailsModal from "../../components/sor/OpportunityDetailsModal";
 import OpportunityBoard from "../../components/sor/OpportunityBoard";
 import SorsViewTabs from "../../components/sor/SorsViewTabs";
 import SorsTotals from "../../components/sor/SorsTotals";
@@ -167,18 +167,24 @@ function saveView(view) {
   }
 }
 
+// The register's own view, as `?scope=mine`. (`?view=` is the open SOR's tab.)
+const SCOPE_PARAM = "scope";
+const isLegacyMineLink = (params) => params.get(RECORD_VIEW_PARAM) === "mine" && !params.get(RECORD_LINK_PARAM);
+const openRecord = (id) => openRecordWindow({ id, type: "OPPORTUNITY" });
+
 export default function OpportunitiesPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const location = useLocation();
-  const navigate = useNavigate();
 
   const isPrivileged =
     user?.is_head || user?.isHead || user?.is_hr || user?.isHr || user?.isSuperAdmin;
 
   const [search, setSearch] = useState("");
+  // The Dashboard drill-downs link here as `/sors?employee=<id>&status=<stage>` (or `?scope=mine`), so the filter
+  // survives a refresh and a shared link.
+  const [searchParams, setSearchParams] = useSearchParams();
   const [stageFilter, setStageFilter] = useState(
-    () => location.state?.filterStatus || "ALL",
+    () => searchParams.get("status") || "ALL",
   );
   const [leadSourceFilter, setLeadSourceFilter] = useState("ALL");
   const [projectTypeFilter, setProjectTypeFilter] = useState("ALL");
@@ -189,7 +195,7 @@ export default function OpportunitiesPage() {
   const [mineOnly, setMineOnly] = useState(false);
   const [blockedOnly, setBlockedOnly] = useState(false);
   const [employeeFilter, setEmployeeFilter] = useState(
-    () => location.state?.filterEmployeeId || "ALL",
+    () => searchParams.get("employee") || "ALL",
   );
   const narrowScreen = useMediaQuery(NARROW_QUERY);
   const columns = useHiddenColumns(`erp_sor_register_columns_${user?.id ?? "anon"}`, {
@@ -202,8 +208,8 @@ export default function OpportunitiesPage() {
   // list would come back empty for them.
   const hasRegister = canReadSorRegister(getPermissionContext(user));
   const [chosenView, setView] = useState(() => {
-    if (location.state?.view === "mine") return "mine";
-    if (location.state?.filterEmployeeId) return "list";
+    if (searchParams.get(SCOPE_PARAM) === "mine" || isLegacyMineLink(searchParams)) return "mine";
+    if (searchParams.get("employee")) return "list";
     const saved = readSavedView();
     // "retailQueue" and "retail" moved to /retail. A saved view that still
     // names one of them would otherwise restore a tab that no longer exists,
@@ -216,71 +222,58 @@ export default function OpportunitiesPage() {
   const mySorWork = useMySorWork();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  // notificationRouter sends every OPPORTUNITY_* notification here with the
-  // record's id, so the deep link has to actually open it — otherwise clicking
-  // a stage-change or procurement notification lands on an unfiltered list and
-  // the user has to find the deal by hand.
-  // `?record=<id>` opens that SOR, so a link to one can be shared or reloaded.
-  // The open SOR is written back to the URL, so the address always matches what
-  // is on screen.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedId, setSelectedId] = useState(
-    () => location.state?.openOpportunityId || searchParams.get("record") || null,
-  );
-
+  // One way to open an SOR: the global window reads `?open=sor:<id>`, so a row
+  // click, a refresh and a shared link all land on the same window (#1020).
+  // An old `?record=<id>&view=<tab>` link is rewritten once (a replace, so Back
+  // does not return to it) to `?open=sor:<id>&view=<tab>`.
+  const [linkedRecord] = useState(() => searchParams.get("record"));
   useEffect(() => {
-    const inUrl = searchParams.get("record") || null;
-    if (inUrl === (selectedId || null)) return;
+    if (!linkedRecord) return;
     setSearchParams(
       (prev) => {
-        const next = new URLSearchParams(prev);
-        if (selectedId) next.set("record", selectedId);
-        else next.delete("record");
+        const next = withRecord(prev, itemToRecordKey({ id: linkedRecord, type: "OPPORTUNITY" }), prev.get(RECORD_VIEW_PARAM));
+        next.delete("record");
         return next;
       },
       { replace: true },
     );
-  }, [selectedId, searchParams, setSearchParams]);
+  }, [linkedRecord, setSearchParams]);
 
-  // Synchronise deep-link nav state whenever location.state updates (e.g. from
-  // notification drawer, toast popup, or overview clicks), and clear nav state
-  // so back-navigation doesn't re-apply filters.
+  // `?view=mine` once meant the register's My work tab, but `view` is the open
+  // SOR's tab. A bare one (no `open=`) is rewritten once to `?scope=mine`.
   useEffect(() => {
-    const navState = location.state;
-    if (!navState) return;
+    if (!isLegacyMineLink(searchParams)) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete(RECORD_VIEW_PARAM);
+        next.set(SCOPE_PARAM, "mine");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
 
-    let hasHandledState = false;
-
-    if (navState.openOpportunityId) {
-      // Router location is the external system this effect exists to follow:
-      // a notification or toast navigates here carrying the deal to open.
+  // A link that arrives while this page is already open (another Dashboard card) re-applies its filter.
+  const employeeParam = searchParams.get("employee");
+  const statusParam = searchParams.get("status");
+  const scopeParam = searchParams.get(SCOPE_PARAM);
+  useEffect(() => {
+    if (employeeParam) {
+      // The address is the external system this effect follows.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSelectedId(navState.openOpportunityId);
-      hasHandledState = true;
-    }
-    if (navState.filterEmployeeId) {
-      setEmployeeFilter(navState.filterEmployeeId);
+      setEmployeeFilter(employeeParam);
       setView("list");
       // The drill-down leaves Overview for good, so List is the view to
       // remember: otherwise a reload restores the "overview" that was saved
       // before the click and the register jumps back to a screen the user
       // already left.
       saveView("list");
-      hasHandledState = true;
-    }
-    if (navState.view === "mine") {
+    } else if (scopeParam === "mine") {
       setView("mine");
-      hasHandledState = true;
     }
-    if (navState.filterStatus) {
-      setStageFilter(navState.filterStatus);
-      hasHandledState = true;
-    }
-
-    if (hasHandledState) {
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location.state, navigate, location.pathname]);
+    if (statusParam) setStageFilter(statusParam);
+  }, [employeeParam, statusParam, scopeParam]);
 
   const changeView = (next) => {
     setView(next);
@@ -323,7 +316,7 @@ export default function OpportunitiesPage() {
       // #888: the human number is sor_code (the legacy opportunity_no is null
       // now). The new SOR opens so the user lands on the deal they just made.
       toast.success(`${created.sor_code} registered.`);
-      setSelectedId(created.id);
+      openRecord(created.id);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -617,31 +610,6 @@ export default function OpportunitiesPage() {
       wonValue: won.reduce((sum, o) => sum + Number(o.expected_value || 0), 0),
     };
   }, [filtered, stageContext, pipelineStages]);
-
-  const { data: directOpportunity, isError: directOpportunityRefused } = useQuery({
-    queryKey: ["opportunity", selectedId],
-    queryFn: () => opportunityService.getOpportunityById(selectedId),
-    enabled: !!selectedId && !opportunities.some((o) => o.id === selectedId),
-    retry: false,
-  });
-
-  // #474: RLS returns no row below full access, so a deep link to an SOR the
-  // viewer cannot fully read used to open nothing. Hand it to the global modal,
-  // which branches on access level and shows the participant, locked or
-  // no-access view instead.
-  useEffect(() => {
-    if (!directOpportunityRefused || !selectedId) return;
-    window.dispatchEvent(
-      new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: selectedId, type: "OPPORTUNITY", view: searchParams.get("view") || undefined } }),
-    );
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedId(null);
-  }, [directOpportunityRefused, selectedId]);
-
-  const selected = useMemo(() => {
-    if (!selectedId) return null;
-    return opportunities.find((o) => o.id === selectedId) || directOpportunity || null;
-  }, [opportunities, selectedId, directOpportunity]);
 
   const stageOptions = [
     { value: "ALL", label: "All Stages" },
@@ -1117,7 +1085,7 @@ export default function OpportunitiesPage() {
             blockedDeals={blockedDeals}
             saleTypes={saleTypes}
             stages={pipelineStages}
-            onCardClick={(o) => setSelectedId(o.id)}
+            onCardClick={(o) => openRecord(o.id)}
             onMoved={() => queryClient.invalidateQueries({ queryKey: ["opportunities"] })}
             currentUserId={user?.id}
             saleTypeFilter={saleTypeFilter}
@@ -1199,11 +1167,11 @@ export default function OpportunitiesPage() {
                       <TableRow
                         key={o.id}
                         tabIndex={0}
-                        onClick={() => setSelectedId(o.id)}
+                        onClick={() => openRecord(o.id)}
                         onKeyDown={(e) => {
           if (e.key === "Enter" && e.target === e.currentTarget) {
             e.preventDefault();
-            setSelectedId(o.id);
+            openRecord(o.id);
           }
         }}
                         className="cursor-pointer outline-none focus-visible:bg-muted"
@@ -1365,17 +1333,6 @@ export default function OpportunitiesPage() {
         opportunity={editing}
       />
 
-      <OpportunityDetailsModal
-        isOpen={!!selected}
-        onClose={() => setSelectedId(null)}
-        opportunity={selected}
-        // `?view=pms` (from an IPAS or another record's SOR link) opens the SOR on that tab.
-        initialView={searchParams.get("view") || undefined}
-        onEdit={(o) => {
-          setSelectedId(null);
-          setEditing(o);
-        }}
-      />
     </ProtectedRoute>
   );
 }

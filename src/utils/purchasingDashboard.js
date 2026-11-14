@@ -128,7 +128,7 @@ export function linkFor(row) {
   if (row.target_kind === "ipas") return { to: `/purchasing/ipas/${row.target_id}` };
   if (row.request_id && row.grp === DASHBOARD_GROUP.STILL_CANVASSING) return { to: canvassHref({ requestId: row.request_id }) };
   if (row.request_id) return { to: `/purchasing?request=${row.request_id}` };
-  return { to: "/sors", state: { openOpportunityId: row.opportunity_id } };
+  return { to: `/sors?open=sor:${row.opportunity_id}` };
 }
 
 /** What a row is called in its list. */

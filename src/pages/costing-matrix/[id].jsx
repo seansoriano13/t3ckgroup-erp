@@ -11,6 +11,7 @@ import { opportunityService } from "../../services/opportunityService";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import { useAuth } from "../../context/AuthContext";
 import { getPermissionContext } from "../../utils/permissions";
+import { itemToRecordKey, withRecord } from "../../utils/recordLink";
 import { CostingMatrixList } from "./index";
 
 const LIST_PATH = "/costing-matrix";
@@ -48,11 +49,12 @@ function CostingMatrixWindow() {
     // The list behind the window shows this SOR's figures; closing the sheet brings them up to date (#892).
     queryClient.invalidateQueries({ queryKey: costingKeys.matrixPage });
     if (returnTo?.path) {
-      navigate(returnTo.path);
+      // Back to the SOR the matrix was opened from, on its PMS tab: the address names it (#1020), so no event is needed.
       if (returnTo.sorId) {
-        // Back to the SOR the matrix was opened from, on its PMS tab.
-        setTimeout(() => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: returnTo.sorId, type: "OPPORTUNITY", view: "pms" } })), 0);
-      }
+        const [pathname, query = ""] = returnTo.path.split("?");
+        const params = withRecord(new URLSearchParams(query), itemToRecordKey({ id: returnTo.sorId, type: "OPPORTUNITY" }), "pms");
+        navigate({ pathname, search: `?${params}` });
+      } else navigate(returnTo.path);
       return;
     }
     navigate(LIST_PATH);

@@ -4,6 +4,19 @@ The operational system and enterprise resource planning portal for T3CK Group, c
 
 ## Language
 
+### Addresses
+
+**Address** (of a window or page): the URL that opens exactly what is on screen (spec #1013). Open a window, copy the link, paste it in another tab, and the same window opens. Every window that can be opened has one, and the Copy link button in its header copies it.
+
+- A record window opens over the current page with `?open=<kind>:<id>`, where kind is `task`, `group-task`, `sor`, `sor-quick` or `pr`. The open tab is `&view=<tab>` (an SOR tab, or `chat` / `items` on a Purchase Request). Written by `src/utils/recordLink.js`, opened by GlobalDetailManager.
+- On `/sors`, `?view=` is only the open SOR's tab. The register's own My work view is `?scope=mine` (the old `/sors?view=mine`, with no `open=`, is rewritten to it once). A row click opens the SOR through `?open=sor:<id>`, the same window a shared link opens.
+- A conversation is `?chat=<kind>:<id>` or `?chat=inbox`. A Calendar entry is `?entry=<kind>:<id>`.
+- A big record has a page of its own: the PMS file is `/purchasing/pms/<sor id>`.
+- The old shapes keep working forever, because notifications and bookmarks still carry them: `/purchasing?request=<id>`, `/sors?record=<id>` (with `&view=<tab>`) and `/opportunities?record=<id>` (which goes on to `/sors`). Each is rewritten once, as a replace so Back does not return to it, to the new `?open=` address.
+- A new window or page gets an address in the same change. A window's tab, a chosen row or a step goes in the address; an unsaved draft does not. Nothing in an address changes who can read the record; a person without access gets the "no access" toast.
+- The SOR brochure share link is a different thing (a public link to the quotation) and keeps its name.
+_Avoid_: Deep link, Permalink
+
 ### Navigation & Workspaces
 
 **Workspace**:

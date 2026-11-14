@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, act } from "@testing-library/react";
 import { renderWithProviders } from "../test/support";
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import toast from "react-hot-toast";
 import GlobalDetailManager from "./GlobalDetailManager";
 
 vi.mock("react-hot-toast", () => ({ default: { error: vi.fn(), success: vi.fn() } }));
 
 const MOCK_OPP = {
-  id: "opp-123",
+  id: "22222222-2222-4222-8222-222222222222",
   opportunity_no: "SOR-2026-0001",
   serial_no: 1,
   sales_reference: "S01234",
@@ -27,14 +27,14 @@ const MOCK_OPP = {
 vi.mock("../services/opportunityService", () => ({
   opportunityService: {
     getOpportunityById: vi.fn(async (id) => {
-      if (id === "opp-123") return MOCK_OPP;
+      if (id === "22222222-2222-4222-8222-222222222222") return MOCK_OPP;
       return null;
     }),
     // ADR 0021 / #297: GlobalDetailManager opens the SOR modal through this
     // now, not `getOpportunityById` directly — see the matching comment on
     // `getOpportunityForModal` in opportunityService.js.
     getOpportunityForModal: vi.fn(async (id) => {
-      if (id !== "opp-123") return { accessLevel: "none", opportunity: null };
+      if (id !== "22222222-2222-4222-8222-222222222222") return { accessLevel: "none", opportunity: null };
       return { accessLevel: "full", opportunity: MOCK_OPP };
     }),
     getAccessLevel: vi.fn(async () => "full"),
@@ -87,7 +87,7 @@ describe("GlobalDetailManager", () => {
     act(() => {
       window.dispatchEvent(
         new CustomEvent("OPEN_ENTITY_DETAILS", {
-          detail: { id: "opp-123", type: "OPPORTUNITY" },
+          detail: { id: "22222222-2222-4222-8222-222222222222", type: "OPPORTUNITY" },
         })
       );
     });
@@ -100,7 +100,7 @@ describe("GlobalDetailManager", () => {
 
   it("opens the SOR named in a copied link", async () => {
     renderWithProviders(
-      <MemoryRouter initialEntries={["/?open=sor:opp-123"]}>
+      <MemoryRouter initialEntries={["/?open=sor:22222222-2222-4222-8222-222222222222"]}>
         <GlobalDetailManager />
       </MemoryRouter>
     );
@@ -108,6 +108,34 @@ describe("GlobalDetailManager", () => {
     await waitFor(() => {
       expect(screen.getByText("Acme CCTV Rollout")).toBeInTheDocument();
     });
+  });
+
+  it("opens the SOR on the tab its link names, and a tab change rewrites the address", async () => {
+    const Probe = () => <output data-testid="search">{useLocation().search}</output>;
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/?open=sor:22222222-2222-4222-8222-222222222222&view=pms"]}>
+        <GlobalDetailManager />
+        <Probe />
+      </MemoryRouter>
+    );
+
+    const pms = await screen.findByRole("button", { name: "PMS" });
+    await waitFor(() => expect(pms).toHaveAttribute("aria-current", "page"));
+    act(() => screen.getByRole("button", { name: "Summary" }).click());
+    await waitFor(() => expect(screen.getByTestId("search")).toHaveTextContent(/^\?open=sor%3A22222222-2222-4222-8222-222222222222$/));
+  });
+
+  it("falls back to the Summary and corrects the address for a tab it does not have", async () => {
+    const Probe = () => <output data-testid="search">{useLocation().search}</output>;
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/?open=sor:22222222-2222-4222-8222-222222222222&view=nonsense"]}>
+        <GlobalDetailManager />
+        <Probe />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getByTestId("search")).toHaveTextContent(/^\?open=sor%3A22222222-2222-4222-8222-222222222222$/));
+    expect(await screen.findByRole("button", { name: "PMS" })).not.toHaveAttribute("aria-current", "page");
   });
 
   it("says so when a linked task can't be opened", async () => {
@@ -128,7 +156,7 @@ describe("GlobalDetailManager", () => {
     act(() => {
       window.dispatchEvent(
         new CustomEvent("OPEN_ENTITY_DETAILS", {
-          detail: { id: "opp-123", type: "OPPORTUNITY_QUICK_VIEW" },
+          detail: { id: "22222222-2222-4222-8222-222222222222", type: "OPPORTUNITY_QUICK_VIEW" },
         })
       );
     });

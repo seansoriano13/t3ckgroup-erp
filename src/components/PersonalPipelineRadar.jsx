@@ -1,3 +1,4 @@
+import { tasksHref } from "@/utils/listLinks";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
@@ -154,11 +155,11 @@ export default function PersonalPipelineRadar({ selectedRange }) {
         <div className="mt-8 border-t border-border pt-8">
           <ReportFigure
             stats={[
-              { label: "Incomplete", value: stats.draft, sub: "In progress", onClick: () => navigate("/tasks", { state: { presetFilter: { status: TASK_STATUS.INCOMPLETE } } }) },
-              { label: "Returned", value: stats.rejected, sub: "Needs fixing", onClick: () => navigate("/tasks", { state: { presetFilter: { status: TASK_STATUS.NOT_APPROVED } } }) },
-              { label: "Awaiting approval", value: stats.pendingHead, sub: "Needs approval", onClick: () => navigate("/tasks", { state: { presetFilter: { status: TASK_STATUS.AWAITING_APPROVAL } } }) },
-              { label: "Completed", value: stats.pendingHr, sub: "Pending HR", onClick: () => navigate("/tasks", { state: { presetFilter: { status: TASK_STATUS.COMPLETE } } }) },
-              { label: "HR verified", value: stats.verified, sub: "HR approved", onClick: () => navigate("/tasks", { state: { presetFilter: { status: TASK_STATUS.COMPLETE } } }) },
+              { label: "Incomplete", value: stats.draft, sub: "In progress", onClick: () => navigate(tasksHref({ status: TASK_STATUS.INCOMPLETE })) },
+              { label: "Returned", value: stats.rejected, sub: "Needs fixing", onClick: () => navigate(tasksHref({ status: TASK_STATUS.NOT_APPROVED })) },
+              { label: "Awaiting approval", value: stats.pendingHead, sub: "Needs approval", onClick: () => navigate(tasksHref({ status: TASK_STATUS.AWAITING_APPROVAL })) },
+              { label: "Completed", value: stats.pendingHr, sub: "Pending HR", onClick: () => navigate(tasksHref({ status: TASK_STATUS.COMPLETE })) },
+              { label: "HR verified", value: stats.verified, sub: "HR approved", onClick: () => navigate(tasksHref({ status: TASK_STATUS.COMPLETE })) },
             ]}
           />
         </div>

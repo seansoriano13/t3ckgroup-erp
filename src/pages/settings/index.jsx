@@ -7,6 +7,7 @@ import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useRecordParam } from "@/hooks/useRecordParam";
 import TabGroup from "@/components/ui/TabGroup";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
@@ -395,7 +396,10 @@ const TAB_DEFS = [
 export default function SettingsPage() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [showFAQ, setShowFAQ] = useState(false);
+  // Help & FAQ is `?help=1`, so a refresh reopens it.
+  const { recordId: helpParam, open: openHelp, close: closeHelp } = useRecordParam("help");
+  const showFAQ = helpParam === "1";
+  const setShowFAQ = (on) => (on ? openHelp("1") : closeHelp());
 
   // The Final Acquire list edits the Costing Matrix's markup presets, so it gets the Costing Matrix tab too (#269).
   // Only asked of someone who has neither Purchasing access nor Super Admin.

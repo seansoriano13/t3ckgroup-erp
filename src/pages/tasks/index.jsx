@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import QueryError from "@/components/ui/QueryError";
-import { useLocation, useNavigate } from "react-router";
+import { useSearchParams } from "react-router";
 import { LayoutGrid, ListChecks, Table as TableIcon } from "lucide-react";
 import { TASK_STATUS } from "../../constants/status.js";
-import TaskDetails from "../../components/TaskDetails.jsx";
 import TaskCard from "../../components/TaskCard";
 import TaskTableView from "../../components/TaskTableView.jsx";
 import TaskFilterBar from "../../components/TaskFilterBar.jsx";
@@ -25,6 +24,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import TabGroup from "../../components/ui/TabGroup";
 import PageLoading from "@/components/ui/PageLoading";
 import Dot from "../../components/ui/Dot";
+import { openRecordWindow } from "@/utils/recordLink";
 
 // Every mutation and the realtime hook below need the page's own list and the
 // dashboard's shared task list to agree on freshness after any change.
@@ -97,11 +97,13 @@ function taskFilterDefaults(user, { isHr, isManagement }) {
   };
 }
 
+// One way to open a task: the global manager reads `?open=task:<id>`.
+const openTask = (id, searchTerm) => openRecordWindow({ id, type: "TASK", searchTerm: searchTerm || undefined });
+
 export default function TasksPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // --- ROLE CHECKS ---
   const isSA = user?.is_super_admin === true || user?.isSuperAdmin === true;
@@ -144,15 +146,15 @@ export default function TasksPage() {
   const { initial: saved, hasSavedDefault, saveDefault, clearDefault, isDirty } =
     useSavedFilters("tasks", user?.id, filterDefaults);
   const [filters, setFilters] = useState(() => {
-    const deepLinkEmployee = location.state?.filterEmployeeId;
+    const deepLinkEmployee = searchParams.get("employee");
     return {
       ...saved,
       // Staff are locked to their own tasks whatever was saved.
       ...(!isManagement && ownScope(user)),
       // A deep link to one person opens company-wide on them.
       ...(deepLinkEmployee && { ...COMPANY_SCOPE, employeeFilter: deepLinkEmployee }),
-      // Read preset filter from nav state (e.g. from DashboardStats card click)
-      statusFilter: location.state?.presetFilter?.status || saved.statusFilter,
+      // `?status=` from a Dashboard card
+      statusFilter: searchParams.get("status") || saved.statusFilter,
     };
   });
   const { deptFilter, subDeptFilter } = filters;
@@ -162,20 +164,6 @@ export default function TasksPage() {
     (filters.employeeFilter || user?.id) === user?.id ? "PERSONAL" : "ALL",
   );
   const [searchTerm, setSearchTerm] = useState("");
-  // Clear nav state so back-nav doesn't re-apply deep-link filters
-  useEffect(() => {
-    if (location.state?.filterEmployeeId) {
-      const newState = { ...location.state };
-      delete newState.filterEmployeeId;
-      navigate(location.pathname, { replace: true, state: newState });
-    }
-    if (location.state?.presetFilter) {
-      const newState = { ...location.state };
-      delete newState.presetFilter;
-      navigate(location.pathname, { replace: true, state: newState });
-    }
-  }, [location.state, navigate, location.pathname]);
-
   // For non-management users, lock filters to their own account once user is loaded.
   // This effect intentionally only reacts to user?.id becoming available — it does
   // NOT include isManagement so management users are never affected.
@@ -200,16 +188,8 @@ export default function TasksPage() {
   const [allCategories, setAllCategories] = useState([]);
 
   // 3. UI State (Pop-ups)
-  const [viewTask, setViewTask] = useState(null);
 
   useTableRealtime("tasks", { invalidateKeys: TASK_QUERY_KEYS });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: ({ id, userId }) => taskService.deleteTask(id, userId),
-    onSuccess: () => {
-      TASK_QUERY_KEYS.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
-    },
-  });
 
   // Fetch all employees and categories
   useEffect(() => {
@@ -265,40 +245,6 @@ export default function TasksPage() {
     placeholderData: keepPreviousData,
   });
   const rawTasks = useMemo(() => data?.pages.flat() ?? [], [data]);
-
-  useEffect(() => {
-    if (!location.state?.openTaskId) return;
-    const openId = location.state.openTaskId;
-    if (rawTasks.length > 0) {
-      const targetTask = rawTasks.find((t) => t.id === openId);
-      if (targetTask) {
-        queueMicrotask(() => {
-          setViewTask(targetTask);
-          navigate(location.pathname, { replace: true, state: {} });
-        });
-      } else {
-        // Task may be soft-deleted — fetch it directly
-        import("../../services/tasks/taskQueryService.js").then(
-          ({ taskQueryService }) => {
-            taskQueryService
-              .getTaskById(openId)
-              .then((task) => {
-                if (task?.convertedToGroupTaskId) {
-                  // #657: converted into a Group Task
-                  window.dispatchEvent(
-                    new CustomEvent("OPEN_ENTITY_DETAILS", {
-                      detail: { id: task.convertedToGroupTaskId, type: "GROUP_TASK" },
-                    }),
-                  );
-                } else if (task) setViewTask(task);
-              })
-              .catch((err) => toast.error(err.message || "Could not open that task. Try again."));
-          },
-        );
-        navigate(location.pathname, { replace: true, state: {} });
-      }
-    }
-  }, [location.state, rawTasks, navigate, location.pathname]);
 
   const editTaskMutation = useMutation({
     mutationFn: (updatedData) =>
@@ -489,7 +435,7 @@ export default function TasksPage() {
             searchTerm={searchTerm}
             filtered={rawTasks.length > 0}
             onClearFilters={clearAllFilters}
-            onView={(task) => setViewTask(task)}
+            onView={(task) => openTask(task.id, searchTerm)}
             onSilentUpdate={(payload) => editTaskMutation.mutateAsync(payload)}
           />
         </div>
@@ -577,7 +523,7 @@ export default function TasksPage() {
                     key={task.id}
                     task={task}
                     searchTerm={searchTerm}
-                    onView={() => setViewTask(task)}
+                    onView={() => openTask(task.id, searchTerm)}
                     onSilentUpdate={(payload) =>
                       editTaskMutation.mutateAsync(payload)
                     }
@@ -726,16 +672,6 @@ export default function TasksPage() {
         </div>
       )}
 
-      <TaskDetails
-        isOpen={!!viewTask}
-        onClose={() => setViewTask(null)}
-        task={viewTask}
-        onUpdateTask={(updatedTask) =>
-          editTaskMutation.mutateAsync(updatedTask)
-        }
-        onDeleteTask={(payload) => deleteTaskMutation.mutateAsync(payload)}
-        searchTerm={searchTerm}
-      />
     </PageShell>
   );
 }

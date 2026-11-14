@@ -24,7 +24,7 @@ function TechnicalWindow() {
 
   return (
     <ModalShell open onOpenChange={(next) => !next && navigate("/technical")} size="record" crumbs={["Technical", sorNumber]}>
-      <TechnicalSheet opportunityId={id} />
+      <TechnicalSheet opportunityId={id} onBack={() => navigate("/technical")} />
     </ModalShell>
   );
 }

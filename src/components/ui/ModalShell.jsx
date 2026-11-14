@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { RECORD_MODAL_CLASS } from "@/components/ui/record-modal";
+import CopyLinkButton from "@/components/ui/CopyLinkButton";
 
 // Panel widths. `compact` is a short form or confirm step; `wide` is a record
 // (IPAS, Transmittal, Packing List, Canvass). Expanded is the same for both:
@@ -139,6 +140,7 @@ export default function ModalShell({
           </nav>
           <div className="flex shrink-0 items-center gap-1">
             {headerActions}
+            <CopyLinkButton className="h-auto w-auto rounded-md p-1.5 hover:bg-muted/80" />
             {expandable && !isRecord && (
               <Button
                 type="button"

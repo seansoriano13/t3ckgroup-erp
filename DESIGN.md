@@ -284,6 +284,12 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### RecordModal
 `ui/record-modal.jsx`, on Dialog. The one-size modal for the records that carry a Chat (SOR, Individual Task, Group Task; DESIGN.md "Pages → Container rule"). `RecordModalContent` replaces `DialogContent` (`className`, plus DialogContent props); `RECORD_MODAL_CLASS` is its size. No size switcher.
 
+#### CopyLinkButton
+`ui/CopyLinkButton.jsx`. The one "Copy link" in every record window's header (spec #1013). Copies the address of what is on screen (`window.location.href`) and toasts "Link copied". An icon-only ghost Button with `title` and `aria-label` "Copy link". Props: `size` (default `icon-sm`), `iconSize`, `className`, plus Button props.
+
+#### RecordNotFound
+`ui/RecordNotFound.jsx`, on EmptyState. The one "not found" block for a record screen (#1027): a deleted record, one the reader may not open, or an id that is not an id. The title is always "Not found, or not yours to see". Props: `recordType` (what was looked for, default "record"), `onBack`, `backLabel` (default "Go back"; the button shows only when `onBack` is given), `className`.
+
 #### Record header
 `components/record/RecordHeader.jsx`. The top of every Purchasing record window. Props: `reference` (mono, or a word with `mono={false}`), `name`, `badge` (`{ label, theme?, status? }`: one StatusBadge, a record has exactly one), `line` (the one quiet line: who and when). The title reads "reference · name".
 

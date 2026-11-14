@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-11-14",
+        "title": "Every window has a link, and bell clicks open the record",
+        "version": "1.10.8",
+        "changes": [
+            "Clicking a notification now opens the record it is about, in its own window.",
+            "Every window you can open has an address now, and a Copy link button in its header, so you can send exactly what you are looking at.",
+            "A Purchasing file (PMS) has its own page, and opens from the SOR on one click.",
+            "The phone menu opens and closes properly.",
+            "A link to something that is gone, or that you cannot see, now says so in plain words instead of showing nothing."
+        ]
+    },
+    {
+        "date": "2026-11-14",
         "title": "Faster chats and a tidier Time Off",
         "version": "1.10.7",
         "changes": [

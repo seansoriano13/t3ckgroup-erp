@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router';
 import { Trash2, ShieldCheck } from 'lucide-react';
 import {
@@ -33,8 +34,12 @@ const REQUEST_SORT = {
   note: (r) => deriveRequestStage(r).note,
 };
 
-export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
+export default function RequestsTable({ rows: unsortedRows, onWithdraw, openKey = null }) {
   const { sorted: rows, sort, toggle } = useTableSort(unsortedRows, REQUEST_SORT);
+  // #1015: the request a link points at is scrolled to.
+  useEffect(() => {
+    if (openKey) document.getElementById(`request-${openKey}`)?.scrollIntoView?.({ block: 'center' });
+  }, [openKey]);
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card animate-in fade-in duration-300">
       <Table tableId="my-offset-requests" className="whitespace-nowrap" stackOnPhone>
@@ -54,7 +59,13 @@ export default function RequestsTable({ rows: unsortedRows, onWithdraw }) {
           {rows.map((req) => {
             const stage = deriveRequestStage(req);
             return (
-              <TableRow key={req.type + '-' + req.id}>
+              <TableRow
+                key={req.type + '-' + req.id}
+                id={`request-${req.type}-${req.id}`}
+                data-state={openKey === req.type + '-' + req.id ? 'selected' : undefined}
+                aria-current={openKey === req.type + '-' + req.id ? 'true' : undefined}
+                className={openKey === req.type + '-' + req.id ? 'bg-muted' : undefined}
+              >
                 <TableCell className="text-xs text-muted-foreground font-medium">
                   {fmtDay(req.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </TableCell>

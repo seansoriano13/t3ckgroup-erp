@@ -2,6 +2,7 @@ import { FileInput } from "@/components/ui/FileInput";
 import { ExternalLink } from "@/components/ui/external-link";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Dialog } from "@/components/ui/dialog";
+import CopyLinkButton from "@/components/ui/CopyLinkButton";
 import { RecordModalContent } from "@/components/ui/record-modal";
 import toast from "react-hot-toast";
 import {
@@ -930,6 +931,7 @@ export default function GroupTaskDetailModal({
             >
               <Columns2 size={14} />
             </Button>
+            <CopyLinkButton className="rounded-md hover:bg-muted/80" />
             <Button
               type="button"
               variant="ghost"

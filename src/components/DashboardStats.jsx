@@ -1,3 +1,4 @@
+import { tasksHref } from "@/utils/listLinks";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -187,7 +188,7 @@ export default function DashboardStats({ selectedRange }) {
   }
 
   const toTasks = (status) => () =>
-    navigate("/tasks", { state: { presetFilter: { status } } });
+    navigate(tasksHref({ status }));
 
   let items;
   if (isHr) {

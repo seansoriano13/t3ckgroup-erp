@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { renderWithProviders, setupUser } from "../test/support";
 import { stubRpc } from "../test/msw/server";
 import ComprehensiveChatModal from "./ComprehensiveChatModal";
@@ -40,7 +42,11 @@ describe("ComprehensiveChatModal — group task thread", () => {
 
   async function openThread() {
     const user = setupUser();
-    renderWithProviders(<ComprehensiveChatModal isOpen onClose={() => {}} />);
+    renderWithProviders(
+      <MemoryRouter>
+        <ComprehensiveChatModal isOpen onClose={() => {}} />
+      </MemoryRouter>,
+    );
     await user.click(await screen.findByRole("button", { name: /Site survey kickoff/ }));
     return user;
   }
@@ -61,5 +67,88 @@ describe("ComprehensiveChatModal — group task thread", () => {
     expect(await screen.findByText("Group Task")).toBeInTheDocument();
     expect(await screen.findByText(/Group Task\s*•\s*Overview/)).toBeInTheDocument();
     expect(screen.queryByText(/committee/i)).toBeNull();
+  });
+});
+
+describe("ComprehensiveChatModal — address", () => {
+  beforeEach(() => stubRpc("get_user_active_chats", [RPC_GROUP_ROW]));
+
+  const Where = () => <output data-testid="where">{useLocation().search}</output>;
+  const renderAt = (entry, isOpen = false) =>
+    renderWithProviders(
+      <MemoryRouter initialEntries={[entry]}>
+        <ComprehensiveChatModal isOpen={isOpen} onClose={() => {}} />
+        <Where />
+      </MemoryRouter>,
+    );
+
+  it("opens the window on the chat the address names, and keeps the address", async () => {
+    renderAt("/group-tasks?chat=group-task:gt-1");
+
+    expect((await screen.findAllByText(/Site survey kickoff/)).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("where").textContent).toBe("?chat=group-task:gt-1");
+  });
+
+  it("writes the picked chat to the address", async () => {
+    const user = setupUser();
+    renderAt("/group-tasks?chat=inbox");
+
+    await user.click(await screen.findByRole("button", { name: /Site survey kickoff/ }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("where").textContent).toBe("?chat=group-task:gt-1"),
+    );
+  });
+
+  it("opened from the menu with no chat chosen, the address says inbox", async () => {
+    renderAt("/tasks", true);
+
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("?chat=inbox"));
+  });
+
+  it("clears the address on close", async () => {
+    const user = setupUser();
+    renderAt("/tasks?chat=inbox");
+
+    await screen.findByText("Your Conversations");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe(""));
+  });
+
+  it("Details keeps the record's address when the chat closes after it", async () => {
+    const user = setupUser();
+    // Stands in for GlobalDetailManager: it adds ?open= when asked to open a record.
+    const Opener = () => {
+      const navigate = useNavigate();
+      const { search } = useLocation();
+      const ref = useRef(search);
+      useEffect(() => { ref.current = search; }, [search]);
+      useEffect(() => {
+        const onOpen = (e) => { 
+          const next = new URLSearchParams(ref.current);
+          next.set("open", `group-task:${e.detail.id}`);
+          navigate({ search: `?${next}` });
+        };
+        window.addEventListener("OPEN_ENTITY_DETAILS", onOpen);
+        return () => window.removeEventListener("OPEN_ENTITY_DETAILS", onOpen);
+      }, [navigate]);
+      return null;
+    };
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/group-tasks?chat=inbox"]}>
+        <ComprehensiveChatModal isOpen onClose={() => {}} />
+        <Opener />
+        <Where />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: /Site survey kickoff/ }));
+    await user.click(await screen.findByRole("button", { name: /Details/ }));
+
+    // The chat closes about 300ms later and must remove only ?chat=.
+    await waitFor(() => expect(screen.getByTestId("where").textContent).not.toContain("chat="), {
+      timeout: 2000,
+    });
+    expect(screen.getByTestId("where").textContent).toContain("open=group-task");
   });
 });
