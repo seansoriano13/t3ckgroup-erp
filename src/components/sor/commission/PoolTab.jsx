@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, Tooltip } from "recharts";
 import { Download, Search, TrendingUp } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -99,17 +99,12 @@ export default function PoolTab({ access, departments, initialDealId }) {
               <EmptyState icon={TrendingUp} title="No SORs in this period" className="h-full" />
             ) : (
               <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 600, height: 200 }}>
-                <AreaChart data={months} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="commission-pool-area" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--blue-9)" stopOpacity={0.22} />
-                      <stop offset="100%" stopColor="var(--blue-9)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
+                {/* #1047 S12: bars, so two months do not read as a falling line. */}
+                <BarChart data={months} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
                   <XAxis dataKey="label" tickLine={false} axisLine={false} interval="preserveStartEnd" tick={{ fontSize: 11, fill: "var(--mauve-10)" }} />
-                  <Tooltip content={<ChartTooltip canSee={canViewAllFinancials} />} cursor={{ stroke: "var(--mauve-7)" }} />
-                  <Area type="monotone" dataKey="pool" stroke="var(--blue-9)" strokeWidth={2} fill="url(#commission-pool-area)" activeDot={{ r: 4, strokeWidth: 0 }} />
-                </AreaChart>
+                  <Tooltip content={<ChartTooltip canSee={canViewAllFinancials} />} cursor={{ fill: "var(--mauve-4)", opacity: 0.5 }} />
+                  <Bar dataKey="pool" fill="var(--blue-9)" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                </BarChart>
               </ResponsiveContainer>
             )}
           </div>

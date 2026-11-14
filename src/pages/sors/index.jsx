@@ -132,15 +132,15 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", phone
 // with the Columns picker. `w` is the column's width (px) in the fixed layout.
 const REGISTER_COLUMNS = [
   { key: "serial_no", label: "SOR", w: 76, locked: true },
-  { key: "sales_reference", label: "Sales Ref.", w: 72 },
+  { key: "sales_reference", label: "Sales Ref.", w: 92 },
   { key: "registration_date", label: "Date", w: 84 },
   { key: "lead_source", label: "Lead Source", w: 112 },
   { key: "client_name", label: "Company", w: 168 },
   { key: "project_title", label: "Project", w: 176 },
   { key: "expected_value", label: "Expected Value", w: 128 },
-  { key: "project_type", label: "Div.", w: 44 },
+  { key: "project_type", label: "Div.", w: 56 },
   { key: "deal_owner", label: "Deal Owner", w: 120 },
-  { key: "status", label: "Status", w: 140, locked: true },
+  { key: "status", label: "Status", w: 160, locked: true },
 ];
 const REGISTER_COLUMN_KEYS = REGISTER_COLUMNS.map((c) => c.key);
 // Below 1440px wide, someone who never chose columns starts without these two.
@@ -611,12 +611,18 @@ export default function OpportunitiesPage() {
   const totals = useMemo(() => {
     const open = filtered.filter((o) => isOpenPipelineOpportunity(o, stageContext));
     const won = filtered.filter((o) => isRealizedOpportunity(o, stageContext));
+    // #1047 S10: the List leaves Lost SORs out and the Board keeps them as a
+    // column, so counting `filtered` gave two numbers for the same filters.
+    // One count for both views: Lost SORs are not counted (and say so) unless
+    // the Lost filter is on.
+    const lost = stageFilter === "LOST" ? [] : filtered.filter((o) => isLostOpportunity(o, stageContext));
     return {
-      count: filtered.length,
+      count: filtered.length - lost.length,
+      leftOut: lost.length,
       openValue: open.reduce((sum, o) => sum + Number(o.expected_value || 0), 0),
       wonValue: won.reduce((sum, o) => sum + Number(o.expected_value || 0), 0),
     };
-  }, [filtered, stageContext, pipelineStages]);
+  }, [filtered, stageContext, pipelineStages, stageFilter]);
 
   const { data: directOpportunity, isError: directOpportunityRefused } = useQuery({
     queryKey: ["opportunity", selectedId],
@@ -780,6 +786,7 @@ export default function OpportunitiesPage() {
       <SorsTotals
         className="hidden lg:flex"
         count={totals.count}
+        leftOut={totals.leftOut}
         openValue={totals.openValue}
         wonValue={totals.wonValue}
       />
@@ -1165,15 +1172,15 @@ export default function OpportunitiesPage() {
                       out of view. */}
                   <TableRow>
                     {showColumn("serial_no") && <SortableTh field="serial_no" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">SOR</SortableTh>}
-                    {showColumn("sales_reference") && <SortableTh field="sales_reference" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[72px]">Sales Ref.</SortableTh>}
+                    {showColumn("sales_reference") && <SortableTh field="sales_reference" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[92px]">Sales Ref.</SortableTh>}
                     {showColumn("registration_date") && <SortableTh field="registration_date" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>}
                     {showColumn("lead_source") && <SortableTh field="lead_source" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[112px]">Lead Source</SortableTh>}
                     {showColumn("client_name") && <SortableTh field="client_name" phone="title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[168px]">Company</SortableTh>}
                     {showColumn("project_title") && <SortableTh field="project_title" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[176px]">Project</SortableTh>}
                     {showColumn("expected_value") && <SortableTh field="expected_value" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[128px]">Expected Value</SortableTh>}
-                    {showColumn("project_type") && <SortableTh field="project_type" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>}
+                    {showColumn("project_type") && <SortableTh field="project_type" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[56px]">Div.</SortableTh>}
                     {showColumn("deal_owner") && <SortableTh field="deal_owner" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[120px]">Deal Owner</SortableTh>}
-                    {showColumn("status") && <SortableTh field="status" phone="badge" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[140px]">Status</SortableTh>}
+                    {showColumn("status") && <SortableTh field="status" phone="badge" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[160px]">Status</SortableTh>}
                     {showLostReason && <TableHead className="w-[220px] px-2.5 py-2.5">Reason</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -1305,7 +1312,7 @@ export default function OpportunitiesPage() {
                             {blockedDeals[o.id]?.length > 0 && (
                               <span
                                 title={`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}
-                                className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
+                                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
                               >
                                 <AlertTriangle size={10} aria-hidden="true" />
                                 <span className="sr-only">{`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}</span>

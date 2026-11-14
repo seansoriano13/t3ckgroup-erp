@@ -140,6 +140,14 @@ describe("visitSummary", () => {
     expect(visitSummary(visit).line).toBe("Nothing outstanding")
   })
 
+  it("counts missing required stage fields so a blocked stage is not 'Nothing outstanding' (#1047)", () => {
+    const visit = makeVisit({ conditions: [{ status: CONDITION_STATUS.SATISFIED }], tasks: [] })
+
+    expect(visitSummary(visit, { missingFieldCount: 1 }).line).toBe("1 required field missing")
+    expect(visitSummary(visit, { missingFieldCount: 2 }).line).toBe("2 required fields missing")
+    expect(journeyRows([visit], { missingFieldCount: 1 })[0].summary.line).toBe("1 required field missing")
+  })
+
   it("reports 'This stage is restricted' rather than counting anything, for a restricted visit (#296)", () => {
     // Even if conditions/tasks somehow arrived on the object (they never do —
     // RLS already stripped them), a restricted visit's summary must not

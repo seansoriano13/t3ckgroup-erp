@@ -178,8 +178,8 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
                         className={cn(
                           "relative flex flex-none items-center justify-center px-6 text-xs font-bold tracking-wider uppercase transition-all duration-200",
                           isClickable ? "cursor-pointer hover:brightness-110" : "cursor-default",
-                          isBlockedDestination && "opacity-40 saturate-50",
-                          isDestination && disabled && "opacity-40 saturate-50",
+                          !isUpcoming && isBlockedDestination && "opacity-40 saturate-50",
+                          !isUpcoming && isDestination && disabled && "opacity-40 saturate-50",
                           isCompleted && classes.completed,
                           isCurrent && cn(classes.current, "shadow-inner"),
                           isUpcoming && "bg-muted text-muted-foreground",
