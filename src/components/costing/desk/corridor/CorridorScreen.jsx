@@ -29,6 +29,7 @@ import InchargeSelects from "../../InchargeSelects";
 import SignoffBar from "../../SignoffBar";
 import TechnicalVerdict from "../../TechnicalVerdict";
 import DecisionCard from "./DecisionCard";
+import { goFloorSoFar } from "./goFloor";
 import { useInchargeOptions } from "../../useCostingWrites";
 import { costingMatrixService } from "../../../../services/costingMatrixService";
 import { useAuth } from "../../../../context/AuthContext";
@@ -43,23 +44,6 @@ const partName = (part) => [part.brand, part.name].filter(Boolean).join(" ") || 
 const sum = (xs) => (xs.length === 0 || xs.some((x) => x === null) ? null : xs.reduce((a, b) => a + b, 0));
 
 /* ------------------------------------------------------------------ the Go floor */
-
-/**
- * The lowest offer total that keeps Revenue at the Go line, from the same formula the summary uses
- * (costingMath sheetRevenue): Revenue = offer ÷ VAT divisor − (retention × offer + landed + expenses + marketing)
- * − ITR × (offer above the allowance). Solved for Revenue = Go% × offer. Null while a cost is blank.
- */
-function goFloor(fixedCost, rates) {
-  if (fixedCost === null || !rates) return null;
-  const d = Number(rates.vatDivisor ?? 1.12);
-  const r = Number(rates.retentionRate ?? 0.01);
-  const i = Number(rates.itrRate ?? 0.08);
-  const a = Number(rates.itrAllowance ?? 0);
-  const g = Number(rates.goLinePercent ?? 20) / 100;
-  const above = (fixedCost - i * a) / (1 / d - r - i - g);
-  if (above > a && 1 / d - r - i - g > 0) return above;
-  return 1 / d - r - g > 0 ? fixedCost / (1 / d - r - g) : null;
-}
 
 /** Everything F draws, worked once from the matrix. */
 function useCorridor(matrix) {
@@ -77,8 +61,10 @@ function useCorridor(matrix) {
     const offerTotalOnly = matrix.offer?.mode === ABC_MODE.TOTAL_ONLY;
     const productCost = sum(rows.map((r) => r.cost));
     const expenses = num(projectExpensesTotal(matrix.costRows));
-    const marketing = num(matrix.money?.marketing) ?? 0;
-    const floorTotal = goFloor(productCost === null ? null : productCost + (expenses ?? 0) + marketing, matrix.rates);
+    const costRows = matrix.costRows ?? [];
+    // Every usual category is shown, row or not (2026-11-13: "add all at default"); one without a row is blank.
+    const missingUsual = USUAL_COST_CATEGORIES.filter((key) => !costRows.some((row) => row.category_key === key));
+    const { floor: floorTotal, uncounted, partial } = goFloorSoFar({ productCost, costRows, missingUsual: missingUsual.length, marketing: matrix.money?.marketing, rates: matrix.rates });
     // A line's floor: the deal's floor shared out by each line's part of the product cost.
     for (const row of rows) {
       row.floorTotal = floorTotal === null || row.cost === null || !productCost ? null : (floorTotal * row.cost) / productCost;
@@ -89,9 +75,6 @@ function useCorridor(matrix) {
       row.marginPct = row.offerTotal && row.cost !== null ? ((row.offerTotal - row.cost) / row.offerTotal) * 100 : null;
     }
     const allParts = rows.flatMap((r) => r.parts.map((p) => p.part));
-    const costRows = matrix.costRows ?? [];
-    // Every usual category is shown, row or not (2026-11-13: "add all at default"); one without a row is blank.
-    const missingUsual = USUAL_COST_CATEGORIES.filter((key) => !costRows.some((row) => row.category_key === key));
     const evaluated = Boolean(matrix.evaluation?.approved);
     // Each tier gets the steps whose figures it is sent (the Closed Book all of them, a Stage Participant only the specs).
     const tier = matrix.tier;
@@ -109,6 +92,8 @@ function useCorridor(matrix) {
       sees,
       rows,
       floorTotal,
+      floorUncounted: uncounted,
+      floorPartial: partial,
       expenses,
       abcTotal: num(matrix.totals?.abcTotal),
       offerTotal: num(matrix.totals?.finalOfferTotal),
@@ -159,7 +144,7 @@ function useCorridor(matrix) {
  * One bar: the Go floor and the ABC as two lines, the safe zone between them, our offer as a dot and the markup's
  * suggestion as a ring. Each label sits under its own line. Outside the corridor is tinted and named.
  */
-function Corridor({ floor, abc, offer, size = "sm" }) {
+function Corridor({ floor, abc, offer, size = "sm", deal = false, floorLabel = "Go floor", uncounted = 0 }) {
   if (floor === null && abc === null) return <span className="text-xs text-muted-foreground">Needs the costs and the ABC</span>;
   const values = [floor, abc, offer].filter((v) => v !== null);
   const lo = Math.min(...values) * 0.85;
@@ -168,6 +153,8 @@ function Corridor({ floor, abc, offer, size = "sm" }) {
   const at = (v) => `${pct(v)}%`;
   const state = offer === null ? "none" : floor !== null && offer < floor ? "low" : abc !== null && offer > abc ? "high" : "ok";
   const big = size === "lg";
+  // No offer can work when the floor is above the ABC (#1036); said once, on the deal bar.
+  const noOffer = deal && floor !== null && abc !== null && floor > abc;
   // The floor's label ends at its line and the ABC's starts at its line, so the two never run into each other.
   const floorAt = (v) => ({ right: `clamp(0%, calc(100% - ${at(v)}), calc(100% - 7rem))` });
   const abcAt = (v) => ({ left: `clamp(0%, ${at(v)}, calc(100% - 7rem))` });
@@ -188,13 +175,13 @@ function Corridor({ floor, abc, offer, size = "sm" }) {
       {floor !== null && abc !== null && pct(abc) - pct(floor) < (big ? 22 : 45) ? (
         // Too close for two labels: one line, in the same left-to-right order as the two lines on the bar.
         <div className={cn("mt-1.5 text-right tabular-nums text-muted-foreground", big ? "text-xs" : "text-[11px]")}>
-          Go floor <span className="text-foreground">{pesos(floor)}</span> – ABC <span className="text-foreground">{pesos(abc)}</span>
+          {floorLabel} <span className="text-foreground">{pesos(floor)}</span> – ABC <span className="text-foreground">{pesos(abc)}</span>
         </div>
       ) : (
       <div className={cn("relative mt-1.5", big ? "h-9" : "h-8")}>
         {floor !== null && (
           <div className="absolute whitespace-nowrap pr-1.5 text-right leading-tight" style={floorAt(floor)}>
-            <div className={cn("text-muted-foreground", big ? "text-xs" : "text-[11px]")}>Go floor</div>
+            <div className={cn("text-muted-foreground", big ? "text-xs" : "text-[11px]")}>{floorLabel}</div>
             <div className={cn("tabular-nums", big ? "text-xs font-semibold" : "text-[11px]")}>{pesos(floor)}</div>
           </div>
         )}
@@ -206,7 +193,15 @@ function Corridor({ floor, abc, offer, size = "sm" }) {
         )}
       </div>
       )}
-      {state === "low" && <div className="text-xs font-medium text-red-11">Below the Go floor: the deal stops paying.</div>}
+      {deal && uncounted > 0 && (
+        <div className="text-xs text-muted-foreground" data-testid="corridor-uncounted">
+          {uncounted} {uncounted === 1 ? "cost" : "costs"} not counted yet
+        </div>
+      )}
+      {noOffer && <div className="text-xs font-medium text-red-11" data-testid="corridor-no-offer">No offer reaches the Go line under this ABC.</div>}
+      {!noOffer && state === "low" && (
+        <div className="text-xs font-medium text-red-11">{deal ? "Below the Go floor: the deal stops paying." : "Under this line’s share of the Go floor."}</div>
+      )}
       {state === "high" && <div className="text-xs font-medium text-red-11">Over the ABC: the client cannot accept it.</div>}
     </div>
   );
@@ -268,7 +263,7 @@ function PartLiner({ part, step, save, canWrite, canStatus, factor, faPercent })
   );
 }
 
-function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offerByLine, factor, faPercent, onOpenLine }) {
+function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offerByLine, factor, faPercent, onOpenLine, floorLabel = "Go floor" }) {
   const { line, kids, parts, qty } = row;
   const showAbc = sees.abc && abcByLine;
   const showBar = sees.abc || sees.closed;
@@ -324,13 +319,13 @@ function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offe
         {showBar && (
         <TableCell className={cn(CELL, "w-[20rem] min-w-[15rem]", cut)}>
           {abcByLine && sees.abc ? (
-            <Corridor floor={row.floorUnit} abc={row.abcUnit} offer={row.offerUnit} />
+            <Corridor floor={row.floorUnit} abc={row.abcUnit} offer={row.offerUnit} floorLabel={floorLabel} />
           ) : (
             // The ABC is one total, so a line has no ceiling of its own: no bar, just its floor (2026-11-13, option 1).
             <div className="text-sm" data-testid="corridor-floor-only">
-              <span className="text-muted-foreground">Go floor </span>
+              <span className="text-muted-foreground">{floorLabel} </span>
               <span className="tabular-nums">{money(row.floorUnit)}</span>
-              {row.offerUnit != null && row.floorUnit != null && row.offerUnit < row.floorUnit && <div className="text-xs font-medium text-red-11">The offer is below this line&apos;s Go floor.</div>}
+              {row.offerUnit != null && row.floorUnit != null && row.offerUnit < row.floorUnit && <div className="text-xs font-medium text-red-11">Under this line&apos;s share of the Go floor.</div>}
             </div>
           )}
         </TableCell>
@@ -375,7 +370,7 @@ const pctOf = (v) => (v === null || !Number.isFinite(v) ? null : Math.round(v * 
 /** The range the company expects for a cost; amber, with the word, only when a typed amount falls outside it. */
 function RangeCell({ range, share }) {
   if (!range) return <span className="text-muted-foreground">—</span>;
-  const off = share ? (share < range.lowPct ? "below" : share > range.highPct ? "above" : null) : null;
+  const off = share !== null && share !== undefined ? (share < range.lowPct ? "below" : share > range.highPct ? "above" : null) : null;
   return (
     <span className={cn("tabular-nums", off ? "font-semibold text-amber-11" : "text-muted-foreground")} title={off ? `This cost is ${off} the range, as a share of the ABC` : undefined} data-testid="other-cost-range">
       {range.lowPct}–{range.highPct}%{off && <span className="block text-xs font-normal">{off}</span>}
@@ -390,7 +385,7 @@ function RangeCell({ range, share }) {
  * #723), named, renamed or removed, and the category's range is checked on its rows together. Marketing is the
  * last row. They all count in OPEX, so every amount moves the Go floor as it is typed.
  */
-function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal }) {
+function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal, floorPartial }) {
   const { data: categories = [] } = useQuery({ queryKey: costingKeys.costCategories(), queryFn: () => costingMatrixService.listCostCategories(), staleTime: 60_000 });
   const [removing, setRemoving] = useState(null);
   const rows = matrix.costRows ?? [];
@@ -410,7 +405,9 @@ function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal }
   for (const cat of USUAL_COST_CATEGORIES) {
     const own = rows.filter((r) => r.category_key === cat);
     const label = guide.get(cat)?.label ?? FALLBACK_LABEL[cat] ?? cat;
-    const groupShare = share(sum(own.map(amountOf)));
+    // Flag from the rows that have an amount (an empty second row does not hide it); 0 counts and is below.
+    const amounts = own.map(amountOf).filter((a) => a !== null);
+    const groupShare = share(amounts.length === 0 ? null : amounts.reduce((a, b) => a + b, 0));
     if (own.length === 0) list.push({ key: cat, cat, label, range: guide.get(cat), row: null, share: null });
     else own.forEach((row, i) => list.push({ key: row.id, cat, label, range: i === 0 ? guide.get(cat) : null, row, share: i === 0 ? groupShare : null, more: i > 0 }));
   }
@@ -539,7 +536,7 @@ function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal }
         ) : (
           <span />
         )}
-        <span className="text-xs text-muted-foreground">Go floor now {floorTotal === null ? "—" : pesos(floorTotal)}</span>
+        <span className="text-xs text-muted-foreground">{floorPartial ? "Go floor so far" : "Go floor now"} {floorTotal === null ? "—" : pesos(floorTotal)}</span>
       </div>
       <ConfirmDialog
         open={Boolean(removing)}
@@ -675,7 +672,7 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
                 <h3 className="text-sm font-semibold">The deal</h3>
                 <span className="text-xs text-muted-foreground">{closed ? "Keep the dot between the Go floor and the client\u2019s ABC" : "Keep the dot under the client\u2019s ABC"}</span>
               </div>
-              <Corridor floor={c.floorTotal} abc={c.abcTotal} offer={c.offerTotal} size="lg" />
+              <Corridor floor={c.floorTotal} abc={c.abcTotal} offer={c.offerTotal} size="lg" deal floorLabel={c.floorPartial ? "Go floor so far" : "Go floor"} uncounted={c.floorUncounted} />
             </div>
             <dl className="flex items-end gap-x-6">
               {sees.abc && (
@@ -735,7 +732,7 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
             })}
           </ol>
 
-          {step === "otherCosts" && <OtherCostsPanel matrix={matrix} save={save} bands={bands} abcTotal={c.abcTotal} expenses={c.expenses} floorTotal={c.floorTotal} />}
+          {step === "otherCosts" && <OtherCostsPanel matrix={matrix} save={save} bands={bands} abcTotal={c.abcTotal} expenses={c.expenses} floorTotal={c.floorTotal} floorPartial={c.floorPartial} />}
 
           {step === "specs" && (
             <div className="space-y-4" data-testid="corridor-specs">
@@ -821,7 +818,7 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
                   </TableHeader>
                   <TableBody>
                     {c.rows.map((row) => (
-                      <LineRow key={row.line.id} row={row} step={step} save={save} bands={bands} sees={sees} open={open.has(row.line.id)} onToggle={() => toggle(row.line.id)} abcByLine={abcByLine} offerByLine={offerByLine} factor={closed ? factor : null} faPercent={Number(matrix.finalAcquirePercent ?? -20)} onOpenLine={onOpenLine} />
+                      <LineRow key={row.line.id} row={row} step={step} save={save} bands={bands} sees={sees} open={open.has(row.line.id)} onToggle={() => toggle(row.line.id)} abcByLine={abcByLine} offerByLine={offerByLine} factor={closed ? factor : null} faPercent={Number(matrix.finalAcquirePercent ?? -20)} onOpenLine={onOpenLine} floorLabel={c.floorPartial ? "Go floor so far" : "Go floor"} />
                     ))}
                   </TableBody>
                 </Table>
