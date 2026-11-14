@@ -1,10 +1,11 @@
 import { Lock } from "lucide-react";
 import SlideOver, { SlideOverBody } from "../ui/SlideOver";
 import EmptyState from "../ui/EmptyState";
+import RecordNotFound from "../ui/RecordNotFound";
 
 const identity = (contact) => ({
   ref: "SOR",
-  title: contact.found === false ? "SOR not found" : "You don't have access",
+  title: contact.found === false ? "Not found" : "You don't have access",
 });
 
 /**
@@ -22,7 +23,7 @@ export default function NoAccessSorSlideOver({ isOpen, onClose, contact }) {
       {() => (
         <SlideOverBody>
           {contact?.found === false ? (
-            <EmptyState icon={Lock} title="SOR not found" description="This SOR doesn't exist or has been deleted." />
+            <RecordNotFound recordType="SOR" onBack={onClose} backLabel="Close" />
           ) : (
             <EmptyState
               icon={Lock}

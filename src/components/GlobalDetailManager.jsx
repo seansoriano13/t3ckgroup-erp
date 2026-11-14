@@ -12,6 +12,7 @@ import { opportunityService } from "../services/opportunityService";
 import { useAuth } from "../context/AuthContext";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import toast from "react-hot-toast";
+import NoAccessSorSlideOver from "./sor/NoAccessSorSlideOver";
 import { canManageGroupTasks } from "../utils/permissions";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useRecordParam } from "../hooks/useRecordParam";
@@ -22,7 +23,12 @@ import {
   NO_ACCESS_MESSAGE,
   itemToRecordKey,
   recordKeyToItem,
+  isRecordId,
 } from "../utils/recordLink";
+
+// A "not found" is answered at once; only a failed read is worth trying again (#1027).
+const isGone = (error) => error?.code === "PGRST116" || /not found/i.test(error?.message || "");
+const retryUnlessGone = (count, error) => !isGone(error) && count < 2;
 
 export default function GlobalDetailManager() {
   const { user } = useAuth();
@@ -132,7 +138,8 @@ export default function GlobalDetailManager() {
   const { data: taskData, isLoading: isLoadingTask } = useQuery({
     queryKey: ["globalTask", activeItem?.id],
     queryFn: () => taskService.getTaskById(activeItem.id),
-    enabled: activeItem?.type === "TASK" && !!activeItem?.id,
+    enabled: activeItem?.type === "TASK" && isRecordId(activeItem?.id),
+    retry: retryUnlessGone,
     staleTime: 0,
   });
 
@@ -140,7 +147,8 @@ export default function GlobalDetailManager() {
   const { data: groupTaskData, isLoading: isLoadingGroupTask } = useQuery({
     queryKey: ["globalGroupTask", activeItem?.id],
     queryFn: () => groupTaskService.getGroupTaskById(activeItem.id),
-    enabled: activeItem?.type === "GROUP_TASK" && !!activeItem?.id,
+    enabled: activeItem?.type === "GROUP_TASK" && isRecordId(activeItem?.id),
+    retry: retryUnlessGone,
     staleTime: 0,
   });
 
@@ -156,7 +164,7 @@ export default function GlobalDetailManager() {
   const { data: opportunityData, isLoading: isLoadingOpportunity } = useQuery({
     queryKey: ["globalOpportunity", activeItem?.id],
     queryFn: () => opportunityService.getOpportunityForModal(activeItem.id),
-    enabled: isOpportunityType && !!activeItem?.id,
+    enabled: isOpportunityType && isRecordId(activeItem?.id),
     staleTime: 0,
   });
 
@@ -175,6 +183,11 @@ export default function GlobalDetailManager() {
       setActiveItem({ id: taskData.convertedToGroupTaskId, type: "GROUP_TASK" });
     }
   }, [activeItem?.type, taskData?.convertedToGroupTaskId, setActiveItem]);
+
+  // An `?open=` value the app does not know (`banana:1`) is cleared (#1027).
+  useEffect(() => {
+    if (recordId && !linkedItem) setSearchParams((prev) => withRecord(prev, null), { replace: true });
+  }, [recordId, linkedItem, setSearchParams]);
 
   // A link to a record the viewer can't read (or that is gone) says so, then
   // clears the address instead of leaving a blank window.
@@ -464,6 +477,11 @@ export default function GlobalDetailManager() {
             />
           )}
         </>
+      )}
+
+      {/* An SOR link whose id is not an id: not found, no request sent (#1027). */}
+      {isOpportunityType && activeItem?.id && !isRecordId(activeItem.id) && (
+        <NoAccessSorSlideOver isOpen onClose={handleClose} contact={{ found: false }} />
       )}
 
       {/* OPPORTUNITY MODAL */}

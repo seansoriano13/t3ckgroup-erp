@@ -1,5 +1,5 @@
 import PageLoading from "@/components/ui/PageLoading";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -186,6 +186,16 @@ function TaskApprovalsQueue() {
 
   const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
+  // #1027: a link to a task that is no longer in either step (someone else decided it first) says so and clears the address.
+  // The group view reads the same `?record=` for its own rows, so it is left alone.
+  const queueReady = !q.isLoadingTasks && !q.isErrorTasks;
+  const inQueue = [...pending.tasks, ...done.tasks].some((t) => String(t.id) === recordId);
+  useEffect(() => {
+    if (!queueReady || !recordId || inQueue || view === "GROUP") return;
+    toast("This request is not waiting on you any more.");
+    closeRecord();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueReady, recordId, inQueue, view]);
 
 
   const invalidate = useCallback(() => {

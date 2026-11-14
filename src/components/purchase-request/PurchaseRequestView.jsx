@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { MessageSquare, PackageSearch, Users } from "lucide-react";
+import { MessageSquare, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import QueryError from "@/components/ui/QueryError";
 import { cn } from "@/lib/utils";
-import EmptyState from "@/components/ui/EmptyState";
+import RecordNotFound from "@/components/ui/RecordNotFound";
 import Spinner from "@/components/ui/Spinner";
 import RequestPills from "./RequestPills";
 import RequestMembers from "./RequestMembers";
@@ -25,7 +25,7 @@ const SIDE_PANELS = [
  * part refreshes itself. `openCount` changes on every open from outside, so a
  * mention clicked while the request is already open opens the Chat again.
  */
-export default function PurchaseRequestView({ requestId, focusChat = false, tab = null, openCount = 0, onPanelChange, className = "" }) {
+export default function PurchaseRequestView({ requestId, focusChat = false, tab = null, openCount = 0, onPanelChange, onBack, className = "" }) {
   const { data: request, isLoading, isError, refetch } = usePurchaseRequest(requestId);
   const [panel, setPanel] = useState(focusChat || tab === "chat" ? "chat" : null);
 
@@ -48,11 +48,7 @@ export default function PurchaseRequestView({ requestId, focusChat = false, tab 
   }
   if (!request) {
     return (
-      <EmptyState
-        icon={PackageSearch}
-        title="Request not available"
-        description="It may have been removed, or you aren’t one of its members."
-      />
+      <RecordNotFound recordType="request" onBack={onBack} backLabel="Close" />
     );
   }
 

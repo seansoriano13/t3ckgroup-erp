@@ -1,3 +1,5 @@
+import RecordNotFound from "@/components/ui/RecordNotFound";
+import { isRecordId } from "@/utils/recordLink";
 import { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,7 +10,6 @@ import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
 import ModalShell from "../../../components/ui/ModalShell";
 import PageLoading from "../../../components/ui/PageLoading";
-import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Textarea } from "../../../components/ui/textarea";
@@ -83,7 +84,7 @@ function TransmittalPage({ onClose }) {
   const { data: transmittal, isLoading, isError, refetch } = useQuery({
     queryKey: transmittalKeys.detail(id),
     queryFn: async () => transmittalService.get(id),
-    enabled: Boolean(id),
+    enabled: isRecordId(id),
   });
 
   // The caller's own Transmittal staff lists, and the names on the two lists
@@ -92,17 +93,17 @@ function TransmittalPage({ onClose }) {
   const { data: myLists = [] } = useQuery({
     queryKey: [...transmittalKeys.detail(id), "my-lists", user?.id],
     queryFn: () => transmittalService.myStaffLists(user?.id),
-    enabled: Boolean(id && user?.id),
+    enabled: Boolean(isRecordId(id) && user?.id),
   });
   const { data: warehouseMembers = [] } = useQuery({
     queryKey: [...transmittalKeys.detail(id), "members", TRANSMITTAL_STAFF_LIST.WAREHOUSE],
     queryFn: () => transmittalService.stageListMembers(id, TRANSMITTAL_STAFF_LIST.WAREHOUSE),
-    enabled: Boolean(id),
+    enabled: isRecordId(id),
   });
   const { data: technicalMembers = [] } = useQuery({
     queryKey: [...transmittalKeys.detail(id), "members", TRANSMITTAL_STAFF_LIST.TECHNICAL],
     queryFn: () => transmittalService.stageListMembers(id, TRANSMITTAL_STAFF_LIST.TECHNICAL),
-    enabled: Boolean(id),
+    enabled: isRecordId(id),
   });
   // The existing Check by queue (Approval Center): where "next waiting on me" comes from.
   const onCheckByList = myLists.includes(TRANSMITTAL_STAFF_LIST.CHECK_BY);
@@ -121,7 +122,7 @@ function TransmittalPage({ onClose }) {
         ) : isError ? (
           <QueryError title="The Transmittal could not be loaded." onRetry={refetch} />
         ) : (
-          <EmptyState title="No such Transmittal" description="It may not exist, or you can't read it." />
+          <RecordNotFound recordType="Transmittal" onBack={onClose} backLabel="Back to Transmittals" />
         )}
       </ModalShell>
     );
