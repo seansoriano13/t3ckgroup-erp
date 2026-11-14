@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { ListTree, Plus, RefreshCw, Sparkles } from "lucide-react";
 
 import { Button } from "../../ui/button";
+import RecordNotFound from "../../ui/RecordNotFound";
 import SlideOver, { SlideOverBody } from "../../ui/SlideOver";
 import StatusBadge from "../../StatusBadge";
 import { costingMatrixService, requestsByComponent } from "../../../services/costingMatrixService";
@@ -136,9 +137,9 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   if (isError) return <p className="text-sm text-destructive">{error?.message || "The S0 Evaluation could not be read."}</p>;
   if (!matrix) {
     return (
-      <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground" data-testid="no-costing-matrix">
-        No S0 Evaluation yet, or it is not yours to see. It opens when the flow&apos;s &quot;Open S0 Evaluation&quot; step runs.
-      </p>
+      <div data-testid="no-costing-matrix">
+        <RecordNotFound recordType="S0 Evaluation" onBack={() => navigate("/costing-matrix")} backLabel="Back to S0 Evaluations" />
+      </div>
     );
   }
 

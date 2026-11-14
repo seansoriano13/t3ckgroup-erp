@@ -1,3 +1,5 @@
+import RecordNotFound from "@/components/ui/RecordNotFound";
+import { isRecordId } from "@/utils/recordLink";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +11,6 @@ import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
 import ModalShell from "../../../components/ui/ModalShell";
 import PageLoading from "../../../components/ui/PageLoading";
-import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Input } from "../../../components/ui/input";
@@ -285,7 +286,7 @@ function PackingListPage({ onClose }) {
   const { data: list, isLoading, isError, refetch } = useQuery({
     queryKey: KEY(id),
     queryFn: () => packingListService.get(id),
-    enabled: Boolean(id),
+    enabled: isRecordId(id),
   });
 
   const refresh = () => {
@@ -444,7 +445,7 @@ function PackingListPage({ onClose }) {
       {isLoading && <PageLoading label="Packing List" />}
       {isError && <QueryError title="This Packing List could not be loaded." onRetry={refetch} />}
       {!isLoading && !isError && !list && (
-        <EmptyState title="Not found" description="This Packing List doesn't exist, or you can't read it." />
+        <RecordNotFound recordType="Packing List" onBack={onClose} backLabel="Back to Packing Lists" />
       )}
 
       {list && (

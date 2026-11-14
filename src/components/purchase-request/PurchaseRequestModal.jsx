@@ -102,7 +102,7 @@ export default function PurchaseRequestModal({ requestId, focusChat = false, tab
           line={headerLine(request)}
         />
       )}
-      <PurchaseRequestView requestId={requestId} focusChat={focusChat} tab={tab} openCount={openCount} onPanelChange={onPanelChange} />
+      <PurchaseRequestView requestId={requestId} focusChat={focusChat} tab={tab} openCount={openCount} onPanelChange={onPanelChange} onBack={() => onClose()} />
     </ModalShell>
   );
 }

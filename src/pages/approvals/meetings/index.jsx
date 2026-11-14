@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Layers, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -59,6 +59,15 @@ function MeetingApprovalsQueue() {
   );
   const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
+  // #1027: a link to a request that is no longer in the queue (someone else decided it first) says so and clears the address.
+  const queueReady = !q.isLoadingMeetings && !q.isErrorMeetings;
+  const inQueue = all.some((i) => String(i.id) === recordId);
+  useEffect(() => {
+    if (!queueReady || !recordId || inQueue) return;
+    toast("This request is not waiting on you any more.");
+    closeRecord();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueReady, recordId, inQueue]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["meeting-requests"] });
 

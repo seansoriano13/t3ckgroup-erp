@@ -42,3 +42,10 @@ export function withRecord(params, key, view = null) {
   else next.delete(RECORD_VIEW_PARAM);
   return next;
 }
+
+const RECORD_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True when `id` looks like a record id (a uuid). A malformed one counts as not found: no request is sent. */
+export function isRecordId(id) {
+  return typeof id === "string" && RECORD_ID_RE.test(id);
+}
