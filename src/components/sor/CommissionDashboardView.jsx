@@ -29,7 +29,7 @@ export default function CommissionDashboardView() {
   const departments = useMemo(() => colourDepartments(access.dashboard?.departmentTotals), [access.dashboard]);
 
   const linkedDealId = location.state?.openOpportunityId ?? null;
-  const tab = linkedDealId ? "pool" : params.get("tab") === "formula" ? "formula" : "pool";
+  const tab = linkedDealId || params.get("record") ? "pool" : params.get("tab") === "formula" ? "formula" : "pool";
   const setTab = (value) => {
     const next = new URLSearchParams(params);
     if (value === "pool") next.delete("tab");
