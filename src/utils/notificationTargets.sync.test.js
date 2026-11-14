@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "fs";
 import path from "path";
-import { MODULES, NOTIFICATION_TARGETS, PENDING, LEGACY } from "./notificationTargets";
+import { MODULES, NOTIFICATION_TARGETS, LEGACY } from "./notificationTargets";
 import { PUSH_NOTIFICATION_TYPES } from "../constants/pushNotificationTypes";
 
 /**
@@ -49,7 +49,7 @@ describe("NOTIFICATION_TARGETS", () => {
     for (const [type, entry] of Object.entries(NOTIFICATION_TARGETS)) {
       expect(MODULES, type).toContain(entry.module);
       expect(entry.icon, type).toEqual(expect.any(String));
-      expect(typeof entry.target === "function" || entry.target === PENDING || entry.target === LEGACY, type).toBe(true);
+      expect(typeof entry.target === "function" || entry.target === LEGACY, type).toBe(true);
     }
   });
 });

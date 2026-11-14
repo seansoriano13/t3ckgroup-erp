@@ -23,7 +23,8 @@ import {
   NOTIFICATION_PAGE,
 } from "../utils/notificationPaging";
 import NotificationTypeIcon from "./NotificationTypeIcon";
-import { MODULE_TABS, typeInTab } from "../utils/notificationMeta";
+import { tabsFor, typeInTab } from "../utils/notificationMeta";
+import { getPermissionContext } from "../utils/permissions";
 import { showNotificationPopup } from "../utils/notificationPopup";
 
 // ─── Relative Timestamp ───────────────────────────────────────────────────────
@@ -74,9 +75,6 @@ function safeRenderMessage(msg) {
   }
   return msg;
 }
-
-// ─── Tabs config ──────────────────────────────────────────────────────────────
-const TABS = [{ value: "ALL", label: "ALL" }, { value: "UNREAD", label: "UNREAD" }, ...MODULE_TABS];
 
 // ─── Filter helper ────────────────────────────────────────────────────────────
 const filterNotifs = (notifications, tab) => {
@@ -290,7 +288,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
         <div className="p-2 shrink-0">
           <TabGroup
             variant="underline"
-            tabs={TABS}
+            tabs={tabsFor(getPermissionContext(user))}
             activeTab={activeTab}
             onChange={setActiveTab}
             fullWidth={true}

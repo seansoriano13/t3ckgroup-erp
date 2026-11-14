@@ -4,15 +4,7 @@
  * module and icon a type shows, and which bell tab a module lands in.
  * The entries themselves are edited in notificationTargets.js.
  */
-import { NOTIFICATION_TARGETS } from "./notificationTargets";
-
-// Pre-rename rows (see LEGACY_TYPE_ALIASES in notificationRouter.js) keep the look of their GROUP_* twin.
-const COMMITTEE_TWINS = {
-  COMMITTEE_TASK_COMMENT: "GROUP_TASK_COMMENT",
-  COMMITTEE_ASSIGNED: "GROUP_ASSIGNED",
-  COMMITTEE_TASK_READY_FOR_HR: "GROUP_TASK_READY_FOR_HR",
-  COMMITTEE_MEMBER_DONE: "GROUP_MEMBER_DONE",
-};
+import { LEGACY_TYPE_ALIASES, NOTIFICATION_TARGETS } from "./notificationTargets";
 
 /** Bell tabs, in order. `modules` are the map modules each tab shows. */
 export const MODULE_TABS = [
@@ -23,9 +15,29 @@ export const MODULE_TABS = [
   { value: "HR", label: "HR", modules: ["hr", "meetings"] },
 ];
 
+/**
+ * The bell tabs this person sees: All and Unread for everyone, and a module tab
+ * only when they can have notifications of that module. HR and Super Admin see
+ * every tab. Leave, Offset and Meeting notices reach anyone, so HR is always there.
+ */
+export function tabsFor(ctx) {
+  const all = ctx.isHr || ctx.isSuperAdmin;
+  const shows = {
+    TASKS: all || ctx.hasTaskFlow,
+    SORS: all || ctx.hasSalesFlow,
+    PURCHASING: all || ctx.hasPurchasingFlow || ctx.hasSalesFlow || ctx.hasFinanceFlow,
+    HR: true,
+  };
+  return [
+    { value: "ALL", label: "ALL" },
+    { value: "UNREAD", label: "UNREAD" },
+    ...MODULE_TABS.filter((t) => shows[t.value]).map(({ value, label }) => ({ value, label })),
+  ];
+}
+
 /** { module, icon } for a notification type. Unknown types are "other" with the Bell. */
 export function getNotificationMeta(type) {
-  const entry = NOTIFICATION_TARGETS[type] ?? NOTIFICATION_TARGETS[COMMITTEE_TWINS[type]];
+  const entry = NOTIFICATION_TARGETS[type] ?? NOTIFICATION_TARGETS[LEGACY_TYPE_ALIASES[type]];
   return { module: entry?.module ?? "other", icon: entry?.icon ?? "Bell" };
 }
 
