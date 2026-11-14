@@ -344,7 +344,7 @@ describe("handleNotificationRoute", () => {
   describe("notifications with nowhere to go", () => {
     it("closes the drawer without navigating for an unrecognised type", () => {
       handleNotificationRoute(
-        { type: "SIL_LEAVE_REQUEST", reference_id: "leave-1" },
+        { type: "NOT_A_REAL_TYPE", reference_id: "x-1" },
         hr,
         navigate,
         onClose,
