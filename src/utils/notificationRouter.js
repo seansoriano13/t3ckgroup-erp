@@ -4,7 +4,7 @@
  * Extracted from NotificationDrawer so the component stays lean.
  */
 import toast from "react-hot-toast";
-import { LEGACY, LEGACY_MESSAGE, NOTIFICATION_TARGETS } from "./notificationTargets";
+import { LEGACY, LEGACY_MESSAGE, NO_REFERENCE_MESSAGE, NOTIFICATION_TARGETS } from "./notificationTargets";
 
 /**
  * TODO: transition shim — drop after one release.
@@ -38,7 +38,11 @@ const LEGACY_TYPE_ALIASES = {
  * @param {function} onClose  - Drawer close callback
  */
 export function handleNotificationRoute(notif, user, navigate, onClose) {
-  if (!notif.reference_id) return;
+  if (!notif.reference_id) {
+    toast(NO_REFERENCE_MESSAGE);
+    onClose();
+    return;
+  }
 
   // TODO: remove alongside LEGACY_TYPE_ALIASES.
   const type = LEGACY_TYPE_ALIASES[notif.type] ?? notif.type;
@@ -47,7 +51,8 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
   const entry = NOTIFICATION_TARGETS[notif.type];
   if (typeof entry?.target === "function") {
     entry.target({ notif, user, navigate });
-  } else if (entry?.target === LEGACY) {
+  } else if (!entry || entry.target === LEGACY) {
+    // Old type from a replaced feature, or a type nobody gave a target: say so instead of closing silently.
     toast(LEGACY_MESSAGE);
   }
 

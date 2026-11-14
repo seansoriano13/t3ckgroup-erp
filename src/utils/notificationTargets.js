@@ -27,6 +27,7 @@ export const PENDING = "pending";
 /** Old type from a replaced feature. The click shows LEGACY_MESSAGE. */
 export const LEGACY = "legacy";
 export const LEGACY_MESSAGE = "This notification is from an older version of the portal.";
+export const NO_REFERENCE_MESSAGE = "This notification has nothing to open";
 
 const openEntity = (detail) => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail }));
 const openChat = (entityId, entityType) =>
@@ -91,6 +92,9 @@ export const NOTIFICATION_TARGETS = {
   TASK_APPROVED_BY_HEAD: { module: "tasks", icon: "CheckCircle2", target: taskTarget },
   TASK_REACTION: { module: "tasks", icon: "MessageCircle", target: taskTarget },
   TASK_MENTION: { module: "tasks", icon: "MessageCircle", target: taskMentionTarget },
+  TASK_APPROVED: { module: "tasks", icon: "CheckCircle2", target: taskTarget },
+  TASK_SUBMITTED: { module: "tasks", icon: "FileText", target: taskTarget },
+  PROCUREMENT_TASK_DEAL_LOST: { module: "tasks", icon: "FileText", target: taskTarget },
   TASK_CONVERTED: { module: "tasks", icon: "FileText", target: taskTarget },
   STAGE_ACTION_TASK_CREATED: { module: "tasks", icon: "FileText", target: taskTarget },
   GROUP_ASSIGNED: { module: "tasks", icon: "Target", target: groupTaskTarget },
@@ -108,6 +112,9 @@ export const NOTIFICATION_TARGETS = {
   OPPORTUNITY_ACTION_DECISION_DUE: { module: "sors", icon: "Briefcase", target: sorRegisterTarget },
   OPPORTUNITY_COSTING_INCHARGE_NEEDED: { module: "sors", icon: "Briefcase", target: sorRegisterTarget },
   OPPORTUNITY_FOLLOW_UP_DUE: { module: "sors", icon: "Clock", target: sorRegisterTarget },
+  OPPORTUNITY_STAGE_CHANGED: { module: "sors", icon: "TrendingUp", target: sorRegisterTarget },
+  OPPORTUNITY_PROCUREMENT_REQUESTED: { module: "sors", icon: "Briefcase", target: sorRegisterTarget },
+  OPPORTUNITY_PROCUREMENT_RESOLVED: { module: "sors", icon: "Briefcase", target: sorRegisterTarget },
   OPPORTUNITY_MENTION: { module: "sors", icon: "MessageCircle", target: sorTarget },
   SOR_AWARDED: { module: "sors", icon: "Trophy", target: sorTarget },
   SOR_BID_DECISION: { module: "sors", icon: "Briefcase", target: sorPmsTarget },
@@ -138,6 +145,11 @@ export const NOTIFICATION_TARGETS = {
     target: purchaseRequestTarget({ focusChat: false }),
   },
   IPAS_SIGNOFF_READY: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  IPAS_PO_CHANGED: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  IPAS_ACCOUNT_FLAGGED: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  IPAS_SECTION_3_CLEARED: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  PURCHASE_REQUEST_BUYER: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },
+  PURCHASE_REQUEST_ITEM_ADDED: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },
   IPAS_SENT_BACK: { module: "purchasing", icon: "FileText", target: ipasTarget },
   PACKING_LIST_REQUESTED: { module: "purchasing", icon: "FileText", target: PENDING },
   TRANSMITTAL_SUBMITTED: { module: "purchasing", icon: "FileText", target: PENDING },
@@ -150,6 +162,7 @@ export const NOTIFICATION_TARGETS = {
   TRANSMITTAL_SIGNATURE_UNDONE: { module: "purchasing", icon: "FileText", target: PENDING },
 
   // ---- hr ----
+  HR_NOTE: { module: "hr", icon: "FileText", target: PENDING },
   SIL_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: PENDING },
   SIL_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
   SIL_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
