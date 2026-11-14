@@ -589,7 +589,7 @@ function PastVisit({ row, onToggle }) {
  * Ordering and the summary live in `journeyRows`, not here, so what "latest
  * first" means is proven without a DOM.
  */
-export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
+export default function JourneyTab({ opportunityId, hasOpened, onGoToNow, missingFieldCount = 0 }) {
   const [expandedIds, setExpandedIds] = useState([]);
 
   const { data: visits = [], isLoading } = useSorModalData({
@@ -604,7 +604,7 @@ export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
 
   if (isLoading) return <TabSkeleton />;
 
-  const rows = journeyRows(visits, { expandedIds });
+  const rows = journeyRows(visits, { expandedIds, missingFieldCount });
 
   if (rows.length === 0) {
     return (
