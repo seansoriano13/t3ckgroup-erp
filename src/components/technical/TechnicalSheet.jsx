@@ -122,6 +122,7 @@ export default function TechnicalSheet({ opportunityId }) {
           {!phone && canWriteVerdict && checkedIds.length > 0 && (
             <BulkVerdictBar
               ids={checkedIds}
+              components={lines.flatMap((line) => line.components)}
               onDone={async () => {
                 setChecked(new Set());
                 await refresh();
@@ -188,7 +189,7 @@ export default function TechnicalSheet({ opportunityId }) {
               </div>
             </div>
           )}
-          <TechnicalVerdict matrix={matrix} actorId={user?.id ?? null} writes={{ refresh }} />
+          <TechnicalVerdict matrix={matrix} actorId={user?.id ?? null} writes={{ refresh }} onTechnicalPage />
 
           <p className="text-xs text-muted-foreground">No prices or costs are shown here.</p>
         </>
