@@ -285,7 +285,7 @@ The centralized analytics interface and register aggregating live Commission Poo
 _Avoid_: Commission Page, Money Tab
 
 **Realized Commission Pool**:
-The accumulated Commission Pool derived strictly from deals that have reached the Awarded stage or beyond (Awarded, PO Received, Project Delivery, Collection, Closed Won) where each deal is priced using the Commission Rate effective on its Contract Date.
+The accumulated Commission Pool derived strictly from deals that have a Contract Date (ADR 0006: Realized is a property of the deal, not of a stage), where each deal is priced using the Commission Rate effective on its Contract Date.
 _Avoid_: Paid Commission, Settled Pool
 
 **Projected Commission Pool**:

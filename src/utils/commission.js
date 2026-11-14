@@ -342,6 +342,8 @@ export function aggregateOpportunityCommissions({
       projectTitle: opp.project_title,
       clientName: opp.client_name,
       status: opp.status,
+      saleTypeId: opp.sale_type_id ?? null,
+      flowStageId: opp.flow_stage_id ?? null,
       projectType: opp.project_type,
       contractDate: opp.contract_date,
       createdAt: opp.created_at,

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from "recharts";
 import { Download, Search, TrendingUp } from "lucide-react";
@@ -9,6 +10,8 @@ import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
 import HighlightText from "../../HighlightText";
 import { formatPHP } from "../../../constants/sor";
+import { flowStageTone } from "../../../constants/salesFlow";
+import { salesFlowService } from "../../../services/salesFlowService";
 import { MASK, TONE, compactPHP, downloadLedgerCsv, monthlyPool, projectTypeInfo } from "./commissionView";
 import { Pager, Swatch } from "./parts";
 import ReportFigure from "../../ui/ReportFigure";
@@ -45,6 +48,21 @@ export default function PoolTab({ access, departments, initialDealId }) {
   const [page, setPage] = useState(0);
   const [openDealId, setOpenDealId] = useState(initialDealId ?? null);
 
+  // A SOR on a Sales Flow keeps a stale `status`; the Stage column reads its
+  // flow Stage, as the SORS List does. Only a SOR with no Sale Type shows `status`.
+  const { data: flowStagesIndex } = useQuery({
+    queryKey: ["allFlowStagesIndex"],
+    queryFn: () => salesFlowService.getAllStagesIndex(),
+  });
+  const stageBadgeOf = (d) => {
+    if (!d.saleTypeId) return <StatusBadge status={d.status} />;
+    const stage = flowStagesIndex?.stagesById?.[d.flowStageId];
+    if (!stage) return <StatusBadge label="—" theme="mauve" />;
+    const flow = flowStagesIndex.flowsById[stage.flow_id];
+    const stagesOfFlow = flowStagesIndex.stagesByFlow[stage.flow_id] || [];
+    return <StatusBadge label={stage.name} theme={flowStageTone(stage, flow, stagesOfFlow)} />;
+  };
+
   const ledger = useMemo(() => dashboard.dealLedger || [], [dashboard]);
   const months = useMemo(() => monthlyPool(ledger), [ledger]);
   const needle = search.trim().toLowerCase();
@@ -67,7 +85,7 @@ export default function PoolTab({ access, departments, initialDealId }) {
         stats={[
           { label: "Sales fund", value: canViewSalesAmounts ? formatPHP(dashboard.salesDeptTotal) : MASK },
           {
-            label: "Won SORs",
+            label: "With a Contract Date",
             value: (
               <>
                 {dashboard.wonDealsCount ?? 0} <span className="text-sm font-normal text-muted-foreground">of {dashboard.totalDealsCount ?? 0}</span>
@@ -184,7 +202,7 @@ export default function PoolTab({ access, departments, initialDealId }) {
                         <span><HighlightText text={d.opportunityNo} search={search} /></span> · {projectTypeInfo(d.projectType)?.label ?? d.projectType}
                       </p>
                     </TableCell>
-                    <TableCell><StatusBadge status={d.status} /></TableCell>
+                    <TableCell>{stageBadgeOf(d)}</TableCell>
                     <TableCell className="text-muted-foreground">{d.participants?.dealOwner?.name ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums text-foreground">{formatPHP(d.contractValue)}</TableCell>
                     <TableCell className="text-right font-medium tabular-nums text-foreground">{canViewAllFinancials ? formatPHP(d.commissionPool) : MASK}</TableCell>
