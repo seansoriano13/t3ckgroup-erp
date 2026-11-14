@@ -4,6 +4,8 @@
  * server's `calendar_entries()` kind, written lowercase; an id may contain
  * colons, so only the first one splits.
  */
+import { splitKindId } from '@/utils/recordLink.js';
+
 export const ENTRY_PARAM = 'entry';
 
 export function entryAddress(entry) {
@@ -12,10 +14,8 @@ export function entryAddress(entry) {
 
 /** { kind: 'MEETING', id } from an address, or null when it is missing or malformed. */
 export function parseEntryAddress(value) {
-  if (!value) return null;
-  const at = value.indexOf(':');
-  if (at < 1 || at === value.length - 1) return null;
-  return { kind: value.slice(0, at).toUpperCase(), id: value.slice(at + 1) };
+  const parts = splitKindId(value);
+  return parts && { kind: parts.kind.toUpperCase(), id: parts.id };
 }
 
 export const matchesAddress = (entry, parsed) =>

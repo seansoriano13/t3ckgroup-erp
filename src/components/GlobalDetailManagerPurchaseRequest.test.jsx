@@ -20,7 +20,7 @@ vi.mock("../services/opportunityService", () => ({
   opportunityService: {
     getOpportunityForModal: vi.fn(async () => ({
       accessLevel: "full",
-      opportunity: { id: "opp-1" },
+      opportunity: { id: "11111111-1111-4111-8111-111111111111" },
     })),
   },
 }))
@@ -63,7 +63,7 @@ describe("PURCHASE_REQUEST in GlobalDetailManager", () => {
   it("stacks over an open SOR instead of replacing it, and closing returns to the SOR", async () => {
     const user = setupUser()
     renderWithProviders(<MemoryRouter><GlobalDetailManager /></MemoryRouter>)
-    open("opp-1", "OPPORTUNITY")
+    open("11111111-1111-4111-8111-111111111111", "OPPORTUNITY")
     await screen.findByTestId("sor-modal")
 
     open("pr-1", "PURCHASE_REQUEST")
@@ -126,7 +126,7 @@ describe("PURCHASE_REQUEST in GlobalDetailManager", () => {
         <Where />
       </MemoryRouter>,
     )
-    open("opp-1", "OPPORTUNITY")
+    open("11111111-1111-4111-8111-111111111111", "OPPORTUNITY")
     await screen.findByTestId("sor-modal")
     const sorAddress = screen.getByTestId("where").textContent
     open("pr-1", "PURCHASE_REQUEST")

@@ -55,6 +55,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { AttachmentPreviews, AttachmentList } from "./ui/Attachments";
 import { ALLOWED_MIME_TYPES } from "../utils/attachments";
 import { Checkbox } from "@/components/ui/checkbox";
+import { splitKindId } from "@/utils/recordLink";
 
 // -------------------------------------------------------------
 //  HELPERS
@@ -143,9 +144,9 @@ const chatParamFor = (chat) => {
   return kind ? `${kind}:${chat.entity_id}` : CHAT_INBOX;
 };
 const parseChatParam = (value) => {
-  const at = value ? value.indexOf(":") : -1;
-  const type = at > 0 ? TYPE_BY_KIND[value.slice(0, at)] : null;
-  return type && at < value.length - 1 ? { type, id: value.slice(at + 1) } : null;
+  const parts = splitKindId(value);
+  const type = parts ? TYPE_BY_KIND[parts.kind] : null;
+  return type ? { type, id: parts.id } : null;
 };
 
 const ENTITY_LABELS = { GROUP_TASK: "Group Task" };

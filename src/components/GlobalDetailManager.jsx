@@ -55,6 +55,8 @@ export default function GlobalDetailManager() {
     const view = requestId ? null : searchParams.get(RECORD_VIEW_PARAM);
     return linked && view && linked.type === "OPPORTUNITY" ? { ...linked, view } : linked;
   }, [requestId, underKey, linkedItem, searchParams]);
+  // Writes go straight to setSearchParams, not through useRecordParam's "held" copy: the window is derived
+  // from the address alone (no list or query in between), so there is no render that reads shut while a write lands.
   // Opening or closing in the app writes the address. A fresh open adds a
   // history entry; swapping one record for another replaces it.
   const setActiveItem = useCallback(
