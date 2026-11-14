@@ -1057,6 +1057,71 @@ describe("the Costing Desk", () => {
       expect(within(panel).queryByLabelText("Reason for the decision")).not.toBeInTheDocument();
     });
 
+    it("allows a Go with the offer over the ABC, but says so in red on the card and in the confirm box (A1)", async () => {
+      seedPriced({ offer: 3300000 });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await card();
+      expect(within(panel).getByTestId("corridor-decision-over-abc")).toHaveTextContent("The offer is ₱100,000.00 over the ABC. The client cannot accept it.");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Client will negotiate");
+      expect(verdict(panel, "Go")).toBeEnabled();
+      await user.click(verdict(panel, "Go"));
+
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByTestId("corridor-decision-go-over-abc")).toHaveTextContent("The offer is ₱100,000.00 over the ABC. The client cannot accept it.");
+      await user.click(within(dialog).getByRole("button", { name: "Go" }));
+      await waitFor(() => expect(db.rows("costing_bid_decisions")).toHaveLength(1));
+      expect(db.rows("costing_bid_decisions")[0]).toMatchObject({ verdict: "go" });
+    });
+
+    it("counts a line over its own ABC even when the totals are within (B4)", async () => {
+      seedPriced({ offer: 3000000 });
+      const second = db.seed("costing_tender_lines", { matrix_id: matrix.id, position: 2, tender_specification: "Hose", unit: "unit", quantity: 1 });
+      db.seed("costing_tender_line_prices", { tender_line_id: second.id, abc_unit: 1000000, final_offer_unit: 1100000 });
+      db.rows("costing_tender_line_prices")[0].abc_unit = 3400000;
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      openDesk(deal);
+
+      const panel = await card();
+      expect(within(panel).getByTestId("corridor-decision-over-abc")).toHaveTextContent("1 line over its ABC");
+      expect(panel).toHaveTextContent("The offer is within the ABC1 line over its ABC");
+    });
+
+    it("shows the live offer after a Revise and keeps the stamped figure in the decision line (B1)", async () => {
+      seedPriced({ offer: 430000 });
+      seedDecision({ verdict: "revise", reason: "Reprice", final_offer_total: 410000 });
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      openDesk(deal);
+
+      const panel = await card();
+      expect(within(panel).getByTestId("corridor-decision-figures")).toHaveTextContent("Offer₱430,000.00");
+      expect(within(panel).getByTestId("corridor-decision-live")).toHaveTextContent("Revise at ₱410,000.00 · Boss Person");
+    });
+
+    it("warns in amber that Revenue is not worked and says what is blank (A5)", async () => {
+      seedPriced();
+      stubCostingMatrixRpcs({ tier: "closed_book", bands: ["sales", "management"] });
+      const user = openDesk(deal);
+
+      const panel = await card();
+      expect(panel).toHaveTextContent("Worth finishing first");
+      await user.type(within(panel).getByLabelText("Reason for the decision"), "Fine");
+      await user.click(verdict(panel, "Go"));
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByTestId("corridor-decision-go-unworked")).toHaveTextContent(/Planned revenue is not worked yet: .+/);
+    });
+
+    it("words an Unlock as one sentence with one full stop (C7)", async () => {
+      seedPriced();
+      seedDecision({ verdict: "go", cleared_at: "2026-10-16T03:00:00.000Z", cleared_reason: "Unlocked: E2E test." });
+      stubCostingMatrixRpcs({ tier: "price", bands: ["sales"] });
+      openDesk(deal);
+
+      const panel = await card();
+      expect(within(panel).getByTestId("corridor-decision-cleared").textContent).toBe("Earlier Go was unlocked: E2E test.");
+    });
+
     it("says in words when an earlier decision was cleared", async () => {
       seedPriced();
       seedDecision({ verdict: "go", cleared_at: "2026-10-16T03:00:00.000Z", cleared_reason: "The Final Offer changed" });
