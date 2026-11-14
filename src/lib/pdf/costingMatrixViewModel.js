@@ -24,12 +24,14 @@
  * Strings are raw text. The composer escapes them.
  */
 
-import { COSTING_TIER, BID_VERDICT_LABEL, COMPONENT_SOURCE_LABEL, COMPONENT_STATUS_LABEL, summaryLineShown } from '../../constants/costing';
+import { ABC_MODE, COSTING_TIER, BID_VERDICT_LABEL, COMPONENT_SOURCE_LABEL, COMPONENT_STATUS_LABEL, summaryLineShown } from '../../constants/costing';
 import { costIncomplete, expensesIncomplete, factorLabel, finalAcquireTotal, marketingIncomplete, offerIncomplete, opexIncomplete, revenueIncomplete } from '../../utils/costingMath';
 import { printAmount, printDate, printDateTime } from './ipasViewModel';
 
 const BLANK = '—';
 const LANDED_COST = 'awaiting purchase';
+/** Typed as one total: the lines carry no figure of their own. */
+const IN_THE_TOTAL = 'in the total';
 
 /**
  * A Landed Cost roll-up as the print shows it (#283): the figure and its mark ('provisional' or
@@ -177,6 +179,8 @@ function deviationsOf(matrix) {
 
 function moneySheet(matrix, people) {
   const { summary } = matrix;
+  const abcInTotal = matrix.abc?.mode === ABC_MODE.TOTAL_ONLY;
+  const offerInTotal = matrix.offer?.mode === ABC_MODE.TOTAL_ONLY;
   const lines = matrix.tenderLines.map((line) => ({
     number: String(line.number),
     name: lineName(line),
@@ -185,10 +189,10 @@ function moneySheet(matrix, people) {
       'inclusion',
       'inclusions',
     )}`,
-    abc: figure(line.totals.abcTotal),
+    abc: abcInTotal ? IN_THE_TOTAL : figure(line.totals.abcTotal),
     acquire: figure(line.totals.acquireTotal),
     finalAcquire: figure(finalAcquireTotal(line.components)),
-    finalOffer: figure(line.totals.finalOfferTotal),
+    finalOffer: offerInTotal ? IN_THE_TOTAL : figure(line.totals.finalOfferTotal),
     achieved: factorLabel(line.markup.achievedFactor),
     ...landedOf(line.totals.landedCost, figure),
   }));
@@ -199,7 +203,7 @@ function moneySheet(matrix, people) {
     acquire: figure(row.totals.acquireTotal),
     finalAcquire: figure(finalAcquireTotal([row])),
     factor: factorLabel(row.markup.factor),
-    landedCost: LANDED_COST,
+    landedCost: '',
   }));
 
   const offerNote = offerIncomplete(summary.incomplete);

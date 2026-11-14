@@ -354,7 +354,7 @@ export function shapeMatrix(read, settings = null) {
     defaultPresetId: money ? (money.default_preset_id ?? null) : undefined,
     // The evaluation's percent on the Odoo SRP (#962); no key means the viewer was not sent it.
     finalAcquirePercent: money ? Number(money.final_acquire_percent ?? DEFAULT_FINAL_ACQUIRE_PERCENT) : undefined,
-    markup: matrixMarkup(tenderLines, costRows, defaultFactor),
+    markup: matrixMarkup(tenderLines, costRows, defaultFactor, offerSetting),
     compliance: complianceRollup(tenderLines.flatMap((line) => line.components)),
     evaluation: signoffState(signoffs, "evaluation_approved"),
     // All four sign-offs (#274), each as signoffState; the print reads them and the screen's sign buttons.
