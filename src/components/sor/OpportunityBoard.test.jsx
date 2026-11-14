@@ -346,7 +346,7 @@ describe("OpportunityBoard", () => {
         renderBoard();
         await dropOnLost();
 
-        expect(await screen.findByRole("radiogroup", { name: "Why was the deal lost?" })).toBeInTheDocument();
+        expect(await screen.findByRole("radiogroup", { name: "Reason" })).toBeInTheDocument();
         expect(screen.queryByText(/^Move to/)).not.toBeInTheDocument();
         expect(opportunityService.updateStatus).not.toHaveBeenCalled();
       });
@@ -358,7 +358,7 @@ describe("OpportunityBoard", () => {
 
         await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
-        expect(screen.queryByRole("radiogroup", { name: "Why was the deal lost?" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("radiogroup", { name: "Reason" })).not.toBeInTheDocument();
         expect(opportunityService.markLost).not.toHaveBeenCalled();
         expect(opportunityService.updateStatus).not.toHaveBeenCalled();
       });
