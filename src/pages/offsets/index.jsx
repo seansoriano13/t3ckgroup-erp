@@ -24,6 +24,7 @@ import { confirmDeleteToast } from '../../components/ui/CustomToast';
 import { getMonthBoundaries } from '../../utils/dateUtils';
 import { mergeRequestRows } from '../../utils/mergeRequests';
 import { useRecordParam } from '../../hooks/useRecordParam';
+import { isRecordId } from '../../utils/recordLink';
 import { getMyRequestByRef } from '../../services/myRequestLookup';
 import RequestsTable from './_components/RequestsTable';
 import { REQUEST_TYPE_BADGE } from './_components/requestTypes';
@@ -126,7 +127,7 @@ export default function EmployeeLeavesPage() {
   const { data: extra = [] } = useQuery({
     queryKey: ['employeeLeaveByRef', user?.id, recordId],
     queryFn: () => getMyRequestByRef(user.id, recordId),
-    enabled: Boolean(user?.id && recordId && !loadingHistory && !isError && !inList),
+    enabled: Boolean(user?.id && isRecordId(recordId) && !loadingHistory && !isError && !inList),
   });
   const allRequests = useMemo(() => (inList || !extra.length ? requests : [...extra, ...requests]), [inList, extra, requests]);
   const openRequest = recordId ? allRequests.find((r) => r.id === recordId || r.leave_group_id === recordId) : null;
