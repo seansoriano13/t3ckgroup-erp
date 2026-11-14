@@ -47,7 +47,7 @@ function headerLine(request) {
  * header button. It sits on the record layer; every dialog the view opens (add
  * items, PO, confirmations) uses OVER_REQUEST_MODAL to show above it.
  */
-export default function PurchaseRequestModal({ requestId, focusChat = false, tab = null, openCount = 0, onClose, className }) {
+export default function PurchaseRequestModal({ requestId, focusChat = false, tab = null, openCount = 0, onClose, onPanelChange, className }) {
   const { data: request } = usePurchaseRequest(requestId);
   useEffect(clearOldOpenAsChoice, []);
   const { reference, title } = requestIdentity(request);
@@ -69,7 +69,7 @@ export default function PurchaseRequestModal({ requestId, focusChat = false, tab
       label: "Open SOR",
       icon: Briefcase,
       onSelect: () => {
-        onClose();
+        onClose({ leaving: true });
         navigate(sorHref(request.opportunity_id));
       },
     });
@@ -87,7 +87,7 @@ export default function PurchaseRequestModal({ requestId, focusChat = false, tab
         ) : (
           <>
             <NewOdooPoLink />
-            <OpenSorButton request={request} onBeforeOpen={onClose} />
+            <OpenSorButton request={request} onBeforeOpen={() => onClose({ leaving: true })} />
           </>
         )
       }
@@ -102,7 +102,7 @@ export default function PurchaseRequestModal({ requestId, focusChat = false, tab
           line={headerLine(request)}
         />
       )}
-      <PurchaseRequestView requestId={requestId} focusChat={focusChat} tab={tab} openCount={openCount} />
+      <PurchaseRequestView requestId={requestId} focusChat={focusChat} tab={tab} openCount={openCount} onPanelChange={onPanelChange} />
     </ModalShell>
   );
 }

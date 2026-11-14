@@ -69,7 +69,11 @@ const sorRegisterTarget = ({ notif, navigate }) =>
 const technicalSheetTarget = ({ notif, navigate }) =>
   navigate(`/technical/${encodeURIComponent(notif.reference_id)}`);
 
-/** #309: a modal over the current page, no navigation. */
+/**
+ * #309: a modal over the current page, no navigation. #1019: the window's
+ * address is `?open=pr:<id>[&view=chat|items]`, written by GlobalDetailManager
+ * from this event.
+ */
 const purchaseRequestTarget =
   (extra = {}) =>
   ({ notif }) =>
