@@ -123,7 +123,7 @@ describe("ComprehensiveChatModal — address", () => {
       const navigate = useNavigate();
       const { search } = useLocation();
       const ref = useRef(search);
-      ref.current = search;
+      useEffect(() => { ref.current = search; }, [search]);
       useEffect(() => {
         const onOpen = (e) => { 
           const next = new URLSearchParams(ref.current);

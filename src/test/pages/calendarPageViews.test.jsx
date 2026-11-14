@@ -82,7 +82,11 @@ describe('Calendar layouts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Calendar' }));
     expect(screen.getByTestId('where').textContent).not.toContain('weeks=');
     fireEvent.click(screen.getByRole('button', { name: 'Today' }));
-    expect(screen.getByTestId('where').textContent).not.toContain('2026-11-14');
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const where = screen.getByTestId('where').textContent;
+    // Today either drops the date or sets it to today's date — never leaves the picked one.
+    if (where.includes('date=')) expect(where).toContain(`date=${today}`);
   });
 
   it('drops the old ?view= param instead of breaking', async () => {
