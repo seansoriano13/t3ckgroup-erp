@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { CalendarDays } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -24,6 +24,7 @@ import { visibleEntries } from '@/components/calendar/entryKinds.jsx';
 import { withSpan } from '@/components/calendar/entrySpan.js';
 import { GANTT_WEEKS, ganttDays, layoutRange, layoutTitle, parseCalendarParams, shiftDate } from '@/components/calendar/calendarNav.js';
 import { useCalendarLayers } from '@/components/calendar/useCalendarLayers';
+import { ENTRY_PARAM, entryAddress, matchesAddress, parseEntryAddress } from '@/components/calendar/entryAddress.js';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useIsPhone, useRoomy } from "@/hooks/useScreenBand";
 
@@ -113,7 +114,6 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
 
   const [layers, toggleLayer] = useCalendarLayers(presetLayers);
   const [showPending, setShowPending] = useState(false);
-  const [selected, setSelected] = useState(null);
   const todayYmd = manilaToday();
 
   const { data: venues = [] } = useQuery({
@@ -131,7 +131,42 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
 
   const all = data ?? [];
   const entries = visibleEntries(all, layers);
-  const open = (e) => setSelected(withSpan(e, entries));
+  // The open entry is the address's `?entry=<kind>:<id>`: opening writes it (a new
+  // history step, or a replace when another entry is already open), closing clears it.
+  const wanted = parseEntryAddress(params.get(ENTRY_PARAM));
+  const found = wanted ? all.find((e) => matchesAddress(e, wanted)) : null;
+  const selected = found ? withSpan(found, entries) : null;
+  const open = (e) =>
+    setParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        out.set(ENTRY_PARAM, entryAddress(e));
+        return out;
+      },
+      { replace: Boolean(wanted) },
+    );
+  const closeEntry = () =>
+    setParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        out.delete(ENTRY_PARAM);
+        return out;
+      },
+      { replace: true },
+    );
+  // An address for an entry outside the month on screen: look its date up, then move there.
+  const lookupDate = Boolean(wanted) && !found && !isLoading && !error;
+  const { data: entryDate, isFetched: dateFetched } = useQuery({
+    queryKey: ['calendar-entry-date', wanted?.kind, wanted?.id],
+    queryFn: () => calendarService.fetchEntryDate(wanted),
+    enabled: lookupDate,
+  });
+  const outOfView = lookupDate && Boolean(entryDate) && (entryDate < from || entryDate > to);
+  useEffect(() => {
+    if (outOfView) go({ date: entryDate });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outOfView, entryDate]);
+  const entryMissing = lookupDate && dateFetched && !outOfView;
   const gantt = layout === 'gantt';
   const dayEntries = entries.filter((e) => e.manila_date === anchor);
   const dayDate = parseManilaDate(anchor);
@@ -240,6 +275,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
       {gantt ? (
         <div className="flex min-w-0 flex-col gap-4">
           {toolbar}
+          {entryMissing && <p className="text-sm text-muted-foreground" role="status">Not found. This entry is no longer on the Calendar.</p>}
           {body}
           <KindKey />
         </div>
@@ -247,6 +283,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
         <div className="flex items-start gap-6">
           <section className="flex min-w-0 flex-1 flex-col gap-3">
             {toolbar}
+            {entryMissing && <p className="text-sm text-muted-foreground" role="status">Not found. This entry is no longer on the Calendar.</p>}
             {ganttHidden && <p className="text-sm text-muted-foreground">Gantt needs a wider screen.</p>}
             {body}
             <KindKey />
@@ -258,7 +295,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
           )}
         </div>
       )}
-      <EntryDetail entry={selected} onClose={() => setSelected(null)} entries={entries} viewerId={user?.id} onWithdraw={onWithdraw} />
+      <EntryDetail entry={selected} onClose={closeEntry} entries={entries} viewerId={user?.id} onWithdraw={onWithdraw} />
     </div>
   );
 }
