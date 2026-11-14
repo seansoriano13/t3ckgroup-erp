@@ -35,13 +35,25 @@ const openChat = (entityId, entityType) =>
 
 // ---- targets shared by several types ----
 
-/** Both steps of a task (head grade, HR verification) share one queue; everyone else has their own list. */
+/** Types that land in an approver's queue (head grade, HR verification). */
+const APPROVAL_QUEUE_TYPES = new Set([
+  "NEW_TASK_SUBMITTED",
+  "TASK_AWAITING_APPROVAL",
+  "TASK_SUBMITTED",
+  "TASK_APPROVED_BY_HEAD",
+]);
+
+/**
+ * #1018: an approver's queue item opens as `/approvals/tasks?record=<id>`; any other
+ * task opens as `?open=task:<id>` over the page the reader is on (GlobalDetailManager
+ * writes the address from this event). Both addresses survive a refresh.
+ */
 const taskTarget = ({ notif, user, navigate }) => {
   const { isHr, isHead, isSuperAdmin } = getPermissionContext(user);
-  if (isHead || isSuperAdmin || isHr) {
-    navigate("/approvals/tasks", { state: { openTaskId: notif.reference_id } });
+  if ((isHead || isSuperAdmin || isHr) && APPROVAL_QUEUE_TYPES.has(notif.type)) {
+    navigate(`/approvals/tasks?record=${encodeURIComponent(notif.reference_id)}`);
   } else {
-    navigate("/tasks", { state: { openTaskId: notif.reference_id } });
+    openEntity({ id: notif.reference_id, type: "TASK" });
   }
 };
 
@@ -63,8 +75,6 @@ const groupTaskTarget = ({ notif, navigate }) => {
 const sorTarget = ({ notif }) => openEntity({ id: notif.reference_id, type: "OPPORTUNITY" });
 /** #941: a Bid Decision opens the SOR on its PMS tab. */
 const sorPmsTarget = ({ notif }) => openEntity({ id: notif.reference_id, type: "OPPORTUNITY", view: "pms" });
-const sorRegisterTarget = ({ notif, navigate }) =>
-  navigate("/sors", { state: { openOpportunityId: notif.reference_id } });
 /** #706: reference_id is the SOR. Opens the Technical sheet. */
 const technicalSheetTarget = ({ notif, navigate }) =>
   navigate(`/technical/${encodeURIComponent(notif.reference_id)}`);
@@ -117,13 +127,13 @@ export const NOTIFICATION_TARGETS = {
   GROUP_MEMBER_DONE: { module: "tasks", icon: "CheckCircle2", target: groupTaskTarget },
 
   // ---- sors ----
-  OPPORTUNITY_STAGE_REVERTED: { module: "sors", icon: "TrendingUp", target: sorRegisterTarget },
-  OPPORTUNITY_ACTION_DECISION_DUE: { module: "sors", icon: "Briefcase", target: sorRegisterTarget },
-  OPPORTUNITY_COSTING_INCHARGE_NEEDED: { module: "sors", icon: "Briefcase", target: sorRegisterTarget },
-  OPPORTUNITY_FOLLOW_UP_DUE: { module: "sors", icon: "Clock", target: sorRegisterTarget },
-  OPPORTUNITY_STAGE_CHANGED: { module: "sors", icon: "TrendingUp", target: sorRegisterTarget },
-  OPPORTUNITY_PROCUREMENT_REQUESTED: { module: "sors", icon: "Briefcase", target: sorRegisterTarget },
-  OPPORTUNITY_PROCUREMENT_RESOLVED: { module: "sors", icon: "Briefcase", target: sorRegisterTarget },
+  OPPORTUNITY_STAGE_REVERTED: { module: "sors", icon: "TrendingUp", target: sorTarget },
+  OPPORTUNITY_ACTION_DECISION_DUE: { module: "sors", icon: "Briefcase", target: sorTarget },
+  OPPORTUNITY_COSTING_INCHARGE_NEEDED: { module: "sors", icon: "Briefcase", target: sorTarget },
+  OPPORTUNITY_FOLLOW_UP_DUE: { module: "sors", icon: "Clock", target: sorTarget },
+  OPPORTUNITY_STAGE_CHANGED: { module: "sors", icon: "TrendingUp", target: sorTarget },
+  OPPORTUNITY_PROCUREMENT_REQUESTED: { module: "sors", icon: "Briefcase", target: sorTarget },
+  OPPORTUNITY_PROCUREMENT_RESOLVED: { module: "sors", icon: "Briefcase", target: sorTarget },
   OPPORTUNITY_MENTION: { module: "sors", icon: "MessageCircle", target: sorTarget },
   SOR_AWARDED: { module: "sors", icon: "Trophy", target: sorTarget },
   SOR_BID_DECISION: { module: "sors", icon: "Briefcase", target: sorPmsTarget },
