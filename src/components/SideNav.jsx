@@ -256,6 +256,8 @@ export default function SideNav() {
   // Get domain-driven filtered groups and quick actions from declarative registry
   const activeGroups = getFilteredNavigationGroups(user);
   const releaseNotesDot = useReleaseNotesDot(user);
+  // A nav item's `dot` names which "something new" dot it shows.
+  const navDots = { releaseNotes: releaseNotesDot };
   const quickActionGroups = getFilteredQuickActions(user);
   const currentGroupKey = activeGroupKey(activeGroups, location.pathname);
 
@@ -542,7 +544,7 @@ export default function SideNav() {
                               >
                                 {navLink.label}
                               </span>
-                              {navLink.key === "workspace.releaseNotes" && releaseNotesDot && (
+                              {navLink.dot && navDots[navLink.dot] && (
                                 <span data-testid="release-notes-dot" aria-label="New release" className="h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" />
                               )}
                               {navLink.beta && <BetaTag className={collapsed ? "md:hidden" : ""} />}

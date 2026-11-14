@@ -569,7 +569,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     const recording = canRecordAbsent && recordAbsent;
     if (blocked()) return;
 
-    const leaveLabel = isLwop ? 'LWOP' : 'SIL leave';
+    const leaveLabel = isLwop ? 'LWOP' : 'SIL';
     const filedRange = isLwop ? lwopService.applyLwopLeaveRange : silService.applySilLeaveRange;
     const filedOne = isLwop ? lwopService.applyLwopLeave : silService.applySilLeave;
     // Recording as absent files the LWOP on the employee's behalf, then marks it approved.
@@ -693,7 +693,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const headField = (value, onChange) => (
     <div data-field="head">
       <HeadSelectField employee={selectedEmployee} value={value} onChange={onChange} required error={errors.head} />
-      <FieldError>{errors.head}</FieldError>
     </div>
   );
 
@@ -878,6 +877,9 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               onChange={setLeavePay}
               size="sm"
             />
+            <p className="text-[10px] font-semibold text-muted-foreground px-1 pt-1">
+              Service Incentive Leave (SIL)
+            </p>
           </div>
           {employeeId && leavePay === 'sil' && balanceLine(availableSilHours, pendingSilHours)}
           <Field name="category" label="Category" required error={errors.category}>

@@ -100,6 +100,11 @@ export function computeAvailableHours(balance, pendingHours) {
   return parseFloat(balance || 0) - parseFloat(pendingHours || 0);
 }
 
+/** Offset and SIL draw on an hours balance; the other leave types do not. */
+export function drawsOnBalance(type) {
+  return type === 'OFFSET' || type === 'SIL';
+}
+
 /**
  * Every employee's hours already committed to pending SIL / Offset applications,
  * keyed `${employee_id}_${type}`. `type` is read from `type` (HR list) or
@@ -109,7 +114,7 @@ export function pendingHoursByEmployee(requests) {
   const totals = new Map();
   (requests || []).forEach((req) => {
     const type = req.type ?? req.requestType;
-    if (type !== 'OFFSET' && type !== 'SIL') return;
+    if (!drawsOnBalance(type)) return;
     const key = `${req.employee_id}_${type}`;
     totals.set(key, (totals.get(key) || 0) + parseFloat(req.hours || 0));
   });
@@ -123,7 +128,7 @@ export function pendingHoursByEmployee(requests) {
  */
 export function availableHoursForRequest(req, pendingTotals) {
   const type = req.type ?? req.requestType;
-  if (type !== 'OFFSET' && type !== 'SIL') return null;
+  if (!drawsOnBalance(type)) return null;
   const balance = type === 'OFFSET' ? req.employee?.offset_hours_balance : req.employee?.sil_hours_balance;
   const pending = pendingTotals.get(`${req.employee_id}_${type}`) || 0;
   return computeAvailableHours(balance, pending);

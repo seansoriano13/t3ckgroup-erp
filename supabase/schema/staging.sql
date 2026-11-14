@@ -2763,6 +2763,7 @@ CREATE INDEX bug_reports_created_at_idx ON public.bug_reports USING btree (creat
 CREATE INDEX commission_positions_department_id_idx ON public.commission_positions USING btree (department_id);
 CREATE INDEX commission_rates_rate_type_idx ON public.commission_rates USING btree (rate_type);
 CREATE INDEX commission_splits_project_type_idx ON public.commission_splits USING btree (project_type);
+CREATE INDEX committee_task_activity_task_created_idx ON public.committee_task_activity USING btree (task_id, created_at DESC);
 CREATE INDEX committee_tasks_opportunity_id_idx ON public.committee_tasks USING btree (opportunity_id);
 CREATE INDEX committee_tasks_stage_visit_id_idx ON public.committee_tasks USING btree (stage_visit_id);
 CREATE INDEX committee_tasks_template_idx ON public.committee_tasks USING btree (template_id);
@@ -2916,6 +2917,8 @@ CREATE INDEX sor_stage_participants_opportunity_id_idx ON public.sor_stage_parti
 CREATE INDEX sor_stage_visits_open_idx ON public.sor_stage_visits USING btree (opportunity_id) WHERE (left_at IS NULL);
 CREATE INDEX sor_stage_visits_opportunity_id_idx ON public.sor_stage_visits USING btree (opportunity_id);
 CREATE INDEX stage_conditions_stage_idx ON public.stage_conditions USING btree (stage_id, sort_order);
+CREATE INDEX task_activity_author_idx ON public.task_activity USING btree (author_id);
+CREATE INDEX task_activity_task_type_created_idx ON public.task_activity USING btree (task_id, type, created_at DESC);
 CREATE UNIQUE INDEX task_tags_active_name_key ON public.task_tags USING btree (lower(name)) WHERE (archived_at IS NULL);
 CREATE INDEX tasks_opportunity_id_idx ON public.tasks USING btree (opportunity_id);
 CREATE INDEX tasks_stage_visit_id_idx ON public.tasks USING btree (stage_visit_id);
@@ -3264,11 +3267,11 @@ create policy "Enable insert for authenticated users" on public."committee_task_
   for insert
   to public
   with check (true);
-create policy "Enable read access for all users" on public."committee_task_activity"
+create policy "Group Task chat follows the Group Task read rule" on public."committee_task_activity"
   as permissive
   for select
   to public
-  using (true);
+  using (committee_task_visible(task_id));
 create policy "Allow insert on committee_task_logs" on public."committee_task_logs"
   as permissive
   for insert
@@ -3344,17 +3347,17 @@ create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using ((is_super_admin() OR (evaluator_id = get_employee_id()) OR (EXISTS ( SELECT 1
+  using ((( SELECT is_super_admin() AS is_super_admin) OR (evaluator_id = ( SELECT get_employee_id() AS get_employee_id)) OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
-  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR ((created_by = get_employee_id()) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
+  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = ( SELECT get_employee_id() AS get_employee_id))))) OR ((created_by = ( SELECT get_employee_id() AS get_employee_id)) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "committee_tasks_read_on_hold" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using (((status = 'ON_HOLD'::text) AND ((created_by = get_employee_id()) OR (EXISTS ( SELECT 1
+  using (((status = 'ON_HOLD'::text) AND ((created_by = ( SELECT get_employee_id() AS get_employee_id)) OR (EXISTS ( SELECT 1
    FROM (employees h
      JOIN employees c ON ((c.id = committee_tasks.created_by)))
-  WHERE ((h.id = get_employee_id()) AND h.is_head AND (NOT COALESCE(h.is_deleted, false)) AND (h.department IS NOT NULL) AND (h.department = c.department)))))));
+  WHERE ((h.id = ( SELECT get_employee_id() AS get_employee_id)) AND h.is_head AND (NOT COALESCE(h.is_deleted, false)) AND (h.department IS NOT NULL) AND (h.department = c.department)))))));
 create policy "companies_read" on public."companies"
   as permissive
   for select
@@ -9270,13 +9273,13 @@ AS $function$
     select 1 from public.committee_tasks ct
     where ct.id = p_task_id
       and (
-        ct.created_by = public.get_employee_id()
-        or ct.evaluator_id = public.get_employee_id()
-        or public.is_super_admin()
+        ct.created_by = (select public.get_employee_id())
+        or ct.evaluator_id = (select public.get_employee_id())
+        or (select public.is_super_admin())
         or exists (
           select 1 from public.committee_task_members ctm
           where ctm.committee_task_id = ct.id
-            and ctm.employee_id = public.get_employee_id()
+            and ctm.employee_id = (select public.get_employee_id())
         )
         or (
           ct.status = 'ON_HOLD'
@@ -9284,7 +9287,7 @@ AS $function$
             select 1
               from public.employees h
               join public.employees c on c.id = ct.created_by
-             where h.id = public.get_employee_id()
+             where h.id = (select public.get_employee_id())
                and h.is_head
                and not coalesce(h.is_deleted, false)
                and h.department is not null
@@ -15184,71 +15187,69 @@ $function$
 CREATE OR REPLACE FUNCTION public.get_user_active_chats(p_user_id uuid, p_limit integer DEFAULT 30)
  RETURNS TABLE(entity_id text, entity_type text, title text, subtitle text, status text, latest_message text, latest_author text, latest_created_at timestamp with time zone, last_read_at timestamp with time zone, is_unread boolean, is_deleted boolean, is_archived boolean)
  LANGUAGE plpgsql
-AS $function$BEGIN
-    RETURN QUERY
-    WITH task_chats AS (
-        SELECT
-            t.id::TEXT AS entity_id,
-            'TASK'::TEXT AS entity_type,
-            COALESCE(t.project_title, LEFT(t.task_description, 40)) AS title,
-            (SELECT emp.name FROM public.employees emp WHERE emp.id = t.logged_by) AS subtitle,
-            t.status AS status,
-            ta.content AS latest_message,
-            (SELECT emp.name FROM public.employees emp WHERE emp.id = ta.author_id) AS latest_author,
-            ta.created_at AS latest_created_at,
-            (t.status = 'DELETED') AS is_deleted
-        FROM public.tasks t
-        JOIN public.task_activity ta ON ta.id = (
-            SELECT id FROM public.task_activity
-            WHERE task_id = t.id AND type = 'COMMENT'
-            ORDER BY created_at DESC LIMIT 1
-        )
-        WHERE (
-            t.logged_by = p_user_id OR
-            t.reported_to = p_user_id OR
-            EXISTS (
-                SELECT 1 FROM public.task_activity
-                WHERE task_id = t.id AND author_id = p_user_id
-            )
-        )
+AS $function$
+begin
+    return query
+    with my_tasks as (
+        select t.id from public.tasks t
+        where t.logged_by = p_user_id or t.reported_to = p_user_id
+        union
+        select ta.task_id from public.task_activity ta where ta.author_id = p_user_id
     ),
-    committee_chats AS (
-        SELECT
-            ct.id::text AS entity_id,
-            'COMMITTEE_TASK' AS entity_type,
-            ct.title AS title,
-            'Committee Task' AS subtitle,
-            ct.status AS status,
-            cta.content AS latest_message,
-            COALESCE(e.name, 'System') AS latest_author,
-            cta.created_at AS latest_created_at,
-            false AS is_deleted
-        FROM public.committee_tasks ct
-        JOIN public.committee_task_activity cta ON cta.task_id = ct.id
-        JOIN (
-            SELECT task_id, MAX(created_at) as max_created_at
-            FROM public.committee_task_activity
-            GROUP BY task_id
-        ) latest_act
-            ON latest_act.task_id = ct.id
-            AND latest_act.max_created_at = cta.created_at
-        LEFT JOIN public.employees e ON e.id = cta.author_id
-        WHERE (
-            ct.created_by = p_user_id OR
-            EXISTS (
-                SELECT 1
-                FROM public.committee_task_members ctm
-                WHERE ctm.committee_task_id = ct.id
-                AND ctm.employee_id = p_user_id
-            )
-        )
+    task_chats as (
+        select
+            t.id::text as entity_id,
+            'TASK'::text as entity_type,
+            coalesce(t.project_title, left(t.task_description, 40)) as title,
+            (select emp.name from public.employees emp where emp.id = t.logged_by) as subtitle,
+            t.status as status,
+            ta.content as latest_message,
+            (select emp.name from public.employees emp where emp.id = ta.author_id) as latest_author,
+            ta.created_at as latest_created_at,
+            (t.status = 'DELETED') as is_deleted
+        from my_tasks m
+        join public.tasks t on t.id = m.id
+        cross join lateral (
+            select x.content, x.author_id, x.created_at
+            from public.task_activity x
+            where x.task_id = t.id and x.type = 'COMMENT'
+            order by x.created_at desc
+            limit 1
+        ) ta
     ),
-    combined_chats AS (
-        SELECT * FROM task_chats
-        UNION ALL
-        SELECT * FROM committee_chats
+    my_committee_tasks as (
+        select ct.id from public.committee_tasks ct where ct.created_by = p_user_id
+        union
+        select ctm.committee_task_id from public.committee_task_members ctm where ctm.employee_id = p_user_id
+    ),
+    committee_chats as (
+        select
+            ct.id::text as entity_id,
+            'COMMITTEE_TASK'::text as entity_type,
+            ct.title as title,
+            'Committee Task'::text as subtitle,
+            ct.status as status,
+            cta.content as latest_message,
+            coalesce(e.name, 'System') as latest_author,
+            cta.created_at as latest_created_at,
+            false as is_deleted
+        from my_committee_tasks m
+        join public.committee_tasks ct on ct.id = m.id
+        cross join lateral (
+            select x.content, x.author_id, x.created_at
+            from public.committee_task_activity x
+            where x.task_id = ct.id
+            order by x.created_at desc
+            limit 1
+        ) cta
+        left join public.employees e on e.id = cta.author_id
+    ),
+    combined_chats as (
+        select * from task_chats
+        union all
+        select * from committee_chats
     )
-    SELECT
+    select
         c.entity_id,
         c.entity_type,
         c.title,
@@ -15258,21 +15259,22 @@ AS $function$BEGIN
         c.latest_author,
         c.latest_created_at,
         r.last_read_at,
-        (r.last_read_at IS NULL OR c.latest_created_at > r.last_read_at) AS is_unread,
+        (r.last_read_at is null or c.latest_created_at > r.last_read_at) as is_unread,
         c.is_deleted,
-        (a.archived_at IS NOT NULL) AS is_archived
-    FROM combined_chats c
-    LEFT JOIN public.chat_read_receipts r
-        ON c.entity_id = r.entity_id
-        AND c.entity_type = r.entity_type
-        AND r.user_id = p_user_id
-    LEFT JOIN public.chat_user_archives a
-        ON c.entity_id = a.entity_id
-        AND c.entity_type = a.entity_type
-        AND a.user_id = p_user_id
-    ORDER BY c.latest_created_at DESC
-    LIMIT p_limit;
-END;$function$
+        (a.archived_at is not null) as is_archived
+    from combined_chats c
+    left join public.chat_read_receipts r
+        on c.entity_id = r.entity_id
+        and c.entity_type = r.entity_type
+        and r.user_id = p_user_id
+    left join public.chat_user_archives a
+        on c.entity_id = a.entity_id
+        and c.entity_type = a.entity_type
+        and a.user_id = p_user_id
+    order by c.latest_created_at desc
+    limit p_limit;
+end;
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.group_task_is_stage_action(p_stage_action_id uuid, p_opportunity_id uuid)
  RETURNS boolean

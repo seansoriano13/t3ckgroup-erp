@@ -600,7 +600,8 @@ describe("ApplyLeaveModal", () => {
       await chooseOption(user, employeeSelect, targetEmployee.name)
 
       const headSelect = screen.getAllByRole("combobox")[1]
-      await chooseOption(user, headSelect, targetHead.name)
+      // The option reads "Your team: <name> (<department>)".
+      await chooseOption(user, headSelect, new RegExp(targetHead.name))
 
       const form = screen.getByRole("button", { name: FILE_BUTTON }).closest("form")
       const dateField = form.querySelector('input[type="date"]')
