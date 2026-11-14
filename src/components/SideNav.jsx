@@ -1,6 +1,7 @@
 import BetaTag from "@/components/ui/BetaTag";
 import BugReportButton from "./BugReportButton";
 import { RAIL_QUERY } from "@/hooks/useScreenBand";
+import { useReleaseNotesDot } from "@/hooks/useReleaseNotesDot";
 
 // Below this width, with no saved choice, the side menu opens as the icon rail.
 const RAIL_BELOW = 1280; // keep in step with RAIL_QUERY
@@ -253,6 +254,7 @@ export default function SideNav() {
 
   // Get domain-driven filtered groups and quick actions from declarative registry
   const activeGroups = getFilteredNavigationGroups(user);
+  const releaseNotesDot = useReleaseNotesDot(user);
   const quickActionGroups = getFilteredQuickActions(user);
 
   // React Select setup for Profile Dropdown
@@ -535,6 +537,9 @@ export default function SideNav() {
                               >
                                 {navLink.label}
                               </span>
+                              {navLink.key === "workspace.releaseNotes" && releaseNotesDot && (
+                                <span data-testid="release-notes-dot" aria-label="New release" className="h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" />
+                              )}
                               {navLink.beta && <BetaTag className={collapsed ? "md:hidden" : ""} />}
                               {linkBadge > 0 && (
                                 <span
