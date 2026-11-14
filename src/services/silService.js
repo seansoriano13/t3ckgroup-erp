@@ -70,7 +70,7 @@ async function getPendingSilHours(employeeId) {
 
 export const silService = {
   /**
-   * Apply for SIL Leave (Employee)
+   * Apply for SIL (Employee)
    */
   async applySilLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
     await mealBreakService.refresh();
@@ -130,7 +130,7 @@ export const silService = {
     notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
       sender_id: employeeId,
       type: 'SIL_LEAVE_REQUEST',
-      title: 'New SIL Leave Request',
+      title: 'New SIL Request',
       message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL leave (${formatWindow(startTime, endTime)}) on ${date}.`,
       reference_id: data.id,
     });
@@ -147,7 +147,7 @@ export const silService = {
   },
 
   /**
-   * Apply for SIL Leave across a date range (Employee).
+   * Apply for SIL across a date range (Employee).
    *
    * Writes one row per day under a shared `leave_group_id`, mirroring
    * `offsetService.applyOffsetLeaveRange` — see that function for why a group
@@ -226,7 +226,7 @@ export const silService = {
     notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
       sender_id: employeeId,
       type: 'SIL_LEAVE_REQUEST',
-      title: 'New SIL Leave Request',
+      title: 'New SIL Request',
       message: `${employeeName || 'An employee'} applied for ${totalHours} hrs SIL leave (${rangeLabel}).`,
       reference_id: leaveGroupId,
     });
@@ -348,7 +348,7 @@ export const silService = {
   },
 
   /**
-   * HR Decision on a SIL Leave group ('APPROVED', 'REJECTED').
+   * HR Decision on a SIL group ('APPROVED', 'REJECTED').
    *
    * Acts on every day-row sharing `groupId` — a single-day application is a
    * group of one, so this is the only decision path callers need.
@@ -395,7 +395,7 @@ export const silService = {
       recipient_id: employeeId,
       sender_id: hrId,
       type: 'SIL_LEAVE_DECISION',
-      title: 'SIL Leave Application Status',
+      title: 'SIL Application Status',
       message: `Your SIL leave application for ${totalHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
       reference_id: groupId,
     });
@@ -412,7 +412,7 @@ export const silService = {
   },
 
   /**
-   * Undo HR's decision on a SIL Leave group.
+   * Undo HR's decision on a SIL group.
    * - Reverts every day-row in the group to PENDING
    * - Refunds the group's total hours if it was APPROVED and the employee is
    *   still SIL-eligible; otherwise the refund is withheld and recorded as an
@@ -435,7 +435,7 @@ export const silService = {
       recipient_id: employeeId,
       sender_id: hrId,
       type: 'SIL_LEAVE_DECISION',
-      title: 'SIL Leave Request Reverted',
+      title: 'SIL Request Reverted',
       message: `HR has reverted the decision on your SIL leave request for ${dateLabel}. It is now PENDING again.`,
       reference_id: groupId,
     });
@@ -452,7 +452,7 @@ export const silService = {
   },
 
   /**
-   * Cancel own SIL Leave application (Employee).
+   * Cancel own SIL application (Employee).
    *
    * Operates on the whole leave_group_id, not just the clicked row, mirroring
    * withdrawOffsetLeave's group-atomic pattern — a date-range leave is
@@ -478,7 +478,7 @@ export const silService = {
     notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
       sender_id: employeeId,
       type: 'SIL_LEAVE_CANCELLED',
-      title: 'SIL Leave Cancelled',
+      title: 'SIL Cancelled',
       message: `An employee cancelled their SIL leave for ${totalHours} hrs (${dateLabel}).`,
       reference_id: groupId,
     });
