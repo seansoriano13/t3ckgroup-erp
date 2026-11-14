@@ -146,55 +146,56 @@ export default function EmployeeForm({
 
   return (
     <form id={formId} onSubmit={handleSubmit} className="space-y-5">
-      {/* 1. EMPLOYEE NAME */}
-      <div className="mb-2">
-        <Input
-          required
-          type="text"
-          placeholder="Employee Full Name"
-          value={formData.name}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, name: e.target.value }))
-          }
-          containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto text-2xl font-semibold text-foreground bg-transparent outline-none placeholder:text-muted-foreground/40 border-none pb-1"
-          autoComplete="off"
-        />
-      </div>
-
-      {/* 2. ROLE, EMAIL & CALL SIGN */}
+      {/* 1. EMPLOYEE NAME, EMAIL, ROLE & CALL SIGN */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-        <Input
-          required
-          type="email"
-          label="Google Auth Email"
-          placeholder="e.g. juan@t3ckgroup.com"
-          value={formData.email}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, email: e.target.value }))
-          }
-        />
+        <FieldBox label="Full Name" required bare className="sm:col-span-2">
+          <Input
+            required
+            type="text"
+            placeholder="Employee Full Name"
+            value={formData.name}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, name: e.target.value }))
+            }
+            autoComplete="off"
+          />
+        </FieldBox>
 
-        <Input
-          type="text"
-          label="Job Role / Title"
-          value={formData.role}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, role: e.target.value }))
-          }
-          placeholder="e.g. Marketing Assistant"
-        />
+        <FieldBox label="Google Auth Email" required bare>
+          <Input
+            required
+            type="email"
+            placeholder="e.g. juan@t3ckgroup.com"
+            value={formData.email}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, email: e.target.value }))
+            }
+          />
+        </FieldBox>
 
-        <Input
-          type="text"
-          inputMode="numeric"
-          label="Call Sign"
-          value={formData.call_sign ?? ""}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, call_sign: e.target.value }))
-          }
-          placeholder="e.g. 101 (unique, optional)"
-          autoComplete="off"
-        />
+        <FieldBox label="Job Role / Title" bare>
+          <Input
+            type="text"
+            value={formData.role}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, role: e.target.value }))
+            }
+            placeholder="e.g. Marketing Assistant"
+          />
+        </FieldBox>
+
+        <FieldBox label="Call Sign" bare>
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={formData.call_sign ?? ""}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, call_sign: e.target.value }))
+            }
+            placeholder="e.g. 101 (unique, optional)"
+            autoComplete="off"
+          />
+        </FieldBox>
       </div>
 
       <DeptSubDeptSelector
@@ -229,8 +230,7 @@ export default function EmployeeForm({
 
       {/* Company (issue #142) — nullable; a blank entry is filed as a blank
           on the printed forms rather than guessed. */}
-      <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all mb-6">
-        <FieldBox label="Name of Company" className="mb-1 block" />
+      <FieldBox label="Name of Company" bare className="mb-6">
         <Dropdown
           usePortal={true}
           placement="bottom-start"
@@ -238,7 +238,7 @@ export default function EmployeeForm({
             <Button
               type="button"
               variant="ghost"
-              className="w-full h-auto justify-between bg-transparent text-sm text-foreground text-left outline-none font-medium flex items-center cursor-pointer hover:bg-transparent"
+              className="w-full h-10 justify-between rounded-xl border border-border bg-card px-3 text-sm text-foreground text-left outline-none font-medium flex items-center cursor-pointer hover:bg-card"
             >
               {rawCompanies.find((c) => c.id === formData.companyId)?.name || (
                 <span className="text-muted-foreground/50">-- No company set --</span>
@@ -281,12 +281,11 @@ export default function EmployeeForm({
             </div>
           )}
         </Dropdown>
-      </div>
+      </FieldBox>
 
       {/* Employment Status, SIL Balance & Offset Balance */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 pt-4 mt-2 border-t border-border/50">
-        <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <FieldBox label="Employment Status" className="mb-1 block" />
+        <FieldBox label="Employment Status" bare>
           <Dropdown
             usePortal={true}
             placement="bottom-start"
@@ -294,7 +293,7 @@ export default function EmployeeForm({
               <Button
                 type="button"
                 variant="ghost"
-                className="w-full h-auto justify-between bg-transparent text-sm text-foreground text-left outline-none font-medium flex items-center cursor-pointer hover:bg-transparent"
+                className="w-full h-10 justify-between rounded-xl border border-border bg-card px-3 text-sm text-foreground text-left outline-none font-medium flex items-center cursor-pointer hover:bg-card"
               >
                 {formData.employment_status || <span className="text-muted-foreground/50">-- Select Status --</span>}
                 <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -343,13 +342,16 @@ export default function EmployeeForm({
               </div>
             )}
           </Dropdown>
-        </div>
+        </FieldBox>
 
-        <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <FieldBox label={<><span>SIL Hours Balance</span>
+        <FieldBox
+          label={<><span>SIL Hours Balance</span>
             {hasAutoGranted && (
               <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-granted</span>
-            )}</>} htmlFor="sil-balance" className="mb-1 block justify-between" />
+            )}</>}
+          htmlFor="sil-balance"
+          bare
+        >
           <Input
             id="sil-balance"
             type="number"
@@ -358,12 +360,10 @@ export default function EmployeeForm({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, sil_hours_balance: parseFloat(e.target.value) || 0 }))
             }
-            containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
           />
-        </div>
+        </FieldBox>
 
-        <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <FieldBox label="Offset Hours Balance" className="mb-1 block" />
+        <FieldBox label="Offset Hours Balance" bare>
           <Input
             type="number"
             step="0.5"
@@ -371,9 +371,8 @@ export default function EmployeeForm({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, offset_hours_balance: parseFloat(e.target.value) || 0 }))
             }
-            containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
           />
-        </div>
+        </FieldBox>
       </div>
 
       <div className="space-y-3 pt-4 mt-2 border-t border-border/50">

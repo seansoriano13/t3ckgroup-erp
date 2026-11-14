@@ -12,7 +12,7 @@ import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import toast from "react-hot-toast";
 import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
-import { UserPlus, Edit, Trash2, Shield, KeyRound, Users } from "lucide-react";
+import { UserPlus, Edit, Trash2, Shield, KeyRound, Users, Copy } from "lucide-react";
 import { passwordService } from "../../../services/passwordService";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
 import PageShell from "../../../components/ui/PageShell";
@@ -39,6 +39,33 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useIsPhone } from "@/hooks/useScreenBand";
+
+/** Super Admins only: copies the employee UUID so it never has to be shown. */
+function CopyIdButton({ id, className = "" }) {
+  const copy = async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(id);
+      toast.success("Employee ID copied.");
+    } catch {
+      toast.error("Could not copy the ID.");
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className={`inline-flex items-center gap-1 text-label font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground ${className}`}
+    >
+      <Copy size={11} /> Copy ID
+    </button>
+  );
+}
+
+// The Actions column stays in view while the rest of the table scrolls.
+const STICKY_ACTIONS = "sticky right-0 z-[1] text-right";
+// Balances and Role Flags only fit from 1600px; below that they live in the Edit window.
+const WIDE_ONLY = "hidden min-[1600px]:table-cell";
 
 export default function EmployeeManagement() {
   const queryClient = useQueryClient();
@@ -305,9 +332,9 @@ export default function EmployeeManagement() {
                     <TableHead id="role" phone="badge">Role</TableHead>
                     <TableHead id="status" phone="hide">Status</TableHead>
                     <TableHead id="company" phone="hide">Company</TableHead>
-                    <TableHead id="balances" phone="hide">Balances</TableHead>
-                    <TableHead id="role-flags" phone="hide">Role Flags</TableHead>
-                    <TableHead id="actions" phone="meta" className="text-right">Actions</TableHead>
+                    <TableHead id="balances" phone="hide" className={WIDE_ONLY}>Balances</TableHead>
+                    <TableHead id="role-flags" phone="hide" className={WIDE_ONLY}>Role Flags</TableHead>
+                    <TableHead id="actions" phone="meta" className={`${STICKY_ACTIONS} bg-muted`}>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -330,6 +357,8 @@ export default function EmployeeManagement() {
                     paging.rows.map((emp) => (
                       <TableRow
                         key={emp.id}
+                        onClick={() => handleEdit(emp)}
+                        className="group cursor-pointer"
                       >
                         <TableCell className="text-sm font-bold text-foreground flex items-center gap-3">
                           <Avatar
@@ -346,9 +375,7 @@ export default function EmployeeManagement() {
                               />
                             </p>
 
-                            <p className="text-label text-muted-foreground font-bold uppercase tracking-widest">
-                              {emp.id?.slice(0, 8)}…
-                            </p>
+                            {!!user?.isSuperAdmin && emp.id && <CopyIdButton id={emp.id} />}
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
@@ -398,7 +425,7 @@ export default function EmployeeManagement() {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className={WIDE_ONLY}>
                           <div className="flex flex-col gap-1">
                             <span className="text-label font-black text-muted-foreground uppercase tracking-widest">
                               SIL: <span className="text-foreground">{emp.sil_hours_balance || 0}h</span>
@@ -408,7 +435,8 @@ export default function EmployeeManagement() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs flex gap-1">
+                        <TableCell className={`text-xs ${WIDE_ONLY}`}>
+                          <div className="flex gap-1">
                           {emp.isSuperAdmin && (
                             <span className="bg-violet-2 text-violet-11 border border-mauve-5 px-2.5 py-1 rounded-lg font-black text-label flex items-center gap-1 uppercase tracking-wider">
                               <Shield size={11} /> Super Admin
@@ -442,13 +470,14 @@ export default function EmployeeManagement() {
                               <KeyRound size={11} /> Issued Password
                             </span>
                           )}
+                          </div>
                         </TableCell>
-                        <TableCell label="" className="text-right space-x-2">
+                        <TableCell label="" className={`${STICKY_ACTIONS} space-x-2 bg-card group-hover:bg-muted`}>
                           {!!user?.isSuperAdmin && emp.isIssuedPassword && (
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleReissuePassword(emp)}
+                              onClick={(e) => { e.stopPropagation(); handleReissuePassword(emp); }}
                               className="rounded-xl bg-amber-2 text-amber-11 border border-transparent hover:border-amber-6 hover:bg-amber-3"
                               title="Reissue Password"
                               aria-label="Reissue Password"
@@ -459,7 +488,7 @@ export default function EmployeeManagement() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleEdit(emp)}
+                            onClick={(e) => { e.stopPropagation(); handleEdit(emp); }}
                             className="rounded-xl bg-muted text-foreground border border-transparent hover:border-mauve-5 hover:bg-muted/70"
                             title="Edit Employee"
                             aria-label="Edit Employee"
@@ -469,7 +498,7 @@ export default function EmployeeManagement() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(emp.id)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(emp.id); }}
                             className="rounded-xl bg-destructive/10 text-destructive border border-transparent hover:border-destructive/20 hover:bg-destructive/20"
                             title="Delete Employee"
                             aria-label="Delete Employee"
@@ -637,9 +666,14 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
       onClose={onClose}
       title={isEditing ? "Edit Employee" : "Add Employee"}
       subtitle={
-        isEditing
-          ? `Employee ID: ${employee.id?.slice(0, 8)}…`
-          : "Define system access & roles"
+        isEditing ? (
+          <span className="inline-flex items-center gap-2">
+            Update details & access
+            {!!user?.isSuperAdmin && employee.id && <CopyIdButton id={employee.id} />}
+          </span>
+        ) : (
+          "Define system access & roles"
+        )
       }
       icon={isEditing ? Edit : UserPlus}
       formId="employee-form"
