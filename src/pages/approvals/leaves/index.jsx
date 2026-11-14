@@ -1,5 +1,6 @@
 import PageLoading from "@/components/ui/PageLoading";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import QueryError from "@/components/ui/QueryError";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Clock, Layers, SlidersHorizontal, X } from "lucide-react";
@@ -63,8 +64,26 @@ function LeaveApprovalsQueue() {
       (!needle || [i.person.name, i.typeLabel, i.source.reason, i.ref].some((f) => (f || "").toLowerCase().includes(needle))),
   );
 
+  // #1015: a notification's `?record=` is a row id or a leave group id, not the queue's key.
   const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
+  const fromNotification = recordId && !recordId.includes(":") ? all.find((i) => i.source.id === recordId || i.source.matchValue === recordId) : null;
+  const navigate = useNavigate();
+  const queueReady = !q.isLoadingLeaves && !q.isErrorLeaves;
+  useEffect(() => {
+    if (!queueReady || !recordId || open) return;
+    if (fromNotification) {
+      stepRecord(fromNotification.id);
+    } else if (!recordId.includes(":")) {
+      // No longer waiting on this reader: HR can still see it in the Leaves Manager.
+      if (q.roles.isHr) navigate(`/hr/offsets?record=${encodeURIComponent(recordId)}`, { replace: true });
+      else {
+        toast("This request is not waiting on you any more.");
+        closeRecord();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueReady, recordId, open, fromNotification?.id]);
 
   const decide = useMutation({
     mutationFn: ({ item, status, note }) =>

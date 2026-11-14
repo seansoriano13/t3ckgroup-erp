@@ -23,6 +23,8 @@ import ApplyLeaveModal from '../../components/offsets/ApplyLeaveModal';
 import { confirmDeleteToast } from '../../components/ui/CustomToast';
 import { getMonthBoundaries } from '../../utils/dateUtils';
 import { mergeRequestRows } from '../../utils/mergeRequests';
+import { useRecordParam } from '../../hooks/useRecordParam';
+import { getMyRequestByRef } from '../../services/myRequestLookup';
 import RequestsTable from './_components/RequestsTable';
 import { REQUEST_TYPE_BADGE } from './_components/requestTypes';
 import { CAPTION_BASE } from "@/lib/captionStyle";
@@ -117,6 +119,19 @@ export default function EmployeeLeavesPage() {
     silBalance = user?.sil_hours_balance || 0,
   } = data || {};
 
+  // #1015: `?record=<row id or leave group id>` (a notification link) shows that request
+  // open, even when it was filed in another month than the one selected.
+  const { recordId } = useRecordParam();
+  const inList = recordId ? requests.find((r) => r.id === recordId || r.leave_group_id === recordId) : null;
+  const { data: extra = [] } = useQuery({
+    queryKey: ['employeeLeaveByRef', user?.id, recordId],
+    queryFn: () => getMyRequestByRef(user.id, recordId),
+    enabled: Boolean(user?.id && recordId && !loadingHistory && !isError && !inList),
+  });
+  const allRequests = useMemo(() => (inList || !extra.length ? requests : [...extra, ...requests]), [inList, extra, requests]);
+  const openRequest = recordId ? allRequests.find((r) => r.id === recordId || r.leave_group_id === recordId) : null;
+  const openKey = openRequest ? `${openRequest.type}-${openRequest.id}` : null;
+
   const handleWithdraw = useCallback((req) => {
     const label = REQUEST_TYPE_BADGE[req.type]?.label || 'Request';
     confirmDeleteToast(
@@ -141,9 +156,9 @@ export default function EmployeeLeavesPage() {
   }, [handleWithdraw]);
 
   const filteredRequests = useMemo(() => {
-    if (typeFilter === 'ALL') return requests;
-    return requests.filter(r => r.type === typeFilter);
-  }, [requests, typeFilter]);
+    if (typeFilter === 'ALL') return allRequests;
+    return allRequests.filter(r => r.type === typeFilter || r === openRequest);
+  }, [allRequests, typeFilter, openRequest]);
 
   // The balances sit beside File Time Off / Overtime: they are what the person checks
   // before applying, on either tab. A zero balance reads muted, not alarming.
@@ -235,7 +250,7 @@ export default function EmployeeLeavesPage() {
               description="You haven't filed anything in the selected month that matches this filter."
             />
           ) : (
-            <RequestsTable rows={filteredRequests} onWithdraw={handleWithdraw} />
+            <RequestsTable rows={filteredRequests} onWithdraw={handleWithdraw} openKey={openKey} />
           )
         )}
       </PageShell>

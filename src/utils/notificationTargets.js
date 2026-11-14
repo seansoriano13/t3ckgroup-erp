@@ -80,6 +80,18 @@ const purchaseRequestTarget =
     openEntity({ id: notif.reference_id, type: "PURCHASE_REQUEST", focusChat: false, ...extra });
 const ipasTarget = ({ notif, navigate }) => navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
 
+/**
+ * #1015: a leave, offset, overtime or undertime request waiting on the reader's
+ * decision opens in the Approval Center. reference_id is a row id in some
+ * notifications and a leave group id in others; the page finds the queue item
+ * from either, and sends HR on to /hr/offsets when it is no longer queued.
+ */
+const leaveApprovalTarget = ({ notif, navigate }) =>
+  navigate(`/approvals/leaves?record=${encodeURIComponent(notif.reference_id)}`);
+/** #1015: an answer to the person who filed opens that request in My Requests. */
+const myRequestTarget = ({ notif, navigate }) =>
+  navigate(`/offsets?record=${encodeURIComponent(notif.reference_id)}`);
+
 const bugReportTarget = ({ notif, navigate }) =>
   navigate(`/bug-reports?record=${encodeURIComponent(notif.reference_id)}`);
 
@@ -167,23 +179,23 @@ export const NOTIFICATION_TARGETS = {
 
   // ---- hr ----
   HR_NOTE: { module: "hr", icon: "FileText", target: PENDING },
-  SIL_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: PENDING },
-  SIL_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
-  SIL_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
-  SIL_LEAVE_CANCELLED: { module: "hr", icon: "XCircle", target: PENDING },
-  LWOP_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: PENDING },
-  LWOP_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
-  LWOP_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
-  LWOP_LEAVE_CANCELLED: { module: "hr", icon: "XCircle", target: PENDING },
-  OFFSET_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: PENDING },
-  OFFSET_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
-  OFFSET_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
-  OVERTIME_REQUEST: { module: "hr", icon: "Clock", target: PENDING },
-  OVERTIME_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
-  OVERTIME_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
-  UNDERTIME_REQUEST: { module: "hr", icon: "Clock", target: PENDING },
-  UNDERTIME_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
-  UNDERTIME_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: PENDING },
+  SIL_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  SIL_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  SIL_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  SIL_LEAVE_CANCELLED: { module: "hr", icon: "XCircle", target: myRequestTarget },
+  LWOP_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  LWOP_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  LWOP_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  LWOP_LEAVE_CANCELLED: { module: "hr", icon: "XCircle", target: myRequestTarget },
+  OFFSET_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  OFFSET_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  OFFSET_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  OVERTIME_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  OVERTIME_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  OVERTIME_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  UNDERTIME_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  UNDERTIME_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  UNDERTIME_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
 
   // ---- meetings ----
   MEETING_REQUEST: { module: "meetings", icon: "Clock", target: PENDING },
