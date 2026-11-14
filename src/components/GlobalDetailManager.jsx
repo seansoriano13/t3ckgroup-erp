@@ -13,9 +13,12 @@ import { useAuth } from "../context/AuthContext";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import toast from "react-hot-toast";
 import { canManageGroupTasks } from "../utils/permissions";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useRecordParam } from "../hooks/useRecordParam";
 import {
   RECORD_LINK_PARAM,
+  RECORD_VIEW_PARAM,
+  withRecord,
   NO_ACCESS_MESSAGE,
   itemToRecordKey,
   recordKeyToItem,
@@ -29,11 +32,23 @@ export default function GlobalDetailManager() {
   // of the link; it rides along in state, matched to the record it was for.
   const { recordId, open: openRecord, close: closeRecord } = useRecordParam(RECORD_LINK_PARAM);
   const [openedView, setOpenedView] = useState(null);
-  // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }; PURCHASE_REQUEST has its own slot
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // A Purchase Request (#1019) is `?open=pr:<id>` with its tab in `&view=`. It
+  // opens on top of whatever was open: that record's key rides in the history
+  // entry's state (`under`), and the entry beneath is the record's own address,
+  // so closing the request steps Back to it.
+  const underKey = location.state?.under ?? null;
+  const linkedItem = useMemo(() => recordKeyToItem(recordId), [recordId]);
+  const requestId = linkedItem?.type === "PURCHASE_REQUEST" ? linkedItem.id : null;
+  const requestView = requestId ? searchParams.get(RECORD_VIEW_PARAM) : null;
+  // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }: the record behind a request when one is stacked.
   const activeItem = useMemo(() => {
-    const linked = recordKeyToItem(recordId);
-    return linked && openedView?.key === recordId ? { ...linked, view: openedView.view } : linked;
-  }, [recordId, openedView]);
+    const key = requestId ? underKey : recordId;
+    const linked = requestId ? recordKeyToItem(underKey) : linkedItem;
+    return linked && openedView?.key === key ? { ...linked, view: openedView.view } : linked;
+  }, [requestId, underKey, recordId, linkedItem, openedView]);
   // Opening or closing in the app writes the address. A fresh open adds a
   // history entry; swapping one record for another replaces it.
   const setActiveItem = useCallback(
@@ -42,8 +57,9 @@ export default function GlobalDetailManager() {
       setOpenedView(key && item.view ? { key, view: item.view } : null);
       if (!key) closeRecord();
       else if (key !== recordId) openRecord(key, recordId ? { replace: true } : undefined);
+      else if (requestId) openRecord(key, { replace: true });
     },
-    [closeRecord, openRecord, recordId],
+    [closeRecord, openRecord, recordId, requestId],
   );
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
@@ -55,12 +71,9 @@ export default function GlobalDetailManager() {
   // A Purchase Request (#309) always opens stacked: it never replaces an open
   // SOR/task (#310 opens it from the SOR), and closing it leaves the page, or
   // whatever was open underneath, exactly as it was.
-  const [purchaseRequestId, setPurchaseRequestId] = useState(null);
   // Set by a mention notification: the request opens with its Chat ready to type in.
   const [purchaseRequestFocusChat, setPurchaseRequestFocusChat] = useState(false);
   // Counts every open, so a mention clicked while its request is already open still refreshes the Chat.
-  // The tab a notification names: "chat" or "items" (#850); null leaves the window as it is.
-  const [purchaseRequestTab, setPurchaseRequestTab] = useState(null);
   const [purchaseRequestOpenCount, setPurchaseRequestOpenCount] = useState(0);
 
   const isSuperAdmin = user?.is_super_admin === true || user?.isSuperAdmin === true;
@@ -70,12 +83,23 @@ export default function GlobalDetailManager() {
 
   useEffect(() => {
     const handleOpenDetails = (e) => {
-      const { id, type, isNew, view, focusChat, tab } = e.detail;
+      const { id, type, isNew, view, focusChat, tab, replace, dropParams } = e.detail;
       if (id && type === "PURCHASE_REQUEST") {
-        setPurchaseRequestId(id);
+        const key = itemToRecordKey({ id, type });
+        // The tab a notification names: "chat" or "items" (#850); a mention opens Chat; null leaves an open window as it is.
+        const wantedTab = tab ?? (focusChat === true ? "chat" : null);
         setPurchaseRequestFocusChat(focusChat === true);
-        setPurchaseRequestTab(tab ?? null);
         setPurchaseRequestOpenCount((n) => n + 1);
+        // Already open: swap in place. Over another record: push, remembering what is underneath.
+        const stacked = recordId && recordId !== key && !requestId;
+        setSearchParams(
+          (prev) => {
+            const next = withRecord(prev, key, wantedTab ?? (recordId === key ? prev.get(RECORD_VIEW_PARAM) : null));
+            for (const name of dropParams ?? []) next.delete(name);
+            return next;
+          },
+          { replace: replace === true || Boolean(requestId), state: stacked ? { under: recordId } : requestId ? location.state : null },
+        );
       } else if (id && type) {
         // `view` names the tab an SOR opens on (the Costing Matrix page opens "pms"); absent, it opens on its Summary.
         setActiveItem(view ? { id, type, view } : { id, type });
@@ -87,7 +111,7 @@ export default function GlobalDetailManager() {
 
     window.addEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
     return () => window.removeEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
-  }, [setActiveItem]);
+  }, [setActiveItem, setSearchParams, recordId, requestId, location.state]);
 
   // Everyone needs the roster, not just managers: the detail modal feeds it to
   // the mention picker, and gating it on `canManage` left a normal employee
@@ -340,20 +364,41 @@ export default function GlobalDetailManager() {
     setActiveItem(null);
     setIsRateOpen(false);
     setStackedTaskId(null);
-    setPurchaseRequestId(null);
   };
 
-  if (!activeItem && !purchaseRequestId) return null;
+  // Closing the request steps Back to the record under it. `leaving` (Open SOR) is
+  // about to navigate elsewhere, and a request opened by its own link has nothing
+  // under it: both just drop the request from the address.
+  const closeRequest = ({ leaving = false } = {}) => {
+    // #310: an SOR behind the request re-reads its card and item statuses.
+    queryClient.invalidateQueries({ queryKey: ["sor-purchase-request"] });
+    queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });
+    if (underKey && !leaving) navigate(-1);
+    else setSearchParams((prev) => withRecord(prev, null), { replace: true });
+  };
+  // The Members / Chat toggle is the request's tab in the address; a toggle replaces, so Back doesn't replay tabs.
+  const changeRequestPanel = (panel) => {
+    const nextView = panel === "chat" ? "chat" : null;
+    setPurchaseRequestFocusChat(false);
+    setSearchParams((prev) => withRecord(prev, itemToRecordKey({ id: requestId, type: "PURCHASE_REQUEST" }), nextView), {
+      replace: true,
+      state: location.state,
+    });
+  };
+
+  if (!activeItem && !requestId) return null;
 
   return (
     <>
-      {purchaseRequestId && (
-        <PurchaseRequestModal requestId={purchaseRequestId} focusChat={purchaseRequestFocusChat} tab={purchaseRequestTab} openCount={purchaseRequestOpenCount} onClose={() => {
-            // #310: an SOR behind the request re-reads its card and item statuses.
-            queryClient.invalidateQueries({ queryKey: ["sor-purchase-request"] });
-            queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });
-            setPurchaseRequestId(null);
-          }} />
+      {requestId && (
+        <PurchaseRequestModal
+          requestId={requestId}
+          focusChat={purchaseRequestFocusChat}
+          tab={requestView}
+          openCount={purchaseRequestOpenCount}
+          onPanelChange={changeRequestPanel}
+          onClose={closeRequest}
+        />
       )}
 
       {/* TASK MODAL */}

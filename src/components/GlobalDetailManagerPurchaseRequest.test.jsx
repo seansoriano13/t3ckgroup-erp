@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, act } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
 import { stubRpc } from "@/test/msw/server"
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import GlobalDetailManager from "./GlobalDetailManager"
 
 vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1", name: "Ana" } }) }))
@@ -24,6 +24,11 @@ vi.mock("../services/opportunityService", () => ({
     })),
   },
 }))
+
+const Where = () => {
+  const l = useLocation()
+  return <div data-testid="where">{l.pathname + l.search}</div>
+}
 
 const open = (id, type) =>
   act(() => {
@@ -67,6 +72,70 @@ describe("PURCHASE_REQUEST in GlobalDetailManager", () => {
 
     await user.keyboard("{Escape}")
     await waitFor(() => expect(screen.queryByTestId("pr-view")).not.toBeInTheDocument())
+    expect(screen.getByTestId("sor-modal")).toBeInTheDocument()
+  })
+
+  it("opens from the address and keeps the tab in it (#1019)", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/anywhere?open=pr:pr-1&view=chat"]}>
+        <GlobalDetailManager />
+        <Where />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByTestId("pr-view")).toHaveTextContent("view of pr-1")
+  })
+
+  it("writes ?open=pr:<id> when opened from the app, with the tab a notification names", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/anywhere"]}>
+        <GlobalDetailManager />
+        <Where />
+      </MemoryRouter>,
+    )
+    act(() => {
+      window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: "pr-1", type: "PURCHASE_REQUEST", tab: "chat" } }))
+    })
+    await screen.findByTestId("pr-view")
+    expect(screen.getByTestId("where")).toHaveTextContent("/anywhere?open=pr%3Apr-1&view=chat")
+  })
+
+  it("rewrites the old ?request= shape to ?open=pr:", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/purchasing?request=pr-1&keep=1"]}>
+        <GlobalDetailManager />
+        <Where />
+      </MemoryRouter>,
+    )
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: "pr-1", type: "PURCHASE_REQUEST", replace: true, dropParams: ["request"] } }),
+      )
+    })
+    await screen.findByTestId("pr-view")
+    const where = screen.getByTestId("where").textContent
+    expect(where).toContain("open=pr%3Apr-1")
+    expect(where).toContain("keep=1")
+    expect(where).not.toContain("request=")
+  })
+
+  it("closing a request stacked over an SOR steps back to the SOR's address", async () => {
+    const user = setupUser()
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/sors"]}>
+        <GlobalDetailManager />
+        <Where />
+      </MemoryRouter>,
+    )
+    open("opp-1", "OPPORTUNITY")
+    await screen.findByTestId("sor-modal")
+    const sorAddress = screen.getByTestId("where").textContent
+    open("pr-1", "PURCHASE_REQUEST")
+    await screen.findByTestId("pr-view")
+    expect(screen.getByTestId("where").textContent).toContain("pr%3Apr-1")
+
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(screen.queryByTestId("pr-view")).not.toBeInTheDocument())
+    expect(screen.getByTestId("where")).toHaveTextContent(sorAddress)
     expect(screen.getByTestId("sor-modal")).toBeInTheDocument()
   })
 })

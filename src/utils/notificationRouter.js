@@ -47,7 +47,9 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     // Before the generic `includes("TASK")` branch, though no type here may
     // contain "TASK" anyway. The Purchase Requests list opens the request named
     // by `?request=`.
-    // #309: a modal over the current page, no navigation.
+    // #309: a modal over the current page, no navigation. #1019: the window's
+    // address is `?open=pr:<id>[&view=chat|items]`, written by GlobalDetailManager
+    // from this event.
     // A mention lands the cursor in the request's Chat, where it was made.
     const isChat = notif.type === "PURCHASE_REQUEST_MESSAGE" || notif.type === "PURCHASE_REQUEST_MENTION";
     window.dispatchEvent(
