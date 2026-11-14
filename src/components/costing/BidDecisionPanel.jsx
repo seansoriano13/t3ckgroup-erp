@@ -150,7 +150,7 @@ export default function BidDecisionPanel({
   const [confirmingUnlock, setConfirmingUnlock] = useState(false);
   if (!tierReadsBidDecision(tier)) return null;
 
-  const canDecide = tierDecidesBid(tier);
+  const canDecide = tierDecidesBid(tier) && Boolean(matrix.canDecideLoss);
   const ready = tenderLines.length > 0 && totals.missingOffer === 0;
   // #881: a Go waits for the Evaluation of Specification to be approved. No-go and Revise do not.
   const evaluated = Boolean(evaluation?.approved);
