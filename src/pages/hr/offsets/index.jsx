@@ -41,11 +41,14 @@ import BalancesTable from './_components/BalancesTable';
 import DocumentCenterTab from './_components/DocumentCenterTab';
 import { LEAVE_TYPES, LEAVE_VIEWS, TYPE_META } from './_components/leaveDisplay';
 import { useLeaveSheet } from './_components/useLeaveSheet';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('calendar'); // see LEAVE_VIEWS
+  // Under 1440px the Company and Date chips fold into Filters so Search keeps its width.
+  const narrowScreen = useMediaQuery('(max-width: 1439.98px)');
 
   // Date Range State (for FloatingMonthPicker)
   const currentDate = new Date();
@@ -355,14 +358,15 @@ export default function HrLeavesManagerPage() {
 
   // Pending is every open request whatever its date, and balances are as of
   // today, so only the period views take the month.
-  const usesPeriod = activeTab !== 'pending' && activeTab !== 'balances';
+  // The Calendar has its own month arrows, so only History and Documents show it
+  // (in the toolbar, never the header).
+  const usesPeriod = activeTab === 'history' || activeTab === 'documents';
   const action = (
     <>
-      {usesPeriod && <FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} />}
       <WhoIsOut approvedLeaves={approvedLeaves} />
       <Button type="button" aria-label="File for Employee" onClick={() => setIsApplyModalOpen(true)}>
         <Plus size={16} />
-        File<span className="max-sm:hidden">{' for Employee'}</span>
+        File<span className="max-sm:hidden">{'for Employee'}</span>
       </Button>
     </>
   );
@@ -492,11 +496,13 @@ export default function HrLeavesManagerPage() {
     />
   );
 
-  const hasToolbar = (activeTab === 'pending' || activeTab === 'history' || activeTab === 'balances');
+  const hasToolbar = (activeTab === 'pending' || activeTab === 'history' || activeTab === 'balances' || activeTab === 'documents');
   const toolbar = hasToolbar && (
     <>
       {typeTabs}
-      <FilterBar
+      {usesPeriod && <div data-toolbar-no-stretch><FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} /></div>}
+      {activeTab !== 'documents' && <FilterBar
+        inlineChips={narrowScreen ? 0 : undefined}
         search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search employees' }}
         chips={
           <>
@@ -547,7 +553,7 @@ export default function HrLeavesManagerPage() {
           />
         )}
         activeCount={activeTab === 'pending' && !pendingAsc ? 1 : 0}
-      />
+      />}
     </>
   );
 

@@ -136,6 +136,8 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   const dayEntries = entries.filter((e) => e.manila_date === anchor);
   const dayDate = parseManilaDate(anchor);
   const dayLabel = `${anchor === todayYmd ? 'Today' : format(dayDate, 'EEE')} · ${format(dayDate, 'MMM d')}`;
+  // The toolbar already has a Today button, so its day button names the date only.
+  const dayButtonLabel = format(dayDate, 'EEE · MMM d');
   const openDay = (ymd) => {
     go({ date: ymd });
     setPanelOpen(true);
@@ -178,7 +180,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
         )}
         {!gantt && !roomy && (
           <SidePanel
-            label={dayLabel}
+            label={dayButtonLabel}
             icon={CalendarDays}
             badge={dayEntries.length}
             open={panelOpen}
