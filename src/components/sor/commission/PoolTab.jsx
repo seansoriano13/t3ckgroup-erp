@@ -67,7 +67,7 @@ export default function PoolTab({ access, departments, initialDealId }) {
   const months = useMemo(() => monthlyPool(ledger), [ledger]);
   const needle = search.trim().toLowerCase();
   const deals = ledger.filter(
-    (d) => !needle || [d.opportunityNo, d.clientName, d.projectTitle, d.participants?.dealOwner?.name].filter(Boolean).some((v) => String(v).toLowerCase().includes(needle)),
+    (d) => !needle || [d.sorCode, d.opportunityNo, d.clientName, d.projectTitle, d.participants?.dealOwner?.name].filter(Boolean).some((v) => String(v).toLowerCase().includes(needle)),
   );
   const people = (dashboard.salesEmployees || []).filter((e) => !needle || e.name?.toLowerCase().includes(needle));
   const rows = list === "deals" ? deals : people;
@@ -199,7 +199,8 @@ export default function PoolTab({ access, departments, initialDealId }) {
                     <TableCell>
                       <p className="font-medium text-foreground"><HighlightText text={d.clientName} search={search} /></p>
                       <p className="text-xs text-muted-foreground">
-                        <span><HighlightText text={d.opportunityNo} search={search} /></span> · {projectTypeInfo(d.projectType)?.label ?? d.projectType}
+                        <span className="font-mono font-semibold text-foreground"><HighlightText text={d.sorCode || d.opportunityNo} search={search} /></span>
+                        {d.projectTitle ? <> · <span><HighlightText text={d.projectTitle} search={search} /></span></> : null} · {projectTypeInfo(d.projectType)?.label ?? d.projectType}
                       </p>
                     </TableCell>
                     <TableCell>{stageBadgeOf(d)}</TableCell>

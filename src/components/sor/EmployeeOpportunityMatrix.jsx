@@ -56,7 +56,7 @@ const THEME_DOT = {
  */
 export default function EmployeeOpportunityMatrix({
   opportunities,
-  title = "Team opportunity radar",
+  title = "Team SOR radar",
 }) {
   const navigate = useNavigate();
   // Deactivating a stage removes it from pickers, never from opportunities

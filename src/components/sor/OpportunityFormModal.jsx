@@ -437,8 +437,8 @@ export default function OpportunityFormModal({
       onClose={onClose}
       title={
         isEdit
-          ? `Opportunity ${opportunity.sales_reference || opportunity.client_name}`
-          : "Register Opportunity"
+          ? `SOR ${opportunity.sales_reference || opportunity.client_name}`
+          : "Register SOR"
       }
       badge="OPP"
       formId={FORM_ID}
@@ -450,7 +450,7 @@ export default function OpportunityFormModal({
           <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/40 border border-border rounded-xl px-3 py-2.5">
             Register before bid, proposal, or quotation issuance. The
             registration date establishes deal ownership and cannot be changed
-            afterwards. The opportunity number is issued automatically.
+            afterwards. The SOR number is issued automatically.
           </p>
         )}
 

@@ -386,7 +386,7 @@ export default function SorModalHeader({
                 onClick={onPrev}
                 disabled={!hasPrev}
                 title="Previous"
-                aria-label="Previous opportunity"
+                aria-label="Previous SOR"
                 className="text-muted-foreground"
               >
                 <ChevronLeft size={17} />
@@ -398,7 +398,7 @@ export default function SorModalHeader({
                 onClick={onNext}
                 disabled={!hasNext}
                 title="Next"
-                aria-label="Next opportunity"
+                aria-label="Next SOR"
                 className="text-muted-foreground"
               >
                 <ChevronRightIcon size={17} />
@@ -434,7 +434,7 @@ export default function SorModalHeader({
                   size="icon"
                   onClick={handleEditToggle}
                   title="Edit"
-                  aria-label="Edit opportunity"
+                  aria-label="Edit SOR"
                   className="text-muted-foreground"
                 >
                   <Pencil size={16} />
@@ -489,7 +489,7 @@ export default function SorModalHeader({
                         className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground hover:bg-red-9/10 hover:text-red-11"
                       >
                         <Trash2 size={14} className="text-red-11" />
-                        Delete opportunity
+                        Delete SOR
                       </Button>
                     )}
                   </div>

@@ -184,7 +184,7 @@ export default function DetailsTab({ ctx }) {
   } = ctx;
 
   // ADR 0021 / #297: Expected Value and commission stay Deal Team only, even
-  // inside a Participant's window — so a Participant sees no Estimated Value
+  // inside a Participant's window — so a Participant sees no Expected Value
   // card, no Quotation Document actions (a priced document), and no
   // commission footer at all, not one with its figures hidden.
   const showMoney = accessLevel !== "participant";
@@ -197,7 +197,7 @@ export default function DetailsTab({ ctx }) {
             {showMoney && (
               <div className="p-5 bg-gradient-to-b from-muted/40 to-transparent">
                 <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-label font-bold tracking-widest text-muted-foreground uppercase">Estimated Value</span>
+                  <span className="text-label font-bold tracking-widest text-muted-foreground uppercase">Expected Value</span>
                   {opportunity.status && <StatusBadge status={opportunity.status} />}
                 </div>
                 {isEditing ? (

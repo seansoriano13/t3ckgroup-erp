@@ -335,7 +335,7 @@ export default function OpportunitiesPage() {
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
       queryClient.invalidateQueries({ queryKey: ["opportunityItems", updated.id] });
       setEditing(null);
-      toast.success("Opportunity updated.");
+      toast.success("SOR updated.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -1132,8 +1132,8 @@ export default function OpportunitiesPage() {
               </div>
               <p className="text-sm font-bold text-foreground">
                 {opportunities.length === 0
-                  ? "No opportunities registered yet"
-                  : "No opportunities match these filters"}
+                  ? "No SORs registered yet"
+                  : "No SORs match these filters"}
               </p>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm">
                 {opportunities.length === 0
