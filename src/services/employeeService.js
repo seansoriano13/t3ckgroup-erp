@@ -225,6 +225,8 @@ export const employeeService = {
       isTechnicalIncharge,
       // On the Evaluation list: the nav shows Technical, where the evaluations waiting for approval are.
       isOnEvaluationList,
+      // The What's New popup's seen flag lives on the account, so a new browser stays quiet (#1041).
+      lastSeenChangelogVersion: data.last_seen_changelog_version ?? null,
       isIssuedPassword: !!data.is_issued_password,
       hiddenNavKeys: data.hidden_nav_keys || [],
       canManageLeaves: data.can_manage_leaves,
