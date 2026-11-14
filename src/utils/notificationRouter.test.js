@@ -372,13 +372,12 @@ describe("handleNotificationRoute", () => {
       expect(onClose).toHaveBeenCalled()
     })
 
-    it("leaves the drawer open when the notification carries no reference", () => {
-      // Known asymmetry: the early return skips onClose(), so a
-      // reference-less notification click does nothing visible.
+    it("closes the drawer when the notification carries no reference", () => {
+      // #1014: the click says "nothing to open" (see notificationRouter.fallbacks.test.js) and closes the bell.
       handleNotificationRoute({ type: "TASK_SUBMITTED" }, head, navigate, onClose)
 
       expect(navigate).not.toHaveBeenCalled()
-      expect(onClose).not.toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalled()
     })
   })
 
