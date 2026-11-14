@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, act } from "@testing-library/react";
 import { renderWithProviders } from "../test/support";
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import toast from "react-hot-toast";
 import GlobalDetailManager from "./GlobalDetailManager";
 
@@ -108,6 +108,25 @@ describe("GlobalDetailManager", () => {
     await waitFor(() => {
       expect(screen.getByText("Acme CCTV Rollout")).toBeInTheDocument();
     });
+  });
+
+  it("opens the SOR on the tab its link names, and a tab change rewrites the address", async () => {
+    let search = "";
+    const Probe = () => {
+      search = useLocation().search;
+      return null;
+    };
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/?open=sor:opp-123&view=pms"]}>
+        <GlobalDetailManager />
+        <Probe />
+      </MemoryRouter>
+    );
+
+    const pms = await screen.findByRole("button", { name: "PMS" });
+    await waitFor(() => expect(pms).toHaveAttribute("aria-current", "page"));
+    act(() => screen.getByRole("button", { name: "Summary" }).click());
+    await waitFor(() => expect(search).toBe("?open=sor%3Aopp-123"));
   });
 
   it("says so when a linked task can't be opened", async () => {

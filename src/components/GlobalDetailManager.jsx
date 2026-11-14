@@ -30,8 +30,7 @@ export default function GlobalDetailManager() {
   // The open record lives in the address (`?open=task:<id>`), so a copied link
   // reopens it and Back closes it. `view` (the tab an SOR opens on) isn't part
   // of the link; it rides along in state, matched to the record it was for.
-  const { recordId, open: openRecord, close: closeRecord } = useRecordParam(RECORD_LINK_PARAM);
-  const [openedView, setOpenedView] = useState(null);
+  const { recordId } = useRecordParam(RECORD_LINK_PARAM);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -45,21 +44,28 @@ export default function GlobalDetailManager() {
   const requestView = requestId ? searchParams.get(RECORD_VIEW_PARAM) : null;
   // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }: the record behind a request when one is stacked.
   const activeItem = useMemo(() => {
-    const key = requestId ? underKey : recordId;
     const linked = requestId ? recordKeyToItem(underKey) : linkedItem;
-    return linked && openedView?.key === key ? { ...linked, view: openedView.view } : linked;
-  }, [requestId, underKey, recordId, linkedItem, openedView]);
+    // #1020: the SOR's tab is `&view=` in the address (it belongs to the request while one is stacked on top).
+    const view = requestId ? null : searchParams.get(RECORD_VIEW_PARAM);
+    return linked && view && linked.type === "OPPORTUNITY" ? { ...linked, view } : linked;
+  }, [requestId, underKey, linkedItem, searchParams]);
   // Opening or closing in the app writes the address. A fresh open adds a
   // history entry; swapping one record for another replaces it.
   const setActiveItem = useCallback(
     (item) => {
       const key = itemToRecordKey(item);
-      setOpenedView(key && item.view ? { key, view: item.view } : null);
-      if (!key) closeRecord();
-      else if (key !== recordId) openRecord(key, recordId ? { replace: true } : undefined);
-      else if (requestId) openRecord(key, { replace: true });
+      // The tab (`item.view`) rides in the address with the record; any other record's tab is dropped.
+      const write = (replace) => setSearchParams((prev) => withRecord(prev, key, key ? (item.view ?? null) : null), { replace });
+      if (!key) write(true);
+      else if (key !== recordId) write(Boolean(recordId));
+      else if (requestId || item.view !== (searchParams.get(RECORD_VIEW_PARAM) ?? undefined)) write(true);
     },
-    [closeRecord, openRecord, recordId, requestId],
+    [setSearchParams, searchParams, recordId, requestId],
+  );
+  // Moving between an SOR's tabs replaces the entry, so Back leaves the SOR rather than replaying tabs.
+  const changeSorView = useCallback(
+    (view) => setSearchParams((prev) => withRecord(prev, recordId, view), { replace: true }),
+    [setSearchParams, recordId],
   );
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
@@ -178,8 +184,8 @@ export default function GlobalDetailManager() {
   useEffect(() => {
     if (!noAccess) return;
     toast.error(NO_ACCESS_MESSAGE, { id: "record-no-access" });
-    closeRecord();
-  }, [noAccess, closeRecord]);
+    setSearchParams((prev) => withRecord(prev, null), { replace: true });
+  }, [noAccess, setSearchParams]);
 
   useEffect(() => {
     if (activeItem) {
@@ -470,6 +476,7 @@ export default function GlobalDetailManager() {
           accessLevel={opportunityData.accessLevel}
           lockedSummary={opportunityData.lockedSummary}
           initialView={activeItem?.view}
+          onViewChange={changeSorView}
         />
       )}
 
