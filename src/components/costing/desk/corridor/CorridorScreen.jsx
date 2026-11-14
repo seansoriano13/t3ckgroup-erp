@@ -11,7 +11,7 @@
  * On the right the decision card: what a Go needs (Costing settled), then Go / Revise / No-go and the sign-offs.
  * Parts are one-line liners under their line, never a table in a row; a line's name opens its slide-over.
  */
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Check, ChevronDown, ChevronRight, LayoutDashboard, Trash2, Users } from "lucide-react";
 
@@ -210,6 +210,8 @@ function Corridor({ floor, abc, offer, size = "sm", deal = false, floorLabel = "
 /* ------------------------------------------------------------------ the rows */
 
 const HEAD = "border-b border-border bg-muted px-3 py-2 text-label font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap";
+// Under the pinned deal bar (xl and up): the table heading sticks at the bar's bottom edge (the body's 0.75rem padding is taken off so nothing shows above the bar), on a solid background (#1038).
+const STICKY_HEAD = "xl:sticky xl:top-[calc(var(--deal-h,0px)-0.75rem)] xl:z-10";
 const CELL = "border-b border-border px-3 py-3 align-top text-sm";
 const NUM = "text-right tabular-nums whitespace-nowrap";
 
@@ -233,7 +235,7 @@ function PartLiner({ part, step, save, canWrite, canStatus, factor, faPercent })
     );
   }
   return (
-    <li className={cn("grid items-center gap-x-4 py-1.5 text-[13px]", markupCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem_9rem]" : statusCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_9rem_10rem]" : "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem]")} data-testid="corridor-part">
+    <li className={cn("grid items-center gap-x-4 py-1.5 text-[13px]", markupCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem_12rem]" : statusCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_9rem_10rem]" : "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem]")} data-testid="corridor-part">
       <span className="min-w-0 truncate">{partName(part)}</span>
       <span className="text-right tabular-nums text-muted-foreground">
         {num(part.quantity)} {part.unit}
@@ -256,6 +258,7 @@ function PartLiner({ part, step, save, canWrite, canStatus, factor, faPercent })
       )}
       {markupCol && (
         <span className="text-right tabular-nums text-muted-foreground" title="Acquire × markup (the part's own, else the evaluation's), worked out by itself" data-testid="corridor-markup-price">
+          <span className="mr-1.5 text-xs">Markup price</span>
           {money(num(part.acquire_unit) === null ? null : Math.round(num(part.acquire_unit) * Number(num(part.markup_factor) ?? factor) * 100) / 100)}
         </span>
       )}
@@ -568,6 +571,16 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
   const actorId = user?.id ?? null;
   const incharge = useInchargeOptions(opportunity);
   const c = useCorridor(matrix);
+  // The deal bar's height, handed to the table heading so it sticks right under the bar (#1038).
+  const dealRef = useRef(null);
+  const [dealH, setDealH] = useState(0);
+  useLayoutEffect(() => {
+    const el = dealRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(() => setDealH(Math.round(el.getBoundingClientRect().height)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
   const bands = matrix.bands ?? [];
   const closed = matrix.tier === COSTING_TIER.CLOSED_BOOK;
   // Markup is Purchasing's (the sheet's "Markup Price · PMS – Automatic"): Acquire × the evaluation's markup, 1.35 by default.
@@ -662,11 +675,11 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
         </p>
       )}
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]" style={{ "--deal-h": `${dealH}px` }}>
         <div className="min-w-0 space-y-5">
           {/* The deal's corridor: is the whole bid winnable and paying? */}
           {(sees.abc || sees.offer) && (
-          <section className="sticky top-0 z-20 grid gap-x-8 gap-y-3 rounded-xl border border-border bg-card px-5 py-4 lg:grid-cols-[minmax(0,1fr)_auto]" aria-label="The deal" data-testid="corridor-deal">
+          <section ref={dealRef} className="grid gap-x-8 gap-y-3 rounded-xl border border-border bg-card px-5 py-4 lg:grid-cols-[minmax(0,1fr)_auto] xl:sticky xl:top-[-0.75rem] xl:z-20" aria-label="The deal" data-testid="corridor-deal">
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-baseline gap-x-3">
                 <h3 className="text-sm font-semibold">The deal</h3>
@@ -674,7 +687,7 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
               </div>
               <Corridor floor={c.floorTotal} abc={c.abcTotal} offer={c.offerTotal} size="lg" deal floorLabel={c.floorPartial ? "Go floor so far" : "Go floor"} uncounted={c.floorUncounted} />
             </div>
-            <dl className="flex items-end gap-x-6">
+            <dl className="flex min-w-0 flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-6">
               {sees.abc && (
               <div>
                 <dt className="text-xs text-muted-foreground">Client ABC</dt>
@@ -804,16 +817,16 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
                   )}
                 </div>
               )}
-              <div className="overflow-x-auto rounded-xl border border-border bg-card">
-                <Table className="border-separate border-spacing-0">
+              <div className="overflow-x-auto rounded-xl border border-border bg-card xl:overflow-x-clip">
+                <Table className="border-separate border-spacing-0" containerClassName="xl:overflow-x-clip">
                   <TableHeader className="bg-transparent">
                     <TableRow className="hover:bg-transparent">
-                      <th className={cn(HEAD, "text-left")}>S0 line</th>
-                      {sees.cost && <th className={cn(HEAD, "text-right")}>Our cost</th>}
-                      {sees.abc && abcByLine && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
-                      {(sees.abc || closed) && <th className={cn(HEAD, "text-left")}>{abcByLine && sees.abc ? "Corridor · per unit" : "Go floor · per unit"}</th>}
-                      {sees.offer && <th className={cn(HEAD, "text-right")}>Offer / unit</th>}
-                      {closed && <th className={cn(HEAD, "text-right")}>Margin</th>}
+                      <th className={cn(HEAD, STICKY_HEAD, "text-left")}>S0 line</th>
+                      {sees.cost && <th className={cn(HEAD, STICKY_HEAD, "text-right")}>{step === "costs" ? "Final Acquire / unit" : "Our cost"}</th>}
+                      {sees.abc && abcByLine && <th className={cn(HEAD, STICKY_HEAD, "text-right")}>ABC / unit</th>}
+                      {(sees.abc || closed) && <th className={cn(HEAD, STICKY_HEAD, "text-left")}>{abcByLine && sees.abc ? "Corridor · per unit" : "Go floor · per unit"}</th>}
+                      {sees.offer && <th className={cn(HEAD, STICKY_HEAD, "text-right")}>Offer / unit</th>}
+                      {closed && <th className={cn(HEAD, STICKY_HEAD, "text-right")}>Margin</th>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>

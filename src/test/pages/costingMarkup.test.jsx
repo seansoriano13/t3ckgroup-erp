@@ -100,6 +100,23 @@ describe("markup on the S0 Evaluation", () => {
     expect(screen.getByLabelText("Markup").tagName).toBe("SPAN");
   });
 
+  it("labels the Markup price beside Acquire, names the Costs-step cost column, and sticks the heading under a deal bar pinned only on a laptop (#1038)", async () => {
+    seed();
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["purchasing", "management"] });
+    openDesk(deal);
+
+    await openStep("Costs");
+    const prices = await screen.findAllByTestId("corridor-markup-price");
+    expect(prices[0]).toHaveTextContent("Markup price");
+    const heading = screen.getByRole("columnheader", { name: "Final Acquire / unit" });
+    expect(heading.className).toContain("xl:sticky");
+    expect(screen.queryByRole("columnheader", { name: "Our cost" })).not.toBeInTheDocument();
+    // The deal bar pins from xl up only: a phone shows it in the flow, with the figures stacked.
+    const bar = screen.getByTestId("corridor-deal");
+    expect(bar.className).toContain("xl:sticky");
+    expect(bar.className).not.toMatch(/(^|\s)sticky(\s|$)/);
+  });
+
   it("saves a typed markup for the evaluation, follows it on the parts, and never changes an offer", async () => {
     seed({ defaultFactor: null });
     stubCostingMatrixRpcs({ tier: "closed_book", bands: ["management", "markup"] });

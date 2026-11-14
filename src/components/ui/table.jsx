@@ -46,6 +46,7 @@ function writeWidths(storageKey, widths) {
 //
 // `resetAbove` puts the "Reset columns" button just above the table instead of
 // over its header, and lets it fade out slowly so the pointer can reach it.
+// `containerClassName` styles the scroll wrapper (e.g. `xl:overflow-x-clip` so a sticky heading can stick to the page).
 // The table's parents must not clip it (no overflow-hidden around the table).
 //
 // Density (#978): cells use px-3 py-2 from 768px to the end of the laptop band
@@ -110,6 +111,7 @@ function Table({
   style,
   scrollCue = true,
   resetAbove = false,
+  containerClassName,
   stackOnPhone = false,
   ...props
 }) {
@@ -209,7 +211,7 @@ function Table({
     <div
       ref={containerRef}
       data-slot="table-container"
-      className="overflow-x-auto"
+      className={cn("overflow-x-auto", containerClassName)}
     >
       <table
         ref={tableRef}
