@@ -1,7 +1,6 @@
 /**
- * Sharing an SOR: `/sors?record=<id>` opens that SOR, and the address keeps
- * the open SOR so a reload comes back to it. Before this, opening an SOR
- * never changed the URL, so there was no link to share or reload.
+ * Sharing an SOR: `/sors?record=<id>` is rewritten to `?open=sor:<id>` (#1020), which the
+ * global window opens.
  */
 import { screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
@@ -45,18 +44,17 @@ describe("SOR deep link: /sors?record=<id>", () => {
     vi.spyOn(opportunityService, "getOpportunityById").mockResolvedValue({ ...LINKED });
   });
 
-  it("opens the SOR named in the URL and keeps it in the address", async () => {
+  it("rewrites an old ?record= link to ?open=sor:<id>, keeping the tab", async () => {
     renderWithProviders(
-      <MemoryRouter initialEntries={[`/sors?record=${LINKED.id}`]}>
+      <MemoryRouter initialEntries={[`/sors?record=${LINKED.id}&view=pms`]}>
         <OpportunitiesPage />
         <LocationProbe />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Details for SOR-7")).toBeInTheDocument();
-    expect(opportunityService.getOpportunityById).toHaveBeenCalledWith(LINKED.id);
     await waitFor(() =>
-      expect(screen.getByTestId("search")).toHaveTextContent(`record=${LINKED.id}`),
+      expect(screen.getByTestId("search")).toHaveTextContent(`view=pms&open=sor%3A${LINKED.id}`),
     );
+    expect(screen.getByTestId("search")).not.toHaveTextContent("record=");
   });
 });

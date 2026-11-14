@@ -5,6 +5,7 @@ import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
 import { formatDateWith } from "../../utils/formatDate";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { RECORD_VIEW_PARAM, itemToRecordKey, withRecord } from "@/utils/recordLink";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -224,9 +225,21 @@ export default function OpportunitiesPage() {
   // The open SOR is written back to the URL, so the address always matches what
   // is on screen.
   const [searchParams, setSearchParams] = useSearchParams();
-  const [selectedId, setSelectedId] = useState(
-    () => location.state?.openOpportunityId || searchParams.get("record") || null,
-  );
+  // #1020: an old `?record=<id>&view=<tab>` link is rewritten once (a replace, so Back does not return to
+  // it) to `?open=sor:<id>&view=<tab>`, and the global window opens it.
+  const [linkedRecord] = useState(() => searchParams.get("record"));
+  useEffect(() => {
+    if (!linkedRecord) return;
+    setSearchParams(
+      (prev) => {
+        const next = withRecord(prev, itemToRecordKey({ id: linkedRecord, type: "OPPORTUNITY" }), prev.get(RECORD_VIEW_PARAM));
+        next.delete("record");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [linkedRecord, setSearchParams]);
+  const [selectedId, setSelectedId] = useState(() => location.state?.openOpportunityId || null);
 
   useEffect(() => {
     const inUrl = searchParams.get("record") || null;
