@@ -5,10 +5,11 @@ import ProtectedRoute from "../../../components/ProtectedRoute";
 import ModalShell from "../../../components/ui/ModalShell";
 import { Button } from "../../../components/ui/button";
 import PageShell from "../../../components/ui/PageShell";
+import RecordNotFound from "../../../components/ui/RecordNotFound";
 import PmsSections from "../../../components/sor/modal/PmsSections";
 import { opportunityService } from "../../../services/opportunityService";
 import { costingMatrixService } from "../../../services/costingMatrixService";
-import { itemToRecordKey, withRecord } from "../../../utils/recordLink";
+import { isRecordId, itemToRecordKey, withRecord } from "../../../utils/recordLink";
 
 // Close with no earlier page to return to lands on the Purchasing Dashboard.
 const LIST_PATH = "/purchasing/dashboard";
@@ -41,7 +42,8 @@ function PmsWindow() {
         return null;
       }
     },
-    enabled: Boolean(id),
+    // An id that is not an id is not found, with no request sent (#1027).
+    enabled: isRecordId(id),
     retry: false,
   });
 
@@ -65,12 +67,12 @@ function PmsWindow() {
         ) : null
       }
     >
-      {isLoading ? (
+      {isRecordId(id) && isLoading ? (
         <p className="text-sm text-muted-foreground">Loading the PMS file…</p>
       ) : !opportunity ? (
-        <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground" data-testid="record-not-found">
-          This SOR was not found, or it is not yours to see.
-        </p>
+        <div data-testid="record-not-found">
+          <RecordNotFound recordType="SOR" onBack={close} backLabel="Close" />
+        </div>
       ) : (
         <PmsSections opportunityId={id} opportunity={opportunity} />
       )}

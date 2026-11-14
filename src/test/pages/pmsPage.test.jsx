@@ -54,7 +54,7 @@ describe("the PMS page", () => {
     stubRpc("costing_matrix_header", null);
     open("00000000-0000-4000-8000-00000000dead");
 
-    expect(await screen.findByTestId("record-not-found")).toHaveTextContent(/not found, or it is not yours to see/);
+    expect(await screen.findByTestId("record-not-found")).toHaveTextContent(/Not found, or not yours to see/);
     expect(screen.queryByTestId("pms-sections")).not.toBeInTheDocument();
   });
 });
