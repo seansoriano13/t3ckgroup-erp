@@ -131,11 +131,11 @@ export default function HRCategoriesConfig() {
             No categories found. Add the first one.
           </div>
         ) : (
-          <Table className="whitespace-nowrap">
+          <Table scrollCue={false}>
             <TableHeader>
               <TableRow>
                 <TableHead>Category ID</TableHead>
-                <TableHead className="w-1/3">Description</TableHead>
+                <TableHead>Description</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Sub-Department</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -152,7 +152,7 @@ export default function HRCategoriesConfig() {
                         {cat.categoryId}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm text-mauve-11 truncate max-w-xs">
+                    <TableCell className="text-sm text-mauve-11 whitespace-normal break-words min-w-40">
                       {cat.description}
                     </TableCell>
                     <TableCell className="text-sm text-mauve-11">

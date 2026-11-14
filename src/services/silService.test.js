@@ -248,7 +248,7 @@ describe("silService", () => {
           startTime: '09:00', endTime: '13:00',
           reason: "   ",
         }),
-      ).rejects.toThrow("Please provide a reason for the SIL leave.")
+      ).rejects.toThrow("Please provide a reason for the SIL.")
     })
 
     it("derives a part-hour window down to the half hour", async () => {

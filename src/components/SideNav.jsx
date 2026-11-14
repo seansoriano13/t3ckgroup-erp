@@ -1,6 +1,7 @@
 import BetaTag from "@/components/ui/BetaTag";
 import BugReportButton from "./BugReportButton";
 import { RAIL_QUERY } from "@/hooks/useScreenBand";
+import { useReleaseNotesDot } from "@/hooks/useReleaseNotesDot";
 
 // Below this width, with no saved choice, the side menu opens as the icon rail.
 const RAIL_BELOW = 1280; // keep in step with RAIL_QUERY
@@ -63,7 +64,8 @@ import {
 } from "../constants/navigation";
 import { useNavBadges } from "../hooks/useNavBadges";
 import { CAPTION_BASE } from "@/lib/captionStyle";
-import { navSectionLabel } from "@/lib/navSection";
+import { activeGroupKey } from "@/lib/navSection";
+import { routeLabel } from "@/lib/routeTitle";
 import { isStaging, isLocal } from "@/lib/appEnv";
 
 export default function SideNav() {
@@ -253,7 +255,11 @@ export default function SideNav() {
 
   // Get domain-driven filtered groups and quick actions from declarative registry
   const activeGroups = getFilteredNavigationGroups(user);
+  const releaseNotesDot = useReleaseNotesDot(user);
+  // A nav item's `dot` names which "something new" dot it shows.
+  const navDots = { releaseNotes: releaseNotesDot };
   const quickActionGroups = getFilteredQuickActions(user);
+  const currentGroupKey = activeGroupKey(activeGroups, location.pathname);
 
   // React Select setup for Profile Dropdown
   const profileOptions = [
@@ -464,7 +470,10 @@ export default function SideNav() {
           <nav className="flex flex-col gap-5 mb-6 mt-2">
             {activeGroups.map((group) => {
               const key = group.key;
-              const isExpanded = expandedGroups[key] ?? group.defaultExpanded ?? true;
+              // The group that holds the current page is always open; the saved
+              // choice is left alone and applies again once you move elsewhere.
+              const isExpanded =
+                key === currentGroupKey || (expandedGroups[key] ?? group.defaultExpanded ?? true);
               // A collapsed rail has no room for a header or an accordion —
               // every group just shows its icons, ignoring the per-group
               // expand/collapse state (which resumes as soon as it's expanded).
@@ -513,7 +522,7 @@ export default function SideNav() {
                           to={navLink.link}
                           end={!!navLink.exactMatch}
                           onClick={() => setIsMobileOpen(false)}
-                          title={collapsed ? navLink.label : undefined}
+                          title={navLink.label}
                           className={({ isActive }) =>
                             `flex gap-3 items-center px-3 py-2 laptop:py-1.5 rounded-md transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${isActive
                               ? "bg-sidebar-accent text-sidebar-primary shadow-sm"
@@ -535,6 +544,9 @@ export default function SideNav() {
                               >
                                 {navLink.label}
                               </span>
+                              {navLink.dot && navDots[navLink.dot] && (
+                                <span data-testid="release-notes-dot" aria-label="New release" className="h-2 w-2 shrink-0 rounded-full bg-sidebar-primary" />
+                              )}
                               {navLink.beta && <BetaTag className={collapsed ? "md:hidden" : ""} />}
                               {linkBadge > 0 && (
                                 <span
@@ -589,7 +601,7 @@ export default function SideNav() {
           <PanelRight size={18} strokeWidth={2} />
         </Button>
         <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-sidebar-foreground">
-          {navSectionLabel(location.pathname)}
+          {routeLabel(location.pathname)}
         </h1>
         {envLabel && (
           <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black tracking-wide text-white" style={{ backgroundColor: envColor }}>

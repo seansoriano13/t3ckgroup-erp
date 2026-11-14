@@ -187,7 +187,7 @@ export function ApprovalTable({
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="max-w-[180px] md:table-cell">
+                <TableCell className="max-w-[180px] max-md:max-w-none md:table-cell max-md:before:hidden">
                   <PersonChip person={item.person} />
                 </TableCell>
                 <TableCell phone="hide" className="hidden whitespace-nowrap font-mono text-xs text-muted-foreground lg:table-cell">{shortDate(item.submittedAt)}</TableCell>

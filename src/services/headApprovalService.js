@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
+import { availableHoursForRequest, drawsOnBalance, pendingHoursByEmployee } from './leaveRules';
 
 /**
  * Shared department-head approval stage for sil_leaves, offset_leaves and
@@ -172,7 +173,7 @@ export async function getPendingForHead(headId, { all = false } = {}) {
     routedTo(
       supabase
         .from('sil_leaves')
-        .select('*, employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+        .select('*, employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path, sil_hours_balance)')
       )
       .eq('head_status', 'PENDING')
       .order('date', { ascending: true }),
@@ -186,7 +187,7 @@ export async function getPendingForHead(headId, { all = false } = {}) {
     routedTo(
       supabase
         .from('offset_leaves')
-        .select('*, employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+        .select('*, employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path, offset_hours_balance)')
       )
       .eq('head_status', 'PENDING')
       .order('date', { ascending: true }),
@@ -212,13 +213,51 @@ export async function getPendingForHead(headId, { all = false } = {}) {
   if (overtime.error) throw new Error(overtime.error.message);
   if (undertime.error) throw new Error(undertime.error.message);
 
-  return [
+  const rows = [
     ...(sil.data || []).map((r) => ({ ...r, requestType: 'SIL', table: 'sil_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
     ...(lwop.data || []).map((r) => ({ ...r, requestType: 'LWOP', table: 'lwop_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
     ...(offset.data || []).map((r) => ({ ...r, requestType: 'OFFSET', table: 'offset_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
     ...(overtime.data || []).map((r) => ({ ...r, requestType: 'OVERTIME', table: 'overtime_requests', matchColumn: 'id', matchValue: r.id })),
     ...(undertime.data || []).map((r) => ({ ...r, requestType: 'UNDERTIME', table: 'undertime_requests', matchColumn: 'id', matchValue: r.id })),
   ];
+  return withBalanceFigures(rows);
 }
+
+/**
+ * Adds `availableHours` (what the employee has left once every pending SIL /
+ * Offset application is counted, this one included, the same figure the HR
+ * list shows) and `requestHours` (the whole leave group's hours) to SIL and
+ * Offset rows, so the Approval Center panel can show Available / After this.
+ */
+async function withBalanceFigures(rows) {
+  const balanceRows = rows.filter((r) => drawsOnBalance(r.requestType));
+  if (balanceRows.length === 0) return rows;
+
+  const ids = [...new Set(balanceRows.map((r) => r.employee_id))];
+  const pendingOf = async (table, type) => {
+    if (!balanceRows.some((r) => r.requestType === type)) return [];
+    const { data, error } = await supabase.from(table).select('employee_id, hours').in('employee_id', ids).eq('status', 'PENDING');
+    if (error) throw new Error(error.message);
+    return (data || []).map((r) => ({ ...r, type }));
+  };
+  const [silPending, offsetPending] = await Promise.all([pendingOf('sil_leaves', 'SIL'), pendingOf('offset_leaves', 'OFFSET')]);
+  const totals = pendingHoursByEmployee([...silPending, ...offsetPending]);
+
+  const groupHours = new Map();
+  for (const r of balanceRows) {
+    const key = `${r.table}:${r.matchValue ?? r.id}`;
+    groupHours.set(key, (groupHours.get(key) || 0) + parseFloat(r.hours || 0));
+  }
+
+  return rows.map((r) => {
+    if (!drawsOnBalance(r.requestType)) return r;
+    return {
+      ...r,
+      availableHours: availableHoursForRequest(r, totals),
+      requestHours: groupHours.get(`${r.table}:${r.matchValue ?? r.id}`),
+    };
+  });
+}
+
 
 export const headApprovalService = { decideHeadApproval, hrOverrideApprove, assertHeadCleared, getPendingForHead };
