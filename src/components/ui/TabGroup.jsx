@@ -79,16 +79,18 @@ export default function TabGroup({
       ro = new ResizeObserver(measure);
       ro.observe(el);
     }
+    // Labels and badges change width without the strip itself resizing.
+    let mo;
+    if (typeof MutationObserver !== "undefined") {
+      mo = new MutationObserver(measure);
+      mo.observe(el, { childList: true, subtree: true, characterData: true });
+    }
     return () => {
       window.removeEventListener("resize", measure);
       ro?.disconnect();
+      mo?.disconnect();
     };
   }, [measure, tabs.length]);
-
-  // Labels and badges change width without the strip itself resizing.
-  useEffect(() => {
-    measure();
-  });
 
   // Keep the active tab visible inside the strip (not the page) when it changes.
   useEffect(() => {

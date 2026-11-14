@@ -15,7 +15,7 @@ import { SelectField } from "@/components/ui/SelectField";
  * When the team has two heads nothing is guessed (#138): the box stays empty,
  * the team's heads are listed first and a note explains why (#1005).
  */
-export default function HeadSelectField({ employee, value, onChange }) {
+export default function HeadSelectField({ employee, value, onChange, required = false, error }) {
   const { data: heads = [] } = useQuery({
     queryKey: ['departmentHeads'],
     queryFn: async () => {
@@ -58,12 +58,13 @@ export default function HeadSelectField({ employee, value, onChange }) {
 
   return (
     <div>
-      <FieldBox label="Department Head" className="block mb-1.5" />
+      <FieldBox label="Department Head" required={required} className="block mb-1.5" />
       <SelectField
         value={value || null}
         onChange={onChange}
         options={options}
         placeholder="Select head..."
+        error={!!error}
         className="w-full"
       />
       {isTie && !value && (
@@ -74,6 +75,11 @@ export default function HeadSelectField({ employee, value, onChange }) {
       {suggested && value === suggested.id && (
         <p className="text-[10px] font-semibold text-muted-foreground px-1 pt-1">
           Auto-routed to your department head based on your department/sub-department.
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="px-1 pt-1 text-xs font-semibold text-destructive">
+          {error}
         </p>
       )}
     </div>

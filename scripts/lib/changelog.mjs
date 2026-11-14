@@ -12,6 +12,14 @@ export function todayInManila() {
   return formatter.format(new Date());
 }
 
+/** "purchasing, sales.sors" -> ["purchasing", "sales.sors"]; blank -> [] (everyone). */
+export function parseModules(text) {
+  return String(text ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+}
+
 export function addEntry(existingList, { version, title, changes, date, link, modules } = {}) {
   if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
     throw new Error("Version must follow major.minor.patch format (e.g. 1.8.0)");

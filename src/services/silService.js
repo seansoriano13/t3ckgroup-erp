@@ -52,7 +52,7 @@ function recordWithheldRefund(result, referenceId, actorId) {
 }
 
 /**
- * Hours the employee has already committed to SIL leaves still awaiting an
+ * Hours the employee has already committed to SILs still awaiting an
  * HR decision — see offsetService.getPendingOffsetHours for why this can't
  * be read off the stored balance directly.
  */
@@ -80,7 +80,7 @@ export const silService = {
     }
 
     if (!reason || reason.trim() === '') {
-      throw new Error('Please provide a reason for the SIL leave.');
+      throw new Error('Please provide a reason for the SIL.');
     }
 
     await checkOverlap(employeeId, date, startTime, endTime);
@@ -131,14 +131,14 @@ export const silService = {
       sender_id: employeeId,
       type: 'SIL_LEAVE_REQUEST',
       title: 'New SIL Request',
-      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL leave (${formatWindow(startTime, endTime)}) on ${date}.`,
+      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL (${formatWindow(startTime, endTime)}) on ${date}.`,
       reference_id: data.id,
     });
 
     systemAuditLogService.addSystemEvent(
       'SIL_LEAVE',
       data.id,
-      `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL leave (${formatWindow(startTime, endTime)}) on ${date}.`,
+      `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL (${formatWindow(startTime, endTime)}) on ${date}.`,
       { event: 'SIL_LEAVE_APPLIED', employeeId },
       employeeId,
     ).catch(console.error);
@@ -159,7 +159,7 @@ export const silService = {
       throw new Error('Please select at least one day.');
     }
     if (!reason || reason.trim() === '') {
-      throw new Error('Please provide a reason for the SIL leave.');
+      throw new Error('Please provide a reason for the SIL.');
     }
 
     const seenDates = new Set();
@@ -227,14 +227,14 @@ export const silService = {
       sender_id: employeeId,
       type: 'SIL_LEAVE_REQUEST',
       title: 'New SIL Request',
-      message: `${employeeName || 'An employee'} applied for ${totalHours} hrs SIL leave (${rangeLabel}).`,
+      message: `${employeeName || 'An employee'} applied for ${totalHours} hrs SIL (${rangeLabel}).`,
       reference_id: leaveGroupId,
     });
 
     systemAuditLogService.addSystemEvent(
       'SIL_LEAVE',
       leaveGroupId,
-      `${employeeName || 'An employee'} applied for ${totalHours} hrs SIL leave (${rangeLabel}).`,
+      `${employeeName || 'An employee'} applied for ${totalHours} hrs SIL (${rangeLabel}).`,
       { event: 'SIL_LEAVE_APPLIED', employeeId, leaveGroupId },
       employeeId,
     ).catch(console.error);
@@ -243,7 +243,7 @@ export const silService = {
   },
 
   /**
-   * Get employee's own SIL leave applications
+   * Get employee's own SIL applications
    */
   async getMySilLeaves(employeeId, startDate = null, endDate = null) {
     let query = supabase
@@ -265,7 +265,7 @@ export const silService = {
   },
 
   /**
-   * Get employee's own pending SIL leaves (dateless)
+   * Get employee's own pending SILs (dateless)
    */
   async getMyPendingSilLeaves(employeeId) {
     const { data, error } = await supabase
@@ -284,7 +284,7 @@ export const silService = {
   },
 
   /**
-   * Fetch all SIL leave applications (HR)
+   * Fetch all SIL applications (HR)
    * Also used by all employees to view the calendar (RLS allows viewing APPROVED leaves)
    */
   async getAllSilLeaves(startDate = null, endDate = null) {
@@ -309,7 +309,7 @@ export const silService = {
   },
 
   /**
-   * Fetch all pending SIL leaves across all time (HR)
+   * Fetch all pending SILs across all time (HR)
    */
   async getAllPendingSilLeaves() {
     const { data, error } = await supabase
@@ -328,7 +328,7 @@ export const silService = {
   },
 
   /**
-   * Hours already committed to the employee's own pending SIL leaves —
+   * Hours already committed to the employee's own pending SILs —
    * exposed for the apply forms and pending queue (issue #106).
    */
   getPendingSilHours,
@@ -376,7 +376,7 @@ export const silService = {
 
       if (gateErr) throw new Error(gateErr.message);
       if (!gateRow) throw new Error('Leave application not found.');
-      assertHeadCleared(gateRow, { action: 'approve this SIL leave' });
+      assertHeadCleared(gateRow, { action: 'approve this SIL' });
     }
 
     const { data: result, error } = await supabase.rpc('decide_sil_leave_decision', {
@@ -396,14 +396,14 @@ export const silService = {
       sender_id: hrId,
       type: 'SIL_LEAVE_DECISION',
       title: 'SIL Application Status',
-      message: `Your SIL leave application for ${totalHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
+      message: `Your SIL application for ${totalHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
       reference_id: groupId,
     });
 
     systemAuditLogService.addApprovalEvent(
       'SIL_LEAVE',
       groupId,
-      `SIL leave application for ${totalHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
+      `SIL application for ${totalHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
       { event: 'SIL_LEAVE_DECISION', status, employeeId, leaveGroupId: groupId },
       hrId,
     ).catch(console.error);
@@ -436,14 +436,14 @@ export const silService = {
       sender_id: hrId,
       type: 'SIL_LEAVE_DECISION',
       title: 'SIL Request Reverted',
-      message: `HR has reverted the decision on your SIL leave request for ${dateLabel}. It is now PENDING again.`,
+      message: `HR has reverted the decision on your SIL request for ${dateLabel}. It is now PENDING again.`,
       reference_id: groupId,
     });
 
     systemAuditLogService.addSystemEvent(
       'SIL_LEAVE',
       groupId,
-      `SIL leave decision for ${dateLabel} was reverted to PENDING (was ${previousStatus}).`,
+      `SIL decision for ${dateLabel} was reverted to PENDING (was ${previousStatus}).`,
       { event: 'SIL_LEAVE_DECISION_UNDONE', previousStatus, employeeId, leaveGroupId: groupId },
       hrId,
     ).catch(console.error);
@@ -479,14 +479,14 @@ export const silService = {
       sender_id: employeeId,
       type: 'SIL_LEAVE_CANCELLED',
       title: 'SIL Cancelled',
-      message: `An employee cancelled their SIL leave for ${totalHours} hrs (${dateLabel}).`,
+      message: `An employee cancelled their SIL for ${totalHours} hrs (${dateLabel}).`,
       reference_id: groupId,
     });
 
     systemAuditLogService.addSystemEvent(
       'SIL_LEAVE',
       groupId,
-      `SIL leave for ${dateLabel} was cancelled by the employee.`,
+      `SIL for ${dateLabel} was cancelled by the employee.`,
       { event: 'SIL_LEAVE_CANCELLED', employeeId, leaveGroupId: groupId },
       employeeId,
     ).catch(console.error);
@@ -495,7 +495,7 @@ export const silService = {
   },
 
   /**
-   * Stamp a printed batch's SIL leaves as printed (Document Center).
+   * Stamp a printed batch's SILs as printed (Document Center).
    * Informational only — never blocks a later reprint. Mirrors
    * offsetService.markOffsetLeavesPrinted's group-or-id shape.
    */

@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
-import { availableHoursForRequest, pendingHoursByEmployee } from './leaveRules';
+import { availableHoursForRequest, drawsOnBalance, pendingHoursByEmployee } from './leaveRules';
 
 /**
  * Shared department-head approval stage for sil_leaves, offset_leaves and
@@ -230,7 +230,7 @@ export async function getPendingForHead(headId, { all = false } = {}) {
  * Offset rows, so the Approval Center panel can show Available / After this.
  */
 async function withBalanceFigures(rows) {
-  const balanceRows = rows.filter((r) => r.requestType === 'SIL' || r.requestType === 'OFFSET');
+  const balanceRows = rows.filter((r) => drawsOnBalance(r.requestType));
   if (balanceRows.length === 0) return rows;
 
   const ids = [...new Set(balanceRows.map((r) => r.employee_id))];
@@ -250,7 +250,7 @@ async function withBalanceFigures(rows) {
   }
 
   return rows.map((r) => {
-    if (r.requestType !== 'SIL' && r.requestType !== 'OFFSET') return r;
+    if (!drawsOnBalance(r.requestType)) return r;
     return {
       ...r,
       availableHours: availableHoursForRequest(r, totals),

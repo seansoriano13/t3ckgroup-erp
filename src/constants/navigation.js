@@ -69,6 +69,7 @@ export const NAV_MODULES = {
       // popup points here once; this entry is how people find it again.
       {
         key: "workspace.releaseNotes",
+        dot: "releaseNotes",
         label: "Release Notes",
         link: "/release-notes",
         icon: Sparkles,

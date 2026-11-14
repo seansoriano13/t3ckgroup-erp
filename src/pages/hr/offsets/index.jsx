@@ -366,7 +366,9 @@ export default function HrLeavesManagerPage() {
       <WhoIsOut approvedLeaves={approvedLeaves} />
       <Button type="button" aria-label="File for Employee" onClick={() => setIsApplyModalOpen(true)}>
         <Plus size={16} />
-        File<span className="max-sm:hidden">{'for Employee'}</span>
+        <span>
+          File<span className="max-sm:hidden">{' for Employee'}</span>
+        </span>
       </Button>
     </>
   );
@@ -592,7 +594,7 @@ export default function HrLeavesManagerPage() {
       />
       <ProfileSheet
         person={modalOpen ? null : sheet.person}
-        held={(type) => (sheet.person ? pendingHoursByEmployee.get(`${sheet.person.id}_${type}`) || 0 : 0)}
+        held={(type) => (sheet.person ? pendingTotals.get(`${sheet.person.id}_${type}`) || 0 : 0)}
         pending={sheet.person ? pendingLeaves.filter((r) => r.employee_id === sheet.person.id) : []}
         decided={sheet.person ? processedLeaves.filter((r) => r.employee_id === sheet.person.id) : []}
         onClose={sheet.close}

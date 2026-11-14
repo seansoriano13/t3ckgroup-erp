@@ -69,20 +69,20 @@ describe('Calendar layouts', () => {
   });
 
   it('keeps the selected date across layouts and steps previous, next and today', async () => {
-    renderAt('/calendar?date=2026-10-21');
+    renderAt('/calendar?date=2026-10-23');
     await screen.findByTestId('calendar-month');
     fireEvent.click(screen.getByRole('button', { name: 'Next month' }));
-    expect(screen.getByTestId('where')).toHaveTextContent('date=2026-11-21');
+    expect(screen.getByTestId('where')).toHaveTextContent('date=2026-11-23');
     fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
-    expect(screen.getByTestId('where')).toHaveTextContent('date=2026-11-21');
+    expect(screen.getByTestId('where')).toHaveTextContent('date=2026-11-23');
     fireEvent.click(screen.getByRole('button', { name: 'Previous week' }));
-    expect(screen.getByTestId('where')).toHaveTextContent('date=2026-11-14');
+    expect(screen.getByTestId('where')).toHaveTextContent('date=2026-11-16');
     fireEvent.click(screen.getByRole('button', { name: '4 weeks' }));
     expect(screen.getByTestId('where')).toHaveTextContent('weeks=4');
     fireEvent.click(screen.getByRole('button', { name: 'Calendar' }));
     expect(screen.getByTestId('where').textContent).not.toContain('weeks=');
     fireEvent.click(screen.getByRole('button', { name: 'Today' }));
-    expect(screen.getByTestId('where').textContent).not.toContain('2026-11-14');
+    expect(screen.getByTestId('where').textContent).not.toContain('2026-11-16');
   });
 
   it('drops the old ?view= param instead of breaking', async () => {

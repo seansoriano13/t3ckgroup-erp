@@ -8,6 +8,15 @@ vi.mock("@/lib/supabase", () => ({
   supabase: { from: () => ({ update: () => ({ eq: () => Promise.resolve({ error: null }) }) }) },
 }));
 
+// A fixed list, so a new release at the top of the real changelog cannot change what these cases mean.
+vi.mock("@/data/changelog.json", () => ({
+  default: [
+    { date: "2026-11-13", title: "One Canvass", version: "1.10.6", modules: ["purchasing.canvasses"], changes: ["Canvass change."] },
+    { date: "2026-11-12", title: "Older", version: "1.10.5", modules: ["sales"], changes: ["Older change."] },
+    { date: "2026-11-01", title: "Everyone", version: "1.9.0", changes: ["Everyone change."] },
+  ],
+}));
+
 import ChangelogModal from "@/components/ChangelogModal";
 import { useReleaseNotesDot } from "@/hooks/useReleaseNotesDot";
 import { entryTouchesUser, getUnreadVersion } from "@/utils/changelogAccess";
@@ -38,7 +47,7 @@ describe("What's New by module (#1011)", () => {
   it("tags the latest release for Canvass only, and every entry is still listed", () => {
     expect(latest.version).toBe("1.10.6");
     expect(latest.modules).toEqual(["purchasing.canvasses"]);
-    expect(changelog.length).toBeGreaterThan(10);
+    expect(changelog.length).toBe(3);
   });
 
   it("entries with no modules are for everyone", () => {

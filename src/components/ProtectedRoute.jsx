@@ -1,28 +1,23 @@
 ﻿import { Navigate, Link } from "react-router";
+import { Lock } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import EmptyState from "@/components/ui/EmptyState";
 
 // A signed-in person who lacks access is told so, instead of being bounced to
 // the Dashboard with no message. The access rules themselves are unchanged.
 export function NoAccess({ needs, grantedBy }) {
   return (
-    <div
-      role="alert"
-      className="min-h-[60vh] flex items-center justify-center p-6"
-    >
-      <div className="max-w-md text-center space-y-3">
-        <h1 className="text-lg font-semibold text-foreground">
-          You don&apos;t have access to this page
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          This page needs {needs}. Ask {grantedBy} if you think you should have it.
-        </p>
-        <Link
-          to="/"
-          className="inline-block text-sm font-semibold text-primary hover:underline"
-        >
-          Go to the Dashboard
-        </Link>
-      </div>
+    <div role="alert" className="min-h-[60vh] flex items-center justify-center p-6">
+      <EmptyState
+        icon={Lock}
+        title="You don't have access to this page"
+        description={`This page needs ${needs}. Ask ${grantedBy} if you think you should have it.`}
+        action={
+          <Link to="/" className="text-sm font-semibold text-primary hover:underline">
+            Go to the Dashboard
+          </Link>
+        }
+      />
     </div>
   );
 }

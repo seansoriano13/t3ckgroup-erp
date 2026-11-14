@@ -48,4 +48,15 @@ describe('HeadSelectField', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledWith('t'));
     expect(screen.queryByText(/heads\. Pick/)).toBeNull();
   });
+
+  it('marks the caption required and shows an error line when asked', async () => {
+    employeeService.getAllEmployees.mockResolvedValue(all);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <HeadSelectField employee={{ department: 'Tech' }} value="t" onChange={vi.fn()} required error="Pick a Department Head." />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('Pick a Department Head.');
+    expect(screen.getByText('Department Head').parentElement.textContent).toContain('*');
+  });
 });

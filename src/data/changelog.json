@@ -1,5 +1,19 @@
 [
     {
+        "date": "2026-11-14",
+        "title": "Faster chats and a tidier Time Off",
+        "version": "1.10.7",
+        "changes": [
+            "Chats and Group Task chats open without timing out, and a Group Task chat only shows to the people who can see that Group Task.",
+            "The File Time Off form is easier to fill: required fields are marked with a red asterisk, mistakes show under the field, and you are warned when you ask for more hours than you have.",
+            "The Department Head picker shows each head's department, and it explains when your team has two heads and you need to choose one.",
+            "Time Off & Overtime has one date control, a header that wraps on small screens, and each request type has one colour and one name everywhere. Paid leave is called SIL (Service Incentive Leave).",
+            "The Employee Directory opens a person when you click the row, keeps Actions in view, and Super Admins can copy an employee's ID.",
+            "The menu opens the group you are in, the phone top bar shows the page title, and a screen you cannot open now says so.",
+            "What's New now pops up only for releases that touch the modules you can open. A small dot on Release Notes in the menu shows when there is something new."
+        ]
+    },
+    {
         "date": "2026-11-13",
         "title": "One Canvass for the whole request",
         "version": "1.10.6",
