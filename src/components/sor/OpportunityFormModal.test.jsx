@@ -111,6 +111,17 @@ async function chooseSaleType() {
   await pickSaleType();
 }
 
+// Registering needs Lead Source, Company, Contact Person and Project too (#1046):
+// fill them, then the test can submit.
+async function fillRequired() {
+  const user = setupUser();
+  await user.click(await screen.findByRole("combobox", { name: /Lead Source/ }));
+  await user.click(await screen.findByRole("option", { name: "LGU" }));
+  fireEvent.change(screen.getByLabelText(/Company/), { target: { value: "Acme Corp" } });
+  fireEvent.change(screen.getByLabelText(/Contact Person/), { target: { value: "Juan" } });
+  fireEvent.change(screen.getByLabelText(/Project/), { target: { value: "Boom Lift" } });
+}
+
 function renderForm(props = {}) {
   const onSubmit = vi.fn();
   renderWithProviders(
@@ -132,6 +143,7 @@ describe("OpportunityFormModal â€” Sales Director", () => {
     // The locked field shows the resolved director once employees load.
     await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
+    await fillRequired();
 
     const form = document.getElementById("opportunity-form");
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -149,11 +161,14 @@ describe("OpportunityFormModal â€” Sales Director", () => {
         id: "0e4a4b7c-1d2e-4f30-9a8b-7c6d5e4f3a2b",
         client_name: "LGU - Tuguegarao",
         project_title: "2 Units Boom Lift",
+        lead_source: "LGU",
+        contact_person: "Juan",
+        deal_owner_id: OWNER_ID,
         sales_director_id: OWNER_ID,
       },
     });
 
-    await screen.findByText("Maey Zausa");
+    await screen.findAllByText("Maey Zausa");
 
     const form = document.getElementById("opportunity-form");
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -169,6 +184,7 @@ describe("OpportunityFormModal â€” Assignment conditions", () => {
     await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
 
     await pickSaleType();
+    await fillRequired();
 
     await screen.findByText(/Showing \d+ fields? for Flow A/);
     expect(screen.queryByText("Buyer assigned")).not.toBeInTheDocument();
@@ -214,6 +230,7 @@ describe("OpportunityFormModal â€” Project Type Auto-derivation & Strategic Togg
     const onSubmit = renderForm();
     await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
+    await fillRequired();
 
     const form = document.getElementById("opportunity-form");
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -226,6 +243,7 @@ describe("OpportunityFormModal â€” Project Type Auto-derivation & Strategic Togg
     const onSubmit = renderForm();
     await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
+    await fillRequired();
 
     const toggleButton = screen.getByRole("button", { name: /mark as strategic/i });
     fireEvent.click(toggleButton);
@@ -305,6 +323,7 @@ describe("OpportunityFormModal — the S0 box", () => {
     const onSubmit = renderForm();
     await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
+    await fillRequired();
     type(REFERENCE, " so01237 ");
     submit();
 
@@ -318,6 +337,7 @@ describe("OpportunityFormModal — the S0 box", () => {
     const onSubmit = renderForm();
     await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
+    await fillRequired();
     type(REFERENCE, "not-a-quote");
     submit();
 
@@ -329,9 +349,43 @@ describe("OpportunityFormModal — the S0 box", () => {
     const onSubmit = renderForm();
     await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
     await chooseSaleType();
+    await fillRequired();
     submit();
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].sales_reference).toBe("");
+  });
+});
+
+// #1046: an empty submit names every missing field together, not one browser bubble at a time.
+describe("OpportunityFormModal - empty submit", () => {
+  it("names every missing field at once and does not register", async () => {
+    const onSubmit = renderForm();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
+    const form = document.getElementById("opportunity-form");
+    expect(form).toHaveAttribute("novalidate");
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    for (const name of ["Sale Type", "Lead Source", "Company", "Contact Person", "Project"]) {
+      expect(await screen.findByText(`${name} is required.`)).toBeInTheDocument();
+    }
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("clears a field's line once it is filled", async () => {
+    renderForm();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
+    document.getElementById("opportunity-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await screen.findByText("Company is required.");
+    fireEvent.change(screen.getByLabelText(/Company/), { target: { value: "Acme" } });
+    expect(screen.queryByText("Company is required.")).not.toBeInTheDocument();
+  });
+
+  it("gives each text box an accessible name", async () => {
+    renderForm();
+    await chooseSaleType();
+    for (const name of [/Company/, /Contact Person/, /Project/]) {
+      expect(await screen.findByRole("textbox", { name })).toBeInTheDocument();
+    }
   });
 });

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import { renderWithProviders, setupUser } from "../../test/support";
 import OpportunityFormModal from "./OpportunityFormModal";
 
@@ -82,6 +82,16 @@ async function chooseSaleType() {
   await pickSaleType();
 }
 
+// Registering needs Lead Source, Company, Contact Person and Project too (#1046).
+async function fillRequired() {
+  const user = setupUser();
+  await user.click(await screen.findByRole("combobox", { name: /Lead Source/ }));
+  await user.click(await screen.findByRole("option", { name: "LGU" }));
+  fireEvent.change(screen.getByLabelText(/Company/), { target: { value: "Acme Corp" } });
+  fireEvent.change(screen.getByLabelText(/Contact Person/), { target: { value: "Juan" } });
+  fireEvent.change(screen.getByLabelText(/Project/), { target: { value: "Boom Lift" } });
+}
+
 function submitForm() {
   const form = document.getElementById("opportunity-form");
   form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -95,6 +105,7 @@ describe("OpportunityFormModal: Deal Owner defaults to the registrant", () => {
     // The Deal Owner box shows the registrant once the employee list is in.
     await waitFor(() => expect(screen.getByRole("combobox", { name: /Deal Owner/ })).toHaveTextContent("Maey Zausa"));
     await chooseSaleType();
+    await fillRequired();
     submitForm();
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
@@ -107,10 +118,12 @@ describe("OpportunityFormModal: Deal Owner defaults to the registrant", () => {
       const onSubmit = renderForm();
       await waitFor(() => expect(screen.getByRole("combobox", { name: /Sales Director/ })).toHaveTextContent("101"));
       await chooseSaleType();
+      await fillRequired();
       submitForm();
 
-      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-      expect(onSubmit.mock.calls[0][0].deal_owner_id).toBe("");
+      // Deal Owner is required, so an empty one is named and nothing is sent.
+      expect(await screen.findByText("Deal Owner is required.")).toBeInTheDocument();
+      expect(onSubmit).not.toHaveBeenCalled();
       expect(screen.getByRole("combobox", { name: /Deal Owner/ })).not.toHaveTextContent("Maey Zausa");
     } finally {
       authUser.id = OWNER_ID;

@@ -230,8 +230,16 @@ export default function OpportunityFormModal({
   const highlightTimer = useRef(null);
   useEffect(() => () => clearTimeout(highlightTimer.current), []);
 
+  // Fields the last submit found empty, keyed by form key (custom fields as
+  // `custom:<id>`). Shown together under their boxes (#1046).
+  const [errors, setErrors] = useState({});
+  const formRef = useRef(null);
+  const clearError = (key) =>
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+
   const set = (key) => (e) => {
     const val = e.target.value;
+    clearError(key);
     // Typing in a field the fetch just filled retires its highlight — the
     // highlight reports what Odoo did, and the moment the value is the
     // salesperson's again it is reporting something untrue.
@@ -384,23 +392,53 @@ export default function OpportunityFormModal({
     fetchingOdoo,
     leadSourceOptions,
     customValues,
-    onCustomChange: (fieldId, value) =>
-      setCustomValues((prev) => ({ ...prev, [fieldId]: value })),
+    onCustomChange: (fieldId, value) => {
+      clearError(`custom:${fieldId}`);
+      setCustomValues((prev) => ({ ...prev, [fieldId]: value }));
+    },
+    errors,
+  };
+
+  // Every empty required field at once, in the order they sit on the form. The
+  // browser's own check shows one bubble at a time, so the form is
+  // `noValidate` and does this instead.
+  const findMissing = () => {
+    const missing = {};
+    const blank = (v) => !String(v ?? "").trim();
+    if (!isEdit && !form.sale_type_id) missing.sale_type_id = "Sale Type is required.";
+    const shown = new Set(visibleFields.map((f) => f.key));
+    const need = (key, label, show = true) => {
+      if (show && shown.has(key) && blank(form[key])) missing[key] = `${label} is required.`;
+    };
+    const labelOf = (key, fallback) => visibleFields.find((f) => f.key === key)?.label || fallback;
+    need("lead_source", labelOf("lead_source", "Lead Source"));
+    need("lead_source_detail", labelOf("lead_source_detail", "Lead Source Detail"), form.lead_source === "OTHERS");
+    need("client_name", labelOf("client_name", "Company"));
+    need("contact_person", labelOf("contact_person", "Contact Person"));
+    need("project_title", labelOf("project_title", "Project"));
+    const awardDate = visibleFields.find((f) => f.key === "expected_award_date");
+    if (awardDate?.isRequired && blank(form.expected_award_date)) {
+      missing.expected_award_date = `${awardDate.label} is required.`;
+    }
+    for (const f of customFields) {
+      if (f.isRequired && blank(customValues[f.id])) missing[`custom:${f.id}`] = `${f.label} is required.`;
+    }
+    if (blank(form.deal_owner_id)) missing.deal_owner_id = "Deal Owner is required.";
+    return missing;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isEdit && !form.sale_type_id) {
-      toast.error("Choose a Sale Type before saving.");
-      return;
-    }
-    // A date field is no longer a native input, so the browser cannot stop a
-    // blank required one. Check it here instead.
-    const blankDate = customFields.find(
-      (f) => f.isRequired && f.inputType === "date" && !customValues[f.id],
-    );
-    if (blankDate) {
-      toast.error(`${blankDate.label} is required.`);
+    const missing = findMissing();
+    setErrors(missing);
+    if (Object.keys(missing).length > 0) {
+      // Wait one frame so the red lines are in the page, then bring the
+      // first one (top of the form) into view.
+      requestAnimationFrame(() => {
+        const first = formRef.current?.querySelector("[data-field-error]");
+        const box = first?.closest("[data-sor-field]") || first;
+        box?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+      });
       return;
     }
     const sales_reference = normalizeSalesReference(form.sales_reference);
@@ -445,7 +483,7 @@ export default function OpportunityFormModal({
       isPending={isPending}
       submitLabel={isEdit ? "Save changes" : "Register"}
     >
-      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-5 laptop:space-y-3 transition-[padding] duration-300 ease-in-out [&:has([data-state=open])]:pb-64">
+      <form id={FORM_ID} ref={formRef} noValidate onSubmit={handleSubmit} className="space-y-5 laptop:space-y-3 transition-[padding] duration-300 ease-in-out [&:has([data-state=open])]:pb-64">
         {!isEdit && (
           <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/40 border border-border rounded-xl px-3 py-2.5">
             Register before bid, proposal, or quotation issuance. The
@@ -473,6 +511,7 @@ export default function OpportunityFormModal({
               options={saleTypeOptions}
               value={form.sale_type_id}
               onChange={set("sale_type_id")}
+              error={errors.sale_type_id}
             />
           )}
 
@@ -561,6 +600,7 @@ export default function OpportunityFormModal({
             options={employeeOptions}
             value={form.deal_owner_id}
             onChange={set("deal_owner_id")}
+            error={errors.deal_owner_id}
           />
           {form.project_type === "STRATEGIC" && (
             <SelectField

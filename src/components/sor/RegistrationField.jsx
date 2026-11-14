@@ -22,6 +22,7 @@ import { CAPTION_BASE } from "@/lib/captionStyle";
  */
 export default function RegistrationField({ field, ctx, disabled = false }) {
   const { form, set, odooFilled, displacedCompany, handleUndoCompany } = ctx;
+  const errors = ctx.errors || {};
 
   if (field.source === "custom") {
     const value = ctx.customValues?.[field.id] ?? "";
@@ -37,6 +38,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           value={value}
           onChange={onChange}
           disabled={disabled}
+          error={errors[`custom:${field.id}`]}
         />
       );
     }
@@ -49,6 +51,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           disabled={disabled}
           value={value}
           onChange={onChange}
+          error={errors[`custom:${field.id}`]}
         />
       );
     }
@@ -62,6 +65,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
         placeholder={field.help || `Enter ${field.label.toLowerCase()}`}
         value={value}
         onChange={onChange}
+        error={errors[`custom:${field.id}`]}
       />
     );
   }
@@ -111,6 +115,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           options={ctx.leadSourceOptions || []}
           value={form.lead_source || ""}
           onChange={set("lead_source")}
+          error={errors.lead_source}
           disabled={disabled}
         />
       );
@@ -127,6 +132,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           placeholder="e.g. John Doe"
           value={form.lead_source_detail || ""}
           onChange={set("lead_source_detail")}
+          error={errors.lead_source_detail}
         />
       );
 
@@ -139,6 +145,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           placeholder="e.g. Acme Corp"
           value={form.client_name || ""}
           onChange={set("client_name")}
+          error={errors.client_name}
           autofilled={!!odooFilled?.client_name}
           action={
             displacedCompany ? (
@@ -165,6 +172,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           placeholder="e.g. Juan Dela Cruz"
           value={form.contact_person || ""}
           onChange={set("contact_person")}
+          error={errors.contact_person}
           autofilled={!!odooFilled?.contact_person}
         />
       );
@@ -178,6 +186,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           placeholder="e.g. 2 Units Boom Lift"
           value={form.project_title || ""}
           onChange={set("project_title")}
+          error={errors.project_title}
         />
       );
 
@@ -189,6 +198,7 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           disabled={disabled}
           value={form.expected_award_date || ""}
           onChange={set("expected_award_date")}
+          error={errors.expected_award_date}
         />
       );
 
