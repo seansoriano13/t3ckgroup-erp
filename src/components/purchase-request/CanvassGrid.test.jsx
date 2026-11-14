@@ -57,7 +57,7 @@ async function threeSuppliers() {
 }
 
 const cell = (item, supplier) => screen.getByTestId(`cell-${item.id}-${supplier.supplier.id}`)
-const priceBox = (supplier, item) => screen.getByRole("spinbutton", { name: `Unit price, ${supplier}, ${item}` })
+const priceBox = (supplier, item) => screen.getByRole("textbox", { name: `Unit price, ${supplier}, ${item}` })
 
 beforeEach(() => {
   purchaser = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true })
@@ -179,7 +179,7 @@ describe("a cancelled line", () => {
     const grid = await screen.findByRole("grid", { name: "Canvass" })
     expect(within(grid).getByRole("rowheader", { name: "Folding stretcher" })).toHaveTextContent("Cancelled")
     // Its price is still readable but cannot be typed over, and there is no pick on it.
-    expect(screen.queryByRole("spinbutton", { name: /Folding stretcher/ })).toBeNull()
+    expect(screen.queryByRole("textbox", { name: /Folding stretcher/ })).toBeNull()
     expect(screen.queryByRole("button", { name: /^Pick .*Folding stretcher/ })).toBeNull()
     expect(screen.queryByRole("button", { name: /^Un-pick .*Folding stretcher/ })).toBeNull()
     expect(screen.getAllByRole("button", { name: /^Pick .*Spine board/ })).toHaveLength(3)
@@ -193,7 +193,7 @@ describe("quoting lines", () => {
     await addSupplier("Redleaf Inc.")
     const user = setupUser()
     show()
-    const box = await screen.findByRole("spinbutton", { name: "Unit price, Redleaf Inc., Folding stretcher" })
+    const box = await screen.findByRole("textbox", { name: "Unit price, Redleaf Inc., Folding stretcher" })
     await user.type(box, "78000")
     await user.tab()
 
@@ -201,7 +201,7 @@ describe("quoting lines", () => {
     expect(db.rows("request_canvass_quotes")).toHaveLength(1)
     expect(db.rows("request_canvass_quote_prices")[0].unit_price).toBe(78000)
     // The other line stays unquoted: no quote row, no total.
-    expect(priceBox("Redleaf Inc.", "Spine board")).toHaveValue(null)
+    expect(priceBox("Redleaf Inc.", "Spine board")).toHaveValue("")
     expect(screen.queryByLabelText("Total, Redleaf Inc., Spine board")).toBeNull()
   })
 
@@ -254,11 +254,11 @@ describe("quoting lines", () => {
     await addSupplier("Redleaf Inc.")
     const user = setupUser()
     show()
-    const box = await screen.findByRole("spinbutton", { name: "Unit price, Redleaf Inc., Folding stretcher" })
+    const box = await screen.findByRole("textbox", { name: "Unit price, Redleaf Inc., Folding stretcher" })
     await user.type(box, "-5")
     await user.tab()
     expect(await screen.findByRole("alert")).toHaveTextContent("Unit price must be zero or more.")
-    expect(box).toHaveValue(-5)
+    expect(box).toHaveValue("-5")
   })
 })
 
@@ -418,7 +418,7 @@ describe("a locked line", () => {
     const row = screen.getAllByTestId("canvass-line")[0]
     expect(within(row).getByText("Locked")).toBeInTheDocument()
     // Read-only: a plain readout, not a box.
-    expect(screen.queryByRole("spinbutton", { name: "Unit price, Ferno, Folding stretcher" })).toBeNull()
+    expect(screen.queryByRole("textbox", { name: "Unit price, Ferno, Folding stretcher" })).toBeNull()
     expect(screen.getByLabelText("Unit price, Ferno, Folding stretcher")).toHaveTextContent("900")
     expect(screen.getByRole("button", { name: "Pick Ferno, Folding stretcher" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Pick Ferno, Spine board" })).toBeEnabled()
@@ -439,7 +439,7 @@ describe("a locked line", () => {
 
     await waitFor(() => expect(db.rows("request_canvass_line_unlocks")).toHaveLength(1))
     // Open again: its prices are boxes once more.
-    expect(await screen.findByRole("spinbutton", { name: "Unit price, Ferno, Folding stretcher" })).toBeInTheDocument()
+    expect(await screen.findByRole("textbox", { name: "Unit price, Ferno, Folding stretcher" })).toBeInTheDocument()
   })
 
   it("does not offer Unlock to a purchaser who is not a Super Admin", async () => {
@@ -461,7 +461,7 @@ describe("who can see and who can change", () => {
     expect(screen.queryByRole("button", { name: /^Pick / })).toBeNull()
     expect(screen.queryByRole("button", { name: /wins every line/ })).toBeNull()
     expect(screen.queryByRole("button", { name: /^Edit | ^Remove / })).toBeNull()
-    expect(screen.queryByRole("spinbutton")).toBeNull()
+    expect(screen.queryByRole("textbox", { name: /Unit price/ })).toBeNull()
     // They still read it.
     expect(screen.getByLabelText("Unit price, Ferno, Folding stretcher")).toHaveTextContent("900")
     expect(screen.getByTestId("strip-suppliers")).toHaveTextContent("3 of 3 suppliers")
@@ -473,7 +473,7 @@ describe("who can see and who can change", () => {
     show({ money: false })
     await screen.findByRole("grid", { name: "Canvass" })
     expect(screen.getByText("Prices and rates are not shown to you.")).toBeInTheDocument()
-    expect(screen.queryByRole("spinbutton")).toBeNull()
+    expect(screen.queryByRole("textbox", { name: /Unit price/ })).toBeNull()
     expect(screen.queryByText(/Total /)).toBeNull()
     expect(screen.queryByText("Cheapest")).toBeNull()
     expect(screen.queryByText(/Rate 56/)).toBeNull()

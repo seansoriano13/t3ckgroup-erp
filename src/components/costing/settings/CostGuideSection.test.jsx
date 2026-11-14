@@ -21,8 +21,8 @@ describe("the cost guide settings", () => {
 
     const rows = await screen.findAllByTestId("cost-guide-category");
     expect(rows).toHaveLength(2);
-    expect(within(rows[0]).getByLabelText("Products: low %")).toHaveValue(70);
-    expect(within(rows[1]).getByLabelText("Labor: high %")).toHaveValue(15);
+    expect(within(rows[0]).getByLabelText("Products: low %")).toHaveValue("70");
+    expect(within(rows[1]).getByLabelText("Labor: high %")).toHaveValue("15");
   });
 
   it("saves a range that is typed", async () => {
