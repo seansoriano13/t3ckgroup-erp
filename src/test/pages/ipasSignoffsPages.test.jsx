@@ -503,13 +503,14 @@ describe("IPAS sign-offs", () => {
       expect(within(sheet).getByRole("button", { name: "Return" })).toBeInTheDocument();
     });
 
-    it("sends someone who isn't on an approval list away", async () => {
+    it("tells someone who isn't on an approval list they have no access", async () => {
       signIn(superAdmin);
       mockUser.current = { ...superAdmin, isSuperAdmin: true, isIpasApprover: false };
 
       renderQueue();
 
-      expect(await screen.findByText("Home")).toBeInTheDocument();
+      expect(await screen.findByText("You don't have access to this page")).toBeInTheDocument();
+      expect(screen.queryByRole("row")).not.toBeInTheDocument();
     });
   });
 });

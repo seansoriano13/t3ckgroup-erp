@@ -52,13 +52,15 @@ function CopyIdButton({ id, className = "" }) {
     }
   };
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="xs"
       onClick={copy}
-      className={`inline-flex items-center gap-1 text-label font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground ${className}`}
+      className={`text-muted-foreground hover:text-foreground ${className}`}
     >
-      <Copy size={11} /> Copy ID
-    </button>
+      <Copy /> Copy ID
+    </Button>
   );
 }
 
