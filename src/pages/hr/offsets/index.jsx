@@ -26,7 +26,7 @@ import { confirmActionToast } from '../../../components/ui/CustomToast';
 import { getMonthBoundaries } from '../../../utils/dateUtils';
 import { isRequestInPendingPeriod } from '../../../utils/time';
 import { groupLeaveRows } from '../../../utils/leaveGroups';
-import { computeAvailableHours } from '../../../services/leaveRules';
+import { availableHoursForRequest, pendingHoursByEmployee } from '../../../services/leaveRules';
 import VerifiedRecordPreview from '../../../components/verify/VerifiedRecordPreview';
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
@@ -292,22 +292,9 @@ export default function HrLeavesManagerPage() {
   // by leave type — computed from the full pending queue (not the filtered
   // view) so "available" stays accurate regardless of which filters are
   // active (issue #106).
-  const pendingHoursByEmployee = useMemo(() => {
-    const totals = new Map();
-    pendingLeaves.forEach(req => {
-      if (req.type !== 'OFFSET' && req.type !== 'SIL') return;
-      const key = `${req.employee_id}_${req.type}`;
-      totals.set(key, (totals.get(key) || 0) + parseFloat(req.hours || 0));
-    });
-    return totals;
-  }, [pendingLeaves]);
+  const pendingTotals = useMemo(() => pendingHoursByEmployee(pendingLeaves), [pendingLeaves]);
 
-  const availableHoursFor = useCallback((req) => {
-    if (req.type !== 'OFFSET' && req.type !== 'SIL') return null;
-    const balance = req.type === 'OFFSET' ? req.employee?.offset_hours_balance : req.employee?.sil_hours_balance;
-    const pending = pendingHoursByEmployee.get(`${req.employee_id}_${req.type}`) || 0;
-    return computeAvailableHours(balance, pending);
-  }, [pendingHoursByEmployee]);
+  const availableHoursFor = useCallback((req) => availableHoursForRequest(req, pendingTotals), [pendingTotals]);
 
   const processedScoped = useMemo(
     () => processedLeaves.filter(req => matchesSearch(req) && matchesCompanyFilter(req.company_id, companyFilter)),
