@@ -26,6 +26,7 @@ import FlowVersionBadge from "../FlowVersionBadge";
 import SorVersionUpdate from "../SorVersionUpdate";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
+import CopyLinkButton from "../../ui/CopyLinkButton";
 import { Input } from "@/components/ui/input";
 import { sorCodeOf } from "../../../utils/sorCode";
 import { blockedLabels } from "./summary/shared";
@@ -495,6 +496,7 @@ export default function SorModalHeader({
                   </div>
                 )}
               </Dropdown>
+              <CopyLinkButton size="icon" iconSize={17} />
               <Button
                 type="button"
                 variant="ghost"

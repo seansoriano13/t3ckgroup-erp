@@ -1,6 +1,7 @@
 import { ShieldCheck, MessageCircle, X } from "lucide-react";
 import { Button } from "./ui/button";
 import StatusBadge from "./StatusBadge";
+import CopyLinkButton from "./ui/CopyLinkButton";
 
 // View mode leads with the task's own name — the thing the assignee came for —
 // with status above it, the same order the Group Task modal uses.
@@ -38,6 +39,7 @@ const TaskHeader = ({ isEditing, isHrVerified, title, status, onClose, onOpenCha
         </Button>
       )}
       {!isEditing && extraButtons}
+      {!isEditing && <CopyLinkButton size="icon" iconSize={16} className="h-9 w-9 rounded-xl" />}
       <Button
         variant="outline"
         size="icon"

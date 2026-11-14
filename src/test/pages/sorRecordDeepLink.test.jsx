@@ -57,4 +57,16 @@ describe("SOR deep link: /sors?record=<id>", () => {
     );
     expect(screen.getByTestId("search")).not.toHaveTextContent("record=");
   });
+
+  it("rewrites a plain /sors?record=<id> link to ?open=sor:<id> (#1025)", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={[`/sors?record=${LINKED.id}`]}>
+        <OpportunitiesPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("search")).toHaveTextContent(`open=sor%3A${LINKED.id}`));
+    expect(screen.getByTestId("search")).not.toHaveTextContent("record=");
+  });
 });
