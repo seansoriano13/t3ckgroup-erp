@@ -21,7 +21,7 @@ import ConfirmDialog from "../../../ui/ConfirmDialog";
 import { SelectField } from "../../../ui/SelectField";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../../ui/table";
 import RecordHeader from "../../../record/RecordHeader";
-import { Cell } from "../../GridCell";
+import { Cell, SelectCell } from "../../GridCell";
 import { factorLabel, pesos } from "../../gridFormat";
 import { costingKeys } from "../../costingKeys";
 import EvaluationBar from "../../EvaluationBar";
@@ -32,9 +32,10 @@ import DecisionCard from "./DecisionCard";
 import { useInchargeOptions } from "../../useCostingWrites";
 import { costingMatrixService } from "../../../../services/costingMatrixService";
 import { useAuth } from "../../../../context/AuthContext";
-import { ABC_MODE, COMPONENT_BANDS, COSTING_BAND, COSTING_TIER, COST_ROW_BANDS, MATRIX_MONEY_BANDS, ROW_EDIT_BANDS, USUAL_COST_CATEGORIES, inAnyBand, tierReads, tierReadsCost, tierReadsCostRow } from "../../../../constants/costing";
-import { costUnit, finalAcquireTotal, projectExpensesTotal } from "../../../../utils/costingMath";
+import { ABC_MODE, COMPONENT_BANDS, COMPONENT_STATUS_LABEL, COSTING_BAND, COSTING_TIER, COST_ROW_BANDS, MATRIX_MONEY_BANDS, ROW_EDIT_BANDS, USUAL_COST_CATEGORIES, inAnyBand, tierReads, tierReadsCost, tierReadsCostRow } from "../../../../constants/costing";
+import { costUnit, finalAcquireByRule, finalAcquireTotal, projectExpensesTotal } from "../../../../utils/costingMath";
 
+const STATUS_OPTIONS = Object.entries(COMPONENT_STATUS_LABEL).map(([value, label]) => ({ value, label }));
 const num = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
 const money = (v) => (v === null || v === undefined ? <span className="text-muted-foreground">—</span> : pesos(v));
 const itemName = (line) => line.sor_line_snapshot?.name || (line.tender_specification ?? "").split("\n")[0].trim() || "Untitled line";
@@ -113,7 +114,22 @@ function useCorridor(matrix) {
       offerTotal: num(matrix.totals?.finalOfferTotal),
       steps: [
         { key: "costs", label: "Costs", who: "Purchasing", band: "purchasing", left: allParts.filter((p) => p.acquire_unit == null).length, of: allParts.length },
-        { key: "finalAcquire", label: "Final Acquire", who: "Management", band: "management", left: allParts.filter((p) => costUnit(p) == null).length, of: allParts.length },
+        {
+          key: "finalAcquire",
+          label: "Final Acquire",
+          who: "Management",
+          band: "management",
+          left: allParts.filter((p) => costUnit(p) == null).length,
+          of: allParts.length,
+          // What is in the way: a part with no Status gets no Final Acquire from the rule (#1034).
+          words: (() => {
+            const left = allParts.filter((p) => costUnit(p) == null).length;
+            const noStatus = allParts.filter((p) => costUnit(p) == null && !p.status).length;
+            if (allParts.length === 0) return undefined;
+            if (left === 0) return "all filled";
+            return `${left} of ${allParts.length} left${noStatus > 0 ? ` · ${noStatus} need a Status` : ""}`;
+          })(),
+        },
         {
           key: "otherCosts",
           label: "Other costs",
@@ -203,10 +219,14 @@ const CELL = "border-b border-border px-3 py-3 align-top text-sm";
 const NUM = "text-right tabular-nums whitespace-nowrap";
 
 /** A part as one line: name and quantity, its Odoo SRP, then the one box this step fills (or the figure, greyed). */
-function PartLiner({ part, step, save, canWrite, factor, faPercent }) {
+function PartLiner({ part, step, save, canWrite, canStatus, factor, faPercent }) {
   const srp = num(part.odoo_unit);
   const fa = num(costUnit(part));
   const markupCol = step === "costs" && factor != null;
+  const statusCol = step === "finalAcquire";
+  // The empty Final Acquire box says what the rule needs, never "by rule" when the rule gives nothing (#1034).
+  const byRule = finalAcquireByRule(part, faPercent);
+  const ruleHint = byRule !== null ? `${pesos(byRule)} by rule` : !part.status ? "Needs a Status" : part.status === "source_out" ? "Needs the Acquire" : "Needs the Odoo SRP";
   if (step === "lines") {
     return (
       <li className="grid grid-cols-[minmax(0,1fr)_5rem] items-center gap-x-4 py-1.5 text-[13px]" data-testid="corridor-part">
@@ -218,7 +238,7 @@ function PartLiner({ part, step, save, canWrite, factor, faPercent }) {
     );
   }
   return (
-    <li className={cn("grid items-center gap-x-4 py-1.5 text-[13px]", markupCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem_9rem]" : "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem]")} data-testid="corridor-part">
+    <li className={cn("grid items-center gap-x-4 py-1.5 text-[13px]", markupCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem_9rem]" : statusCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_9rem_10rem]" : "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem]")} data-testid="corridor-part">
       <span className="min-w-0 truncate">{partName(part)}</span>
       <span className="text-right tabular-nums text-muted-foreground">
         {num(part.quantity)} {part.unit}
@@ -226,10 +246,16 @@ function PartLiner({ part, step, save, canWrite, factor, faPercent }) {
       <span className="text-right tabular-nums text-muted-foreground" title="Odoo SRP / unit">
         SRP {money(srp)}
       </span>
+      {statusCol && (
+        <div title={canStatus ? undefined : "Sales sets the Status"} data-testid="corridor-part-status">
+          <SelectCell label={`Status ${partName(part)}`} value={part.status} options={STATUS_OPTIONS} readOnly={!canStatus} onSave={(v) => save.part(part.id, { status: v })} />
+          {!canStatus && <p className="text-xs text-muted-foreground">Sales sets the Status</p>}
+        </div>
+      )}
       {step === "costs" ? (
         <Cell label={`Acquire / unit ${partName(part)}`} noun="Acquire" value={part.acquire_unit} numeric money align="right" placeholder="Supplier price" readOnly={!canWrite} onSave={(v) => save.part(part.id, { acquireUnit: v })} />
       ) : step === "finalAcquire" ? (
-        <Cell label={`Final Acquire / unit ${partName(part)}`} noun="Final Acquire" value={part.final_acquire_unit} numeric money align="right" placeholder={srp ? `${pesos(Math.round(srp * (100 + faPercent)) / 100)} by rule` : "Final Acquire"} readOnly={!canWrite} onSave={(v) => save.part(part.id, { finalAcquireUnit: v })} />
+        <Cell label={`Final Acquire / unit ${partName(part)}`} noun="Final Acquire" value={part.final_acquire_unit} numeric money align="right" placeholder={ruleHint} readOnly={!canWrite} onSave={(v) => save.part(part.id, { finalAcquireUnit: v })} />
       ) : (
         <span className="text-right tabular-nums text-muted-foreground">FA {money(fa)}</span>
       )}
@@ -250,6 +276,7 @@ function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offe
   const pricing = step === "offers";
   const showParts = !pricing || open;
   const canOffer = bands.includes(COSTING_BAND.SALES);
+  const canStatus = inAnyBand(bands, COMPONENT_BANDS.status);
   const canPart = bands.includes(step === "costs" ? COSTING_BAND.PURCHASING : COSTING_BAND.MANAGEMENT);
   const cut = showParts && "border-b-0";
   return (
@@ -327,7 +354,7 @@ function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offe
           <TableCell colSpan={columns} className="border-b border-border bg-mauve-2/60 px-3 pb-2 pt-1">
             <ul className="ml-8 max-w-3xl divide-y divide-border/60">
               {parts.map(({ part }) => (
-                <PartLiner key={part.id} part={part} step={step} save={save} canWrite={canPart} factor={factor} faPercent={faPercent} />
+                <PartLiner key={part.id} part={part} step={step} save={save} canWrite={canPart} canStatus={canStatus} factor={factor} faPercent={faPercent} />
               ))}
               {parts.length === 0 && <li className="py-1.5 text-[13px] text-muted-foreground">No part yet. Open the line to add one.</li>}
             </ul>
