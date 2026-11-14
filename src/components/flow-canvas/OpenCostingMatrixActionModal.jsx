@@ -20,12 +20,12 @@ const NO_PRESET = "none";
 const salesChoice = (incharge) => (incharge.type === SELECTOR_TYPES.EMPLOYEE ? PERSON : incharge.role);
 
 /**
- * Issue #462 — the Open Costing Matrix action's own config: who the Sales and Purchasing Incharge are, who is
- * told when it opens with no Purchasing Incharge, which markup preset becomes the matrix default, the extra
+ * Issue #462 — the Open Costing Matrix action's own config: who the Sales and Purchasing in-charge are, who is
+ * told when it opens with no Purchasing in-charge, which markup preset becomes the matrix default, the extra
  * members called in, and whether it waits for a Decider. The extra members' window is the action's detail
  * panel's access window, like every other action's.
  *
- * Incharge is a name on the matrix: it grants no access and sends no notification.
+ * In-charge is a name on the matrix: it grants no access and sends no notification.
  */
 export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialData, onSubmit, isSubmitting, title = "Open S0 Evaluation" }) {
   const [salesIncharge, setSalesIncharge] = useState(salesInchargeOf(initialData ?? {}));
@@ -82,9 +82,9 @@ export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialD
         </DialogHeader>
 
         <div className="space-y-4">
-          <FieldBox label="Sales Incharge" bare>
+          <FieldBox label="Sales in-charge" bare>
             <SelectField
-              aria-label="Sales Incharge"
+              aria-label="Sales in-charge"
               value={salesChoice(salesIncharge)}
               onChange={setSalesChoice}
               options={[
@@ -105,15 +105,15 @@ export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialD
                     setSalesIncharge({ type: SELECTOR_TYPES.EMPLOYEE, id: last?.id ?? null });
                   }}
                   types={[SELECTOR_TYPES.EMPLOYEE]}
-                  placeholder="Choose the Sales Incharge"
+                  placeholder="Choose the Sales in-charge"
                 />
               </div>
             )}
           </FieldBox>
 
-          <FieldBox label="Purchasing Incharge" bare>
+          <FieldBox label="Purchasing in-charge" bare>
             <SelectField
-              aria-label="Purchasing Incharge"
+              aria-label="Purchasing in-charge"
               value={purchasingIncharge ? PERSON : NOT_NAMED}
               onChange={(choice) =>
                 setPurchasingIncharge(choice === PERSON ? { type: SELECTOR_TYPES.EMPLOYEE, id: null } : null)
@@ -134,7 +134,7 @@ export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialD
                   }}
                   types={[SELECTOR_TYPES.EMPLOYEE]}
                   single
-                  placeholder="Choose the Purchasing Incharge"
+                  placeholder="Choose the Purchasing in-charge"
                 />
               </div>
             )}
@@ -144,7 +144,7 @@ export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialD
             <FieldBox label="Who assigns it" bare>
               <PeoplePicker value={assigners} onChange={setAssigners} placeholder="Add people or groups" />
               <p className="mt-1 text-[11px] text-muted-foreground">
-                They are notified when the matrix opens with no Purchasing Incharge.
+                They are notified when the matrix opens with no Purchasing in-charge.
               </p>
             </FieldBox>
           )}
@@ -165,7 +165,7 @@ export default function OpenCostingMatrixActionModal({ isOpen, onClose, initialD
           <FieldBox label="Extra members" bare>
             <PeoplePicker value={extras} onChange={setExtras} placeholder="Add people or groups" />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              They join the SOR for the window below and read the matrix without any money. Incharges are names only
+              They join the SOR for the window below and read the matrix without any money. In-charges are names only
               and are not called in.
             </p>
           </FieldBox>

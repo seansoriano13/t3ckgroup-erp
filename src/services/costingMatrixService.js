@@ -1071,7 +1071,7 @@ export const costingMatrixService = {
 
   /**
    * Names who answers for the matrix, or for one Component when `target` is `{ componentId }`:
-   * `{ sales, purchasing, technical }` (an employee id, or null for the default). The Sales incharge must be
+   * `{ sales, purchasing, technical }` (an employee id, or null for the default). The Sales in-charge must be
    * on the Deal Team (written by Sales) and the Purchasing incharge must have Purchasing access
    * (written by Purchasing). The Technical in-charge (#908) must be in the Technical sub-department
    * and is set on the matrix only. It grants nothing and notifies nobody.
@@ -1086,7 +1086,7 @@ export const costingMatrixService = {
     const id = target?.componentId ?? target?.matrixId;
     const { data, error } = await supabase.from(table).update(columns).eq("id", id).select("id");
     if (error) fail(error);
-    if (!data?.length) throw new Error("The incharge could not be changed.");
+    if (!data?.length) throw new Error("The in-charge could not be changed.");
   },
 
   /**
@@ -1423,7 +1423,7 @@ export const costingMatrixService = {
     return { subjectId: data.subject_id, existed: Boolean(data.existed), standalone: Boolean(data.standalone) };
   },
 
-  /** Changes the Sales incharge and the PMS incharge of a standalone evaluation (#966). Both must be named. */
+  /** Changes the Sales in-charge and the Purchasing in-charge of a standalone evaluation (#966). Both must be named. */
   async setStandaloneIncharge(matrixId, { sales, pms }) {
     const { error } = await supabase.rpc("costing_standalone_set_incharge", {
       p_matrix_id: matrixId,

@@ -117,7 +117,12 @@ describe("matrixPageTotals", () => {
     expect(matrixPageTotals(rows).estimate).toBe(false);
   });
 
-  it("is all zeros for no rows", () => {
-    expect(matrixPageTotals([])).toMatchObject({ count: 0, finalOffer: 0, planned: 0, actual: 0, difference: 0, estimate: false, incomplete: 0 });
+  it("leaves Planned, Actual and Difference blank for no rows", () => {
+    expect(matrixPageTotals([])).toMatchObject({ count: 0, finalOffer: 0, planned: null, actual: null, difference: null, estimate: false, incomplete: 0 });
+  });
+
+  it("leaves the three totals blank when no row has a figure", () => {
+    const rows = shapeMatrixPage([read({ final_offer_total: null }), read({ final_offer_total: null })], RATES);
+    expect(matrixPageTotals(rows)).toMatchObject({ planned: null, actual: null, difference: null, incomplete: 2 });
   });
 });
