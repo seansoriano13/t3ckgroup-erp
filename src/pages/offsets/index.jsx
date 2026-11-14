@@ -145,6 +145,28 @@ export default function EmployeeLeavesPage() {
     return requests.filter(r => r.type === typeFilter);
   }, [requests, typeFilter]);
 
+  // A pending request filed for another month is never hidden by the month picker:
+  // it sits in "Still pending" above the month's own list.
+  const { stillPending, monthRequests } = useMemo(() => {
+    const inMonth = (r) => {
+      const day = String(r.startDate || r.date || r.created_at || '').slice(0, 10);
+      // The picker's end date is exclusive (the first day after the range).
+      return day >= dateRange.startDate && day < dateRange.endDate;
+    };
+    const outside = filteredRequests.filter((r) => r.status === 'PENDING' && !inMonth(r));
+    return {
+      stillPending: outside,
+      monthRequests: filteredRequests.filter((r) => !outside.includes(r)),
+    };
+  }, [filteredRequests, dateRange.startDate, dateRange.endDate]);
+
+  const periodLabel = useMemo(() => {
+    const start = new Date(`${dateRange.startDate}T00:00:00`);
+    return dateRange.mode === 'MONTHLY' && !Number.isNaN(start.getTime())
+      ? start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      : 'the selected dates';
+  }, [dateRange.startDate, dateRange.endDate]);
+
   // The balances sit beside File Time Off / Overtime: they are what the person checks
   // before applying, on either tab. A zero balance reads muted, not alarming.
   // One stat line above the list: "Offset 0.0 hrs · SIL 0.0 hrs".
@@ -228,14 +250,35 @@ export default function EmployeeLeavesPage() {
             <QueryError title="Your requests could not be loaded." onRetry={refetch} />
           ) : loadingHistory ? (
             <PageLoading label="requests" />
-          ) : filteredRequests.length === 0 ? (
-            <EmptyState
-              icon={CalendarDays}
-              title="No requests found"
-              description="You haven't filed anything in the selected month that matches this filter."
-            />
           ) : (
-            <RequestsTable rows={filteredRequests} onWithdraw={handleWithdraw} />
+            <>
+              {stillPending.length > 0 && (
+                <section className="mb-6" aria-label="Still pending">
+                  <h2 className={`${CAPTION_BASE} mb-2 tracking-wider text-muted-foreground`}>Still pending</h2>
+                  <RequestsTable rows={stillPending} onWithdraw={handleWithdraw} />
+                </section>
+              )}
+              {monthRequests.length === 0 ? (
+                <EmptyState
+                  icon={CalendarDays}
+                  title={typeFilter === 'ALL' ? `Nothing filed in ${periodLabel}.` : `No matching requests in ${periodLabel}.`}
+                  description={typeFilter === 'ALL' ? undefined : 'Nothing in this month matches this filter.'}
+                  action={
+                    <Button className="mt-2" onClick={() => setIsApplyModalOpen(true)}>
+                      <Plus size={16} />
+                      File Time Off / Overtime
+                    </Button>
+                  }
+                />
+              ) : (
+                <>
+                  {stillPending.length > 0 && (
+                    <h2 className={`${CAPTION_BASE} mb-2 tracking-wider text-muted-foreground`}>{periodLabel}</h2>
+                  )}
+                  <RequestsTable rows={monthRequests} onWithdraw={handleWithdraw} />
+                </>
+              )}
+            </>
           )
         )}
       </PageShell>

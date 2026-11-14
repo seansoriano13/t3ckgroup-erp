@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import allChangelog from "@/data/changelog.json";
 import { visibleEntries } from "../../scripts/lib/changelog.mjs";
 import { isStaging } from "@/lib/appEnv";
+import { entryTouchesUser, setUnreadVersion } from "@/utils/changelogAccess";
 
 const changelog = visibleEntries(allChangelog, isStaging);
 
@@ -19,28 +20,8 @@ export default function ChangelogModal({ manualOpen = false, onManualClose = nul
 
   const latestRelease = changelog[0];
 
-  useEffect(() => {
-    if (!user || !latestRelease || manualOpen) return;
-
-    const localDismissedVersion = localStorage.getItem(`changelog_dismissed_${user.id}`);
-
-    if (
-      user.lastSeenChangelogVersion !== latestRelease.version &&
-      localDismissedVersion !== latestRelease.version
-    ) {
-      setAutoOpen(true);
-    }
-  }, [user, latestRelease, manualOpen]);
-
-  const handleDismiss = async () => {
-    if (manualOpen && onManualClose) {
-      onManualClose();
-      return;
-    }
-
-    if (!user || !latestRelease) return;
-
-    setIsUpdating(true);
+  // Record the version as seen: on the person's row, and in this browser.
+  const recordSeen = async () => {
     try {
       const { error } = await supabase
         .from("employees")
@@ -55,9 +36,41 @@ export default function ChangelogModal({ manualOpen = false, onManualClose = nul
     } finally {
       localStorage.setItem(`changelog_dismissed_${user.id}`, latestRelease.version);
       updateUserPreferences?.({ lastSeenChangelogVersion: latestRelease.version });
-      setIsUpdating(false);
-      setAutoOpen(false);
     }
+  };
+
+  useEffect(() => {
+    if (!user || !latestRelease || manualOpen) return;
+
+    const localDismissedVersion = localStorage.getItem(`changelog_dismissed_${user.id}`);
+
+    if (
+      user.lastSeenChangelogVersion !== latestRelease.version &&
+      localDismissedVersion !== latestRelease.version
+    ) {
+      if (entryTouchesUser(latestRelease, user)) {
+        setAutoOpen(true);
+      } else {
+        // Not about anything this person can open: no popup. Mark it seen and
+        // leave a dot on Release Notes until they open it (spec #1000, E2).
+        setUnreadVersion(user.id, latestRelease.version);
+        recordSeen();
+      }
+    }
+  }, [user, latestRelease, manualOpen]);
+
+  const handleDismiss = async () => {
+    if (manualOpen && onManualClose) {
+      onManualClose();
+      return;
+    }
+
+    if (!user || !latestRelease) return;
+
+    setIsUpdating(true);
+    await recordSeen();
+    setIsUpdating(false);
+    setAutoOpen(false);
   };
 
   // An entry with a `link` (the release's Release Notes page, ADR 0030)

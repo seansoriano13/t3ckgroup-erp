@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { addEntry, todayInManila, visibleEntries } from "../../../scripts/lib/changelog.mjs"
+import { addEntry, parseModules, todayInManila, visibleEntries } from "../../../scripts/lib/changelog.mjs"
 
 // The changelog is the app's version record: `src/data/changelog.json[0].version`
 // is what Settings shows and what `last_seen_changelog_version` compares
@@ -119,5 +119,17 @@ describe("visibleEntries", () => {
 
   it("keeps everything on staging", () => {
     expect(visibleEntries(list, true)).toHaveLength(2)
+  })
+})
+
+describe("parseModules", () => {
+  it("splits a comma list and trims it", () => {
+    expect(parseModules(" purchasing, sales.sors ,")).toEqual(["purchasing", "sales.sors"])
+  })
+
+  it("reads a blank answer as everyone", () => {
+    expect(parseModules("")).toEqual([])
+    expect(parseModules("   ")).toEqual([])
+    expect(parseModules(undefined)).toEqual([])
   })
 })
