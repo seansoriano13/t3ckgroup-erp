@@ -27,8 +27,10 @@ export function corridorSaves(matrix, writes) {
     marketing: (value) => after(costingMatrixService.updateMatrixMoney(matrixId, { marketing: value })),
     // Final Acquire = Odoo SRP less a discount (typed 20 for the sheet's -20%); stored signed, as #962 keeps it.
     finalAcquireDiscount: (value) => {
-      const n = Number(value);
-      if (value === "" || value == null || !Number.isFinite(n) || n >= 100) throw new Error("Type a discount below 100, like 20.");
+      const raw = Number(value);
+      // 99.995 and up would round to 100, which the database refuses in its own words.
+      if (value === "" || value == null || !Number.isFinite(raw) || raw >= 99.995) throw new Error("Type a discount below 100, like 20.");
+      const n = Math.round(raw * 100) / 100;
       return after(costingMatrixService.setFinalAcquirePercent(matrixId, n === 0 ? 0 : -n));
     },
     // A switch (mode only) has no box to show a refusal under, so it goes through writes.run and its notice;
