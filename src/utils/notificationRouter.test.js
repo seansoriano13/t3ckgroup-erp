@@ -37,7 +37,10 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/tasks", { state: { openTaskId: "task-1" } })
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "task-1", type: "TASK" } },
+      ])
     })
 
     it("sends a head to the approvals queue", () => {
@@ -48,9 +51,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-2" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-2")
     })
 
     it("sends a super admin to the approvals queue", () => {
@@ -61,9 +62,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-3" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-3")
     })
 
     it("sends HR to Task Approvals, where verification lives", () => {
@@ -74,9 +73,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-4" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-4")
     })
 
     it("routes an HR user who is also a head to the one queue holding both steps", () => {
@@ -89,9 +86,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-5" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-5")
     })
 
     it("accepts the snake_case role flags the database returns", () => {
@@ -102,9 +97,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-6" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-6")
     })
   })
 
@@ -134,9 +127,10 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-9" },
-      })
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "task-9", type: "TASK" } },
+      ])
     })
 
     it("opens the chat modal for a group comment", () => {
@@ -254,9 +248,10 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/sors", {
-        state: { openOpportunityId: "opp-1" },
-      })
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "opp-1", type: "OPPORTUNITY" } },
+      ])
     })
 
     it("opens the deal a Stage Participant was just called into", () => {
@@ -337,8 +332,10 @@ describe("handleNotificationRoute", () => {
         navigate.mockClear()
         handleNotificationRoute({ type, reference_id: "opp-9" }, employee, navigate, onClose)
 
-        expect(navigate).toHaveBeenCalledWith("/sors", {
-          state: { openOpportunityId: "opp-9" },
+        expect(navigate).not.toHaveBeenCalled()
+        expect(dispatched.at(-1)).toEqual({
+          type: "OPEN_ENTITY_DETAILS",
+          detail: { id: "opp-9", type: "OPPORTUNITY" },
         })
       }
     })
@@ -353,9 +350,10 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/tasks", {
-        state: { openTaskId: "task-77" },
-      })
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "task-77", type: "TASK" } },
+      ])
     })
   })
 

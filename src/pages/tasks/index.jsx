@@ -266,40 +266,6 @@ export default function TasksPage() {
   });
   const rawTasks = useMemo(() => data?.pages.flat() ?? [], [data]);
 
-  useEffect(() => {
-    if (!location.state?.openTaskId) return;
-    const openId = location.state.openTaskId;
-    if (rawTasks.length > 0) {
-      const targetTask = rawTasks.find((t) => t.id === openId);
-      if (targetTask) {
-        queueMicrotask(() => {
-          setViewTask(targetTask);
-          navigate(location.pathname, { replace: true, state: {} });
-        });
-      } else {
-        // Task may be soft-deleted — fetch it directly
-        import("../../services/tasks/taskQueryService.js").then(
-          ({ taskQueryService }) => {
-            taskQueryService
-              .getTaskById(openId)
-              .then((task) => {
-                if (task?.convertedToGroupTaskId) {
-                  // #657: converted into a Group Task
-                  window.dispatchEvent(
-                    new CustomEvent("OPEN_ENTITY_DETAILS", {
-                      detail: { id: task.convertedToGroupTaskId, type: "GROUP_TASK" },
-                    }),
-                  );
-                } else if (task) setViewTask(task);
-              })
-              .catch((err) => toast.error(err.message || "Could not open that task. Try again."));
-          },
-        );
-        navigate(location.pathname, { replace: true, state: {} });
-      }
-    }
-  }, [location.state, rawTasks, navigate, location.pathname]);
-
   const editTaskMutation = useMutation({
     mutationFn: (updatedData) =>
       taskService.updateTask(updatedData.id, updatedData),
