@@ -160,7 +160,7 @@ export function TaskReview({ item, currentUserId, onProcess, isSubmitting, onDec
             <DetailRow label="Logged">{formatDate(task.createdAt)}</DetailRow>
             {task.paymentVoucher && <DetailRow label="Voucher">{task.paymentVoucher}</DetailRow>}
             {!item.done && (
-              <DetailRow label="Waiting">
+              <DetailRow label={item.queue === "hr" ? "Waiting for HR" : "Waiting"}>
                 <span className={item.isStale ? "font-semibold text-amber-11" : ""}>{relativeAge(item.clockAt).replace(" ago", "")}</span>
               </DetailRow>
             )}

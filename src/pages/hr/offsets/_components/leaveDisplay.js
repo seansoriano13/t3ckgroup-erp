@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { CalendarDays, History, Inbox, Printer, Scale } from 'lucide-react';
 import { formatWindow } from '../../../../utils/time';
 import { STATUS_THEME } from '../../../../constants/statusTheme';
+import { ENTRY_KINDS } from '../../../../components/calendar/entryKinds';
 import { recordKey } from './useDocumentCenter';
 import { CAPTION_BASE } from "@/lib/captionStyle";
 
@@ -20,13 +21,13 @@ export const LEAVE_VIEWS = [
 
 export const LEAVE_TYPES = ['OFFSET', 'SIL', 'LWOP', 'OVERTIME', 'UNDERTIME'];
 
-export const TYPE_META = {
-  OFFSET: { label: 'Offset', chip: 'bg-blue-2 text-blue-11 border-blue-6', dot: 'bg-blue-9', solid: 'bg-blue-9', bar: 'bg-blue-5' },
-  SIL: { label: 'SIL', chip: 'bg-green-2 text-green-11 border-green-6', dot: 'bg-green-9', solid: 'bg-green-9', bar: 'bg-green-5' },
-  LWOP: { label: 'LWOP', chip: 'bg-orange-2 text-orange-11 border-orange-6', dot: 'bg-orange-9', solid: 'bg-orange-9', bar: 'bg-orange-5' },
-  OVERTIME: { label: 'Overtime', chip: 'bg-muted text-foreground border-border', dot: 'bg-mauve-10', solid: 'bg-mauve-10', bar: 'bg-mauve-5' },
-  UNDERTIME: { label: 'Undertime', chip: 'bg-amber-2 text-amber-11 border-amber-6', dot: 'bg-amber-9', solid: 'bg-amber-9', bar: 'bg-amber-5' },
+const typeMeta = (kind) => {
+  const { label, chip, dot, bar } = ENTRY_KINDS[kind];
+  return { label, chip, dot, solid: dot, bar };
 };
+
+/** Colours and names come from the Calendar's entry kinds, so a type looks the same on every screen. */
+export const TYPE_META = Object.fromEntries(LEAVE_TYPES.map((t) => [t, typeMeta(t)]));
 
 // A status badge's theme, and the matching dot on the request's activity timeline.
 const THEME_DOT = {

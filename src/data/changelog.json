@@ -2,7 +2,7 @@
     {
         "date": "2026-11-14",
         "title": "Every window has a link, and bell clicks open the record",
-        "version": "1.10.7",
+        "version": "1.10.8",
         "changes": [
             "Clicking a notification now opens the record it is about, in its own window.",
             "Every window you can open has an address now, and a Copy link button in its header, so you can send exactly what you are looking at.",
@@ -12,9 +12,26 @@
         ]
     },
     {
+        "date": "2026-11-14",
+        "title": "Faster chats and a tidier Time Off",
+        "version": "1.10.7",
+        "changes": [
+            "Chats and Group Task chats open without timing out, and a Group Task chat only shows to the people who can see that Group Task.",
+            "The File Time Off form is easier to fill: required fields are marked with a red asterisk, mistakes show under the field, and you are warned when you ask for more hours than you have.",
+            "The Department Head picker shows each head's department, and it explains when your team has two heads and you need to choose one.",
+            "Time Off & Overtime has one date control, a header that wraps on small screens, and each request type has one colour and one name everywhere. Paid leave is called SIL (Service Incentive Leave).",
+            "The Employee Directory opens a person when you click the row, keeps Actions in view, and Super Admins can copy an employee's ID.",
+            "The menu opens the group you are in, the phone top bar shows the page title, and a screen you cannot open now says so.",
+            "What's New now pops up only for releases that touch the modules you can open. A small dot on Release Notes in the menu shows when there is something new."
+        ]
+    },
+    {
         "date": "2026-11-13",
         "title": "One Canvass for the whole request",
         "version": "1.10.6",
+        "modules": [
+            "purchasing.canvasses"
+        ],
         "changes": [
             "A Purchase Request now has one Canvass: its lines go down and the suppliers go across, so you compare every line side by side.",
             "Add each supplier once with its currency, rate, how long the quote holds and its lead time, then type its price on each line.",
@@ -29,6 +46,9 @@
         "date": "2026-11-12",
         "title": "S0 Evaluation: cleaner figures and a start from just an S0",
         "version": "1.10.5",
+        "modules": [
+            "sales"
+        ],
         "changes": [
             "ABC can now be one total for the whole sheet instead of a price on every line.",
             "The Odoo column shows Odoo's selling price (SRP), not its cost.",
@@ -62,6 +82,9 @@
         "date": "2026-11-12",
         "title": "Dialogs that scroll, % on IPAS payments, choose the required files",
         "version": "1.10.3",
+        "modules": [
+            "purchasing"
+        ],
         "changes": [
             "Dialogs never grow past the screen any more: the content scrolls and the title and buttons stay in view.",
             "IPAS payments: a Down payment or Payment can be a % of the order. The amount is worked out for you and the % shows on the printed form.",
@@ -102,6 +125,9 @@
         "date": "2026-11-10",
         "title": "IPAS tidy-up",
         "version": "1.9.99",
+        "modules": [
+            "purchasing"
+        ],
         "changes": [
             "One button on an IPAS removes all the blank charges at once.",
             "Landed Cost can no longer be marked final while a charge has no amount.",
@@ -116,6 +142,10 @@
         "date": "2026-11-09",
         "title": "Technical, IPAS, Transmittal and costing improvements",
         "version": "1.9.98",
+        "modules": [
+            "purchasing",
+            "sales"
+        ],
         "changes": [
             "The overall Technical verdict now follows the products: Complies when every product complies, Deviates as soon as one deviates. The Technical page shows progress per product, and the in-charge can give one verdict to many products at once.",
             "A Group Task template that a Stage Action uses can no longer be deleted. The message names the Flow and Stage that use it.",
@@ -132,6 +162,9 @@
         "date": "2026-11-05",
         "title": "Approve evaluations from the Technical page",
         "version": "1.9.97",
+        "modules": [
+            "sales"
+        ],
         "changes": [
             "People on the Evaluation list now find the S0 Evaluations waiting for their approval on the Technical page, and approve them there.",
             "The Technical in-charge of an SOR cannot approve its evaluation, and the page says so.",
