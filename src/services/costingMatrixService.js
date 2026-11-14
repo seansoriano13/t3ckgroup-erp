@@ -1224,7 +1224,7 @@ export const costingMatrixService = {
   /**
    * Gives many products the same verdict at once (#932): `setComplianceMany(ids, { verdict, note })`. `verdict` is
    * `"complies"`, `"deviates"` or null (not judged). Deviates needs one remark, which is written to every product; the
-   * other verdicts leave each product's remark alone. Only the Technical in-charge may; the database refuses anyone else.
+   * Complies clears the remark and alternative of a product that was Deviates; Not judged leaves them alone. Only the Technical in-charge may; the database refuses anyone else.
    */
   async setComplianceMany(componentIds, { verdict, note } = {}) {
     const ids = [...new Set(componentIds ?? [])];
@@ -1237,6 +1237,17 @@ export const costingMatrixService = {
       const remark = blankText(note);
       if (remark === null) throw new CostingRuleError("A deviation needs a remark.", "23514");
       columns.compliance_note = remark;
+    }
+    if (verdict === "complies") {
+      // A product that was Deviates loses its deviation remark and recommended alternative, so a print cannot read
+      // "Complies" beside a deviation (#1035). Done first, in the same write that flips the verdict.
+      const cleared = await supabase
+        .from("costing_components")
+        .update({ compliance: "complies", compliance_note: null, recommended_alternative: null })
+        .in("id", ids)
+        .eq("compliance", "deviates")
+        .select("id");
+      if (cleared.error) fail(cleared.error);
     }
     const { data, error } = await supabase.from("costing_components").update(columns).in("id", ids).select("id");
     if (error) fail(error);
