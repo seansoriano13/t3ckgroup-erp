@@ -451,3 +451,21 @@ describe("handleNotificationRoute", () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
+
+describe("Transmittal and Packing List notifications (#1017)", () => {
+  it.each(["TRANSMITTAL_SUBMITTED", "TRANSMITTAL_CLOSED"])("%s opens the Transmittal page", (type) => {
+    const navigate = vi.fn()
+    const onClose = vi.fn()
+    handleNotificationRoute({ type, reference_id: "slip-1" }, { id: "u1" }, navigate, onClose)
+    expect(navigate).toHaveBeenCalledWith("/purchasing/transmittals/slip-1")
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("PACKING_LIST_REQUESTED opens the Packing List page", () => {
+    const navigate = vi.fn()
+    const onClose = vi.fn()
+    handleNotificationRoute({ type: "PACKING_LIST_REQUESTED", reference_id: "pl-1" }, { id: "u1" }, navigate, onClose)
+    expect(navigate).toHaveBeenCalledWith("/purchasing/packing-lists/pl-1")
+    expect(onClose).toHaveBeenCalled()
+  })
+})

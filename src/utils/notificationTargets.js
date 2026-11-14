@@ -80,6 +80,11 @@ const purchaseRequestTarget =
     openEntity({ id: notif.reference_id, type: "PURCHASE_REQUEST", focusChat: false, ...extra });
 const ipasTarget = ({ notif, navigate }) => navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
 
+const transmittalTarget = ({ notif, navigate }) =>
+  navigate(`/purchasing/transmittals/${encodeURIComponent(notif.reference_id)}`);
+const packingListTarget = ({ notif, navigate }) =>
+  navigate(`/purchasing/packing-lists/${encodeURIComponent(notif.reference_id)}`);
+
 const bugReportTarget = ({ notif, navigate }) =>
   navigate(`/bug-reports?record=${encodeURIComponent(notif.reference_id)}`);
 
@@ -155,15 +160,15 @@ export const NOTIFICATION_TARGETS = {
   PURCHASE_REQUEST_BUYER: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },
   PURCHASE_REQUEST_ITEM_ADDED: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },
   IPAS_SENT_BACK: { module: "purchasing", icon: "FileText", target: ipasTarget },
-  PACKING_LIST_REQUESTED: { module: "purchasing", icon: "FileText", target: PENDING },
-  TRANSMITTAL_SUBMITTED: { module: "purchasing", icon: "FileText", target: PENDING },
-  TRANSMITTAL_CANCELLED: { module: "purchasing", icon: "FileText", target: PENDING },
-  TRANSMITTAL_STAGE_READY: { module: "purchasing", icon: "FileText", target: PENDING },
-  TRANSMITTAL_CONFIRM_SIGNATURE: { module: "purchasing", icon: "FileText", target: PENDING },
-  TRANSMITTAL_NA_RAISED: { module: "purchasing", icon: "FileText", target: PENDING },
-  TRANSMITTAL_CLOSED: { module: "purchasing", icon: "FileText", target: PENDING },
-  TRANSMITTAL_SIGNATURE_DECLINED: { module: "purchasing", icon: "FileText", target: PENDING },
-  TRANSMITTAL_SIGNATURE_UNDONE: { module: "purchasing", icon: "FileText", target: PENDING },
+  PACKING_LIST_REQUESTED: { module: "purchasing", icon: "FileText", target: packingListTarget },
+  TRANSMITTAL_SUBMITTED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_CANCELLED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_STAGE_READY: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_CONFIRM_SIGNATURE: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_NA_RAISED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_CLOSED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_SIGNATURE_DECLINED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_SIGNATURE_UNDONE: { module: "purchasing", icon: "FileText", target: transmittalTarget },
 
   // ---- hr ----
   HR_NOTE: { module: "hr", icon: "FileText", target: PENDING },
