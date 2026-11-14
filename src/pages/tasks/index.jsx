@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import QueryError from "@/components/ui/QueryError";
-import { useLocation, useNavigate } from "react-router";
+import { useSearchParams } from "react-router";
 import { LayoutGrid, ListChecks, Table as TableIcon } from "lucide-react";
 import { TASK_STATUS } from "../../constants/status.js";
 import TaskCard from "../../components/TaskCard";
@@ -103,8 +103,7 @@ const openTask = (id) =>
 export default function TasksPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // --- ROLE CHECKS ---
   const isSA = user?.is_super_admin === true || user?.isSuperAdmin === true;
@@ -147,15 +146,15 @@ export default function TasksPage() {
   const { initial: saved, hasSavedDefault, saveDefault, clearDefault, isDirty } =
     useSavedFilters("tasks", user?.id, filterDefaults);
   const [filters, setFilters] = useState(() => {
-    const deepLinkEmployee = location.state?.filterEmployeeId;
+    const deepLinkEmployee = searchParams.get("employee");
     return {
       ...saved,
       // Staff are locked to their own tasks whatever was saved.
       ...(!isManagement && ownScope(user)),
       // A deep link to one person opens company-wide on them.
       ...(deepLinkEmployee && { ...COMPANY_SCOPE, employeeFilter: deepLinkEmployee }),
-      // Read preset filter from nav state (e.g. from DashboardStats card click)
-      statusFilter: location.state?.presetFilter?.status || saved.statusFilter,
+      // `?status=` from a Dashboard card
+      statusFilter: searchParams.get("status") || saved.statusFilter,
     };
   });
   const { deptFilter, subDeptFilter } = filters;
@@ -165,20 +164,6 @@ export default function TasksPage() {
     (filters.employeeFilter || user?.id) === user?.id ? "PERSONAL" : "ALL",
   );
   const [searchTerm, setSearchTerm] = useState("");
-  // Clear nav state so back-nav doesn't re-apply deep-link filters
-  useEffect(() => {
-    if (location.state?.filterEmployeeId) {
-      const newState = { ...location.state };
-      delete newState.filterEmployeeId;
-      navigate(location.pathname, { replace: true, state: newState });
-    }
-    if (location.state?.presetFilter) {
-      const newState = { ...location.state };
-      delete newState.presetFilter;
-      navigate(location.pathname, { replace: true, state: newState });
-    }
-  }, [location.state, navigate, location.pathname]);
-
   // For non-management users, lock filters to their own account once user is loaded.
   // This effect intentionally only reacts to user?.id becoming available — it does
   // NOT include isManagement so management users are never affected.

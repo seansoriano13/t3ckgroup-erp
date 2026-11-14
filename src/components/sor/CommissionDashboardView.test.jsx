@@ -237,12 +237,12 @@ describe("CommissionDashboardView", () => {
       expect(within(dialog).getByText("Bob Rep")).toBeInTheDocument();
 
       fireEvent.click(within(dialog).getByRole("button", { name: /Open SOR/ }));
-      expect(mockNavigate).toHaveBeenCalledWith("/sors", { state: { openOpportunityId: "opp-2" } });
+      expect(mockNavigate).toHaveBeenCalledWith("/sors?open=sor:opp-2");
     });
 
     it("opens the linked SOR's receipt when arriving from a SOR", async () => {
       asUser(superAdmin);
-      renderView({ state: { openOpportunityId: "opp-1" } });
+      renderView({ path: "/sors/commission?record=opp-1" });
 
       const dialog = await screen.findByRole("dialog");
       expect(within(dialog).getByText("Alpha Corp")).toBeInTheDocument();
@@ -255,7 +255,7 @@ describe("CommissionDashboardView", () => {
       await screen.findByText("SOR-001");
       fireEvent.click(screen.getByRole("tab", { name: /People/ }));
       fireEvent.click(screen.getByText("Alice Rep").closest("tr"));
-      expect(mockNavigate).toHaveBeenCalledWith("/sors", { state: { filterEmployeeId: "user-alice" } });
+      expect(mockNavigate).toHaveBeenCalledWith("/sors?employee=user-alice");
     });
   });
 

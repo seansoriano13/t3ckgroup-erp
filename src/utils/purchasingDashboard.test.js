@@ -81,7 +81,7 @@ describe("linkFor", () => {
     expect(linkFor(row())).toEqual({ to: "/purchasing?request=pr-1" });
     // Still canvassing on a request (#973): the request opens with its Canvass grid.
     expect(linkFor(row({ grp: DASHBOARD_GROUP.STILL_CANVASSING }))).toEqual({ to: "/purchasing?request=pr-1&canvass=1" });
-    expect(linkFor(row({ target_kind: "costing_matrix", request_id: null }))).toEqual({ to: "/sors", state: { openOpportunityId: "sor-1" } });
+    expect(linkFor(row({ target_kind: "costing_matrix", request_id: null }))).toEqual({ to: "/sors?open=sor:sor-1" });
     expect(linkFor(row({ target_kind: "transmittal", target_id: "tr-1" }))).toEqual({ to: "/purchasing/transmittals/tr-1" });
     expect(linkFor(row({ target_kind: "ipas", target_id: "ip-1" }))).toEqual({ to: "/purchasing/ipas/ip-1" });
     expect(rowLabel(row({ target_kind: "ipas", target_label: "TGIPAS_9" }))).toBe("IPAS TGIPAS_9");

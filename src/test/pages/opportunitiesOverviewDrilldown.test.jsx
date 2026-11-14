@@ -1,6 +1,6 @@
 /**
  * Clicking a stage count or a person on the SORS Overview navigates to the
- * register carrying `filterEmployeeId` and drops the user on the List. The view
+ * register carrying `?employee=` and drops the user on the List. The view
  * the page remembers has to follow, or a reload restores the Overview that was
  * saved before the click.
  */
@@ -31,7 +31,7 @@ describe("SORS Overview drill-down", () => {
 
     renderWithProviders(
       <MemoryRouter
-        initialEntries={[{ pathname: "/sors", state: { filterEmployeeId: mockUser.current.id } }]}
+        initialEntries={[`/sors?employee=${mockUser.current.id}`]}
       >
         <OpportunitiesPage />
       </MemoryRouter>,

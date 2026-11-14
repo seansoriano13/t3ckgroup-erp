@@ -94,33 +94,11 @@ describe("OpportunitiesPage Deep Linking", () => {
     vi.clearAllMocks();
   });
 
-  it("opens OpportunityDetailsModal immediately when navigated to with openOpportunityId state", async () => {
+  it("applies employee filter when navigated to with ?employee=", async () => {
     renderWithProviders(
       <MemoryRouter
         initialEntries={[
-          {
-            pathname: "/opportunities",
-            state: { openOpportunityId: "opp-uuid-1" },
-          },
-        ]}
-      >
-        <OpportunitiesPage />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Acme CCTV Rollout").length).toBeGreaterThan(0);
-    });
-  });
-
-  it("applies employee filter when navigated to with filterEmployeeId state", async () => {
-    renderWithProviders(
-      <MemoryRouter
-        initialEntries={[
-          {
-            pathname: "/opportunities",
-            state: { filterEmployeeId: "user-2" },
-          },
+          "/opportunities?employee=user-2",
         ]}
       >
         <OpportunitiesPage />
@@ -265,9 +243,9 @@ describe("Open Pipeline value", () => {
     opportunityService.getOpportunities.mockResolvedValue([openFlow, wonFlow, lostFlow, openLegacy, wonLegacy])
   })
 
-  const renderPage = (state) =>
+  const renderPage = (search = "") =>
     renderWithProviders(
-      <MemoryRouter initialEntries={[{ pathname: "/opportunities", state }]}>
+      <MemoryRouter initialEntries={[`/opportunities${search}`]}>
         <OpportunitiesPage />
       </MemoryRouter>,
     )
@@ -279,7 +257,7 @@ describe("Open Pipeline value", () => {
   })
 
   it("lists exactly those SORs under the Open filter", async () => {
-    renderPage({ filterStatus: "OPEN" })
+    renderPage("?status=OPEN")
 
     expect(await screen.findByText("Open flow deal")).toBeInTheDocument()
     expect(await screen.findByText("Open legacy deal")).toBeInTheDocument()
@@ -442,9 +420,9 @@ describe("Lost deals in the register (#814)", () => {
     opportunityService.getOpportunities.mockResolvedValue([open, lostCoded, lostOld])
   })
 
-  const renderPage = (state) =>
+  const renderPage = (search = "") =>
     renderWithProviders(
-      <MemoryRouter initialEntries={[{ pathname: "/opportunities", state }]}>
+      <MemoryRouter initialEntries={[`/opportunities${search}`]}>
         <OpportunitiesPage />
       </MemoryRouter>,
     )
@@ -458,7 +436,7 @@ describe("Lost deals in the register (#814)", () => {
   })
 
   it("keeps a Lost flow deal out of a Stage filter on its never-changing status", async () => {
-    renderPage({ filterStatus: "LEAD" })
+    renderPage("?status=LEAD")
 
     expect(await screen.findByText("Still open deal")).toBeInTheDocument()
     expect(screen.queryByText("Coded lost deal")).toBeNull()
