@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { useRecordParam } from "@/hooks/useRecordParam";
 import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from "recharts";
 import { Download, Search, TrendingUp } from "lucide-react";
 import { Button } from "../../ui/button";
@@ -43,7 +44,14 @@ export default function PoolTab({ access, departments, initialDealId }) {
   const [list, setList] = useState("deals");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [openDealId, setOpenDealId] = useState(initialDealId ?? null);
+  // The open deal is `?record=<sor id>`, so a refresh reopens it. A deal handed over in
+  // router state (the SOR modal's link) is written to the address once, on arrival.
+  const { recordId: openDealId, open: openDealRecord, close: closeDealRecord } = useRecordParam();
+  const setOpenDealId = (id) => (id == null ? closeDealRecord() : openDealRecord(id));
+  useEffect(() => {
+    if (initialDealId && !openDealId) openDealRecord(initialDealId, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const ledger = useMemo(() => dashboard.dealLedger || [], [dashboard]);
   const months = useMemo(() => monthlyPool(ledger), [ledger]);

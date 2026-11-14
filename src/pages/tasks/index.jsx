@@ -3,7 +3,6 @@ import QueryError from "@/components/ui/QueryError";
 import { useLocation, useNavigate } from "react-router";
 import { LayoutGrid, ListChecks, Table as TableIcon } from "lucide-react";
 import { TASK_STATUS } from "../../constants/status.js";
-import TaskDetails from "../../components/TaskDetails.jsx";
 import TaskCard from "../../components/TaskCard";
 import TaskTableView from "../../components/TaskTableView.jsx";
 import TaskFilterBar from "../../components/TaskFilterBar.jsx";
@@ -96,6 +95,10 @@ function taskFilterDefaults(user, { isHr, isManagement }) {
     crmOnly: false,
   };
 }
+
+// One way to open a task: the global manager reads `?open=task:<id>`.
+const openTask = (id) =>
+  window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id, type: "TASK" } }));
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -200,16 +203,8 @@ export default function TasksPage() {
   const [allCategories, setAllCategories] = useState([]);
 
   // 3. UI State (Pop-ups)
-  const [viewTask, setViewTask] = useState(null);
 
   useTableRealtime("tasks", { invalidateKeys: TASK_QUERY_KEYS });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: ({ id, userId }) => taskService.deleteTask(id, userId),
-    onSuccess: () => {
-      TASK_QUERY_KEYS.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
-    },
-  });
 
   // Fetch all employees and categories
   useEffect(() => {
@@ -455,7 +450,7 @@ export default function TasksPage() {
             searchTerm={searchTerm}
             filtered={rawTasks.length > 0}
             onClearFilters={clearAllFilters}
-            onView={(task) => setViewTask(task)}
+            onView={(task) => openTask(task.id)}
             onSilentUpdate={(payload) => editTaskMutation.mutateAsync(payload)}
           />
         </div>
@@ -543,7 +538,7 @@ export default function TasksPage() {
                     key={task.id}
                     task={task}
                     searchTerm={searchTerm}
-                    onView={() => setViewTask(task)}
+                    onView={() => openTask(task.id)}
                     onSilentUpdate={(payload) =>
                       editTaskMutation.mutateAsync(payload)
                     }
@@ -692,16 +687,6 @@ export default function TasksPage() {
         </div>
       )}
 
-      <TaskDetails
-        isOpen={!!viewTask}
-        onClose={() => setViewTask(null)}
-        task={viewTask}
-        onUpdateTask={(updatedTask) =>
-          editTaskMutation.mutateAsync(updatedTask)
-        }
-        onDeleteTask={(payload) => deleteTaskMutation.mutateAsync(payload)}
-        searchTerm={searchTerm}
-      />
     </PageShell>
   );
 }

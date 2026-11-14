@@ -42,11 +42,14 @@ vi.mock("@/context/AuthContext", () => ({
   }),
 }))
 
-describe("Group Tasks page — creator rating", () => {
+describe("Group Tasks page — row click", () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it("opens the rating modal when a non-head creator clicks Rate", async () => {
+  it("opens the task through the address handler instead of its own window", async () => {
     const user = setupUser()
+    const seen = []
+    const listener = (e) => seen.push(e.detail)
+    window.addEventListener("OPEN_ENTITY_DETAILS", listener)
     renderWithProviders(
       <MemoryRouter>
         <GroupTasksPage />
@@ -54,10 +57,9 @@ describe("Group Tasks page — creator rating", () => {
     )
 
     await user.click(await screen.findByText("Q1 Server Migration"))
-    await user.click(await screen.findByTitle("Rate"))
 
-    await waitFor(() => {
-      expect(screen.getByText("Rate Group Members")).toBeInTheDocument()
-    })
+    await waitFor(() => expect(seen).toEqual([{ id: "gt-1", type: "GROUP_TASK" }]))
+    window.removeEventListener("OPEN_ENTITY_DETAILS", listener)
+    expect(screen.queryByText("Rate Group Members")).not.toBeInTheDocument()
   })
 })
