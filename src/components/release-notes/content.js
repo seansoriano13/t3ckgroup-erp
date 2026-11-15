@@ -16,7 +16,7 @@
 
 export const RELEASE = {
   title: "What's new: October–November",
-  window: "Everything that changed in the ERP from 1 October to 10 November 2026.",
+  window: "Everything that changed in the ERP from 1 October to 13 November 2026.",
 }
 
 export const SECTIONS = [
@@ -28,7 +28,7 @@ export const SECTIONS = [
       {
         id: "my-work",
         title: "My work: the SORs waiting on you",
-        body: "SORS opens on My work. It lists every SOR you owe something on: your open tasks, your part of a Group Task and the Purchase Requests you buy for. Needs you comes first, then Watching, longest wait first, and Your move opens the task or request. My SORs is gone from the menu, and its old link opens My work.",
+        body: "SORS opens on My work. It lists every SOR you owe something on: your open tasks, your part of a Group Task and the Purchase Requests you buy for. Needs you comes first, then Watching, longest wait first, and Your move opens the task or request. The Why you're on it column says in words why each SOR is there, such as Task, a Mention, Deal Team or Purchase request, and the Stage it came at; hover it for every reason. SORS is now in everyone's menu: if you can't see the whole register, you see only My work. My SORs is gone from the menu, and its old link opens My work.",
         who: ["Everyone"],
         sample: "my-work",
       },
@@ -42,7 +42,7 @@ export const SECTIONS = [
       {
         id: "s0-card",
         title: "The S0 is set once, and checked in Odoo",
-        body: "Set the S0 in the SOR's edit form, under Details. Saving it checks it in Odoo and brings in its products in one go. In the first Stage you can change it freely; after that it can be filled once, and then only a Super Admin can change it, with a reason. An S0 already on another SOR is refused, and every change is written in the deal's history.",
+        body: "Set the S0 in the SOR's edit form, under Details. Saving it checks it in Odoo and brings in its products in one go. In the first Stage you can change it freely; after that it can be filled once, and then only a Super Admin can change it, with a reason. An S0 already on another SOR is refused, and SORs that already share one show a red Duplicate badge. Before you change or clear an S0, you are told how many products will be marked Removed from S0. Each time the SOR opens, its S0 is checked in Odoo again, and the card shows Gone from Odoo if Odoo no longer has it. Every change is written in the deal's history.",
         who: ["Sales"],
         sample: "s0-card",
       },
@@ -61,7 +61,7 @@ export const SECTIONS = [
       {
         id: "register-sor",
         title: "Registering an SOR is quicker",
-        body: "The form is grouped into Deal Classification, Details and Assignment, and works with the keyboard. You are the Deal Owner unless you pick someone else, and Sale Type is required. The message after you register names the new SOR number, and the SOR opens straight away. A Sales Reference that is already used asks you to confirm.",
+        body: "The form is grouped into Deal Classification, Details and Assignment, and works with the keyboard. You are the Deal Owner unless you pick someone else, and Sale Type is required. Fetch from Odoo fills the Company, Contact Person and Product List from the S0. The message after you register names the new SOR number, and the SOR opens straight away. A Sales Reference that is already used asks you to confirm.",
         who: ["Sales"],
       },
       {
@@ -74,7 +74,7 @@ export const SECTIONS = [
       {
         id: "mentions",
         title: "A Mention lets someone into the SOR's current Stage",
-        body: "Mention someone in an SOR's chat and they can open the Stage it is on, read its notes and add their own, until the SOR moves on. The message box tells you this before you send. They see a banner saying who mentioned them and when it ends. Under Deal team, the SOR lists everyone it was shared with this way.",
+        body: "Mention someone in an SOR's chat and they can open the Stage it is on, read its notes and add their own, until the SOR moves on. The message box tells you this before you send. They see a banner saying who mentioned them and when it ends, and the timeline marks each Stage they can't read and why. Under Deal team, the SOR lists everyone it was shared with this way.",
         who: ["Sales", "Deal Team", "Everyone"],
       },
       {
@@ -110,6 +110,12 @@ export const SECTIONS = [
       "Opening an SOR you can't see now says so and names the Deal Owner to ask, instead of showing nothing.",
       "When the Board won't take a drop, it says why.",
       "Registering an SOR starts the first Stage's tasks and actions straight away.",
+      "A Stage Action that fails says why, and Create lets you try it again.",
+      "Cancelling a task that a Stage Action made also ends the SOR access it gave.",
+      "The SOR header updates as soon as you save a Stage Field, and it is more compact, with the S0 number in its top line.",
+      "Clear to move no longer shows by mistake while a Stage's conditions are still loading.",
+      "The SOR window shows the right Stage and status colours.",
+      "The register shows a page at a time, and you pick 10, 25 or 50 rows a page.",
     ],
   },
   {
@@ -120,7 +126,7 @@ export const SECTIONS = [
       {
         id: "group-task-evaluation",
         title: "Group Tasks wait for their Evaluator",
-        body: "When every member is done, a Group Task shows Awaiting evaluation, and it is Completed only once it is rated. The To evaluate tab lists the ones waiting, longest first. The Evaluator gets a message, then reminders after 3, 6 and 9 days, and after that the creator and the Evaluator's heads are told. Pick the Evaluator when you create the task, or leave it empty to rate it yourself. A Group Task made by a Stage is rated by the SOR's Deal Owner. The creator, heads and Super Admins can change the Evaluator, and an Evaluator who isn't a member can still open the task and its SOR.",
+        body: "When every member is done, a Group Task shows Awaiting evaluation, and it is Completed only once it is rated. The To evaluate tab lists the ones waiting, longest first. The Evaluator gets a message, then reminders after 3, 6 and 9 days, and after that the creator and the Evaluator's heads are told. When some members will never finish, the creator, the Evaluator, heads and Super Admins can press Send to evaluation. Pick the Evaluator when you create the task, or leave it empty to rate it yourself. A Group Task made by a Stage is rated by the SOR's Deal Owner. The creator, heads and Super Admins can change the Evaluator, and an Evaluator who isn't a member can still open the task and its SOR.",
         who: ["Everyone"],
         sample: "group-task-evaluation",
       },
@@ -129,6 +135,12 @@ export const SECTIONS = [
         title: "Turn a task into a Group Task",
         body: "Heads, HR and Super Admins can press Convert to Group Task on an open task. It keeps its details, checklist, files and chat; the task's owner becomes the first member, and you pick who else joins. Its notifications open the Group Task from then on.",
         who: ["Department heads", "HR"],
+      },
+      {
+        id: "group-task-reopen",
+        title: "Reopen a Group Task that is On hold",
+        body: "A Group Task made by a Stage goes On hold when its SOR leaves that Stage. Its creator, a Super Admin or a head of the creator's department can now press Reopen. The task goes back to the status it had, and its Due Date moves out by the time it was on hold.",
+        who: ["Department heads", "Everyone"],
       },
       {
         id: "group-task-managers",
@@ -179,6 +191,10 @@ export const SECTIONS = [
       "Task categories match your department and sub-department.",
       "Pasting a picture into a text box no longer also attaches it to the task.",
       "Pictures open in front of the task or SOR window, and the task window keeps its buttons in view.",
+      "Pressing Send in a task chat no longer reloads the page.",
+      "On a phone, the task window hides the split-screen button and keeps the chat to a width that fits.",
+      "For HR, Tasks opens on your own tasks. The company view is one click away.",
+      "Group Tasks show a page at a time, with 10, 25 or 50 rows a page.",
     ],
   },
   {
@@ -196,7 +212,7 @@ export const SECTIONS = [
       {
         id: "meeting-requests",
         title: "Book a Venue with a Meeting Request",
-        body: "Book a Venue from the Calendar and add a Facilitator, Participants and guests. A meeting is Onsite, Online or Hybrid, with a link and guest emails. HR approves it in Approvals, under Meeting Requests. You can edit, send again or cancel before it starts, and everyone invited gets a reminder.",
+        body: "Book a Venue from the Calendar and add a Facilitator, Participants and guests. A meeting is Onsite, Online or Hybrid, with a link and guest emails. HR approves it in Approvals, under Meeting Requests. You can edit, send again or cancel before it starts, and everyone invited gets a reminder 15 minutes before. A Venue that is already booked at that time is refused, and you are warned, without being stopped, when someone you invite is on approved time off or in another meeting.",
         who: ["Everyone", "HR"],
         sample: "meeting-requests",
       },
@@ -210,7 +226,7 @@ export const SECTIONS = [
       {
         id: "meal-break",
         title: "The lunch hour comes off by the clock",
-        body: "Leave and overtime take off the Meal Break, 12 to 1 pm, only when your hours cover it. The old rule took an hour off any day of 5 hours or more. When no break was taken, HR can keep the hour in on review, with a reason.",
+        body: "Leave and overtime take off the Meal Break, 12 to 1 pm, only when your hours cover it. The old rule took an hour off any day of 5 hours or more. When no break was taken, HR can keep the hour in on review, with a reason. HR sets the Meal Break hours in Settings, under HR & Schedule.",
         who: ["Everyone", "HR"],
       },
       {
@@ -227,9 +243,15 @@ export const SECTIONS = [
       },
       {
         id: "lwop",
-        title: "HR can record Leave Without Pay",
-        body: "HR records LWOP as approved. It shows on the Calendar and can be checked from the QR code on its printed form.",
-        who: ["HR"],
+        title: "File Leave Without Pay",
+        body: "On the Leave tab, pick Without pay (LWOP) to file leave that uses no SIL hours. It is approved like other leave, and you can withdraw it. HR can also record an absence as LWOP, saved as already approved, and HR's balances list has an LWOP this month column. LWOP shows on the Calendar, prints on the TG-11 form and can be checked from its QR code.",
+        who: ["Everyone", "HR"],
+      },
+      {
+        id: "venues",
+        title: "HR keeps the list of Venues",
+        body: "HR and Super Admins add, rename, reorder, hide or delete the Venues people can book, in Settings under Venues.",
+        who: ["HR", "Super Admin"],
       },
     ],
     alsoFixed: [
@@ -239,6 +261,10 @@ export const SECTIONS = [
       "A request your head declined no longer blocks those dates or counts against your hours.",
       "An Offset request shows its attached pictures.",
       "The printed TG-11, TG-12 and TG-13 forms are cleaner and show when HR validated the request.",
+      "Withdrawing a request uses the Manila date too.",
+      "HR's Time Off & Overtime opens on Pending when something is waiting, and on the Calendar when nothing is.",
+      "Opening a leave form's verified record from its QR code works again.",
+      "On a phone, the Calendar shows an agenda list, and on a laptop more weeks fit.",
     ],
   },
   {
@@ -279,7 +305,7 @@ export const SECTIONS = [
       {
         id: "bug-report-replies",
         title: "Talk back and forth on a bug report",
-        body: "IT can write a note on your report, such as \"Fixed, can you check?\", and you can reply. Each note tells the other side. Press the bug button and choose My reports to see your reports, the notes on them and when each was resolved.",
+        body: "IT can write a note on your report, such as \"Fixed, can you check?\", and you can reply. Each note tells the other side. Report a bug now sits at the bottom of the side menu, instead of floating over your tables. Open it and choose My reports to see your reports, the notes on them and when each was resolved.",
         who: ["Everyone", "IT Team"],
       },
       {
@@ -297,18 +323,39 @@ export const SECTIONS = [
       },
       {
         id: "phones",
-        title: "Easier on phones and tablets",
-        body: "On a tablet the sidebar folds to a thin strip. On a phone, tabs scroll sideways and tables switch to a layout that fits.",
+        title: "Every screen fits a laptop, a tablet and a phone",
+        body: "On a laptop, screens use less space, so more of each page shows without scrolling, and the side menu is slimmer. On smaller screens the side menu starts as icons. On a phone, a top bar opens the menu, lists show each row as a card, filters open in their own sheet, and tabs scroll sideways. Windows and dialogs open full screen on a phone, with the main button pinned at the bottom. Admin pages that are best on a computer say so.",
         who: ["Everyone"],
+      },
+      {
+        id: "pages",
+        title: "Long lists come a page at a time",
+        body: "The SOR register, Group Tasks, the approval queues, the Employee Directory, Bug Reports and the Purchasing lists show one page at a time, with the total. Pick 10, 25 or 50 rows a page.",
+        who: ["Everyone"],
+      },
+      {
+        id: "brochure-library",
+        title: "Pick a brochure from the library",
+        body: "When you attach a file to an SOR Stage, or in an SOR or Purchase Request chat, the file picker has a Brochure library. Picking one links the original brochure instead of uploading a copy.",
+        who: ["Sales", "Purchasing"],
       },
     ],
     alsoFixed: [
       "Pictures load a small copy first, so lists, chats and tasks open faster. Clicking one still opens it in full.",
       "Approve, Decline and similar buttons can't be pressed twice by accident.",
-      "Messages are clearer, and dates look the same everywhere.",
+      "Messages are clearer, empty cells show a dash, and dates look the same everywhere.",
       "Leaving Profile or the FAQ Editor with unsaved changes warns you first.",
       "Picking a file you already uploaded links the original instead of adding a copy.",
       "Pop-ups open in front of the window they came from, and dropdowns no longer lock the page.",
+      "Dialogs never grow past the screen: the content scrolls, and the title and buttons stay in view.",
+      "Buttons, tabs and dialog buttons are one size everywhere, and a page's main button is red.",
+      "Buttons, badges and labels have more contrast, and Approve buttons are readable in dark mode.",
+      "Every printed form uses one layout and one type size.",
+      "Each page shows its own name in the browser tab.",
+      "Long chats open on the newest 30 messages and load older ones as you scroll up, so they open faster.",
+      "Notifications: the list stops at 50 while the page stays open, Load older notifications shows the rest, and the bell shows a plus when there are more.",
+      "Notifications on a phone: the Close button always shows, and the bell count matches the list.",
+      "Signing in shows what is wrong next to the field, the sign-in page reads well in dark mode, and Tab goes from email straight to password.",
     ],
   },
   {
@@ -326,6 +373,8 @@ export const SECTIONS = [
     ],
     alsoFixed: [
       "This month against last compares the same days of each month.",
+      "The marketplace fee no longer counts shipping, transaction, service, commission, voucher or delivery fees.",
+      "On a phone, the date range is a drop-down and orders show as cards.",
     ],
   },
   {
@@ -389,6 +438,10 @@ export const SECTIONS = [
       "A Group Task action can name who evaluates it.",
       "Require confirmation can go to everyone in a department.",
       "The canvas warns when a flow has no Lost end Stage.",
+      "The Flow Canvas opens on the Sale Type you picked last.",
+      "The condition Kind list scrolls when it is long.",
+      "Changing only which Stage holds the award or the contract now counts as a change, so the flow can be published.",
+      "Outdated SORs: updating to a newer version starts the new Stage's actions, and anything that could not be planned is shown.",
     ],
   },
   {
@@ -400,13 +453,25 @@ export const SECTIONS = [
       {
         id: "purchase-requests",
         title: "Purchase Requests",
-        body: "An SOR has one Purchase Request, opened by a Stage or with New Purchase Request. The Deal Team adds products, and Purchasing sets each one's status as it is canvassed, ordered and received, and attaches the P0. Each request has its own chat. It replaces the old procurement requests and the Procurement Queue.",
+        body: "An SOR has one Purchase Request, opened by a Stage or with New Purchase Request. Requests are numbered, such as PR_0042. The Deal Team adds products, or uses Ask for a product for one that is not on the S0. Purchasing checks the stock and sets each product's status: Available, To purchase, Still canvassing, Purchased, Received, Cannot source or Cancelled. Tick several lines to change them in one go, and Undo a change for a few seconds after. Replace a product swaps it for another, with a reason. Each request has its own chat. It replaces the old procurement requests and the Procurement Queue.",
         who: ["Sales", "Purchasing"],
+      },
+      {
+        id: "direct-requests",
+        title: "Anyone can open a Direct Purchase Request",
+        body: "New Purchase Request in Quick Actions opens a Direct request that needs no SOR. You can name the project it is for; it then shows on that SOR as a Direct request, without being added to the project's products.",
+        who: ["Everyone", "Purchasing"],
+      },
+      {
+        id: "attach-p0",
+        title: "Attach a P0 from Odoo, and let Odoo keep it current",
+        body: "Attach P0 suggests the P0s in Odoo and lists their rows, and picks the item's lines by product. The same window offers to attach the P0 to the other items it covers. A P0 is attached once buying opens at its Stage; before that, Order early attaches one with a reason. Attaching a P0 creates its IPAS. From then on, Purchased and Received follow the P0 and its receipt in Odoo.",
+        who: ["Purchasing"],
       },
       {
         id: "s0-evaluation",
         title: "S0 Evaluation: cost, price and decide the bid",
-        body: "The S0 Evaluation is one sheet per SOR: a row for each line of the S0, its cost from Odoo, the markup and the price, with a playground to try a markup before you save it. Technical marks each product Complies or Deviates. The Bid Decision takes Go, Revise or No-go; a Go locks the sheet, and a Go on a loss needs a decider. It prints on A4.",
+        body: "The S0 Evaluation is one sheet per SOR: a row for each line of the S0, its cost from Odoo, the markup and the price, with a playground to try a markup before you save it. Technical marks each product Complies or Deviates. The Bid Decision takes Go, Revise or No-go. It shows how the planned revenue is worked out and warns when the offer is below the ABC. A Go waits for the Evaluation of Specification to be approved, locks the sheet, and on a loss needs a decider. After a No-go, the Deal Owner can move the deal to Closed Lost. Once goods are bought, each line shows its Expected and Actual cost from the attached P0. It prints on A4. The Closed Book also has an S0 Evaluation page with every SOR's Planned and Actual Revenue side by side.",
         who: ["Sales", "Purchasing", "Management"],
         sample: "s0-evaluation",
       },
@@ -426,26 +491,44 @@ export const SECTIONS = [
       {
         id: "ipas",
         title: "IPAS, the purchase approval sheet",
-        body: "Attaching a P0 creates its IPAS. Purchasing and Finance record its payments, charges and documents, and Landed Cost is worked out for you. Each section is submitted, then approved in Approvals under IPAS Sign-offs, before the IPAS is filed. It prints like the paper form.",
+        body: "Attaching a P0 creates its IPAS. Purchasing and Finance record its payments, charges and documents, and Landed Cost is worked out for you. Each section is submitted, then approved in Approvals under IPAS Sign-offs, before the IPAS is filed. A payment can be a % of the order. The IPAS list has views such as Unpaid and On-Hold, a column picker, totals per currency and Excel export. It prints like the paper form.",
         who: ["Purchasing", "Finance"],
         sample: "ipas",
       },
       {
         id: "transmittals",
         title: "Transmittals and Packing Lists",
-        body: "A Transmittal (TG03) hands goods over: the Warehouse and Technical rate each line GC or NA and sign, and two Check by signatures close it. A Packing List records what is in each box packed for an SOR. Both print on their paper layouts.",
+        body: "A Transmittal (TG03) hands goods over: the Warehouse and Technical rate each line GC or NA and sign, and two Check by signatures close it. A slip waiting for your Check by shows in Approvals under Transmittal Check by. A Packing List records what is in each box packed for an SOR. Both print on their paper layouts.",
         who: ["Warehouse", "Logistics", "Technical"],
       },
       {
         id: "purchasing-dashboard",
         title: "The Purchasing Dashboard",
-        body: "One page for where every project's buying stands. A row for each SOR shows how far its buying has got, its one next step and who owes it. Late orders are counted at the top.",
+        body: "One page for where every project's buying stands. A row for each SOR shows how far its buying has got, its one next step and who owes it. Late orders are counted at the top. It replaces the Order Monitoring page, and old Order Monitoring links open it.",
         who: ["Purchasing", "Finance", "Management"],
+      },
+      {
+        id: "reference-rate",
+        title: "A daily exchange rate",
+        body: "The Reference Rate is what one US dollar or euro is worth in pesos, taken once a day from the European Central Bank, and it always shows the day it is for. Canvasses fill it in for dollar and euro offers, and an IPAS shows it beside the rate you paid. A Super Admin can correct a day's rate in Settings.",
+        who: ["Purchasing", "Finance"],
+      },
+      {
+        id: "purchasing-settings",
+        title: "Purchasing and S0 Evaluation settings",
+        body: "Settings has a Purchasing tab: the IPAS option lists and sign-off lists, the next IPAS number, the files each IPAS needs, ageing rules for late orders, and the Reference Rates. The S0 Evaluation tab holds the markup presets, the rates and the evaluation list.",
+        who: ["Purchasing", "Super Admin"],
+      },
+      {
+        id: "purchasing-flow-steps",
+        title: "Stage conditions and actions for buying",
+        body: "The Flow Canvas has new Stage Actions: Open Purchase Request, Open S0 Evaluation, Evaluation of Specification and Request Packing List. It has new Stage conditions too: Purchasing settled, Costing priced, Costing settled, Evaluation of Specification approved, Goods checked and Orders filed. A Stage can be marked Buying opens here.",
+        who: ["Admins"],
       },
       {
         id: "pms-tab",
         title: "The PMS tab on every SOR",
-        body: "Every SOR has a PMS tab with its Purchase Request, IPAS, Transmittals and Packing Lists, and its S0 Evaluation for the people allowed to see it. Anyone who can read the SOR sees where its orders stand, without the money, and each Product List line shows its P0, linked to Odoo. Purchasing now has SORS in the menu too.",
+        body: "Every SOR has a PMS tab with its Purchase Request, IPAS, Transmittals and Packing Lists, and its S0 Evaluation for the people allowed to see it. Anyone who can read the SOR sees where its orders stand, without the money, and each Product List line shows its P0, linked to Odoo. Once Purchasing sets a product's status, the Products tab shows that instead of the Odoo stock badge.",
         who: ["Sales", "Deal Team", "Purchasing"],
         sample: "pms-tab",
       },
