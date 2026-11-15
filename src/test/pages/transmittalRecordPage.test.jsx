@@ -34,7 +34,7 @@ const PREPARER = "u-prep";
 
 function raw(over = {}) {
   return {
-    id: "t1",
+    id: "33333333-3333-4333-8333-333333333333",
     number: "TG03_0007",
     prepared_on: "2026-10-01",
     prepared_by: PREPARER,
@@ -66,7 +66,7 @@ function raw(over = {}) {
   };
 }
 
-function renderPage(id = "t1", search = "") {
+function renderPage(id = "33333333-3333-4333-8333-333333333333", search = "") {
   return renderWithProviders(
     <MemoryRouter initialEntries={[`/purchasing/transmittals/${id}${search}`]}>
       <Routes>
@@ -139,7 +139,7 @@ describe("Transmittal record page", () => {
     await user.click(await screen.findByRole("button", { name: "Sign Check by (1)" }));
     await confirmMove(user, "Sign Check by (1)", "Sign");
 
-    await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("t1", 1));
+    await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333", 1));
   });
 
   it("opens the step that needs me on arrival, with its one sign button under it", async () => {
@@ -154,7 +154,7 @@ describe("Transmittal record page", () => {
 
     await user.click(buttons[0]);
     await confirmMove(user, "Sign Check by (1)", "Sign");
-    await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("t1", 1));
+    await waitFor(() => expect(service.checkBy).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333", 1));
   });
 
   it("opens steps in place, several at once", async () => {
@@ -255,7 +255,7 @@ describe("Transmittal record page", () => {
     await user.click(confirm);
 
     await waitFor(() =>
-      expect(service.undoSignature).toHaveBeenCalledWith("t1", { kind: "check_by", stage: undefined, slot: 1, reason: "Wrong slip" }),
+      expect(service.undoSignature).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333", { kind: "check_by", stage: undefined, slot: 1, reason: "Wrong slip" }),
     );
   });
 

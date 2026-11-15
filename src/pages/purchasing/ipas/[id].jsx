@@ -1,3 +1,5 @@
+import RecordNotFound from "@/components/ui/RecordNotFound";
+import { isRecordId } from "@/utils/recordLink";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,7 +9,6 @@ import ProtectedRoute from "../../../components/ProtectedRoute";
 import { Button } from "../../../components/ui/button";
 import ModalShell from "../../../components/ui/ModalShell";
 import PageLoading from "../../../components/ui/PageLoading";
-import EmptyState from "../../../components/ui/EmptyState";
 import QueryError from "../../../components/ui/QueryError";
 import ConfirmDialog from "../../../components/ui/ConfirmDialog";
 import { Textarea } from "../../../components/ui/textarea";
@@ -205,7 +206,7 @@ function IpasPage({ onClose }) {
   const { data: ipas, isLoading, isError, refetch } = useQuery({
     queryKey: ipasKey(id),
     queryFn: () => ipasService.get(id, { refresh: false }),
-    enabled: Boolean(id),
+    enabled: isRecordId(id),
   });
 
   // Edit-form guard (#581): the newest event the form loaded, checked on Save all; and the
@@ -223,7 +224,7 @@ function IpasPage({ onClose }) {
   const refresh = useQuery({
     queryKey: ipasRefreshKey(id),
     queryFn: () => ipasService.refresh(id),
-    enabled: Boolean(id),
+    enabled: isRecordId(id),
     staleTime: 0,
     gcTime: 0,
     retry: false,
@@ -235,7 +236,7 @@ function IpasPage({ onClose }) {
   const { data: signerLists } = useQuery({
     queryKey: ipasSignerListsKey,
     queryFn: () => ipasService.getSignerLists(),
-    enabled: Boolean(id),
+    enabled: isRecordId(id),
   });
 
   // Leaving the edit view (its link, or Back) returns to the overview with that section's header focused.
@@ -817,7 +818,7 @@ function IpasPage({ onClose }) {
         ) : isError ? (
           <QueryError title="This IPAS could not be loaded." onRetry={refetch} />
         ) : (
-          <EmptyState title="IPAS not found" description="It doesn't exist, or you don't have access to it." />
+          <RecordNotFound recordType="IPAS" onBack={onClose} backLabel="Back to IPAS" />
         )}
       </ModalShell>
     );

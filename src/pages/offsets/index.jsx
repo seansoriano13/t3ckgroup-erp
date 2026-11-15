@@ -23,6 +23,9 @@ import ApplyLeaveModal from '../../components/offsets/ApplyLeaveModal';
 import { confirmDeleteToast } from '../../components/ui/CustomToast';
 import { getMonthBoundaries } from '../../utils/dateUtils';
 import { mergeRequestRows } from '../../utils/mergeRequests';
+import { useRecordParam } from '../../hooks/useRecordParam';
+import { isRecordId } from '../../utils/recordLink';
+import { getMyRequestByRef } from '../../services/myRequestLookup';
 import RequestsTable from './_components/RequestsTable';
 import { REQUEST_TYPE_BADGE } from './_components/requestTypes';
 import { CAPTION_BASE } from "@/lib/captionStyle";
@@ -117,6 +120,19 @@ export default function EmployeeLeavesPage() {
     silBalance = user?.sil_hours_balance || 0,
   } = data || {};
 
+  // #1015: `?record=<row id or leave group id>` (a notification link) shows that request
+  // open, even when it was filed in another month than the one selected.
+  const { recordId } = useRecordParam();
+  const inList = recordId ? requests.find((r) => r.id === recordId || r.leave_group_id === recordId) : null;
+  const { data: extra = [] } = useQuery({
+    queryKey: ['employeeLeaveByRef', user?.id, recordId],
+    queryFn: () => getMyRequestByRef(user.id, recordId),
+    enabled: Boolean(user?.id && isRecordId(recordId) && !loadingHistory && !isError && !inList),
+  });
+  const allRequests = useMemo(() => (inList || !extra.length ? requests : [...extra, ...requests]), [inList, extra, requests]);
+  const openRequest = recordId ? allRequests.find((r) => r.id === recordId || r.leave_group_id === recordId) : null;
+  const openKey = openRequest ? `${openRequest.type}-${openRequest.id}` : null;
+
   const handleWithdraw = useCallback((req) => {
     const label = REQUEST_TYPE_BADGE[req.type]?.label || 'Request';
     confirmDeleteToast(
@@ -141,9 +157,9 @@ export default function EmployeeLeavesPage() {
   }, [handleWithdraw]);
 
   const filteredRequests = useMemo(() => {
-    if (typeFilter === 'ALL') return requests;
-    return requests.filter(r => r.type === typeFilter);
-  }, [requests, typeFilter]);
+    if (typeFilter === 'ALL') return allRequests;
+    return allRequests.filter(r => r.type === typeFilter || r === openRequest);
+  }, [allRequests, typeFilter, openRequest]);
 
   // A pending request filed for another month is never hidden by the month picker:
   // it sits in "Still pending" above the month's own list.
@@ -255,7 +271,7 @@ export default function EmployeeLeavesPage() {
               {stillPending.length > 0 && (
                 <section className="mb-6" aria-label="Still pending">
                   <h2 className={`${CAPTION_BASE} mb-2 tracking-wider text-muted-foreground`}>Still pending</h2>
-                  <RequestsTable rows={stillPending} onWithdraw={handleWithdraw} />
+                  <RequestsTable rows={stillPending} onWithdraw={handleWithdraw} openKey={openKey} />
                 </section>
               )}
               {monthRequests.length === 0 ? (
@@ -275,7 +291,7 @@ export default function EmployeeLeavesPage() {
                   {stillPending.length > 0 && (
                     <h2 className={`${CAPTION_BASE} mb-2 tracking-wider text-muted-foreground`}>{periodLabel}</h2>
                   )}
-                  <RequestsTable rows={monthRequests} onWithdraw={handleWithdraw} />
+                  <RequestsTable rows={monthRequests} onWithdraw={handleWithdraw} openKey={openKey} />
                 </>
               )}
             </>

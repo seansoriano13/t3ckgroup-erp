@@ -6,7 +6,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import toast from "react-hot-toast";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OpportunitiesPage from "@/pages/sors/index";
 import { opportunityService } from "@/services/opportunityService";
 import { renderWithProviders, setupUser } from "@/test/support";
@@ -31,12 +31,6 @@ vi.mock("@/components/sor/OpportunityFormModal", () => ({
         </button>
       </div>
     ) : null,
-}));
-
-// The details modal has its own suite; here it only shows which SOR it opened.
-vi.mock("@/components/sor/OpportunityDetailsModal", () => ({
-  default: ({ isOpen, opportunity }) =>
-    isOpen && opportunity ? <div role="dialog">Details for {opportunity.sor_code}</div> : null,
 }));
 
 vi.mock("@/components/sor/DeletedOpportunitiesView", () => ({
@@ -67,6 +61,14 @@ describe("SOR Register: toast and open after Register SOR", () => {
     vi.spyOn(opportunityService, "getOpportunityById").mockResolvedValue({ ...CREATED });
   });
 
+  const opened = vi.fn();
+  const onOpen = (e) => opened(e.detail);
+  beforeEach(() => {
+    opened.mockClear();
+    window.addEventListener("OPEN_ENTITY_DETAILS", onOpen);
+  });
+  afterEach(() => window.removeEventListener("OPEN_ENTITY_DETAILS", onOpen));
+
   it("toasts the sor_code and opens the new SOR after Register", async () => {
     const user = setupUser();
     renderRegister();
@@ -76,7 +78,7 @@ describe("SOR Register: toast and open after Register SOR", () => {
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("SOR-257 registered."));
     expect(toast.success).not.toHaveBeenCalledWith(expect.stringMatching(/null/));
-    expect(await screen.findByText("Details for SOR-257")).toBeInTheDocument();
-    expect(opportunityService.getOpportunityById).toHaveBeenCalledWith("opp-new-257");
+    // The new SOR opens in the shared record window (?open=sor:<id>).
+    expect(opened).toHaveBeenCalledWith(expect.objectContaining({ id: "opp-new-257", type: "OPPORTUNITY" }));
   });
 });

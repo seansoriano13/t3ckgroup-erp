@@ -51,8 +51,8 @@ describe("technicalInchargeAttention (#910)", () => {
 
 describe("useDigest attention list (#910)", () => {
   const sorProps = (overrides = {}) => ({
-    id: "opp-1",
-    opportunity: { id: "opp-1", status: "LEAD", flow_stage_id: "stage-1", sales_reference: "SR-1", project_type: "NORMAL" },
+    id: "33333333-3333-4333-8333-333333333333",
+    opportunity: { id: "33333333-3333-4333-8333-333333333333", status: "LEAD", flow_stage_id: "stage-1", sales_reference: "SR-1", project_type: "NORMAL" },
     ctx: { items: [{ id: "i1" }], itemsLoading: false, pendingStage: null, stageLabel: (s) => s },
     checklist: [],
     missingRequiredStageFields: [],

@@ -1,3 +1,4 @@
+import { sorsHref } from "@/utils/listLinks";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -191,9 +192,7 @@ export default function EmployeeOpportunityMatrix({
   }, [employeeStats, searchTerm]);
 
   const goToEmployee = (empId, status) => {
-    navigate("/sors", {
-      state: { filterEmployeeId: empId, filterStatus: status || undefined },
-    });
+    navigate(sorsHref({ employee: empId, status }));
   };
 
   if (employeeStats.length === 0) return null;

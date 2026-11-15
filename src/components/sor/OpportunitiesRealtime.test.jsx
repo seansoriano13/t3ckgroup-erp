@@ -76,7 +76,7 @@ describe("register live updates", () => {
 
   it("listens for changes to SORs on the private sales_opportunities channel", async () => {
     renderWithProviders(
-      <MemoryRouter initialEntries={[{ pathname: "/sors", state: { filterEmployeeId: "ALL" } }]}>
+      <MemoryRouter initialEntries={["/sors?employee=ALL"]}>
         <OpportunitiesPage />
       </MemoryRouter>,
     );
@@ -87,7 +87,7 @@ describe("register live updates", () => {
 
   it("reloads the register once when another person's change is announced", async () => {
     renderWithProviders(
-      <MemoryRouter initialEntries={[{ pathname: "/sors", state: { filterEmployeeId: "ALL" } }]}>
+      <MemoryRouter initialEntries={["/sors?employee=ALL"]}>
         <OpportunitiesPage />
       </MemoryRouter>,
     );

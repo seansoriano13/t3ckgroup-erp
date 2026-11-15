@@ -93,7 +93,7 @@ function CanvassButton({ component, items = [], canRaise, opportunityId }) {
         </Button>
         <span>Raise the Purchase Request first</span>
         {canRaise && opportunityId && (
-          <Link className="underline underline-offset-2" to="/sors" state={{ openOpportunityId: opportunityId }}>
+          <Link className="underline underline-offset-2" to={`/sors?open=sor:${opportunityId}`}>
             Raise it from the SOR
           </Link>
         )}

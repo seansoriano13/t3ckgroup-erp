@@ -46,9 +46,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
 
   const handleOpenDashboard = () => {
     if (onClose) onClose();
-    navigate("/sors/commission", {
-      state: { openOpportunityId: opportunity.id },
-    });
+    navigate(`/sors/commission?record=${opportunity.id}`);
   };
 
   const salesRoleShares = breakdown?.salesRoleShares || [];

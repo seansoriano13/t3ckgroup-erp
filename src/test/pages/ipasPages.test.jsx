@@ -794,7 +794,12 @@ describe("IPAS pages", () => {
 
     it("says not found for an IPAS the database doesn't return", async () => {
       renderDetail(db.nextUuid());
-      expect(await screen.findByText("IPAS not found")).toBeInTheDocument();
+      expect(await screen.findByText("Not found, or not yours to see")).toBeInTheDocument();
+    });
+
+    it("treats an id that is not an id as not found, and asks the database nothing", async () => {
+      renderDetail("not-a-real-id");
+      expect(await screen.findByText("Not found, or not yours to see")).toBeInTheDocument();
     });
   });
 

@@ -71,6 +71,7 @@ export default function SorModal({
   siblingIds,
   onNavigate,
   initialView = null,
+  onViewChange = null,
 }) {
   const { user } = useAuth();
   const id = rawOpportunity?.id || opportunityId;
@@ -990,6 +991,7 @@ export default function SorModal({
     notes,
     canViewJourney,
     initialView,
+    onViewChange,
     isWide,
     hasOpened,
     markOpened,

@@ -114,7 +114,7 @@ describe("SorModal — access level", () => {
       <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={null} opportunityId="missing-sor" accessLevel="none" />,
     )
 
-    await screen.findByText("This SOR doesn't exist or has been deleted.")
+    await screen.findByText("Not found, or not yours to see")
   })
 
   it("disables Move and shows the restricted banner for a full-access viewer shut out of the current stage", async () => {

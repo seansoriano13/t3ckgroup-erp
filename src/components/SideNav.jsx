@@ -317,7 +317,7 @@ export default function SideNav() {
 
   // The same panel renders in the desktop aside (rail-capable) and the mobile
   // Drawer (always full width), so it takes `collapsed` rather than reading state.
-  const renderSidebarBody = (collapsed, showRailToggle = false) => (
+  const renderSidebarBody = (collapsed, showRailToggle = false, showMobileClose = false) => (
     <>
         {/* 1. Header (Profile Dropdown + Quick Actions) */}
         <div className="px-3 pt-6 pb-2 flex flex-col gap-2.5 laptop:pt-4 laptop:gap-2">
@@ -381,6 +381,20 @@ export default function SideNav() {
             >
               {collapsed ? <PanelRight size={14} strokeWidth={2} /> : <PanelLeft size={14} strokeWidth={2} />}
             </Button>
+          )}
+          {showMobileClose && (
+            <DrawerClose
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 shrink-0 gap-1.5 px-2.5 text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-sidebar-border rounded-md shadow-sm"
+                />
+              }
+            >
+              <X size={16} strokeWidth={2} />
+              Close
+            </DrawerClose>
           )}
           </div>
 
@@ -654,21 +668,7 @@ export default function SideNav() {
           className="md:hidden w-[260px] bg-sidebar text-sm font-sans overflow-y-auto scrollbar-hide pt-[env(safe-area-inset-top)]"
         >
           <DrawerTitle className="sr-only">Navigation</DrawerTitle>
-          <div className="absolute top-[calc(0.5rem+env(safe-area-inset-top))] right-2 z-50">
-            <DrawerClose
-              render={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-1.5 px-2.5 text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-sidebar-border rounded-md shadow-sm"
-                />
-              }
-            >
-              <X size={16} strokeWidth={2} />
-              Close
-            </DrawerClose>
-          </div>
-          {renderSidebarBody(false)}
+          {renderSidebarBody(false, false, true)}
         </DrawerContent>
       </Drawer>
 

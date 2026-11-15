@@ -66,9 +66,23 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   // The PMS tab exists for everyone who can see the SOR; PmsTab shows the Costing Matrix only to a tier.
   const views = nestedViews(p);
   // A caller can open the SOR on a tab (the Costing Matrix page opens "pms"); one this person has no tab for opens the Summary.
-  const [start] = useState(() => (views.some((v) => v.key === p.initialView) ? p.initialView : "summary"));
-  const [view, setView] = useState(start);
+  const asView = (key) => (views.some((v) => v.key === key) ? key : "summary");
+  // #1020: a caller that hands over `onViewChange` keeps the tab in the address (`&view=`), so the
+  // address is the source of truth; any other caller (the SOR register) keeps it in state.
+  const controlled = typeof p.onViewChange === "function";
+  const [start] = useState(() => asView(p.initialView));
+  const [localView, setLocalView] = useState(start);
+  const view = controlled ? asView(p.initialView) : localView;
+  const setView = (key) => (controlled ? p.onViewChange(key === "summary" ? null : key) : setLocalView(key));
+  // A tab the address names but this reader has no access to (or that does not exist) shows the Summary, and the address is corrected.
+  const badView = controlled && p.initialView && view !== p.initialView ? p.initialView : null;
+  const onViewChange = p.onViewChange;
+  useEffect(() => {
+    if (badView) onViewChange(null);
+  }, [badView, onViewChange]);
   const [opened, setOpened] = useState(start === "summary" ? ["summary"] : ["summary", start]);
+  // A tab the address names (a link, Back) stays mounted once shown, like one clicked open.
+  const wasOpened = (key) => opened.includes(key) || view === key;
   const [notesOpen, setNotesOpen] = useState(false);
   const current = views.find((v) => v.key === view);
 
@@ -97,7 +111,7 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
   useEffect(() => {
     if (lastId.current === p.id) return;
     lastId.current = p.id;
-    setView("summary");
+    if (!controlled) setLocalView("summary");
     setOpened(["summary"]);
   }, [p.id]);
 
@@ -161,12 +175,12 @@ export default function NestedShell({ p, nav = "crumb", renderSummary }) {
           <>
             {view === "summary" && <div className="h-full overflow-y-auto">{renderSummary({ go, open, views, openNotes: () => setNotesOpen(true) })}</div>}
             {/* This stage and Products stay mounted once opened, so a half-typed Stage Field or a product search survives a trip back to the Summary. */}
-            {opened.includes("now") && (
+            {wasOpened("now") && (
               <div className={view === "now" ? "h-full overflow-y-auto" : "hidden"}>
                 <NowTab ctx={ctx} />
               </div>
             )}
-            {opened.includes("items") && (
+            {wasOpened("items") && (
               <div className={view === "items" ? "h-full" : "hidden"}>
                 <ItemsTab ctx={ctx} hasOpened={p.hasOpened} />
               </div>

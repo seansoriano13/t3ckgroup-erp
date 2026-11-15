@@ -43,7 +43,9 @@
         "seed:mock:purchasing:local": "node scripts/seed-mock-purchasing.mjs && node scripts/seed-mock-costing.mjs",
         "clean:branches": "node scripts/cleanup-branches.mjs",
         "prepare": "node scripts/install-hooks.mjs",
-        "audit:screens": "node scripts/screen-audit.mjs"
+        "audit:screens": "node scripts/screen-audit.mjs",
+        "audit:notifications": "node scripts/notification-click-audit.mjs",
+        "audit:deep-views": "node scripts/deep-view-audit.mjs"
     },
     "dependencies": {
         "@base-ui/react": "^1.4.0",

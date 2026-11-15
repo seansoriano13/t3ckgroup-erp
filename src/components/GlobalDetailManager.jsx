@@ -12,14 +12,23 @@ import { opportunityService } from "../services/opportunityService";
 import { useAuth } from "../context/AuthContext";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import toast from "react-hot-toast";
+import NoAccessSorSlideOver from "./sor/NoAccessSorSlideOver";
 import { canManageGroupTasks } from "../utils/permissions";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useRecordParam } from "../hooks/useRecordParam";
 import {
   RECORD_LINK_PARAM,
+  RECORD_VIEW_PARAM,
+  withRecord,
   NO_ACCESS_MESSAGE,
   itemToRecordKey,
   recordKeyToItem,
+  isRecordId,
 } from "../utils/recordLink";
+
+// A "not found" is answered at once; only a failed read is worth trying again (#1027).
+const isGone = (error) => error?.code === "PGRST116" || /not found/i.test(error?.message || "");
+const retryUnlessGone = (count, error) => !isGone(error) && count < 2;
 
 export default function GlobalDetailManager() {
   const { user } = useAuth();
@@ -27,25 +36,48 @@ export default function GlobalDetailManager() {
   // The open record lives in the address (`?open=task:<id>`), so a copied link
   // reopens it and Back closes it. `view` (the tab an SOR opens on) isn't part
   // of the link; it rides along in state, matched to the record it was for.
-  const { recordId, open: openRecord, close: closeRecord } = useRecordParam(RECORD_LINK_PARAM);
-  const [openedView, setOpenedView] = useState(null);
-  // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }; PURCHASE_REQUEST has its own slot
+  const { recordId } = useRecordParam(RECORD_LINK_PARAM);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // A Purchase Request (#1019) is `?open=pr:<id>` with its tab in `&view=`. It
+  // opens on top of whatever was open: that record's key rides in the history
+  // entry's state (`under`), and the entry beneath is the record's own address,
+  // so closing the request steps Back to it.
+  const underKey = location.state?.under ?? null;
+  const linkedItem = useMemo(() => recordKeyToItem(recordId), [recordId]);
+  const requestId = linkedItem?.type === "PURCHASE_REQUEST" ? linkedItem.id : null;
+  const requestView = requestId ? searchParams.get(RECORD_VIEW_PARAM) : null;
+  // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }: the record behind a request when one is stacked.
   const activeItem = useMemo(() => {
-    const linked = recordKeyToItem(recordId);
-    return linked && openedView?.key === recordId ? { ...linked, view: openedView.view } : linked;
-  }, [recordId, openedView]);
+    const linked = requestId ? recordKeyToItem(underKey) : linkedItem;
+    // #1020: the SOR's tab is `&view=` in the address (it belongs to the request while one is stacked on top).
+    const view = requestId ? null : searchParams.get(RECORD_VIEW_PARAM);
+    return linked && view && linked.type === "OPPORTUNITY" ? { ...linked, view } : linked;
+  }, [requestId, underKey, linkedItem, searchParams]);
+  // Writes go straight to setSearchParams, not through useRecordParam's "held" copy: the window is derived
+  // from the address alone (no list or query in between), so there is no render that reads shut while a write lands.
   // Opening or closing in the app writes the address. A fresh open adds a
   // history entry; swapping one record for another replaces it.
   const setActiveItem = useCallback(
     (item) => {
       const key = itemToRecordKey(item);
-      setOpenedView(key && item.view ? { key, view: item.view } : null);
-      if (!key) closeRecord();
-      else if (key !== recordId) openRecord(key, recordId ? { replace: true } : undefined);
+      // The tab (`item.view`) rides in the address with the record; any other record's tab is dropped.
+      const write = (replace) => setSearchParams((prev) => withRecord(prev, key, key ? (item.view ?? null) : null), { replace });
+      if (!key) write(true);
+      else if (key !== recordId) write(Boolean(recordId));
+      else if (requestId || item.view !== (searchParams.get(RECORD_VIEW_PARAM) ?? undefined)) write(true);
     },
-    [closeRecord, openRecord, recordId],
+    [setSearchParams, searchParams, recordId, requestId],
+  );
+  // Moving between an SOR's tabs replaces the entry, so Back leaves the SOR rather than replaying tabs.
+  const changeSorView = useCallback(
+    (view) => setSearchParams((prev) => withRecord(prev, recordId, view), { replace: true }),
+    [setSearchParams, recordId],
   );
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
+  const [searchHit, setSearchHit] = useState(null);
+  const searchTermFor = (id) => (searchHit && searchHit.id === id ? searchHit.term : undefined);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
   // Quick View's Tasks section opens a Task stacked on top of it —
@@ -55,12 +87,9 @@ export default function GlobalDetailManager() {
   // A Purchase Request (#309) always opens stacked: it never replaces an open
   // SOR/task (#310 opens it from the SOR), and closing it leaves the page, or
   // whatever was open underneath, exactly as it was.
-  const [purchaseRequestId, setPurchaseRequestId] = useState(null);
   // Set by a mention notification: the request opens with its Chat ready to type in.
   const [purchaseRequestFocusChat, setPurchaseRequestFocusChat] = useState(false);
   // Counts every open, so a mention clicked while its request is already open still refreshes the Chat.
-  // The tab a notification names: "chat" or "items" (#850); null leaves the window as it is.
-  const [purchaseRequestTab, setPurchaseRequestTab] = useState(null);
   const [purchaseRequestOpenCount, setPurchaseRequestOpenCount] = useState(0);
 
   const isSuperAdmin = user?.is_super_admin === true || user?.isSuperAdmin === true;
@@ -70,13 +99,26 @@ export default function GlobalDetailManager() {
 
   useEffect(() => {
     const handleOpenDetails = (e) => {
-      const { id, type, isNew, view, focusChat, tab } = e.detail;
+      const { id, type, isNew, view, focusChat, tab, replace, dropParams, searchTerm } = e.detail;
       if (id && type === "PURCHASE_REQUEST") {
-        setPurchaseRequestId(id);
+        const key = itemToRecordKey({ id, type });
+        // The tab a notification names: "chat" or "items" (#850); a mention opens Chat; null leaves an open window as it is.
+        const wantedTab = tab ?? (focusChat === true ? "chat" : null);
         setPurchaseRequestFocusChat(focusChat === true);
-        setPurchaseRequestTab(tab ?? null);
         setPurchaseRequestOpenCount((n) => n + 1);
+        // Already open: swap in place. Over another record: push, remembering what is underneath.
+        const stacked = recordId && recordId !== key && !requestId;
+        setSearchParams(
+          (prev) => {
+            const next = withRecord(prev, key, wantedTab ?? (recordId === key ? prev.get(RECORD_VIEW_PARAM) : null));
+            for (const name of dropParams ?? []) next.delete(name);
+            return next;
+          },
+          { replace: replace === true || Boolean(requestId), state: stacked ? { under: recordId } : requestId ? location.state : null },
+        );
       } else if (id && type) {
+        // The list's search words ride in the event, not the address: the opened task marks them (#1023).
+        setSearchHit(searchTerm ? { id, term: searchTerm } : null);
         // `view` names the tab an SOR opens on (the Costing Matrix page opens "pms"); absent, it opens on its Summary.
         setActiveItem(view ? { id, type, view } : { id, type });
         if (isNew) {
@@ -87,7 +129,7 @@ export default function GlobalDetailManager() {
 
     window.addEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
     return () => window.removeEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
-  }, [setActiveItem]);
+  }, [setActiveItem, setSearchParams, recordId, requestId, location.state]);
 
   // Everyone needs the roster, not just managers: the detail modal feeds it to
   // the mention picker, and gating it on `canManage` left a normal employee
@@ -102,7 +144,8 @@ export default function GlobalDetailManager() {
   const { data: taskData, isLoading: isLoadingTask } = useQuery({
     queryKey: ["globalTask", activeItem?.id],
     queryFn: () => taskService.getTaskById(activeItem.id),
-    enabled: activeItem?.type === "TASK" && !!activeItem?.id,
+    enabled: activeItem?.type === "TASK" && isRecordId(activeItem?.id),
+    retry: retryUnlessGone,
     staleTime: 0,
   });
 
@@ -110,7 +153,8 @@ export default function GlobalDetailManager() {
   const { data: groupTaskData, isLoading: isLoadingGroupTask } = useQuery({
     queryKey: ["globalGroupTask", activeItem?.id],
     queryFn: () => groupTaskService.getGroupTaskById(activeItem.id),
-    enabled: activeItem?.type === "GROUP_TASK" && !!activeItem?.id,
+    enabled: activeItem?.type === "GROUP_TASK" && isRecordId(activeItem?.id),
+    retry: retryUnlessGone,
     staleTime: 0,
   });
 
@@ -126,7 +170,7 @@ export default function GlobalDetailManager() {
   const { data: opportunityData, isLoading: isLoadingOpportunity } = useQuery({
     queryKey: ["globalOpportunity", activeItem?.id],
     queryFn: () => opportunityService.getOpportunityForModal(activeItem.id),
-    enabled: isOpportunityType && !!activeItem?.id,
+    enabled: isOpportunityType && isRecordId(activeItem?.id),
     staleTime: 0,
   });
 
@@ -146,6 +190,11 @@ export default function GlobalDetailManager() {
     }
   }, [activeItem?.type, taskData?.convertedToGroupTaskId, setActiveItem]);
 
+  // An `?open=` value the app does not know (`banana:1`) is cleared (#1027).
+  useEffect(() => {
+    if (recordId && !linkedItem) setSearchParams((prev) => withRecord(prev, null), { replace: true });
+  }, [recordId, linkedItem, setSearchParams]);
+
   // A link to a record the viewer can't read (or that is gone) says so, then
   // clears the address instead of leaving a blank window.
   const noAccess =
@@ -154,8 +203,8 @@ export default function GlobalDetailManager() {
   useEffect(() => {
     if (!noAccess) return;
     toast.error(NO_ACCESS_MESSAGE, { id: "record-no-access" });
-    closeRecord();
-  }, [noAccess, closeRecord]);
+    setSearchParams((prev) => withRecord(prev, null), { replace: true });
+  }, [noAccess, setSearchParams]);
 
   useEffect(() => {
     if (activeItem) {
@@ -340,20 +389,41 @@ export default function GlobalDetailManager() {
     setActiveItem(null);
     setIsRateOpen(false);
     setStackedTaskId(null);
-    setPurchaseRequestId(null);
   };
 
-  if (!activeItem && !purchaseRequestId) return null;
+  // Closing the request steps Back to the record under it. `leaving` (Open SOR) is
+  // about to navigate elsewhere, and a request opened by its own link has nothing
+  // under it: both just drop the request from the address.
+  const closeRequest = ({ leaving = false } = {}) => {
+    // #310: an SOR behind the request re-reads its card and item statuses.
+    queryClient.invalidateQueries({ queryKey: ["sor-purchase-request"] });
+    queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });
+    if (underKey && !leaving) navigate(-1);
+    else setSearchParams((prev) => withRecord(prev, null), { replace: true });
+  };
+  // The Members / Chat toggle is the request's tab in the address; a toggle replaces, so Back doesn't replay tabs.
+  const changeRequestPanel = (panel) => {
+    const nextView = panel === "chat" ? "chat" : null;
+    setPurchaseRequestFocusChat(false);
+    setSearchParams((prev) => withRecord(prev, itemToRecordKey({ id: requestId, type: "PURCHASE_REQUEST" }), nextView), {
+      replace: true,
+      state: location.state,
+    });
+  };
+
+  if (!activeItem && !requestId) return null;
 
   return (
     <>
-      {purchaseRequestId && (
-        <PurchaseRequestModal requestId={purchaseRequestId} focusChat={purchaseRequestFocusChat} tab={purchaseRequestTab} openCount={purchaseRequestOpenCount} onClose={() => {
-            // #310: an SOR behind the request re-reads its card and item statuses.
-            queryClient.invalidateQueries({ queryKey: ["sor-purchase-request"] });
-            queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });
-            setPurchaseRequestId(null);
-          }} />
+      {requestId && (
+        <PurchaseRequestModal
+          requestId={requestId}
+          focusChat={purchaseRequestFocusChat}
+          tab={requestView}
+          openCount={purchaseRequestOpenCount}
+          onPanelChange={changeRequestPanel}
+          onClose={closeRequest}
+        />
       )}
 
       {/* TASK MODAL */}
@@ -362,6 +432,7 @@ export default function GlobalDetailManager() {
           isOpen={true}
           onClose={handleClose}
           task={taskData}
+          searchTerm={searchTermFor(activeItem.id)}
           onUpdateTask={(updated) => editTaskMutation.mutateAsync(updated)}
           onDeleteTask={(payload) => deleteTaskMutation.mutateAsync(payload)}
         />
@@ -374,6 +445,7 @@ export default function GlobalDetailManager() {
             isOpen={true}
             onClose={handleClose}
             task={groupTaskData}
+            searchTerm={searchTermFor(activeItem.id)}
             currentUserId={user?.id}
             isSuperAdmin={isSuperAdmin}
             isHr={isHr}
@@ -415,6 +487,11 @@ export default function GlobalDetailManager() {
         </>
       )}
 
+      {/* An SOR link whose id is not an id: not found, no request sent (#1027). */}
+      {isOpportunityType && activeItem?.id && !isRecordId(activeItem.id) && (
+        <NoAccessSorSlideOver isOpen onClose={handleClose} contact={{ found: false }} />
+      )}
+
       {/* OPPORTUNITY MODAL */}
       {activeItem?.type === "OPPORTUNITY" && opportunityData && (
         <OpportunityDetailsModal
@@ -425,6 +502,7 @@ export default function GlobalDetailManager() {
           accessLevel={opportunityData.accessLevel}
           lockedSummary={opportunityData.lockedSummary}
           initialView={activeItem?.view}
+          onViewChange={changeSorView}
         />
       )}
 

@@ -49,6 +49,11 @@ describe("legacy register routes", () => {
       expect(screen.getByText("SORS Register: ?id=abc123")).toBeInTheDocument();
     });
 
+    it("keeps an old ?record=<id> link, so /sors can rewrite it to ?open=sor (#1025)", () => {
+      renderAt("/opportunities?record=abc123", <Route path="/opportunities" element={<OpportunitiesRedirect />} />);
+      expect(screen.getByText("SORS Register: ?record=abc123")).toBeInTheDocument();
+    });
+
     it("redirects /opportunities/commission to /sors/commission", () => {
       renderAt(
         "/opportunities/commission?tab=departments",

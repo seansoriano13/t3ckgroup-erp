@@ -29,7 +29,7 @@ const ME = { id: "u-me", name: "Pat Packer", has_purchasing_flow: true };
 
 function list(over = {}) {
   return {
-    id: "pl1",
+    id: "11111111-1111-4111-8111-111111111111",
     number: "TG04_0003",
     state: "draft",
     sorId: "sor1",
@@ -63,7 +63,7 @@ function stubWide() {
 
 function renderPage(search = "") {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[`/purchasing/packing-lists/pl1${search}`]}>
+    <MemoryRouter initialEntries={[`/purchasing/packing-lists/11111111-1111-4111-8111-111111111111${search}`]}>
       <Routes>
         <Route path="/purchasing/packing-lists/:id" element={<PackingListPageRoute />} />
       </Routes>
@@ -181,7 +181,7 @@ describe("Packing List record page", () => {
     await user.click(await screen.findByRole("button", { name: "Sign Packed by" }));
     await confirmMove(user, "Sign Packed by", "Sign Packed by");
 
-    await waitFor(() => expect(service.pack).toHaveBeenCalledWith("pl1"));
+    await waitFor(() => expect(service.pack).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111"));
   });
 
   it("lets a Warehouse list member who did not make the list add boxes and sign", async () => {

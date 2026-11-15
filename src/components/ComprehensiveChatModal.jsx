@@ -5,6 +5,7 @@ import { notificationService } from "../services/notificationService";
 import Spinner from "@/components/ui/Spinner";
 import Dot from "./ui/Dot";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "react-router";
 import { activeChatService } from "../services/tasks/activeChatService";
 import Avatar from "./Avatar";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
@@ -54,6 +55,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { AttachmentPreviews, AttachmentList } from "./ui/Attachments";
 import { ALLOWED_MIME_TYPES } from "../utils/attachments";
 import { Checkbox } from "@/components/ui/checkbox";
+import { splitKindId } from "@/utils/recordLink";
 
 // -------------------------------------------------------------
 //  HELPERS
@@ -130,6 +132,22 @@ const timeAgo = (dateString) => {
 // know GROUP_TASK.
 const canonicalEntityType = (type) =>
   type === "COMMITTEE_TASK" ? "GROUP_TASK" : type;
+
+// The window's address: `?chat=<kind>:<id>` names the open chat (kinds task,
+// group-task); `?chat=inbox` is the window open with no chat chosen.
+const CHAT_PARAM = "chat";
+const CHAT_INBOX = "inbox";
+const KIND_BY_TYPE = { TASK: "task", GROUP_TASK: "group-task" };
+const TYPE_BY_KIND = { task: "TASK", "group-task": "GROUP_TASK" };
+const chatParamFor = (chat) => {
+  const kind = chat && KIND_BY_TYPE[canonicalEntityType(chat.entity_type)];
+  return kind ? `${kind}:${chat.entity_id}` : CHAT_INBOX;
+};
+const parseChatParam = (value) => {
+  const parts = splitKindId(value);
+  const type = parts ? TYPE_BY_KIND[parts.kind] : null;
+  return type ? { type, id: parts.id } : null;
+};
 
 const ENTITY_LABELS = { GROUP_TASK: "Group Task" };
 const entityLabel = (type) =>
@@ -380,6 +398,18 @@ export default function ComprehensiveChatModal({
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const [selectedChat, setSelectedChat] = useState(null);
+  const [chatNotFound, setChatNotFound] = useState(false);
+  const navigate = useNavigate();
+  const { search } = useLocation();
+  const chatParam = new URLSearchParams(search).get(CHAT_PARAM);
+  // The live address. A delayed close (Details waits 300ms) must not write back
+  // the address it saw when it was created, or it drops what opened meanwhile.
+  const searchRef = useRef(search);
+  searchRef.current = search;
+  const selectedChatRef = useRef(null);
+  selectedChatRef.current = selectedChat;
+  const prevChatParamRef = useRef(chatParam);
+  const keepOpenRef = useRef(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [messageContent, setMessageContent] = useState("");
   const [mentions, setMentions] = useState([]);
@@ -404,6 +434,23 @@ export default function ComprehensiveChatModal({
 
   useEffect(() => {
     setInternalOpen(isOpen);
+  }, [isOpen]);
+
+  const writeChatParam = useCallback(
+    (value, { replace = false } = {}) => {
+      const next = new URLSearchParams(searchRef.current);
+      if (value == null) next.delete(CHAT_PARAM);
+      else next.set(CHAT_PARAM, value);
+      const text = next.toString().replace(/%3A/gi, ":");
+      navigate({ search: text ? `?${text}` : "" }, { replace });
+    },
+    [navigate],
+  );
+
+  // Opened from the menu with no chat chosen: the address says so.
+  useEffect(() => {
+    if (isOpen && !chatParam) writeChatParam(CHAT_INBOX);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Hide FloatingMonthPicker while chat modal is open
@@ -451,13 +498,57 @@ export default function ComprehensiveChatModal({
             is_placeholder: true,
           });
         }
+        setChatNotFound(false);
         setIsMobileListVisible(false);
         setInternalOpen(true);
+        writeChatParam(chatParamFor({ entity_id: entityId, entity_type: entityType }));
       }
     };
     window.addEventListener("OPEN_CHAT_MODAL", handleOpenChat);
     return () => window.removeEventListener("OPEN_CHAT_MODAL", handleOpenChat);
-  }, [activeChats]);
+  }, [activeChats, writeChatParam]);
+
+  // The address drives the window: a link, a refresh or Back opens the named
+  // chat, or closes the window once the address no longer carries `chat`.
+  useEffect(() => {
+    const prev = prevChatParamRef.current;
+    prevChatParamRef.current = chatParam;
+    if (!chatParam) {
+      if (prev && !keepOpenRef.current) {
+        setInternalOpen(false);
+        setSelectedChat(null);
+        onClose();
+      }
+      keepOpenRef.current = false;
+      return;
+    }
+    setInternalOpen(true);
+    const parsed = parseChatParam(chatParam);
+    if (!parsed) return;
+    const cur = selectedChatRef.current;
+    const same =
+      cur &&
+      canonicalEntityType(cur.entity_type) === parsed.type &&
+      String(cur.entity_id) === parsed.id;
+    const found = activeChats.find(
+      (c) =>
+        canonicalEntityType(c.entity_type) === parsed.type &&
+        String(c.entity_id) === parsed.id,
+    );
+    if (same && !(cur.is_placeholder && found)) return;
+    setChatNotFound(false);
+    setSelectedChat(
+      found || {
+        entity_id: parsed.id,
+        entity_type: parsed.type,
+        title: parsed.type === "TASK" ? "Task Thread" : "Group Thread",
+        is_placeholder: true,
+        from_url: true,
+      },
+    );
+    setIsMobileListVisible(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatParam, activeChats]);
 
   // -- Data: Messages for Selected Chat ----------------------
   // Pages newest-first. The key extends ["chatMessages", type, id] so prefix
@@ -554,7 +645,7 @@ export default function ComprehensiveChatModal({
   }, [rawMessages, readReceipts, user, employees, avatarMap]);
 
   // -- Data: Entity Details for Deletion Check ---------------
-  const { data: selectedEntityData } = useQuery({
+  const { data: selectedEntityData, isError: isEntityLookupError } = useQuery({
     queryKey: [
       "entityDetailsForChat",
       selectedChat?.entity_type,
@@ -570,9 +661,25 @@ export default function ComprehensiveChatModal({
       }
       return null;
     },
-    enabled: !!selectedChat && !selectedChat?.is_placeholder && internalOpen,
+    // A chat named by the address is checked even with no messages yet: the
+    // reader may not be allowed to see it.
+    enabled:
+      !!selectedChat &&
+      (!selectedChat?.is_placeholder || !!selectedChat?.from_url) &&
+      internalOpen,
     staleTime: 0,
+    retry: false,
   });
+
+  // A chat the reader may not see (or that does not exist): say so plainly and
+  // clear the address.
+  useEffect(() => {
+    if (!selectedChat?.from_url || !isEntityLookupError) return;
+    setChatNotFound(true);
+    setSelectedChat(null);
+    keepOpenRef.current = true;
+    writeChatParam(null, { replace: true });
+  }, [isEntityLookupError, selectedChat?.from_url, writeChatParam]);
 
   const isEntityDeleted =
     selectedEntityData?.status === "DELETED" ||
@@ -875,6 +982,8 @@ export default function ComprehensiveChatModal({
   // -- Handlers ----------------------------------------------
   const handleClose = () => {
     setInternalOpen(false);
+    if (chatParam) keepOpenRef.current = true;
+    writeChatParam(null, { replace: true });
     onClose();
   };
 
@@ -891,7 +1000,9 @@ export default function ComprehensiveChatModal({
     }
 
     setSelectedChat(chat);
+    setChatNotFound(false);
     setReplyingTo(null);
+    writeChatParam(chatParamFor(chat), { replace: true });
     
     // Always mark as read when selecting, to bump last_read_at timestamp
     markAsRead({
@@ -1248,8 +1359,7 @@ export default function ComprehensiveChatModal({
                       // Close the chat modal so the detail modal appears on top without z-index conflicts
                       setTimeout(() => {
                         setIsDetailsLoading(false);
-                        setInternalOpen(false);
-                        onClose();
+                        handleClose();
                       }, 300);
                     }}
                   >
@@ -1448,10 +1558,13 @@ export default function ComprehensiveChatModal({
                 <MessageCircle size={48} />
               </div>
               <div>
-                <h3 className="text-lg font-bold">Your Conversations</h3>
+                <h3 className="text-lg font-bold">
+                  {chatNotFound ? "Not found" : "Your Conversations"}
+                </h3>
                 <p className="text-sm text-muted-foreground max-w-[280px]">
-                  Select a task from the list to view its chat
-                  history.
+                  {chatNotFound
+                    ? "This chat was not found."
+                    : "Select a task from the list to view its chat history."}
                 </p>
               </div>
             </div>

@@ -380,7 +380,7 @@ export default function RequestedItems({ request, renderActions }) {
           {canTick && (
             // #902: the slot is always there, one button row tall, so the bar appearing on the first
             // tick does not push the list down under the cursor.
-            <div className="min-h-12" data-testid="bulk-slot">
+            <div className={tickedItems.length > 0 ? "min-h-12" : undefined} data-testid="bulk-slot">
               <BulkStatusBar
                 requestId={requestId}
                 items={tickedItems}

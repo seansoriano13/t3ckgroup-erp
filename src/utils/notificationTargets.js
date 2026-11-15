@@ -1,0 +1,258 @@
+/**
+ * notificationTargets.js
+ * One entry per notification type: which module it belongs to, which icon it
+ * shows, and where a click on it lands. `handleNotificationRoute` (in
+ * notificationRouter.js) is a thin runner over this map.
+ *
+ * To add a notification type, add ONE entry under its module below. A guard test
+ * (notificationTargets.sync.test.js) fails when a type the app writes has no entry.
+ *
+ * Entry shape:
+ *   module  "tasks" | "sors" | "purchasing" | "hr" | "meetings" | "chat" | "other"
+ *   icon    a lucide-react icon name (plain data; the bell and the popup draw it through NotificationTypeIcon)
+ *   target  one of:
+ *             - a function ({ notif, user, navigate }) that opens the record
+ *             - LEGACY: an old type from a replaced feature; the click says so in one line
+ *
+ * Entries are grouped by module and kept one per type on purpose, so tickets that
+ * fill different entries touch different lines.
+ */
+import { getPermissionContext } from "./permissions";
+import { openRecordWindow } from "./recordLink";
+
+export const MODULES = ["tasks", "sors", "purchasing", "hr", "meetings", "chat", "other"];
+
+/** Old type from a replaced feature. The click shows LEGACY_MESSAGE. */
+export const LEGACY = "legacy";
+/**
+ * TODO: transition shim, drop after one release.
+ *
+ * The COMMITTEE_* notification types were renamed to GROUP_* and existing rows
+ * backfilled by 0014_group_task_rename.sql. This app is an SPA, so a client
+ * running the pre-rename bundle can still write a COMMITTEE_* row after the
+ * backfill has run. Those rows must keep their GROUP_* twin's click, look and
+ * tab, so the router and the bell's meta both read this map while only GROUP_*
+ * is ever written. Once no COMMITTEE_* rows remain, delete it.
+ */
+export const LEGACY_TYPE_ALIASES = {
+  COMMITTEE_TASK_COMMENT: "GROUP_TASK_COMMENT",
+  COMMITTEE_ASSIGNED: "GROUP_ASSIGNED",
+  COMMITTEE_TASK_READY_FOR_HR: "GROUP_TASK_READY_FOR_HR",
+  COMMITTEE_MEMBER_DONE: "GROUP_MEMBER_DONE",
+};
+export const LEGACY_MESSAGE = "This notification is from an older version of the portal.";
+export const NO_REFERENCE_MESSAGE = "This notification has nothing to open";
+
+
+// ---- targets shared by several types ----
+
+/** Types that land in an approver's queue (head grade, HR verification). */
+const APPROVAL_QUEUE_TYPES = new Set([
+  "NEW_TASK_SUBMITTED",
+  "TASK_AWAITING_APPROVAL",
+  "TASK_SUBMITTED",
+  "TASK_APPROVED_BY_HEAD",
+]);
+
+/**
+ * #1018: an approver's queue item opens as `/approvals/tasks?record=<id>`; any other
+ * task opens as `?open=task:<id>` over the page the reader is on (GlobalDetailManager
+ * writes the address from this event). Both addresses survive a refresh.
+ */
+const taskTarget = ({ notif, user, navigate }) => {
+  const { isHr, isHead, isSuperAdmin } = getPermissionContext(user);
+  if ((isHead || isSuperAdmin || isHr) && APPROVAL_QUEUE_TYPES.has(notif.type)) {
+    navigate(`/approvals/tasks?record=${encodeURIComponent(notif.reference_id)}`);
+  } else {
+    openRecordWindow({ id: notif.reference_id, type: "TASK" });
+  }
+};
+
+/** A chat notification opens Conversations over the page the reader is on: `?chat=<kind>:<id>`. */
+const chatLink = (kind, id, navigate) => {
+  const search = new URLSearchParams(window.location.search);
+  search.set("chat", `${kind}:${id}`);
+  navigate({ search: `?${search.toString().replace(/%3A/gi, ":")}` });
+};
+/** A mention happens inside a Chat thread, not the detail view. */
+const taskMentionTarget = ({ notif, navigate }) => chatLink("task", notif.reference_id, navigate);
+const groupChatTarget = ({ notif, navigate }) => chatLink("group-task", notif.reference_id, navigate);
+const groupTaskTarget = ({ notif, navigate }) => {
+  navigate("/group-tasks");
+  openRecordWindow({ id: notif.reference_id, type: "GROUP_TASK" });
+};
+
+/** Opens through the global window, which branches on access level (works outside the deal team). */
+const sorTarget = ({ notif }) => openRecordWindow({ id: notif.reference_id, type: "OPPORTUNITY" });
+/** #941: a Bid Decision opens the SOR on its PMS tab. */
+const sorPmsTarget = ({ notif }) => openRecordWindow({ id: notif.reference_id, type: "OPPORTUNITY", view: "pms" });
+/** #706: reference_id is the SOR. Opens the Technical sheet. */
+const technicalSheetTarget = ({ notif, navigate }) =>
+  navigate(`/technical/${encodeURIComponent(notif.reference_id)}`);
+
+/**
+ * #309: a modal over the current page, no navigation. #1019: the window's
+ * address is `?open=pr:<id>[&view=chat|items]`, written by GlobalDetailManager
+ * from this event.
+ */
+const purchaseRequestTarget =
+  (extra = {}) =>
+  ({ notif }) =>
+    openRecordWindow({ id: notif.reference_id, type: "PURCHASE_REQUEST", focusChat: false, ...extra });
+const ipasTarget = ({ notif, navigate }) => navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
+
+const transmittalTarget = ({ notif, navigate }) =>
+  navigate(`/purchasing/transmittals/${encodeURIComponent(notif.reference_id)}`);
+const packingListTarget = ({ notif, navigate }) =>
+  navigate(`/purchasing/packing-lists/${encodeURIComponent(notif.reference_id)}`);
+/**
+ * #1015: a leave, offset, overtime or undertime request waiting on the reader's
+ * decision opens in the Approval Center. reference_id is a row id in some
+ * notifications and a leave group id in others; the page finds the queue item
+ * from either, and sends HR on to /hr/offsets when it is no longer queued.
+ */
+const leaveApprovalTarget = ({ notif, navigate }) =>
+  navigate(`/approvals/leaves?record=${encodeURIComponent(notif.reference_id)}`);
+/** #1015: an answer to the person who filed opens that request in My Requests. */
+const myRequestTarget = ({ notif, navigate }) =>
+  navigate(`/offsets?record=${encodeURIComponent(notif.reference_id)}`);
+
+const bugReportTarget = ({ notif, navigate }) =>
+  navigate(`/bug-reports?record=${encodeURIComponent(notif.reference_id)}`);
+
+/** A new Meeting Request goes to the approver, whose page reads `?record=`. */
+const meetingApprovalTarget = ({ notif, navigate }) =>
+  navigate(`/approvals/meetings?record=${encodeURIComponent(notif.reference_id)}`);
+/** Everyone else sees the meeting on the Calendar, whose address names the open entry. */
+const calendarMeetingTarget = ({ notif, navigate }) =>
+  navigate(`/calendar?entry=meeting:${encodeURIComponent(notif.reference_id)}`);
+
+export const NOTIFICATION_TARGETS = {
+  // ---- tasks ----
+  NEW_TASK_SUBMITTED: { module: "tasks", icon: "FileText", target: taskTarget },
+  TASK_COMMENT: { module: "tasks", icon: "MessageCircle", target: taskTarget },
+  TASK_AWAITING_APPROVAL: { module: "tasks", icon: "Clock", target: taskTarget },
+  TASK_COMPLETED: { module: "tasks", icon: "CheckCircle2", target: taskTarget },
+  TASK_GRADED: { module: "tasks", icon: "CheckCircle2", target: taskTarget },
+  TASK_VERIFIED: { module: "tasks", icon: "CheckCircle2", target: taskTarget },
+  TASK_ASSIGNED: { module: "tasks", icon: "FileText", target: taskTarget },
+  TASK_REJECTED: { module: "tasks", icon: "XCircle", target: taskTarget },
+  TASK_APPROVED_BY_HEAD: { module: "tasks", icon: "CheckCircle2", target: taskTarget },
+  TASK_REACTION: { module: "tasks", icon: "MessageCircle", target: taskTarget },
+  TASK_MENTION: { module: "tasks", icon: "MessageCircle", target: taskMentionTarget },
+  TASK_APPROVED: { module: "tasks", icon: "CheckCircle2", target: taskTarget },
+  TASK_SUBMITTED: { module: "tasks", icon: "FileText", target: taskTarget },
+  PROCUREMENT_TASK_DEAL_LOST: { module: "tasks", icon: "FileText", target: taskTarget },
+  TASK_CONVERTED: { module: "tasks", icon: "FileText", target: taskTarget },
+  STAGE_ACTION_TASK_CREATED: { module: "tasks", icon: "FileText", target: taskTarget },
+  GROUP_ASSIGNED: { module: "tasks", icon: "Target", target: groupTaskTarget },
+  GROUP_TASK_COMMENT: { module: "tasks", icon: "MessageCircle", target: groupChatTarget },
+  GROUP_TASK_REACTION: { module: "tasks", icon: "MessageCircle", target: groupChatTarget },
+  GROUP_TASK_MENTION: { module: "tasks", icon: "MessageCircle", target: groupChatTarget },
+  GROUP_TASK_READY_FOR_HR: { module: "tasks", icon: "Target", target: groupTaskTarget },
+  GROUP_TASK_AWAITING_EVALUATION: { module: "tasks", icon: "Clock", target: groupTaskTarget },
+  GROUP_TASK_EVALUATION_REMINDER: { module: "tasks", icon: "Clock", target: groupTaskTarget },
+  GROUP_TASK_REOPENED: { module: "tasks", icon: "Target", target: groupTaskTarget },
+  GROUP_MEMBER_DONE: { module: "tasks", icon: "CheckCircle2", target: groupTaskTarget },
+
+  // ---- sors ----
+  OPPORTUNITY_STAGE_REVERTED: { module: "sors", icon: "TrendingUp", target: sorTarget },
+  OPPORTUNITY_ACTION_DECISION_DUE: { module: "sors", icon: "Briefcase", target: sorTarget },
+  OPPORTUNITY_COSTING_INCHARGE_NEEDED: { module: "sors", icon: "Briefcase", target: sorTarget },
+  OPPORTUNITY_FOLLOW_UP_DUE: { module: "sors", icon: "Clock", target: sorTarget },
+  OPPORTUNITY_STAGE_CHANGED: { module: "sors", icon: "TrendingUp", target: sorTarget },
+  OPPORTUNITY_PROCUREMENT_REQUESTED: { module: "sors", icon: "Briefcase", target: sorTarget },
+  OPPORTUNITY_PROCUREMENT_RESOLVED: { module: "sors", icon: "Briefcase", target: sorTarget },
+  OPPORTUNITY_MENTION: { module: "sors", icon: "MessageCircle", target: sorTarget },
+  SOR_AWARDED: { module: "sors", icon: "Trophy", target: sorTarget },
+  SOR_BID_DECISION: { module: "sors", icon: "Briefcase", target: sorPmsTarget },
+  SOR_STAGE_PARTICIPANT_ADDED: { module: "sors", icon: "Briefcase", target: sorTarget },
+  COSTING_EVALUATION_ASSIGNED: { module: "sors", icon: "Briefcase", target: technicalSheetTarget },
+
+  // ---- purchasing ----
+  PURCHASE_REQUEST_OPENED: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },
+  PURCHASE_REQUEST_MESSAGE: {
+    module: "purchasing",
+    icon: "MessageCircle",
+    target: purchaseRequestTarget({ focusChat: false, tab: "chat" }),
+  },
+  PURCHASE_REQUEST_MENTION: {
+    module: "purchasing",
+    icon: "MessageCircle",
+    target: purchaseRequestTarget({ focusChat: true, tab: "chat" }),
+  },
+  PURCHASE_REQUEST_ITEM_STATUS: {
+    module: "purchasing",
+    icon: "FileText",
+    target: purchaseRequestTarget({ focusChat: false, tab: "items" }),
+  },
+  PURCHASE_REQUEST_BUYER_SET: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget({ focusChat: false }) },
+  PURCHASE_REQUEST_ORDERED_EARLY: {
+    module: "purchasing",
+    icon: "FileText",
+    target: purchaseRequestTarget({ focusChat: false }),
+  },
+  IPAS_SIGNOFF_READY: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  IPAS_PO_CHANGED: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  IPAS_ACCOUNT_FLAGGED: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  IPAS_SECTION_3_CLEARED: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  PURCHASE_REQUEST_BUYER: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },
+  PURCHASE_REQUEST_ITEM_ADDED: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },
+  IPAS_SENT_BACK: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  PACKING_LIST_REQUESTED: { module: "purchasing", icon: "FileText", target: packingListTarget },
+  TRANSMITTAL_SUBMITTED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_CANCELLED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_STAGE_READY: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_CONFIRM_SIGNATURE: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_NA_RAISED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_CLOSED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_SIGNATURE_DECLINED: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+  TRANSMITTAL_SIGNATURE_UNDONE: { module: "purchasing", icon: "FileText", target: transmittalTarget },
+
+  // ---- hr ----
+  // HR_NOTE is a task-timeline row type, not a notification any page writes; a stray one shows the plain line.
+  HR_NOTE: { module: "hr", icon: "History", target: LEGACY },
+  SIL_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  SIL_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  SIL_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  SIL_LEAVE_CANCELLED: { module: "hr", icon: "XCircle", target: myRequestTarget },
+  LWOP_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  LWOP_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  LWOP_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  LWOP_LEAVE_CANCELLED: { module: "hr", icon: "XCircle", target: myRequestTarget },
+  OFFSET_LEAVE_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  OFFSET_LEAVE_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  OFFSET_LEAVE_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  OVERTIME_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  OVERTIME_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  OVERTIME_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  UNDERTIME_REQUEST: { module: "hr", icon: "Clock", target: leaveApprovalTarget },
+  UNDERTIME_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+  UNDERTIME_HEAD_DECISION: { module: "hr", icon: "CheckCircle2", target: myRequestTarget },
+
+  // ---- meetings ----
+  MEETING_REQUEST: { module: "meetings", icon: "Clock", target: meetingApprovalTarget },
+  MEETING_REQUEST_DECISION: { module: "meetings", icon: "CheckCircle2", target: calendarMeetingTarget },
+  MEETING_APPROVED: { module: "meetings", icon: "CheckCircle2", target: calendarMeetingTarget },
+  MEETING_CANCELLED: { module: "meetings", icon: "XCircle", target: calendarMeetingTarget },
+  MEETING_CHANGED: { module: "meetings", icon: "Clock", target: calendarMeetingTarget },
+  MEETING_REMINDER: { module: "meetings", icon: "Clock", target: calendarMeetingTarget },
+
+  // ---- chat ----
+  // (chat mentions live with the record they belong to: TASK_MENTION, PURCHASE_REQUEST_MENTION, ...)
+
+  // ---- other ----
+  BUG_REPORT_SUBMITTED: { module: "other", icon: "ShieldAlert", target: bugReportTarget },
+  BUG_REPORT_NOTE: { module: "other", icon: "ShieldAlert", target: bugReportTarget },
+  // Old rows still in people's bells from features that were replaced (spec #1013, A8).
+  UNPLANNED_ACTIVITY: { module: "other", icon: "History", target: LEGACY },
+  SALES_PLAN_SUBMITTED: { module: "other", icon: "History", target: LEGACY },
+  SALES_DAY_CONQUERED: { module: "other", icon: "History", target: LEGACY },
+  SALES_COMMENT: { module: "other", icon: "History", target: LEGACY },
+  DAY_DELETE_REQUESTED: { module: "other", icon: "History", target: LEGACY },
+  ACTIVITY_DELETE_REQUESTED: { module: "other", icon: "History", target: LEGACY },
+  EXPENSE_APPROVED: { module: "other", icon: "History", target: LEGACY },
+  PLAN_AMENDMENT_RESULT: { module: "other", icon: "History", target: LEGACY },
+  DAY_DELETE_RESULT: { module: "other", icon: "History", target: LEGACY },
+  SALES_QUOTA_PUBLISHED: { module: "other", icon: "History", target: LEGACY },
+};

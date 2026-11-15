@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../services/taskService.js";
 import { TASK_STATUS, getStatusDotColor, getStatusColorAlpha, getStatusTheme } from "../constants/status.js";
 import { useMemo, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link } from "react-router";
 import {
   Clock,
   TrendingUp,
@@ -73,39 +73,7 @@ export default function TasksList({ selectedRange }) {
     enabled: !!user?.id,
   });
 
-  const location = useLocation();
-  const navigate = useNavigate();
 
-  // 🔥 DEEP LINKING NOTIFICATION HOOK
-  useEffect(() => {
-    if (!location.state?.openTaskId) return;
-    const openId = location.state.openTaskId;
-    if (rawTasks.length > 0) {
-      const targetTask = rawTasks.find((t) => t.id === openId);
-      if (targetTask) {
-        queueMicrotask(() => {
-          setSelectedTask(targetTask);
-          setIsDrawerOpen(true);
-          navigate(location.pathname, { replace: true, state: {} });
-        });
-      } else {
-        // Task may be soft-deleted — fetch it directly
-        import("../services/tasks/taskQueryService.js").then(
-          ({ taskQueryService }) => {
-            taskQueryService.getTaskById(openId)
-              .then((task) => {
-                if (task) {
-                  setSelectedTask(task);
-                  setIsDrawerOpen(true);
-                }
-              })
-              .catch(console.error);
-          }
-        );
-        navigate(location.pathname, { replace: true, state: {} });
-      }
-    }
-  }, [location.state, rawTasks, navigate, location.pathname]);
 
   // 🔥 FIX: Keep drawer task in sync with latest data to prevent stale state after mutations
   useEffect(() => {
