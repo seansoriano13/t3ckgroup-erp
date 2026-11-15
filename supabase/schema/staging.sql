@@ -4517,7 +4517,7 @@ create policy "sor_log_read" on public."sales_opportunity_logs"
   as permissive
   for select
   to authenticated
-  using ((is_super_admin() OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(sales_opportunity_logs.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))));
+  using ((( SELECT is_super_admin() AS is_super_admin) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_readable_visit_ids() AS sor_readable_visit_ids))) OR ((stage_visit_id IS NULL) AND (opportunity_id IN ( SELECT sor_readable_log_sor_ids() AS sor_readable_log_sor_ids)))));
 create policy "sales_opportunity_members_insert" on public."sales_opportunity_members"
   as permissive
   for insert
@@ -10398,6 +10398,9 @@ declare
   v_title  text;
   v_label  text;
   v_member record;
+  v_cost     numeric;
+  v_rate     numeric;
+  v_allow    numeric;
   v_revenue  numeric;
 begin
   if v_actor is null then
@@ -10407,7 +10410,11 @@ begin
     raise exception 'costing_bid: matrix not found' using errcode = '22023';
   end if;
   if public.costing_tier(v_opp) is distinct from 'closed_book' then
-    raise exception 'costing_bid: only Sales, Purchasing, a Super Admin or the Final Acquire list can decide a bid' using errcode = '42501';
+    raise exception 'costing_bid: only a Super Admin or the decider list can decide a bid' using errcode = '42501';
+  end if;
+  -- #1033 (spec #1031): reading the Closed Book is not deciding. Every verdict is the decider list's or a Super Admin's.
+  if not public.costing_can_decide_loss() then
+    raise exception 'costing_bid: only a Super Admin or the decider list can decide a bid' using errcode = '42501';
   end if;
   if p_verdict is null or p_verdict not in ('go', 'no_go', 'revise') then
     raise exception 'costing_bid: the verdict must be Go, No-go or Revise' using errcode = '22023';
@@ -10437,9 +10444,17 @@ begin
 
   -- #880: a Go on a loss (planned revenue below zero) is the Super Admin's or the decider list's to take.
   if p_verdict = 'go' then
-    v_revenue := public.costing_planned_revenue(p_matrix_id);
-    if v_revenue is not null and v_revenue < 0 and not public.costing_can_decide_loss() then
-      raise exception 'costing_bid: a Go on a loss needs a Super Admin or the decider list' using errcode = '42501';
+    v_cost := public.costing_planned_cost_total(p_matrix_id);
+    if v_cost is not null then
+      select coalesce(s.itr_rate, 0.08), coalesce(s.itr_allowance, 250000)
+        into v_rate, v_allow
+        from (select 1) one
+        left join public.costing_settings s on s.id = 1;
+      v_revenue := (v_totals.final_offer_total - v_cost)
+                   - round(greatest(v_totals.final_offer_total - v_allow, 0) * v_rate, 2);
+      if v_revenue < 0 and not public.costing_can_decide_loss() then
+        raise exception 'costing_bid: a Go on a loss needs a Super Admin or the decider list' using errcode = '42501';
+      end if;
     end if;
   end if;
 
@@ -11981,7 +11996,7 @@ AS $function$
   join public.sales_opportunities o on o.id = m.opportunity_id
   left join public.employees own on own.id = o.deal_owner_id
   cross join lateral public.costing_bid_totals(m.id) t
-  where (public.costing_on_list('final_acquire') or public.costing_is_open(m.opportunity_id))
+  where public.costing_can_decide_loss()
     and not coalesce(o.is_deleted, false)
     and not coalesce(o.is_scratch, false)
     and t.line_count > 0
@@ -25692,6 +25707,27 @@ AS $function$
     and public.sor_access_level(p_opportunity_id) in ('full', 'participant', 'locked')
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.sor_logs_for_sors(p_opportunity_ids uuid[])
+ RETURNS SETOF sales_opportunity_logs
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select l.*
+  from public.sales_opportunity_logs l
+  where l.opportunity_id = any (p_opportunity_ids)
+    and (
+      (select public.is_super_admin())
+      or (l.stage_visit_id is not null
+          and l.stage_visit_id in (
+            select public.sor_visible_visit_ids(x) from unnest(p_opportunity_ids) as x))
+      or (l.stage_visit_id is null
+          and l.opportunity_id in (
+            select x from unnest(p_opportunity_ids) as x
+            where public.sor_access_level(x) = any (array['full', 'participant'])))
+    )
+$function$
+;
 CREATE OR REPLACE FUNCTION public.sor_mention_shares(p_opportunity_id uuid)
  RETURNS TABLE(id uuid, employee_id uuid, employee_name text, granted_by_name text, stage_name text, is_open boolean, created_at timestamp with time zone)
  LANGUAGE sql
@@ -26371,6 +26407,28 @@ begin
     'committee_tasks_unlinked', v_committee_task_count
   );
 end $function$
+;
+CREATE OR REPLACE FUNCTION public.sor_readable_log_sor_ids()
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select o.id
+  from public.sales_opportunities o
+  where public.sor_access_level(o.id) = any (array['full', 'participant'])
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_readable_visit_ids()
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select vis.id
+  from public.sales_opportunities o
+  cross join lateral public.sor_visible_visit_ids(o.id) as vis(id)
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_recalc_expected_value()
  RETURNS trigger
