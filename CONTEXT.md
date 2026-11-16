@@ -230,27 +230,31 @@ _Avoid_: Absent, AWOL, Unpaid leave
 ### Meetings & Calendar
 
 **Calendar**:
-The one company-wide calendar every dated record shows on: Meeting Requests, Time Off and overtime today, more kinds later. HR's view and an employee's own view are filtered views of it, never separate calendars.
+The one company-wide calendar every dated record shows on: Activities, Time Off and overtime today, more kinds later. HR's view and an employee's own view are filtered views of it, never separate calendars.
 _Avoid_: TG Calendar, Central Calendar, Leave Calendar
 
-**Meeting Request**:
-One request to hold a meeting at a Venue for a set time, naming its Facilitator, Participants and purpose. The same record from filing, through approval, to the meeting itself; it holds its slot from the moment it is filed until it is declined or cancelled.
-_Avoid_: Meeting Booking, Room Reservation, Meeting Schedule
+**Activity**:
+One thing the company does at a set time, filed by an employee: a Meeting, an Admin Task, an Operations Task or an Event. It names its Lead, Participants and purpose. The same record from filing, through approval, to the day itself; it holds its slot from the moment it is filed until it is declined or cancelled. It replaces the old Meeting Request. The code still says `meeting_requests` for the table, its functions and its notification types; only the words on screen changed.
+_Avoid_: Meeting Request, Booking, Task (alone)
+
+**Activity type**:
+Which of the four an Activity is: Meeting, Admin Task, Operations Task or Event. Only a Meeting has a Venue, a meeting type (Onsite, Online or Hybrid) and a meeting link. Only a department head can file an Event. HR approves an Event and a Meeting with a Venue (Onsite or Hybrid); every other Activity is approved the moment it is filed.
+_Avoid_: Category, Kind
 
 **Venue**:
-A room a meeting is held in: today the Conference Room or the Admin Office. Each Venue is booked on its own, so two Venues may host meetings at the same time, but one Venue never hosts two.
+A room an Activity is held in: today the Conference Room, the Admin Office or Reception (HR adds it in Settings). Each Venue is booked on its own, so two Venues may host Activities at the same time, but one Venue never hosts two.
 _Avoid_: Room, Location
 
-**Facilitator**:
-The department head who runs a meeting. Not its approver: every Meeting Request is approved by HR alone, never by a department head.
-_Avoid_: Host, Organizer, Chair
+**Lead**:
+The employee who runs an Activity. Any employee can be the Lead, not only a department head; the form fills in the person filing by default. Not its approver: HR alone approves an Activity that needs approval. Replaces Facilitator.
+_Avoid_: Facilitator, Host, Organizer, Chair
 
 **Participant**:
-An employee named on a Meeting Request as attending. People from outside the company are Guests, typed in by name, never Participants.
+An employee named on an Activity as attending. People from outside the company are Guests, typed in by name, never Participants.
 _Avoid_: Attendee, Invitee
 
-**Return** (of a Meeting Request):
-HR sending a Meeting Request back to its applicant with a note to fix it. Only HR returns one. Sending it again puts it back in front of HR. Not a decline, which ends the request.
+**Return** (of an Activity):
+HR sending an Activity that needs HR back to its applicant with a note to fix it. Only HR returns one. Sending it again puts it back in front of HR. Not a decline, which ends the Activity.
 _Avoid_: Reject, Send back
 
 ### Commission

@@ -33,11 +33,12 @@ describe("useMeetingRealtime", () => {
     vi.clearAllMocks()
   })
 
-  it("listens to the broadcast channel of both meeting tables", () => {
+  it("listens to the broadcast channel of all three meeting tables", () => {
     const { unmount } = renderHookWithQuery(() => useMeetingRealtime())
     expect(state.handlers.map((h) => h.topic)).toEqual([
       "meeting_requests-changes",
       "meeting_request_participants-changes",
+      "meeting_request_days-changes",
     ])
     unmount()
   })
@@ -54,10 +55,10 @@ describe("useMeetingRealtime", () => {
   it("shares one channel per table between screens and removes them when the last one unmounts", () => {
     const a = renderHookWithQuery(() => useMeetingRealtime())
     const b = renderHookWithQuery(() => useMeetingRealtime())
-    expect(supabase.channel).toHaveBeenCalledTimes(2)
+    expect(supabase.channel).toHaveBeenCalledTimes(3)
     a.unmount()
     expect(supabase.removeChannel).not.toHaveBeenCalled()
     b.unmount()
-    expect(supabase.removeChannel).toHaveBeenCalledTimes(2)
+    expect(supabase.removeChannel).toHaveBeenCalledTimes(3)
   })
 })

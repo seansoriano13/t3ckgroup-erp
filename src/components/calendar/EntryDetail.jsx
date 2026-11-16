@@ -4,7 +4,7 @@ import { formatEntryDate, formatEntryTime } from './entryFormat.js';
 import SlideOver, { SlideOverBody } from '@/components/ui/SlideOver';
 import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailParts';
 import { Button } from '@/components/ui/button';
-import { kindOf } from './entryKinds.jsx';
+import { styleOf } from './entryKinds.jsx';
 import { canWithdrawEntry } from './withdraw.js';
 
 const STATUS_LABEL = { APPROVED: 'Approved', PENDING: 'Pending' };
@@ -56,17 +56,17 @@ export default function EntryDetail({ entry, onClose, entries = [], viewerId = n
   return (
     <SlideOver
       record={entry}
-      icon={entry ? kindOf(entry.kind)?.icon : undefined}
+      icon={entry ? styleOf(entry)?.icon : undefined}
       crumb="Calendar"
       identity={(e) => ({
-        ref: kindOf(e.kind)?.label ?? e.kind,
-        title: e.span?.days > 1 ? `${kindOf(e.kind)?.label} · ${e.span.days} days` : e.title || kindOf(e.kind)?.label || e.kind,
+        ref: styleOf(e)?.label ?? e.kind,
+        title: e.span?.days > 1 ? `${styleOf(e)?.label} · ${e.span.days} days` : e.title || styleOf(e)?.label || e.kind,
         subtitle: e.employee?.name,
       })}
       onClose={onClose}
     >
       {(e) => {
-        const Body = kindOf(e.kind)?.Detail ?? DefaultEntryDetail;
+        const Body = styleOf(e)?.Detail ?? DefaultEntryDetail;
         return (
           <>
             <Body entry={e} />

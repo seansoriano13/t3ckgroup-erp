@@ -56,7 +56,7 @@ export default function VenueManager() {
       </div>
       <div className="p-5 space-y-4">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          A Venue that is switched off is not offered in the Meeting Request form and has no column in the day view. It still shows on
+          A Venue that is switched off is not offered in the Activity form and has no column in the day view. It still shows on
           its existing meetings. A Venue that has any request can only be switched off, not deleted.
         </p>
         <form onSubmit={add} className="flex gap-2">

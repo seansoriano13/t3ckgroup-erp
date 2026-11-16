@@ -43,6 +43,7 @@ const seed = async (status = "PENDING_HR", { applicant = "ordinary", head = ids.
 }
 
 const row = async (id) => (await svc().from("meeting_requests").select("*").eq("id", id).single()).data
+const dayStamp = async (id) => (await svc().from("meeting_request_days").select("reminder_sent_at").eq("request_id", id).order("starts_at").limit(1).single()).data.reminder_sent_at
 const events = async (id) =>
     (await svc().from("meeting_request_events").select("*").eq("request_id", id).order("created_at")).data
 const people = async (id) =>
@@ -76,6 +77,7 @@ const startNow = async (id) => {
     past.setUTCMinutes(Math.floor(past.getUTCMinutes() / 15) * 15, 0, 0)
     const end = new Date(past.getTime() + 900_000)
     const { error } = await svc().from("meeting_requests").update({ starts_at: past.toISOString(), ends_at: end.toISOString() }).eq("id", id)
+    await svc().from("meeting_request_days").update({ starts_at: past.toISOString(), ends_at: end.toISOString() }).eq("request_id", id)
     if (error) throw new Error(error.message)
 }
 
@@ -131,13 +133,13 @@ describe("edit", () => {
         const a = await seed("APPROVED")
         const b = await seed("APPROVED")
         const stamp = new Date().toISOString()
-        await svc().from("meeting_requests").update({ reminder_sent_at: stamp }).in("id", [a, b])
+        await svc().from("meeting_request_days").update({ reminder_sent_at: stamp }).in("request_id", [a, b])
         const rb = await row(b)
         expect((await edit("ordinary", b, { p_purpose: "Same time" })).error).toBeNull()
-        expect((await row(b)).reminder_sent_at).toBeTruthy()
+        expect((await dayStamp(b))).toBeTruthy()
         // A slot no seed() ever takes, so the move can't land on a later test's request.
         expect((await edit("ordinary", a, { p_starts_at: iso(5000), p_ends_at: iso(5001) })).error).toBeNull()
-        expect((await row(a)).reminder_sent_at).toBeNull()
+        expect((await dayStamp(a))).toBeNull()
         expect(rb.id).toBe(b)
     })
 

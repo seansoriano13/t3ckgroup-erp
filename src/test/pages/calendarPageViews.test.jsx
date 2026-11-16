@@ -115,3 +115,62 @@ describe('Calendar layouts', () => {
     expect(JSON.parse(screen.getByTestId('request-form').textContent)).toEqual({ venueId: 'v1', date: '2031-03-12' });
   });
 });
+
+describe('Calendar Activity types', () => {
+  const activity = (id, type, title, venue) => ({
+    kind: 'MEETING',
+    id,
+    group_id: id,
+    manila_date: '2031-03-10',
+    starts_at: '2031-03-10T01:00:00+00:00',
+    ends_at: '2031-03-10T02:00:00+00:00',
+    status: 'APPROVED',
+    venue,
+    title,
+    employee: { id: 'e1', name: 'Sample Person', department: 'Ops' },
+    details: { activity_type: type, purpose: title, stage: 'APPROVED', participants: [], guests: [] },
+  });
+
+  beforeEach(() => {
+    stubRoomyScreen();
+    window.localStorage.clear();
+    meetingRequestService.listVenues.mockResolvedValue([{ id: 'v1', name: 'Conference Room' }]);
+    calendarService.fetchEntries.mockResolvedValue([
+      activity('a1', 'MEETING', 'Weekly sync', 'Conference Room'),
+      activity('a2', 'EVENT', 'Town hall', 'Conference Room'),
+      activity('a3', 'ADMIN_TASK', 'Archive files', null),
+      activity('a4', 'OPERATIONS_TASK', 'Inventory count', null),
+      { kind: 'SIL', id: 's1', manila_date: '2031-03-10', status: 'APPROVED', employee: { name: 'Away Person' } },
+    ]);
+  });
+
+  it('draws each type in its own colour', async () => {
+    const { container } = renderAt('/calendar?date=2031-03-10');
+    await screen.findByText('Weekly sync', { selector: '*' }).catch(() => null);
+    await screen.findByRole('button', { name: /^Event/ });
+    for (const dot of ['bg-teal-9', 'bg-plum-9', 'bg-indigo-9', 'bg-orange-9']) {
+      expect(container.querySelector(`.${dot}`)).not.toBeNull();
+    }
+  });
+
+  it('filters by type, leaves Time Off alone, and shows everything again when cleared', async () => {
+    renderAt('/calendar?date=2031-03-10');
+    const eventChip = await screen.findByRole('button', { name: /^Event/ });
+    expect(await screen.findAllByText(/Weekly sync/)).not.toHaveLength(0);
+    fireEvent.click(eventChip);
+    expect(screen.queryAllByText(/Weekly sync/)).toHaveLength(0);
+    expect(screen.queryAllByText(/Archive files/)).toHaveLength(0);
+    expect(screen.getAllByText(/Town hall/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Away Person/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getAllByText(/Weekly sync/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Archive files/).length).toBeGreaterThan(0);
+  });
+
+  it('counts only Activities with a Venue under Rooms', async () => {
+    renderAt('/calendar?date=2031-03-10');
+    await screen.findByTestId('venue-strip-Conference Room');
+    const rooms = screen.getByRole('region', { name: 'Rooms' });
+    expect(rooms).toHaveTextContent(/Rooms\s*2/);
+  });
+});

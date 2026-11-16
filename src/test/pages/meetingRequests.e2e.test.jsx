@@ -100,7 +100,7 @@ async function approveInQueue(user, as, applicantName) {
             <Page />
         </MemoryRouter>,
     )
-    await user.click(await screen.findByRole("button", { name: `Approve ${applicantName}'s meeting request` }, { timeout: 5000 }))
+    await user.click(await screen.findByRole("button", { name: `Approve ${applicantName}'s activity` }, { timeout: 5000 }))
     return view
 }
 
@@ -115,14 +115,14 @@ describe("Meeting Request journey", () => {
                 <CalendarPage />
             </MemoryRouter>,
         )
-        await user.click(await screen.findByRole("button", { name: "New Meeting Request" }))
+        await user.click(await screen.findByRole("button", { name: "New Activity" }))
         const dialog = await screen.findByRole("dialog")
-        await user.click(within(dialog).getAllByRole("combobox")[1])
+        await user.click(within(dialog).getAllByRole("combobox")[2])
         await user.click(await screen.findByRole("option", { name: "Conference Room" }))
         fireEvent.change(within(dialog).getByDisplayValue(manilaToday()), { target: { value: tomorrow } })
-        await user.click(within(dialog).getAllByRole("combobox")[4])
+        await user.click(within(dialog).getAllByRole("combobox")[5])
         await user.click(await screen.findByRole("option", { name: "Head Honcho" }))
-        await user.type(within(dialog).getByPlaceholderText("What is the meeting for?"), "Quarterly planning")
+        await user.type(within(dialog).getByPlaceholderText("What is the Activity for?"), "Quarterly planning")
         const send = within(dialog).getByRole("button", { name: "Send request" })
         await waitFor(() => expect(send).toBeEnabled())
         await user.click(send)

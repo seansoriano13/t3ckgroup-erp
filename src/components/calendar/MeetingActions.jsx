@@ -11,7 +11,7 @@ import MeetingRequestDialog from './MeetingRequestDialog';
 import { meetingActions } from './meetingActions.js';
 
 /**
- * Edit, Send again and Cancel for one Meeting Request (#628). Each button shows only when allowed.
+ * Edit, Send again and Cancel for one Activity (#628). Each button shows only when allowed.
  * `request` is { id, status, startsAt, applicantId }; `onDone` runs after any action succeeds.
  */
 export default function MeetingActions({ request, onDone, allowHr = true }) {
@@ -38,7 +38,7 @@ export default function MeetingActions({ request, onDone, allowHr = true }) {
   const cancel = useMutation({
     mutationFn: () => meetingRequestService.cancel({ requestId: request.id, reason: reason.trim(), actor: user }),
     onSuccess: () => {
-      toast.success('Meeting Request cancelled.');
+      toast.success('Activity cancelled.');
       setReason('');
       refresh();
     },
@@ -78,7 +78,7 @@ export default function MeetingActions({ request, onDone, allowHr = true }) {
       <ConfirmDialog
         open={cancelling}
         onOpenChange={setCancelling}
-        title="Cancel this Meeting Request?"
+        title="Cancel this Activity?"
         description="The Venue is freed at once. This cannot be undone."
         confirmLabel="Cancel request"
         cancelLabel="Keep it"

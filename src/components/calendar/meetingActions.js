@@ -1,5 +1,5 @@
 /**
- * Which actions a viewer may take on a Meeting Request (#628). The database enforces the same
+ * Which actions a viewer may take on an Activity (#628). The database enforces the same
  * rules; this only decides what to show, so each action appears only when it is allowed.
  *
  *   edit    applicant, any non-final request before it starts

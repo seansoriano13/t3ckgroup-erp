@@ -28,22 +28,23 @@ export function clashMessage(entry) {
 }
 
 /**
- * Soft warnings that never block: the Facilitator or a Participant on approved Time Off that day,
- * or in an overlapping meeting at the other Venue. `people` is [{ id, name }].
+ * Soft warnings that never block, for every Activity type: the Lead or a Participant on approved
+ * Time Off that day, or in another Activity at the same time. `people` is [{ id, name }].
  */
-export function softWarnings(entries, { people, venueName, startsAt, endsAt }) {
+export function softWarnings(entries, { people, startsAt, endsAt }) {
   const byId = new Map(people.map((p) => [p.id, p]));
   const out = [];
   for (const e of entries) {
     if (TIME_OFF_KINDS.has(e.kind) && e.status === 'APPROVED' && byId.has(e.employee?.id)) {
       out.push(`${byId.get(e.employee.id).name} is on approved ${TIME_OFF_LABEL[e.kind]} that day.`);
     }
-    if (isMeeting(e) && e.venue && e.venue !== venueName && overlaps(e.starts_at, e.ends_at, startsAt, endsAt)) {
+    if (isMeeting(e) && overlaps(e.starts_at, e.ends_at, startsAt, endsAt)) {
       const d = e.details ?? {};
       const inIt = [d.facilitator, ...(d.participants ?? [])].filter((p) => p && byId.has(p.id));
       for (const p of inIt) {
+        const where = e.venue ? ` at ${e.venue}` : '';
         out.push(
-          `${byId.get(p.id).name} is in another meeting at ${e.venue}, ${manilaTime(e.starts_at)} to ${manilaTime(e.ends_at)}.`,
+          `${byId.get(p.id).name} is in another Activity${where}, ${manilaTime(e.starts_at)} to ${manilaTime(e.ends_at)}.`,
         );
       }
     }

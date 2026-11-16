@@ -3,11 +3,10 @@ import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import PageLoading from '@/components/ui/PageLoading';
 import QueryError from '@/components/ui/QueryError';
-import { MEETING_STATUS_LABEL, meetingPlace, meetingRequestService } from '@/services/meetingRequestService';
+import { MEETING_STATUS_LABEL, activityWhen, lastDayStart, meetingPlace, meetingRequestService } from '@/services/meetingRequestService';
 import MeetingActions from './MeetingActions.jsx';
-import { formatManilaDateTime, manilaTime } from '@/lib/manilaDate.js';
 
-/** "My Meeting Requests": every request I filed, run as Facilitator, or am a Participant in, with its status and history. */
+/** "My Activities": every request I filed, run as Lead, or am a Participant in, with its status and history. */
 export default function MyMeetingRequests() {
   const { user } = useAuth();
   useMeetingRealtime();
@@ -19,7 +18,7 @@ export default function MyMeetingRequests() {
 
   if (error) return <QueryError onRetry={refetch} />;
   if (isLoading) return <PageLoading />;
-  if (!data?.length) return <p className="py-8 text-center text-sm text-muted-foreground">No Meeting Requests yet.</p>;
+  if (!data?.length) return <p className="py-8 text-center text-sm text-muted-foreground">No Activities yet.</p>;
 
   return (
     <ul className="flex flex-col gap-2" data-testid="my-meeting-requests">
@@ -32,12 +31,12 @@ export default function MyMeetingRequests() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {meetingPlace(r)} · {formatManilaDateTime(r.starts_at)} to {manilaTime(r.ends_at)} · Facilitator {r.facilitator?.name}
+            {meetingPlace(r) ? `${meetingPlace(r)} · ` : ''}{activityWhen(r)} · Lead {r.facilitator?.name}
           </p>
           {r.return_note && r.status === 'RETURNED' && <p className="mt-1 text-xs">Returned: {r.return_note}</p>}
           {r.cancel_reason && r.status === 'CANCELLED' && <p className="mt-1 text-xs">Cancelled: {r.cancel_reason}</p>}
           <div className="mt-2">
-            <MeetingActions allowHr={false} request={{ id: r.id, status: r.status, startsAt: r.starts_at, applicantId: r.applicant_id }} />
+            <MeetingActions allowHr={false} request={{ id: r.id, status: r.status, startsAt: lastDayStart(r), applicantId: r.applicant_id }} />
           </div>
         </li>
       ))}

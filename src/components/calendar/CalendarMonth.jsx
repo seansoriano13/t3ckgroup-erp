@@ -5,7 +5,7 @@ import { addDays, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { manilaDate, parseManilaDate } from '@/lib/manilaDate.js';
-import { kindOf } from './entryKinds.jsx';
+import { styleOf } from './entryKinds.jsx';
 import { formatEntryTime } from './entryFormat.js';
 import { monthWeeks } from './monthWeeks.js';
 import { entriesToBars } from './peopleRows.js';
@@ -78,7 +78,7 @@ function Week({ week, entries, selectedYmd, todayYmd, onSelectDay, onOpenDay, on
       })}
 
       {shownBars.map((bar) => {
-        const def = kindOf(bar.kind);
+        const def = styleOf(bar.entry);
         const start = ymds.indexOf(bar.startYmd);
         const end = ymds.indexOf(bar.endYmd);
         const name = end > start ? bar.entry.employee?.name : shortName(bar.entry.employee?.name);
@@ -121,13 +121,13 @@ function Week({ week, entries, selectedYmd, todayYmd, onSelectDay, onOpenDay, on
                   variant="ghost"
                   tabIndex={-1}
                   onClick={() => onOpenEntry(e)}
-                  title={`${e.title || kindOf(e.kind).label} · ${e.employee?.name} · ${formatEntryTime(e)}`}
+                  title={`${e.title || styleOf(e).label} · ${e.employee?.name} · ${formatEntryTime(e)}`}
                   className={cn(
                     'pointer-events-auto h-5 min-w-0 justify-start gap-1.5 rounded-md px-1 text-xs font-medium',
                     e.status === 'PENDING' && 'italic text-muted-foreground',
                   )}
                 >
-                  <KindDot kind={e.kind} />
+                  <KindDot kind={e.kind} entry={e} />
                   <span className="font-mono text-xs tabular-nums text-muted-foreground">{time12(e.starts_at)}</span>
                   <span className="truncate">{lineText(e)}</span>
                 </Button>
@@ -148,7 +148,7 @@ function Week({ week, entries, selectedYmd, todayYmd, onSelectDay, onOpenDay, on
             </div>
             <div className="flex flex-wrap gap-1 sm:hidden">
               {dots.slice(0, 6).map((e) => (
-                <KindDot key={`${e.kind}-${e.id}`} kind={e.kind} />
+                <KindDot key={`${e.kind}-${e.id}`} kind={e.kind} entry={e} />
               ))}
             </div>
           </div>

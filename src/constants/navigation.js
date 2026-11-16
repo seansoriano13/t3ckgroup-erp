@@ -285,9 +285,9 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
-        // Meeting Requests (#624): the head step and HR's final say.
+        // Activities (#624): the head step and HR's final say.
         key: "approvals.meetings",
-        label: "Meeting Requests",
+        label: "Activities",
         link: "/approvals/meetings",
         icon: Clock,
         badgeKey: "meetingApprovals",
@@ -459,7 +459,7 @@ export const QUICK_ACTIONS = [
       {
         id: "meeting-request",
         key: "quick.meetingRequest",
-        label: "New Meeting Request",
+        label: "New Activity",
         icon: UsersRound,
         isPermitted: () => true,
       },

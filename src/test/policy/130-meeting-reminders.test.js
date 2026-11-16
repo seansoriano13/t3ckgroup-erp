@@ -64,7 +64,7 @@ const run = async () => {
 const notes = async (id) =>
     (await svc().from("notifications").select("recipient_id, type").eq("reference_id", id).eq("type", "MEETING_REMINDER")).data
 const stamp = async (id) =>
-    (await svc().from("meeting_requests").select("reminder_sent_at").eq("id", id).single()).data.reminder_sent_at
+    (await svc().from("meeting_request_days").select("reminder_sent_at").eq("request_id", id).single()).data.reminder_sent_at
 
 beforeAll(async () => {
     await ensureCastLoaded()
@@ -94,6 +94,36 @@ describe.skipIf(nearManilaMidnight())("send_meeting_reminders", () => {
         expect((await notes(id)).length).toBe(2)
         await run()
         expect((await notes(id)).length).toBe(2)
+    })
+
+    it("sends each day of a range its own reminder, once (#1056)", async () => {
+        const id = await seed()
+        // Only a task can run over several days.
+        const { error: te } = await svc().from("meeting_requests").update({ activity_type: "OPERATIONS_TASK", venue_id: null, meeting_type: null, meeting_link: null }).eq("id", id)
+        if (te) throw new Error(te.message)
+        const day1 = await svc().from("meeting_request_days").select("starts_at").eq("request_id", id).single()
+        const later = (d) => new Date(new Date(day1.data.starts_at).getTime() + d * DAY)
+        const { data: extra, error } = await svc()
+            .from("meeting_request_days")
+            .insert([1, 2].map((d) => ({ request_id: id, starts_at: later(d).toISOString(), ends_at: new Date(later(d).getTime() + QUARTER).toISOString() })))
+            .select("id, starts_at")
+        if (error) throw new Error(error.message)
+        await run()
+        expect((await notes(id)).length).toBe(2) // day 1: the applicant and the Lead
+        await run()
+        expect((await notes(id)).length).toBe(2)
+        // Day 2 comes due: its own reminder goes out, day 3's does not.
+        const due = new Date(nextQuarter())
+        await svc()
+            .from("meeting_request_days")
+            .update({ starts_at: due.toISOString(), ends_at: new Date(due.getTime() + QUARTER).toISOString() })
+            .eq("id", extra[0].id)
+        await run()
+        expect((await notes(id)).length).toBe(4)
+        await run()
+        expect((await notes(id)).length).toBe(4)
+        const marks = (await svc().from("meeting_request_days").select("reminder_sent_at").eq("request_id", id).order("starts_at")).data
+        expect(marks.filter((m) => m.reminder_sent_at).length).toBe(2)
     })
 
     it("skips pending, returned, declined, cancelled and far-away meetings", async () => {

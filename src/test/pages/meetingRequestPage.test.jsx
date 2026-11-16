@@ -1,6 +1,6 @@
 /**
  * #619 (spec #609): filing a Meeting Request from the Calendar page puts it in
- * "My Meeting Requests" and, faded (pending), on the Calendar. The database
+ * "My Activities" and, faded (pending), on the Calendar. The database
  * functions are stubbed against the fake store; the clash rule is the policy tier's.
  */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
@@ -66,7 +66,7 @@ beforeEach(() => {
 });
 
 describe("Meeting Request from the Calendar page", () => {
-  it("shows the filed request under My Meeting Requests and, faded, on the Calendar", async () => {
+  it("shows the filed request under My Activities and, faded, on the Calendar", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <MemoryRouter initialEntries={["/calendar"]}>
@@ -74,16 +74,16 @@ describe("Meeting Request from the Calendar page", () => {
       </MemoryRouter>,
     );
 
-    await user.click(await screen.findByRole("button", { name: "New Meeting Request" }));
+    await user.click(await screen.findByRole("button", { name: "New Activity" }));
     const dialog = await screen.findByRole("dialog");
 
-    await user.click(within(dialog).getAllByRole("combobox")[1]);
+    await user.click(within(dialog).getAllByRole("combobox")[2]);
     await user.click(await screen.findByRole("option", { name: "Conference Room" }));
     const date = within(dialog).getByDisplayValue(manilaToday());
     fireEvent.change(date, { target: { value: tomorrow } });
-    await user.click(within(dialog).getAllByRole("combobox")[4]);
+    await user.click(within(dialog).getAllByRole("combobox")[5]);
     await user.click(await screen.findByRole("option", { name: "Head Honcho" }));
-    await user.type(within(dialog).getByPlaceholderText("What is the meeting for?"), "Quarterly planning");
+    await user.type(within(dialog).getByPlaceholderText("What is the Activity for?"), "Quarterly planning");
 
     const send = within(dialog).getByRole("button", { name: "Send request" });
     await waitFor(() => expect(send).toBeEnabled());
@@ -92,7 +92,7 @@ describe("Meeting Request from the Calendar page", () => {
     await waitFor(() => expect(db.rows("meeting_requests")).toHaveLength(1));
     expect(db.rows("meeting_request_events")).toHaveLength(1);
 
-    await user.click(await screen.findByRole("tab", { name: "My Meeting Requests" }));
+    await user.click(await screen.findByRole("tab", { name: "My Activities" }));
     const list = await screen.findByTestId("my-meeting-requests");
     expect(within(list).getByText("Quarterly planning")).toBeInTheDocument();
     expect(within(list).getByText("Waiting for head")).toBeInTheDocument();
