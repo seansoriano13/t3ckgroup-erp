@@ -10,6 +10,7 @@ import { costingKeys } from "../../costingKeys";
 import { pesos } from "../../gridFormat";
 import { CostShares, SheetTable, Waterfall } from "./SheetParts";
 import { buildSheet } from "./sheetModel";
+import { isStandaloneMatrix } from "../../../../utils/standaloneEvaluation";
 
 /**
  * The S0 Evaluation's Overview (layout B, 2026-11-13), opened from the price corridor: the whole sheet with each
@@ -29,7 +30,7 @@ export default function Overview({ matrix, fall, opportunity, opportunityId, onB
     staleTime: 0,
     enabled: Boolean(opportunityId) && !aside,
   });
-  const standalone = Boolean(opportunity?.standalone);
+  const standalone = isStandaloneMatrix(matrix, opportunity);
 
   return (
     <div className="space-y-4 pb-2" data-testid="costing-overview">

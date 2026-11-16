@@ -23,6 +23,7 @@ import CostingSummary from "../CostingSummary";
 import CorridorScreen from "./corridor/CorridorScreen";
 import Overview from "./corridor/Overview";
 import AfterBuying from "./corridor/AfterBuying";
+import { isStandaloneMatrix } from "../../../utils/standaloneEvaluation";
 import { corridorSaves } from "./corridor/corridorSaves";
 import { waterfallSteps } from "./corridor/sheetModel";
 
@@ -95,7 +96,7 @@ export default function CostingDesk({ opportunityId, opportunity }) {
   const { data: matrix, isLoading, isError, error } = useCostingMatrix(opportunityId);
   const writes = useCostingWrites(opportunityId);
   const incharge = useInchargeOptions(opportunity);
-  const standalone = Boolean(opportunity?.standalone);
+  const standalone = isStandaloneMatrix(matrix, opportunity);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { canFill, fill, odooNote } = useFill(matrix, opportunityId, writes, standalone);

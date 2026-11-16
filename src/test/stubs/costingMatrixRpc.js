@@ -134,7 +134,8 @@ export function stubCostingMatrixRpcs({ tier = COSTING_TIER.PRICE, bands = ["sal
 
   stubRpc("costing_matrix_read", (args) => {
     if (!tier) return null
-    const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id)
+    // A subject id is the SOR's, or (#966) a standalone matrix's own id.
+    const matrix = rowsOf("costing_matrices").find((m) => m.opportunity_id === args.p_opportunity_id || (m.opportunity_id == null && m.id === args.p_opportunity_id))
     if (!matrix) return null
     const lines = rowsOf("costing_tender_lines")
       .filter((l) => l.matrix_id === matrix.id)

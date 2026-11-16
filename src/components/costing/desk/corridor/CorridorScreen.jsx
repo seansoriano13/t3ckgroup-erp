@@ -35,6 +35,7 @@ import { costingMatrixService } from "../../../../services/costingMatrixService"
 import { useAuth } from "../../../../context/AuthContext";
 import { ABC_MODE, COMPONENT_BANDS, COMPONENT_STATUS_LABEL, COSTING_BAND, COSTING_TIER, COST_ROW_BANDS, MATRIX_MONEY_BANDS, ROW_EDIT_BANDS, USUAL_COST_CATEGORIES, inAnyBand, tierReads, tierReadsCost, tierReadsCostRow } from "../../../../constants/costing";
 import { costUnit, finalAcquireByRule, finalAcquireTotal, projectExpensesTotal } from "../../../../utils/costingMath";
+import { isStandaloneMatrix } from "../../../../utils/standaloneEvaluation";
 
 const STATUS_OPTIONS = Object.entries(COMPONENT_STATUS_LABEL).map(([value, label]) => ({ value, label }));
 const num = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
@@ -610,7 +611,7 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
       else n.add(id);
       return n;
     });
-  const standalone = Boolean(opportunity?.standalone);
+  const standalone = isStandaloneMatrix(matrix, opportunity);
   const under = fall?.revenuePercent != null && fall.under;
   const nameOf = incharge.nameOf;
   const peopleSummary = [

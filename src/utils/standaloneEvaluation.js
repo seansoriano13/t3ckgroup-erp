@@ -20,6 +20,16 @@ export function isS0Number(value) {
 }
 
 /**
+ * Is this the read of a standalone evaluation, one tied to no SOR? Judged from the matrix itself, which every reader
+ * gets with its `opportunity_id`: the window's header loads beside it and can arrive later, so it cannot decide this.
+ * Until the matrix is read, the header's own word is all there is.
+ */
+export function isStandaloneMatrix(matrix, header) {
+  const row = matrix?.matrix;
+  return row ? row.opportunity_id == null : Boolean(header?.standalone);
+}
+
+/**
  * The lines to hand `costing_standalone_open` from the items Odoo sent for the sale order. A line with no
  * name is left out; the quantity falls back to 1 when Odoo sent none above zero.
  */

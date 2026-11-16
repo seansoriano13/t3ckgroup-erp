@@ -9,7 +9,7 @@
  *
  *   - CREATE TABLE  → columns, types, NOT NULL, DEFAULT, UNIQUE, PRIMARY KEY
  *   - CONSTRAINT    → PRIMARY KEY / FOREIGN KEY / CHECK, by name
- *   - ALTER TABLE   → ADD COLUMN, ADD CONSTRAINT, DROP CONSTRAINT, ALTER COLUMN SET DEFAULT
+ *   - ALTER TABLE   → ADD COLUMN, ADD CONSTRAINT, DROP CONSTRAINT, ALTER COLUMN SET DEFAULT / DROP NOT NULL
  *
  * Foreign keys are indexed by constraint name because that is exactly how
  * PostgREST disambiguates embedded selects
@@ -425,6 +425,11 @@ function applyAlterTable(sql, registry) {
         /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+alter\s+column\s+"?([a-z_0-9]+)"?\s+set\s+default\s+([^;]+);/gi,
     },
     {
+      kind: "dropNotNull",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+alter\s+column\s+"?([a-z_0-9]+)"?\s+drop\s+not\s+null/gi,
+    },
+    {
       kind: "renameTable",
       regex:
         /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+rename\s+to\s+"?([a-z_0-9]+)"?\s*;/gi,
@@ -481,6 +486,8 @@ function applyAlterTable(sql, registry) {
       }
     } else if (statement.kind === "setDefault") {
       if (table.columns[statement.payload]) table.columns[statement.payload].default = parseDefault(statement.extra.trim())
+    } else if (statement.kind === "dropNotNull") {
+      if (table.columns[statement.payload]) table.columns[statement.payload].notNull = false
     } else if (statement.kind === "renameTable") {
       const newTableName = statement.payload
       registry.tables[newTableName] = table
