@@ -3,9 +3,8 @@ import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import PageLoading from '@/components/ui/PageLoading';
 import QueryError from '@/components/ui/QueryError';
-import { MEETING_STATUS_LABEL, meetingPlace, meetingRequestService } from '@/services/meetingRequestService';
+import { MEETING_STATUS_LABEL, activityWhen, lastDayStart, meetingPlace, meetingRequestService } from '@/services/meetingRequestService';
 import MeetingActions from './MeetingActions.jsx';
-import { formatManilaDateTime, manilaTime } from '@/lib/manilaDate.js';
 
 /** "My Activities": every request I filed, run as Lead, or am a Participant in, with its status and history. */
 export default function MyMeetingRequests() {
@@ -32,12 +31,12 @@ export default function MyMeetingRequests() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {meetingPlace(r) ? `${meetingPlace(r)} · ` : ''}{formatManilaDateTime(r.starts_at)} to {manilaTime(r.ends_at)} · Lead {r.facilitator?.name}
+            {meetingPlace(r) ? `${meetingPlace(r)} · ` : ''}{activityWhen(r)} · Lead {r.facilitator?.name}
           </p>
           {r.return_note && r.status === 'RETURNED' && <p className="mt-1 text-xs">Returned: {r.return_note}</p>}
           {r.cancel_reason && r.status === 'CANCELLED' && <p className="mt-1 text-xs">Cancelled: {r.cancel_reason}</p>}
           <div className="mt-2">
-            <MeetingActions allowHr={false} request={{ id: r.id, status: r.status, startsAt: r.starts_at, applicantId: r.applicant_id }} />
+            <MeetingActions allowHr={false} request={{ id: r.id, status: r.status, startsAt: lastDayStart(r), applicantId: r.applicant_id }} />
           </div>
         </li>
       ))}

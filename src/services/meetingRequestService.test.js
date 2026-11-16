@@ -127,3 +127,41 @@ describe("meetingRequestService.fileRequest", () => {
     expect(db.rows("meeting_requests")).toHaveLength(0)
   })
 })
+
+describe("meetingRequestService.fileRequest over several days (#1056)", () => {
+  it("sends every day to the filing function, with the first day as the start", async () => {
+    const applicant = makeEmployee({ name: "Ana Reyes" })
+    let body
+    stubRpc("file_meeting_request", (b) => {
+      body = b
+      return insertRow("meeting_requests", {
+        applicant_id: applicant.id,
+        starts_at: b.p_starts_at,
+        ends_at: b.p_ends_at,
+        facilitator_id: b.p_facilitator_id,
+        purpose: b.p_purpose,
+        guests: [],
+        activity_type: b.p_activity_type,
+        status: "APPROVED",
+      }).id
+    })
+    const days = [
+      { startsAt: "2031-03-14T01:00:00.000Z", endsAt: "2031-03-14T02:00:00.000Z" },
+      { startsAt: "2031-03-15T01:00:00.000Z", endsAt: "2031-03-15T04:00:00.000Z" },
+    ]
+    await meetingRequestService.fileRequest({
+      activityType: "OPERATIONS_TASK",
+      startsAt: days[0].startsAt,
+      endsAt: days[0].endsAt,
+      days,
+      facilitatorId: applicant.id,
+      purpose: "Stock count",
+      applicant,
+    })
+    expect(body.p_days).toEqual([
+      { starts_at: days[0].startsAt, ends_at: days[0].endsAt },
+      { starts_at: days[1].startsAt, ends_at: days[1].endsAt },
+    ])
+    expect(body.p_starts_at).toBe(days[0].startsAt)
+  })
+})

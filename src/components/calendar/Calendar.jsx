@@ -24,7 +24,7 @@ import { visibleEntries } from '@/components/calendar/entryKinds.jsx';
 import { withSpan } from '@/components/calendar/entrySpan.js';
 import { GANTT_WEEKS, ganttDays, layoutRange, layoutTitle, parseCalendarParams, shiftDate } from '@/components/calendar/calendarNav.js';
 import { useCalendarLayers } from '@/components/calendar/useCalendarLayers';
-import { ENTRY_PARAM, entryAddress, matchesAddress, parseEntryAddress } from '@/components/calendar/entryAddress.js';
+import { ENTRY_PARAM, entryAddress, findEntry, parseEntryAddress } from '@/components/calendar/entryAddress.js';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useIsPhone, useRoomy } from "@/hooks/useScreenBand";
 
@@ -134,7 +134,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   // The open entry is the address's `?entry=<kind>:<id>`: opening writes it (a new
   // history step, or a replace when another entry is already open), closing clears it.
   const wanted = parseEntryAddress(params.get(ENTRY_PARAM));
-  const found = wanted ? all.find((e) => matchesAddress(e, wanted)) : null;
+  const found = findEntry(all, wanted);
   const selected = found ? withSpan(found, entries) : null;
   // An entry opened by a push from this page is closed by stepping Back, so Back
   // leaves the Calendar's open entry rather than replaying it. One that arrived by

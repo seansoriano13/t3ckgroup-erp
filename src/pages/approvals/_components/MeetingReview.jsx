@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { ExternalLink } from "@/components/ui/external-link";
-import { ACTIVITY_TYPE_LABEL, MEETING_TYPE_LABEL, guestList, guestText, safeLink } from "@/services/meetingRequestService";
+import { ACTIVITY_TYPE_LABEL, MEETING_TYPE_LABEL, activityWhen, guestList, guestText, safeLink } from "@/services/meetingRequestService";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
 import { SlideOverBody, SlideOverFooter } from "@/components/ui/SlideOver";
 import { APPROVE_CLASS } from "@/components/ui/approveClass";
-import { formatManilaDateTime, manilaTime } from "../../../lib/manilaDate.js";
+import { formatManilaDateTime } from "../../../lib/manilaDate.js";
 import { NOTE_PRESETS, whyYouSeeThis } from "./approvalUi";
 
 const EVENT_LABEL = {
@@ -52,7 +52,7 @@ export function MeetingReview({ item, onDecide, isSubmitting }) {
                 )}
               </DetailRow>
             )}
-            <DetailRow label="When">{`${formatManilaDateTime(req.starts_at)} to ${manilaTime(req.ends_at)}`}</DetailRow>
+            <DetailRow label="When">{activityWhen(req)}</DetailRow>
             <DetailRow label="Lead">{req.facilitator?.name}</DetailRow>
             <DetailRow label="Participants">{people.length ? people.join(", ") : "None"}</DetailRow>
             <DetailRow label="Guests">{guests.length ? guests.map(guestText).join(", ") : "None"}</DetailRow>
