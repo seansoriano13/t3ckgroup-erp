@@ -248,7 +248,7 @@ const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`
  * It is a line and not a panel because Now already owns this visit's detail —
  * the Journey would otherwise repeat the whole tab beside it.
  */
-export function visitSummary(visit) {
+export function visitSummary(visit, { missingFieldCount = 0 } = {}) {
   // #296: a restricted visit carries no conditions/tasks to count — RLS
   // already stripped them — so its summary line says exactly that instead
   // of misreading "nothing outstanding" as "there is nothing here".
@@ -269,6 +269,9 @@ export function visitSummary(visit) {
   const openTasks = [...(visit?.tasks || []), ...(visit?.groupTasks || [])].filter(isTaskOpen).length
 
   const parts = []
+  // #1047 S8: required Stage Fields still empty block the move like a
+  // condition does, so the line counts them too.
+  if (missingFieldCount > 0) parts.push(`${plural(missingFieldCount, "required field")} missing`)
   if (outstanding > 0) parts.push(`${plural(outstanding, "condition")} outstanding`)
   if (openTasks > 0) parts.push(`${plural(openTasks, "open task")}`)
 
@@ -299,7 +302,7 @@ function byLatestFirst(a, b) {
  * Nothing else belongs in this argument — a row that needs more should carry
  * it on the visit instead, or the shaper stops being the whole ordering rule.
  */
-export function journeyRows(visits = [], { expandedIds = [] } = {}) {
+export function journeyRows(visits = [], { expandedIds = [], missingFieldCount = 0 } = {}) {
   const expanded = new Set(expandedIds)
   const ordered = [...visits].sort(byLatestFirst)
   // The open visit with the highest sequence, matching `currentVisitFor`'s
@@ -316,7 +319,7 @@ export function journeyRows(visits = [], { expandedIds = [] } = {}) {
       // A restricted visit never expands either — #296, there is nothing
       // behind it to open once RLS has stripped its contents.
       isExpanded: !isCurrent && !visit.isRestricted && expanded.has(visit.id),
-      summary: isCurrent ? visitSummary(visit) : null,
+      summary: isCurrent ? visitSummary(visit, { missingFieldCount }) : null,
     }
   })
 }

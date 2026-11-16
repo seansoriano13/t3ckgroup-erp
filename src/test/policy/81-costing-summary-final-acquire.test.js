@@ -127,16 +127,19 @@ afterAll(async () => {
 })
 
 describe("Final Acquire", () => {
-    it("lets a Super Admin, Purchasing and Sales write it, and refuses a Stage Participant, naming the bands", async () => {
-        for (const [who, value] of [["superAdmin", 1001], ["outsider", 1002], ["dealOwner", 1003]]) {
-            expect(await setCost(who, { final_acquire_unit: value }), who).toBeNull()
+    it("refuses a Super Admin off the list, Purchasing, Sales and a Stage Participant, naming the management band (#962)", async () => {
+        for (const who of ["superAdmin", "outsider", "dealOwner"]) {
+            const refused = await setCost(who, { final_acquire_unit: 1000 })
+            expect(refused?.code, who).toBe(RLS_VIOLATION)
+            expect(refused?.message, who).toBe("costing_band:costing_component_costs.final_acquire_unit:management")
         }
+        // Not on the Component costs table at all: the table band answers first.
         const refused = await setCost("stageParticipant", { final_acquire_unit: 1000 })
         expect(refused?.code).toBe(RLS_VIOLATION)
-        expect(refused?.message).toBe("costing_band:costing_component_costs.final_acquire_unit:sales,purchasing,management")
+        expect(refused?.message).toBe("costing_band:costing_component_costs.*:sales,purchasing,management")
         expect((await setCost("ordinary", { final_acquire_unit: 1000 }))?.code).toBe(RLS_VIOLATION)
-        const cost = await asSvc(svc().from("costing_component_costs").select("final_acquire_unit").eq("component_id", componentId).single(), "cost")
-        expect(Number(cost.final_acquire_unit)).toBe(1003)
+        const { data: cost } = await svc().from("costing_component_costs").select("final_acquire_unit").eq("component_id", componentId).maybeSingle()
+        expect(cost?.final_acquire_unit ?? null).toBeNull()
     })
 
     it("lets a member of the list write it on a Component and on a cost-only row", async () => {
@@ -153,7 +156,7 @@ describe("Final Acquire", () => {
         expect(await setMoney("ipasSigner", "costing_cost_rows", costRowId, { final_acquire_unit: 2500 })).toBeNull()
     })
 
-    it("lets a Super Admin write it on the list or off it", async () => {
+    it("lets a Super Admin write it once on the list, and refuses them off it", async () => {
         await asSvc(svc().from("costing_signer_lists").insert({ list_key: "final_acquire", employee_id: ids.superAdmin }), "list the Super Admin")
         try {
             expect(await setCost("superAdmin", { final_acquire_unit: 17950 })).toBeNull()
@@ -162,7 +165,7 @@ describe("Final Acquire", () => {
         } finally {
             await svc().from("costing_signer_lists").delete().eq("employee_id", ids.superAdmin)
         }
-        expect(await setCost("superAdmin", { final_acquire_unit: 17960 })).toBeNull()
+        expect((await setCost("superAdmin", { final_acquire_unit: 17960 }))?.code).toBe(RLS_VIOLATION)
     })
 
     it("clears Final Acquire back to blank with null", async () => {

@@ -102,16 +102,30 @@ describe("Profile on PageShell", () => {
       <RouterProvider router={createMemoryRouter([{ path: "/profile", element: <ProfilePage /> }], { initialEntries: ["/profile"] })} />,
     );
 
-  it("puts Save settings in the header as the standard button, off until something changes", async () => {
+  it("hides Save settings until something changes, and then shows the standard button", async () => {
     renderProfile();
 
     const heading = await screen.findByRole("heading", { level: 1, name: /My\s*Profile/ });
-    const save = within(headerOf(heading)).getByRole("button", { name: "Save settings" });
-    expect(save).toBeDisabled();
-    expect(save.className).not.toMatch(/uppercase|rounded-full|tracking-widest|h-auto/);
+    expect(screen.getByText("Your details, signature and appearance.")).toBeInTheDocument();
+    expect(within(headerOf(heading)).queryByRole("button", { name: "Save settings" })).toBeNull();
 
     await setupUser().type(screen.getByPlaceholderText(/7-word motivational quote/i), " more");
+    const save = within(headerOf(heading)).getByRole("button", { name: "Save settings" });
     expect(save).toBeEnabled();
+    expect(save.className).not.toMatch(/uppercase|rounded-full|tracking-widest|h-auto/);
+  });
+
+  it("shows the System ID only to Super Admins", async () => {
+    const view = renderProfile();
+    await screen.findByRole("heading", { level: 1, name: /My\s*Profile/ });
+    expect(screen.queryByText("System ID")).toBeNull();
+    expect(screen.queryByText(mockUser.current.id)).toBeNull();
+    view.unmount();
+
+    mockUser.current = { ...mockUser.current, isSuperAdmin: true };
+    renderProfile();
+    expect(await screen.findByText("System ID")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy ID" })).toBeInTheDocument();
   });
 
   it("renders in a narrow centred column with Sentence-case section headings", async () => {

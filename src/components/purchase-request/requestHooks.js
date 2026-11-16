@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
+import { isRecordId } from "@/utils/recordLink";
 import { purchaseRequestService } from "@/services/purchaseRequestService";
 import { CANVASS_LIST_KEY } from "@/constants/canvass";
 import { procurementQueueKey, purchaseRequestKeys } from "./queryKeys";
@@ -13,7 +14,7 @@ export function usePurchaseRequest(requestId) {
   return useQuery({
     queryKey: purchaseRequestKeys.header(requestId),
     queryFn: () => purchaseRequestService.get(requestId),
-    enabled: !!requestId,
+    enabled: isRecordId(requestId),
   });
 }
 

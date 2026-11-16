@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRecordParam } from '../../../../hooks/useRecordParam';
 import { recordKey } from './leaveDisplay';
 
@@ -33,7 +33,17 @@ export function useLeaveSheet({ requests, employeeBalances, pendingView, history
   const [origin, setOrigin] = useState(null);
 
   const parsed = parseRecordId(recordId);
-  const request = parsed?.kind === 'request' ? requests.find((r) => recordKey(r) === parsed.key) || null : null;
+  // #1015: a notification link may carry a bare row id or leave group id instead of the key.
+  const request =
+    parsed?.kind === 'request'
+      ? requests.find((r) => recordKey(r) === parsed.key) ||
+        requests.find((r) => r.id === parsed.key || r.leave_group_id === parsed.key) ||
+        null
+      : null;
+  const canonicalKey = request ? recordKey(request) : null;
+  useEffect(() => {
+    if (canonicalKey && canonicalKey !== recordId) step(canonicalKey);
+  }, [canonicalKey, recordId, step]);
   const person = parsed?.kind === 'person' ? employeeBalances.find((e) => e.id === parsed.employeeId) || null : null;
 
   // Ignore an origin left over from some other request.

@@ -15,9 +15,10 @@ const MIGRATION = readFileSync(
     "utf8",
 )
 
+// sor_log_read is not compared: 20261211100000 (#1042) re-creates it on a
+// faster predicate after this migration, so re-running this one reverts it.
 const TOUCHED = `
   (tablename = 'sales_opportunities' and policyname = 'sor_read')
-  or (tablename = 'sales_opportunity_logs' and policyname = 'sor_log_read')
   or (tablename = 'sales_opportunity_members' and policyname = 'sales_opportunity_members_read')
 `
 // hr_read_system_audit_logs is no longer prod-only: 20261001100000 re-creates it

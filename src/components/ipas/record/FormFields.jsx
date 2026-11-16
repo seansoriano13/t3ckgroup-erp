@@ -4,6 +4,7 @@
 import AmountInput from "@/components/ipas/AmountInput";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { RequiredMark } from "@/components/ui/RequiredMark";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,14 +28,8 @@ export function OdooTag() {
   );
 }
 
-/** The red asterisk on a required field's label. */
-export function RequiredMark() {
-  return (
-    <span className="text-red-11" aria-hidden="true">
-      *
-    </span>
-  );
-}
+// RequiredMark now lives in ui/; re-exported so existing imports keep working.
+export { RequiredMark };
 
 function caption(label, required, needed) {
   return (

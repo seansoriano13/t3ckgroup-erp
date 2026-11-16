@@ -2,6 +2,10 @@ import { Dialog, DialogContent } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { X, ChevronDown } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+
+/** Only a device with a mouse and a keyboard shows the "Esc to close" hint. */
+const KEYBOARD_QUERY = "(hover: hover) and (pointer: fine)";
 
 /**
  * A reusable modal wrapper for HR management forms (Employees, Categories, etc.)
@@ -20,6 +24,7 @@ export default function HRFormModal({
   submitLabel = "Save changes",
   children,
 }) {
+  const hasKeyboard = useMediaQuery(KEYBOARD_QUERY);
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
@@ -74,10 +79,12 @@ export default function HRFormModal({
         {/* Footer */}
         <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-1.5 text-label text-muted-foreground">
+            {hasKeyboard && (<>
             <kbd className="px-1.5 py-0.5 bg-muted/80 border border-border rounded font-sans text-label">
               Esc
             </kbd>
             <span>to close</span>
+            </>)}
           </div>
           <div className="flex items-center gap-2.5">
             <Button

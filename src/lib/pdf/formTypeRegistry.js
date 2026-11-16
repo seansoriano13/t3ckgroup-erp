@@ -71,8 +71,8 @@ const FORM_TYPES = {
     buildViewModel: buildCostingMatrixViewModel,
     markPrinted: async () => {},
   },
-  // Issue #282: the Canvass prints on portrait A4 (canvassDocument.js) from `canvassService.get`'s shape,
-  // for a reader with the money tier only. Printing stamps nothing, so markPrinted is a no-op.
+  // Issue #971: the Canvass prints one landscape A4 sheet per request (canvassDocument.js), suppliers across three to a page,
+  // without prices for a reader who may not see money. Printing stamps nothing, so markPrinted is a no-op.
   canvass: {
     buildViewModel: buildCanvassViewModel,
     markPrinted: async () => {},

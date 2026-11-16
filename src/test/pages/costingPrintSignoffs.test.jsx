@@ -4,7 +4,7 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { openLines, openStep, renderCostingDesk } from "@/test/support/costingDesk";
 import { renderWithProviders, setupUser } from "@/test/support";
 import PrintButton from "@/components/costing/desk/PrintButton";
 
@@ -95,7 +95,8 @@ describe("the S0 Evaluation print and sign-offs", () => {
 
   it("does not show Costed while a row has no Final Acquire", async () => {
     mount(sales);
-    await openLines();
+    // The evaluation bar is on the Specs step; the sign-offs sit beside every step.
+    await openStep("Specs");
     await screen.findByTestId("evaluation-bar");
     expect(screen.queryByTestId("costed-derived")).not.toBeInTheDocument();
   });

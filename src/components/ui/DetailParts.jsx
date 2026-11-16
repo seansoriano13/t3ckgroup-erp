@@ -43,7 +43,7 @@ export function ApprovalChain({ chain }) {
 /** One-click remark presets; each appends to whatever is already written. */
 export function NotePresets({ presets, onPick }) {
   return (
-    <div className="flex gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible laptop:flex-nowrap laptop:overflow-x-auto [&>*]:shrink-0">
+    <div className="flex flex-wrap gap-1.5">
       {presets.map((q) => (
         <Button
           key={q}

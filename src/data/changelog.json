@@ -1,5 +1,78 @@
 [
     {
+        "date": "2026-11-16",
+        "title": "What's new: mid-November",
+        "version": "1.11.0",
+        "changes": [
+            "Every window has its own link, a Copy link button, and clicking a notification opens what it is about.",
+            "S0 Evaluation (Beta) works like the sheet: a price corridor, Final Acquire by rule, costs as a percent of the ABC and a 20% Go line.",
+            "Purchasing (Beta): one Canvass for the whole Purchase Request, and the PMS file on its own page.",
+            "Time Off, SORs and HR: clearer forms, the real Stage in Overview and Commission, and lists that load again.",
+            "Open Release Notes to try each change."
+        ],
+        "link": "/release-notes"
+    },
+    {
+        "date": "2026-11-14",
+        "title": "Every window has a link, and bell clicks open the record",
+        "version": "1.10.8",
+        "changes": [
+            "Clicking a notification now opens the record it is about, in its own window.",
+            "Every window you can open has an address now, and a Copy link button in its header, so you can send exactly what you are looking at.",
+            "A Purchasing file (PMS) has its own page, and opens from the SOR on one click.",
+            "The phone menu opens and closes properly.",
+            "A link to something that is gone, or that you cannot see, now says so in plain words instead of showing nothing."
+        ]
+    },
+    {
+        "date": "2026-11-14",
+        "title": "Faster chats and a tidier Time Off",
+        "version": "1.10.7",
+        "changes": [
+            "Chats and Group Task chats open without timing out, and a Group Task chat only shows to the people who can see that Group Task.",
+            "The File Time Off form is easier to fill: required fields are marked with a red asterisk, mistakes show under the field, and you are warned when you ask for more hours than you have.",
+            "The Department Head picker shows each head's department, and it explains when your team has two heads and you need to choose one.",
+            "Time Off & Overtime has one date control, a header that wraps on small screens, and each request type has one colour and one name everywhere. Paid leave is called SIL (Service Incentive Leave).",
+            "The Employee Directory opens a person when you click the row, keeps Actions in view, and Super Admins can copy an employee's ID.",
+            "The menu opens the group you are in, the phone top bar shows the page title, and a screen you cannot open now says so.",
+            "What's New now pops up only for releases that touch the modules you can open. A small dot on Release Notes in the menu shows when there is something new."
+        ]
+    },
+    {
+        "date": "2026-11-13",
+        "title": "One Canvass for the whole request",
+        "version": "1.10.6",
+        "modules": [
+            "purchasing.canvasses"
+        ],
+        "changes": [
+            "A Purchase Request now has one Canvass: its lines go down and the suppliers go across, so you compare every line side by side.",
+            "Add each supplier once with its currency, rate, how long the quote holds and its lead time, then type its price on each line.",
+            "Pick a winner on each line with a reason, or let one supplier win every line it quoted. A Purchased line is locked until a Super Admin unlocks it.",
+            "A cancelled line stays in the Canvass and on the printed sheet, marked Cancelled, and cannot get a winner.",
+            "A line that was bought with no Canvass says so on the request and on the printed sheet.",
+            "The Canvasses page lists one row per request, and the printed sheet shows up to three suppliers across a page.",
+            "If you cannot see prices, you can still add a foreign supplier. It shows No rate until someone who can see prices fills it in."
+        ]
+    },
+    {
+        "date": "2026-11-12",
+        "title": "S0 Evaluation: cleaner figures and a start from just an S0",
+        "version": "1.10.5",
+        "modules": [
+            "sales"
+        ],
+        "changes": [
+            "ABC can now be one total for the whole sheet instead of a price on every line.",
+            "The Odoo column shows Odoo's selling price (SRP), not its cost.",
+            "Final Acquire is back: stockable parts follow the SRP with a percent (starting at 20% below), Source Out parts follow their Acquire, and the decider list can still type over it.",
+            "Other costs can be typed as a percent of the ABC, and Project expenses add them up.",
+            "The summary now follows the sheet: Less tax, OPEX worked out for you, Revenue, and a 20% Go line that warns (but never blocks) a low-revenue bid.",
+            "The IPAS column on the sheet shows which IPAS a part is on; P.O./RFQ No. and Availability are gone.",
+            "New evaluation from an S0: type an S0 number and its lines come from Odoo, with no SOR needed. The S0 Evaluation list marks these as No SOR and can filter to them."
+        ]
+    },
+    {
         "date": "2026-11-12",
         "title": "Fits small laptops and phones",
         "version": "1.10.4",
@@ -22,6 +95,9 @@
         "date": "2026-11-12",
         "title": "Dialogs that scroll, % on IPAS payments, choose the required files",
         "version": "1.10.3",
+        "modules": [
+            "purchasing"
+        ],
         "changes": [
             "Dialogs never grow past the screen any more: the content scrolls and the title and buttons stay in view.",
             "IPAS payments: a Down payment or Payment can be a % of the order. The amount is worked out for you and the % shows on the printed form.",
@@ -62,6 +138,9 @@
         "date": "2026-11-10",
         "title": "IPAS tidy-up",
         "version": "1.9.99",
+        "modules": [
+            "purchasing"
+        ],
         "changes": [
             "One button on an IPAS removes all the blank charges at once.",
             "Landed Cost can no longer be marked final while a charge has no amount.",
@@ -76,6 +155,10 @@
         "date": "2026-11-09",
         "title": "Technical, IPAS, Transmittal and costing improvements",
         "version": "1.9.98",
+        "modules": [
+            "purchasing",
+            "sales"
+        ],
         "changes": [
             "The overall Technical verdict now follows the products: Complies when every product complies, Deviates as soon as one deviates. The Technical page shows progress per product, and the in-charge can give one verdict to many products at once.",
             "A Group Task template that a Stage Action uses can no longer be deleted. The message names the Flow and Stage that use it.",
@@ -92,6 +175,9 @@
         "date": "2026-11-05",
         "title": "Approve evaluations from the Technical page",
         "version": "1.9.97",
+        "modules": [
+            "sales"
+        ],
         "changes": [
             "People on the Evaluation list now find the S0 Evaluations waiting for their approval on the Technical page, and approve them there.",
             "The Technical in-charge of an SOR cannot approve its evaluation, and the page says so.",

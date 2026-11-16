@@ -15,8 +15,8 @@ import { stubRpc } from "@/test/msw/server";
  * anyone outside the Closed Book home.
  *
  * Rows (default rates, ITR 8% over a 250,000 allowance):
- *   SOR-101  Final Offer 2,980,000, Final Acquire 2,338,500, nothing bought     Planned = Actual = 423,100
- *   SOR-102  same offer and cost, one item bought at 1,100,000 for 1,000,000    Actual 323,100 (-100,000), estimate
+ *   SOR-101  Final Offer 2,980,000, Final Acquire 2,000,000, project expenses 338,500, marketing 0, nothing bought     Planned = Actual = 74,014.29
+ *   SOR-102  same offer and cost, one item bought at 1,100,000 for 1,000,000    Actual -25,985.71 (-100,000), estimate
  *   SOR-103  no Final Offer yet                                                 no figures
  */
 
@@ -25,7 +25,9 @@ vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser, isAu
 
 const base = {
   final_offer_total: "2980000.00",
-  final_acquire_total: "2338500.00",
+  final_acquire_total: "2000000.00",
+  project_expenses_total: "338500.00",
+  marketing: "0",
   landed_cost_total: "0",
   bought_final_acquire_total: "0",
   items_bought: 0,
@@ -76,6 +78,7 @@ describe("the S0 Evaluation page", () => {
     authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
     db.seed("costing_settings", { id: 1 });
     stubRpc("costing_matrix_page", rows);
+    stubRpc("costing_standalone_page", []);
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -88,13 +91,13 @@ describe("the S0 Evaluation page", () => {
     expect(within(plain).getByText("BFP Command Bus")).toBeInTheDocument();
     expect(within(plain).getByText("Bidding")).toBeInTheDocument();
     expect(plain).toHaveTextContent("₱2,980,000.00");
-    expect(within(plain).getByTestId("costing-matrix-planned")).toHaveTextContent("₱423,100.00");
-    expect(within(plain).getByTestId("costing-matrix-actual")).toHaveTextContent("₱423,100.00");
+    expect(within(plain).getByTestId("costing-matrix-planned")).toHaveTextContent("₱74,014.29");
+    expect(within(plain).getByTestId("costing-matrix-actual")).toHaveTextContent("₱74,014.29");
     expect(within(plain).getByTestId("costing-matrix-items")).toHaveTextContent("0 of 2");
 
     const bought = await rowFor("SOR-102");
-    expect(within(bought).getByTestId("costing-matrix-planned")).toHaveTextContent("₱423,100.00");
-    expect(within(bought).getByTestId("costing-matrix-actual")).toHaveTextContent("₱323,100.00");
+    expect(within(bought).getByTestId("costing-matrix-planned")).toHaveTextContent("₱74,014.29");
+    expect(within(bought).getByTestId("costing-matrix-actual")).toHaveTextContent("-₱25,985.71");
     expect(within(bought).getByTestId("costing-matrix-difference")).toHaveTextContent("-₱100,000.00");
     expect(within(bought).getByTestId("costing-matrix-items")).toHaveTextContent("1 of 2");
   });
@@ -125,8 +128,8 @@ describe("the S0 Evaluation page", () => {
     const totals = screen.getByTestId("costing-matrix-totals");
     expect(totals).toHaveTextContent("Total of 3 SORs shown");
     expect(within(totals).getByTestId("costing-matrix-incomplete")).toHaveTextContent("1 without a figure yet, left out");
-    expect(within(totals).getByTestId("costing-matrix-total-planned")).toHaveTextContent("₱846,200.00");
-    expect(within(totals).getByTestId("costing-matrix-total-actual")).toHaveTextContent("₱746,200.00");
+    expect(within(totals).getByTestId("costing-matrix-total-planned")).toHaveTextContent("₱148,028.58");
+    expect(within(totals).getByTestId("costing-matrix-total-actual")).toHaveTextContent("₱48,028.58");
     expect(within(totals).getByTestId("costing-matrix-total-difference")).toHaveTextContent("-₱100,000.00");
     expect(within(totals).getByTestId("costing-matrix-total-offer")).toHaveTextContent("₱5,960,000.00");
     expect(within(totals).getByTestId("costing-matrix-total-items")).toHaveTextContent("1 of 4");
@@ -145,7 +148,7 @@ describe("the S0 Evaluation page", () => {
     expect(row).toHaveTextContent("SOR-102");
     expect(row.querySelector("span.font-semibold.rounded-\\[2px\\]")).not.toBeNull();
     expect(screen.getByTestId("costing-matrix-totals")).toHaveTextContent("Total of 1 SOR shown");
-    expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("₱423,100.00");
+    expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("₱74,014.29");
 
     await user.clear(search);
     await user.type(search, "SOR-103");
@@ -173,7 +176,7 @@ describe("the S0 Evaluation page", () => {
     await rowFor("SOR-101");
 
     await user.type(screen.getByPlaceholderText(/search so number/i), "no such project");
-    expect(await screen.findByText("No matching SOR")).toBeInTheDocument();
+    expect(await screen.findByText("No matching evaluation")).toBeInTheDocument();
   });
 
   it("shows an empty register its own message", async () => {
@@ -213,6 +216,7 @@ describe("the S0 Evaluation page filters", () => {
     authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
     db.seed("costing_settings", { id: 1 });
     stubRpc("costing_matrix_page", rows);
+    stubRpc("costing_standalone_page", []);
   });
 
   const pick = async (user, chip, option) => {
@@ -259,7 +263,8 @@ describe("the S0 Evaluation page with a loss-making SOR (#892)", () => {
   beforeEach(() => {
     authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
     db.seed("costing_settings", { id: 1 });
-    // SOR-257's figures: an offer of 8,550 against 29,928.06 of cost, under the ITR allowance.
+    stubRpc("costing_standalone_page", []);
+    // SOR-257's figures: an offer of 8,550 against 29,928.06 of cost and no project expenses, under the ITR allowance.
     stubRpc("costing_matrix_page", [
       {
         ...rows[0],
@@ -267,6 +272,7 @@ describe("the S0 Evaluation page with a loss-making SOR (#892)", () => {
         sor_code: "SOR-257",
         final_offer_total: "8550.00",
         final_acquire_total: "29928.06",
+        project_expenses_total: "0",
         items_total: 3,
       },
     ]);
@@ -278,8 +284,91 @@ describe("the S0 Evaluation page with a loss-making SOR (#892)", () => {
     renderPage();
 
     const row = await rowFor("SOR-257");
-    expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("-₱21,378.06");
+    expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("-₱22,379.63");
     expect(within(row).getByTestId("costing-matrix-planned")).not.toHaveTextContent("—");
-    expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("-₱21,378.06");
+    expect(screen.getByTestId("costing-matrix-total-planned")).toHaveTextContent("-₱22,379.63");
+  });
+});
+
+describe("the S0 Evaluation page with evaluations started from an S0 (#966)", () => {
+  const standaloneRow = {
+    matrix_id: "cccccccc-0000-4000-8000-000000000001",
+    s0_number: "S09001",
+    created_by: "bbbbbbbb-0000-4000-8000-000000000001",
+    created_at: "2026-12-01T00:00:00Z",
+    sales_incharge_id: "bbbbbbbb-0000-4000-8000-000000000001",
+    purchasing_incharge_id: "bbbbbbbb-0000-4000-8000-000000000009",
+    tier: "closed_book",
+    line_count: 2,
+    final_offer_total: "370000.00",
+    final_acquire_total: "125104.00",
+    project_expenses_total: "89160.00",
+    marketing: "0",
+  };
+
+  beforeEach(() => {
+    authUser = { id: "bbbbbbbb-0000-4000-8000-000000000001", isFinalAcquire: true };
+    db.seed("costing_settings", { id: 1 });
+    stubRpc("costing_matrix_page", rows);
+    stubRpc("costing_standalone_page", [standaloneRow]);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("marks a standalone one No SOR, with its S0 and the sheet's Revenue", async () => {
+    renderPage();
+
+    const row = (await screen.findByTestId("costing-matrix-no-sor")).closest("tr");
+    expect(row).toHaveTextContent("S09001");
+    expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("₱102,793.14");
+    expect(within(row).getByTestId("costing-matrix-actual")).toHaveTextContent("—");
+    expect(within(row).getByTestId("costing-matrix-items")).toHaveTextContent("—");
+    expect(screen.getAllByTestId("costing-matrix-row")).toHaveLength(4);
+  });
+
+  it("filters on No SOR", async () => {
+    const user = setupUser();
+    renderPage();
+    await rowFor("SOR-101");
+
+    // The fourth chip folds into the Filters popover.
+    await user.click(screen.getByRole("button", { name: /^filters/i }));
+    await user.click(screen.getByRole("button", { name: /with or without a sor/i }));
+    await user.click(await screen.findByRole("button", { name: "No SOR" }));
+
+    await waitFor(() => expect(screen.getAllByTestId("costing-matrix-row")).toHaveLength(1));
+    expect(screen.getByTestId("costing-matrix-row")).toHaveTextContent("S09001");
+  });
+
+  it("opens a standalone one by its own id", async () => {
+    const user = setupUser();
+    renderPage();
+
+    await user.click((await screen.findByTestId("costing-matrix-no-sor")).closest("tr"));
+
+    expect(await screen.findByTestId("opened-desk")).toHaveTextContent(standaloneRow.matrix_id);
+  });
+
+  it("offers a new evaluation from an S0", async () => {
+    renderPage();
+    expect(await screen.findByTestId("new-standalone")).toHaveTextContent("New evaluation from an S0");
+  });
+
+  it("lets someone named on a standalone evaluation in, to see only that one, and never asks for the SORs", async () => {
+    authUser = { id: "bbbbbbbb-0000-4000-8000-000000000009", isStandaloneReader: true };
+    const asked = vi.fn();
+    stubRpc("costing_matrix_page", () => {
+      asked();
+      return rows;
+    });
+    stubRpc("costing_standalone_page", [{ ...standaloneRow, tier: "price", final_acquire_total: null, project_expenses_total: null, marketing: null }]);
+    renderPage();
+
+    const row = (await screen.findByTestId("costing-matrix-no-sor")).closest("tr");
+    expect(row).toHaveTextContent("₱370,000.00");
+    expect(within(row).getByTestId("costing-matrix-planned")).toHaveTextContent("—");
+    expect(screen.queryByText("SOR-101")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("new-standalone")).not.toBeInTheDocument();
+    expect(asked).not.toHaveBeenCalled();
   });
 });

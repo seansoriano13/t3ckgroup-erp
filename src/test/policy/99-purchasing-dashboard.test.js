@@ -5,9 +5,11 @@
  *
  * One SOR carries work in several groups at once (#690: item groups follow the stored line status):
  *   Not checked       one Requested Item at Not checked
- *   Still canvassing  one Component Canvass with no winner, and one Component with no Acquire
- *                     (the matrix has a Go decision)
- *   Purchased         one Requested Item Purchased, on a Component with no Canvass (grp purchased)
+ *   Still canvassing  one Component with no Acquire (the matrix has a Go decision)
+ *   Purchased         one Requested Item Purchased, on a Component no supplier has quoted (grp purchased)
+ *
+ * A Canvass belongs to a Purchase Request since #967, so it is no row of its own: a line counts as
+ * canvassed once a supplier has quoted it.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -19,7 +21,7 @@ import { purgeIpas, raiseAsPurchaser } from "./support/ipas.js"
 const svc = () => serviceClient()
 
 let sorId, matrixId, lineId, requestId
-let unpricedComp, orderedComp, canvassId
+let unpricedComp, orderedComp, orderedItemId
 const sorIds = []
 const RUN = Date.now() % 100000
 const ipasIds = []
@@ -65,7 +67,6 @@ beforeAll(async () => {
         svc().from("costing_bid_decisions").insert({ matrix_id: matrixId, verdict: "go", reason: "fixture", final_offer_total: 0 }),
         "Bid Decision",
     )
-    canvassId = (await asSvc(svc().from("sor_canvasses").insert({ component_id: unpricedComp, created_by: ids.outsider }).select("id").single(), "Canvass")).id
 
     requestId = (
         await asSvc(svc().from("purchase_requests").insert({ opportunity_id: sorId, created_by: ids.dealOwner, buyer_id: ids.outsider }).select("id").single(), "request")
@@ -74,14 +75,16 @@ beforeAll(async () => {
         svc().from("purchase_request_items").insert({ request_id: requestId, name: "Spine board", source: "new", requested_by: ids.dealOwner }).select("id").single(),
         "Requested Item",
     )
-    await asSvc(
-        svc()
-            .from("purchase_request_items")
-            .insert({ request_id: requestId, name: "Siren", source: "new", requested_by: ids.dealOwner, component_id: orderedComp, status: "purchased", po_number: `P99${RUN}` })
-            .select("id")
-            .single(),
-        "Ordered Item",
-    )
+    orderedItemId = (
+        await asSvc(
+            svc()
+                .from("purchase_request_items")
+                .insert({ request_id: requestId, name: "Siren", source: "new", requested_by: ids.dealOwner, component_id: orderedComp, status: "purchased", po_number: `P99${RUN}` })
+                .select("id")
+                .single(),
+            "Ordered Item",
+        )
+    ).id
 })
 
 afterAll(async () => {
@@ -90,7 +93,7 @@ afterAll(async () => {
         await svc().from("purchase_request_items").delete().eq("request_id", directRequestId)
         await svc().from("purchase_requests").delete().eq("id", directRequestId)
     }
-    await svc().from("sor_canvasses").delete().eq("id", canvassId)
+    await svc().from("request_canvasses").delete().eq("request_id", requestId)
     await svc().from("purchase_request_items").delete().eq("request_id", requestId)
     await svc().from("purchase_requests").delete().eq("id", requestId)
     await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
@@ -126,7 +129,6 @@ describe("one SOR in many groups", () => {
             [
                 `purchased:purchase_request:${requestId}`,
                 `still_canvassing:costing_matrix:${sorId}`,
-                `still_canvassing:canvass:${canvassId}`,
                 `not_checked:purchase_request:${requestId}`,
             ].sort(),
         )
@@ -136,7 +138,7 @@ describe("one SOR in many groups", () => {
         const rows = mine((await dashboard("outsider")).data)
         const count = (grp) => rows.filter((row) => row.grp === grp).reduce((sum, row) => sum + row.item_count, 0)
         expect(count("not_checked")).toBe(1)
-        expect(count("still_canvassing")).toBe(2)
+        expect(count("still_canvassing")).toBe(1)
         expect(count("to_purchase")).toBe(0)
         expect(count("purchased")).toBe(1)
     })
@@ -149,7 +151,7 @@ describe("one SOR in many groups", () => {
     it("carries the Buyer and the Canvasser for the filters", async () => {
         const rows = mine((await dashboard("outsider")).data)
         expect(rows.find((row) => row.target_kind === "purchase_request" && row.grp === "not_checked").buyer_id).toBe(ids.outsider)
-        expect(rows.find((row) => row.target_kind === "canvass").canvasser_id).toBe(ids.outsider)
+        expect(rows.find((row) => row.target_kind === "purchase_request" && row.grp === "not_checked").canvasser_id).toBe(ids.outsider)
     })
 
     it("sends no money", async () => {
@@ -161,18 +163,17 @@ describe("one SOR in many groups", () => {
 })
 
 describe("what moves the SOR between groups", () => {
-    it("drops Still canvassing for the Canvass once an Offer wins", async () => {
-        const offer = await asSvc(svc().from("sor_canvass_offers").insert({ canvass_id: canvassId, supplier_name: `${MARKER} Win`, is_winner: true }).select("id").single(), "Offer")
-        const rows = mine((await dashboard("outsider")).data)
-        expect(rows.some((row) => row.target_kind === "canvass")).toBe(false)
-        await svc().from("sor_canvass_offers").delete().eq("id", offer.id)
-    })
-
-    it("leaves out a Canvass whose Component is already ordered", async () => {
-        const late = await asSvc(svc().from("sor_canvasses").insert({ component_id: orderedComp, created_by: ids.outsider }).select("id").single(), "late Canvass")
-        const rows = mine((await dashboard("outsider")).data)
-        expect(rows.some((row) => row.target_id === late.id)).toBe(false)
-        await svc().from("sor_canvasses").delete().eq("id", late.id)
+    it("stops counting a line as uncanvassed once a supplier has quoted it", async () => {
+        const canvass = await asSvc(svc().from("request_canvasses").insert({ request_id: requestId, number: "x", created_by: ids.outsider }).select("id").single(), "Canvass")
+        const supplier = await asSvc(svc().from("request_canvass_suppliers").insert({ canvass_id: canvass.id, supplier_name: `${MARKER} Quote` }).select("id").single(), "supplier")
+        await asSvc(svc().from("request_canvass_quotes").insert({ canvass_id: canvass.id, supplier_id: supplier.id, item_id: orderedItemId }), "quote")
+        try {
+            const rows = mine((await dashboard("outsider")).data)
+            expect(rows.find((row) => row.grp === "purchased").no_canvass_count).toBe(0)
+            expect(rows.some((row) => row.target_kind === "canvass")).toBe(false)
+        } finally {
+            await svc().from("request_canvasses").delete().eq("id", canvass.id)
+        }
     })
 
     it("puts the whole matrix back in Still canvassing when its decision is cleared", async () => {

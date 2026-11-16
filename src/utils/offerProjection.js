@@ -35,7 +35,7 @@ const swapAcquire = (component, acquire) => ({ ...component, acquire_unit: acqui
  *
  *   acquireUnit, markupPriceUnit   as served
  *   margin    { current, projected } each { amount, percent } for the Component's Tender Line, or null
- *   summary   { operationalExpenses, revenue } each { from, to }, or null (Closed Book only)
+ *   summary   { landedCost, revenue } each { from, to }, or null (Closed Book only)
  */
 export function projectOffer({ projection, componentId, matrix }) {
   if (!projection || blank(projection.acquire_unit)) return null;
@@ -67,7 +67,7 @@ export function projectOffer({ projection, componentId, matrix }) {
       projected: lineMargin(projectedLine, projectedLine.components),
     },
     summary: {
-      operationalExpenses: { from: matrix.summary.operationalExpenses, to: projectedSummary.operationalExpenses },
+      landedCost: { from: matrix.summary.landedCost, to: projectedSummary.landedCost },
       revenue: { from: matrix.summary.revenue, to: projectedSummary.revenue },
     },
   };

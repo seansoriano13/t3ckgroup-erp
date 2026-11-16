@@ -196,7 +196,7 @@ function StatusPanel({ p, dg, visits, openSheet }) {
 
       {showMoney(p) && (
         <div className="space-y-3 border-b border-border/60 p-5">
-          <p className={LABEL}>Estimated value</p>
+          <p className={LABEL}>Expected value</p>
           <ValueFigure p={p} className="text-2xl" />
           <QuoteActions p={p} stacked={false} />
         </div>

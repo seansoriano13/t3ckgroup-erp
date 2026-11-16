@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { costingMatrixService } from "../../services/costingMatrixService";
+import { isRecordId } from "../../utils/recordLink";
 import { costingKeys } from "./costingKeys";
 
 /**
@@ -27,7 +28,7 @@ export function useCostingMatrix(opportunityId) {
     queryKey: costingKeys.matrix(opportunityId),
     queryFn: () => costingMatrixService.get(opportunityId),
     staleTime: 0,
-    ...(opportunityId ? {} : { enabled: false }),
+    enabled: isRecordId(opportunityId),
   });
 }
 

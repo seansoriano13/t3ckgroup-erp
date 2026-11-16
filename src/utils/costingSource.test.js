@@ -21,9 +21,12 @@ describe("resolveCost: the source order", () => {
     expect(cost).toEqual({ source: "p0", pesos: 5600, price: 100, currency: "USD" });
   });
 
-  it("is Odoo's cost when nothing else has one", () => {
-    expect(resolveCost({ acquire_unit: 80, acquire_source: "odoo", odoo_unit: 80 })).toMatchObject({ source: "odoo", pesos: 80 });
-    expect(resolveCost({ odoo_unit: 70 })).toMatchObject({ source: "odoo", pesos: 70 });
+  it("is an Acquire filled from Odoo's cost when nothing else has one", () => {
+    expect(resolveCost({ acquire_unit: 80, acquire_source: "odoo", odoo_unit: 120 })).toMatchObject({ source: "odoo", pesos: 80 });
+  });
+
+  it("never falls back to the Odoo SRP (#961)", () => {
+    expect(resolveCost({ odoo_unit: 70 })).toBeNull();
   });
 
   it("reads Typed for a cost Purchasing typed", () => {
@@ -66,7 +69,7 @@ describe("lineCost", () => {
   it("adds the parts over the line's quantity, naming the shared source or Mixed", () => {
     const same = lineCost({ quantity: 2, components: [{ quantity: 2, acquire_unit: 10, acquire_source: "typed" }, { quantity: 2, acquire_unit: 30, acquire_source: "typed" }] });
     expect(same).toMatchObject({ source: "typed", pesos: 40 });
-    const mixed = lineCost({ quantity: 1, components: [{ quantity: 1, acquire_unit: 10, acquire_source: "typed" }, { quantity: 1, odoo_unit: 5 }] });
+    const mixed = lineCost({ quantity: 1, components: [{ quantity: 1, acquire_unit: 10, acquire_source: "typed" }, { quantity: 1, p0_unit_price: 5 }] });
     expect(mixed).toMatchObject({ source: "mixed", pesos: 15 });
   });
 });

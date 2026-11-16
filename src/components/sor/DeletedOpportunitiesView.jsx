@@ -39,7 +39,7 @@ function formatWhen(iso) {
  * until someone explicitly destroys it.
  */
 const DELETED_SORT = {
-  number: (r) => r.sales_reference,
+  number: (r) => sorCodeOf(r) || r.sales_reference,
   company: (r) => r.client_name,
   project: (r) => r.project_title,
   "deal-owner": (r) => r.deal_owner?.name,
@@ -170,7 +170,10 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
               return (
                 <TableRow key={row.id} className="border-b border-border/50 last:border-0">
                   <TableCell className="font-mono text-xs">
-                    <HighlightText text={row.sales_reference || sorCodeOf(row)} search={search} />
+                    <HighlightText text={sorCodeOf(row) || row.sales_reference} search={search} />
+                    {sorCodeOf(row) && row.sales_reference ? (
+                      <div className="font-sans text-[11px] text-muted-foreground"><HighlightText text={row.sales_reference} search={search} /></div>
+                    ) : null}
                   </TableCell>
                   <TableCell className="font-semibold">
                     <HighlightText text={row.client_name} search={search} />

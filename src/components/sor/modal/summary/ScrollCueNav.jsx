@@ -29,6 +29,19 @@ export default function ScrollCueNav({ className, children, ...props }) {
     return () => ro.disconnect();
   }, [measure]);
 
+  // Keep the current tab inside the strip (not the page) so it is never the cut-off one.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    const cur = el?.querySelector("[aria-current]");
+    if (!el || !cur) return;
+    const pad = CUE + 4;
+    const left = cur.offsetLeft - el.offsetLeft;
+    const right = left + cur.offsetWidth;
+    if (left - pad < el.scrollLeft) el.scrollLeft = Math.max(0, left - pad);
+    else if (right + pad > el.scrollLeft + el.clientWidth) el.scrollLeft = right + pad - el.clientWidth;
+    measure();
+  });
+
   const mask =
     fade.left || fade.right
       ? `linear-gradient(to right, ${fade.left ? "transparent" : "#000"}, #000 ${CUE}px, #000 calc(100% - ${CUE}px), ${fade.right ? "transparent" : "#000"})`

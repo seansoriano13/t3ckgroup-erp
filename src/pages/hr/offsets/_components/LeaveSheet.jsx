@@ -69,6 +69,7 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
   const pending = request.status === 'PENDING';
   const hours = hoursOf(request);
   const decision = statusOf(request);
+  const multiDay = (request.dayCount || 1) > 1;
 
   return (
     <>
@@ -82,12 +83,18 @@ function LeaveSheetContent({ request, actions, overtimeAs, onOvertimeAs, availab
         <DetailSection title="Request">
           <dl className="divide-y divide-border/70">
             <DetailRow label="Type">{TYPE_META[request.type].label}</DetailRow>
-            <DetailRow label="From">{fmtDay(request.startDate || request.date, LONG_DATE)}</DetailRow>
-            <DetailRow label="To">{fmtDay(request.endDate || request.date, LONG_DATE)}</DetailRow>
+            {multiDay ? (
+              <>
+                <DetailRow label="From">{fmtDay(request.startDate || request.date, LONG_DATE)}</DetailRow>
+                <DetailRow label="To">{fmtDay(request.endDate || request.date, LONG_DATE)}</DetailRow>
+              </>
+            ) : (
+              <DetailRow label="Date">{fmtDay(request.startDate || request.date, LONG_DATE)}</DetailRow>
+            )}
             <DetailRow label="Hours"><span className="font-mono">{hours.requested}</span></DetailRow>
-            <DetailRow label="Time window">{windowOf(request)}</DetailRow>
-            <DetailRow label="Category">{request.category?.label}</DetailRow>
-            <DetailRow label="Days">{request.dayCount || 1}</DetailRow>
+            {windowOf(request) && <DetailRow label="Time window">{windowOf(request)}</DetailRow>}
+            {request.type !== 'OVERTIME' && request.category?.label && <DetailRow label="Category">{request.category.label}</DetailRow>}
+            {multiDay && <DetailRow label="Days">{request.dayCount}</DetailRow>}
           </dl>
           {request.attachments?.length > 0 && (
             <AttachmentList attachments={request.attachments} className="mt-3" />

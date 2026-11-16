@@ -15,7 +15,7 @@ Purchasing is not a pipeline with stages. It is a set of records. Each record is
 | Purchase Request | one at most (Project kind) | A Stage Action, or a person (Direct kind has no SOR) |
 | Requested Item | many | Sales, the Buyer, or Purchasing |
 | Costing Matrix | one | A Stage Action |
-| Canvass (and its Offers) | one per Component, or per Requested Item that names no Component. A new Canvass always starts from a product line or a Direct request line (#729, ADR 0047); old free-standing ones stay readable | Purchasing |
+| Canvass (and its Offers) | one per Purchase Request, holding every line (ADR 0053). Old per-line Canvasses are deleted, not converted | Purchasing |
 | IPAS | many (one per PO). One IPAS can also name several SORs | Purchasing |
 | Transmittal (TG03 slip) | many | Purchasing, Warehouse or Logistics |
 | Packing List | many | Purchasing or Warehouse |
@@ -131,7 +131,7 @@ This is the usual path for a government project. Many steps can overlap, and non
 1. **The SOR enters a stage that has "Open Costing Matrix".** The Costing Matrix is created. The Sales incharge defaults to the Deal Owner. A Purchasing incharge may be named. If none is, the people in "assigners" are told.
 2. **Sales or the Deal Team opens a Purchase Request** (stage action or optional action). They add Requested Items by picking SOR lines, or by describing a new product. A Buyer from Purchasing takes the request, or the action names one.
 3. **Sales adds the Tender Lines. Purchasing builds the rest of the Matrix.** Purchasing adds Components and cost-only rows, and an Acquire cost on each Component. Optionally it adds Requested Items from Components.
-4. **Canvass.** Purchasing opens a Canvass on a Component, collects Offers (the Canvass is only created, and numbered, when the first Offer is saved), marks a winner and writes the reason. The winner fills the Component's Acquire, spec and brochure. Nobody signs the Canvass (#728, ADR 0047).
+4. **Canvass.** Purchasing opens the request's one Canvass, adds each supplier once, types their prices line by line, and picks a winner and a reason per line. The Canvass is only created, and numbered, when the first supplier is saved. A winner fills the line's Component Acquire, spec and brochure. Nobody signs the Canvass (#728, ADR 0047).
 5. **Costing sign-offs.** Prepared (Sales incharge), Costed (Purchasing incharge), Evaluation approved (evaluation list), Final approved (Final Acquire list). The Final Acquire list sets Final Acquire and markup. Then it takes the Bid Decision: Go, No-go or Revise.
 6. **Stage Conditions** "Costing priced" and "Costing settled" can now pass, so the SOR can leave those stages.
 7. **Ordering in Odoo.** The Requested Item is set to Ordered. A PO number is optional, but without one nothing downstream can link. A PO number is checked against Odoo by the server, and one Odoo does not know is refused.
@@ -142,7 +142,7 @@ This is the usual path for a government project. Many steps can overlap, and non
 12. **Landed Cost** appears beside Acquire on the Component. It is provisional until the IPAS reaches "LC Odoo Done", then final.
 13. **Packing List** if goods go out to the client in boxes.
 
-**Buying outside a project** starts from a Direct request (#729, ADR 0047): an employee opens it, types its lines once, and the Canvass button on an item opens that item's Canvass on the Canvasses page. There is no "Canvass first, then request" order for new work. From step 7 on it is the same as above.
+**Buying outside a project** starts from a Direct request (#729, ADR 0047): an employee opens it, types its lines once, and the Canvass button opens the request's one Canvass on the Canvasses page. There is no "Canvass first, then request" order for new work. From step 7 on it is the same as above.
 
 ---
 
@@ -336,6 +336,8 @@ Each needs a read tier on the SOR. A signature image is snapshotted at signing, 
 ---
 
 ## 8. Canvass and Offers
+
+> **Being rewritten (ADR 0053, spec #956):** a Canvass is now one per Purchase Request, holding every line. Suppliers are added once (currency, rate, validity, lead time, quality) and quote per line. Each line has its own winner and reason. A winner needs three suppliers on the Canvass, or "No other supplier" notes. A line moves to Still canvassing at its first price and locks when marked Purchased (a Super Admin can unlock with a reason). Old per-line Canvasses are deleted. The bullets below describe the per-line shape until the build tickets (#967 to #973) land; where they disagree, ADR 0053 wins. Still true: no sign-off, one starting point, "No other supplier".
 
 - **Subject:** at most one: a Component or a Requested Item. Never both, never an Inclusion. **New Canvasses always have one** (#729, ADR 0047, which ends ADR 0034's "may have none"): the database refuses a Canvass with no Component and no Requested Item. Old free-standing Canvasses keep their typed **product name**, numbers and Offers. A Requested Item that names a Component is canvassed **through the Component**, and a database trigger refuses otherwise.
 - **Number:** `CNV_0001` and up, never reused. **It is given when the first Offer is saved**, not when the panel opens. Opening a Canvass writes nothing, so an empty Canvass uses up no number.

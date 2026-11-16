@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { taskQueryService } from "./taskQueryService"
 import { db } from "@/test/db/store"
 import { makeCategory, makeEmployee, makeGroupTask, makeHead, makeOpportunity, makeTask } from "@/test/factories"
@@ -418,6 +418,25 @@ describe("taskQueryService", () => {
       const withReplies = await taskQueryService.getManagerRepliesForTasks([task.id], head.id)
 
       expect(withReplies.size).toBe(0)
+    })
+
+    it("does not put the task ids in the request, and still matches only the given tasks", async () => {
+      const ids = Array.from({ length: 300 }, (_, i) => `ffffffff-0000-4000-8000-${String(i).padStart(12, "0")}`)
+      const answered = makeTask({ logged_by: author.id, category_id: category.category_id })
+      const other = makeTask({ logged_by: author.id, category_id: category.category_id })
+      for (const t of [answered, other]) {
+        db.seed("task_activity", { task_id: t.id, author_id: head.id, type: "COMMENT", content: "ok" })
+      }
+      const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+      const withReplies = await taskQueryService.getManagerRepliesForTasks([...ids, answered.id], head.id)
+
+      const urls = fetchSpy.mock.calls.map(([input]) => decodeURIComponent(String(input?.url ?? input)))
+      fetchSpy.mockRestore()
+      const activityUrls = urls.filter((u) => u.includes("task_activity"))
+      expect(activityUrls.length).toBeGreaterThan(0)
+      expect(activityUrls.some((u) => /task_id=in\./.test(u))).toBe(false)
+      expect([...withReplies]).toEqual([answered.id])
     })
 
     it("short-circuits on an empty selection", async () => {

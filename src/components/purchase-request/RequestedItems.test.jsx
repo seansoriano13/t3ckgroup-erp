@@ -5,8 +5,12 @@
  * through accessible names, not structure.
  */
 import { openRow, showDoneLines } from "@/test/openRequestedItem"
+import { useEffect } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
+import { MemoryRouter, useLocation } from "react-router"
+import { stubCanvassMoneyRpc } from "@/test/stubs/canvassRpc"
+import { SampleAuthProvider } from "@/context/AuthContext"
 import { renderWithProviders, setupUser, chooseOption } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
@@ -309,5 +313,45 @@ describe("RequestedItems", () => {
       await user.click(within(screen.getByRole("group", { name: "Jump to a section" })).getByRole("button", { name: "From the S0 · 2" }))
       expect(screen.getByRole("button", { name: /^From the S0/, expanded: true })).toBeInTheDocument()
     })
+  })
+})
+
+// #972: the S0 Evaluation Canvass button links here with ?canvass=1&line=<item>.
+describe("RequestedItems opened from a Canvass link", () => {
+  it("opens the request Canvass at the line, then takes the link off the address", async () => {
+    const line = itemRow("Rope Access Kit")
+    stubCanvassMoneyRpc({ money: true })
+    const seen = { search: "" }
+    function Probe() {
+      const { search } = useLocation()
+      useEffect(() => {
+        seen.search = search
+      })
+      return null
+    }
+    renderWithProviders(
+      <MemoryRouter initialEntries={[`/purchasing?request=${request.id}&canvass=1&line=${line.id}`]}>
+        <SampleAuthProvider user={{ id: salesperson.id, name: salesperson.name }}>
+          <RequestedItems request={request} />
+          <Probe />
+        </SampleAuthProvider>
+      </MemoryRouter>,
+    )
+
+    await screen.findByRole("grid", { name: "Canvass" })
+    const focused = screen.getAllByTestId("canvass-line").filter((l) => l.dataset.focused === "true")
+    expect(focused).toHaveLength(1)
+    expect(within(focused[0]).getByRole("rowheader")).toHaveAccessibleName("Rope Access Kit")
+    await waitFor(() => expect(seen.search).toBe(`?request=${request.id}`))
+  })
+
+  it("stays shut with no Canvass link", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={[`/purchasing?request=${request.id}`]}>
+        <RequestedItems request={request} />
+      </MemoryRouter>,
+    )
+    await screen.findByRole("region", { name: "From the S0" })
+    expect(screen.queryByRole("grid", { name: "Canvass" })).not.toBeInTheDocument()
   })
 })

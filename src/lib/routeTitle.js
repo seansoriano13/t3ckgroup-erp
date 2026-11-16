@@ -39,14 +39,16 @@ const TITLES = [
   ["/verify", "Verify"],
 ];
 
-export function routeTitle(pathname) {
+/** The page's own title, e.g. "HR Management". The phone top bar shows this. */
+export function routeLabel(pathname) {
   const path = pathname.replace(/\/+$/, "") || "/";
-  let label = null;
-  if (path === "/") label = "Dashboard";
-  else {
-    const hit = TITLES.find(([p]) => path === p || path.startsWith(`${p}/`));
-    label = hit ? hit[1] : "Page not found";
-  }
+  if (path === "/") return "Dashboard";
+  const hit = TITLES.find(([p]) => path === p || path.startsWith(`${p}/`));
+  return hit ? hit[1] : "Page not found";
+}
+
+export function routeTitle(pathname) {
+  const label = routeLabel(pathname);
   const base = label ? `${label} · ${APP}` : APP;
   if (isStaging) return `[STAGING] ${base}`;
   if (isLocal) return `[LOCAL] ${base}`;

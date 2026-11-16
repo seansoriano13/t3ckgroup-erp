@@ -59,8 +59,8 @@ export function dealTeamIds(opportunity) {
 export const isTechnicalEmployee = (employee) => String(employee?.subDepartment ?? "").trim().toLowerCase() === "technical";
 
 /**
- * Who can be named incharge, and what to call them (#268): the Sales incharge is picked from the
- * SOR's Deal Team and the Purchasing incharge from people with Purchasing access, which is what
+ * Who can be named incharge, and what to call them (#268): the Sales in-charge is picked from the
+ * SOR's Deal Team and the Purchasing in-charge from people with Purchasing access, which is what
  * the database checks. The Technical in-charge (#909) is picked from the Technical sub-department.
  * Names only; naming someone grants and notifies nothing.
  */

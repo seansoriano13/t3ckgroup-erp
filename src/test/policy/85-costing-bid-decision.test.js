@@ -138,9 +138,9 @@ describe("before there is anything to judge", () => {
         expect(pending.data.filter((p) => p.matrix_id === matrixId)).toHaveLength(0)
     })
 
-    it("queues the matrix for everyone who decides once every Final Offer is set", async () => {
+    it("queues the matrix for the decider list and Super Admins only (#1033) once every Final Offer is set", async () => {
         expect(await setMoney("dealOwner", "costing_tender_line_prices", lineTwoId, { abc_unit: 500, final_offer_unit: 480 })).toBeNull()
-        for (const who of ["ipasSigner", "superAdmin", "dealOwner", "outsider"]) {
+        for (const who of ["ipasSigner", "superAdmin"]) {
             const pending = await (await clientFor(who)).rpc("costing_pending_bid_decisions")
             expect(pending.error, who).toBeNull()
             const mine = pending.data.find((p) => p.matrix_id === matrixId)
@@ -152,7 +152,7 @@ describe("before there is anything to judge", () => {
             expect(mine.deal_owner_name).toBe("Deal Owner")
             expect(Number(mine.final_offer_total)).toBe(3942.88)
         }
-        for (const who of ["stageParticipant", "finance", "ordinary"]) {
+        for (const who of ["dealOwner", "outsider", "stageParticipant", "finance", "ordinary"]) {
             const pending = await (await clientFor(who)).rpc("costing_pending_bid_decisions")
             expect((pending.data ?? []).filter((p) => p.matrix_id === matrixId), who).toHaveLength(0)
         }
@@ -172,7 +172,7 @@ describe("who decides", () => {
         for (const who of ["stageParticipant", "finance", "ordinary"]) {
             const { error } = await decide(who, "go")
             expect(error?.code, who).toBe(RLS_VIOLATION)
-            expect(error?.message, who).toBe("costing_bid: only Sales, Purchasing, a Super Admin or the Final Acquire list can decide a bid")
+            expect(error?.message, who).toBe("costing_bid: only a Super Admin or the decider list can decide a bid")
         }
         expect(await rows()).toHaveLength(0)
         expect(await readMatrix("finance")).toBeNull()
@@ -216,15 +216,17 @@ describe("who decides", () => {
         expect(old.cleared_reason).toBe("Decided again")
     })
 
-    it("lets the Deal Team and Purchasing decide too, each replacing the live decision", async () => {
+    it("refuses the Deal Team and Purchasing every verdict, and writes nothing (#1033)", async () => {
+        const before = await live()
         for (const who of ["dealOwner", "outsider"]) {
-            const { id, error } = await decide(who, "revise", `Revise from ${who}`)
-            expect(error, who).toBeNull()
-            const now = await live()
-            expect(now, who).toHaveLength(1)
-            expect(now[0].id, who).toBe(id)
-            expect(now[0].decided_by, who).toBe(ids[who])
+            for (const verdict of ["go", "revise", "no_go"]) {
+                const { id, error } = await decide(who, verdict, `${verdict} from ${who}`)
+                expect(error?.code, `${who} ${verdict}`).toBe(RLS_VIOLATION)
+                expect(error?.message, `${who} ${verdict}`).toBe("costing_bid: only a Super Admin or the decider list can decide a bid")
+                expect(id, `${who} ${verdict}`).toBeNull()
+            }
         }
+        expect((await live()).map((d) => d.id)).toEqual(before.map((d) => d.id))
     })
 
     it("allows only one live decision per matrix", async () => {
@@ -486,14 +488,14 @@ describe("what a No-go or a Revise does", () => {
 
 describe("a Go locks the sheet", () => {
     it("stamps the planned cost with the Go, the way the Costing Matrix page adds it", async () => {
-        // The Component at 950 x 2 and the cost-only row at 2500 x 1.
+        // The Component at 950 x 2. The cost-only row (2500) is a Project expense, not part of the planned cost (#964).
         await approveEvaluation()
         const { id, error } = await decide("ipasSigner", "go", "Locking the sheet")
         expect(error).toBeNull()
         const [decision] = await live()
         expect(decision.id).toBe(id)
         expect(decision.verdict).toBe("go")
-        expect(Number(decision.planned_cost_total)).toBe(4400)
+        expect(Number(decision.planned_cost_total)).toBe(1900)
     })
 
     it("refuses any change to the numbers while the Go is live, for everyone, and keeps the Go", async () => {
@@ -546,8 +548,11 @@ describe("a Go locks the sheet", () => {
 })
 
 describe("a Go on a loss needs a Super Admin or the decider list (#880)", () => {
-    // The sheet here is a loss: the Final Offers total 3,942.88 and the planned cost is 4,400 (the Go lock test above).
-    const lossRule = "costing_bid: a Go on a loss needs a Super Admin or the decider list"
+    // The sheet here is a loss: the Final Offers total 3,942.88 and the sheet costs 1,900 of Components plus 2,500 of
+    // Project expenses (the Go lock test above). Revenue is only worked once Marketing is typed (#964), so type it.
+    beforeAll(async () => {
+        await asSvc(svc().from("costing_matrix_money").upsert({ matrix_id: matrixId, marketing: 0 }), "marketing")
+    })
 
     it("says who may take a loss, and nobody else", async () => {
         for (const [who, expected] of [["superAdmin", true], ["ipasSigner", true], ["dealOwner", false], ["outsider", false], ["stageParticipant", false], ["ordinary", false]]) {
@@ -557,17 +562,17 @@ describe("a Go on a loss needs a Super Admin or the decider list (#880)", () => 
         }
     })
 
-    it("refuses a Go on a loss to the Deal Team and to Purchasing, writes nothing, and still takes a Revise", async () => {
+    it("refuses a Go on a loss to the Deal Team and to Purchasing, and writes nothing", async () => {
         expect(await live()).toHaveLength(0)
         await approveEvaluation()
         for (const who of ["dealOwner", "outsider"]) {
             const { id, error } = await decide(who, "go", "Go at a loss")
             expect(error?.code, who).toBe("42501")
-            expect(error?.message, who).toBe(lossRule)
+            expect(error?.message, who).toBe("costing_bid: only a Super Admin or the decider list can decide a bid")
             expect(id, who).toBeNull()
         }
         expect(await live()).toHaveLength(0)
-        const { error } = await decide("dealOwner", "revise", "Reprice before a Go")
+        const { error } = await decide("ipasSigner", "revise", "Reprice before a Go")
         expect(error).toBeNull()
         expect(await live()).toHaveLength(1)
     })
@@ -578,7 +583,7 @@ describe("a Go on a loss needs a Super Admin or the decider list (#880)", () => 
         expect(error).toBeNull()
         const [decision] = await live()
         expect(decision).toMatchObject({ verdict: "go", reason: "Bid at a loss on purpose" })
-        expect(Number(decision.planned_cost_total)).toBe(4400)
+        expect(Number(decision.planned_cost_total)).toBe(1900)
 
         expect(await unlock("superAdmin", "Re-deciding for the decider list")).toBeNull()
         const second = await decide("ipasSigner", "go", "The decider list takes it")
@@ -586,13 +591,16 @@ describe("a Go on a loss needs a Super Admin or the decider list (#880)", () => 
         expect(await live()).toHaveLength(1)
     })
 
-    it("lets the Deal Team take a Go once the planned revenue is no longer a loss", async () => {
+    it("still refuses the Deal Team a Go once the planned revenue is no longer a loss (#1033)", async () => {
         expect(await unlock("ipasSigner", "Lowering the cost for the test")).toBeNull()
-        // The cost-only row falls from 2,500 to 1,000: planned cost 950 x 2 + 1,000 = 2,900, below the 3,942.88 offers.
+        // The cost-only row falls from 2,500 to 1,000: Project expenses 1,000 on top of the 1,900 Components, so Revenue is no longer below zero.
         expect(await setMoney("ipasSigner", "costing_cost_rows", costRowId, { final_acquire_unit: 1000 })).toBeNull()
         await approveEvaluation()
-        const { error } = await decide("dealOwner", "go", "Profitable, go")
+        const refused = await decide("dealOwner", "go", "Profitable, go")
+        expect(refused.error?.message).toBe("costing_bid: only a Super Admin or the decider list can decide a bid")
+        expect(await live()).toHaveLength(0)
+        const { error } = await decide("ipasSigner", "go", "Profitable, go")
         expect(error).toBeNull()
-        expect(Number((await live())[0].planned_cost_total)).toBe(2900)
+        expect(Number((await live())[0].planned_cost_total)).toBe(1900)
     })
 })

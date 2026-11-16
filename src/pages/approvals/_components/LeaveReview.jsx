@@ -15,6 +15,11 @@ import { APPROVE_CLASS } from "@/components/ui/approveClass";
 export function LeaveReview({ item, onDecide, isSubmitting }) {
   const req = item.source;
   const [note, setNote] = useState("");
+  // SIL and Offset draw on a balance: "After this" is what the HR list shows as hrs available.
+  const afterThis = req.availableHours;
+  const hasBalance = afterThis != null && Number.isFinite(afterThis);
+  const available = hasBalance ? afterThis + parseFloat(req.requestHours ?? req.hours ?? 0) : null;
+  const short = hasBalance && afterThis < 0;
 
   return (
     <>
@@ -26,6 +31,14 @@ export function LeaveReview({ item, onDecide, isSubmitting }) {
             <DetailRow label="Type">{item.typeLabel}</DetailRow>
             <DetailRow label="When">{leaveWhen(req)}</DetailRow>
             <DetailRow label="Reason">{req.reason}</DetailRow>
+            {hasBalance && <DetailRow label="Available">{available} hrs</DetailRow>}
+            {hasBalance && (
+              <DetailRow label="After this">
+                <span className={short ? "font-semibold text-red-11" : ""}>
+                  {afterThis} hrs{short ? " (short)" : ""}
+                </span>
+              </DetailRow>
+            )}
             <DetailRow label="Waiting">
               <span className={item.isStale ? "font-semibold text-amber-11" : ""}>{relativeAge(item.clockAt).replace(" ago", "")}</span>
             </DetailRow>

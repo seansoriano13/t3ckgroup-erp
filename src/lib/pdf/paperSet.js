@@ -1,5 +1,5 @@
 /**
- * The paper set: the one stylesheet every A4 Purchasing print is drawn with (IPAS, Canvass,
+ * The paper set: the one stylesheet every A4 Purchasing print is drawn with (IPAS, Canvass (landscape, one per request, #971),
  * S0 Evaluation, Packing List, Transmittal, TSR), so they share one page frame, one type scale
  * and one spacing scale. A form adds only what is its own; it never restates a size.
  *

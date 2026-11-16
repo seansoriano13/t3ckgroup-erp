@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router"
 
 import TasksPage from "@/pages/tasks/index.jsx"
+import GlobalDetailManager from "@/components/GlobalDetailManager"
 import { renderWithProviders, setupUser } from "@/test/support"
 import { makeCategory, makeEmployee, makeTask } from "@/test/factories"
 
@@ -43,6 +44,8 @@ describe("TasksPage — delete", () => {
     renderWithProviders(
       <MemoryRouter>
         <TasksPage />
+        {/* The row opens the task through the address; the global manager owns the window. */}
+        <GlobalDetailManager />
       </MemoryRouter>,
     )
 

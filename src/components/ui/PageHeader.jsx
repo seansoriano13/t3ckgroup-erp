@@ -21,7 +21,7 @@ const PageHeader = ({
 
   return (
     <div
-      className={`flex flex-col gap-3 border-b border-border pb-3 md:flex-row md:items-center md:justify-between ${className}`}
+      className={`flex flex-col gap-3 border-b border-border pb-3 md:flex-row md:flex-wrap md:items-center md:justify-between ${className}`}
     >
       {/* The title column takes what the actions leave, so the description
           wraps before the actions do. */}

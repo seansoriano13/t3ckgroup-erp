@@ -69,6 +69,7 @@ export const NAV_MODULES = {
       // popup points here once; this entry is how people find it again.
       {
         key: "workspace.releaseNotes",
+        dot: "releaseNotes",
         label: "Release Notes",
         link: "/release-notes",
         icon: Sparkles,
@@ -129,7 +130,7 @@ export const NAV_MODULES = {
         label: "S0 Evaluation",
         link: "/costing-matrix",
         icon: Calculator,
-        isPermitted: (ctx) => ctx.isBidDecider,
+        isPermitted: (ctx) => ctx.canOpenCostingPage,
         exactMatch: true,
       },
       // The Technical list (#706, #908): the S0 Evaluations the caller is the Technical in-charge of, to give the
@@ -325,7 +326,7 @@ export const NAV_MODULES = {
         label: "Bid Decisions",
         link: "/approvals/bid-decisions",
         icon: Gavel,
-        isPermitted: (ctx) => ctx.isBidDecider,
+        isPermitted: (ctx) => ctx.canDecideBid,
         exactMatch: true,
       },
     ],

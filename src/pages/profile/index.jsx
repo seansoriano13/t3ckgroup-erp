@@ -349,8 +349,8 @@ export default function ProfilePage() {
     <PageShell
       frame="narrow"
       title="My Profile"
-      description="Manage your employee information and access levels."
-      action={!phone && saveButton}
+      description="Your details, signature and appearance."
+      action={!phone && hasChanges ? saveButton : undefined}
     >
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -438,6 +438,7 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {user?.isSuperAdmin && (
               <div className="flex gap-4 items-start sm:col-span-2 border-t border-border pt-4 mt-2">
                 <div className="w-10 h-10 bg-muted/50 border border-border rounded-xl flex items-center justify-center text-foreground">
                   <ShieldCheck size={20} />
@@ -446,11 +447,21 @@ export default function ProfilePage() {
                   <p className="text-label font-black text-muted-foreground uppercase tracking-[0.15em]">
                     System ID
                   </p>
-                  <p className="text-muted-foreground font-mono text-xs mt-1 break-all select-all">
-                    {user?.id || "—"}
-                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-1 h-auto p-0 text-xs"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(user?.id || "");
+                      toast.success("ID copied.");
+                    }}
+                  >
+                    Copy ID
+                  </Button>
                 </div>
               </div>
+              )}
             </div>
           </div>
 

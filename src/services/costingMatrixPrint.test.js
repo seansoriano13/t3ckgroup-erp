@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 
+import { factorLabel } from "../utils/costingMath";
 import { shapeMatrix } from "./costingMatrixService";
 import { COMPONENT_COST_TIERS, COSTING_TIER, DEFAULT_COSTING_SETTINGS, TENDER_PRICE_TIERS } from "../constants/costing";
 import { buildCostingMatrixViewModel } from "../lib/pdf/costingMatrixViewModel";
@@ -93,7 +94,7 @@ describe("the printed S0 Evaluation, view model", () => {
       landedCost: "awaiting purchase",
     });
     expect(money.costRows).toEqual([expect.objectContaining({ number: "C1", description: "Delivery Charge", acquire: "100,000.00", finalAcquire: "100,000.00", factor: "×1.00" })]);
-    expect(money.strip).toMatchObject({ finalOffer: "PHP 2,980,000.00", cost: "PHP 2,338,500.00", abcPercent: "93.1%", landedCost: "awaiting purchase" });
+    expect(money.strip).toMatchObject({ finalOffer: "PHP 2,980,000.00", cost: "PHP 2,238,500.00", abcPercent: "93.1%", landedCost: "awaiting purchase" });
     expect(money.strip.abcBar).toBeCloseTo(93.13, 1);
     expect(money.summary.find((r) => r.label === "Final Offer").value).toBe("PHP 2,980,000.00");
     expect(money.summary.find((r) => r.label === "Revenue").value).toMatch(/^PHP /);
@@ -118,12 +119,12 @@ describe("the printed S0 Evaluation, view model", () => {
   it("says why the summary is incomplete instead of printing a zero", () => {
     const tables = rawTables({ finalAcquireOnSecond: null, acquireOnSecond: null });
     const { money } = build(COSTING_TIER.CLOSED_BOOK, { tables });
-    expect(money.incomplete).toEqual(["Incomplete — 1 row has no cost"]);
-    expect(money.summary.find((r) => r.label === "Operational Expenses").value).toBe("Incomplete — 1 row has no cost");
-    expect(money.summary.find((r) => r.label === "Revenue").value).toBe("Incomplete — 1 row has no cost");
+    expect(money.incomplete).toEqual(["Incomplete — 1 Component has no Final Acquire"]);
+    expect(money.summary.find((r) => r.label === "Landed Cost (planned)").value).toBe("Incomplete — 1 Component has no Final Acquire");
+    expect(money.summary.find((r) => r.label === "Revenue").value).toBe("Incomplete — 1 Component has no Final Acquire");
     expect(money.summary.find((r) => r.label === "Final Offer").value).toBe("PHP 2,980,000.00");
-    expect(money.strip.cost).toBe("Incomplete — 1 row has no cost");
-    expect(buildCostingMatrixDocument(build(COSTING_TIER.CLOSED_BOOK, { tables }))).toContain("Incomplete — 1 row has no cost");
+    expect(money.strip.cost).toBe("Incomplete — 1 Component has no Final Acquire");
+    expect(buildCostingMatrixDocument(build(COSTING_TIER.CLOSED_BOOK, { tables }))).toContain("Incomplete — 1 Component has no Final Acquire");
   });
 
   it("prints only the Evaluation box as 'Signature required' on a new deal (#722)", () => {
@@ -210,6 +211,33 @@ describe("the printed S0 Evaluation, view model", () => {
     expect(JSON.stringify(participant)).not.toContain("2,251,234");
   });
 
+  it("prints 'in the total' for every line and works Achieved from the typed total in One total mode (#1037)", () => {
+    const tables = rawTables();
+    tables.costing_bid_decisions = [];
+    tables.costing_matrices = [{ ...tables.costing_matrices[0], abc_mode: "total_only", abc_total: 450000, offer_mode: "total_only", offer_total: 430000 }];
+    const vm = build(COSTING_TIER.CLOSED_BOOK, { tables });
+    expect(vm.money.lines[0]).toMatchObject({ abc: "in the total", finalOffer: "in the total" });
+    expect(vm.money.strip.finalOffer).toBe("PHP 430,000.00");
+    expect(vm.money.facts.abc).toBe("PHP 450,000.00");
+    // Cost: Acquire of both Components and the cost-only row, summed.
+    const acquire = 2160500 + 78000 + 100000;
+    expect(vm.money.strip.achieved).toBe(factorLabel(Math.round((430000 / acquire) * 10000) / 10000));
+    const html = buildCostingMatrixDocument(vm);
+    expect(html).not.toContain("3,200,000");
+    expect(html).not.toContain("2,980,000");
+    expect(html).toContain("in the total");
+  });
+
+  it("keeps the per line figures in Per line mode, names the column Final Acquire, and leaves cost-only Landed Cost blank (#1037)", () => {
+    const vm = build(COSTING_TIER.CLOSED_BOOK);
+    expect(vm.money.lines[0].abc).not.toBe("in the total");
+    expect(vm.money.lines[0].finalOffer).not.toBe("in the total");
+    const html = buildCostingMatrixDocument(vm);
+    expect(html).toContain("Final Acquire</th>");
+    expect(html).not.toContain("Final cost");
+    expect(vm.money.costRows[0].landedCost).toBe("");
+  });
+
   it("doesn't print the money sheet for a lower tier even when a caller hands over a Closed Book matrix", () => {
     const matrix = shapeMatrix(readAs(COSTING_TIER.CLOSED_BOOK), { ...DEFAULT_COSTING_SETTINGS });
     const vm = buildCostingMatrixViewModel({ matrix: { ...matrix, tier: COSTING_TIER.PRICE }, opportunity: OPPORTUNITY, people: PEOPLE });
@@ -231,7 +259,8 @@ describe("the printed S0 Evaluation, view model", () => {
   it("sets each Component's Offer Specification, Compliance, note and Inclusions covered count on the appendix", () => {
     const { appendix } = build(COSTING_TIER.CLOSED_BOOK);
     const [stretcher] = appendix.lines[0].components.slice(1);
-    expect(appendix.lines[0].components[0]).toMatchObject({ number: "1.1", brand: "Toyota", complianceLabel: "Complies", sourcing: "Source Out · Available · Local", po: "PO / RFQ P02574" });
+    expect(appendix.lines[0].components[0]).toMatchObject({ number: "1.1", brand: "Toyota", complianceLabel: "Complies", sourcing: "Source Out · Local" })
+    expect(appendix.lines[0].components[0]).not.toHaveProperty("po");
     expect(stretcher).toMatchObject({ number: "1.2", complianceLabel: "Deviates", note: "Offered 1,900 mm against 2,000 mm required", alternative: "Redleaf RL-FS200 (2,000 mm model)" });
     expect(appendix.lines[0].inclusions).toEqual([
       expect.objectContaining({ owner: "1.1", covered: "2 of 3 covered", outstanding: 1 }),

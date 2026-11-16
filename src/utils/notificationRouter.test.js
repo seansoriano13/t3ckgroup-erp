@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const toast = vi.hoisted(() => vi.fn())
+vi.mock("react-hot-toast", () => ({ default: toast }))
+
 import { handleNotificationRoute } from "./notificationRouter"
+import { LEGACY_MESSAGE, NO_REFERENCE_MESSAGE } from "./notificationTargets"
 
 /**
  * Where a notification click lands depends on the reader's role: the same
@@ -37,7 +42,10 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/tasks", { state: { openTaskId: "task-1" } })
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "task-1", type: "TASK" } },
+      ])
     })
 
     it("sends a head to the approvals queue", () => {
@@ -48,9 +56,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-2" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-2")
     })
 
     it("sends a super admin to the approvals queue", () => {
@@ -61,9 +67,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-3" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-3")
     })
 
     it("sends HR to Task Approvals, where verification lives", () => {
@@ -74,9 +78,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-4" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-4")
     })
 
     it("routes an HR user who is also a head to the one queue holding both steps", () => {
@@ -89,9 +91,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-5" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-5")
     })
 
     it("accepts the snake_case role flags the database returns", () => {
@@ -102,9 +102,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-6" },
-      })
+      expect(navigate).toHaveBeenCalledWith("/approvals/tasks?record=task-6")
     })
   })
 
@@ -117,13 +115,9 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/group-tasks")
-      expect(dispatched).toEqual([
-        {
-          type: "OPEN_CHAT_MODAL",
-          detail: { entityId: "ct-2", entityType: "GROUP_TASK" },
-        },
-      ])
+      // Opens over the current page: the address names the chat, no jump.
+      expect(navigate).toHaveBeenCalledWith({ search: "?chat=group-task:ct-2" })
+      expect(dispatched).toEqual([])
     })
 
     it("still opens a personal task for a personal task reaction", () => {
@@ -134,9 +128,10 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/approvals/tasks", {
-        state: { openTaskId: "task-9" },
-      })
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "task-9", type: "TASK" } },
+      ])
     })
 
     it("opens the chat modal for a group comment", () => {
@@ -147,13 +142,9 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/group-tasks")
-      expect(dispatched).toEqual([
-        {
-          type: "OPEN_CHAT_MODAL",
-          detail: { entityId: "ct-1", entityType: "GROUP_TASK" },
-        },
-      ])
+      // Opens over the current page: the address names the chat, no jump.
+      expect(navigate).toHaveBeenCalledWith({ search: "?chat=group-task:ct-1" })
+      expect(dispatched).toEqual([])
     })
 
     it("opens the task details for an assignment", () => {
@@ -200,13 +191,9 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/group-tasks")
-      expect(dispatched).toEqual([
-        {
-          type: "OPEN_CHAT_MODAL",
-          detail: { entityId: "ct-9", entityType: "GROUP_TASK" },
-        },
-      ])
+      // Opens over the current page: the address names the chat, no jump.
+      expect(navigate).toHaveBeenCalledWith({ search: "?chat=group-task:ct-9" })
+      expect(dispatched).toEqual([])
     })
 
     it("opens the SOR through the global modal for an SOR mention, not the register", () => {
@@ -235,13 +222,9 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/tasks")
-      expect(dispatched).toEqual([
-        {
-          type: "OPEN_CHAT_MODAL",
-          detail: { entityId: "task-42", entityType: "TASK" },
-        },
-      ])
+      // Opens over the current page: the address names the chat, no jump.
+      expect(navigate).toHaveBeenCalledWith({ search: "?chat=task:task-42" })
+      expect(dispatched).toEqual([])
     })
   })
 
@@ -254,9 +237,10 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/sors", {
-        state: { openOpportunityId: "opp-1" },
-      })
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "opp-1", type: "OPPORTUNITY" } },
+      ])
     })
 
     it("opens the deal a Stage Participant was just called into", () => {
@@ -337,8 +321,10 @@ describe("handleNotificationRoute", () => {
         navigate.mockClear()
         handleNotificationRoute({ type, reference_id: "opp-9" }, employee, navigate, onClose)
 
-        expect(navigate).toHaveBeenCalledWith("/sors", {
-          state: { openOpportunityId: "opp-9" },
+        expect(navigate).not.toHaveBeenCalled()
+        expect(dispatched.at(-1)).toEqual({
+          type: "OPEN_ENTITY_DETAILS",
+          detail: { id: "opp-9", type: "OPPORTUNITY" },
         })
       }
     })
@@ -353,16 +339,17 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/tasks", {
-        state: { openTaskId: "task-77" },
-      })
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatched).toEqual([
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "task-77", type: "TASK" } },
+      ])
     })
   })
 
   describe("notifications with nowhere to go", () => {
     it("closes the drawer without navigating for an unrecognised type", () => {
       handleNotificationRoute(
-        { type: "SIL_LEAVE_REQUEST", reference_id: "leave-1" },
+        { type: "NOT_A_REAL_TYPE", reference_id: "x-1" },
         hr,
         navigate,
         onClose,
@@ -372,13 +359,12 @@ describe("handleNotificationRoute", () => {
       expect(onClose).toHaveBeenCalled()
     })
 
-    it("leaves the drawer open when the notification carries no reference", () => {
-      // Known asymmetry: the early return skips onClose(), so a
-      // reference-less notification click does nothing visible.
+    it("closes the drawer when the notification carries no reference", () => {
+      // #1014: the click says "nothing to open" (see notificationRouter.fallbacks.test.js) and closes the bell.
       handleNotificationRoute({ type: "TASK_SUBMITTED" }, head, navigate, onClose)
 
       expect(navigate).not.toHaveBeenCalled()
-      expect(onClose).not.toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalled()
     })
   })
 
@@ -450,5 +436,86 @@ describe("handleNotificationRoute", () => {
     )
 
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  describe("fallbacks", () => {
+    beforeEach(() => toast.mockClear())
+
+    it("says there is nothing to open, and closes the bell, when there is no reference_id", () => {
+      handleNotificationRoute({ type: "TASK_COMPLETED", reference_id: null }, {}, navigate, onClose)
+
+      expect(toast).toHaveBeenCalledWith(NO_REFERENCE_MESSAGE)
+      expect(NO_REFERENCE_MESSAGE).toBe("This notification has nothing to open")
+      expect(navigate).not.toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it("says the notification is from an older version for a legacy type", () => {
+      handleNotificationRoute({ type: "SALES_COMMENT", reference_id: "x-1" }, {}, navigate, onClose)
+
+      expect(toast).toHaveBeenCalledWith(LEGACY_MESSAGE)
+      expect(navigate).not.toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it("gives a type with no entry the same message", () => {
+      handleNotificationRoute({ type: "NEVER_HEARD_OF_IT", reference_id: "x-1" }, {}, navigate, onClose)
+
+      expect(toast).toHaveBeenCalledWith(LEGACY_MESSAGE)
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it("stays quiet for a type that opens a page", () => {
+      handleNotificationRoute({ type: "MEETING_REQUEST", reference_id: "m-1" }, {}, navigate, onClose)
+
+      expect(toast).not.toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  /** #1015: leave, offset, overtime and undertime notifications open the request. */
+  describe("time-off notification targets", () => {
+    const click = (type, reference_id) => {
+      const navigate = vi.fn()
+      handleNotificationRoute({ type, reference_id }, { isHead: true }, navigate, vi.fn())
+      return navigate
+    }
+
+    it.each(["SIL_LEAVE_REQUEST", "OFFSET_LEAVE_REQUEST", "OVERTIME_REQUEST", "UNDERTIME_REQUEST"])(
+      "%s opens the request in the Approval Center",
+      (type) => {
+        expect(click(type, "abc-1")).toHaveBeenCalledWith("/approvals/leaves?record=abc-1")
+      },
+    )
+
+    it.each([
+      "SIL_LEAVE_DECISION",
+      "LWOP_LEAVE_HEAD_DECISION",
+      "OFFSET_LEAVE_DECISION",
+      "OVERTIME_HEAD_DECISION",
+      "UNDERTIME_DECISION",
+      "SIL_LEAVE_CANCELLED",
+      "LWOP_LEAVE_CANCELLED",
+    ])("%s opens the request in My Requests", (type) => {
+      expect(click(type, "grp-9")).toHaveBeenCalledWith("/offsets?record=grp-9")
+    })
+  })
+})
+
+describe("Transmittal and Packing List notifications (#1017)", () => {
+  it.each(["TRANSMITTAL_SUBMITTED", "TRANSMITTAL_CLOSED"])("%s opens the Transmittal page", (type) => {
+    const navigate = vi.fn()
+    const onClose = vi.fn()
+    handleNotificationRoute({ type, reference_id: "slip-1" }, { id: "u1" }, navigate, onClose)
+    expect(navigate).toHaveBeenCalledWith("/purchasing/transmittals/slip-1")
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("PACKING_LIST_REQUESTED opens the Packing List page", () => {
+    const navigate = vi.fn()
+    const onClose = vi.fn()
+    handleNotificationRoute({ type: "PACKING_LIST_REQUESTED", reference_id: "pl-1" }, { id: "u1" }, navigate, onClose)
+    expect(navigate).toHaveBeenCalledWith("/purchasing/packing-lists/pl-1")
+    expect(onClose).toHaveBeenCalled()
   })
 })

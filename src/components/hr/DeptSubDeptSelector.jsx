@@ -52,8 +52,9 @@ export default function DeptSubDeptSelector({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2 py-4 border-t border-b border-border/50">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-4 border-t border-b border-border/50">
         {/* Department Selection */}
+        <FieldBox label="Department" bare>
         <Dropdown
           usePortal={true}
           placement="top-start"
@@ -96,8 +97,10 @@ export default function DeptSubDeptSelector({
             </div>
           )}
         </Dropdown>
+        </FieldBox>
 
         {/* Sub-Department Selection */}
+        <FieldBox label="Sub-department" bare>
         <Dropdown
           disabled={!department}
           usePortal={true}
@@ -145,6 +148,7 @@ export default function DeptSubDeptSelector({
             </div>
           )}
         </Dropdown>
+        </FieldBox>
       </div>
 
       {/* Managed Mode Inputs (Fallback) */}
@@ -158,7 +162,7 @@ export default function DeptSubDeptSelector({
           </div>
           {isNewDept && (
             <div>
-              <FieldBox label="New Department" className="mb-1 block" />
+              <FieldBox label="New Department" required className="mb-1 block" />
               <Input
                 required
                 type="text"
@@ -174,7 +178,7 @@ export default function DeptSubDeptSelector({
           )}
           {isNewSubDept && (
             <div>
-              <FieldBox label="New Sub-Department" className="mb-1 block" />
+              <FieldBox label="New Sub-Department" required className="mb-1 block" />
               <Input
                 required
                 type="text"

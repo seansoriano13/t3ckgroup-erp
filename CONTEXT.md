@@ -4,6 +4,19 @@ The operational system and enterprise resource planning portal for T3CK Group, c
 
 ## Language
 
+### Addresses
+
+**Address** (of a window or page): the URL that opens exactly what is on screen (spec #1013). Open a window, copy the link, paste it in another tab, and the same window opens. Every window that can be opened has one, and the Copy link button in its header copies it.
+
+- A record window opens over the current page with `?open=<kind>:<id>`, where kind is `task`, `group-task`, `sor`, `sor-quick` or `pr`. The open tab is `&view=<tab>` (an SOR tab, or `chat` / `items` on a Purchase Request). Written by `src/utils/recordLink.js`, opened by GlobalDetailManager.
+- On `/sors`, `?view=` is only the open SOR's tab. The register's own My work view is `?scope=mine` (the old `/sors?view=mine`, with no `open=`, is rewritten to it once). A row click opens the SOR through `?open=sor:<id>`, the same window a shared link opens.
+- A conversation is `?chat=<kind>:<id>` or `?chat=inbox`. A Calendar entry is `?entry=<kind>:<id>`.
+- A big record has a page of its own: the PMS file is `/purchasing/pms/<sor id>`.
+- The old shapes keep working forever, because notifications and bookmarks still carry them: `/purchasing?request=<id>`, `/sors?record=<id>` (with `&view=<tab>`) and `/opportunities?record=<id>` (which goes on to `/sors`). Each is rewritten once, as a replace so Back does not return to it, to the new `?open=` address.
+- A new window or page gets an address in the same change. A window's tab, a chosen row or a step goes in the address; an unsaved draft does not. Nothing in an address changes who can read the record; a person without access gets the "no access" toast.
+- The SOR brochure share link is a different thing (a public link to the quotation) and keeps its name.
+_Avoid_: Deep link, Permalink
+
 ### Navigation & Workspaces
 
 **Workspace**:
@@ -285,7 +298,7 @@ The centralized analytics interface and register aggregating live Commission Poo
 _Avoid_: Commission Page, Money Tab
 
 **Realized Commission Pool**:
-The accumulated Commission Pool derived strictly from deals that have reached the Awarded stage or beyond (Awarded, PO Received, Project Delivery, Collection, Closed Won) where each deal is priced using the Commission Rate effective on its Contract Date.
+The accumulated Commission Pool derived strictly from deals that have a Contract Date (ADR 0006: Realized is a property of the deal, not of a stage), where each deal is priced using the Commission Rate effective on its Contract Date.
 _Avoid_: Paid Commission, Settled Pool
 
 **Projected Commission Pool**:
@@ -800,23 +813,22 @@ Odoo's count of a product that is on hand and not reserved, per warehouse, as of
 _Avoid_: Inventory (unqualified), Live Stock
 
 **Canvass**:
-The three-or-more supplier comparison, recorded as structured Offers against exactly one S0 Evaluation Component — or one Requested Item, where the purchase has no S0 Evaluation row yet — never both. On a project, the subject is the product line (the Requested Item): Purchasing starts the Canvass from the line, which moves it to Still canvassing, and the winner's price fills the Acquire of the Component linked to the line's SOR line (ADR 0042). Buying outside a project works the same way: the purchaser opens a Direct request, types its lines once, and canvasses each line. A Canvass is never started against nothing, and a Purchase Request is never made from Canvasses (ADR 0047); Canvasses made that way before stay readable and keep their numbers. Gets its number when its first Offer is saved, not when it is opened. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required with the winner, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. A Canvass has three supplier slots; a winner can be picked only when Offers plus "No other supplier" slots number at least three (ADR 0047). A Canvass is not signed off: the sign function, the Approval Center queue and the Check-by part of the print are gone, only "Canvassed by" signs, and a sign-off made before stays as read-only history that still prints on that old Canvass. Saving half-finished is still fine: research happens over days, and only the winner is gated. Nothing forces an item through one — but an item ordered without a Canvass says so on its S0 Evaluation row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
-_Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
+The comparison of suppliers for one Purchase Request (a project's request or a Direct request), holding every line of it in one grid: lines down, suppliers across. One Canvass per request, never more, and never one with no request (ADR 0053, ADR 0047). It gets its number (CNV_0001 and up) when its first supplier is saved, not when it is opened. A supplier is added once, with its currency, rate, how long the quote holds, lead time and quality note, then quotes the lines it wants (an Offer each), and may skip lines. Each line has its own winner and its own written reason, required with the winner, because the cheapest offer often isn't the one taken; "this supplier wins every line" and "same reason for all" are shortcuts. A winner on any line needs three suppliers on the Canvass, or "No other supplier" notes covering the missing ones. A line moves to Still canvassing when its first supplier price is typed. A winner on a project line fills the Acquire, Offer Specification and documents of the Component linked to the line's SOR line, and proposes its Brand. A Canvass is not signed off: only "Canvassed by" signs (ADR 0047). Saving half-finished is fine: research happens over days, and only a winner is gated. Nothing forces an item through one, but an item ordered without a Canvass says so on its S0 Evaluation row and on the printed sheet. The old per-line Canvasses are deleted, not converted (ADR 0053).
+_Avoid_: Comparison Sheet, RFQ, Sourcing Sheet, Canvass per line
 
 **No other supplier**:
-A note on an empty slot 2 or 3 of a Canvass saying why there is no other supplier: the reason, who wrote it and when. One reason can serve both slots. It counts as a filled slot toward the three a winner needs, but only while the slot has no Offer. Slot 1 cannot be explained away. Shown on the screen and on the print. Locked with the Canvass. See ADR 0047.
-_Avoid_: Single source, Sole supplier flag
+A note saying why the Canvass has fewer than three suppliers: the reason, who wrote it and when. It counts toward the three suppliers a winner needs, for as many missing places as it covers, and stops counting for a place once a supplier fills it. The first supplier cannot be explained away. Shown on the screen and on the print. See ADR 0047 and ADR 0053.
 
 **Locked Canvass**:
-A Canvass is locked once a Purchase Request was made from it, whether the request was created from it or the Canvass was added to an existing request (the winner's price was copied onto the item). That only applies to old Canvasses now: no new request is made from a Canvass (ADR 0047). Its Offers, winner, reason and product name stop changing; attachments and printing stay open. A Super Admin can unlock it, always with a reason that is kept in the Canvass history, and an unlocked Canvass stays unlocked. The Canvasses page marks a locked Canvass with a lock beside its number.
+A line of a Canvass locks when it is marked Purchased: its prices, winner and reason stop changing, while attachments and printing stay open. The rest of the Canvass stays open for the other lines. A Super Admin can unlock a line, always with a reason kept in the Canvass history, and an unlocked line stays unlocked. The grid marks the locked lines; the Canvasses page does not mark a whole Canvass locked (ADR 0053). Replaces the old lock that came from making a Purchase Request out of a Canvass.
 _Avoid_: Frozen, Closed Canvass
 
 **Canvasses** (the page):
-The Purchasing page listing every Canvass, project ones and Direct request ones included, and old free-standing ones. It starts nothing: a Canvass is started from the product line (the project's line, or a line of a Direct request), and there is no "New Canvass", no "Create Purchase Request" from picked Canvasses and no "Add a Canvass" on a request (ADR 0047). A list row carries one status badge, in its State column: "Open" or "Winner picked" until a request exists, then the live status of its Requested Item ("Still canvassing", "Purchased", "Cancelled"); "Signed off" (old history) comes first. The Request column is the request's name as plain text, a dash until one exists and on a Component Canvass. The Canvass panel's strip still says whether a request is still to be made: "Needs winner", "Ready to request", or the Requested Item's status; it is a status only, never a link, and the panel names the request and opens it in place, over the Canvass. A "Request" filter narrows to Canvasses not requested yet or with a request created.
+The Purchasing page listing Canvasses, one row per Purchase Request, project ones and Direct request ones alike. It starts nothing: a Canvass belongs to a request and is opened from the request or from an S0 Evaluation line. A row shows how many lines have a winner and how many are Purchased. There is no "New Canvass", no "Create Purchase Request" from picked Canvasses and no "Add a Canvass" on a request (ADR 0047, ADR 0053).
 _Avoid_: Canvass tool, Sourcing page
 
 **Offer**:
-One supplier's answer within a Canvass — the supplier, brand, description, source link, brochure, remarks, unit price in the currency quoted — with the rate used to compare it, which is never the rate actually paid — how long the quote holds, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before. The winner can also be un-picked, leaving none: that leaves what the winner filled in place until a new winner replaces it. Winning fills its Component's Acquire, Offer Specification and documents, and proposes its Brand for Sales to accept.
+One supplier's answer on one line of a Canvass: the brand, description, source link, brochure, remarks and unit price in the currency quoted. The supplier's comparison rate (never the rate actually paid), how long the quote holds, lead time and quality note belong to the supplier and are typed once for the Canvass (ADR 0053). Mirrors the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per line may be the winner; marking a new one clears whichever held it before. The winner can be un-picked, leaving none: that leaves what the winner filled in place until a new winner replaces it. Winning fills the line's Component Acquire, Offer Specification and documents, and proposes its Brand for Sales to accept.
 _Avoid_: Quote, Bid, Supplier Response
 
 **Reference Rate**:
@@ -848,16 +860,8 @@ no row to project.
 _Avoid_: Draft Matrix, Scenario, What-if, Alternative Costing
 
 **Canvasser**:
-The purchaser who owns a Canvass — defaulting to the Purchasing Incharge of the
-Component's row, else the Purchase Request's Buyer (a bid is canvassed before
-any Purchase Request exists), changeable by Purchasing, and the name printed as
-"Canvassed by". Ownership, not
-access: every employee with Purchasing access reads every Canvass, and the
-Canvasser is who answers for this one. Research runs over days and people go on
-leave, so the paper names whoever holds it now rather than whoever opened it;
-the creator stays in the audit trail.
-_Avoid_: Assignee, Creator, Canvassed by (as the field name), Buyer (a Purchase
-Request's role)
+The purchaser who owns a Canvass, defaulting to the Purchase Request's Buyer, changeable by Purchasing, and the name printed as "Canvassed by". Ownership, not access: every employee with Purchasing access reads every Canvass, and the Canvasser is who answers for this one. Research runs over days and people go on leave, so the paper names whoever holds it now rather than whoever opened it; the creator stays in the audit trail.
+_Avoid_: Assignee, Creator, Canvassed by (as the field name), Buyer (a Purchase Request's role)
 
 ### Philippine Government Procurement
 
@@ -866,7 +870,10 @@ reference material in [docs/procurement-glossary.md](docs/procurement-glossary.m
 
 **ABC (Approved Budget for the Contract)**:
 The ceiling a government client publishes for a project. A bid above it is
-disqualified, so it is a constraint on the offer, never merely a column.
+disqualified, so it is a constraint on the offer, never merely a column. It can be
+typed per Tender Line, or as one total when the client publishes only a total
+(an evaluation's "Total only" mode). Per-line values typed earlier are kept and
+come back in "By line"; a typed total is never spread over the lines.
 _Avoid_: Budget, Client Budget
 
 **Notice of Award**:
@@ -1155,12 +1162,40 @@ prices, and only the Closed Book the summary and the spread between the two;
 anyone else called into the SOR sees the matrix without money. Besides its place
 on each SOR, the Closed Book has an S0 Evaluation page listing every SOR's
 matrix with its Planned and Actual Revenue.
+It can also stand alone (ADR 0052): started from just an S0 number, with the lines and
+quantities pulled from that sale order in Odoo, one evaluation per S0 and no SOR. A
+standalone evaluation names a Sales in-charge and a Purchasing in-charge when it is started
+(changeable after). Its readers: the person who started it and the Sales in-charge
+read the price side; the Purchasing in-charge and anyone with Purchasing access read the cost
+side; the decider list and Super Admins read everything (the Closed Book); the
+Technical in-charge and the Evaluation list read it without money. Anyone else reads
+nothing. "Link to a SOR" attaches it to a SOR that has none; from then on the SOR's
+rules decide and the standalone readers no longer apply. The list marks standalone
+ones "No SOR" and filters on it.
 _Avoid_: Costing Matrix (the old name), PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
 
+**Revenue**:
+The S0 Evaluation summary's bottom line, worked the way the sheet works it:
+the VAT-exclusive offer (Final Offer ÷ 1.12) less OPEX less ITR. The bid goes
+ahead when Revenue is 20% of the Final Offer or more (the Go line, set in S0
+Evaluation Settings); under it the Bid Decision shows "Revenue ÷ Final Offer"
+with a warning, and a Go is never blocked. A blank input blanks Revenue and the
+summary says why; a blank is never zero.
+_Avoid_: Margin, Profit, Net
+
+**OPEX**:
+In the S0 Evaluation summary, worked out and never typed: the retention plus
+the Landed Cost (planned) plus the project expenses plus Marketing. Marketing is
+the only part typed on the summary. The old typed OPEX field is gone; its values
+stay in the database but nothing reads them.
+_Avoid_: Operational Expenses (the old line, which was the cost total alone)
+
 **Planned Revenue / Actual Revenue**:
-The S0 Evaluation summary's Revenue worked two ways, side by side. Planned
-Revenue takes each item's cost as its Final Acquire, what Purchasing expected to
-pay; Actual Revenue takes its Landed Cost, what was really paid. Actual is an
+The S0 Evaluation summary's Revenue worked two ways, side by side, by the same
+formula. Planned Revenue takes the Landed Cost (planned), the Final Acquire total
+of the Components, what Purchasing expected to pay; Actual Revenue swaps in the
+Landed Cost of the items bought, what was really paid. Project expenses and
+Marketing are the same in both. Actual is an
 estimate while any of the SOR's IPAS has not reached LC Odoo Done, and an item
 nobody has bought yet counts at its Final Acquire, marked not bought yet. The
 gap between the two is what buying cost or saved against the plan.
@@ -1200,12 +1235,29 @@ component it buys for, and the Landed Cost of the purchase arrives beside the
 component's estimates without replacing any of them.
 _Avoid_: Offer component, Part, Sub-item, Child row
 
+**Odoo SRP**:
+The ODOO column of the S0 Evaluation: the product's Sales Price in Odoo
+(`list_price`), taken as is, pulled from Odoo for every line linked to an Odoo
+product and typed by Sales where there is none. Shown per unit and as a total.
+It is not a cost: no cost, markup or Final Acquire reads it as one. Acquire
+filled from Odoo still reads Odoo's cost (`standard_price`), a separate figure.
+_Avoid_: Odoo cost, Odoo unit cost
+
 **Final Acquire**:
 The cost Management sets on a Component — the figure the S0 Evaluation summary
-reads as Operational Expenses and takes Revenue from. Written only by the people
-on the list Super Admins keep for it, never by a whole role. Neither Acquire,
-which is Purchasing's proposed cost and the one markup is taken from, nor Landed
-Cost, which is what the item turned out to cost once bought.
+reads as the Landed Cost (planned), and the OPEX and Revenue that follow. It is filled by a rule,
+per line, from the Status: Stockable is the Odoo SRP plus or minus a percent
+(the evaluation has one default, starting at minus 20%, and a line may carry its
+own); Source Out is the line's Acquire as is, the attached P0's price when
+there is one, with no percent; no Status yet is blank, and the cell says to pick
+one. A rule-filled value is worked again whenever the SRP, the percent, the
+Status or the Acquire changes. Anyone on the list Super Admins keep for it can
+type over a line; a typed value wins over the rule, is marked typed, never
+moves, and goes back to the rule on "Back to the rule". Values stored before the
+rule are kept as typed. A blank on any line makes the total unknown, never
+smaller. Written only by the people on that list, never by a whole role. Neither
+Acquire, which is Purchasing's proposed cost and the one markup is taken from,
+nor Landed Cost, which is what the item turned out to cost once bought.
 _Avoid_: Final Cost, Approved Cost, Management Price
 
 **Closed Book**:
@@ -1229,10 +1281,10 @@ the Evaluation list reads it with no money at all. Distinct from the write bands
 column and grant no reading.
 _Avoid_: Margin Tier, Confidential, Management View, Band (which is the write rule)
 
-**Incharge**:
+**In-charge**:
 The salesperson and the purchaser who answer for an S0 Evaluation row — set once
-for the matrix, and overridable row by row. Names only: being Incharge grants no
-access and sends no notifications. The Purchasing Incharge is the purchasing
+for the matrix, and overridable row by row. Names only: being in-charge grants no
+access and sends no notifications. The Purchasing in-charge is the purchasing
 assistant the Purchasing Manager assigns to a bid — the person a sheet or a
 Stage Field once recorded as "Purchasing Involved" — named when the bid enters
 sourcing, before any Canvass opens.
@@ -1429,3 +1481,5 @@ side; not real time. The thread also shows when the report was ticked Resolved
 or Reopened. The sender sees their own reports, and only those, under My Bug
 Reports so they can reply.
 _Avoid_: Comment, Chat, Message
+
+**Project expenses (#963, spec #955):** the sum of every Other costs row, Equipment & Tools included. An Other costs row can be typed as a **% of ABC** (`costing_cost_rows.abc_pct`, same tiers and Purchasing band as its Acquire): its amount is the percent times the ABC total (the typed total in Total only, the sum of the lines in By line), worked again whenever the ABC changes, and blank (never zero) while the ABC is unknown. Typing the peso amount by hand clears the percent. "Add the usual rows" adds one blank row for each of Labor, Logistics, Equipment & Tools, Permits and Overhead that has none.

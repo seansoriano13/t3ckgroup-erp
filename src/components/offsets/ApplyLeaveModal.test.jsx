@@ -15,6 +15,9 @@ import { makeEmployee, makeHead, makeLeaveCategory } from "@/test/factories"
  */
 const mockUser = vi.hoisted(() => ({ current: null }))
 
+// The one submit button, whichever tab is open: File overtime / Offset / leave / undertime.
+const FILE_BUTTON = /^file (overtime|offset|leave|undertime)$/i
+
 vi.mock("../../context/AuthContext", () => ({ useAuth: () => ({ user: mockUser.current }) }))
 vi.mock("browser-image-compression", () => ({ default: async (file) => file }))
 
@@ -38,7 +41,7 @@ describe("ApplyLeaveModal", () => {
     // needs the department itself, since the self-service path resolves the
     // head straight off `user`, not a fetched employee row.
     makeHead({ name: "Dept Head", department: employee.department })
-    mockUser.current = { id: employee.id, name: employee.name, department: employee.department }
+    mockUser.current = { id: employee.id, name: employee.name, department: employee.department, offset_hours_balance: 16, sil_hours_balance: 40 }
     onClose = vi.fn()
     onSuccess = vi.fn()
     vi.spyOn(toast, "error").mockImplementation(() => "id")
@@ -50,22 +53,107 @@ describe("ApplyLeaveModal", () => {
       <ApplyLeaveModal isOpen onClose={onClose} onSuccess={onSuccess} {...props} />,
     )
 
-  // #957: on a short screen the body scrolls and the header stays pinned.
-  it("scrolls the body, not the whole dialog, so the header stays in view", () => {
+  // #957: on a short screen the body scrolls and the header + footer stay pinned.
+  it("scrolls the body, not the whole dialog, and keeps the submit button in the pinned footer", () => {
     open()
     const dialog = document.querySelector("[data-slot='dialog-content']")
-    const body = screen.getByRole("button", { name: /submit|apply/i }).closest("form").parentElement
+    const button = screen.getByRole("button", { name: FILE_BUTTON })
+    const body = document.querySelector("[data-modal-shell] form > div")
     expect(dialog.className).toContain("overflow-hidden")
     expect(body.className).toContain("overflow-y-auto")
     expect(body.className).toContain("min-h-0")
     expect(body.className).toContain("flex-1")
-    expect(screen.getByText("Time Off & Overtime").parentElement.className).toContain("shrink-0")
+    expect(body.contains(button)).toBe(false)
+    expect(screen.getByRole("button", { name: "Close window" })).toBeInTheDocument()
+  })
+
+  it("uses the same button, named for what is filed, on every tab", async () => {
+    open()
+    const user = setupUser()
+    const labels = { Overtime: "File overtime", Offset: "File Offset", Leave: "File leave", Undertime: "File undertime" }
+    for (const [tab, label] of Object.entries(labels)) {
+      await user.click(screen.getByRole("tab", { name: tab }))
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument()
+    }
+    expect(screen.queryByText(/Apply for Leave|Submit Request/)).not.toBeInTheDocument()
+  })
+
+  it("marks every required field on the Overtime tab with the red asterisk", () => {
+    open()
+    const form = document.querySelector("[data-modal-shell] form")
+    for (const label of ["Date Worked", "Start Time", "End Time", "Reason"]) {
+      const caption = within(form).getByText(label, { selector: "label" })
+      expect(caption.textContent).toBe(`${label}*`)
+    }
+    expect(within(form).getByText("Supporting Files").textContent).not.toContain("*")
+  })
+
+  describe("filing with fields missing", () => {
+    it("names every missing field at once on the Overtime tab and files nothing", async () => {
+      open()
+      const user = setupUser()
+
+      await submit(user)
+      await waitForNetworkIdle()
+
+      const messages = screen.getAllByRole("alert").map((a) => a.textContent)
+      expect(messages).toEqual(
+        expect.arrayContaining([
+          "Enter the date worked.",
+          "Enter the start time.",
+          "Enter the end time.",
+          "Enter the reason.",
+        ]),
+      )
+      expect(toast.error).not.toHaveBeenCalled()
+      expect(db.rows("overtime_requests")).toEqual([])
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it("names the custom selects too: Category and Department Head", async () => {
+      // No head matches this department, so Department Head stays empty.
+      mockUser.current = { id: employee.id, name: employee.name, department: "Nowhere", offset_hours_balance: 16, sil_hours_balance: 40 }
+      open()
+      const user = setupUser()
+      await user.click(screen.getByRole("tab", { name: "Leave" }))
+
+      await submit(user)
+
+      expect(await screen.findByText("Choose a category.")).toBeInTheDocument()
+      expect(screen.getByText("Choose a department head.")).toBeInTheDocument()
+      expect(screen.getByText("Enter the leave date.")).toBeInTheDocument()
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it("clears a line as soon as its field is filled", async () => {
+      open()
+      const user = setupUser()
+      await submit(user)
+      expect(screen.getByText("Enter the date worked.")).toBeInTheDocument()
+
+      const form = document.querySelector("[data-modal-shell] form")
+      await user.type(form.querySelector('input[type="date"]'), "2026-03-10")
+
+      expect(screen.queryByText("Enter the date worked.")).not.toBeInTheDocument()
+      expect(screen.getByText("Enter the reason.")).toBeInTheDocument()
+    })
+
+    it("names the Employee on File for Employee", async () => {
+      mockUser.current = { id: makeEmployee({ name: "HR Manager", is_hr: true }).id, name: "HR Manager" }
+      open({ showEmployeeSelector: true })
+      const user = setupUser()
+
+      expect(within(document.querySelector("[data-modal-shell] form")).getByText("Employee", { selector: "label" }).textContent).toBe("Employee*")
+      await submit(user)
+
+      expect(await screen.findByText("Choose an employee.")).toBeInTheDocument()
+    })
   })
 
   /** Fills the visible tab's fields. */
   const fillForm = async ({ date, startTime, endTime, reason, categoryLabel }) => {
     const user = setupUser()
-    const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
+    const form = screen.getByRole("button", { name: FILE_BUTTON }).closest("form")
     const dateField = form.querySelector('input[type="date"]')
     const timeFields = form.querySelectorAll('input[type="time"]')
     const reasonField = form.querySelector("textarea")
@@ -100,7 +188,7 @@ describe("ApplyLeaveModal", () => {
   }
 
   const submit = async (user) => {
-    await user.click(screen.getByRole("button", { name: /submit|apply/i }))
+    await user.click(screen.getByRole("button", { name: FILE_BUTTON }))
   }
 
   it("renders nothing while closed", () => {
@@ -154,8 +242,6 @@ describe("ApplyLeaveModal", () => {
     })
 
     it("files nothing while the form is incomplete", async () => {
-      // Every field is `required`, so the browser blocks the submit before the
-      // handler runs; the JS guard behind it is a backstop, not the first line.
       open()
       const user = setupUser()
 
@@ -212,21 +298,31 @@ describe("ApplyLeaveModal", () => {
       expect(db.rows("offset_leaves")[0]).toMatchObject({ hours: 7, status: "PENDING" })
     })
 
-    it("tells the employee when they do not have the hours", async () => {
+    it("shows the shortfall and disables the button before submit when the hours are not there", async () => {
       open()
       await goToOffset()
       // A time input cannot express more than one day, so the widest window
-      // available is 00:00–23:59. That derives 23.98 hrs against a 16 hr
-      // balance, which is what the insufficient-balance guard is here to catch.
-      const { user } = await fillForm({ date: "2026-03-12", startTime: "00:00", endTime: "23:59", reason: "Long break" })
+      // available is 00:00–23:59, far over the 16 hr balance. The server rule
+      // (assertWithinAvailableBalance) stays; the form warns earlier.
+      await fillForm({ date: "2026-03-12", startTime: "00:00", endTime: "23:59", reason: "Long break" })
 
-      await submit(user)
+      expect(await screen.findByText(/^You have 16 Offset hours\. This needs [\d.]+\.$/)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: FILE_BUTTON })).toBeDisabled()
+      expect(db.rows("offset_leaves")).toEqual([])
+    })
 
-      await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith(
-          "Insufficient offset hours. 0 hrs already committed to pending applications, leaving 16 hrs available.",
-        ),
-      )
+    it("shows the balance in plain ink, and 0 available with the shortfall line", async () => {
+      const none = makeEmployee({ name: "Ben Cruz", offset_hours_balance: 0, department: employee.department })
+      mockUser.current = { id: none.id, name: none.name, department: none.department, offset_hours_balance: 0 }
+      open()
+      await goToOffset()
+      await fillForm({ date: "2026-03-12", startTime: "09:00", endTime: "17:00", reason: "Rest" })
+
+      expect(await screen.findByText("You have 0 Offset hours. This needs 7.")).toBeInTheDocument()
+      const balance = screen.getByText("0 hrs")
+      expect(balance.className).toContain("text-foreground")
+      expect(balance.className).not.toMatch(/blue|green/)
+      expect(screen.getByRole("button", { name: FILE_BUTTON })).toBeDisabled()
     })
 
     it("refuses a weekend", async () => {
@@ -272,23 +368,16 @@ describe("ApplyLeaveModal", () => {
       })
     })
 
-    it("tells the employee when their balance is short", async () => {
-      // The guard reads the balance from the database, not from the signed-in
-      // context, so the short balance has to be the one on the row.
-      const short = makeEmployee({ name: "Ben Cruz", sil_hours_balance: 5 })
-      mockUser.current = { id: short.id, name: short.name, department: short.department }
+    it("warns before submit when their balance is short", async () => {
+      const short = makeEmployee({ name: "Ben Cruz", sil_hours_balance: 5, department: employee.department })
+      mockUser.current = { id: short.id, name: short.name, department: short.department, sil_hours_balance: 5 }
 
       open()
       await goToSil()
-      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "17:00", reason: "Long trip" })
+      await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "17:00", reason: "Long trip" })
 
-      await submit(user)
-
-      await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith(
-          "Insufficient SIL hours. 0 hrs already committed to pending applications, leaving 5 hrs available.",
-        ),
-      )
+      expect(await screen.findByText("You have 5 SIL hours. This needs 7.")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: FILE_BUTTON })).toBeDisabled()
     })
 
     it("does not touch the balance until HR decides", async () => {
@@ -328,7 +417,7 @@ describe("ApplyLeaveModal", () => {
       open()
       await goToSil()
 
-      const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
+      const form = screen.getByRole("button", { name: FILE_BUTTON }).closest("form")
       const dateField = form.querySelector('input[type="date"]')
       const timeFields = form.querySelectorAll('input[type="time"]')
 
@@ -345,7 +434,7 @@ describe("ApplyLeaveModal", () => {
       const fillRange = async (from, to) => {
         const user = await goToSil()
         await user.click(screen.getByRole("tab", { name: "Date range" }))
-        const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
+        const form = screen.getByRole("button", { name: FILE_BUTTON }).closest("form")
         const [fromField, toField] = form.querySelectorAll('input[type="date"]')
         await user.type(fromField, from)
         await user.type(toField, to)
@@ -397,7 +486,7 @@ describe("ApplyLeaveModal", () => {
       open()
       await goToSil()
 
-      const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
+      const form = screen.getByRole("button", { name: FILE_BUTTON }).closest("form")
       const dateField = form.querySelector('input[type="date"]')
       const timeFields = form.querySelectorAll('input[type="time"]')
 
@@ -461,7 +550,8 @@ describe("ApplyLeaveModal", () => {
     open()
     const user = setupUser()
 
-    await user.click(screen.getAllByRole("button").find((b) => b.querySelector("svg")))
+    await user.click(screen.getByRole("button", { name: "Close window" }))
+    expect(onClose).toHaveBeenCalled()
 
     expect(db.rows("overtime_requests")).toEqual([])
   })
@@ -510,9 +600,10 @@ describe("ApplyLeaveModal", () => {
       await chooseOption(user, employeeSelect, targetEmployee.name)
 
       const headSelect = screen.getAllByRole("combobox")[1]
-      await chooseOption(user, headSelect, targetHead.name)
+      // The option reads "Your team: <name> (<department>)".
+      await chooseOption(user, headSelect, new RegExp(targetHead.name))
 
-      const form = screen.getByRole("button", { name: /submit/i }).closest("form")
+      const form = screen.getByRole("button", { name: FILE_BUTTON }).closest("form")
       const dateField = form.querySelector('input[type="date"]')
       const timeFields = form.querySelectorAll('input[type="time"]')
       const reasonField = form.querySelector("textarea")
@@ -529,7 +620,7 @@ describe("ApplyLeaveModal", () => {
       await user.clear(reasonField)
       await user.type(reasonField, "Crunch time")
 
-      await user.click(screen.getByRole("button", { name: /submit/i }))
+      await user.click(screen.getByRole("button", { name: FILE_BUTTON }))
 
       await waitFor(() => expect(db.rows("overtime_requests")).toHaveLength(1))
 

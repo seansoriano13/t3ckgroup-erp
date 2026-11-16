@@ -5,12 +5,12 @@ import { MemoryRouter } from "react-router";
 import { db } from "@/test/db/store";
 import { stubCostingMatrixRpcs } from "@/test/stubs/costingMatrixRpc";
 import { makeEmployee, makeOpportunity } from "@/test/factories";
-import { openLines, renderCostingDesk } from "@/test/support/costingDesk";
+import { openLines, openOverview, renderCostingDesk } from "@/test/support/costingDesk";
 
 /**
  * Planned and Actual Revenue in the Costing Matrix summary (#605), Closed Book only. One Tender Line at
  * a Final Offer of 2,980,000 with two Components at Final Acquire 1,000,000 and 1,338,500 (Revenue
- * 423,100 as today). The maths is costingMath's; this is the wiring: the two columns, the "estimate"
+ * 74,014.29 on the sheet's formula). The maths is costingMath's; this is the wiring: the two columns, the "estimate"
  * mark, the not-bought note and the highlighted difference.
  */
 
@@ -69,15 +69,20 @@ describe("Planned and Actual Revenue on the summary", () => {
     const second = db.seed("costing_components", { tender_line_id: line.id, position: 2, name: "Winch", quantity: 1, unit: "unit" });
     db.seed("costing_component_costs", { component_id: first.id, final_acquire_unit: 1000000 });
     db.seed("costing_component_costs", { component_id: second.id, final_acquire_unit: 1338500 });
+    // The rest of the sheet (#964): an Other costs row of nothing and Marketing typed as 0, so Revenue can be worked.
+    db.seed("costing_cost_categories", { key: "delivery", label: "Delivery", low_pct: 1, high_pct: 5, sort: 1 });
+    db.seed("costing_cost_rows", { matrix_id: matrix.id, position: 1, category_key: "delivery", description: "Delivery", quantity: 1, final_acquire_unit: 0 });
+    db.seed("costing_matrix_money", { matrix_id: matrix.id, marketing: 0 });
   });
 
   it("shows Planned as today's Revenue and Actual equal to it while nothing is bought, with the not-bought note", async () => {
     mount();
-    await openLines();
+    // The summary, with Planned vs Actual, is in the Overview (2026-11-13).
+    await openOverview();
     const block = await screen.findByTestId("summary-planned-actual");
-    expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱423,100.00");
-    expect(within(block).getByTestId("summary-planned-revenue")).toHaveTextContent("₱423,100.00");
-    expect(within(block).getByTestId("summary-actual-revenue")).toHaveTextContent("₱423,100.00");
+    expect(screen.getByTestId("summary-revenue")).toHaveTextContent("₱74,014.29");
+    expect(within(block).getByTestId("summary-planned-revenue")).toHaveTextContent("₱74,014.29");
+    expect(within(block).getByTestId("summary-actual-revenue")).toHaveTextContent("₱74,014.29");
     expect(within(block).getByTestId("summary-not-bought")).toHaveTextContent("2 of 2 items not bought yet, counted at the planned cost.");
     expect(within(block).getByTestId("summary-difference")).toHaveAttribute("data-lower", "false");
   });
@@ -85,11 +90,12 @@ describe("Planned and Actual Revenue on the summary", () => {
   it("highlights the difference when buying cost more, and marks Actual an estimate while the IPAS is short of LC Odoo Done", async () => {
     buy(1100000, "encoded");
     mount();
-    await openLines();
+    // The summary, with Planned vs Actual, is in the Overview (2026-11-13).
+    await openOverview();
     const block = await screen.findByTestId("summary-planned-actual");
     expect(await within(block).findByTestId("summary-actual-estimate")).toHaveTextContent("estimate");
     // The first Component at 1,100,000 instead of 1,000,000: Actual Revenue 100,000 below Planned.
-    expect(within(block).getByTestId("summary-actual-revenue")).toHaveTextContent("₱323,100.00");
+    expect(within(block).getByTestId("summary-actual-revenue")).toHaveTextContent("-₱25,985.71");
     const difference = within(block).getByTestId("summary-difference");
     expect(difference).toHaveAttribute("data-lower", "true");
     expect(difference).toHaveTextContent("-₱100,000.00");
@@ -99,9 +105,10 @@ describe("Planned and Actual Revenue on the summary", () => {
   it("drops the estimate mark once the IPAS reached LC Odoo Done, and does not highlight a saving", async () => {
     buy(900000, "lc_odoo_done");
     mount();
-    await openLines();
+    // The summary, with Planned vs Actual, is in the Overview (2026-11-13).
+    await openOverview();
     const block = await screen.findByTestId("summary-planned-actual");
-    expect(within(block).getByTestId("summary-actual-revenue")).toHaveTextContent("₱523,100.00");
+    expect(within(block).getByTestId("summary-actual-revenue")).toHaveTextContent("₱174,014.29");
     expect(within(block).queryByTestId("summary-actual-estimate")).not.toBeInTheDocument();
     const difference = within(block).getByTestId("summary-difference");
     expect(difference).toHaveAttribute("data-lower", "false");

@@ -1,5 +1,7 @@
 # Buying outside a project is canvassed before its Purchase Request
 
+> **Update 2026-11-12:** the one-Canvass-per-line shape is replaced by ADR 0053 (one Canvass per Purchase Request). See that ADR for what still holds.
+
 **Status:** accepted (2026-10-20)
 
 A Canvass used to need a subject from the moment it existed: one Costing Matrix

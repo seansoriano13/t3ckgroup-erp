@@ -11,7 +11,8 @@ import MeetingDetail from './MeetingDetail.jsx';
  *   label    the name people read
  *   icon     lucide icon
  *   chip     colour tokens for a month-cell chip / list row
- *   dot      colour token for a small marker
+ *   dot      colour token for a small marker (also the solid fill)
+ *   bar      colour token for a soft bar (Gantt-style spans)
  *   Detail   optional component that replaces the default detail body; it
  *            receives `{ entry }`. Omit it to get the shared who/when/status/hours.
  */
@@ -33,6 +34,7 @@ export const ENTRY_KINDS = {
     icon: Users,
     chip: 'bg-teal-2 text-teal-11 border-teal-6',
     dot: 'bg-teal-9',
+    bar: 'bg-teal-5',
     Detail: MeetingDetail,
   },
   SIL: {
@@ -41,6 +43,7 @@ export const ENTRY_KINDS = {
     icon: CalendarDays,
     chip: 'bg-green-2 text-green-11 border-green-6',
     dot: 'bg-green-9',
+    bar: 'bg-green-5',
   },
   OFFSET: {
     layer: 'timeOff',
@@ -48,6 +51,7 @@ export const ENTRY_KINDS = {
     icon: CalendarClock,
     chip: 'bg-blue-2 text-blue-11 border-blue-6',
     dot: 'bg-blue-9',
+    bar: 'bg-blue-5',
   },
   LWOP: {
     layer: 'timeOff',
@@ -55,6 +59,7 @@ export const ENTRY_KINDS = {
     icon: CalendarOff,
     chip: 'bg-pink-2 text-pink-11 border-pink-6',
     dot: 'bg-pink-9',
+    bar: 'bg-pink-5',
   },
   UNDERTIME: {
     layer: 'timeOff',
@@ -62,6 +67,7 @@ export const ENTRY_KINDS = {
     icon: Hourglass,
     chip: 'bg-amber-2 text-amber-11 border-amber-6',
     dot: 'bg-amber-9',
+    bar: 'bg-amber-5',
   },
   OVERTIME: {
     layer: 'overtime',
@@ -69,6 +75,7 @@ export const ENTRY_KINDS = {
     icon: Timer,
     chip: 'bg-violet-2 text-violet-11 border-violet-6',
     dot: 'bg-violet-9',
+    bar: 'bg-violet-5',
   },
 };
 

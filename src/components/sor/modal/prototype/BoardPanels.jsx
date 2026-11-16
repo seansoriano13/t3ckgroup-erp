@@ -205,7 +205,7 @@ export function DrillView({ p, view, onBack, onGoNow }) {
         {view === "activity" && <div className="mx-auto h-full max-w-3xl border-x border-border/60">{p.chatColumn}</div>}
         {view === "journey" && (
           <div className="h-full overflow-y-auto">
-            <JourneyTab opportunityId={p.id} hasOpened={p.hasOpened} onGoToNow={onGoNow} />
+            <JourneyTab opportunityId={p.id} missingFieldCount={(p.missingRequiredStageFields || []).length} hasOpened={p.hasOpened} onGoToNow={onGoNow} />
           </div>
         )}
         {view === "details" && (

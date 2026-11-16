@@ -1,38 +1,41 @@
 /**
- * Canvass tables (#276, spec #275): one subject, one Canvass per subject, the CNV_ number, a rate
- * only on a foreign Offer, who writes, who reads Offers and who reads prices, and the migration's
- * refusal to run over rows.
+ * Canvass tables, one per Purchase Request (#967, spec #956): one Canvass per request, the CNV_
+ * number when the first supplier is saved, a supplier once, one quote per supplier per line, a
+ * winner per line, the "No other supplier" note, who writes, who reads and who reads money.
  *
- * The cast, on one SOR (dealOwner and support are its Deal Team):
- *   outsider          Purchasing access                        -> cost tier, writes
- *   superAdmin                                                 -> closed_book tier, writes
- *   dealOwner         Deal Team                                -> price tier: Offers, no prices (#546), no write
- *   stageParticipant  open Stage Participant window            -> participant tier: Offers, no prices
- *   head              is_head and nothing else                 -> no tier, no write
- *   ordinary          nobody                                   -> reads nothing
+ * The cast, on one Purchase Request (outsider opens it and has Purchasing access):
+ *   outsider     Purchasing access, on the request       -> reads, writes, sees money
+ *   superAdmin                                           -> reads, writes, sees money
+ *   finance      Finance access, a member of the request -> reads, sees money, no write
+ *   dealOwner    a member of the request (sales side)    -> reads names, no money, no write
+ *   ordinary     nobody                                  -> reads nothing, no write
  *
- * The matrix and its Component are made with the service role; every assertion about access runs
- * as a real cast member.
+ * The request and its lines are made with the purchaser's own function and the service role;
+ * every assertion about access runs as a real cast member.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { readFileSync } from "node:fs"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient, rlsStatus, sql } from "./support/stack.js"
-import { MARKER, makeSor } from "./support/rows.js"
-import { canRead, tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access.js"
-import { purgeCostingForSors } from "./support/costing.js"
 
 const svc = () => serviceClient()
 const CHECK_VIOLATION = "23514"
 const UNIQUE_VIOLATION = "23505"
-const MIGRATION = readFileSync("supabase/migrations/20261019100000_canvass_repoint.sql", "utf8")
+const FOREIGN_KEY_VIOLATION = "23503"
+const INSUFFICIENT_PRIVILEGE = "42501"
 
-let saleTypeId, flowId, stageId
-let sorId, matrixId, lineId
-let compSubject, compNumber, compWrite, compOffer, compRead, compMigration, compAdd
-let requestId, itemId
-const sorIds = []
-const canvassIds = []
+const TABLES = [
+    "request_canvasses",
+    "request_canvass_suppliers",
+    "request_canvass_supplier_prices",
+    "request_canvass_quotes",
+    "request_canvass_quote_prices",
+    "request_canvass_winners",
+    "request_canvass_no_other_supplier",
+]
+
+let requestId, otherRequestId
+let lineA, lineB, otherLine
+const requestIds = []
 
 const asSvc = async (query, what) => {
     const { data, error } = await query
@@ -40,379 +43,428 @@ const asSvc = async (query, what) => {
     return data
 }
 
-/** A Canvass on a Component, made with the service role (so number and defaults are the database's own). */
-async function makeCanvass(componentId, extra = {}) {
-    const row = await asSvc(
-        svc().from("sor_canvasses").insert({ component_id: componentId, created_by: ids.outsider, ...extra }).select("*").single(),
-        "Canvass",
-    )
-    canvassIds.push(row.id)
-    return row
+async function openRequest(title) {
+    const purchaser = await clientFor("outsider")
+    const made = await purchaser.rpc("purchase_request_open", {
+        p_title: `[policy-tier] ${title}`,
+        p_items: [
+            { name: `[policy-tier] ${title} line A`, quantity: 2, unit: "pc" },
+            { name: `[policy-tier] ${title} line B`, quantity: 1, unit: "pc" },
+        ],
+    })
+    if (made.error) throw new Error(`purchase_request_open: ${made.error.message}`)
+    requestIds.push(made.data)
+    const items = await asSvc(svc().from("purchase_request_items").select("id, name").eq("request_id", made.data).order("name"), "items")
+    return { id: made.data, items: items.map((i) => i.id) }
 }
 
-async function makeOffer(canvassId, extra = {}, price = { unit_price: 78000 }) {
-    const offer = await asSvc(
-        svc().from("sor_canvass_offers").insert({ canvass_id: canvassId, supplier_name: "Redleaf Inc.", ...extra }).select("*").single(),
-        "Offer",
-    )
-    if (price) await asSvc(svc().from("sor_canvass_offer_prices").insert({ offer_id: offer.id, ...price }), "Offer price")
-    return offer
+/** A supplier added the way the app adds one: by canvass_add_supplier, as the purchaser. */
+async function addSupplier(forRequest, supplier = {}, price = {}, who = "outsider") {
+    const client = await clientFor(who)
+    return client.rpc("canvass_add_supplier", {
+        p_request_id: forRequest,
+        p_supplier: { supplier_name: `[policy-tier] Redleaf ${Math.random().toString(36).slice(2, 8)}`, ...supplier },
+        p_price: price,
+    })
+}
+
+const canvassOf = async (forRequest) =>
+    (await asSvc(svc().from("request_canvasses").select("*").eq("request_id", forRequest).maybeSingle(), "Canvass"))
+
+async function wipe(forRequest) {
+    await svc().from("request_canvasses").delete().eq("request_id", forRequest)
 }
 
 beforeAll(async () => {
     await ensureCastLoaded()
     await asSvc(svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider), "purchasing flag")
 
-    saleTypeId = (await asSvc(svc().from("sale_types").insert({ name: `${MARKER} Canvass` }).select("id").single(), "sale type")).id
-    flowId = (await asSvc(svc().from("sales_flows").insert({ sale_type_id: saleTypeId }).select("id").single(), "flow")).id
-    stageId = (
-        await asSvc(svc().from("flow_stages").insert({ flow_id: flowId, name: `${MARKER} Canvass Stage`, sort_order: 10 }).select("id").single(), "stage")
-    ).id
+    const first = await openRequest("Canvass tables")
+    requestId = first.id
+    ;[lineA, lineB] = first.items
+    const other = await openRequest("Canvass tables, other request")
+    otherRequestId = other.id
+    otherLine = other.items[0]
 
-    sorId = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, supportSales1Id: ids.support, saleTypeId, flowStageId: stageId })
-    sorIds.push(sorId)
-
-    const visit = await asSvc(svc().from("sor_stage_visits").select("id").eq("opportunity_id", sorId).single(), "visit")
-    await asSvc(
-        svc().from("sor_stage_participants").insert({
-            opportunity_id: sorId,
-            employee_id: ids.stageParticipant,
-            source: "action",
-            opened_visit_id: visit.id,
-            until_rule: "stage_left",
-        }),
-        "participant window",
-    )
-
-    const opened = await svc().rpc("costing_open_matrix", { p_opportunity_id: sorId })
-    if (opened.error) throw new Error(`costing_open_matrix: ${opened.error.message}`)
-    matrixId = opened.data
-    lineId = (
-        await asSvc(svc().from("costing_tender_lines").insert({ matrix_id: matrixId, position: 1, tender_specification: "Stretcher", quantity: 1 }).select("id").single(), "Tender Line")
-    ).id
-    const component = async (position) =>
-        (await asSvc(svc().from("costing_components").insert({ tender_line_id: lineId, position, name: `Component ${position}`, quantity: 1 }).select("id").single(), "Component")).id
-    // One Component per group of tests, so a Canvass left by one never meets another (one per Component).
-    compSubject = await component(1)
-    compNumber = await component(2)
-    compWrite = await component(3)
-    compOffer = await component(4)
-    compRead = await component(5)
-    compMigration = await component(6)
-    compAdd = await component(7)
-
-    // A Requested Item that names no Component, for the "both subjects" and "neither" checks.
-    requestId = (
-        await asSvc(svc().from("purchase_requests").insert({ opportunity_id: sorId, created_by: ids.dealOwner }).select("id").single(), "request")
-    ).id
-    itemId = (
-        await asSvc(
-            svc().from("purchase_request_items").insert({ request_id: requestId, name: "Spine board", quantity: 1, source: "new", requested_by: ids.dealOwner }).select("id").single(),
-            "Requested Item",
-        )
-    ).id
+    for (const [employee, side] of [[ids.dealOwner, "sales"], [ids.finance, "sales"]]) {
+        await asSvc(svc().from("purchase_request_members").upsert({ request_id: requestId, employee_id: employee, side }, { onConflict: "request_id,employee_id" }), "member")
+    }
 })
 
 afterAll(async () => {
-    await svc().from("sor_canvasses").delete().in("component_id", [compSubject, compNumber, compWrite, compOffer, compRead, compMigration, compAdd].filter(Boolean))
-    await svc().from("sor_canvasses").delete().eq("requested_item_id", itemId ?? "00000000-0000-0000-0000-000000000000")
-    await svc().from("purchase_request_items").delete().eq("request_id", requestId)
-    await svc().from("purchase_requests").delete().eq("id", requestId)
+    for (const id of requestIds) {
+        await svc().from("request_canvasses").delete().eq("request_id", id)
+        await svc().from("purchase_request_items").delete().eq("request_id", id)
+        await svc().from("purchase_request_messages").delete().eq("request_id", id)
+        await svc().from("purchase_request_members").delete().eq("request_id", id)
+        await svc().from("purchase_requests").delete().eq("id", id)
+    }
     await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
-    await purgeCostingForSors(sorIds)
-    await svc().from("sor_stage_participants").delete().in("opportunity_id", sorIds)
-    await svc().from("sales_opportunities").delete().in("id", sorIds)
-    await svc().from("flow_stages").delete().eq("flow_id", flowId)
-    await svc().from("sales_flows").delete().eq("id", flowId)
-    await svc().from("sale_types").delete().eq("id", saleTypeId)
 })
 
 describe("the tables", () => {
     it("keep row level security on", async () => {
-        for (const table of ["sor_canvasses", "sor_canvass_offers", "sor_canvass_offer_prices"]) {
-            expect(await rlsStatus(table)).toMatchObject({ enabled: true })
-        }
+        for (const table of TABLES) expect(await rlsStatus(table), table).toMatchObject({ enabled: true })
+    })
+
+    it("replace the per-line Canvass: the old tables are gone", async () => {
+        const { rows } = await sql().query(
+            `select table_name from information_schema.tables
+              where table_schema = 'public' and table_name in ('sor_canvasses', 'sor_canvass_offers', 'sor_canvass_offer_prices', 'sor_canvass_signoff_events', 'sor_canvass_no_other_supplier')`,
+        )
+        expect(rows).toEqual([])
     })
 })
 
-describe("one subject", () => {
-    it("refuses a Canvass with neither a Component nor a Requested Item", async () => {
-        const { error } = await svc().from("sor_canvasses").insert({ created_by: ids.outsider })
-        expect(error.code).toBe(CHECK_VIOLATION)
-    })
+describe("one Canvass per request", () => {
+    it("is made by the first supplier, which gives it its CNV_ number; reading never makes it", async () => {
+        expect(await canvassOf(requestId)).toBeNull()
+        const reader = await clientFor("outsider")
+        await reader.from("request_canvasses").select("*").eq("request_id", requestId)
+        expect(await canvassOf(requestId)).toBeNull()
 
-    it("refuses a Canvass with both", async () => {
-        const { error } = await svc().from("sor_canvasses").insert({ component_id: compSubject, requested_item_id: itemId })
-        expect(error.code).toBe(CHECK_VIOLATION)
-    })
-
-    it("takes a Canvass on a Requested Item", async () => {
-        const { data, error } = await svc().from("sor_canvasses").insert({ requested_item_id: itemId }).select("*").single()
+        const { data, error } = await addSupplier(requestId)
         expect(error).toBeNull()
         expect(data.number).toMatch(/^CNV_\d{4}$/)
-        await svc().from("sor_canvasses").delete().eq("id", data.id)
+        const canvass = await canvassOf(requestId)
+        expect(canvass.id).toBe(data.canvass_id)
+        expect(canvass.number).toBe(data.number)
+        expect(canvass.created_by).toBe(ids.outsider)
+        expect(canvass.canvasser_id).toBe(ids.outsider)
+        await wipe(requestId)
     })
 
-    it("refuses a second Canvass on one Component, and a second on one Requested Item", async () => {
-        const first = await makeCanvass(compSubject)
-        const again = await svc().from("sor_canvasses").insert({ component_id: compSubject })
-        expect(again.error.code).toBe(UNIQUE_VIOLATION)
+    it("takes a second supplier onto the same Canvass, in order", async () => {
+        const one = await addSupplier(requestId)
+        const two = await addSupplier(requestId)
+        expect(two.data.canvass_id).toBe(one.data.canvass_id)
+        expect(two.data.number).toBe(one.data.number)
+        expect([one.data.supplier.sort_order, two.data.supplier.sort_order]).toEqual([0, 1])
+        await wipe(requestId)
+    })
 
-        const one = await svc().from("sor_canvasses").insert({ requested_item_id: itemId }).select("id").single()
-        expect(one.error).toBeNull()
-        const two = await svc().from("sor_canvasses").insert({ requested_item_id: itemId })
-        expect(two.error.code).toBe(UNIQUE_VIOLATION)
-        await svc().from("sor_canvasses").delete().eq("id", one.data.id)
-        await svc().from("sor_canvasses").delete().eq("id", first.id)
+    it("refuses a second Canvass on one request", async () => {
+        const first = await addSupplier(requestId)
+        const again = await svc().from("request_canvasses").insert({ request_id: requestId, number: "x" })
+        expect(again.error.code).toBe(UNIQUE_VIOLATION)
+        expect(first.error).toBeNull()
+        await wipe(requestId)
+    })
+
+    it("has no insert path for a signed-in user but the function", async () => {
+        const client = await clientFor("outsider")
+        const direct = await client.from("request_canvasses").insert({ request_id: requestId, number: "x" })
+        expect(direct.error.code).toBe(INSUFFICIENT_PRIVILEGE)
+    })
+
+    it("goes with its request", async () => {
+        const made = await openRequest("Canvass cascade")
+        await addSupplier(made.id)
+        await asSvc(svc().from("purchase_request_items").delete().eq("request_id", made.id), "items")
+        await asSvc(svc().from("purchase_request_messages").delete().eq("request_id", made.id), "messages")
+        await asSvc(svc().from("purchase_request_members").delete().eq("request_id", made.id), "members")
+        await asSvc(svc().from("purchase_requests").delete().eq("id", made.id), "request")
+        expect(await canvassOf(made.id)).toBeNull()
     })
 })
 
 describe("the number", () => {
     it("is CNV_ and four digits, assigned by the database whatever the caller sends", async () => {
-        const canvass = await makeCanvass(compNumber, { number: "CNV_9999" })
-        expect(canvass.number).toMatch(/^CNV_\d{4}$/)
-        expect(canvass.number).not.toBe("CNV_9999")
-        await svc().from("sor_canvasses").delete().eq("id", canvass.id)
+        const { data } = await addSupplier(requestId)
+        const forced = await svc().from("request_canvasses").insert({ request_id: otherRequestId, number: "CNV_9999" }).select("number").single()
+        expect(forced.data.number).toMatch(/^CNV_\d{4}$/)
+        expect(forced.data.number).not.toBe("CNV_9999")
+        expect(data.number).toMatch(/^CNV_\d{4}$/)
+        await wipe(requestId)
+        await wipe(otherRequestId)
     })
 
-    it("is never reused, and never changed", async () => {
-        const first = await makeCanvass(compNumber)
-        const edit = await svc().from("sor_canvasses").update({ number: "CNV_0001" }).eq("id", first.id)
-        expect(edit.error.code).toBe(RLS_VIOLATION)
+    it("is never changed, and never reused", async () => {
+        const first = await addSupplier(requestId)
+        const client = await clientFor("outsider")
+        const edit = await client.from("request_canvasses").update({ number: "CNV_0001" }).eq("id", first.data.canvass_id)
+        expect(edit.error.code).toBe(INSUFFICIENT_PRIVILEGE)
+        const move = await client.from("request_canvasses").update({ request_id: otherRequestId }).eq("id", first.data.canvass_id)
+        expect(move.error.code).toBe(INSUFFICIENT_PRIVILEGE)
 
-        await svc().from("sor_canvasses").delete().eq("id", first.id)
-        const second = await makeCanvass(compNumber)
-        expect(Number(second.number.slice(4))).toBeGreaterThan(Number(first.number.slice(4)))
-        await svc().from("sor_canvasses").delete().eq("id", second.id)
+        await wipe(requestId)
+        const second = await addSupplier(requestId)
+        expect(Number(second.data.number.slice(4))).toBeGreaterThan(Number(first.data.number.slice(4)))
+        await wipe(requestId)
     })
 })
 
-describe("an Offer", () => {
+describe("a supplier", () => {
     let canvass
 
     beforeAll(async () => {
-        canvass = await makeCanvass(compOffer)
+        canvass = (await addSupplier(requestId, { supplier_name: "[policy-tier] Base" })).data.canvass_id
     })
+    afterAll(() => wipe(requestId))
 
-    it("defaults to PHP and refuses a currency that is not three capital letters", async () => {
-        const offer = await makeOffer(canvass.id)
-        expect(offer.currency).toBe("PHP")
-        const bad = await svc().from("sor_canvass_offers").update({ currency: "usd" }).eq("id", offer.id)
+    it("defaults to PHP, and refuses a currency that is not three capital letters", async () => {
+        const made = await addSupplier(requestId)
+        expect(made.data.supplier.currency).toBe("PHP")
+        const bad = await svc().from("request_canvass_suppliers").update({ currency: "usd" }).eq("id", made.data.supplier.id)
         expect(bad.error.code).toBe(CHECK_VIOLATION)
     })
 
-    it("refuses a comparison rate on a PHP Offer, and takes one on a foreign Offer", async () => {
-        const php = await makeOffer(canvass.id)
-        const refused = await svc().from("sor_canvass_offer_prices").update({ comparison_rate: 56.5 }).eq("offer_id", php.id)
-        expect(refused.error.code).toBe(CHECK_VIOLATION)
-
-        const usd = await makeOffer(canvass.id, { currency: "USD", supplier_name: "Hong Kong" }, { unit_price: 1280 })
-        const ok = await svc().from("sor_canvass_offer_prices").update({ comparison_rate: 56.5625 }).eq("offer_id", usd.id)
-        expect(ok.error).toBeNull()
-
-        // Turning it back to PHP while the rate stands is refused; clearing the rate first works.
-        const back = await svc().from("sor_canvass_offers").update({ currency: "PHP" }).eq("id", usd.id)
-        expect(back.error.code).toBe(CHECK_VIOLATION)
-        await asSvc(svc().from("sor_canvass_offer_prices").update({ comparison_rate: null }).eq("offer_id", usd.id), "clear rate")
-        const again = await svc().from("sor_canvass_offers").update({ currency: "PHP" }).eq("id", usd.id)
-        expect(again.error).toBeNull()
+    it("needs a name, and is added to a Canvass once", async () => {
+        const blank = await addSupplier(requestId, { supplier_name: "  " })
+        expect(blank.error).not.toBeNull()
+        await addSupplier(requestId, { supplier_name: "[policy-tier] Twice" })
+        const twice = await addSupplier(requestId, { supplier_name: "  [policy-tier] TWICE " })
+        expect(twice.error.code).toBe(UNIQUE_VIOLATION)
     })
 
-    it("refuses a rate of zero or less", async () => {
-        const usd = await makeOffer(canvass.id, { currency: "EUR", supplier_name: "Berlin" }, { unit_price: 10 })
-        const zero = await svc().from("sor_canvass_offer_prices").update({ comparison_rate: 0 }).eq("offer_id", usd.id)
+    it("keeps how long the quote holds, the lead time and the quality note", async () => {
+        const made = await addSupplier(requestId, { valid_until: "2027-01-31", lead_time: "2 weeks", quality_note: "ISO 9001" })
+        expect(made.data.supplier).toMatchObject({ valid_until: "2027-01-31", lead_time: "2 weeks", quality_note: "ISO 9001", canvass_id: canvass })
+    })
+
+    it("takes a comparison rate only when foreign", async () => {
+        const php = await addSupplier(requestId, { currency: "PHP" }, { comparison_rate: 60 })
+        expect(php.error.code).toBe(CHECK_VIOLATION)
+
+        const usd = await addSupplier(requestId, { currency: "USD" }, { comparison_rate: 63.5 })
+        expect(usd.error).toBeNull()
+        const rate = await asSvc(svc().from("request_canvass_supplier_prices").select("*").eq("supplier_id", usd.data.supplier.id).single(), "rate")
+        expect(Number(rate.comparison_rate)).toBe(63.5)
+
+        const toPhp = await svc().from("request_canvass_suppliers").update({ currency: "PHP" }).eq("id", usd.data.supplier.id)
+        expect(toPhp.error.code).toBe(CHECK_VIOLATION)
+        const zero = await svc().from("request_canvass_supplier_prices").update({ comparison_rate: 0 }).eq("supplier_id", usd.data.supplier.id)
         expect(zero.error.code).toBe(CHECK_VIOLATION)
     })
-
-    it("allows one winner at a time", async () => {
-        const a = await makeOffer(canvass.id, { supplier_name: "A" }, null)
-        const b = await makeOffer(canvass.id, { supplier_name: "B" }, null)
-        await asSvc(svc().from("sor_canvass_offers").update({ is_winner: true }).eq("id", a.id), "first winner")
-        const second = await svc().from("sor_canvass_offers").update({ is_winner: true }).eq("id", b.id)
-        expect(second.error.code).toBe(UNIQUE_VIOLATION)
-        await svc().from("sor_canvass_offers").update({ is_winner: false }).eq("id", a.id)
-    })
 })
 
-describe("who writes", () => {
-    it("lets Purchasing access and a Super Admin open a Canvass, add an Offer and its price", async () => {
-        for (const [who, component] of [["outsider", compWrite], ["superAdmin", compWrite]]) {
-            const client = await clientFor(who)
-            const opened = await tryInsert(client, "sor_canvasses", { component_id: component, created_by: ids[who] })
-            expect(opened.ok, `${who} opens`).toBe(true)
-            canvassIds.push(opened.id)
-            const offer = await tryInsert(client, "sor_canvass_offers", { canvass_id: opened.id, supplier_name: "Redleaf Inc.", currency: "USD" })
-            expect(offer.ok, `${who} adds an Offer`).toBe(true)
-            const price = await client.from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: 1280, comparison_rate: 56.5 })
-            expect(price.error, `${who} prices it`).toBeNull()
-            expect(await tryUpdate(client, "sor_canvasses", opened.id, { reason: "Holds stock" })).toEqual({ ok: true, affected: 1 })
-            const edit = await client.from("sor_canvass_offer_prices").update({ unit_price: 1300 }).eq("offer_id", offer.id).select("offer_id")
-            expect(edit.data).toHaveLength(1)
-            expect(await tryDelete(client, "sor_canvass_offers", offer.id)).toEqual({ ok: true, affected: 1 })
-            expect(await tryDelete(client, "sor_canvasses", opened.id)).toEqual({ ok: true, affected: 1 })
-        }
-    })
-
-    it("stamps the creator as the caller, whatever the row says", async () => {
-        const opened = await tryInsert(await clientFor("outsider"), "sor_canvasses", { component_id: compWrite, created_by: ids.dealOwner })
-        expect(opened.ok).toBe(true)
-        const [row] = await asSvc(svc().from("sor_canvasses").select("created_by").eq("id", opened.id), "row")
-        expect(row.created_by).toBe(ids.outsider)
-        await svc().from("sor_canvasses").delete().eq("id", opened.id)
-    })
-
-    it("refuses the Deal Team, a Stage Participant, is_head alone and an outsider", async () => {
-        const canvass = await makeCanvass(compWrite)
-        const offer = await makeOffer(canvass.id)
-        for (const who of ["dealOwner", "support", "stageParticipant", "head", "ordinary"]) {
-            const client = await clientFor(who)
-            const open = await tryInsert(client, "sor_canvasses", { component_id: compWrite })
-            expect(open, `${who} opens`).toMatchObject({ ok: false, code: RLS_VIOLATION })
-            const add = await tryInsert(client, "sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Sneak" })
-            expect(add, `${who} adds an Offer`).toMatchObject({ ok: false, code: RLS_VIOLATION })
-            const price = await client.from("sor_canvass_offer_prices").insert({ offer_id: offer.id, unit_price: 1 })
-            expect(price.error?.code, `${who} prices`).toBe(RLS_VIOLATION)
-
-            expect((await tryUpdate(client, "sor_canvasses", canvass.id, { reason: "x" })).affected, `${who} edits`).toBe(0)
-            expect((await tryUpdate(client, "sor_canvass_offers", offer.id, { supplier_name: "x" })).affected, `${who} edits an Offer`).toBe(0)
-            const reprice = await client.from("sor_canvass_offer_prices").update({ unit_price: 1 }).eq("offer_id", offer.id).select("offer_id")
-            expect(reprice.data ?? [], `${who} reprices`).toHaveLength(0)
-            expect((await tryDelete(client, "sor_canvass_offers", offer.id)).affected, `${who} deletes`).toBe(0)
-        }
-        const [kept] = await asSvc(svc().from("sor_canvasses").select("reason").eq("id", canvass.id), "row")
-        expect(kept.reason).toBeNull()
-        await svc().from("sor_canvasses").delete().eq("id", canvass.id)
-    })
-})
-
-describe("who reads", () => {
-    let canvass, offer
+describe("a quote", () => {
+    let canvass, supplier, second
 
     beforeAll(async () => {
-        canvass = await makeCanvass(compRead)
-        offer = await makeOffer(canvass.id, { currency: "USD", supplier_name: "Hong Kong" }, { unit_price: 1280, comparison_rate: 56.5625 })
+        const made = await addSupplier(requestId, { supplier_name: "[policy-tier] Quoter" })
+        canvass = made.data.canvass_id
+        supplier = made.data.supplier.id
+        second = (await addSupplier(requestId, { supplier_name: "[policy-tier] Quoter two" })).data.supplier.id
+    })
+    afterAll(() => wipe(requestId))
+
+    it("is one supplier's answer on one line, with its price row, saved together", async () => {
+        const client = await clientFor("outsider")
+        const saved = await client.rpc("canvass_save_quote", {
+            p_supplier_id: supplier,
+            p_item_id: lineA,
+            p_quote: { brand: "Acme", description: "Rope 10mm", source_link: "https://example.com/rope", remarks: "stock" },
+            p_price: { unit_price: 125.5 },
+        })
+        expect(saved.error).toBeNull()
+        expect(saved.data).toMatchObject({ brand: "Acme", description: "Rope 10mm", canvass_id: canvass, item_id: lineA })
+        const price = await asSvc(svc().from("request_canvass_quote_prices").select("unit_price").eq("quote_id", saved.data.id).single(), "price")
+        expect(Number(price.unit_price)).toBe(125.5)
     })
 
-    it("shows Purchasing and a Super Admin the Canvass, its Offers and the prices", async () => {
-        for (const who of ["outsider", "superAdmin"]) {
-            const client = await clientFor(who)
-            expect(await canRead(client, "sor_canvasses", canvass.id), `${who} reads the Canvass`).toBe(true)
-            expect(await canRead(client, "sor_canvass_offers", offer.id), `${who} reads the Offer`).toBe(true)
-            const { data } = await client.from("sor_canvass_offer_prices").select("*").eq("offer_id", offer.id)
-            expect(data, `${who} reads the price`).toEqual([expect.objectContaining({ unit_price: 1280, comparison_rate: 56.5625 })])
-            const money = await client.rpc("canvass_subject_can_read_money", { p_component_id: compRead, p_requested_item_id: null })
-            expect(money.data, `${who} money`).toBe(true)
-        }
+    it("is saved again as an edit, touching only the keys sent", async () => {
+        const client = await clientFor("outsider")
+        const saved = await client.rpc("canvass_save_quote", { p_supplier_id: supplier, p_item_id: lineA, p_quote: { remarks: "out of stock" }, p_price: {} })
+        expect(saved.data).toMatchObject({ brand: "Acme", remarks: "out of stock" })
+        const rows = await asSvc(svc().from("request_canvass_quotes").select("id").eq("supplier_id", supplier).eq("item_id", lineA), "quotes")
+        expect(rows).toHaveLength(1)
+        const price = await asSvc(svc().from("request_canvass_quote_prices").select("unit_price").eq("quote_id", saved.data.id).single(), "price")
+        expect(Number(price.unit_price)).toBe(125.5)
     })
 
-    it("shows the Deal Team the Canvass, its Offers and the prices (the Deal Team reads the Closed Book since 20261102170000)", async () => {
-        for (const who of ["dealOwner", "support"]) {
-            const client = await clientFor(who)
-            expect(await canRead(client, "sor_canvasses", canvass.id), `${who} reads the Canvass`).toBe(true)
-            expect(await canRead(client, "sor_canvass_offers", offer.id), `${who} reads the Offer`).toBe(true)
-            const { data, error } = await client.from("sor_canvass_offer_prices").select("*").eq("offer_id", offer.id)
-            expect(error).toBeNull()
-            expect(data, `${who} price`).toHaveLength(1)
-            const money = await client.rpc("canvass_subject_can_read_money", { p_component_id: compRead, p_requested_item_id: null })
-            expect(money.data, `${who} money`).toBe(true)
-        }
+    it("lets a supplier skip a line", async () => {
+        const rows = await asSvc(svc().from("request_canvass_quotes").select("item_id").eq("supplier_id", supplier), "quotes")
+        expect(rows.map((r) => r.item_id)).toEqual([lineA])
     })
 
-    it("shows a Stage Participant the Offers and not the prices", async () => {
-        const client = await clientFor("stageParticipant")
-        expect(await canRead(client, "sor_canvasses", canvass.id)).toBe(true)
-        expect(await canRead(client, "sor_canvass_offers", offer.id)).toBe(true)
-        const { data, error } = await client.from("sor_canvass_offer_prices").select("*").eq("offer_id", offer.id)
-        expect(error).toBeNull()
-        expect(data).toEqual([])
-        const money = await client.rpc("canvass_subject_can_read_money", { p_component_id: compRead, p_requested_item_id: null })
-        expect(money.data).toBe(false)
+    it("is one per supplier per line", async () => {
+        const dup = await svc().from("request_canvass_quotes").insert({ canvass_id: canvass, supplier_id: supplier, item_id: lineA })
+        expect(dup.error.code).toBe(UNIQUE_VIOLATION)
     })
 
-    it("shows nothing to someone with no part in the SOR", async () => {
-        for (const who of ["ordinary", "head"]) {
-            const client = await clientFor(who)
-            expect(await canRead(client, "sor_canvasses", canvass.id), `${who} Canvass`).toBe(false)
-            expect(await canRead(client, "sor_canvass_offers", offer.id), `${who} Offer`).toBe(false)
-            const { data } = await client.from("sor_canvass_offer_prices").select("*").eq("offer_id", offer.id)
-            expect(data, `${who} price`).toEqual([])
-        }
-    })
-})
-
-describe("the migration", () => {
-    it("raises when a Canvass table holds a row, and changes nothing", async () => {
-        const client = await sql().connect()
-        try {
-            await client.query("begin")
-            // Put the database back to what the migration expects to find, with a row in it.
-            await client.query("alter table public.sor_canvasses add column procurement_request_id uuid")
-            await client.query("insert into public.sor_canvasses (component_id) values ($1)", [compMigration])
-            await expect(client.query(MIGRATION)).rejects.toThrow(/refusing to re-point/)
-        } finally {
-            await client.query("rollback").catch(() => {})
-            client.release()
-        }
-        const { data } = await svc().from("sor_canvasses").select("id").eq("component_id", compMigration)
-        expect(data).toEqual([])
+    it("has to be on a line of the Canvass's own request", async () => {
+        const client = await clientFor("outsider")
+        const foreign = await client.rpc("canvass_save_quote", { p_supplier_id: supplier, p_item_id: otherLine, p_quote: {}, p_price: {} })
+        expect(foreign.error.code).toBe(CHECK_VIOLATION)
     })
 
-    it("runs again over empty tables without complaint", async () => {
-        const client = await sql().connect()
-        try {
-            await client.query("begin")
-            await client.query(MIGRATION)
-        } finally {
-            await client.query("rollback").catch(() => {})
-            client.release()
-        }
+    it("refuses a negative price", async () => {
+        const client = await clientFor("outsider")
+        const saved = await client.rpc("canvass_save_quote", { p_supplier_id: second, p_item_id: lineB, p_quote: {}, p_price: { unit_price: -1 } })
+        expect(saved.error.code).toBe(CHECK_VIOLATION)
+    })
+
+    it("goes with its line, and with its supplier", async () => {
+        const client = await clientFor("outsider")
+        await client.rpc("canvass_save_quote", { p_supplier_id: second, p_item_id: lineB, p_quote: { brand: "Gone" }, p_price: { unit_price: 1 } })
+        await asSvc(svc().from("request_canvass_suppliers").delete().eq("id", second), "supplier")
+        const left = await asSvc(svc().from("request_canvass_quotes").select("id").eq("supplier_id", second), "quotes")
+        expect(left).toEqual([])
     })
 })
 
-describe("canvass_add_offer", () => {
+describe("a winner", () => {
+    let supplier, other, canvass
+
+    beforeAll(async () => {
+        const client = await clientFor("outsider")
+        const made = await addSupplier(requestId, { supplier_name: "[policy-tier] Winner" })
+        canvass = made.data.canvass_id
+        supplier = made.data.supplier.id
+        other = (await addSupplier(requestId, { supplier_name: "[policy-tier] Runner up" })).data.supplier.id
+        await client.rpc("canvass_save_quote", { p_supplier_id: supplier, p_item_id: lineA, p_quote: { brand: "A" }, p_price: { unit_price: 10 } })
+        await client.rpc("canvass_save_quote", { p_supplier_id: other, p_item_id: lineA, p_quote: { brand: "B" }, p_price: { unit_price: 12 } })
+        // The rules for picking (three suppliers, a reason) are tested in 969; here the note covers them.
+        await asSvc(svc().from("request_canvass_no_other_supplier").insert({ canvass_id: canvass, reason: "Two quoted" }), "note")
+    })
+    afterAll(() => wipe(requestId))
+
+    it("is one per line, with its reason, and replaces the line's winner", async () => {
+        const client = await clientFor("outsider")
+        const first = await client.from("request_canvass_winners").upsert({ item_id: lineA, supplier_id: supplier, reason: "Cheapest" }, { onConflict: "item_id" }).select()
+        expect(first.error).toBeNull()
+        const second = await client.from("request_canvass_winners").upsert({ item_id: lineA, supplier_id: other, reason: "Faster" }, { onConflict: "item_id" }).select()
+        expect(second.error).toBeNull()
+        const rows = await asSvc(svc().from("request_canvass_winners").select("supplier_id, reason").eq("item_id", lineA), "winners")
+        expect(rows).toEqual([{ supplier_id: other, reason: "Faster" }])
+        const twice = await svc().from("request_canvass_winners").insert({ item_id: lineA, supplier_id: supplier, reason: "Again" })
+        expect(twice.error.code).toBe(UNIQUE_VIOLATION)
+    })
+
+    it("has to be a supplier that quoted the line", async () => {
+        const refused = await svc().from("request_canvass_winners").insert({ item_id: lineB, supplier_id: supplier, reason: "Not a quoter" })
+        expect(refused.error.code).toBe(FOREIGN_KEY_VIOLATION)
+    })
+
+    it("goes when its quote does", async () => {
+        await asSvc(svc().from("request_canvass_quotes").delete().eq("supplier_id", other).eq("item_id", lineA), "quote")
+        const rows = await asSvc(svc().from("request_canvass_winners").select("item_id").eq("item_id", lineA), "winners")
+        expect(rows).toEqual([])
+    })
+})
+
+describe("the No other supplier note", () => {
     let canvass
 
     beforeAll(async () => {
-        canvass = await makeCanvass(compAdd)
+        canvass = (await addSupplier(requestId)).data.canvass_id
+    })
+    afterAll(() => wipe(requestId))
+
+    it("is one per Canvass, written by Purchasing, and needs a reason", async () => {
+        const client = await clientFor("outsider")
+        const blank = await client.from("request_canvass_no_other_supplier").insert({ canvass_id: canvass, reason: "  " })
+        expect(blank.error.code).toBe(CHECK_VIOLATION)
+        const note = await client.from("request_canvass_no_other_supplier").insert({ canvass_id: canvass, reason: "Sole distributor", actor_id: ids.outsider })
+        expect(note.error).toBeNull()
+        const twice = await svc().from("request_canvass_no_other_supplier").insert({ canvass_id: canvass, reason: "Again" })
+        expect(twice.error.code).toBe(UNIQUE_VIOLATION)
+    })
+})
+
+describe("who reads, who writes, who sees money", () => {
+    let canvass, usd, quote
+
+    beforeAll(async () => {
+        const client = await clientFor("outsider")
+        const made = await addSupplier(requestId, { supplier_name: "[policy-tier] Visible", currency: "USD" }, { comparison_rate: 63.5 })
+        canvass = made.data.canvass_id
+        usd = made.data.supplier.id
+        const saved = await client.rpc("canvass_save_quote", { p_supplier_id: usd, p_item_id: lineA, p_quote: { brand: "Visible" }, p_price: { unit_price: 99 } })
+        quote = saved.data.id
+        await asSvc(svc().from("request_canvass_no_other_supplier").insert({ canvass_id: canvass, reason: "Sole" }), "note")
+        await asSvc(svc().from("request_canvass_winners").insert({ item_id: lineA, supplier_id: usd, reason: "Only one" }), "winner")
+    })
+    afterAll(() => wipe(requestId))
+
+    it.each(["outsider", "superAdmin", "finance", "dealOwner"])("%s reads the Canvass, its suppliers, quotes, winners and note", async (who) => {
+        const client = await clientFor(who)
+        expect((await client.from("request_canvasses").select("id").eq("id", canvass)).data, who).toHaveLength(1)
+        expect((await client.from("request_canvass_suppliers").select("id").eq("id", usd)).data, who).toHaveLength(1)
+        expect((await client.from("request_canvass_quotes").select("id").eq("id", quote)).data, who).toHaveLength(1)
+        expect((await client.from("request_canvass_winners").select("item_id").eq("item_id", lineA)).data, who).toHaveLength(1)
+        expect((await client.from("request_canvass_no_other_supplier").select("canvass_id").eq("canvass_id", canvass)).data, who).toHaveLength(1)
     })
 
-    const add = async (who, offer, price = {}) => (await clientFor(who)).rpc("canvass_add_offer", { p_canvass_id: canvass.id, p_offer: offer, p_price: price })
-    const offersOf = async () => asSvc(svc().from("sor_canvass_offers").select("id, sort_order, supplier_name, currency").eq("canvass_id", canvass.id).order("sort_order"), "Offers")
-
-    it("adds the Offer and its prices row in one call, appended in order", async () => {
-        const first = await add("outsider", { supplier_name: "Redleaf Inc.", brochure: [], created_by: ids.outsider }, { unit_price: 78000 })
-        expect(first.error).toBeNull()
-        expect(first.data).toMatchObject({ supplier_name: "Redleaf Inc.", currency: "PHP", sort_order: 0, created_by: ids.outsider })
-
-        const second = await add("outsider", { supplier_name: "Ferno", currency: "USD" }, { unit_price: 1280, comparison_rate: 56.5625 })
-        expect(second.error).toBeNull()
-        expect(second.data.sort_order).toBe(1)
-
-        const prices = await asSvc(svc().from("sor_canvass_offer_prices").select("offer_id, unit_price, comparison_rate").in("offer_id", [first.data.id, second.data.id]), "prices")
-        expect(prices.find((p) => p.offer_id === first.data.id)).toMatchObject({ unit_price: 78000, comparison_rate: null })
-        expect(prices.find((p) => p.offer_id === second.data.id)).toMatchObject({ unit_price: 1280, comparison_rate: 56.5625 })
+    it.each(["outsider", "superAdmin", "finance"])("%s sees the unit price and the comparison rate", async (who) => {
+        const client = await clientFor(who)
+        const price = await client.from("request_canvass_quote_prices").select("unit_price").eq("quote_id", quote)
+        expect(price.data, who).toHaveLength(1)
+        expect(Number(price.data[0].unit_price)).toBe(99)
+        const rate = await client.from("request_canvass_supplier_prices").select("comparison_rate").eq("supplier_id", usd)
+        expect(rate.data, who).toHaveLength(1)
+        expect((await client.rpc("canvass_can_read_money", { p_canvass_id: canvass })).data, who).toBe(true)
     })
 
-    it("writes a blank prices row when no price is given", async () => {
-        const { data, error } = await add("outsider", { brand: "Unpriced" })
-        expect(error).toBeNull()
-        const rows = await asSvc(svc().from("sor_canvass_offer_prices").select("unit_price, comparison_rate").eq("offer_id", data.id), "prices")
-        expect(rows).toEqual([{ unit_price: null, comparison_rate: null }])
+    it("shows a member without the money tier the names, and no price and no rate", async () => {
+        const client = await clientFor("dealOwner")
+        const price = await client.from("request_canvass_quote_prices").select("*").eq("quote_id", quote)
+        expect(price.error).toBeNull()
+        expect(price.data).toEqual([])
+        const rate = await client.from("request_canvass_supplier_prices").select("*").eq("supplier_id", usd)
+        expect(rate.data).toEqual([])
+        expect((await client.rpc("canvass_can_read_money", { p_canvass_id: canvass })).data).toBe(false)
     })
 
-    it("leaves no Offer behind when the prices row is refused", async () => {
-        const before = (await offersOf()).length
-        const { error } = await add("outsider", { supplier_name: "Bad rate", currency: "PHP" }, { unit_price: 10, comparison_rate: 2 })
-        expect(error?.code).toBe(CHECK_VIOLATION)
-        expect(await offersOf()).toHaveLength(before)
-    })
-
-    it("runs as the caller, so the Canvass policies still refuse a reader without write access", async () => {
-        const before = (await offersOf()).length
-        for (const who of ["dealOwner", "stageParticipant", "head", "ordinary"]) {
-            const { error } = await add(who, { supplier_name: "Not allowed" }, { unit_price: 1 })
-            expect(error, who).not.toBeNull()
+    it("shows someone who is not on the request nothing at all", async () => {
+        const client = await clientFor("ordinary")
+        for (const [table, column, value] of [
+            ["request_canvasses", "id", canvass],
+            ["request_canvass_suppliers", "id", usd],
+            ["request_canvass_quotes", "id", quote],
+            ["request_canvass_winners", "item_id", lineA],
+            ["request_canvass_no_other_supplier", "canvass_id", canvass],
+            ["request_canvass_quote_prices", "quote_id", quote],
+            ["request_canvass_supplier_prices", "supplier_id", usd],
+        ]) {
+            const { data } = await client.from(table).select("*").eq(column, value)
+            expect(data, table).toEqual([])
         }
-        expect(await offersOf()).toHaveLength(before)
+    })
+
+    it("lets Purchasing and a Super Admin write, and no one else", async () => {
+        for (const who of ["outsider", "superAdmin"]) {
+            const client = await clientFor(who)
+            const edit = await client.from("request_canvass_suppliers").update({ lead_time: `${who} 3 days` }).eq("id", usd).select("lead_time")
+            expect(edit.data, who).toEqual([{ lead_time: `${who} 3 days` }])
+        }
+        for (const who of ["dealOwner", "finance", "ordinary", "head"]) {
+            const client = await clientFor(who)
+            const edit = await client.from("request_canvass_suppliers").update({ lead_time: "hacked" }).eq("id", usd).select("lead_time")
+            expect(edit.data ?? [], who).toEqual([])
+            const winner = await client.from("request_canvass_winners").update({ reason: "hacked" }).eq("item_id", lineA).select("reason")
+            expect(winner.data ?? [], who).toEqual([])
+            const price = await client.from("request_canvass_quote_prices").update({ unit_price: 1 }).eq("quote_id", quote).select("unit_price")
+            expect(price.data ?? [], who).toEqual([])
+            const removed = await client.from("request_canvass_quotes").delete().eq("id", quote).select("id")
+            expect(removed.data ?? [], who).toEqual([])
+        }
+        const intact = await asSvc(svc().from("request_canvass_quote_prices").select("unit_price").eq("quote_id", quote).single(), "price")
+        expect(Number(intact.unit_price)).toBe(99)
+    })
+
+    it("refuses a person without Purchasing access the add-supplier and save-quote functions", async () => {
+        for (const who of ["dealOwner", "finance", "ordinary", "head"]) {
+            const add = await addSupplier(requestId, {}, {}, who)
+            expect(add.error?.code, who).toBe(INSUFFICIENT_PRIVILEGE)
+            const client = await clientFor(who)
+            const save = await client.rpc("canvass_save_quote", { p_supplier_id: usd, p_item_id: lineB, p_quote: { brand: "no" }, p_price: { unit_price: 1 } })
+            expect(save.error, who).not.toBeNull()
+        }
+        const none = await asSvc(svc().from("request_canvass_quotes").select("id").eq("supplier_id", usd).eq("item_id", lineB), "quotes")
+        expect(none).toEqual([])
+    })
+
+    it("lists the Canvass to a reader of the request, by name and count, for one row per request", async () => {
+        const client = await clientFor("dealOwner")
+        const { data, error } = await client.rpc("canvass_list")
+        expect(error).toBeNull()
+        const mine = data.filter((row) => row.id === canvass)
+        expect(mine).toHaveLength(1)
+        expect(mine[0]).toMatchObject({ request_id: requestId, supplier_count: 1, quoted_line_count: 1, winner_count: 1 })
+        expect(Object.keys(mine[0]).some((key) => /price|rate/.test(key))).toBe(false)
+        const nobody = await (await clientFor("ordinary")).rpc("canvass_list")
+        expect(nobody.data.filter((row) => row.id === canvass)).toEqual([])
     })
 })

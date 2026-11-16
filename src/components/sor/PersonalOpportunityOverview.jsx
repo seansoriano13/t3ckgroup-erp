@@ -1,3 +1,4 @@
+import { sorsHref } from "@/utils/listLinks";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -74,9 +75,7 @@ export default function PersonalOpportunityOverview({ opportunities }) {
   }, [mine, pipelineStages, snapshotsById]);
 
   const goToStage = (status) => {
-    navigate("/sors", {
-      state: { filterEmployeeId: user?.id, filterStatus: status },
-    });
+    navigate(sorsHref({ employee: user?.id, status }));
   };
 
   if (stats.total === 0) return null;
@@ -97,7 +96,7 @@ export default function PersonalOpportunityOverview({ opportunities }) {
       <ReportFigure
         className="mb-5"
         stats={[
-          { label: "Open", value: stats.open, sub: "In progress", onClick: () => navigate("/sors", { state: { filterEmployeeId: user?.id } }) },
+          { label: "Open", value: stats.open, sub: "In progress", onClick: () => navigate(sorsHref({ employee: user?.id })) },
           { label: "Value", value: formatPHP(stats.value), sub: "Total pipeline" },
           { label: "Won", value: stats.won, sub: "Closed won", onClick: () => goToStage(wonCode) },
           { label: "Lost", value: stats.lost, sub: "Closed lost", onClick: () => goToStage("LOST") },

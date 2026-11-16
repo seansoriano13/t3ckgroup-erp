@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router";
 import EmployeeManagement from "@/pages/hr/management/index";
 import { renderWithProviders, setupUser } from "@/test/support";
-import { makeEmployee, makeHrEmployee } from "@/test/factories";
+import { makeEmployee, makeHrEmployee, makeSuperAdmin } from "@/test/factories";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -208,5 +208,43 @@ describe("EmployeeManagement", () => {
 
     expect(await screen.findByText("Emp 30")).toBeInTheDocument();
     expect(screen.queryByText("Emp 01")).not.toBeInTheDocument();
+  });
+
+  it("opens Edit when a row is clicked, and marks the required fields", async () => {
+    const user = setupUser();
+    makeEmployee({ name: "Row Click Worker" });
+    renderWithProviders(
+      <MemoryRouter>
+        <EmployeeManagement />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByText("Row Click Worker"));
+    const modal = await screen.findByRole("dialog");
+    expect(within(modal).getByText("Full Name").textContent).toContain("*");
+    expect(within(modal).getByText("Google Auth Email").textContent).toContain("*");
+    expect(within(modal).getByText("Department")).toBeInTheDocument();
+    expect(within(modal).getByText("Sub-department")).toBeInTheDocument();
+  });
+
+  it("shows Copy ID only to Super Admins, never the UUID", async () => {
+    const emp = makeEmployee({ name: "Id Worker" });
+    const { unmount } = renderWithProviders(
+      <MemoryRouter>
+        <EmployeeManagement />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Id Worker");
+    expect(screen.queryByText("Copy ID")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain(emp.id.slice(0, 8));
+    unmount();
+
+    mockUser.current = { ...makeSuperAdmin({ name: "Boss" }), isSuperAdmin: true, isHr: true };
+    renderWithProviders(
+      <MemoryRouter>
+        <EmployeeManagement />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Id Worker");
+    expect(screen.getAllByText("Copy ID").length).toBeGreaterThan(0);
   });
 });

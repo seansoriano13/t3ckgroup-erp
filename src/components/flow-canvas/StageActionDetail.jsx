@@ -115,7 +115,7 @@ export default function StageActionDetail({
         <>
           <Field label="S0 Evaluation">{costingMatrixSummary(config, nameOf)}</Field>
           {config.purchasingIncharge?.id ? null : (
-            <Field label="Who assigns the Purchasing Incharge">
+            <Field label="Who assigns the Purchasing in-charge">
               {(config.assigners ?? []).length === 0
                 ? "Nobody is told"
                 : config.assigners.map((s) => deciderLabel(s, nameOf)).join(", ")}

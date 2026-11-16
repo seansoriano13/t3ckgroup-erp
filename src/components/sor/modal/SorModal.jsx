@@ -71,6 +71,7 @@ export default function SorModal({
   siblingIds,
   onNavigate,
   initialView = null,
+  onViewChange = null,
 }) {
   const { user } = useAuth();
   const id = rawOpportunity?.id || opportunityId;
@@ -483,7 +484,7 @@ export default function SorModal({
         }
       }
       invalidate();
-      toast.success("Opportunity updated.");
+      toast.success("SOR updated.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -535,7 +536,7 @@ export default function SorModal({
     mutationFn: () => opportunityService.deleteOpportunity(id, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
-      toast.success("Opportunity deleted.");
+      toast.success("SOR deleted.");
       onClose();
     },
     onError: (err) => toast.error(err.message),
@@ -990,6 +991,7 @@ export default function SorModal({
     notes,
     canViewJourney,
     initialView,
+    onViewChange,
     isWide,
     hasOpened,
     markOpened,

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import ModalShell from '@/components/ui/ModalShell';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
@@ -8,7 +8,7 @@ import { hrSettingsService } from '../../services/hrSettingsService';
 import { employeeService } from '../../services/employeeService';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Calendar, PlusCircle, Clock } from 'lucide-react';
+import { X } from 'lucide-react';
 import TabGroup from '../ui/TabGroup';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -26,6 +26,42 @@ import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { SelectField } from "@/components/ui/SelectField";
 const DEFAULT_DAY_HOURS = 8;
+
+/** A red line under a field that failed the submit check. */
+function FieldError({ children }) {
+  if (!children) return null;
+  return (
+    <p role="alert" className="px-1 pt-1 text-xs font-semibold text-destructive">
+      {children}
+    </p>
+  );
+}
+
+/**
+ * One labelled field: caption (with the red asterisk when required), the
+ * control, and its error line. `name` lets the submit check scroll to it.
+ */
+function Field({ name, label, required, error, className, children }) {
+  return (
+    <div data-field={name} className={className}>
+      <FieldBox label={label} required={required} className="block mb-1.5" />
+      {children}
+      <FieldError>{error}</FieldError>
+    </div>
+  );
+}
+
+const SUBMIT_LABEL = {
+  overtime: 'File overtime',
+  offset: 'File Offset',
+  sil: 'File leave',
+  undertime: 'File undertime',
+};
+
+function scrollToField(name) {
+  const el = document.querySelector(`[data-field="${name}"]`);
+  el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+}
 
 /**
  * A range day's starting hours: the length of that weekday's shift from the
@@ -62,7 +98,7 @@ const formatRangeDay = (date) =>
  * removable, so a half-day or a holiday inside the range stays expressible;
  * the actual grouping into one `leave_group_id` happens server-side.
  */
-function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange, dayHours, onDayHoursChange, dayShiftConfig }) {
+function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange, dayHours, onDayHoursChange, dayShiftConfig, errors = {} }) {
   const allDays = enumerateDateRange(startDate, endDate);
   const days = rangeFiledDays(startDate, endDate, dayShiftConfig, dayHours);
   const nonWorkingDays = allDays.filter((date) => !isWorkingDay(date, dayShiftConfig));
@@ -71,27 +107,25 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <FieldBox label="From" className="block mb-1.5" />
+        <Field name="rangeStart" label="From" required error={errors.rangeStart}>
           <Input
             type="date"
             value={startDate}
             onChange={(e) => onStartDateChange(e.target.value)}
             containerClassName="w-full" className="font-semibold"
-            required
+            error={!!errors.rangeStart}
           />
-        </div>
-        <div>
-          <FieldBox label="To" className="block mb-1.5" />
+        </Field>
+        <Field name="rangeEnd" label="To" required error={errors.rangeEnd}>
           <Input
             type="date"
             value={endDate}
             min={startDate || undefined}
             onChange={(e) => onEndDateChange(e.target.value)}
             containerClassName="w-full" className="font-semibold"
-            required
+            error={!!errors.rangeEnd}
           />
-        </div>
+        </Field>
       </div>
 
       {allDays.length > 0 && (
@@ -175,6 +209,8 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overtime'); // 'overtime' | 'offset' | 'sil' | 'undertime'
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  // Set by the first filing attempt on a tab: from then on its missing fields show a red line.
+  const [attempted, setAttempted] = useState(false);
 
   // Overtime State
   const [otDate, setOtDate] = useState('');
@@ -314,18 +350,125 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     }
   }, [utDate, dayShiftConfig]);
 
+  // The hours the open Offset / Leave form would spend, as soon as they are
+  // known (the same net-of-lunch figure the server checks).
+  const rangeNetHours = (start, end, dayHours) =>
+    rangeFiledDays(start, end, dayShiftConfig, dayHours).reduce(
+      (sum, d) => sum + applyLunchDeduction(rangeDayHours(d, dayShiftConfig, dayHours)),
+      0,
+    );
+  const balanceCheck = (() => {
+    if (!employeeId) return null;
+    if (activeTab === 'offset') {
+      const needed = offsetApplyMode === 'range'
+        ? rangeNetHours(offsetRangeStart, offsetRangeEnd, offsetDayHours)
+        : currentOffsetHours;
+      return { needed, available: availableOffsetHours, noun: 'Offset' };
+    }
+    if (activeTab === 'sil' && leavePay === 'sil') {
+      const needed = silApplyMode === 'range'
+        ? rangeNetHours(silRangeStart, silRangeEnd, silDayHours)
+        : currentSilHours;
+      return { needed, available: availableSilHours, noun: 'SIL' };
+    }
+    return null;
+  })();
+  const shortfall = balanceCheck && balanceCheck.needed > balanceCheck.available
+    ? `You have ${balanceCheck.available} ${balanceCheck.noun} hours. This needs ${balanceCheck.needed}.`
+    : null;
+
+  // Every missing field of the open tab, in the order they appear. Empty
+  // object means the form can be filed.
+  const validate = () => {
+    const found = {};
+    const need = (key, ok, message) => {
+      if (!ok) found[key] = message;
+    };
+    if (showEmployeeSelector) need('employee', selectedEmployeeId, 'Choose an employee.');
+    const rangeNeeds = (start, end, dayHours) => {
+      need('rangeStart', start, 'Enter the first day.');
+      need('rangeEnd', end, 'Enter the last day.');
+      if (start && end && rangeFiledDays(start, end, dayShiftConfig, dayHours).length === 0) {
+        found.rangeEnd = 'No working days in this range.';
+      }
+    };
+    if (activeTab === 'overtime') {
+      need('otDate', otDate, 'Enter the date worked.');
+      need('otStart', otStartTime, 'Enter the start time.');
+      need('otEnd', otEndTime, 'Enter the end time.');
+      need('head', otHeadId, 'Choose a department head.');
+      need('reason', otReason.trim(), 'Enter the reason.');
+    } else if (activeTab === 'offset') {
+      if (offsetApplyMode === 'range') {
+        rangeNeeds(offsetRangeStart, offsetRangeEnd, offsetDayHours);
+      } else {
+        need('date', offsetDate, 'Enter the Offset date.');
+        need('start', offsetStartTime, 'Enter the start time.');
+        need('end', offsetEndTime, 'Enter the end time.');
+      }
+      need('head', offsetHeadId, 'Choose a department head.');
+      need('reason', offsetReason.trim(), 'Enter the reason.');
+    } else if (activeTab === 'sil') {
+      need('category', silCategoryId, 'Choose a category.');
+      if (silApplyMode === 'range') {
+        rangeNeeds(silRangeStart, silRangeEnd, silDayHours);
+      } else {
+        need('date', silDate, 'Enter the leave date.');
+        need('start', silStartTime, 'Enter the start time.');
+        need('end', silEndTime, 'Enter the end time.');
+      }
+      need('head', silHeadId || (canRecordAbsent && recordAbsent), 'Choose a department head.');
+      need('reason', silReason.trim(), 'Enter the reason.');
+    } else {
+      need('date', utDate, 'Enter the date.');
+      if (utDate) {
+        try {
+          assertNotWeekend(utDate);
+        } catch (err) {
+          found.date = err.message;
+        }
+      }
+      need('origStart', utOriginalStart, 'Enter the original start time.');
+      need('origEnd', utOriginalEnd, 'Enter the original end time.');
+      need('actStart', utActualStart, 'Enter the actual start time.');
+      need('actEnd', utActualEnd, 'Enter the actual end time.');
+      need('head', utHeadId, 'Choose a department head.');
+      need('reason', utReason.trim(), 'Enter the purpose.');
+    }
+    return found;
+  };
+
+  // After the first filing attempt the errors follow the form live, so a
+  // line clears as soon as its field is filled.
+  const errors = attempted ? validate() : {};
+
+  // True (and the first missing field in view) when the form is not ready.
+  const blocked = () => {
+    const found = validate();
+    setAttempted(true);
+    const first = Object.keys(found)[0];
+    if (first) scrollToField(first);
+    return Boolean(first);
+  };
+
+  const submitting = { overtime: otSubmitting, offset: offsetSubmitting, sil: silSubmitting, undertime: utSubmitting }[activeTab];
+  const uploading = { overtime: otFiles, offset: offsetFiles, sil: silFiles, undertime: utFiles }[activeTab].isUploading;
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const handler = {
+      overtime: handleApplyOvertime,
+      offset: handleApplyOffsetLeave,
+      sil: handleApplySilLeave,
+      undertime: handleApplyUndertime,
+    }[activeTab];
+    return handler(e);
+  };
+
   if (!isOpen) return null;
 
   const handleApplyOvertime = async (e) => {
     e.preventDefault();
-    if (!employeeId || !otHeadId) {
-      toast.error('Please fill in all fields.');
-      return;
-    }
-    if (!otDate || !otStartTime || !otEndTime || !otReason) {
-      toast.error('Please fill in all fields.');
-      return;
-    }
+    if (blocked()) return;
 
     setOtSubmitting(true);
     try {
@@ -358,17 +501,10 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   const handleApplyOffsetLeave = async (e) => {
     e.preventDefault();
-    if (!employeeId || !offsetHeadId) {
-      toast.error('Please fill in all fields.');
-      return;
-    }
+    if (blocked()) return;
 
     if (offsetApplyMode === 'range') {
       const days = rangeFiledDays(offsetRangeStart, offsetRangeEnd, dayShiftConfig, offsetDayHours);
-      if (days.length === 0 || !offsetReason) {
-        toast.error('Please fill in all fields.');
-        return;
-      }
 
       setOffsetSubmitting(true);
       try {
@@ -395,11 +531,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       } finally {
         setOffsetSubmitting(false);
       }
-      return;
-    }
-
-    if (!offsetDate || !offsetStartTime || !offsetEndTime || !offsetReason) {
-      toast.error('Please fill in all fields.');
       return;
     }
 
@@ -436,12 +567,9 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     e.preventDefault();
     const isLwop = leavePay === 'lwop';
     const recording = canRecordAbsent && recordAbsent;
-    if (!employeeId || (!silHeadId && !recording)) {
-      toast.error('Please fill in all fields.');
-      return;
-    }
+    if (blocked()) return;
 
-    const leaveLabel = isLwop ? 'LWOP' : 'SIL leave';
+    const leaveLabel = isLwop ? 'LWOP' : 'SIL';
     const filedRange = isLwop ? lwopService.applyLwopLeaveRange : silService.applySilLeaveRange;
     const filedOne = isLwop ? lwopService.applyLwopLeave : silService.applySilLeave;
     // Recording as absent files the LWOP on the employee's behalf, then marks it approved.
@@ -458,10 +586,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
     if (silApplyMode === 'range') {
       const days = rangeFiledDays(silRangeStart, silRangeEnd, dayShiftConfig, silDayHours);
-      if (days.length === 0 || !silReason || !silCategoryId) {
-        toast.error('Please fill in all fields.');
-        return;
-      }
 
       setSilSubmitting(true);
       try {
@@ -490,11 +614,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       } finally {
         setSilSubmitting(false);
       }
-      return;
-    }
-
-    if (!silDate || !silStartTime || !silEndTime || !silReason || !silCategoryId) {
-      toast.error('Please fill in all fields.');
       return;
     }
 
@@ -531,21 +650,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   const handleApplyUndertime = async (e) => {
     e.preventDefault();
-    if (!employeeId || !utHeadId) {
-      toast.error('Please fill in all fields.');
-      return;
-    }
-    if (!utDate || !utOriginalStart || !utOriginalEnd || !utActualStart || !utActualEnd || !utReason) {
-      toast.error('Please fill in all fields.');
-      return;
-    }
-
-    try {
-      assertNotWeekend(utDate);
-    } catch (err) {
-      toast.error(err.message);
-      return;
-    }
+    if (blocked()) return;
 
     setUtSubmitting(true);
     try {
@@ -580,27 +685,90 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     }
   };
 
+  const switchTab = (tab) => {
+    setActiveTab(tab);
+    setAttempted(false);
+  };
+
+  const headField = (value, onChange) => (
+    <div data-field="head">
+      <HeadSelectField employee={selectedEmployee} value={value} onChange={onChange} required error={errors.head} />
+    </div>
+  );
+
+  const reasonField = (label, value, onChange, placeholder) => (
+    <Field name="reason" label={label} required error={errors.reason}>
+      <Textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        aria-invalid={errors.reason ? true : undefined}
+        className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
+      />
+    </Field>
+  );
+
+  const timeField = (name, label, value, onChange) => (
+    <Field name={name} label={label} required error={errors[name]}>
+      <Input
+        type="time"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        containerClassName="w-full" className="font-semibold"
+        error={!!errors[name]}
+      />
+    </Field>
+  );
+
+  const dateField = (name, label, value, onChange) => (
+    <Field name={name} label={label} required error={errors[name]}>
+      <Input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        containerClassName="w-full" className="font-semibold"
+        error={!!errors[name]}
+      />
+    </Field>
+  );
+
+  // Plain ink on purpose: a coloured balance reads as "fine" even at 0 hrs.
+  const balanceLine = (hours, pending) => (
+    <div className="text-xs font-semibold text-muted-foreground px-1">
+      Available: <span className="text-foreground font-black">{hours} hrs</span>
+      {pending > 0 && ` (${pending} hrs already committed to pending applications)`}
+    </div>
+  );
+
+  const modeSwitch = (mode, setMode) => (
+    <TabGroup
+      variant="pill"
+      tabs={[
+        { value: 'single', label: 'Single day' },
+        { value: 'range', label: 'Date range' },
+      ]}
+      activeTab={mode}
+      onChange={setMode}
+      size="sm"
+    />
+  );
+
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showCloseButton={false} className="max-w-md sm:max-w-md flex flex-col overflow-hidden p-0 gap-0">
-
-        {/* Header */}
-        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-border flex items-center justify-between bg-muted/30 shrink-0 max-sm:pt-[calc(0.75rem+env(safe-area-inset-top))]">
-          <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
-            Time Off & Overtime
-          </h2>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onClose}
-            className="h-auto w-auto text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
-          >
-            <X size={18} strokeWidth={2.5} />
-          </Button>
-        </div>
-
-        {/* Type tabs stay pinned under the header while the form scrolls */}
-        <div className="shrink-0 border-b border-border bg-popover px-4 py-2 sm:px-6">
+    <ModalShell
+      open
+      onOpenChange={(open) => !open && onClose()}
+      crumbs={showEmployeeSelector ? ['Time Off & Overtime', 'File for Employee'] : ['My Requests', 'File Time Off']}
+      title={showEmployeeSelector ? 'File Time Off or Overtime for an Employee' : 'File Time Off or Overtime'}
+      onSubmit={handleSubmit}
+      actions={
+        <Button type="submit" disabled={submitting || Boolean(shortfall)}>
+          {submitting ? (uploading ? 'Uploading files...' : 'Submitting...') : SUBMIT_LABEL[activeTab]}
+        </Button>
+      }
+    >
+      {/* Type tabs stay pinned under the header while the form scrolls */}
+      <div className="sticky -top-3 z-10 -mx-5 -mt-3 shrink-0 border-b border-border bg-popover px-5 py-2">
         <TabGroup
           variant="pill"
           tabs={[
@@ -610,469 +778,202 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
             { value: 'undertime', label: 'Undertime' },
           ]}
           activeTab={activeTab}
-          onChange={setActiveTab}
+          onChange={switchTab}
           size="sm"
         />
-        </div>
+      </div>
 
-        {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          {showEmployeeSelector && (
-            <div>
-              <FieldBox label="Employee" className="block mb-1.5" />
-              <SelectField
-                value={selectedEmployeeId}
-                onChange={setSelectedEmployeeId}
-                options={employees.map((x) => ({ value: x.id, label: x.name }))}
-                placeholder="Select employee..."
-                className="w-full"
-              />
+      {showEmployeeSelector && (
+        <Field name="employee" label="Employee" required error={errors.employee}>
+          <SelectField
+            value={selectedEmployeeId}
+            onChange={setSelectedEmployeeId}
+            options={employees.map((x) => ({ value: x.id, label: x.name }))}
+            placeholder="Select employee..."
+            className="w-full"
+          />
+        </Field>
+      )}
+
+      {activeTab === 'overtime' && (
+        <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="grid grid-cols-2 gap-4">
+            {dateField('otDate', 'Date Worked', otDate, setOtDate)}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {timeField('otStart', 'Start Time', otStartTime, setOtStartTime)}
+            {timeField('otEnd', 'End Time', otEndTime, setOtEndTime)}
+          </div>
+          {currentOtHours > 0 && (
+            <div className="text-xs font-semibold text-muted-foreground px-1">
+              Derived: {currentOtHours} hrs
             </div>
           )}
-
-          {activeTab === 'overtime' && (
-            <form onSubmit={handleApplyOvertime} className="space-y-4 animate-in fade-in duration-300">
-              <div className="flex items-center space-x-2 pb-2 mb-2 border-b border-border">
-                <PlusCircle size={16} className="text-primary" />
-                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
-                  Request Overtime
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <FieldBox label="Date Worked" />
-                  <Input
-                    type="date"
-                    value={otDate}
-                    onChange={(e) => setOtDate(e.target.value)}
-                    containerClassName="w-full" className="font-semibold"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <FieldBox label="Start Time" className="block mb-1.5" />
-                  <Input
-                    type="time"
-                    value={otStartTime}
-                    onChange={(e) => setOtStartTime(e.target.value)}
-                    containerClassName="w-full" className="font-semibold"
-                    required
-                  />
-                </div>
-                <div>
-                  <FieldBox label="End Time" className="block mb-1.5" />
-                  <Input
-                    type="time"
-                    value={otEndTime}
-                    onChange={(e) => setOtEndTime(e.target.value)}
-                    containerClassName="w-full" className="font-semibold"
-                    required
-                  />
-                </div>
-              </div>
-              {currentOtHours > 0 && (
-                <div className="text-xs font-semibold text-primary/80 px-1">
-                  Derived: {currentOtHours} hrs
-                </div>
-              )}
-              <HeadSelectField employee={selectedEmployee} value={otHeadId} onChange={setOtHeadId} />
-              <div>
-                <FieldBox label="Reason" className="block mb-1.5" />
-                <Textarea
-                  value={otReason}
-                  onChange={(e) => setOtReason(e.target.value)}
-                  placeholder="Reason for the overtime request"
-                  rows={3}
-                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
-                  required
-                />
-              </div>
-              <AttachmentField
-                label="Supporting Files"
-                attachments={otFiles}
-                disabled={otSubmitting}
-                hint={`Optional — approval email, logbook photo, or similar. Up to ${otFiles.max} files, 10.0 MB each.`}
-              />
-              <Button
-                type="submit"
-                disabled={otSubmitting}
-                className="w-full h-11 rounded-xl font-bold shadow-md cursor-pointer mt-4"
-              >
-                {otSubmitting
-                  ? otFiles.isUploading
-                    ? 'Uploading files...'
-                    : 'Submitting...'
-                  : 'Submit Request'}
-              </Button>
-            </form>
-          )}
-
-          {activeTab === 'offset' && (
-            <form onSubmit={handleApplyOffsetLeave} className="space-y-4 animate-in fade-in duration-300">
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
-                <div className="flex items-center space-x-2">
-                  <Calendar size={16} className="text-blue-11" />
-                  <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
-                    Request Offset
-                  </h3>
-                </div>
-                <TabGroup
-                  variant="pill"
-                  tabs={[
-                    { value: 'single', label: 'Single day' },
-                    { value: 'range', label: 'Date range' },
-                  ]}
-                  activeTab={offsetApplyMode}
-                  onChange={setOffsetApplyMode}
-                  size="sm"
-                />
-              </div>
-              {employeeId && (
-                <div className="text-xs font-semibold text-muted-foreground px-1">
-                  Available: <span className="text-blue-11 font-black">{availableOffsetHours} hrs</span>
-                  {pendingOffsetHours > 0 && ` (${pendingOffsetHours} hrs already committed to pending applications)`}
-                </div>
-              )}
-              {offsetApplyMode === 'range' ? (
-                <RangeDayEditor
-                  startDate={offsetRangeStart}
-                  endDate={offsetRangeEnd}
-                  onStartDateChange={setOffsetRangeStart}
-                  onEndDateChange={setOffsetRangeEnd}
-                  dayHours={offsetDayHours}
-                  onDayHoursChange={(date, hours) => setOffsetDayHours((prev) => ({ ...prev, [date]: hours }))}
-                  dayShiftConfig={dayShiftConfig}
-                />
-              ) : (
-                <>
-                  <div>
-                    <FieldBox label="Offset Date" className="block mb-1.5" />
-                    <Input
-                      type="date"
-                      value={offsetDate}
-                      onChange={(e) => setOffsetDate(e.target.value)}
-                      containerClassName="w-full" className="font-semibold"
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <FieldBox label="Start Time" className="block mb-1.5" />
-                      <Input
-                        type="time"
-                        value={offsetStartTime}
-                        onChange={(e) => setOffsetStartTime(e.target.value)}
-                        containerClassName="w-full" className="font-semibold"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <FieldBox label="End Time" className="block mb-1.5" />
-                      <Input
-                        type="time"
-                        value={offsetEndTime}
-                        onChange={(e) => setOffsetEndTime(e.target.value)}
-                        containerClassName="w-full" className="font-semibold"
-                        required
-                      />
-                    </div>
-                  </div>
-                  {currentOffsetHours > 0 && (
-                    <div className="text-xs font-semibold text-blue-11 px-1">
-                      Derived: {currentOffsetHours} hrs
-                      {currentOffsetHours !== currentOffsetHoursRaw && ' (meal break deducted)'}
-                    </div>
-                  )}
-                </>
-              )}
-              <HeadSelectField employee={selectedEmployee} value={offsetHeadId} onChange={setOffsetHeadId} />
-              <div>
-                <FieldBox label="Reason" className="block mb-1.5" />
-                <Textarea
-                  value={offsetReason}
-                  onChange={(e) => setOffsetReason(e.target.value)}
-                  placeholder="Reason for the Offset"
-                  rows={3}
-                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
-                  required
-                />
-              </div>
-              <AttachmentField
-                label="Supporting Files"
-                attachments={offsetFiles}
-                disabled={offsetSubmitting}
-                hint={`Optional — up to ${offsetFiles.max} files, 10.0 MB each. Images, PDFs and documents.`}
-              />
-              <Button
-                type="submit"
-                disabled={offsetSubmitting}
-                className="w-full h-11 rounded-xl font-bold bg-blue-9 hover:bg-blue-10 text-white shadow-md cursor-pointer mt-4"
-              >
-                {offsetSubmitting
-                  ? offsetFiles.isUploading
-                    ? 'Uploading files...'
-                    : 'Submitting...'
-                  : 'Apply for Leave'}
-              </Button>
-            </form>
-          )}
-
-          {activeTab === 'sil' && (
-            <form onSubmit={handleApplySilLeave} className="space-y-4 animate-in fade-in duration-300">
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
-                <div className="flex items-center space-x-2">
-                  <Calendar size={16} className="text-green-11" />
-                  <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
-                    {leavePay === 'lwop' ? 'Request Leave Without Pay' : 'Request Service Incentive Leave'}
-                  </h3>
-                </div>
-                <TabGroup
-                  variant="pill"
-                  tabs={[
-                    { value: 'single', label: 'Single day' },
-                    { value: 'range', label: 'Date range' },
-                  ]}
-                  activeTab={silApplyMode}
-                  onChange={setSilApplyMode}
-                  size="sm"
-                />
-              </div>
-              <div>
-                <FieldBox label="Pay" className="block mb-1.5" />
-                <TabGroup
-                  variant="pill"
-                  tabs={[
-                    { value: 'sil', label: 'With pay (SIL)' },
-                    { value: 'lwop', label: 'Without pay (LWOP)' },
-                  ]}
-                  activeTab={leavePay}
-                  onChange={setLeavePay}
-                  size="sm"
-                />
-              </div>
-              {employeeId && leavePay === 'sil' && (
-                <div className="text-xs font-semibold text-muted-foreground px-1">
-                  Available: <span className="text-green-11 font-black">{availableSilHours} hrs</span>
-                  {pendingSilHours > 0 && ` (${pendingSilHours} hrs already committed to pending applications)`}
-                </div>
-              )}
-              <div>
-                <FieldBox label="Category" className="block mb-1.5" />
-                <SelectField
-                value={silCategoryId}
-                onChange={setSilCategoryId}
-                options={categories.map((x) => ({ value: x.id, label: x.label }))}
-                placeholder="Select category..."
-                className="w-full"
-              />
-              </div>
-              {silApplyMode === 'range' ? (
-                <RangeDayEditor
-                  startDate={silRangeStart}
-                  endDate={silRangeEnd}
-                  onStartDateChange={setSilRangeStart}
-                  onEndDateChange={setSilRangeEnd}
-                  dayHours={silDayHours}
-                  onDayHoursChange={(date, hours) => setSilDayHours((prev) => ({ ...prev, [date]: hours }))}
-                  dayShiftConfig={dayShiftConfig}
-                />
-              ) : (
-                <>
-                  <div>
-                    <FieldBox label="Leave Date" className="block mb-1.5" />
-                    <Input
-                      type="date"
-                      value={silDate}
-                      onChange={(e) => setSilDate(e.target.value)}
-                      containerClassName="w-full" className="font-semibold"
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <FieldBox label="Start Time" className="block mb-1.5" />
-                      <Input
-                        type="time"
-                        value={silStartTime}
-                        onChange={(e) => setSilStartTime(e.target.value)}
-                        containerClassName="w-full" className="font-semibold"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <FieldBox label="End Time" className="block mb-1.5" />
-                      <Input
-                        type="time"
-                        value={silEndTime}
-                        onChange={(e) => setSilEndTime(e.target.value)}
-                        containerClassName="w-full" className="font-semibold"
-                        required
-                      />
-                    </div>
-                  </div>
-                  {currentSilHours > 0 && (
-                    <div className="text-xs font-semibold text-green-11 px-1">
-                      Derived: {currentSilHours} hrs
-                      {currentSilHours !== currentSilHoursRaw && ' (meal break deducted)'}
-                    </div>
-                  )}
-                </>
-              )}
-              {canRecordAbsent && (
-                <div
-                  className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border px-3.5 py-3 text-sm font-semibold text-foreground"
-                  onClick={(e) => e.target === e.currentTarget && setRecordAbsent(!recordAbsent)}
-                >
-                  <Checkbox checked={recordAbsent} onCheckedChange={setRecordAbsent} aria-label="Record as absent (already approved)" />
-                  <span onClick={() => setRecordAbsent(!recordAbsent)}>Record as absent (already approved)</span>
-                </div>
-              )}
-              {!(canRecordAbsent && recordAbsent) && (
-                <HeadSelectField employee={selectedEmployee} value={silHeadId} onChange={setSilHeadId} />
-              )}
-              <div>
-                <FieldBox label="Reason" className="block mb-1.5" />
-                <Textarea
-                  value={silReason}
-                  onChange={(e) => setSilReason(e.target.value)}
-                  placeholder="Reason for taking leave"
-                  rows={3}
-                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
-                  required
-                />
-              </div>
-              <AttachmentField
-                label="Supporting Files"
-                attachments={silFiles}
-                disabled={silSubmitting}
-                hint={`Optional — medical certificate or similar. Up to ${silFiles.max} files, 10.0 MB each.`}
-              />
-              <Button
-                type="submit"
-                disabled={silSubmitting}
-                className="w-full h-11 rounded-xl font-bold bg-green-9 hover:bg-green-10 text-white shadow-md cursor-pointer mt-4"
-              >
-                {silSubmitting
-                  ? silFiles.isUploading
-                    ? 'Uploading files...'
-                    : 'Submitting...'
-                  : 'Apply for Leave'}
-              </Button>
-            </form>
-          )}
-
-          {activeTab === 'undertime' && (
-            <form onSubmit={handleApplyUndertime} className="space-y-4 animate-in fade-in duration-300">
-              <div className="flex items-center space-x-2 pb-2 mb-2 border-b border-border">
-                <Clock size={16} className="text-amber-11" />
-                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
-                  File Undertime
-                </h3>
-              </div>
-              <div>
-                <FieldBox label="Date" className="block mb-1.5" />
-                <Input
-                  type="date"
-                  value={utDate}
-                  onChange={(e) => setUtDate(e.target.value)}
-                  containerClassName="w-full" className="font-semibold"
-                  required
-                />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Original Work Schedule
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <FieldBox label="Start" className="block mb-1" />
-                    <Input
-                      type="time"
-                      value={utOriginalStart}
-                      onChange={(e) => setUtOriginalStart(e.target.value)}
-                      containerClassName="w-full" className="font-semibold"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <FieldBox label="End" className="block mb-1" />
-                    <Input
-                      type="time"
-                      value={utOriginalEnd}
-                      onChange={(e) => setUtOriginalEnd(e.target.value)}
-                      containerClassName="w-full" className="font-semibold"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Actual Work Schedule
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <FieldBox label="Start" className="block mb-1" />
-                    <Input
-                      type="time"
-                      value={utActualStart}
-                      onChange={(e) => setUtActualStart(e.target.value)}
-                      containerClassName="w-full" className="font-semibold"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <FieldBox label="End" className="block mb-1" />
-                    <Input
-                      type="time"
-                      value={utActualEnd}
-                      onChange={(e) => setUtActualEnd(e.target.value)}
-                      containerClassName="w-full" className="font-semibold"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-              {currentUtHours > 0 && (
-                <div className="text-xs font-semibold text-amber-11 px-1">
-                  Derived shortfall: {currentUtHours} hrs
-                </div>
-              )}
-              <HeadSelectField employee={selectedEmployee} value={utHeadId} onChange={setUtHeadId} />
-              <div>
-                <FieldBox label="Purpose" className="block mb-1.5" />
-                <Textarea
-                  value={utReason}
-                  onChange={(e) => setUtReason(e.target.value)}
-                  placeholder="Purpose of the undertime"
-                  rows={3}
-                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
-                  required
-                />
-              </div>
-              <AttachmentField
-                label="Supporting Files"
-                attachments={utFiles}
-                disabled={utSubmitting}
-                hint={`Optional — supporting documentation. Up to ${utFiles.max} files, 10.0 MB each.`}
-              />
-              <Button
-                type="submit"
-                disabled={utSubmitting}
-                className="w-full h-11 rounded-xl font-bold shadow-md cursor-pointer mt-4"
-              >
-                {utSubmitting
-                  ? utFiles.isUploading
-                    ? 'Uploading files...'
-                    : 'Submitting...'
-                  : 'Submit Undertime'}
-              </Button>
-            </form>
-          )}
+          {headField(otHeadId, setOtHeadId)}
+          {reasonField('Reason', otReason, setOtReason, 'Reason for the overtime request')}
+          <AttachmentField
+            label="Supporting Files"
+            attachments={otFiles}
+            disabled={otSubmitting}
+            hint={`Optional — approval email, logbook photo, or similar. Up to ${otFiles.max} files, 10.0 MB each.`}
+          />
         </div>
-      </DialogContent>
-    </Dialog>
+      )}
+
+      {activeTab === 'offset' && (
+        <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="flex justify-end">{modeSwitch(offsetApplyMode, setOffsetApplyMode)}</div>
+          {employeeId && balanceLine(availableOffsetHours, pendingOffsetHours)}
+          {offsetApplyMode === 'range' ? (
+            <RangeDayEditor
+              startDate={offsetRangeStart}
+              endDate={offsetRangeEnd}
+              onStartDateChange={setOffsetRangeStart}
+              onEndDateChange={setOffsetRangeEnd}
+              dayHours={offsetDayHours}
+              onDayHoursChange={(date, hours) => setOffsetDayHours((prev) => ({ ...prev, [date]: hours }))}
+              dayShiftConfig={dayShiftConfig}
+              errors={errors}
+            />
+          ) : (
+            <>
+              {dateField('date', 'Offset Date', offsetDate, setOffsetDate)}
+              <div className="grid grid-cols-2 gap-4">
+                {timeField('start', 'Start Time', offsetStartTime, setOffsetStartTime)}
+                {timeField('end', 'End Time', offsetEndTime, setOffsetEndTime)}
+              </div>
+              {currentOffsetHours > 0 && (
+                <div className="text-xs font-semibold text-muted-foreground px-1">
+                  Derived: {currentOffsetHours} hrs
+                  {currentOffsetHours !== currentOffsetHoursRaw && ' (meal break deducted)'}
+                </div>
+              )}
+            </>
+          )}
+          {shortfall && <p role="alert" className="px-1 text-xs font-semibold text-destructive">{shortfall}</p>}
+          {headField(offsetHeadId, setOffsetHeadId)}
+          {reasonField('Reason', offsetReason, setOffsetReason, 'Reason for the Offset')}
+          <AttachmentField
+            label="Supporting Files"
+            attachments={offsetFiles}
+            disabled={offsetSubmitting}
+            hint={`Optional — up to ${offsetFiles.max} files, 10.0 MB each. Images, PDFs and documents.`}
+          />
+        </div>
+      )}
+
+      {activeTab === 'sil' && (
+        <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="flex justify-end">{modeSwitch(silApplyMode, setSilApplyMode)}</div>
+          <div>
+            <FieldBox label="Pay" className="block mb-1.5" />
+            <TabGroup
+              variant="pill"
+              tabs={[
+                { value: 'sil', label: 'With pay (SIL)' },
+                { value: 'lwop', label: 'Without pay (LWOP)' },
+              ]}
+              activeTab={leavePay}
+              onChange={setLeavePay}
+              size="sm"
+            />
+            <p className="text-[10px] font-semibold text-muted-foreground px-1 pt-1">
+              Service Incentive Leave (SIL)
+            </p>
+          </div>
+          {employeeId && leavePay === 'sil' && balanceLine(availableSilHours, pendingSilHours)}
+          <Field name="category" label="Category" required error={errors.category}>
+            <SelectField
+              value={silCategoryId}
+              onChange={setSilCategoryId}
+              options={categories.map((x) => ({ value: x.id, label: x.label }))}
+              placeholder="Select category..."
+              className="w-full"
+            />
+          </Field>
+          {silApplyMode === 'range' ? (
+            <RangeDayEditor
+              startDate={silRangeStart}
+              endDate={silRangeEnd}
+              onStartDateChange={setSilRangeStart}
+              onEndDateChange={setSilRangeEnd}
+              dayHours={silDayHours}
+              onDayHoursChange={(date, hours) => setSilDayHours((prev) => ({ ...prev, [date]: hours }))}
+              dayShiftConfig={dayShiftConfig}
+              errors={errors}
+            />
+          ) : (
+            <>
+              {dateField('date', 'Leave Date', silDate, setSilDate)}
+              <div className="grid grid-cols-2 gap-4">
+                {timeField('start', 'Start Time', silStartTime, setSilStartTime)}
+                {timeField('end', 'End Time', silEndTime, setSilEndTime)}
+              </div>
+              {currentSilHours > 0 && (
+                <div className="text-xs font-semibold text-muted-foreground px-1">
+                  Derived: {currentSilHours} hrs
+                  {currentSilHours !== currentSilHoursRaw && ' (meal break deducted)'}
+                </div>
+              )}
+            </>
+          )}
+          {shortfall && <p role="alert" className="px-1 text-xs font-semibold text-destructive">{shortfall}</p>}
+          {canRecordAbsent && (
+            <div
+              className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border px-3.5 py-3 text-sm font-semibold text-foreground"
+              onClick={(e) => e.target === e.currentTarget && setRecordAbsent(!recordAbsent)}
+            >
+              <Checkbox checked={recordAbsent} onCheckedChange={setRecordAbsent} aria-label="Record as absent (already approved)" />
+              <span onClick={() => setRecordAbsent(!recordAbsent)}>Record as absent (already approved)</span>
+            </div>
+          )}
+          {!(canRecordAbsent && recordAbsent) && headField(silHeadId, setSilHeadId)}
+          {reasonField('Reason', silReason, setSilReason, 'Reason for taking leave')}
+          <AttachmentField
+            label="Supporting Files"
+            attachments={silFiles}
+            disabled={silSubmitting}
+            hint={`Optional — medical certificate or similar. Up to ${silFiles.max} files, 10.0 MB each.`}
+          />
+        </div>
+      )}
+
+      {activeTab === 'undertime' && (
+        <div className="space-y-4 animate-in fade-in duration-300">
+          {dateField('date', 'Date', utDate, setUtDate)}
+          <div>
+            <p className="text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+              Original Work Schedule
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              {timeField('origStart', 'Start', utOriginalStart, setUtOriginalStart)}
+              {timeField('origEnd', 'End', utOriginalEnd, setUtOriginalEnd)}
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+              Actual Work Schedule
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              {timeField('actStart', 'Start', utActualStart, setUtActualStart)}
+              {timeField('actEnd', 'End', utActualEnd, setUtActualEnd)}
+            </div>
+          </div>
+          {currentUtHours > 0 && (
+            <div className="text-xs font-semibold text-muted-foreground px-1">
+              Derived shortfall: {currentUtHours} hrs
+            </div>
+          )}
+          {headField(utHeadId, setUtHeadId)}
+          {reasonField('Purpose', utReason, setUtReason, 'Purpose of the undertime')}
+          <AttachmentField
+            label="Supporting Files"
+            attachments={utFiles}
+            disabled={utSubmitting}
+            hint={`Optional — supporting documentation. Up to ${utFiles.max} files, 10.0 MB each.`}
+          />
+        </div>
+      )}
+    </ModalShell>
   );
 }

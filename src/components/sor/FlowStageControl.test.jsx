@@ -43,7 +43,7 @@ describe("FlowStageControl gates on return stages (#831)", () => {
 
     const qualifiedTile = (await screen.findByText("Qualified")).closest("li")
     expect(qualifiedTile).toHaveAttribute("title", "Blocked — missing: Costing settled")
-    expect(qualifiedTile.className).toContain("opacity-40")
+    expect(qualifiedTile.className).not.toContain("opacity-40"); // #1047: unreached stages share one style
 
     await userEvent.click(qualifiedTile)
     expect(onMove).not.toHaveBeenCalled()

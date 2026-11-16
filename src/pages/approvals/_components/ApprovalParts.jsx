@@ -1,15 +1,19 @@
+import StatusBadge from "../../../components/StatusBadge";
+import { STATUS_THEME } from "../../../constants/statusTheme";
 import { statusOf } from "./approvalUi";
 
 const PILL = {
   pending: ["Pending", "border-blue-7 text-blue-11"],
-  overdue: ["Overdue", "border-amber-7 text-amber-11"],
   approved: ["Approved", "border-green-7 text-green-11"],
   verified: ["Verified", "border-green-7 text-green-11"],
 };
 
 /** A StatusBadge-style outline pill: the row's state in one word. */
 export function StatusPill({ item }) {
-  const [label, tone] = PILL[statusOf(item)];
+  const state = statusOf(item);
+  // Overdue is the shared red StatusBadge, the same as on the HR list.
+  if (state === "overdue") return <StatusBadge theme={STATUS_THEME.RED} label="Overdue" />;
+  const [label, tone] = PILL[state];
   return (
     <span className={`inline-flex shrink-0 items-center rounded-full border bg-card px-2 py-0.5 text-label font-bold uppercase tracking-wider ${tone}`}>
       {label}

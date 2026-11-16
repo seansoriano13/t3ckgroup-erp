@@ -73,7 +73,7 @@ beforeAll(async () => {
     const makeComponent = async (lineId, position, name, quantity) =>
         (await asSvc(svc().from("costing_components").insert({ tender_line_id: lineId, position, name, quantity }).select("id").single(), name)).id
 
-    // SOR A: offer 2 x 1,000.55 + 1 x 500 = 2,501.10; Final Acquire 6,000 + 3 x 100.33 + 50 + 200.50 = 6,551.49.
+    // SOR A: offer 2 x 1,000.55 + 1 x 500 = 2,501.10; Final Acquire of the Components 6,000 + 3 x 100.33 + 50 = 6,350.99 (the 200.50 cost-only row is a Project expense, #964).
     const lineA1 = await makeLine(matrixA, 1, 2)
     const lineA2 = await makeLine(matrixA, 2, 1)
     const hose = await makeComponent(lineA1, 1, "Hose", 6)
@@ -172,7 +172,7 @@ describe("the Closed Book", () => {
     it("totals what the summary maths needs: offer, Final Acquire, Landed Cost of the bought items", async () => {
         const row = rowOf((await page("ipasSigner")).data, sorA)
         expect(Number(row.final_offer_total)).toBe(2501.1)
-        expect(Number(row.final_acquire_total)).toBe(6551.49)
+        expect(Number(row.final_acquire_total)).toBe(6350.99)
         // Hose: 6 x 1,250 on the IPAS, provisional while the IPAS is at "encoding".
         expect(Number(row.landed_cost_total)).toBe(7500)
         expect(Number(row.bought_final_acquire_total)).toBe(6000)
@@ -235,8 +235,8 @@ describe("a cost with only an Acquire (#892)", () => {
             "line D",
         )).id
         await setMoney("dealOwner", "costing_tender_line_prices", line, { final_offer_unit: 8550 })
-        const pump = (await asSvc(svc().from("costing_components").insert({ tender_line_id: line, position: 1, name: "Pump", quantity: 1 }).select("id").single(), "pump")).id
-        // Acquire typed, Final Acquire left blank: the sheet counts the Pump at 29,928.06.
+        const pump = (await asSvc(svc().from("costing_components").insert({ tender_line_id: line, position: 1, name: "Pump", quantity: 1, status: "source_out" }).select("id").single(), "pump")).id
+        // A Source Out Component with its Acquire typed: the rule gives it a Final Acquire of the same (#962), so the sheet counts it at 29,928.06.
         await asSvc(svc().from("costing_component_costs").insert({ component_id: pump, acquire_unit: 29928.06 }), "pump acquire")
 
         const row = rowOf((await page("ipasSigner")).data, sorD)

@@ -1,5 +1,26 @@
-﻿import { Navigate } from "react-router";
+﻿import { Navigate, Link } from "react-router";
+import { Lock } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import EmptyState from "@/components/ui/EmptyState";
+
+// A signed-in person who lacks access is told so, instead of being bounced to
+// the Dashboard with no message. The access rules themselves are unchanged.
+export function NoAccess({ needs, grantedBy }) {
+  return (
+    <div role="alert" className="min-h-[60vh] flex items-center justify-center p-6">
+      <EmptyState
+        icon={Lock}
+        title="You don't have access to this page"
+        description={`This page needs ${needs}. Ask ${grantedBy} if you think you should have it.`}
+        action={
+          <Link to="/" className="text-sm font-semibold text-primary hover:underline">
+            Go to the Dashboard
+          </Link>
+        }
+      />
+    </div>
+  );
+}
 
 export default function ProtectedRoute({
   children,
@@ -33,24 +54,24 @@ export default function ProtectedRoute({
 
   // Super Admin barrier
   if (requireSuperAdmin && !isSA) {
-    return <Navigate to="/" replace />;
+    return <NoAccess needs="Super Admin access" grantedBy="a Super Admin" />;
   }
 
   // Explicitly block Super Admins from specific routes (even if they have Head/HR tags)
   if (excludeSuperAdmin && isSA) {
-    return <Navigate to="/" replace />;
+    return <NoAccess needs="a role other than Super Admin" grantedBy="a Super Admin" />;
   }
 
   //   If not HR and not Head
   if (requireHead && !isHeadUser && !isHrUser && !isSA) {
-    return <Navigate to="/" replace />;
+    return <NoAccess needs="Head or HR access" grantedBy="HR or a Super Admin" />;
   }
 
   //   if not HR (Super Admins bypass this to access HR pages; a route that
   //   opts in with allowLeaveManagers also admits the leave-management
   //   capability, which is deliberately narrower than full HR access)
   if (requireHr && !isHrUser && !isSA && !(allowLeaveManagers && isLeaveManager)) {
-    return <Navigate to="/" replace />;
+    return <NoAccess needs="HR access" grantedBy="HR or a Super Admin" />;
   }
 
   // Purchasing (issue #39). Deliberately not satisfied by Head or HR: the
@@ -58,14 +79,14 @@ export default function ProtectedRoute({
   // same as doing the sourcing.
   const hasPurchasing = user.has_purchasing_flow || user.hasPurchasingFlow;
   if (requirePurchasing && !hasPurchasing && !isSA) {
-    return <Navigate to="/" replace />;
+    return <NoAccess needs="the Purchasing module" grantedBy="HR or a Super Admin" />;
   }
 
   // The IPAS sign-offs queue (#247): on the section 1 or 3 approval list. A
   // Super Admin gets no pass: they sign only when they are on a list.
   const isIpasApprover = user.isIpasApprover || user.is_ipas_approver;
   if (requireIpasApprover && !isIpasApprover) {
-    return <Navigate to="/" replace />;
+    return <NoAccess needs="a place on the IPAS approval list" grantedBy="HR or a Super Admin" />;
   }
 
   return children;

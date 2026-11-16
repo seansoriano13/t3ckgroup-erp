@@ -1,3 +1,5 @@
+import RecordNotFound from "../ui/RecordNotFound";
+import { isRecordId } from "../../utils/recordLink";
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -53,7 +55,7 @@ function phoneRows(lines, canWriteVerdict, refresh) {
   );
 }
 
-export default function TechnicalSheet({ opportunityId }) {
+export default function TechnicalSheet({ opportunityId, onBack }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [checked, setChecked] = useState(() => new Set());
@@ -66,7 +68,7 @@ export default function TechnicalSheet({ opportunityId }) {
       return { matrix, header: list.find((row) => row.opportunityId === opportunityId) ?? null };
     },
     retry: false,
-    enabled: Boolean(opportunityId),
+    enabled: isRecordId(opportunityId),
   });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["technical"] });
@@ -108,6 +110,8 @@ export default function TechnicalSheet({ opportunityId }) {
       {sheet.isLoading && <PageLoading label="Technical sheet" />}
       {sheet.isError && <QueryError title="This sheet could not be loaded." onRetry={sheet.refetch} />}
 
+      {!sheet.isLoading && !sheet.isError && !matrix && <RecordNotFound recordType="Technical sheet" onBack={onBack} backLabel="Back to Technical" />}
+
       {matrix && !sheet.isError && (
         <>
           {costingWrites.notice && (
@@ -122,6 +126,7 @@ export default function TechnicalSheet({ opportunityId }) {
           {!phone && canWriteVerdict && checkedIds.length > 0 && (
             <BulkVerdictBar
               ids={checkedIds}
+              components={lines.flatMap((line) => line.components)}
               onDone={async () => {
                 setChecked(new Set());
                 await refresh();
@@ -188,7 +193,7 @@ export default function TechnicalSheet({ opportunityId }) {
               </div>
             </div>
           )}
-          <TechnicalVerdict matrix={matrix} actorId={user?.id ?? null} writes={{ refresh }} />
+          <TechnicalVerdict matrix={matrix} actorId={user?.id ?? null} writes={{ refresh }} onTechnicalPage />
 
           <p className="text-xs text-muted-foreground">No prices or costs are shown here.</p>
         </>

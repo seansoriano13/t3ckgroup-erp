@@ -259,7 +259,9 @@ create table if not exists public."costing_component_costs" (
   "p0_unit_price" numeric,
   "p0_quoted_unit_price" numeric,
   "p0_currency" text,
-  "acquire_source" text
+  "acquire_source" text,
+  "final_acquire_percent" numeric(7,2),
+  "final_acquire_typed" boolean not null default false
 );
 
 create table if not exists public."costing_components" (
@@ -308,7 +310,8 @@ create table if not exists public."costing_cost_rows" (
   "final_acquire_unit" numeric(18,2),
   "markup_factor" numeric(10,4) default 1.00,
   "created_at" timestamp with time zone not null default now(),
-  "category_key" text
+  "category_key" text,
+  "abc_pct" numeric(7,2)
 );
 
 create table if not exists public."costing_events" (
@@ -353,7 +356,7 @@ create table if not exists public."costing_markup_presets" (
 
 create table if not exists public."costing_matrices" (
   "id" uuid not null default gen_random_uuid(),
-  "opportunity_id" uuid not null,
+  "opportunity_id" uuid,
   "sales_incharge_id" uuid,
   "purchasing_incharge_id" uuid,
   "bid_submitted_at" timestamp with time zone,
@@ -364,7 +367,13 @@ create table if not exists public."costing_matrices" (
   "compliance" text,
   "compliance_note" text,
   "compliance_by" uuid,
-  "compliance_at" timestamp with time zone
+  "compliance_at" timestamp with time zone,
+  "abc_mode" text not null default 'by_line'::text,
+  "abc_total" numeric(18,2),
+  "s0_number" text,
+  "created_by" uuid,
+  "offer_mode" text not null default 'by_line'::text,
+  "offer_total" numeric(18,2)
 );
 
 create table if not exists public."costing_matrix_money" (
@@ -374,7 +383,8 @@ create table if not exists public."costing_matrix_money" (
   "default_factor" numeric(10,4),
   "default_preset_id" uuid,
   "marketing" numeric(18,2),
-  "opex" numeric(18,2)
+  "opex" numeric(18,2),
+  "final_acquire_percent" numeric(7,2) not null default '-20'::integer
 );
 
 create table if not exists public."costing_settings" (
@@ -387,7 +397,8 @@ create table if not exists public."costing_settings" (
   "updated_at" timestamp with time zone not null default now(),
   "updated_by" uuid,
   "final_vat_rate" numeric(10,6) not null default 0.12,
-  "summary_hidden_lines" text[] not null default '{finalVat}'::text[]
+  "summary_hidden_lines" text[] not null default '{finalVat}'::text[],
+  "go_line_percent" numeric(7,2) not null default 20
 );
 
 create table if not exists public."costing_signer_lists" (
@@ -1261,6 +1272,82 @@ create table if not exists public."push_subscriptions" (
   "created_at" timestamp with time zone not null default timezone('utc'::text, now())
 );
 
+create table if not exists public."request_canvass_line_unlocks" (
+  "id" uuid not null default gen_random_uuid(),
+  "item_id" uuid not null,
+  "reason" text not null,
+  "actor_id" uuid,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."request_canvass_no_other_supplier" (
+  "canvass_id" uuid not null,
+  "reason" text not null,
+  "actor_id" uuid,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."request_canvass_quote_prices" (
+  "quote_id" uuid not null,
+  "unit_price" numeric(14,2),
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."request_canvass_quotes" (
+  "id" uuid not null default gen_random_uuid(),
+  "canvass_id" uuid not null,
+  "supplier_id" uuid not null,
+  "item_id" uuid not null,
+  "brand" text,
+  "description" text,
+  "source_link" text,
+  "brochure" jsonb not null default '[]'::jsonb,
+  "remarks" text,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."request_canvass_supplier_prices" (
+  "supplier_id" uuid not null,
+  "comparison_rate" numeric(14,6),
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."request_canvass_suppliers" (
+  "id" uuid not null default gen_random_uuid(),
+  "canvass_id" uuid not null,
+  "supplier_name" text not null,
+  "odoo_supplier_id" integer,
+  "currency" text not null default 'PHP'::text,
+  "valid_until" date,
+  "lead_time" text,
+  "quality_note" text,
+  "sort_order" integer not null default 0,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."request_canvass_winners" (
+  "item_id" uuid not null,
+  "supplier_id" uuid not null,
+  "reason" text,
+  "chosen_by" uuid,
+  "chosen_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."request_canvasses" (
+  "id" uuid not null default gen_random_uuid(),
+  "request_id" uuid not null,
+  "number" text not null,
+  "canvasser_id" uuid,
+  "attachments" jsonb not null default '[]'::jsonb,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."retail_orders" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default now(),
@@ -1464,75 +1551,6 @@ create table if not exists public."sor_action_runs" (
   "costing_matrix_id" uuid,
   "packing_list_id" uuid,
   "failure_reason" text
-);
-
-create table if not exists public."sor_canvass_no_other_supplier" (
-  "id" uuid not null default gen_random_uuid(),
-  "canvass_id" uuid not null,
-  "slot" integer not null,
-  "reason" text not null,
-  "actor_id" uuid,
-  "created_at" timestamp with time zone not null default now()
-);
-
-create table if not exists public."sor_canvass_offer_prices" (
-  "offer_id" uuid not null,
-  "unit_price" numeric(14,2),
-  "comparison_rate" numeric(14,6),
-  "updated_at" timestamp with time zone not null default now()
-);
-
-create table if not exists public."sor_canvass_offers" (
-  "id" uuid not null default gen_random_uuid(),
-  "canvass_id" uuid not null,
-  "brand" text,
-  "description" text,
-  "source_link" text,
-  "brochure" jsonb not null default '[]'::jsonb,
-  "remarks" text,
-  "lead_time" text,
-  "quality_note" text,
-  "is_winner" boolean not null default false,
-  "sort_order" integer not null default 0,
-  "created_by" uuid,
-  "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now(),
-  "supplier_name" text,
-  "odoo_supplier_id" integer,
-  "currency" text not null default 'PHP'::text,
-  "valid_until" date
-);
-
-create table if not exists public."sor_canvass_signoff_events" (
-  "id" uuid not null default gen_random_uuid(),
-  "canvass_id" uuid not null,
-  "kind" text not null,
-  "actor_id" uuid,
-  "reason" text,
-  "offer_count" integer not null default 0,
-  "created_at" timestamp with time zone not null default now()
-);
-
-create table if not exists public."sor_canvasses" (
-  "id" uuid not null default gen_random_uuid(),
-  "attachments" jsonb not null default '[]'::jsonb,
-  "signed_off_by" uuid,
-  "signed_off_at" timestamp with time zone,
-  "created_by" uuid,
-  "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now(),
-  "component_id" uuid,
-  "requested_item_id" uuid,
-  "number" text,
-  "reason" text,
-  "product_name" text,
-  "canvasser_id" uuid,
-  "request_made_at" timestamp with time zone,
-  "lock_released_at" timestamp with time zone,
-  "lock_released_by" uuid,
-  "stopped_at" timestamp with time zone,
-  "stopped_by" uuid,
-  "stopped_reason" text
 );
 
 create table if not exists public."sor_condition_status" (
@@ -2039,6 +2057,14 @@ alter table purchase_request_members add constraint "purchase_request_members_pk
 alter table purchase_request_messages add constraint "purchase_request_messages_pkey" PRIMARY KEY (id);
 alter table purchase_requests add constraint "purchase_requests_pkey" PRIMARY KEY (id);
 alter table push_subscriptions add constraint "push_subscriptions_pkey" PRIMARY KEY (id);
+alter table request_canvass_line_unlocks add constraint "request_canvass_line_unlocks_pkey" PRIMARY KEY (id);
+alter table request_canvass_no_other_supplier add constraint "request_canvass_no_other_supplier_pkey" PRIMARY KEY (canvass_id);
+alter table request_canvass_quote_prices add constraint "request_canvass_quote_prices_pkey" PRIMARY KEY (quote_id);
+alter table request_canvass_quotes add constraint "request_canvass_quotes_pkey" PRIMARY KEY (id);
+alter table request_canvass_supplier_prices add constraint "request_canvass_supplier_prices_pkey" PRIMARY KEY (supplier_id);
+alter table request_canvass_suppliers add constraint "request_canvass_suppliers_pkey" PRIMARY KEY (id);
+alter table request_canvass_winners add constraint "request_canvass_winners_pkey" PRIMARY KEY (item_id);
+alter table request_canvasses add constraint "request_canvasses_pkey" PRIMARY KEY (id);
 alter table retail_orders add constraint "retail_orders_pkey" PRIMARY KEY (id);
 alter table revenue_activity_logs add constraint "revenue_activity_logs_pkey" PRIMARY KEY (id);
 alter table sale_types add constraint "sale_types_pkey" PRIMARY KEY (id);
@@ -2050,11 +2076,6 @@ alter table sales_opportunity_logs add constraint "sales_opportunity_logs_pkey" 
 alter table sales_opportunity_members add constraint "sales_opportunity_members_pkey" PRIMARY KEY (id);
 alter table sil_leaves add constraint "sil_leaves_pkey" PRIMARY KEY (id);
 alter table sor_action_runs add constraint "sor_action_runs_pkey" PRIMARY KEY (id);
-alter table sor_canvass_no_other_supplier add constraint "sor_canvass_no_other_supplier_pkey" PRIMARY KEY (id);
-alter table sor_canvass_offer_prices add constraint "sor_canvass_offer_prices_pkey" PRIMARY KEY (offer_id);
-alter table sor_canvass_offers add constraint "sor_canvass_offers_pkey" PRIMARY KEY (id);
-alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_pkey" PRIMARY KEY (id);
-alter table sor_canvasses add constraint "sor_canvasses_pkey" PRIMARY KEY (id);
 alter table sor_condition_status add constraint "sor_requirement_status_pkey" PRIMARY KEY (id);
 alter table sor_form_values add constraint "sor_form_values_pkey" PRIMARY KEY (id);
 alter table sor_inclusions add constraint "sor_inclusions_pkey" PRIMARY KEY (id);
@@ -2112,6 +2133,10 @@ alter table packing_lists add constraint "packing_lists_number_key" UNIQUE (numb
 alter table pms_evidence add constraint "pms_evidence_path_key" UNIQUE (storage_path);
 alter table purchase_request_members add constraint "purchase_request_members_request_employee_key" UNIQUE (request_id, employee_id);
 alter table push_subscriptions add constraint "push_subscriptions_employee_endpoint_key" UNIQUE (employee_id, endpoint);
+alter table request_canvass_quotes add constraint "request_canvass_quotes_one_per_line" UNIQUE (supplier_id, item_id);
+alter table request_canvass_suppliers add constraint "request_canvass_suppliers_id_canvass_key" UNIQUE (id, canvass_id);
+alter table request_canvasses add constraint "request_canvasses_number_key" UNIQUE (number);
+alter table request_canvasses add constraint "request_canvasses_one_per_request" UNIQUE (request_id);
 alter table retail_orders add constraint "retail_orders_odoo_so_number_key" UNIQUE (odoo_so_number);
 alter table sales_flows add constraint "sales_flows_sale_type_id_key" UNIQUE (sale_type_id);
 alter table sales_opportunities add constraint "sales_opportunities_opportunity_no_key" UNIQUE (opportunity_no);
@@ -2119,7 +2144,6 @@ alter table sales_opportunities add constraint "sales_opportunities_serial_no_ke
 alter table sales_opportunities add constraint "sales_opportunities_sor_code_key" UNIQUE (sor_code);
 alter table sales_opportunity_members add constraint "sales_opportunity_members_unique" UNIQUE (opportunity_id, employee_id);
 alter table sil_leaves add constraint "sil_leaves_verification_token_key" UNIQUE (verification_token);
-alter table sor_canvass_no_other_supplier add constraint "sor_canvass_no_other_supplier_one_per_slot" UNIQUE (canvass_id, slot);
 alter table sor_condition_status add constraint "sor_condition_status_visit_unique" UNIQUE (stage_visit_id, condition_id);
 alter table sor_form_values add constraint "sor_form_values_unique" UNIQUE (opportunity_id, field_id);
 alter table sor_mention_viewers add constraint "sor_mention_viewers_window_key" UNIQUE NULLS NOT DISTINCT (opportunity_id, employee_id, stage_visit_id);
@@ -2150,6 +2174,7 @@ alter table costing_component_costs add constraint "costing_component_costs_acqu
 alter table costing_component_costs add constraint "costing_component_costs_acquire_source_chk" CHECK ((acquire_source = ANY (ARRAY['canvass'::text, 'odoo'::text, 'typed'::text])));
 alter table costing_component_costs add constraint "costing_component_costs_factor_chk" CHECK (((markup_factor IS NULL) OR (markup_factor > (0)::numeric)));
 alter table costing_component_costs add constraint "costing_component_costs_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
+alter table costing_component_costs add constraint "costing_component_costs_final_percent_chk" CHECK (((final_acquire_percent IS NULL) OR ((final_acquire_percent > ('-100'::integer)::numeric) AND (final_acquire_percent <= (1000)::numeric))));
 alter table costing_component_costs add constraint "costing_component_costs_odoo_chk" CHECK (((odoo_unit IS NULL) OR (odoo_unit >= (0)::numeric)));
 alter table costing_components add constraint "costing_components_availability_chk" CHECK (((availability IS NULL) OR (availability = ANY (ARRAY['available'::text, 'for_order'::text]))));
 alter table costing_components add constraint "costing_components_compliance_chk" CHECK (((compliance IS NULL) OR (compliance = ANY (ARRAY['complies'::text, 'deviates'::text]))));
@@ -2159,6 +2184,7 @@ alter table costing_components add constraint "costing_components_source_chk" CH
 alter table costing_components add constraint "costing_components_status_chk" CHECK (((status IS NULL) OR (status = ANY (ARRAY['source_out'::text, 'stockable'::text]))));
 alter table costing_cost_categories add constraint "costing_cost_categories_key_chk" CHECK ((key ~ '^[a-z][a-z_]*$'::text));
 alter table costing_cost_categories add constraint "costing_cost_categories_range_chk" CHECK (((low_pct >= (0)::numeric) AND (high_pct <= (100)::numeric) AND (low_pct <= high_pct)));
+alter table costing_cost_rows add constraint "costing_cost_rows_abc_pct_chk" CHECK (((abc_pct IS NULL) OR ((abc_pct >= (0)::numeric) AND (abc_pct <= (1000)::numeric))));
 alter table costing_cost_rows add constraint "costing_cost_rows_acquire_chk" CHECK (((acquire_unit IS NULL) OR (acquire_unit >= (0)::numeric)));
 alter table costing_cost_rows add constraint "costing_cost_rows_factor_chk" CHECK (((markup_factor IS NULL) OR (markup_factor > (0)::numeric)));
 alter table costing_cost_rows add constraint "costing_cost_rows_final_chk" CHECK (((final_acquire_unit IS NULL) OR (final_acquire_unit >= (0)::numeric)));
@@ -2171,13 +2197,20 @@ alter table costing_landed_defaults add constraint "costing_landed_defaults_impo
 alter table costing_landed_defaults add constraint "costing_landed_defaults_local_chk" CHECK ((local_addon_percent >= (0)::numeric));
 alter table costing_landed_defaults add constraint "costing_landed_defaults_one_row_chk" CHECK ((id = true));
 alter table costing_markup_presets add constraint "costing_markup_presets_factor_chk" CHECK ((factor > (0)::numeric));
+alter table costing_matrices add constraint "costing_matrices_abc_mode_chk" CHECK ((abc_mode = ANY (ARRAY['by_line'::text, 'total_only'::text])));
+alter table costing_matrices add constraint "costing_matrices_abc_total_chk" CHECK (((abc_total IS NULL) OR (abc_total >= (0)::numeric)));
 alter table costing_matrices add constraint "costing_matrices_compliance_chk" CHECK (((compliance IS NULL) OR (compliance = ANY (ARRAY['complies'::text, 'deviates'::text]))));
+alter table costing_matrices add constraint "costing_matrices_has_subject_chk" CHECK (((opportunity_id IS NOT NULL) OR (s0_number IS NOT NULL)));
 alter table costing_matrices add constraint "costing_matrices_import_addon_chk" CHECK (((import_addon_percent IS NULL) OR (import_addon_percent >= (0)::numeric)));
+alter table costing_matrices add constraint "costing_matrices_offer_mode_chk" CHECK ((offer_mode = ANY (ARRAY['by_line'::text, 'total_only'::text])));
+alter table costing_matrices add constraint "costing_matrices_offer_total_chk" CHECK (((offer_total IS NULL) OR (offer_total >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_factor_chk" CHECK (((default_factor IS NULL) OR (default_factor > (0)::numeric)));
+alter table costing_matrix_money add constraint "costing_matrix_money_final_percent_chk" CHECK (((final_acquire_percent > ('-100'::integer)::numeric) AND (final_acquire_percent <= (1000)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_marketing_chk" CHECK (((marketing IS NULL) OR (marketing >= (0)::numeric)));
 alter table costing_matrix_money add constraint "costing_matrix_money_opex_chk" CHECK (((opex IS NULL) OR (opex >= (0)::numeric)));
 alter table costing_settings add constraint "costing_settings_allowance_chk" CHECK ((itr_allowance >= (0)::numeric));
 alter table costing_settings add constraint "costing_settings_final_vat_chk" CHECK (((final_vat_rate >= (0)::numeric) AND (final_vat_rate <= (1)::numeric)));
+alter table costing_settings add constraint "costing_settings_go_line_chk" CHECK (((go_line_percent >= (0)::numeric) AND (go_line_percent <= (100)::numeric)));
 alter table costing_settings add constraint "costing_settings_itr_chk" CHECK (((itr_rate >= (0)::numeric) AND (itr_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_retention_chk" CHECK (((retention_rate >= (0)::numeric) AND (retention_rate <= (1)::numeric)));
 alter table costing_settings add constraint "costing_settings_single_chk" CHECK ((id = 1));
@@ -2320,6 +2353,12 @@ alter table purchase_request_members add constraint "purchase_request_members_si
 alter table purchase_requests add constraint "purchase_requests_access_until_chk" CHECK ((access_until = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table purchase_requests add constraint "purchase_requests_for_opportunity_chk" CHECK (((for_opportunity_id IS NULL) OR (opportunity_id IS NULL)));
 alter table purchase_requests add constraint "purchase_requests_title_chk" CHECK ((((title IS NULL) OR ((char_length(title) >= 1) AND (char_length(title) <= 120))) AND ((opportunity_id IS NOT NULL) OR (NULLIF(btrim(title), ''::text) IS NOT NULL))));
+alter table request_canvass_line_unlocks add constraint "request_canvass_line_unlocks_reason_chk" CHECK ((length(btrim(reason)) > 0));
+alter table request_canvass_no_other_supplier add constraint "request_canvass_no_other_supplier_reason_chk" CHECK ((length(btrim(reason)) > 0));
+alter table request_canvass_quote_prices add constraint "request_canvass_quote_prices_price_chk" CHECK (((unit_price IS NULL) OR (unit_price >= (0)::numeric)));
+alter table request_canvass_supplier_prices add constraint "request_canvass_supplier_prices_rate_chk" CHECK (((comparison_rate IS NULL) OR (comparison_rate > (0)::numeric)));
+alter table request_canvass_suppliers add constraint "request_canvass_suppliers_currency_chk" CHECK ((currency ~ '^[A-Z]{3}$'::text));
+alter table request_canvass_suppliers add constraint "request_canvass_suppliers_name_chk" CHECK ((length(btrim(supplier_name)) > 0));
 alter table retail_orders add constraint "retail_orders_source_check" CHECK ((source = ANY (ARRAY['sync'::text, 'queue'::text, 'sor'::text])));
 alter table sale_types add constraint "sale_types_name_not_blank" CHECK ((btrim(name) <> ''::text));
 alter table sales_flows add constraint "sales_flows_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'locked'::text])));
@@ -2333,14 +2372,6 @@ alter table sil_leaves add constraint "sil_leaves_head_status_check" CHECK ((hea
 alter table sil_leaves add constraint "sil_leaves_hours_check" CHECK ((hours > (0)::numeric));
 alter table sil_leaves add constraint "sil_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table sor_action_runs add constraint "sor_action_runs_outcome_check" CHECK ((outcome = ANY (ARRAY['pending'::text, 'created'::text, 'skipped'::text, 'failed'::text])));
-alter table sor_canvass_no_other_supplier add constraint "sor_canvass_no_other_supplier_reason_chk" CHECK ((length(btrim(reason)) > 0));
-alter table sor_canvass_no_other_supplier add constraint "sor_canvass_no_other_supplier_slot_chk" CHECK ((slot = ANY (ARRAY[2, 3])));
-alter table sor_canvass_offer_prices add constraint "sor_canvass_offer_prices_rate_chk" CHECK (((comparison_rate IS NULL) OR (comparison_rate > (0)::numeric)));
-alter table sor_canvass_offers add constraint "sor_canvass_offers_currency_chk" CHECK ((currency ~ '^[A-Z]{3}$'::text));
-alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_cleared_reason_chk" CHECK (((kind = 'signed'::text) OR (length(btrim(COALESCE(reason, ''::text))) > 0)));
-alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_kind_chk" CHECK ((kind = ANY (ARRAY['signed'::text, 'cleared'::text, 'unlocked'::text])));
-alter table sor_canvasses add constraint "sor_canvasses_at_most_one_subject_chk" CHECK (((((component_id IS NOT NULL))::integer + ((requested_item_id IS NOT NULL))::integer) <= 1));
-alter table sor_canvasses add constraint "sor_canvasses_says_what_chk" CHECK (((component_id IS NOT NULL) OR (requested_item_id IS NOT NULL) OR (NULLIF(btrim(COALESCE(product_name, ''::text)), ''::text) IS NOT NULL)));
 alter table sor_inclusions add constraint "sor_inclusions_completeness_check" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
 alter table sor_inclusions add constraint "sor_inclusions_cost_source_chk" CHECK (((cost_source IS NULL) OR (cost_source = ANY (ARRAY['CANVASS_OFFER'::text, 'ODOO_CATALOG'::text, 'MANUAL'::text]))));
 alter table sor_inclusions add constraint "sor_inclusions_sourcing_check" CHECK ((sourcing = ANY (ARRAY['STOCKABLE_AVAILABLE'::text, 'STOCKABLE_NEEDS_ORDERING'::text, 'SOURCE_OUT'::text])));
@@ -2412,10 +2443,10 @@ alter table committee_tasks add constraint "committee_tasks_template_id_fkey" FO
 alter table costing_bid_decisions add constraint "costing_bid_decisions_decided_by_fkey" FOREIGN KEY (decided_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_bid_decisions add constraint "costing_bid_decisions_matrix_id_fkey" FOREIGN KEY (matrix_id) REFERENCES costing_matrices(id) ON DELETE CASCADE;
 alter table costing_bid_decisions add constraint "costing_bid_decisions_unlocked_by_fkey" FOREIGN KEY (unlocked_by) REFERENCES employees(id) ON DELETE SET NULL;
-alter table costing_component_costs add constraint "costing_component_costs_acquire_from_offer_id_fkey" FOREIGN KEY (acquire_from_offer_id) REFERENCES sor_canvass_offers(id) ON DELETE SET NULL;
+alter table costing_component_costs add constraint "costing_component_costs_acquire_from_offer_id_fkey" FOREIGN KEY (acquire_from_offer_id) REFERENCES request_canvass_quotes(id) ON DELETE SET NULL;
 alter table costing_component_costs add constraint "costing_component_costs_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
 alter table costing_components add constraint "costing_components_complied_by_fkey" FOREIGN KEY (complied_by) REFERENCES employees(id) ON DELETE SET NULL;
-alter table costing_components add constraint "costing_components_offer_specification_from_offer_id_fkey" FOREIGN KEY (offer_specification_from_offer_id) REFERENCES sor_canvass_offers(id) ON DELETE SET NULL;
+alter table costing_components add constraint "costing_components_offer_specification_from_offer_id_fkey" FOREIGN KEY (offer_specification_from_offer_id) REFERENCES request_canvass_quotes(id) ON DELETE SET NULL;
 alter table costing_components add constraint "costing_components_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_components add constraint "costing_components_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_components add constraint "costing_components_tender_line_id_fkey" FOREIGN KEY (tender_line_id) REFERENCES costing_tender_lines(id) ON DELETE CASCADE;
@@ -2426,6 +2457,7 @@ alter table costing_events add constraint "costing_events_matrix_id_fkey" FOREIG
 alter table costing_inclusions add constraint "costing_inclusions_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
 alter table costing_landed_defaults add constraint "costing_landed_defaults_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_compliance_by_fkey" FOREIGN KEY (compliance_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table costing_matrices add constraint "costing_matrices_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table costing_matrices add constraint "costing_matrices_purchasing_incharge_id_fkey" FOREIGN KEY (purchasing_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table costing_matrices add constraint "costing_matrices_sales_incharge_id_fkey" FOREIGN KEY (sales_incharge_id) REFERENCES employees(id) ON DELETE SET NULL;
@@ -2560,6 +2592,23 @@ alter table purchase_requests add constraint "purchase_requests_opened_by_action
 alter table purchase_requests add constraint "purchase_requests_opened_visit_id_fkey" FOREIGN KEY (opened_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table purchase_requests add constraint "purchase_requests_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table push_subscriptions add constraint "push_subscriptions_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
+alter table request_canvass_line_unlocks add constraint "request_canvass_line_unlocks_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table request_canvass_line_unlocks add constraint "request_canvass_line_unlocks_item_id_fkey" FOREIGN KEY (item_id) REFERENCES purchase_request_items(id) ON DELETE CASCADE;
+alter table request_canvass_no_other_supplier add constraint "request_canvass_no_other_supplier_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table request_canvass_no_other_supplier add constraint "request_canvass_no_other_supplier_canvass_id_fkey" FOREIGN KEY (canvass_id) REFERENCES request_canvasses(id) ON DELETE CASCADE;
+alter table request_canvass_quote_prices add constraint "request_canvass_quote_prices_quote_id_fkey" FOREIGN KEY (quote_id) REFERENCES request_canvass_quotes(id) ON DELETE CASCADE;
+alter table request_canvass_quotes add constraint "request_canvass_quotes_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table request_canvass_quotes add constraint "request_canvass_quotes_item_id_fkey" FOREIGN KEY (item_id) REFERENCES purchase_request_items(id) ON DELETE CASCADE;
+alter table request_canvass_quotes add constraint "request_canvass_quotes_supplier_fkey" FOREIGN KEY (supplier_id, canvass_id) REFERENCES request_canvass_suppliers(id, canvass_id) ON DELETE CASCADE;
+alter table request_canvass_supplier_prices add constraint "request_canvass_supplier_prices_supplier_id_fkey" FOREIGN KEY (supplier_id) REFERENCES request_canvass_suppliers(id) ON DELETE CASCADE;
+alter table request_canvass_suppliers add constraint "request_canvass_suppliers_canvass_id_fkey" FOREIGN KEY (canvass_id) REFERENCES request_canvasses(id) ON DELETE CASCADE;
+alter table request_canvass_suppliers add constraint "request_canvass_suppliers_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table request_canvass_winners add constraint "request_canvass_winners_chosen_by_fkey" FOREIGN KEY (chosen_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table request_canvass_winners add constraint "request_canvass_winners_item_id_fkey" FOREIGN KEY (item_id) REFERENCES purchase_request_items(id) ON DELETE CASCADE;
+alter table request_canvass_winners add constraint "request_canvass_winners_quote_fkey" FOREIGN KEY (supplier_id, item_id) REFERENCES request_canvass_quotes(supplier_id, item_id) ON UPDATE CASCADE ON DELETE CASCADE;
+alter table request_canvasses add constraint "request_canvasses_canvasser_id_fkey" FOREIGN KEY (canvasser_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table request_canvasses add constraint "request_canvasses_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table request_canvasses add constraint "request_canvasses_request_id_fkey" FOREIGN KEY (request_id) REFERENCES purchase_requests(id) ON DELETE CASCADE;
 alter table revenue_activity_logs add constraint "revenue_activity_logs_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
 alter table sale_types add constraint "sale_types_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table sales_custom_templates add constraint "sales_custom_templates_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
@@ -2605,20 +2654,6 @@ alter table sor_action_runs add constraint "sor_action_runs_purchase_request_id_
 alter table sor_action_runs add constraint "sor_action_runs_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
 alter table sor_action_runs add constraint "sor_action_runs_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table sor_action_runs add constraint "sor_action_runs_task_id_fkey" FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL;
-alter table sor_canvass_no_other_supplier add constraint "sor_canvass_no_other_supplier_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id) ON DELETE SET NULL;
-alter table sor_canvass_no_other_supplier add constraint "sor_canvass_no_other_supplier_canvass_id_fkey" FOREIGN KEY (canvass_id) REFERENCES sor_canvasses(id) ON DELETE CASCADE;
-alter table sor_canvass_offer_prices add constraint "sor_canvass_offer_prices_offer_id_fkey" FOREIGN KEY (offer_id) REFERENCES sor_canvass_offers(id) ON DELETE CASCADE;
-alter table sor_canvass_offers add constraint "sor_canvass_offers_canvass_id_fkey" FOREIGN KEY (canvass_id) REFERENCES sor_canvasses(id) ON DELETE CASCADE;
-alter table sor_canvass_offers add constraint "sor_canvass_offers_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
-alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id) ON DELETE SET NULL;
-alter table sor_canvass_signoff_events add constraint "sor_canvass_signoff_events_canvass_id_fkey" FOREIGN KEY (canvass_id) REFERENCES sor_canvasses(id) ON DELETE CASCADE;
-alter table sor_canvasses add constraint "sor_canvasses_canvasser_id_fkey" FOREIGN KEY (canvasser_id) REFERENCES employees(id) ON DELETE SET NULL;
-alter table sor_canvasses add constraint "sor_canvasses_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE CASCADE;
-alter table sor_canvasses add constraint "sor_canvasses_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
-alter table sor_canvasses add constraint "sor_canvasses_lock_released_by_fkey" FOREIGN KEY (lock_released_by) REFERENCES employees(id) ON DELETE SET NULL;
-alter table sor_canvasses add constraint "sor_canvasses_requested_item_id_fkey" FOREIGN KEY (requested_item_id) REFERENCES purchase_request_items(id) ON DELETE CASCADE;
-alter table sor_canvasses add constraint "sor_canvasses_signed_off_by_fkey" FOREIGN KEY (signed_off_by) REFERENCES employees(id);
-alter table sor_canvasses add constraint "sor_canvasses_stopped_by_fkey" FOREIGN KEY (stopped_by) REFERENCES employees(id);
 alter table sor_condition_status add constraint "sor_condition_status_carried_from_visit_id_fkey" FOREIGN KEY (carried_from_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table sor_condition_status add constraint "sor_condition_status_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE CASCADE;
 alter table sor_condition_status add constraint "sor_requirement_status_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
@@ -2728,6 +2763,7 @@ CREATE INDEX bug_reports_created_at_idx ON public.bug_reports USING btree (creat
 CREATE INDEX commission_positions_department_id_idx ON public.commission_positions USING btree (department_id);
 CREATE INDEX commission_rates_rate_type_idx ON public.commission_rates USING btree (rate_type);
 CREATE INDEX commission_splits_project_type_idx ON public.commission_splits USING btree (project_type);
+CREATE INDEX committee_task_activity_task_created_idx ON public.committee_task_activity USING btree (task_id, created_at DESC);
 CREATE INDEX committee_tasks_opportunity_id_idx ON public.committee_tasks USING btree (opportunity_id);
 CREATE INDEX committee_tasks_stage_visit_id_idx ON public.committee_tasks USING btree (stage_visit_id);
 CREATE INDEX committee_tasks_template_idx ON public.committee_tasks USING btree (template_id);
@@ -2740,6 +2776,7 @@ CREATE INDEX costing_events_matrix_idx ON public.costing_events USING btree (mat
 CREATE INDEX costing_inclusions_component_idx ON public.costing_inclusions USING btree (component_id, "position");
 CREATE UNIQUE INDEX costing_inclusions_legacy_key ON public.costing_inclusions USING btree (legacy_sor_inclusion_id) WHERE (legacy_sor_inclusion_id IS NOT NULL);
 CREATE UNIQUE INDEX costing_markup_presets_label_key ON public.costing_markup_presets USING btree (lower(btrim(label)));
+CREATE UNIQUE INDEX costing_matrices_s0_uidx ON public.costing_matrices USING btree (upper(btrim(s0_number))) WHERE (s0_number IS NOT NULL);
 CREATE UNIQUE INDEX costing_signoffs_live_key ON public.costing_signoffs USING btree (matrix_id, role) WHERE (cleared_at IS NULL);
 CREATE INDEX costing_signoffs_matrix_idx ON public.costing_signoffs USING btree (matrix_id, signed_at DESC);
 CREATE INDEX costing_tender_lines_matrix_idx ON public.costing_tender_lines USING btree (matrix_id, "position");
@@ -2834,6 +2871,11 @@ CREATE UNIQUE INDEX purchase_requests_opportunity_id_key ON public.purchase_requ
 CREATE UNIQUE INDEX purchase_requests_pr_number_key ON public.purchase_requests USING btree (pr_number);
 CREATE INDEX purchase_requests_unassigned_idx ON public.purchase_requests USING btree (created_at) WHERE (buyer_id IS NULL);
 CREATE INDEX push_subscriptions_employee_id_idx ON public.push_subscriptions USING btree (employee_id);
+CREATE INDEX request_canvass_line_unlocks_item_idx ON public.request_canvass_line_unlocks USING btree (item_id, created_at DESC);
+CREATE INDEX request_canvass_quotes_canvass_idx ON public.request_canvass_quotes USING btree (canvass_id);
+CREATE INDEX request_canvass_quotes_item_idx ON public.request_canvass_quotes USING btree (item_id);
+CREATE INDEX request_canvass_suppliers_canvass_idx ON public.request_canvass_suppliers USING btree (canvass_id, sort_order);
+CREATE UNIQUE INDEX request_canvass_suppliers_name_key ON public.request_canvass_suppliers USING btree (canvass_id, lower(btrim(supplier_name)));
 CREATE INDEX retail_orders_ordered_at_idx ON public.retail_orders USING btree (ordered_at DESC);
 CREATE UNIQUE INDEX sale_types_live_name_key ON public.sale_types USING btree (lower(btrim(name))) WHERE (archived_at IS NULL);
 CREATE UNIQUE INDEX sale_types_system_key_key ON public.sale_types USING btree (system_key) WHERE (system_key IS NOT NULL);
@@ -2859,12 +2901,6 @@ CREATE INDEX sil_leaves_leave_group_id_idx ON public.sil_leaves USING btree (lea
 CREATE UNIQUE INDEX sor_action_runs_live_unique ON public.sor_action_runs USING btree (opportunity_id, stage_id, action_id) WHERE (closed_off_at IS NULL);
 CREATE INDEX sor_action_runs_opportunity_id_idx ON public.sor_action_runs USING btree (opportunity_id);
 CREATE INDEX sor_action_runs_pending_idx ON public.sor_action_runs USING btree (stage_visit_id) WHERE (outcome = 'pending'::text);
-CREATE INDEX sor_canvass_offers_canvass_idx ON public.sor_canvass_offers USING btree (canvass_id, sort_order);
-CREATE UNIQUE INDEX sor_canvass_offers_one_winner_per_canvass ON public.sor_canvass_offers USING btree (canvass_id) WHERE is_winner;
-CREATE INDEX sor_canvass_signoff_events_canvass_idx ON public.sor_canvass_signoff_events USING btree (canvass_id, created_at);
-CREATE UNIQUE INDEX sor_canvasses_component_key ON public.sor_canvasses USING btree (component_id) WHERE (component_id IS NOT NULL);
-CREATE UNIQUE INDEX sor_canvasses_number_key ON public.sor_canvasses USING btree (number);
-CREATE UNIQUE INDEX sor_canvasses_requested_item_key ON public.sor_canvasses USING btree (requested_item_id) WHERE (requested_item_id IS NOT NULL);
 CREATE INDEX sor_condition_status_opp_idx ON public.sor_condition_status USING btree (opportunity_id);
 CREATE INDEX sor_condition_status_stage_visit_id_idx ON public.sor_condition_status USING btree (stage_visit_id);
 CREATE INDEX sor_form_values_opportunity_id_idx ON public.sor_form_values USING btree (opportunity_id);
@@ -2881,6 +2917,8 @@ CREATE INDEX sor_stage_participants_opportunity_id_idx ON public.sor_stage_parti
 CREATE INDEX sor_stage_visits_open_idx ON public.sor_stage_visits USING btree (opportunity_id) WHERE (left_at IS NULL);
 CREATE INDEX sor_stage_visits_opportunity_id_idx ON public.sor_stage_visits USING btree (opportunity_id);
 CREATE INDEX stage_conditions_stage_idx ON public.stage_conditions USING btree (stage_id, sort_order);
+CREATE INDEX task_activity_author_idx ON public.task_activity USING btree (author_id);
+CREATE INDEX task_activity_task_type_created_idx ON public.task_activity USING btree (task_id, type, created_at DESC);
 CREATE UNIQUE INDEX task_tags_active_name_key ON public.task_tags USING btree (lower(name)) WHERE (archived_at IS NULL);
 CREATE INDEX tasks_opportunity_id_idx ON public.tasks USING btree (opportunity_id);
 CREATE INDEX tasks_stage_visit_id_idx ON public.tasks USING btree (stage_visit_id);
@@ -3001,6 +3039,14 @@ alter table public."purchase_request_members" enable row level security;
 alter table public."purchase_request_messages" enable row level security;
 alter table public."purchase_requests" enable row level security;
 alter table public."push_subscriptions" enable row level security;
+alter table public."request_canvass_line_unlocks" enable row level security;
+alter table public."request_canvass_no_other_supplier" enable row level security;
+alter table public."request_canvass_quote_prices" enable row level security;
+alter table public."request_canvass_quotes" enable row level security;
+alter table public."request_canvass_supplier_prices" enable row level security;
+alter table public."request_canvass_suppliers" enable row level security;
+alter table public."request_canvass_winners" enable row level security;
+alter table public."request_canvasses" enable row level security;
 alter table public."retail_orders" enable row level security;
 alter table public."revenue_activity_logs" enable row level security;
 alter table public."sale_types" enable row level security;
@@ -3012,11 +3058,6 @@ alter table public."sales_opportunity_logs" enable row level security;
 alter table public."sales_opportunity_members" enable row level security;
 alter table public."sil_leaves" enable row level security;
 alter table public."sor_action_runs" enable row level security;
-alter table public."sor_canvass_no_other_supplier" enable row level security;
-alter table public."sor_canvass_offer_prices" enable row level security;
-alter table public."sor_canvass_offers" enable row level security;
-alter table public."sor_canvass_signoff_events" enable row level security;
-alter table public."sor_canvasses" enable row level security;
 alter table public."sor_form_values" enable row level security;
 alter table public."sor_inclusions" enable row level security;
 alter table public."sor_mention_viewers" enable row level security;
@@ -3226,11 +3267,11 @@ create policy "Enable insert for authenticated users" on public."committee_task_
   for insert
   to public
   with check (true);
-create policy "Enable read access for all users" on public."committee_task_activity"
+create policy "Group Task chat follows the Group Task read rule" on public."committee_task_activity"
   as permissive
   for select
   to public
-  using (true);
+  using (committee_task_visible(task_id));
 create policy "Allow insert on committee_task_logs" on public."committee_task_logs"
   as permissive
   for insert
@@ -3306,17 +3347,17 @@ create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using ((is_super_admin() OR (evaluator_id = get_employee_id()) OR (EXISTS ( SELECT 1
+  using ((( SELECT is_super_admin() AS is_super_admin) OR (evaluator_id = ( SELECT get_employee_id() AS get_employee_id)) OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
-  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))) OR ((created_by = get_employee_id()) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
+  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = ( SELECT get_employee_id() AS get_employee_id))))) OR ((created_by = ( SELECT get_employee_id() AS get_employee_id)) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "committee_tasks_read_on_hold" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using (((status = 'ON_HOLD'::text) AND ((created_by = get_employee_id()) OR (EXISTS ( SELECT 1
+  using (((status = 'ON_HOLD'::text) AND ((created_by = ( SELECT get_employee_id() AS get_employee_id)) OR (EXISTS ( SELECT 1
    FROM (employees h
      JOIN employees c ON ((c.id = committee_tasks.created_by)))
-  WHERE ((h.id = get_employee_id()) AND h.is_head AND (NOT COALESCE(h.is_deleted, false)) AND (h.department IS NOT NULL) AND (h.department = c.department)))))));
+  WHERE ((h.id = ( SELECT get_employee_id() AS get_employee_id)) AND h.is_head AND (NOT COALESCE(h.is_deleted, false)) AND (h.department IS NOT NULL) AND (h.department = c.department)))))));
 create policy "companies_read" on public."companies"
   as permissive
   for select
@@ -3451,13 +3492,13 @@ create policy "costing_matrices_read" on public."costing_matrices"
   as permissive
   for select
   to authenticated
-  using (costing_can_read(opportunity_id));
+  using (costing_can_read(COALESCE(opportunity_id, id)));
 create policy "costing_matrices_update" on public."costing_matrices"
   as permissive
   for update
   to authenticated
-  using (costing_can_read(opportunity_id))
-  with check (costing_can_read(opportunity_id));
+  using (costing_can_read(COALESCE(opportunity_id, id)))
+  with check (costing_can_read(COALESCE(opportunity_id, id)));
 create policy "costing_matrix_money_read" on public."costing_matrix_money"
   as permissive
   for select
@@ -4151,7 +4192,9 @@ create policy "purchase_request_item_prices_read" on public."purchase_request_it
   as permissive
   for select
   to authenticated
-  using (canvass_subject_can_read_money(NULL::uuid, item_id));
+  using (canvass_request_can_read_money(( SELECT i.request_id
+   FROM purchase_request_items i
+  WHERE (i.id = purchase_request_item_prices.item_id))));
 create policy "purchase_request_items_read" on public."purchase_request_items"
   as permissive
   for select
@@ -4192,6 +4235,153 @@ create policy "Users can view own push subscriptions" on public."push_subscripti
   for select
   to authenticated
   using ((employee_id = get_employee_id()));
+create policy "request_canvass_line_unlocks_read" on public."request_canvass_line_unlocks"
+  as permissive
+  for select
+  to authenticated
+  using (canvass_item_can_read(item_id));
+create policy "request_canvass_no_other_supplier_delete" on public."request_canvass_no_other_supplier"
+  as permissive
+  for delete
+  to authenticated
+  using ((canvass_can_write() AND canvass_can_read(canvass_id)));
+create policy "request_canvass_no_other_supplier_insert" on public."request_canvass_no_other_supplier"
+  as permissive
+  for insert
+  to authenticated
+  with check ((canvass_can_write() AND canvass_can_read(canvass_id)));
+create policy "request_canvass_no_other_supplier_read" on public."request_canvass_no_other_supplier"
+  as permissive
+  for select
+  to authenticated
+  using (canvass_can_read(canvass_id));
+create policy "request_canvass_no_other_supplier_update" on public."request_canvass_no_other_supplier"
+  as permissive
+  for update
+  to authenticated
+  using ((canvass_can_write() AND canvass_can_read(canvass_id)))
+  with check ((canvass_can_write() AND canvass_can_read(canvass_id)));
+create policy "request_canvass_quote_prices_delete" on public."request_canvass_quote_prices"
+  as permissive
+  for delete
+  to authenticated
+  using ((canvass_can_write() AND canvass_quote_can_read_money(quote_id)));
+create policy "request_canvass_quote_prices_insert" on public."request_canvass_quote_prices"
+  as permissive
+  for insert
+  to authenticated
+  with check ((canvass_can_write() AND canvass_quote_can_read_money(quote_id)));
+create policy "request_canvass_quote_prices_read" on public."request_canvass_quote_prices"
+  as permissive
+  for select
+  to authenticated
+  using (canvass_quote_can_read_money(quote_id));
+create policy "request_canvass_quote_prices_update" on public."request_canvass_quote_prices"
+  as permissive
+  for update
+  to authenticated
+  using ((canvass_can_write() AND canvass_quote_can_read_money(quote_id)))
+  with check ((canvass_can_write() AND canvass_quote_can_read_money(quote_id)));
+create policy "request_canvass_quotes_delete" on public."request_canvass_quotes"
+  as permissive
+  for delete
+  to authenticated
+  using ((canvass_can_write() AND canvass_can_read(canvass_id)));
+create policy "request_canvass_quotes_insert" on public."request_canvass_quotes"
+  as permissive
+  for insert
+  to authenticated
+  with check ((canvass_can_write() AND canvass_can_read(canvass_id)));
+create policy "request_canvass_quotes_read" on public."request_canvass_quotes"
+  as permissive
+  for select
+  to authenticated
+  using (canvass_can_read(canvass_id));
+create policy "request_canvass_quotes_update" on public."request_canvass_quotes"
+  as permissive
+  for update
+  to authenticated
+  using ((canvass_can_write() AND canvass_can_read(canvass_id)))
+  with check ((canvass_can_write() AND canvass_can_read(canvass_id)));
+create policy "request_canvass_supplier_prices_delete" on public."request_canvass_supplier_prices"
+  as permissive
+  for delete
+  to authenticated
+  using ((canvass_can_write() AND canvass_supplier_can_read_money(supplier_id)));
+create policy "request_canvass_supplier_prices_insert" on public."request_canvass_supplier_prices"
+  as permissive
+  for insert
+  to authenticated
+  with check ((canvass_can_write() AND canvass_supplier_can_read_money(supplier_id)));
+create policy "request_canvass_supplier_prices_read" on public."request_canvass_supplier_prices"
+  as permissive
+  for select
+  to authenticated
+  using (canvass_supplier_can_read_money(supplier_id));
+create policy "request_canvass_supplier_prices_update" on public."request_canvass_supplier_prices"
+  as permissive
+  for update
+  to authenticated
+  using ((canvass_can_write() AND canvass_supplier_can_read_money(supplier_id)))
+  with check ((canvass_can_write() AND canvass_supplier_can_read_money(supplier_id)));
+create policy "request_canvass_suppliers_delete" on public."request_canvass_suppliers"
+  as permissive
+  for delete
+  to authenticated
+  using ((canvass_can_write() AND canvass_can_read(canvass_id)));
+create policy "request_canvass_suppliers_insert" on public."request_canvass_suppliers"
+  as permissive
+  for insert
+  to authenticated
+  with check ((canvass_can_write() AND canvass_can_read(canvass_id)));
+create policy "request_canvass_suppliers_read" on public."request_canvass_suppliers"
+  as permissive
+  for select
+  to authenticated
+  using (canvass_can_read(canvass_id));
+create policy "request_canvass_suppliers_update" on public."request_canvass_suppliers"
+  as permissive
+  for update
+  to authenticated
+  using ((canvass_can_write() AND canvass_can_read(canvass_id)))
+  with check ((canvass_can_write() AND canvass_can_read(canvass_id)));
+create policy "request_canvass_winners_delete" on public."request_canvass_winners"
+  as permissive
+  for delete
+  to authenticated
+  using ((canvass_can_write() AND canvass_item_can_read(item_id)));
+create policy "request_canvass_winners_insert" on public."request_canvass_winners"
+  as permissive
+  for insert
+  to authenticated
+  with check ((canvass_can_write() AND canvass_item_can_read(item_id)));
+create policy "request_canvass_winners_read" on public."request_canvass_winners"
+  as permissive
+  for select
+  to authenticated
+  using (canvass_item_can_read(item_id));
+create policy "request_canvass_winners_update" on public."request_canvass_winners"
+  as permissive
+  for update
+  to authenticated
+  using ((canvass_can_write() AND canvass_item_can_read(item_id)))
+  with check ((canvass_can_write() AND canvass_item_can_read(item_id)));
+create policy "request_canvasses_delete" on public."request_canvasses"
+  as permissive
+  for delete
+  to authenticated
+  using ((canvass_can_write() AND canvass_request_can_read(request_id)));
+create policy "request_canvasses_read" on public."request_canvasses"
+  as permissive
+  for select
+  to authenticated
+  using (canvass_request_can_read(request_id));
+create policy "request_canvasses_update" on public."request_canvasses"
+  as permissive
+  for update
+  to authenticated
+  using ((canvass_can_write() AND canvass_request_can_read(request_id)))
+  with check ((canvass_can_write() AND canvass_request_can_read(request_id)));
 create policy "Retail handlers can view retail orders" on public."retail_orders"
   as permissive
   for select
@@ -4327,7 +4517,7 @@ create policy "sor_log_read" on public."sales_opportunity_logs"
   as permissive
   for select
   to authenticated
-  using ((is_super_admin() OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(sales_opportunity_logs.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))));
+  using ((( SELECT is_super_admin() AS is_super_admin) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_readable_visit_ids() AS sor_readable_visit_ids))) OR ((stage_visit_id IS NULL) AND (opportunity_id IN ( SELECT sor_readable_log_sor_ids() AS sor_readable_log_sor_ids)))));
 create policy "sales_opportunity_members_insert" on public."sales_opportunity_members"
   as permissive
   for insert
@@ -4380,79 +4570,6 @@ create policy "sor_action_runs_read" on public."sor_action_runs"
   for select
   to authenticated
   using (true);
-create policy "sor_canvass_no_other_supplier_read" on public."sor_canvass_no_other_supplier"
-  as permissive
-  for select
-  to authenticated
-  using (canvass_can_read(canvass_id));
-create policy "sor_canvass_offer_prices_delete" on public."sor_canvass_offer_prices"
-  as permissive
-  for delete
-  to authenticated
-  using ((canvass_can_write() AND canvass_offer_can_read_money(offer_id)));
-create policy "sor_canvass_offer_prices_insert" on public."sor_canvass_offer_prices"
-  as permissive
-  for insert
-  to authenticated
-  with check ((canvass_can_write() AND canvass_offer_can_read_money(offer_id)));
-create policy "sor_canvass_offer_prices_read" on public."sor_canvass_offer_prices"
-  as permissive
-  for select
-  to authenticated
-  using (canvass_offer_can_read_money(offer_id));
-create policy "sor_canvass_offer_prices_update" on public."sor_canvass_offer_prices"
-  as permissive
-  for update
-  to authenticated
-  using ((canvass_can_write() AND canvass_offer_can_read_money(offer_id)))
-  with check ((canvass_can_write() AND canvass_offer_can_read_money(offer_id)));
-create policy "sor_canvass_offers_delete" on public."sor_canvass_offers"
-  as permissive
-  for delete
-  to authenticated
-  using ((canvass_can_write() AND canvass_can_read(canvass_id)));
-create policy "sor_canvass_offers_insert" on public."sor_canvass_offers"
-  as permissive
-  for insert
-  to authenticated
-  with check ((canvass_can_write() AND canvass_can_read(canvass_id)));
-create policy "sor_canvass_offers_read" on public."sor_canvass_offers"
-  as permissive
-  for select
-  to authenticated
-  using (canvass_can_read(canvass_id));
-create policy "sor_canvass_offers_update" on public."sor_canvass_offers"
-  as permissive
-  for update
-  to authenticated
-  using ((canvass_can_write() AND canvass_can_read(canvass_id)))
-  with check ((canvass_can_write() AND canvass_can_read(canvass_id)));
-create policy "sor_canvass_signoff_events_read" on public."sor_canvass_signoff_events"
-  as permissive
-  for select
-  to authenticated
-  using (canvass_can_read(canvass_id));
-create policy "sor_canvasses_delete" on public."sor_canvasses"
-  as permissive
-  for delete
-  to authenticated
-  using ((canvass_can_write() AND canvass_subject_can_read(component_id, requested_item_id)));
-create policy "sor_canvasses_insert" on public."sor_canvasses"
-  as permissive
-  for insert
-  to authenticated
-  with check ((canvass_can_write() AND canvass_subject_can_read(component_id, requested_item_id)));
-create policy "sor_canvasses_read" on public."sor_canvasses"
-  as permissive
-  for select
-  to authenticated
-  using (canvass_subject_can_read(component_id, requested_item_id));
-create policy "sor_canvasses_update" on public."sor_canvasses"
-  as permissive
-  for update
-  to authenticated
-  using ((canvass_can_write() AND canvass_subject_can_read(component_id, requested_item_id)))
-  with check ((canvass_can_write() AND canvass_subject_can_read(component_id, requested_item_id)));
 create policy "sor_condition_status_read" on public."sor_condition_status"
   as permissive
   for select
@@ -8328,198 +8445,66 @@ BEGIN
 END;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.canvass_add_offer(p_canvass_id uuid, p_offer jsonb, p_price jsonb DEFAULT '{}'::jsonb)
+CREATE OR REPLACE FUNCTION public.canvass_add_supplier(p_request_id uuid, p_supplier jsonb, p_price jsonb DEFAULT '{}'::jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
+ SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
-  v_offer public.sor_canvass_offers;
+  v_canvass  public.request_canvasses;
+  v_supplier public.request_canvass_suppliers;
+  v_rate     numeric;
 begin
-  p_offer := coalesce(p_offer, '{}'::jsonb);
+  p_supplier := coalesce(p_supplier, '{}'::jsonb);
   p_price := coalesce(p_price, '{}'::jsonb);
 
-  insert into public.sor_canvass_offers (
-    canvass_id, supplier_name, odoo_supplier_id, brand, description, source_link, brochure,
-    remarks, lead_time, quality_note, currency, valid_until, sort_order, created_by
+  if public.get_employee_id() is null then
+    raise exception 'canvass_add_supplier: sign in first' using errcode = '42501';
+  end if;
+  if not (public.canvass_can_write() and public.canvass_request_can_read(p_request_id)) then
+    raise exception 'canvass_add_supplier: not allowed' using errcode = '42501';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('canvass_request:' || p_request_id::text));
+
+  select * into v_canvass from public.request_canvasses where request_id = p_request_id;
+  if not found then
+    insert into public.request_canvasses (request_id, number)
+    values (p_request_id, 'pending')
+    returning * into v_canvass;
+  end if;
+
+  insert into public.request_canvass_suppliers (
+    canvass_id, supplier_name, odoo_supplier_id, currency, valid_until, lead_time, quality_note,
+    sort_order, created_by
   ) values (
-    p_canvass_id,
-    p_offer ->> 'supplier_name',
-    nullif(p_offer ->> 'odoo_supplier_id', '')::integer,
-    p_offer ->> 'brand',
-    p_offer ->> 'description',
-    p_offer ->> 'source_link',
-    case when jsonb_typeof(p_offer -> 'brochure') = 'array' then p_offer -> 'brochure' else '[]'::jsonb end,
-    p_offer ->> 'remarks',
-    p_offer ->> 'lead_time',
-    p_offer ->> 'quality_note',
-    coalesce(nullif(p_offer ->> 'currency', ''), 'PHP'),
-    nullif(p_offer ->> 'valid_until', '')::date,
-    (select count(*)::integer from public.sor_canvass_offers where canvass_id = p_canvass_id),
-    nullif(p_offer ->> 'created_by', '')::uuid
+    v_canvass.id,
+    nullif(btrim(coalesce(p_supplier ->> 'supplier_name', '')), ''),
+    nullif(p_supplier ->> 'odoo_supplier_id', '')::integer,
+    coalesce(nullif(p_supplier ->> 'currency', ''), 'PHP'),
+    nullif(p_supplier ->> 'valid_until', '')::date,
+    p_supplier ->> 'lead_time',
+    p_supplier ->> 'quality_note',
+    (select count(*)::integer from public.request_canvass_suppliers where canvass_id = v_canvass.id),
+    public.get_employee_id()
   )
-  returning * into v_offer;
+  returning * into v_supplier;
 
-  insert into public.sor_canvass_offer_prices (offer_id, unit_price, comparison_rate)
-  values (
-    v_offer.id,
-    nullif(p_price ->> 'unit_price', '')::numeric,
-    nullif(p_price ->> 'comparison_rate', '')::numeric
+  -- The rate is money: its value is written only for a caller who may read it. The row is always
+  -- made, so a money reader who comes later has a row to fill.
+  if public.canvass_can_read_money(v_canvass.id) then
+    v_rate := nullif(p_price ->> 'comparison_rate', '')::numeric;
+  end if;
+  insert into public.request_canvass_supplier_prices (supplier_id, comparison_rate)
+  values (v_supplier.id, v_rate);
+
+  return jsonb_build_object(
+    'canvass_id', v_canvass.id,
+    'number', v_canvass.number,
+    'supplier', to_jsonb(v_supplier)
   );
-
-  return to_jsonb(v_offer);
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_add_to_purchase_request(p_request_id uuid, p_items jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  raise exception 'canvass_add_to_purchase_request: a Canvass is not added to a Purchase Request any more; Canvass the line itself'
-    using errcode = '22023';
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_apply_winner(p_canvass_id uuid, p_offer_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_actor    uuid := public.get_employee_id();
-  v_canvass  public.sor_canvasses;
-  v_offer    public.sor_canvass_offers;
-  v_price    numeric;
-  v_rate     numeric;
-  v_acquire  numeric;
-  v_comp     public.costing_components;
-  v_cost     public.costing_component_costs;
-  v_filled   jsonb := jsonb_build_object('acquire', false, 'offer_specification', false, 'documents', false);
-  v_kept     jsonb;
-  v_docs     jsonb;
-  v_spec     boolean;
-  v_component_id uuid;
-begin
-  if v_actor is null then
-    raise exception 'canvass_apply_winner: sign in first' using errcode = '42501';
-  end if;
-
-  perform pg_advisory_xact_lock(hashtext('canvass_winner:' || p_canvass_id::text));
-
-  select * into v_canvass from public.sor_canvasses where id = p_canvass_id;
-  if not found then
-    raise exception 'canvass_apply_winner: not found' using errcode = 'P0002';
-  end if;
-  if not (public.canvass_can_write() and public.canvass_can_read(p_canvass_id)) then
-    raise exception 'canvass_apply_winner: not allowed' using errcode = '42501';
-  end if;
-
-  select * into v_offer from public.sor_canvass_offers where id = p_offer_id and canvass_id = p_canvass_id;
-  if not found then
-    raise exception 'canvass_apply_winner: that Offer is not on this Canvass' using errcode = 'P0002';
-  end if;
-
-  -- #721 (ADR 0047): three slots, each an Offer or an explained "No other supplier".
-  if public.canvass_slots_covered(p_canvass_id) < 3 then
-    raise exception 'canvass_apply_winner: a winner needs three supplier slots filled or explained. Add an Offer or mark No other supplier with a reason'
-      using errcode = '22023';
-  end if;
-
-  select p.unit_price, p.comparison_rate into v_price, v_rate
-    from public.sor_canvass_offer_prices p where p.offer_id = p_offer_id;
-
-  if v_offer.currency <> 'PHP' and v_rate is null then
-    raise exception 'canvass_apply_winner: a % Offer needs its comparison rate before it can win', v_offer.currency
-      using errcode = '22023';
-  end if;
-
-  -- One winner: the old one goes first.
-  update public.sor_canvass_offers set is_winner = false
-    where canvass_id = p_canvass_id and is_winner and id <> p_offer_id;
-  update public.sor_canvass_offers set is_winner = true
-    where id = p_offer_id and not is_winner;
-
-  -- A Canvass on a product line fills the Component linked to the line's SOR line (#682).
-  v_component_id := v_canvass.component_id;
-  if v_component_id is null and v_canvass.requested_item_id is not null then
-    v_component_id := public._canvass_item_component(v_canvass.requested_item_id);
-  end if;
-  if v_component_id is null then
-    return jsonb_build_object('offer_id', p_offer_id, 'filled', v_filled);
-  end if;
-
-  select * into v_comp from public.costing_components where id = v_component_id for update;
-  if not found then
-    raise exception 'canvass_apply_winner: not found' using errcode = 'P0002';
-  end if;
-  select * into v_cost from public.costing_component_costs where component_id = v_component_id;
-
-  -- Writes below are the caller's own (auth.uid() is still the caller), so the band triggers judge
-  -- them; the flag only tells the mark-nulling trigger this is the fill.
-  perform set_config('canvass.fill', 'on', true);
-
-  -- Acquire unit: the price as quoted, or price x comparison rate, to the centavo.
-  if v_price is not null then
-    v_acquire := round(case when v_offer.currency = 'PHP' then v_price else v_price * v_rate end, 2);
-    if v_cost.acquire_from_offer_id is not null or v_cost.acquire_unit is null or v_cost.acquire_source = 'odoo' then
-      perform public.costing_set_money(
-        'costing_component_costs', v_component_id,
-        jsonb_build_object('acquire_unit', v_acquire, 'acquire_from_offer_id', p_offer_id)
-      );
-      v_filled := v_filled || jsonb_build_object('acquire', true);
-    end if;
-  elsif v_cost.acquire_from_offer_id is not null then
-    -- The figure came from an earlier winner and this one has no price: keep the figure, drop
-    -- the claim that the Canvass backs it.
-    perform public.costing_set_money(
-      'costing_component_costs', v_component_id,
-      jsonb_build_object('acquire_from_offer_id', null)
-    );
-  end if;
-
-  -- Offer Specification: the Offer's description; documents: its brochure, cited.
-  v_spec := nullif(btrim(coalesce(v_offer.description, '')), '') is not null
-    and (v_comp.offer_specification_from_offer_id is not null
-         or nullif(btrim(coalesce(v_comp.offer_specification, '')), '') is null);
-
-  -- Citations of this Canvass's Offers are the Canvass's to replace; anything else is the user's.
-  select coalesce(jsonb_agg(d), '[]'::jsonb) into v_kept
-    from jsonb_array_elements(case when jsonb_typeof(v_comp.documents) = 'array' then v_comp.documents else '[]'::jsonb end) d
-    where not (d ? 'offer_id' and (d ->> 'offer_id') in (
-      select o.id::text from public.sor_canvass_offers o where o.canvass_id = p_canvass_id
-    ));
-  v_docs := v_kept || coalesce((
-    select jsonb_agg(b || jsonb_build_object('offer_id', p_offer_id))
-    from jsonb_array_elements(case when jsonb_typeof(v_offer.brochure) = 'array' then v_offer.brochure else '[]'::jsonb end) b
-  ), '[]'::jsonb);
-
-  if v_spec then
-    update public.costing_components
-       set offer_specification = btrim(v_offer.description),
-           offer_specification_from_offer_id = p_offer_id
-     where id = v_component_id;
-    v_filled := v_filled || jsonb_build_object('offer_specification', true);
-  elsif v_comp.offer_specification_from_offer_id is not null
-        and nullif(btrim(coalesce(v_offer.description, '')), '') is null then
-    -- Same as Acquire: the text stays, the "from Canvass" claim goes.
-    update public.costing_components
-       set offer_specification_from_offer_id = null
-     where id = v_component_id;
-  end if;
-
-  if v_docs is distinct from v_comp.documents then
-    update public.costing_components set documents = v_docs where id = v_component_id;
-    v_filled := v_filled || jsonb_build_object('documents', true);
-  end if;
-
-  perform set_config('canvass.fill', 'off', true);
-
-  return jsonb_build_object('offer_id', p_offer_id, 'filled', v_filled);
-end;
+end
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.canvass_can_read(p_canvass_id uuid)
@@ -8529,8 +8514,20 @@ CREATE OR REPLACE FUNCTION public.canvass_can_read(p_canvass_id uuid)
  SET search_path TO 'public'
 AS $function$
   select coalesce((
-    select public.canvass_subject_can_read(c.component_id, c.requested_item_id)
-    from public.sor_canvasses c where c.id = p_canvass_id
+    select public.canvass_request_can_read(c.request_id)
+      from public.request_canvasses c where c.id = p_canvass_id
+  ), false)
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_can_read_money(p_canvass_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce((
+    select public.canvass_request_can_read_money(c.request_id)
+      from public.request_canvasses c where c.id = p_canvass_id
   ), false)
 $function$
 ;
@@ -8541,70 +8538,6 @@ CREATE OR REPLACE FUNCTION public.canvass_can_write()
  SET search_path TO 'public'
 AS $function$
   select coalesce(public.has_purchasing_access(), false) or coalesce(public.is_super_admin(), false)
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_clear_no_other_supplier(p_canvass_id uuid, p_slot integer)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_removed integer;
-begin
-  if public.get_employee_id() is null then
-    raise exception 'canvass_clear_no_other_supplier: sign in first' using errcode = '42501';
-  end if;
-
-  perform pg_advisory_xact_lock(hashtext('canvass_winner:' || p_canvass_id::text));
-
-  if not exists (select 1 from public.sor_canvasses where id = p_canvass_id) then
-    raise exception 'canvass_clear_no_other_supplier: not found' using errcode = 'P0002';
-  end if;
-  if not (public.canvass_can_write() and public.canvass_can_read(p_canvass_id)) then
-    raise exception 'canvass_clear_no_other_supplier: not allowed' using errcode = '42501';
-  end if;
-  if public.canvass_is_locked(p_canvass_id) then
-    raise exception 'canvass_clear_no_other_supplier: this Canvass is locked, so its slots can''t change' using errcode = '22023';
-  end if;
-
-  delete from public.sor_canvass_no_other_supplier where canvass_id = p_canvass_id and slot = p_slot;
-  get diagnostics v_removed = row_count;
-
-  return jsonb_build_object('canvass_id', p_canvass_id, 'slot', p_slot, 'cleared', v_removed > 0);
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_clear_winner(p_canvass_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_cleared integer;
-begin
-  if public.get_employee_id() is null then
-    raise exception 'canvass_clear_winner: sign in first' using errcode = '42501';
-  end if;
-
-  -- The same lock canvass_apply_winner takes, so a pick and an un-pick never interleave.
-  perform pg_advisory_xact_lock(hashtext('canvass_winner:' || p_canvass_id::text));
-
-  if not exists (select 1 from public.sor_canvasses where id = p_canvass_id) then
-    raise exception 'canvass_clear_winner: not found' using errcode = 'P0002';
-  end if;
-  if not (public.canvass_can_write() and public.canvass_can_read(p_canvass_id)) then
-    raise exception 'canvass_clear_winner: not allowed' using errcode = '42501';
-  end if;
-
-  -- The Costing Matrix keeps what the winner filled, marked, until canvass_apply_winner replaces it.
-  update public.sor_canvass_offers set is_winner = false
-   where canvass_id = p_canvass_id and is_winner;
-  get diagnostics v_cleared = row_count;
-
-  return jsonb_build_object('canvass_id', p_canvass_id, 'cleared', v_cleared > 0);
-end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.canvass_component_opportunity(p_component_id uuid)
@@ -8620,85 +8553,210 @@ AS $function$
   where c.id = p_component_id
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.canvass_create_purchase_request(p_title text, p_items jsonb)
+CREATE OR REPLACE FUNCTION public.canvass_fill_from_winner(p_item_id uuid, p_supplier_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+declare
+  v_quote    public.request_canvass_quotes;
+  v_supplier public.request_canvass_suppliers;
+  v_price    numeric;
+  v_rate     numeric;
+  v_acquire  numeric;
+  v_component uuid;
+  v_opp      uuid;
+  v_comp     public.costing_components;
+  v_cost     public.costing_component_costs;
+  v_filled   jsonb := jsonb_build_object('acquire', false, 'offer_specification', false, 'documents', false, 'item_price', false);
+  v_kept     jsonb;
+  v_docs     jsonb;
+  v_spec     boolean;
 begin
-  raise exception 'canvass_create_purchase_request: a Purchase Request is not made from Canvasses any more; open the request, type its lines and Canvass each line'
-    using errcode = '22023';
-end;
+  select * into v_quote from public.request_canvass_quotes where supplier_id = p_supplier_id and item_id = p_item_id;
+  if not found then
+    return v_filled;
+  end if;
+  select * into v_supplier from public.request_canvass_suppliers where id = p_supplier_id;
+  select p.unit_price into v_price from public.request_canvass_quote_prices p where p.quote_id = v_quote.id;
+  select sp.comparison_rate into v_rate from public.request_canvass_supplier_prices sp where sp.supplier_id = p_supplier_id;
+
+  if v_price is not null then
+    v_acquire := case
+      when v_supplier.currency = 'PHP' then round(v_price, 2)
+      when v_rate is not null then round(v_price * v_rate, 2)
+    end;
+  end if;
+
+  -- The line's price on the request is the winner's, as quoted. No price, no stale one.
+  if v_price is not null then
+    insert into public.purchase_request_item_prices (item_id, unit_price, currency, comparison_rate)
+    values (p_item_id, v_price, v_supplier.currency, case when v_supplier.currency = 'PHP' then null else v_rate end)
+    on conflict (item_id) do update
+      set unit_price = excluded.unit_price,
+          currency = excluded.currency,
+          comparison_rate = excluded.comparison_rate,
+          updated_at = now();
+    v_filled := v_filled || jsonb_build_object('item_price', true);
+  else
+    delete from public.purchase_request_item_prices where item_id = p_item_id;
+  end if;
+
+  select coalesce(i.component_id, public._canvass_item_component(i.id)) into v_component
+    from public.purchase_request_items i where i.id = p_item_id;
+  if v_component is null or public.get_employee_id() is null then
+    return v_filled;
+  end if;
+  v_opp := public.canvass_component_opportunity(v_component);
+  if v_opp is null or not public.costing_can_read(v_opp) then
+    return v_filled;
+  end if;
+
+  select * into v_comp from public.costing_components where id = v_component for update;
+  if not found then
+    return v_filled;
+  end if;
+  select * into v_cost from public.costing_component_costs where component_id = v_component;
+
+  -- Writes below are the caller's own (auth.uid() is still the caller), so the band triggers judge
+  -- them; the flag only tells the mark-nulling trigger this is the fill.
+  perform set_config('canvass.fill', 'on', true);
+
+  if v_acquire is not null then
+    if v_cost.acquire_from_offer_id is not null or v_cost.acquire_unit is null or v_cost.acquire_source = 'odoo' then
+      perform public.costing_set_money(
+        'costing_component_costs', v_component,
+        jsonb_build_object('acquire_unit', v_acquire, 'acquire_from_offer_id', v_quote.id)
+      );
+      v_filled := v_filled || jsonb_build_object('acquire', true);
+    end if;
+  elsif v_cost.acquire_from_offer_id is not null then
+    -- The figure came from an earlier winner and this one has none: keep the figure, drop the claim
+    -- that the Canvass backs it.
+    perform public.costing_set_money(
+      'costing_component_costs', v_component,
+      jsonb_build_object('acquire_from_offer_id', null)
+    );
+  end if;
+
+  -- Offer Specification: the quote's description; documents: its brochure, cited.
+  v_spec := nullif(btrim(coalesce(v_quote.description, '')), '') is not null
+    and (v_comp.offer_specification_from_offer_id is not null
+         or nullif(btrim(coalesce(v_comp.offer_specification, '')), '') is null);
+
+  -- Documents that cite a quote are the Canvass's to replace; anything else is the user's.
+  select coalesce(jsonb_agg(d), '[]'::jsonb) into v_kept
+    from jsonb_array_elements(case when jsonb_typeof(v_comp.documents) = 'array' then v_comp.documents else '[]'::jsonb end) d
+   where not (jsonb_typeof(d) = 'object' and d ? 'offer_id');
+  v_docs := v_kept || coalesce((
+    select jsonb_agg(b || jsonb_build_object('offer_id', v_quote.id))
+      from jsonb_array_elements(case when jsonb_typeof(v_quote.brochure) = 'array' then v_quote.brochure else '[]'::jsonb end) b
+  ), '[]'::jsonb);
+
+  if v_spec then
+    update public.costing_components
+       set offer_specification = btrim(v_quote.description),
+           offer_specification_from_offer_id = v_quote.id
+     where id = v_component;
+    v_filled := v_filled || jsonb_build_object('offer_specification', true);
+  elsif v_comp.offer_specification_from_offer_id is not null
+        and nullif(btrim(coalesce(v_quote.description, '')), '') is null then
+    update public.costing_components
+       set offer_specification_from_offer_id = null
+     where id = v_component;
+  end if;
+
+  if v_docs is distinct from v_comp.documents then
+    update public.costing_components set documents = v_docs where id = v_component;
+    v_filled := v_filled || jsonb_build_object('documents', true);
+  end if;
+
+  perform set_config('canvass.fill', 'off', true);
+  return v_filled;
+end
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.canvass_is_locked(p_canvass_id uuid)
+CREATE OR REPLACE FUNCTION public.canvass_item_can_read(p_item_id uuid)
  RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select coalesce(
-    (select c.request_made_at is not null and c.lock_released_at is null
-       from public.sor_canvasses c
-      where c.id = p_canvass_id),
-    false
-  )
+  select coalesce((
+    select public.canvass_request_can_read(i.request_id)
+      from public.purchase_request_items i where i.id = p_item_id
+  ), false)
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.canvass_list()
- RETURNS TABLE(id uuid, number text, kind text, product_name text, subject_name text, component_id uuid, component_number text, requested_item_id uuid, request_id uuid, request_label text, request_item_status text, opportunity_id uuid, sales_reference text, project_title text, canvasser_id uuid, canvasser_name text, offer_count integer, winner_offer_id uuid, winner_supplier text, winner_brand text, signed_off_at timestamp with time zone, signer_name text, created_by uuid, created_at timestamp with time zone, updated_at timestamp with time zone, locked boolean)
+CREATE OR REPLACE FUNCTION public.canvass_item_is_locked(p_item_id uuid)
+ RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+  select coalesce((
+    select i.status in ('purchased', 'received')
+       and not exists (
+         select 1 from public.request_canvass_line_unlocks u
+          where u.item_id = i.id
+            and u.created_at >= coalesce(i.status_changed_at, '-infinity'::timestamptz)
+       )
+      from public.purchase_request_items i
+     where i.id = p_item_id
+  ), false)
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_list()
+ RETURNS TABLE(id uuid, number text, request_id uuid, request_label text, opportunity_id uuid, sales_reference text, project_title text, canvasser_id uuid, canvasser_name text, supplier_count integer, line_count integer, quoted_line_count integer, winner_count integer, open_line_count integer, open_winner_count integer, locked_line_count integer, no_other_supplier boolean, supplier_names text[], product_names text[], created_by uuid, created_at timestamp with time zone, updated_at timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with lines as (
+    select i.id, i.request_id, i.name,
+           public.canvass_item_is_locked(i.id) as locked,
+           exists (select 1 from public.request_canvass_winners w where w.item_id = i.id) as won
+      from public.purchase_request_items i
+     where i.status <> 'cancelled'
+  )
   select c.id,
          c.number,
-         case when c.component_id is not null then 'component'
-              when c.requested_item_id is not null then 'requested_item'
-              else 'none' end,
-         c.product_name,
-         coalesce(comp.name, item.name, c.product_name),
-         c.component_id,
-         case when comp.id is not null then
-           (select count(*) from public.costing_tender_lines t2
-             where t2.matrix_id = t.matrix_id and t2.position <= t.position)::text
-           || '.' ||
-           (select count(*) from public.costing_components c2
-             where c2.tender_line_id = comp.tender_line_id and c2.position <= comp.position)::text
-         end,
-         c.requested_item_id,
          req.id,
-         case when req.id is not null then public._purchase_request_label(req.id) end,
-         item.status,
+         public._purchase_request_label(req.id),
          opp.id,
          opp.sales_reference,
          opp.project_title,
-         coalesce(c.canvasser_id, comp.purchasing_incharge_id, m.purchasing_incharge_id, req.buyer_id),
+         coalesce(c.canvasser_id, req.buyer_id),
          canvasser.name,
-         (select count(*)::integer from public.sor_canvass_offers o where o.canvass_id = c.id),
-         w.id,
-         w.supplier_name,
-         w.brand,
-         c.signed_off_at,
-         signer.name,
+         (select count(*)::integer from public.request_canvass_suppliers s where s.canvass_id = c.id),
+         (select count(*)::integer from lines l where l.request_id = req.id),
+         (select count(distinct q.item_id)::integer from public.request_canvass_quotes q where q.canvass_id = c.id),
+         (select count(*)::integer from lines l where l.request_id = req.id and l.won),
+         (select count(*)::integer from lines l where l.request_id = req.id and not l.locked),
+         (select count(*)::integer from lines l where l.request_id = req.id and not l.locked and l.won),
+         (select count(*)::integer from lines l where l.request_id = req.id and l.locked),
+         exists (select 1 from public.request_canvass_no_other_supplier n where n.canvass_id = c.id),
+         coalesce((select array_agg(s.supplier_name order by s.sort_order, s.created_at)
+                     from public.request_canvass_suppliers s where s.canvass_id = c.id), '{}'),
+         coalesce((select array_agg(l.name order by l.name) from lines l where l.request_id = req.id), '{}'),
          c.created_by,
          c.created_at,
-         c.updated_at,
-         public.canvass_is_locked(c.id)
-    from public.sor_canvasses c
-    left join public.costing_components comp on comp.id = c.component_id
-    left join public.costing_tender_lines t on t.id = comp.tender_line_id
-    left join public.costing_matrices m on m.id = t.matrix_id
-    left join public.purchase_request_items item on item.id = c.requested_item_id
-    left join public.purchase_requests req on req.id = item.request_id
-    left join public.sales_opportunities opp on opp.id = coalesce(m.opportunity_id, req.opportunity_id)
-    left join public.sor_canvass_offers w on w.canvass_id = c.id and w.is_winner
-    left join public.employees canvasser
-      on canvasser.id = coalesce(c.canvasser_id, comp.purchasing_incharge_id, m.purchasing_incharge_id, req.buyer_id)
-    left join public.employees signer on signer.id = c.signed_off_by
+         c.updated_at
+    from public.request_canvasses c
+    join public.purchase_requests req on req.id = c.request_id
+    left join public.sales_opportunities opp on opp.id = req.opportunity_id
+    left join public.employees canvasser on canvasser.id = coalesce(c.canvasser_id, req.buyer_id)
    where public.canvass_can_read(c.id)
-   order by c.created_at desc, c.id
+   order by coalesce(c.updated_at, c.created_at) desc, c.id
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_lock_applies()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+  select auth.uid() is not null and coalesce(auth.role(), '') <> 'service_role'
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.canvass_null_fill_mark()
@@ -8720,20 +8778,6 @@ begin
 end
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.canvass_offer_can_read_money(p_offer_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select coalesce((
-    select public.canvass_subject_can_read_money(c.component_id, c.requested_item_id)
-    from public.sor_canvass_offers o
-    join public.sor_canvasses c on c.id = o.canvass_id
-    where o.id = p_offer_id
-  ), false)
-$function$
-;
 CREATE OR REPLACE FUNCTION public.canvass_offer_projection(p_canvass_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -8741,42 +8785,107 @@ CREATE OR REPLACE FUNCTION public.canvass_offer_projection(p_canvass_id uuid)
  SET search_path TO 'public'
 AS $function$
 declare
-  v_component uuid;
-  v_factor    numeric;
-  v_result    jsonb;
+  v_rows   jsonb := '[]'::jsonb;
+  v_q      record;
+  v_factor numeric;
+  v_acquire numeric;
 begin
-  select c.component_id into v_component from public.sor_canvasses c where c.id = p_canvass_id;
-  if v_component is null then
+  if not coalesce(public.canvass_can_read(p_canvass_id), false) then
     return null;
   end if;
 
-  if coalesce(public.costing_tier(public.canvass_component_opportunity(v_component)), '') not in ('closed_book', 'cost') then
+  for v_q in
+    select qu.id as quote_id, qu.supplier_id, qu.item_id, comp.component_id,
+           s.currency, p.unit_price, sp.comparison_rate
+      from public.request_canvass_quotes qu
+      join public.purchase_request_items i on i.id = qu.item_id
+      cross join lateral (select coalesce(i.component_id, public._canvass_item_component(i.id)) as component_id) comp
+      join public.request_canvass_suppliers s on s.id = qu.supplier_id
+      left join public.request_canvass_quote_prices p on p.quote_id = qu.id
+      left join public.request_canvass_supplier_prices sp on sp.supplier_id = s.id
+     where qu.canvass_id = p_canvass_id and comp.component_id is not null
+     order by s.sort_order, qu.created_at, qu.id
+  loop
+    if coalesce(public.costing_tier(public.canvass_component_opportunity(v_q.component_id)), '') not in ('closed_book', 'cost') then
+      continue;
+    end if;
+    select k.markup_factor into v_factor from public.costing_component_costs k where k.component_id = v_q.component_id;
+    v_acquire := case
+      when v_q.unit_price is null then null
+      when v_q.currency = 'PHP' then round(v_q.unit_price, 2)
+      when v_q.comparison_rate is null then null
+      else round(v_q.unit_price * v_q.comparison_rate, 2)
+    end;
+    v_rows := v_rows || jsonb_build_array(jsonb_build_object(
+      'offer_id', v_q.quote_id,
+      'quote_id', v_q.quote_id,
+      'item_id', v_q.item_id,
+      'supplier_id', v_q.supplier_id,
+      'acquire_unit', v_acquire,
+      'markup_price_unit', public.costing_component_markup_price(v_q.component_id, v_acquire, v_factor)
+    ));
+  end loop;
+
+  if jsonb_array_length(v_rows) = 0 then
     return null;
   end if;
+  return v_rows;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_pick_supplier_for_all(p_canvass_id uuid, p_supplier_id uuid, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_reason  text := btrim(coalesce(p_reason, ''));
+  v_canvass public.request_canvasses;
+  v_item    uuid;
+  v_picked  integer := 0;
+  v_skipped integer := 0;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'canvass_pick_supplier_for_all: sign in first' using errcode = '42501';
+  end if;
+  select * into v_canvass from public.request_canvasses where id = p_canvass_id;
+  if not found then
+    raise exception 'canvass_pick_supplier_for_all: not found' using errcode = 'P0002';
+  end if;
+  if not (public.canvass_can_write() and public.canvass_can_read(p_canvass_id)) then
+    raise exception 'canvass_pick_supplier_for_all: not allowed' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.request_canvass_suppliers where id = p_supplier_id and canvass_id = p_canvass_id) then
+    raise exception 'canvass_pick_supplier_for_all: that supplier is not on this Canvass' using errcode = 'P0002';
+  end if;
+  if v_reason = '' then
+    raise exception 'A winner needs a reason.' using errcode = '22023';
+  end if;
 
-  select k.markup_factor into v_factor from public.costing_component_costs k where k.component_id = v_component;
+  perform pg_advisory_xact_lock(hashtext('canvass_winner:' || p_canvass_id::text));
 
-  select coalesce(jsonb_agg(
-    jsonb_build_object(
-      'offer_id', o.id,
-      'acquire_unit', a.acquire,
-      'markup_price_unit', public.costing_component_markup_price(v_component, a.acquire, v_factor)
-    ) order by o.sort_order, o.created_at
-  ), '[]'::jsonb)
-  into v_result
-  from public.sor_canvass_offers o
-  left join public.sor_canvass_offer_prices p on p.offer_id = o.id
-  cross join lateral (
-    select case
-      when p.unit_price is null then null
-      when o.currency = 'PHP' then round(p.unit_price, 2)
-      when p.comparison_rate is null then null
-      else round(p.unit_price * p.comparison_rate, 2)
-    end as acquire
-  ) a
-  where o.canvass_id = p_canvass_id;
+  for v_item in
+    select q.item_id
+      from public.request_canvass_quotes q
+      join public.purchase_request_items i on i.id = q.item_id
+     where q.canvass_id = p_canvass_id and q.supplier_id = p_supplier_id
+     order by i.created_at, i.id
+  loop
+    if (select i.status from public.purchase_request_items i where i.id = v_item) = 'cancelled'
+       or public.canvass_item_is_locked(v_item) then
+      v_skipped := v_skipped + 1;
+      continue;
+    end if;
+    insert into public.request_canvass_winners (item_id, supplier_id, reason, chosen_by, chosen_at)
+    values (v_item, p_supplier_id, v_reason, public.get_employee_id(), now())
+    on conflict (item_id) do update
+      set supplier_id = excluded.supplier_id, reason = excluded.reason,
+          chosen_by = excluded.chosen_by, chosen_at = excluded.chosen_at;
+    v_picked := v_picked + 1;
+  end loop;
 
-  return v_result;
+  return jsonb_build_object('canvass_id', p_canvass_id, 'supplier_id', p_supplier_id, 'picked', v_picked, 'skipped', v_skipped);
 end
 $function$
 ;
@@ -8800,57 +8909,119 @@ AS $function$
     and c.po_rfq_no is not null
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.canvass_refuse_edit_when_locked()
- RETURNS trigger
- LANGUAGE plpgsql
+CREATE OR REPLACE FUNCTION public.canvass_quote_can_read_money(p_quote_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-begin
-  if (new.reason is distinct from old.reason or new.product_name is distinct from old.product_name)
-     and public.canvass_is_locked(old.id) then
-    raise exception 'This Canvass is locked, so its reason and product name can''t change. A Super Admin can unlock it.'
-      using errcode = '55000';
-  end if;
-  return new;
-end
+  select coalesce((
+    select public.canvass_can_read_money(q.canvass_id)
+      from public.request_canvass_quotes q where q.id = p_quote_id
+  ), false)
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.canvass_refuse_offer_change_when_locked()
- RETURNS trigger
+CREATE OR REPLACE FUNCTION public.canvass_request_can_read(p_request_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.can_read_purchase_request(p_request_id), false)
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_request_can_read_money(p_request_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select public.canvass_request_can_read(p_request_id)
+     and (
+       coalesce(public.has_purchasing_access(), false)
+       or coalesce(public.has_finance_access(), false)
+       or coalesce(public.is_super_admin(), false)
+       or coalesce((
+            select public.costing_can_read_cost(r.opportunity_id)
+              from public.purchase_requests r
+             where r.id = p_request_id and r.opportunity_id is not null
+          ), false)
+     )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_save_quote(p_supplier_id uuid, p_item_id uuid, p_quote jsonb, p_price jsonb DEFAULT '{}'::jsonb)
+ RETURNS jsonb
  LANGUAGE plpgsql
  SET search_path TO 'public'
 AS $function$
 declare
-  v_canvass uuid := case when tg_op = 'DELETE' then old.canvass_id else new.canvass_id end;
-begin
-  if public.canvass_is_locked(v_canvass) then
-    raise exception 'This Canvass is locked, so its offers and winner can''t change. A Super Admin can unlock it.'
-      using errcode = '55000';
-  end if;
-  return coalesce(new, old);
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_refuse_price_change_when_locked()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-declare
-  v_offer   uuid := case when tg_op = 'DELETE' then old.offer_id else new.offer_id end;
   v_canvass uuid;
+  v_quote   public.request_canvass_quotes;
 begin
-  -- The Offer is gone (it was removed, or its Canvass was): its own guard has spoken.
-  select canvass_id into v_canvass from public.sor_canvass_offers where id = v_offer;
-  if v_canvass is not null and public.canvass_is_locked(v_canvass) then
-    raise exception 'This Canvass is locked, so its prices can''t change. A Super Admin can unlock it.'
-      using errcode = '55000';
+  p_quote := coalesce(p_quote, '{}'::jsonb);
+  p_price := coalesce(p_price, '{}'::jsonb);
+
+  select s.canvass_id into v_canvass from public.request_canvass_suppliers s where s.id = p_supplier_id;
+  if v_canvass is null then
+    raise exception 'canvass_save_quote: that supplier is not on a Canvass you can see' using errcode = 'P0002';
   end if;
-  return coalesce(new, old);
+
+  insert into public.request_canvass_quotes (
+    canvass_id, supplier_id, item_id, brand, description, source_link, brochure, remarks, created_by
+  ) values (
+    v_canvass, p_supplier_id, p_item_id,
+    p_quote ->> 'brand',
+    p_quote ->> 'description',
+    p_quote ->> 'source_link',
+    case when jsonb_typeof(p_quote -> 'brochure') = 'array' then p_quote -> 'brochure' else '[]'::jsonb end,
+    p_quote ->> 'remarks',
+    public.get_employee_id()
+  )
+  on conflict (supplier_id, item_id) do update set
+    brand       = case when p_quote ? 'brand' then excluded.brand else request_canvass_quotes.brand end,
+    description = case when p_quote ? 'description' then excluded.description else request_canvass_quotes.description end,
+    source_link = case when p_quote ? 'source_link' then excluded.source_link else request_canvass_quotes.source_link end,
+    brochure    = case when p_quote ? 'brochure' then excluded.brochure else request_canvass_quotes.brochure end,
+    remarks     = case when p_quote ? 'remarks' then excluded.remarks else request_canvass_quotes.remarks end
+  returning * into v_quote;
+
+  -- The price row is money: the table refuses a caller who may not read it, so only a money
+  -- reader writes it.
+  if public.canvass_can_read_money(v_canvass) then
+    insert into public.request_canvass_quote_prices (quote_id, unit_price)
+    values (v_quote.id, nullif(p_price ->> 'unit_price', '')::numeric)
+    on conflict (quote_id) do update set
+      unit_price = case when p_price ? 'unit_price' then excluded.unit_price else request_canvass_quote_prices.unit_price end;
+  end if;
+
+  return to_jsonb(v_quote);
 end
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.canvass_set_no_other_supplier(p_canvass_id uuid, p_slots integer[], p_reason text)
+CREATE OR REPLACE FUNCTION public.canvass_supplier_can_read_money(p_supplier_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce((
+    select public.canvass_can_read_money(s.canvass_id)
+      from public.request_canvass_suppliers s where s.id = p_supplier_id
+  ), false)
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_suppliers_covered(p_canvass_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select s.n >= 3
+      or (s.n >= 1 and exists (select 1 from public.request_canvass_no_other_supplier m where m.canvass_id = p_canvass_id))
+    from (select count(*)::integer as n from public.request_canvass_suppliers where canvass_id = p_canvass_id) s
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_unlock_line(p_item_id uuid, p_reason text)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -8858,220 +9029,76 @@ CREATE OR REPLACE FUNCTION public.canvass_set_no_other_supplier(p_canvass_id uui
 AS $function$
 declare
   v_reason text := btrim(coalesce(p_reason, ''));
-  v_slots  integer[];
-  v_offers integer;
-  v_slot   integer;
+  v_item   public.purchase_request_items;
 begin
   if public.get_employee_id() is null then
-    raise exception 'canvass_set_no_other_supplier: sign in first' using errcode = '42501';
-  end if;
-
-  perform pg_advisory_xact_lock(hashtext('canvass_winner:' || p_canvass_id::text));
-
-  if not exists (select 1 from public.sor_canvasses where id = p_canvass_id) then
-    raise exception 'canvass_set_no_other_supplier: not found' using errcode = 'P0002';
-  end if;
-  if not (public.canvass_can_write() and public.canvass_can_read(p_canvass_id)) then
-    raise exception 'canvass_set_no_other_supplier: not allowed' using errcode = '42501';
-  end if;
-  if public.canvass_is_locked(p_canvass_id) then
-    raise exception 'canvass_set_no_other_supplier: this Canvass is locked, so its slots can''t change' using errcode = '22023';
-  end if;
-  if v_reason = '' then
-    raise exception 'canvass_set_no_other_supplier: say why there is no other supplier' using errcode = '22023';
-  end if;
-
-  select coalesce(array_agg(distinct s order by s), '{}') into v_slots from unnest(coalesce(p_slots, '{}')) s;
-  if cardinality(v_slots) = 0 or exists (select 1 from unnest(v_slots) s where s not in (2, 3)) then
-    raise exception 'canvass_set_no_other_supplier: only slot 2 or slot 3 can be marked' using errcode = '22023';
-  end if;
-
-  select count(*)::integer into v_offers from public.sor_canvass_offers where canvass_id = p_canvass_id;
-  foreach v_slot in array v_slots loop
-    if v_offers >= v_slot then
-      raise exception 'canvass_set_no_other_supplier: slot % already has an Offer', v_slot using errcode = '22023';
-    end if;
-  end loop;
-
-  foreach v_slot in array v_slots loop
-    insert into public.sor_canvass_no_other_supplier (canvass_id, slot, reason, actor_id)
-    values (p_canvass_id, v_slot, v_reason, public.get_employee_id())
-    on conflict (canvass_id, slot)
-    do update set reason = excluded.reason, actor_id = excluded.actor_id, created_at = now();
-  end loop;
-
-  return jsonb_build_object('canvass_id', p_canvass_id, 'slots', to_jsonb(v_slots),
-                            'covered', public.canvass_slots_covered(p_canvass_id));
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_sign(p_canvass_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  raise exception 'canvass_sign: a Canvass is no longer signed off' using errcode = '42501';
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_slots_covered(p_canvass_id uuid)
- RETURNS integer
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  with o as (select count(*)::integer as n from public.sor_canvass_offers where canvass_id = p_canvass_id)
-  select o.n + (
-    select count(*)::integer from public.sor_canvass_no_other_supplier m
-     where m.canvass_id = p_canvass_id and m.slot > o.n
-  ) from o
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_stamp_request_made()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-begin
-  if old.requested_item_id is null and new.requested_item_id is not null and new.request_made_at is null then
-    new.request_made_at := now();
-  end if;
-  return new;
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_start(p_component_id uuid, p_requested_item_id uuid, p_product_name text, p_offer jsonb, p_price jsonb DEFAULT '{}'::jsonb)
- RETURNS jsonb
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-declare
-  v_id    uuid;
-  v_name  text := nullif(btrim(coalesce(p_product_name, '')), '');
-  v_offer jsonb;
-begin
-  if p_component_id is not null and p_requested_item_id is not null then
-    raise exception 'canvass_start: a Canvass is on one Component or one Requested Item, never both'
-      using errcode = '22023';
-  end if;
-  if p_component_id is null and p_requested_item_id is null and v_name is null then
-    raise exception 'canvass_start: say what is being bought' using errcode = '22023';
-  end if;
-
-  if p_component_id is not null or p_requested_item_id is not null then
-    select c.id into v_id from public.sor_canvasses c
-     where (p_component_id is not null and c.component_id = p_component_id)
-        or (p_requested_item_id is not null and c.requested_item_id = p_requested_item_id);
-  end if;
-
-  if v_id is null then
-    begin
-      insert into public.sor_canvasses (component_id, requested_item_id, product_name, created_by)
-      values (p_component_id, p_requested_item_id, v_name, public.get_employee_id())
-      returning id into v_id;
-    exception when unique_violation then
-      select c.id into v_id from public.sor_canvasses c
-       where (p_component_id is not null and c.component_id = p_component_id)
-          or (p_requested_item_id is not null and c.requested_item_id = p_requested_item_id);
-      if v_id is null then
-        raise;
-      end if;
-    end;
-  end if;
-
-  v_offer := public.canvass_add_offer(v_id, p_offer, p_price);
-
-  return jsonb_build_object(
-    'canvass_id', v_id,
-    'number', (select c.number from public.sor_canvasses c where c.id = v_id),
-    'offer', v_offer
-  );
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_subject_can_read(p_component_id uuid, p_requested_item_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select case
-    when p_component_id is not null then
-      coalesce(public.costing_can_read(public.canvass_component_opportunity(p_component_id)), false)
-    when p_requested_item_id is not null then
-      exists (
-        select 1 from public.purchase_request_items i
-        where i.id = p_requested_item_id and public.can_read_purchase_request(i.request_id)
-      )
-    else
-      coalesce(public.has_purchasing_access(), false) or coalesce(public.is_super_admin(), false)
-  end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_subject_can_read_money(p_component_id uuid, p_requested_item_id uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-  select case
-    when p_component_id is not null then
-      coalesce(public.costing_can_read_cost(public.canvass_component_opportunity(p_component_id)), false)
-    when p_requested_item_id is not null then
-      public.canvass_subject_can_read(null, p_requested_item_id)
-      and (
-        coalesce(public.has_purchasing_access(), false)
-        or coalesce(public.has_finance_access(), false)
-        or coalesce(public.is_super_admin(), false)
-      )
-    else
-      coalesce(public.has_purchasing_access(), false) or coalesce(public.is_super_admin(), false)
-  end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.canvass_unlock(p_canvass_id uuid, p_reason text)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_reason text := btrim(coalesce(p_reason, ''));
-begin
-  if public.get_employee_id() is null then
-    raise exception 'canvass_unlock: sign in first' using errcode = '42501';
+    raise exception 'canvass_unlock_line: sign in first' using errcode = '42501';
   end if;
   if not coalesce(public.is_super_admin(), false) then
-    raise exception 'canvass_unlock: only a Super Admin can unlock a Canvass' using errcode = '42501';
+    raise exception 'canvass_unlock_line: only a Super Admin can unlock a line' using errcode = '42501';
   end if;
   if v_reason = '' then
-    raise exception 'canvass_unlock: say why it is being unlocked' using errcode = '22023';
+    raise exception 'canvass_unlock_line: say why it is being unlocked' using errcode = '22023';
   end if;
 
-  -- The same lock the winner functions take, so an unlock never interleaves with a pick.
-  perform pg_advisory_xact_lock(hashtext('canvass_winner:' || p_canvass_id::text));
-
-  if not exists (select 1 from public.sor_canvasses where id = p_canvass_id) then
-    raise exception 'canvass_unlock: not found' using errcode = 'P0002';
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if not found then
+    raise exception 'canvass_unlock_line: not found' using errcode = 'P0002';
   end if;
-  if not public.canvass_is_locked(p_canvass_id) then
-    return jsonb_build_object('canvass_id', p_canvass_id, 'unlocked', false);
+  if not public.canvass_item_is_locked(p_item_id) then
+    return jsonb_build_object('item_id', p_item_id, 'unlocked', false);
   end if;
 
-  update public.sor_canvasses
-     set lock_released_at = now(), lock_released_by = public.get_employee_id()
-   where id = p_canvass_id;
+  insert into public.request_canvass_line_unlocks (item_id, reason, actor_id)
+  values (p_item_id, v_reason, public.get_employee_id());
 
-  insert into public.sor_canvass_signoff_events (canvass_id, kind, actor_id, reason, offer_count)
-  values (
-    p_canvass_id, 'unlocked', public.get_employee_id(), v_reason,
-    (select count(*) from public.sor_canvass_offers where canvass_id = p_canvass_id)
+  perform public._purchase_request_post_event(
+    v_item.request_id,
+    public.get_employee_id(),
+    format('%s: Canvass unlocked. %s', v_item.name, v_reason),
+    jsonb_build_object('event', 'canvass_line_unlocked', 'item_id', p_item_id, 'reason', v_reason)
   );
 
-  return jsonb_build_object('canvass_id', p_canvass_id, 'unlocked', true);
-end;
+  return jsonb_build_object('item_id', p_item_id, 'unlocked', true);
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.canvass_use_same_reason(p_canvass_id uuid, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_reason  text := btrim(coalesce(p_reason, ''));
+  v_changed integer;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'canvass_use_same_reason: sign in first' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.request_canvasses where id = p_canvass_id) then
+    raise exception 'canvass_use_same_reason: not found' using errcode = 'P0002';
+  end if;
+  if not (public.canvass_can_write() and public.canvass_can_read(p_canvass_id)) then
+    raise exception 'canvass_use_same_reason: not allowed' using errcode = '42501';
+  end if;
+  if v_reason = '' then
+    raise exception 'A winner needs a reason.' using errcode = '22023';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('canvass_winner:' || p_canvass_id::text));
+
+  update public.request_canvass_winners w
+     set reason = v_reason
+    from public.request_canvass_quotes q
+   where q.canvass_id = p_canvass_id
+     and q.supplier_id = w.supplier_id
+     and q.item_id = w.item_id
+     and not public.canvass_item_is_locked(w.item_id);
+  get diagnostics v_changed = row_count;
+
+  return jsonb_build_object('canvass_id', p_canvass_id, 'changed', v_changed);
+end
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.cash_dist(money, money)
@@ -9246,13 +9273,13 @@ AS $function$
     select 1 from public.committee_tasks ct
     where ct.id = p_task_id
       and (
-        ct.created_by = public.get_employee_id()
-        or ct.evaluator_id = public.get_employee_id()
-        or public.is_super_admin()
+        ct.created_by = (select public.get_employee_id())
+        or ct.evaluator_id = (select public.get_employee_id())
+        or (select public.is_super_admin())
         or exists (
           select 1 from public.committee_task_members ctm
           where ctm.committee_task_id = ct.id
-            and ctm.employee_id = public.get_employee_id()
+            and ctm.employee_id = (select public.get_employee_id())
         )
         or (
           ct.status = 'ON_HOLD'
@@ -9260,7 +9287,7 @@ AS $function$
             select 1
               from public.employees h
               join public.employees c on c.id = ct.created_by
-             where h.id = public.get_employee_id()
+             where h.id = (select public.get_employee_id())
                and h.is_head
                and not coalesce(h.is_deleted, false)
                and h.department is not null
@@ -9454,6 +9481,44 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_abc_moved_line()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_percent_rows(case when tg_op = 'DELETE' then old.matrix_id else new.matrix_id end);
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_abc_moved_matrix()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_percent_rows(new.id);
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_abc_moved_price()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  perform public.costing_refresh_percent_rows(
+    (select l.matrix_id from public.costing_tender_lines l
+      where l.id = case when tg_op = 'DELETE' then old.tender_line_id else new.tender_line_id end));
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_accept_brand(p_component_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -9477,10 +9542,13 @@ begin
     raise exception 'costing_accept_brand: only the Deal Team or Purchasing can accept a brand' using errcode = '42501';
   end if;
 
-  select nullif(btrim(coalesce(o.brand, '')), '') into v_brand
-    from public.sor_canvasses c
-    join public.sor_canvass_offers o on o.canvass_id = c.id and o.is_winner
-   where c.component_id = p_component_id;
+  select nullif(btrim(coalesce(q.brand, '')), '') into v_brand
+    from public.purchase_request_items i
+    join public.request_canvass_winners w on w.item_id = i.id
+    join public.request_canvass_quotes q on q.supplier_id = w.supplier_id and q.item_id = w.item_id
+   where i.component_id = p_component_id
+   order by w.chosen_at desc
+   limit 1;
   if v_brand is null then
     raise exception 'costing_accept_brand: the Canvass has no winning brand' using errcode = '22023';
   end if;
@@ -9498,19 +9566,36 @@ CREATE OR REPLACE FUNCTION public.costing_actor_can_fill(p_opportunity_id uuid, 
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select exists (
-    select 1
-    from public.employees e
-    join public.sales_opportunities o on o.id = p_opportunity_id
-    where e.id = p_actor
-      and not coalesce(e.is_deleted, false)
-      and (
-        coalesce(e.is_super_admin, false)
-        or public._employee_has_purchasing_access(e.id)
-        or public.sor_is_deal_team(o, e.id)
-        or exists (select 1 from public.costing_signer_lists l where l.list_key = 'final_acquire' and l.employee_id = e.id)
-      )
-  )
+  select case
+    when public.costing_is_standalone(p_opportunity_id) then exists (
+      select 1
+      from public.employees e
+      join public.costing_matrices m on m.id = p_opportunity_id
+      where e.id = p_actor
+        and not coalesce(e.is_deleted, false)
+        and (
+          coalesce(e.is_super_admin, false)
+          or public._employee_has_purchasing_access(e.id)
+          or m.created_by = e.id
+          or m.sales_incharge_id = e.id
+          or m.purchasing_incharge_id = e.id
+          or exists (select 1 from public.costing_signer_lists l where l.list_key = 'final_acquire' and l.employee_id = e.id)
+        )
+    )
+    else exists (
+      select 1
+      from public.employees e
+      join public.sales_opportunities o on o.id = p_opportunity_id
+      where e.id = p_actor
+        and not coalesce(e.is_deleted, false)
+        and (
+          coalesce(e.is_super_admin, false)
+          or public._employee_has_purchasing_access(e.id)
+          or public.sor_is_deal_team(o, e.id)
+          or exists (select 1 from public.costing_signer_lists l where l.list_key = 'final_acquire' and l.employee_id = e.id)
+        )
+    )
+  end
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_add_cost_row(p_matrix_id uuid, p_description text DEFAULT ''::text, p_quantity numeric DEFAULT 1, p_category_key text DEFAULT NULL::text)
@@ -9597,16 +9682,20 @@ CREATE OR REPLACE FUNCTION public.costing_bid_totals(p_matrix_id uuid)
  SET search_path TO 'public'
 AS $function$
   select
-    case when count(*) > 0 and count(*) filter (where p.final_offer_unit is null) = 0
-         then sum(round(p.final_offer_unit * l.quantity, 2)) end,
-    case when count(*) > 0 and count(*) filter (where p.abc_unit is null) = 0
+    public.costing_offer_total(m.id),
+    case when m.abc_mode = 'total_only' then (case when count(l.id) > 0 then m.abc_total end)
+         when count(l.id) > 0 and count(l.id) filter (where p.abc_unit is null) = 0
          then sum(round(p.abc_unit * l.quantity, 2)) end,
-    count(*)::integer,
-    (count(*) filter (where p.final_offer_unit is null))::integer,
-    (count(*) filter (where p.abc_unit is null))::integer
-  from public.costing_tender_lines l
+    count(l.id)::integer,
+    case when m.offer_mode = 'total_only' then (case when count(l.id) > 0 and m.offer_total is null then 1 else 0 end)
+         else (count(l.id) filter (where p.final_offer_unit is null))::integer end,
+    case when m.abc_mode = 'total_only' then (case when count(l.id) > 0 and m.abc_total is null then 1 else 0 end)
+         else (count(l.id) filter (where p.abc_unit is null))::integer end
+  from public.costing_matrices m
+  left join public.costing_tender_lines l on l.matrix_id = m.id
   left join public.costing_tender_line_prices p on p.tender_line_id = l.id
-  where l.matrix_id = p_matrix_id
+  where m.id = p_matrix_id
+  group by m.id, m.abc_mode, m.abc_total, m.offer_mode, m.offer_total
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_bundle_keeps_inclusions()
@@ -9698,6 +9787,10 @@ begin
     return new;
   end if;
   select * into v_sor from public.sales_opportunities where id = v_opp;
+  -- A row of a standalone matrix has no SOR to check the names against.
+  if v_sor.id is null then
+    return new;
+  end if;
 
   if new.sales_incharge_id is not null
      and (tg_op = 'INSERT' or new.sales_incharge_id is distinct from old.sales_incharge_id)
@@ -10001,7 +10094,13 @@ begin
   return (
     select coalesce(
       jsonb_agg(
-        jsonb_build_object('id', i.id, 'component_id', ic.component_id, 'status', i.status, 'request_id', i.request_id)
+        jsonb_build_object(
+          'id', i.id,
+          'component_id', ic.component_id,
+          'status', i.status,
+          'request_id', i.request_id,
+          'request_label', public._purchase_request_label(i.request_id)
+        )
         order by i.created_at, i.id
       ),
       '[]'::jsonb
@@ -10193,12 +10292,8 @@ begin
     return null;
   end if;
 
-  select count(*) filter (where p.final_offer_unit is null),
-         sum(p.final_offer_unit * l.quantity)
-    into v_missing_offer, v_offer
-    from public.costing_tender_lines l
-    left join public.costing_tender_line_prices p on p.tender_line_id = l.id
-   where l.matrix_id = v_matrix;
+  v_offer := public.costing_offer_total(v_matrix);
+  v_missing_offer := case when v_offer is null then 1 else 0 end;
   if not exists (select 1 from public.costing_tender_lines where matrix_id = v_matrix) or v_missing_offer > 0 then
     v_offer := null;
   end if;
@@ -10275,6 +10370,20 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_cost_rows_percent_unit()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.abc_pct is not null then
+    new.acquire_unit := public.costing_percent_row_unit(new.matrix_id, new.abc_pct, new.quantity);
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_decide_bid(p_matrix_id uuid, p_verdict text, p_reason text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -10301,7 +10410,11 @@ begin
     raise exception 'costing_bid: matrix not found' using errcode = '22023';
   end if;
   if public.costing_tier(v_opp) is distinct from 'closed_book' then
-    raise exception 'costing_bid: only Sales, Purchasing, a Super Admin or the Final Acquire list can decide a bid' using errcode = '42501';
+    raise exception 'costing_bid: only a Super Admin or the decider list can decide a bid' using errcode = '42501';
+  end if;
+  -- #1033 (spec #1031): reading the Closed Book is not deciding. Every verdict is the decider list's or a Super Admin's.
+  if not public.costing_can_decide_loss() then
+    raise exception 'costing_bid: only a Super Admin or the decider list can decide a bid' using errcode = '42501';
   end if;
   if p_verdict is null or p_verdict not in ('go', 'no_go', 'revise') then
     raise exception 'costing_bid: the verdict must be Go, No-go or Revise' using errcode = '22023';
@@ -10597,7 +10710,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.costing_fill_odoo_costs(p_actor uuid, p_opportunity_id uuid, p_costs jsonb)
+CREATE OR REPLACE FUNCTION public.costing_fill_odoo_costs(p_actor uuid, p_opportunity_id uuid, p_costs jsonb, p_srps jsonb DEFAULT '{}'::jsonb)
  RETURNS integer
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -10606,6 +10719,7 @@ AS $function$
 declare
   v_target record;
   v_cost   numeric;
+  v_srp    numeric;
   v_filled integer := 0;
 begin
   if not public.costing_actor_can_fill(p_opportunity_id, p_actor) then
@@ -10613,20 +10727,112 @@ begin
   end if;
   perform set_config('costing.fill_source', 'odoo', true);
   for v_target in select * from public.costing_odoo_cost_targets(p_actor, p_opportunity_id) loop
-    v_cost := nullif(p_costs ->> v_target.odoo_product_id::text, '')::numeric;
-    if v_cost is null or v_cost <= 0 then
+    v_cost := nullif(coalesce(p_costs, '{}'::jsonb) ->> v_target.odoo_product_id::text, '')::numeric;
+    v_srp  := nullif(coalesce(p_srps, '{}'::jsonb) ->> v_target.odoo_product_id::text, '')::numeric;
+    if v_cost is not null and v_cost <= 0 then v_cost := null; end if;
+    if v_srp is not null and v_srp <= 0 then v_srp := null; end if;
+    if v_cost is null and v_srp is null then
       continue;
     end if;
     v_cost := round(v_cost, 2);
+    v_srp  := round(v_srp, 2);
     insert into public.costing_component_costs (component_id, odoo_unit, acquire_unit)
-    values (v_target.component_id, v_cost, v_cost)
+    values (v_target.component_id, v_srp, v_cost)
     on conflict (component_id) do update
-      set odoo_unit = coalesce(public.costing_component_costs.odoo_unit, excluded.odoo_unit),
+      set odoo_unit = coalesce(excluded.odoo_unit, public.costing_component_costs.odoo_unit),
           acquire_unit = coalesce(public.costing_component_costs.acquire_unit, excluded.acquire_unit);
     v_filled := v_filled + 1;
   end loop;
   perform set_config('costing.fill_source', '', true);
   return v_filled;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_final_acquire_apply()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_status  text;
+  v_matrix  uuid;
+  v_default numeric;
+  v_wrote   boolean;
+begin
+  v_wrote := case when tg_op = 'INSERT' then new.final_acquire_unit is not null
+                  else new.final_acquire_unit is distinct from old.final_acquire_unit end;
+  -- A value written is typed; written blank, the line goes back on the rule.
+  if v_wrote then
+    new.final_acquire_typed := new.final_acquire_unit is not null;
+  end if;
+  if new.final_acquire_unit is null then
+    new.final_acquire_typed := false;
+  end if;
+  if new.final_acquire_typed then
+    return new;
+  end if;
+
+  select c.status into v_status from public.costing_components c where c.id = new.component_id;
+  v_matrix := public.costing_matrix_of('costing_component_costs', jsonb_build_object('component_id', new.component_id));
+  select m.final_acquire_percent into v_default from public.costing_matrix_money m where m.matrix_id = v_matrix;
+  new.final_acquire_unit := public.costing_final_acquire_rule(
+    v_status, new.odoo_unit, coalesce(new.final_acquire_percent, v_default, -20), new.acquire_unit, new.p0_unit_price);
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_final_acquire_rule(p_status text, p_odoo numeric, p_percent numeric, p_acquire numeric, p_p0 numeric)
+ RETURNS numeric
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select case p_status
+    when 'stockable' then
+      case when p_odoo is null or p_percent is null then null else round(p_odoo * (100 + p_percent) / 100, 2) end
+    when 'source_out' then coalesce(p_p0, p_acquire)
+    else null
+  end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_final_acquire_touch_component()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_was text := coalesce(current_setting('costing.bypass', true), '');
+begin
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_component_costs cc
+     set component_id = cc.component_id
+   where cc.component_id = new.id and not cc.final_acquire_typed;
+  perform set_config('costing.bypass', v_was, true);
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_final_acquire_touch_matrix()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_was text := coalesce(current_setting('costing.bypass', true), '');
+begin
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_component_costs cc
+     set component_id = cc.component_id
+    from public.costing_components c
+    join public.costing_tender_lines t on t.id = c.tender_line_id
+   where cc.component_id = c.id
+     and t.matrix_id = new.matrix_id
+     and not cc.final_acquire_typed
+     and cc.final_acquire_percent is null;
+  perform set_config('costing.bypass', v_was, true);
+  return new;
 end;
 $function$
 ;
@@ -10644,7 +10850,7 @@ begin
   if v_tier is null then
     return null;
   end if;
-  select id into v_matrix from public.costing_matrices where opportunity_id = p_opportunity_id;
+  select public.costing_subject_matrix(p_opportunity_id) into v_matrix;
   if v_matrix is null then
     return null;
   end if;
@@ -10704,7 +10910,19 @@ AS $function$
         select 1 from public.sales_opportunities o
         where o.id = p_opportunity_id and public.sor_is_deal_team(o, public.get_employee_id())
       )
-    when 'purchasing' then coalesce(public.is_super_admin(), false) or public.has_purchasing_access()
+      or exists (
+        select 1 from public.costing_matrices m
+        where m.id = p_opportunity_id and m.opportunity_id is null
+          and (m.created_by = public.get_employee_id() or m.sales_incharge_id = public.get_employee_id())
+      )
+    when 'purchasing' then
+      coalesce(public.is_super_admin(), false)
+      or public.has_purchasing_access()
+      or exists (
+        select 1 from public.costing_matrices m
+        where m.id = p_opportunity_id and m.opportunity_id is null
+          and m.purchasing_incharge_id = public.get_employee_id()
+      )
     when 'management' then public.costing_on_list('final_acquire')
     when 'technical' then coalesce(public.is_super_admin(), false) or public.costing_is_technical(p_opportunity_id)
     when 'finance' then public.has_finance_access() or public.costing_on_list('final_acquire')
@@ -10760,6 +10978,15 @@ AS $function$
     )
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_is_standalone(p_subject uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (select 1 from public.costing_matrices where id = p_subject and opportunity_id is null)
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_is_technical(p_opportunity_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -10769,7 +10996,7 @@ AS $function$
   select public.has_purchasing_access()
     or exists (
       select 1 from public.costing_matrices m
-      where m.opportunity_id = p_opportunity_id
+      where coalesce(m.opportunity_id, m.id) = p_opportunity_id
         and m.technical_incharge_id = public.get_employee_id()
     )
 $function$
@@ -11226,9 +11453,23 @@ AS $function$
 declare
   v_tier text := public.costing_tier(p_opportunity_id);
   v_opp record;
+  v_m   record;
 begin
   if v_tier is null then
     return null;
+  end if;
+  select m.id, m.s0_number, m.sales_incharge_id into v_m
+    from public.costing_matrices m where m.id = p_opportunity_id and m.opportunity_id is null;
+  if v_m.id is not null then
+    return jsonb_build_object(
+      'id', v_m.id,
+      'sor_code', null,
+      'client_name', null,
+      'project_title', v_m.s0_number,
+      'sales_reference', v_m.s0_number,
+      'deal_owner_id', v_m.sales_incharge_id,
+      'standalone', true
+    );
   end if;
   select id, sor_code, client_name, project_title, sales_reference, deal_owner_id
     into v_opp
@@ -11294,11 +11535,11 @@ CREATE OR REPLACE FUNCTION public.costing_matrix_opp(p_matrix_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select opportunity_id from public.costing_matrices where id = p_matrix_id
+  select coalesce(opportunity_id, id) from public.costing_matrices where id = p_matrix_id
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_matrix_page()
- RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, stage text, entities text[], final_offer_total numeric, final_acquire_total numeric, landed_cost_total numeric, bought_final_acquire_total numeric, items_bought integer, items_total integer, ipas_short boolean)
+ RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, stage text, entities text[], final_offer_total numeric, final_acquire_total numeric, project_expenses_total numeric, marketing numeric, landed_cost_total numeric, bought_final_acquire_total numeric, items_bought integer, items_total integer, ipas_short boolean)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -11325,6 +11566,8 @@ begin
     coalesce(ent.names, '{}'::text[]),
     offer.total,
     acquire.total,
+    expenses.total,
+    mm.marketing,
     lc.landed,
     lc.bought_acquire,
     lc.bought,
@@ -11333,28 +11576,20 @@ begin
   from public.costing_matrices m
   join public.sales_opportunities o on o.id = m.opportunity_id
   left join public.flow_stages fs on fs.id = o.flow_stage_id
-  cross join lateral (
-    select case when count(*) > 0 and bool_and(p.final_offer_unit is not null)
-                then sum(round(p.final_offer_unit * t.quantity, 2)) end as total
-    from public.costing_tender_lines t
-    left join public.costing_tender_line_prices p on p.tender_line_id = t.id
-    where t.matrix_id = m.id
-  ) offer
+  cross join lateral (select public.costing_offer_total(m.id) as total) offer
   cross join lateral (
     select case when count(*) > 0 and bool_and(x.fa is not null)
                 then sum(round(x.fa * x.q, 2)) end as total
     from (
-      select coalesce(cc.final_acquire_unit, cc.acquire_unit) as fa, c.quantity as q
+      select cc.final_acquire_unit as fa, c.quantity as q
       from public.costing_components c
       join public.costing_tender_lines t on t.id = c.tender_line_id
       left join public.costing_component_costs cc on cc.component_id = c.id
       where t.matrix_id = m.id
-      union all
-      select coalesce(r.final_acquire_unit, r.acquire_unit), r.quantity
-      from public.costing_cost_rows r
-      where r.matrix_id = m.id
     ) x
   ) acquire
+  cross join lateral (select public.costing_project_expenses_total(m.id) as total) expenses
+  left join public.costing_matrix_money mm on mm.matrix_id = m.id
   cross join lateral (
     select
       count(*)::integer as total_items,
@@ -11363,8 +11598,8 @@ begin
                     where pi.component_id = c.id and pi.status in ('purchased', 'received'))))::integer as bought,
       -- Each Component's Landed Cost is rounded to the centavo before it is added, as the SOR summary does.
       coalesce(sum(round(l.total_php, 2)) filter (where l.total_php is not null), 0) as landed,
-      case when coalesce(bool_and(l.total_php is null or coalesce(cc.final_acquire_unit, cc.acquire_unit) is not null), true)
-           then coalesce(sum(round(coalesce(cc.final_acquire_unit, cc.acquire_unit) * c.quantity, 2)) filter (where l.total_php is not null), 0)
+      case when coalesce(bool_and(l.total_php is null or cc.final_acquire_unit is not null), true)
+           then coalesce(sum(round(cc.final_acquire_unit * c.quantity, 2)) filter (where l.total_php is not null), 0)
       end as bought_acquire,
       coalesce(bool_or(l.total_php is not null and l.mark is distinct from 'final'), false) as provisional
     from public.costing_components c
@@ -11422,7 +11657,7 @@ begin
   if v_tier is null then
     return null;
   end if;
-  select id into v_matrix from public.costing_matrices where opportunity_id = p_opportunity_id;
+  select public.costing_subject_matrix(p_opportunity_id) into v_matrix;
   if v_matrix is null then
     return null;
   end if;
@@ -11568,11 +11803,27 @@ begin
   from public.costing_components c
   join public.costing_tender_lines l on l.id = c.tender_line_id
   join public.costing_matrices m on m.id = l.matrix_id
-  left join public.costing_component_costs cc on cc.component_id = c.id
-  where m.opportunity_id = p_opportunity_id
-    and c.odoo_product_id is not null
-    and (cc.component_id is null or cc.odoo_unit is null or cc.acquire_unit is null);
+  where coalesce(m.opportunity_id, m.id) = p_opportunity_id
+    and c.odoo_product_id is not null;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_offer_total(p_matrix_id uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when m.offer_mode = 'total_only' then (case when count(l.id) > 0 then m.offer_total end)
+    when count(l.id) > 0 and count(l.id) filter (where p.final_offer_unit is null) = 0
+      then sum(round(p.final_offer_unit * l.quantity, 2))
+  end
+  from public.costing_matrices m
+  left join public.costing_tender_lines l on l.matrix_id = m.id
+  left join public.costing_tender_line_prices p on p.tender_line_id = l.id
+  where m.id = p_matrix_id
+  group by m.offer_mode, m.offer_total
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_on_list(p_list_key text)
@@ -11745,7 +11996,7 @@ AS $function$
   join public.sales_opportunities o on o.id = m.opportunity_id
   left join public.employees own on own.id = o.deal_owner_id
   cross join lateral public.costing_bid_totals(m.id) t
-  where (public.costing_on_list('final_acquire') or public.costing_is_open(m.opportunity_id))
+  where public.costing_can_decide_loss()
     and not coalesce(o.is_deleted, false)
     and not coalesce(o.is_scratch, false)
     and t.line_count > 0
@@ -11754,6 +12005,19 @@ AS $function$
       select 1 from public.costing_bid_decisions d where d.matrix_id = m.id and d.cleared_at is null
     )
   order by 9, m.id
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_percent_row_unit(p_matrix_id uuid, p_pct numeric, p_quantity numeric)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+           when p_pct is null or p_quantity is null or p_quantity <= 0 or b.abc_total is null then null
+           else round(round(p_pct * b.abc_total / 100, 2) / p_quantity, 2)
+         end
+  from public.costing_bid_totals(p_matrix_id) b
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_pick(p_row jsonb, p_cols text[])
@@ -11772,17 +12036,50 @@ CREATE OR REPLACE FUNCTION public.costing_planned_cost_total(p_matrix_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select case when count(*) > 0 and bool_and(x.fa is not null) then sum(round(x.fa * x.q, 2)) end
+  select case when count(*) > 0 and bool_and(cc.final_acquire_unit is not null)
+              then sum(round(cc.final_acquire_unit * c.quantity, 2)) end
+  from public.costing_components c
+  join public.costing_tender_lines t on t.id = c.tender_line_id
+  left join public.costing_component_costs cc on cc.component_id = c.id
+  where t.matrix_id = p_matrix_id
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_planned_revenue(p_matrix_id uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case when t.offer is null or t.landed is null or t.expenses is null or mm.marketing is null then null
+         else round(t.offer / s.vat_divisor, 2)
+              - (round(t.offer * s.retention_rate, 2) + t.landed + t.expenses + mm.marketing)
+              - round(greatest(t.offer - s.itr_allowance, 0) * s.itr_rate, 2)
+         end
+  from public.costing_settings s
+  cross join lateral (
+    select public.costing_offer_total(p_matrix_id) as offer,
+           public.costing_planned_cost_total(p_matrix_id) as landed,
+           public.costing_project_expenses_total(p_matrix_id) as expenses
+  ) t
+  left join public.costing_matrix_money mm on mm.matrix_id = p_matrix_id
+  where s.id = 1
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_project_expenses_total(p_matrix_id uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case when count(*) > 0 and bool_and(x.amount is not null) then sum(x.amount) end
   from (
-    select coalesce(cc.final_acquire_unit, cc.acquire_unit) as fa, c.quantity as q
-    from public.costing_components c
-    join public.costing_tender_lines t on t.id = c.tender_line_id
-    left join public.costing_component_costs cc on cc.component_id = c.id
-    where t.matrix_id = p_matrix_id
-    union all
-    select coalesce(r.final_acquire_unit, r.acquire_unit), r.quantity
+    select case
+             when r.abc_pct is not null then round(r.abc_pct * (select b.abc_total from public.costing_bid_totals(p_matrix_id) b) / 100, 2)
+             else round(coalesce(r.final_acquire_unit, r.acquire_unit) * r.quantity, 2)
+           end as amount
     from public.costing_cost_rows r
     where r.matrix_id = p_matrix_id
+      and (r.abc_pct is not null or r.acquire_unit is not null or r.final_acquire_unit is not null)
   ) x
 $function$
 ;
@@ -11819,6 +12116,48 @@ begin
      set compliance = v_new, compliance_by = technical_incharge_id, compliance_at = now()
    where id = p_matrix_id;
   perform set_config('costing.derive', 'off', true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_refresh_percent_rows(p_matrix_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_was text := coalesce(current_setting('costing.bypass', true), '');
+begin
+  if p_matrix_id is null then
+    return;
+  end if;
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_cost_rows r
+     set acquire_unit = public.costing_percent_row_unit(r.matrix_id, r.abc_pct, r.quantity)
+   where r.matrix_id = p_matrix_id
+     and r.abc_pct is not null
+     and r.acquire_unit is distinct from public.costing_percent_row_unit(r.matrix_id, r.abc_pct, r.quantity);
+  perform set_config('costing.bypass', v_was, true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_refuse_totals_when_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is null or coalesce(auth.role(), '') = 'service_role' then
+    return new;
+  end if;
+  if (new.abc_mode, new.abc_total, new.offer_mode, new.offer_total)
+       is distinct from (old.abc_mode, old.abc_total, old.offer_mode, old.offer_total)
+     and exists (select 1 from public.costing_bid_decisions d
+                  where d.matrix_id = new.id and d.cleared_at is null and d.verdict = 'go') then
+    raise exception 'costing_bid: the sheet is locked by a Go. Unlock it, with a reason, to change it' using errcode = '42501';
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -11913,6 +12252,39 @@ CREATE OR REPLACE FUNCTION public.costing_row_tier(p_table text, p_row jsonb)
  SET search_path TO 'public'
 AS $function$
   select public.costing_tier(public.costing_matrix_opp(public.costing_matrix_of(p_table, p_row)))
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_s0_existing(p_s0_number text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_s0    text := upper(btrim(coalesce(p_s0_number, '')));
+  v_found record;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_standalone: sign in first' using errcode = '42501';
+  end if;
+  select m.id, coalesce(m.opportunity_id, m.id) as subject, (m.opportunity_id is null) as standalone into v_found
+    from public.costing_matrices m
+   where upper(btrim(m.s0_number)) = v_s0
+   limit 1;
+  if v_found.id is null then
+    select m.id, o.id as subject, false as standalone into v_found
+      from public.sales_opportunities o
+      join public.costing_matrices m on m.opportunity_id = o.id
+     where upper(btrim(o.sales_reference)) = v_s0
+       and not coalesce(o.is_deleted, false)
+     order by o.created_at
+     limit 1;
+  end if;
+  if v_found.id is null then
+    return null;
+  end if;
+  return jsonb_build_object('subject_id', v_found.subject, 'matrix_id', v_found.id, 'standalone', v_found.standalone);
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_s0_link_suggestions(p_opportunity_id uuid)
@@ -12093,11 +12465,14 @@ begin
 
   -- A foreign P0 is turned into pesos at the Canvass winner's rate, when the winner is in the same currency.
   if v_currency is distinct from 'PHP' then
-    select p.comparison_rate into v_rate
-      from public.sor_canvasses c
-      join public.sor_canvass_offers o on o.canvass_id = c.id and o.is_winner
-      join public.sor_canvass_offer_prices p on p.offer_id = o.id
-     where c.component_id = v_component and o.currency = v_currency;
+    select sp.comparison_rate into v_rate
+      from public.purchase_request_items i
+      join public.request_canvass_winners w on w.item_id = i.id
+      join public.request_canvass_suppliers s on s.id = w.supplier_id
+      join public.request_canvass_supplier_prices sp on sp.supplier_id = s.id
+     where i.component_id = v_component and s.currency = v_currency
+     order by w.chosen_at desc
+     limit 1;
   end if;
 
   update public.costing_component_costs
@@ -12270,6 +12645,245 @@ AS $function$
   where l.id = p_tender_line_id
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.costing_standalone_anywhere()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from public.costing_matrices m
+    where m.opportunity_id is null and public.costing_standalone_tier(m.id) is not null
+  )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_link(p_matrix_id uuid, p_opportunity_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_prior text := current_setting('costing.bypass', true);
+  v_s0    text;
+  v_sor   public.sales_opportunities;
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_standalone: sign in first' using errcode = '42501';
+  end if;
+  select s0_number into v_s0 from public.costing_matrices where id = p_matrix_id and opportunity_id is null;
+  if not found then
+    raise exception 'costing_standalone: this evaluation is already on a SOR' using errcode = '22023';
+  end if;
+  if coalesce(public.costing_standalone_tier(p_matrix_id), '') not in ('closed_book', 'price') then
+    raise exception 'costing_standalone: only the starter, the Sales incharge or the decider list can link it' using errcode = '42501';
+  end if;
+  select * into v_sor from public.sales_opportunities where id = p_opportunity_id and not coalesce(is_deleted, false);
+  if v_sor.id is null then
+    raise exception 'costing_standalone: SOR not found' using errcode = '22023';
+  end if;
+  -- The caller must be someone the SOR's own rules let into its evaluation.
+  if not (public.costing_on_list('final_acquire') or public.costing_is_open(p_opportunity_id)) then
+    raise exception 'costing_standalone: you cannot open the S0 Evaluation of that SOR' using errcode = '42501';
+  end if;
+  if exists (select 1 from public.costing_matrices where opportunity_id = p_opportunity_id) then
+    raise exception 'costing_standalone: that SOR already has an S0 Evaluation' using errcode = '22023';
+  end if;
+  if nullif(btrim(coalesce(v_sor.sales_reference, '')), '') is not null
+     and upper(btrim(v_sor.sales_reference)) <> upper(btrim(v_s0)) then
+    raise exception 'costing_standalone: that SOR is on %, not %', v_sor.sales_reference, v_s0 using errcode = '22023';
+  end if;
+
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_matrices set opportunity_id = p_opportunity_id where id = p_matrix_id;
+  -- The SOR's own products join the lines already here (matched by Odoo line, then by Odoo product), never by name.
+  if exists (select 1 from public.sales_opportunity_items where opportunity_id = p_opportunity_id and not coalesce(removed_from_s0, false)) then
+    perform public.costing_fill_from_sor(p_opportunity_id);
+  end if;
+  perform set_config('costing.bypass', coalesce(v_prior, ''), true);
+  return jsonb_build_object('opportunity_id', p_opportunity_id, 'matrix_id', p_matrix_id);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_open(p_s0_number text, p_sales_incharge uuid, p_pms_incharge uuid, p_lines jsonb DEFAULT '[]'::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor  uuid := public.get_employee_id();
+  v_s0     text := upper(btrim(coalesce(p_s0_number, '')));
+  v_prior  text := current_setting('costing.bypass', true);
+  v_existing jsonb;
+  v_matrix uuid;
+  v_line   uuid;
+  v_pos    integer := 0;
+  v_item   jsonb;
+  v_qty    numeric;
+  v_unit   text;
+  v_name   text;
+begin
+  if v_actor is null then
+    raise exception 'costing_standalone: sign in first' using errcode = '42501';
+  end if;
+  if not (coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire') or public.costing_is_open_anywhere()) then
+    raise exception 'costing_standalone: only Super Admins, Purchasing, the Deal Team and the decider list start an evaluation' using errcode = '42501';
+  end if;
+  if v_s0 !~ '^S0[0-9]+$' then
+    raise exception 'costing_standalone: % is not an S0 number', coalesce(nullif(v_s0, ''), 'that') using errcode = '22023';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('costing_standalone:' || v_s0));
+
+  -- One evaluation per S0: a standalone one, or one on a SOR that carries this S0.
+  v_existing := public.costing_s0_existing(v_s0);
+  if v_existing is not null then
+    return v_existing || jsonb_build_object('existed', true);
+  end if;
+
+  if p_sales_incharge is null or p_pms_incharge is null then
+    raise exception 'costing_standalone: name a Sales incharge and a PMS incharge' using errcode = '22023';
+  end if;
+  if (select count(*) from public.employees e where e.id in (p_sales_incharge, p_pms_incharge) and not coalesce(e.is_deleted, false))
+     < (select count(distinct x) from (values (p_sales_incharge), (p_pms_incharge)) v(x)) then
+    raise exception 'costing_standalone: that incharge is not an active employee' using errcode = '22023';
+  end if;
+
+  perform set_config('costing.bypass', 'on', true);
+
+  insert into public.costing_matrices (opportunity_id, s0_number, created_by, sales_incharge_id, purchasing_incharge_id)
+  values (null, v_s0, v_actor, p_sales_incharge, p_pms_incharge)
+  returning id into v_matrix;
+
+  insert into public.costing_matrix_money (matrix_id) values (v_matrix) on conflict (matrix_id) do nothing;
+
+  if jsonb_typeof(coalesce(p_lines, '[]'::jsonb)) = 'array' then
+    for v_item in select * from jsonb_array_elements(p_lines) loop
+      v_name := nullif(btrim(coalesce(v_item ->> 'name', '')), '');
+      if v_name is null then
+        continue;
+      end if;
+      v_qty := coalesce(nullif(v_item ->> 'quantity', '')::numeric, 1);
+      if v_qty <= 0 then v_qty := 1; end if;
+      v_unit := nullif(btrim(coalesce(v_item ->> 'unit', '')), '');
+      v_pos := v_pos + 1;
+      insert into public.costing_tender_lines (matrix_id, position, source, odoo_line_id, odoo_product_id, tender_specification, unit, quantity, created_by)
+      values (v_matrix, v_pos, 'typed', nullif(v_item ->> 'odoo_line_id', '')::bigint, nullif(v_item ->> 'odoo_product_id', '')::integer,
+              v_name, v_unit, v_qty, v_actor)
+      returning id into v_line;
+      -- The product is its own first Component, as it is when a SOR's line is filled in.
+      insert into public.costing_components (tender_line_id, position, name, quantity, unit, odoo_product_id)
+      values (v_line, 1, v_name, v_qty, v_unit, nullif(v_item ->> 'odoo_product_id', '')::integer);
+    end loop;
+  end if;
+
+  perform set_config('costing.bypass', coalesce(v_prior, ''), true);
+  return jsonb_build_object('subject_id', v_matrix, 'matrix_id', v_matrix, 'existed', false, 'standalone', true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_page()
+ RETURNS TABLE(matrix_id uuid, s0_number text, created_by uuid, created_at timestamp with time zone, sales_incharge_id uuid, purchasing_incharge_id uuid, tier text, line_count integer, final_offer_total numeric, final_acquire_total numeric, project_expenses_total numeric, marketing numeric)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_standalone_page: not signed in' using errcode = '42501';
+  end if;
+  return query
+  select
+    m.id, m.s0_number, m.created_by, m.created_at, m.sales_incharge_id, m.purchasing_incharge_id,
+    t.tier,
+    lines.n,
+    case when t.tier in ('price', 'closed_book') then offer.total end,
+    case when t.tier in ('cost', 'closed_book') then acquire.total end,
+    case when t.tier in ('cost', 'closed_book') then public.costing_project_expenses_total(m.id) end,
+    case when t.tier = 'closed_book' then mm.marketing end
+  from public.costing_matrices m
+  cross join lateral (select public.costing_standalone_tier(m.id) as tier) t
+  left join public.costing_matrix_money mm on mm.matrix_id = m.id
+  cross join lateral (select count(*)::integer as n from public.costing_tender_lines l where l.matrix_id = m.id) lines
+  cross join lateral (select public.costing_offer_total(m.id) as total) offer
+  cross join lateral (
+    select case when count(*) > 0 and bool_and(x.fa is not null)
+                then sum(round(x.fa * x.q, 2)) end as total
+    from (
+      select cc.final_acquire_unit as fa, c.quantity as q
+      from public.costing_components c
+      join public.costing_tender_lines l on l.id = c.tender_line_id
+      left join public.costing_component_costs cc on cc.component_id = c.id
+      where l.matrix_id = m.id
+    ) x
+  ) acquire
+  where m.opportunity_id is null
+    and t.tier is not null
+  order by m.created_at desc;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_set_incharge(p_matrix_id uuid, p_sales_incharge uuid, p_pms_incharge uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_prior text := current_setting('costing.bypass', true);
+begin
+  if public.get_employee_id() is null then
+    raise exception 'costing_standalone: sign in first' using errcode = '42501';
+  end if;
+  if not public.costing_is_standalone(p_matrix_id) then
+    raise exception 'costing_standalone: this evaluation sits on a SOR, whose own incharges apply' using errcode = '22023';
+  end if;
+  if coalesce(public.costing_standalone_tier(p_matrix_id), '') not in ('closed_book', 'price') then
+    raise exception 'costing_standalone: only the starter, the Sales incharge or the decider list can change the incharges' using errcode = '42501';
+  end if;
+  if p_sales_incharge is null or p_pms_incharge is null then
+    raise exception 'costing_standalone: name a Sales incharge and a PMS incharge' using errcode = '22023';
+  end if;
+  if (select count(*) from public.employees e where e.id in (p_sales_incharge, p_pms_incharge) and not coalesce(e.is_deleted, false))
+     < (select count(distinct x) from (values (p_sales_incharge), (p_pms_incharge)) v(x)) then
+    raise exception 'costing_standalone: that incharge is not an active employee' using errcode = '22023';
+  end if;
+  perform set_config('costing.bypass', 'on', true);
+  update public.costing_matrices
+     set sales_incharge_id = p_sales_incharge, purchasing_incharge_id = p_pms_incharge
+   where id = p_matrix_id;
+  perform set_config('costing.bypass', coalesce(v_prior, ''), true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_standalone_tier(p_matrix_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when coalesce(public.is_super_admin(), false) or public.costing_on_list('final_acquire') then 'closed_book'
+    when public.get_employee_id() is null then null
+    when m.created_by = public.get_employee_id() or m.sales_incharge_id = public.get_employee_id() then 'price'
+    when m.purchasing_incharge_id = public.get_employee_id() or public.has_purchasing_access() then 'cost'
+    when m.technical_incharge_id = public.get_employee_id() or public.costing_on_list('evaluation') then 'participant'
+    else null
+  end
+  from public.costing_matrices m
+  where m.id = p_matrix_id and m.opportunity_id is null
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_subject_matrix(p_subject uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select id from public.costing_matrices where opportunity_id = p_subject or (opportunity_id is null and id = p_subject)
+$function$
+;
 CREATE OR REPLACE FUNCTION public.costing_technical_list()
  RETURNS TABLE(opportunity_id uuid, sor_code text, sales_reference text, project_title text, client_name text, stage text, team text, rows_total integer, rows_judged integer, approved boolean, is_mine boolean, rows_deviates integer, compliance text)
  LANGUAGE plpgsql
@@ -12399,9 +13013,8 @@ begin
 
   if exists (
     select 1
-      from public.sor_canvasses v
-     where v.component_id in (select c.id from public.costing_components c where c.tender_line_id = old.id)
-        or v.requested_item_id in (
+      from public.request_canvass_quotes q
+     where q.item_id in (
              select i.id
                from public.purchase_request_items i
               where i.component_id in (select c.id from public.costing_components c where c.tender_line_id = old.id)
@@ -12448,6 +13061,7 @@ CREATE OR REPLACE FUNCTION public.costing_tier(p_opportunity_id uuid)
  SET search_path TO 'public'
 AS $function$
   select case
+    when public.costing_is_standalone(p_opportunity_id) then public.costing_standalone_tier(p_opportunity_id)
     when not exists (select 1 from public.sales_opportunities o where o.id = p_opportunity_id) then null
     when public.costing_on_list('final_acquire') or public.costing_is_open(p_opportunity_id) then 'closed_book'
     when exists (
@@ -14588,71 +15202,69 @@ $function$
 CREATE OR REPLACE FUNCTION public.get_user_active_chats(p_user_id uuid, p_limit integer DEFAULT 30)
  RETURNS TABLE(entity_id text, entity_type text, title text, subtitle text, status text, latest_message text, latest_author text, latest_created_at timestamp with time zone, last_read_at timestamp with time zone, is_unread boolean, is_deleted boolean, is_archived boolean)
  LANGUAGE plpgsql
-AS $function$BEGIN
-    RETURN QUERY
-    WITH task_chats AS (
-        SELECT
-            t.id::TEXT AS entity_id,
-            'TASK'::TEXT AS entity_type,
-            COALESCE(t.project_title, LEFT(t.task_description, 40)) AS title,
-            (SELECT emp.name FROM public.employees emp WHERE emp.id = t.logged_by) AS subtitle,
-            t.status AS status,
-            ta.content AS latest_message,
-            (SELECT emp.name FROM public.employees emp WHERE emp.id = ta.author_id) AS latest_author,
-            ta.created_at AS latest_created_at,
-            (t.status = 'DELETED') AS is_deleted
-        FROM public.tasks t
-        JOIN public.task_activity ta ON ta.id = (
-            SELECT id FROM public.task_activity
-            WHERE task_id = t.id AND type = 'COMMENT'
-            ORDER BY created_at DESC LIMIT 1
-        )
-        WHERE (
-            t.logged_by = p_user_id OR
-            t.reported_to = p_user_id OR
-            EXISTS (
-                SELECT 1 FROM public.task_activity
-                WHERE task_id = t.id AND author_id = p_user_id
-            )
-        )
+AS $function$
+begin
+    return query
+    with my_tasks as (
+        select t.id from public.tasks t
+        where t.logged_by = p_user_id or t.reported_to = p_user_id
+        union
+        select ta.task_id from public.task_activity ta where ta.author_id = p_user_id
     ),
-    committee_chats AS (
-        SELECT
-            ct.id::text AS entity_id,
-            'COMMITTEE_TASK' AS entity_type,
-            ct.title AS title,
-            'Committee Task' AS subtitle,
-            ct.status AS status,
-            cta.content AS latest_message,
-            COALESCE(e.name, 'System') AS latest_author,
-            cta.created_at AS latest_created_at,
-            false AS is_deleted
-        FROM public.committee_tasks ct
-        JOIN public.committee_task_activity cta ON cta.task_id = ct.id
-        JOIN (
-            SELECT task_id, MAX(created_at) as max_created_at
-            FROM public.committee_task_activity
-            GROUP BY task_id
-        ) latest_act
-            ON latest_act.task_id = ct.id
-            AND latest_act.max_created_at = cta.created_at
-        LEFT JOIN public.employees e ON e.id = cta.author_id
-        WHERE (
-            ct.created_by = p_user_id OR
-            EXISTS (
-                SELECT 1
-                FROM public.committee_task_members ctm
-                WHERE ctm.committee_task_id = ct.id
-                AND ctm.employee_id = p_user_id
-            )
-        )
+    task_chats as (
+        select
+            t.id::text as entity_id,
+            'TASK'::text as entity_type,
+            coalesce(t.project_title, left(t.task_description, 40)) as title,
+            (select emp.name from public.employees emp where emp.id = t.logged_by) as subtitle,
+            t.status as status,
+            ta.content as latest_message,
+            (select emp.name from public.employees emp where emp.id = ta.author_id) as latest_author,
+            ta.created_at as latest_created_at,
+            (t.status = 'DELETED') as is_deleted
+        from my_tasks m
+        join public.tasks t on t.id = m.id
+        cross join lateral (
+            select x.content, x.author_id, x.created_at
+            from public.task_activity x
+            where x.task_id = t.id and x.type = 'COMMENT'
+            order by x.created_at desc
+            limit 1
+        ) ta
     ),
-    combined_chats AS (
-        SELECT * FROM task_chats
-        UNION ALL
-        SELECT * FROM committee_chats
+    my_committee_tasks as (
+        select ct.id from public.committee_tasks ct where ct.created_by = p_user_id
+        union
+        select ctm.committee_task_id from public.committee_task_members ctm where ctm.employee_id = p_user_id
+    ),
+    committee_chats as (
+        select
+            ct.id::text as entity_id,
+            'COMMITTEE_TASK'::text as entity_type,
+            ct.title as title,
+            'Committee Task'::text as subtitle,
+            ct.status as status,
+            cta.content as latest_message,
+            coalesce(e.name, 'System') as latest_author,
+            cta.created_at as latest_created_at,
+            false as is_deleted
+        from my_committee_tasks m
+        join public.committee_tasks ct on ct.id = m.id
+        cross join lateral (
+            select x.content, x.author_id, x.created_at
+            from public.committee_task_activity x
+            where x.task_id = ct.id
+            order by x.created_at desc
+            limit 1
+        ) cta
+        left join public.employees e on e.id = cta.author_id
+    ),
+    combined_chats as (
+        select * from task_chats
+        union all
+        select * from committee_chats
     )
-    SELECT
+    select
         c.entity_id,
         c.entity_type,
         c.title,
@@ -14662,21 +15274,22 @@ AS $function$BEGIN
         c.latest_author,
         c.latest_created_at,
         r.last_read_at,
-        (r.last_read_at IS NULL OR c.latest_created_at > r.last_read_at) AS is_unread,
+        (r.last_read_at is null or c.latest_created_at > r.last_read_at) as is_unread,
         c.is_deleted,
-        (a.archived_at IS NOT NULL) AS is_archived
-    FROM combined_chats c
-    LEFT JOIN public.chat_read_receipts r
-        ON c.entity_id = r.entity_id
-        AND c.entity_type = r.entity_type
-        AND r.user_id = p_user_id
-    LEFT JOIN public.chat_user_archives a
-        ON c.entity_id = a.entity_id
-        AND c.entity_type = a.entity_type
-        AND a.user_id = p_user_id
-    ORDER BY c.latest_created_at DESC
-    LIMIT p_limit;
-END;$function$
+        (a.archived_at is not null) as is_archived
+    from combined_chats c
+    left join public.chat_read_receipts r
+        on c.entity_id = r.entity_id
+        and c.entity_type = r.entity_type
+        and r.user_id = p_user_id
+    left join public.chat_user_archives a
+        on c.entity_id = a.entity_id
+        and c.entity_type = a.entity_type
+        and a.user_id = p_user_id
+    order by c.latest_created_at desc
+    limit p_limit;
+end;
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.group_task_is_stage_action(p_stage_action_id uuid, p_opportunity_id uuid)
  RETURNS boolean
@@ -20054,9 +20667,12 @@ begin
      set metadata = metadata || jsonb_build_object('item_id', v_s0.id)
    where request_id = v_s0.request_id and metadata->>'item_id' = v_other.id::text;
 
-  update public.sor_canvasses set requested_item_id = v_s0.id
-   where requested_item_id = v_other.id
-     and not exists (select 1 from public.sor_canvasses c where c.requested_item_id = v_s0.id);
+  -- (#967) The quotes follow when both lines are on one request's Canvass; a Canvass belongs to
+  -- one request, so a quote never moves across requests.
+  if v_other.request_id = v_s0.request_id
+     and not exists (select 1 from public.request_canvass_quotes q where q.item_id = v_s0.id) then
+    update public.request_canvass_quotes set item_id = v_s0.id where item_id = v_other.id;
+  end if;
 
   update public.purchase_request_item_prices set item_id = v_s0.id
    where item_id = v_other.id
@@ -20945,7 +21561,7 @@ declare
   v_new      public.purchase_request_items;
   v_still    boolean;
   v_amount   text;
-  v_stopped  integer;
+  v_stopped  integer := 0;
 begin
   if v_actor is null then
     raise exception 'purchase_request_replace_item: not signed in' using errcode = '42501';
@@ -20989,15 +21605,7 @@ begin
    where id = v_old.id
   returning * into v_old;
 
-  -- A's open Canvass stops. A signed-off Canvass is a finished record and stays as it is.
-  update public.sor_canvasses
-     set stopped_at = now(),
-         stopped_by = v_actor,
-         stopped_reason = 'Stopped · replaced by ' || v_name
-   where requested_item_id = v_old.id
-     and signed_off_at is null
-     and stopped_at is null;
-  get diagnostics v_stopped = row_count;
+  -- (#967) A's quotes stay on the request's Canvass as the record; there is no per-line Canvass to stop.
 
   v_amount := trim_scale(v_new.quantity)::text || coalesce(' ' || v_new.unit, '');
   perform public._purchase_request_post_event(
@@ -21378,9 +21986,7 @@ begin
   end if;
 
   if v_to = 'still_canvassing' and exists (
-    select 1 from public.sor_canvasses c
-    where c.requested_item_id = v_item.id
-       or (v_item.component_id is not null and c.component_id = v_item.component_id)
+    select 1 from public.request_canvass_quotes q where q.item_id = v_item.id
   ) then
     raise exception 'purchase_request_undo_item_status: % has a Canvass, so it stays Still canvassing', v_item.name
       using errcode = '22023';
@@ -21579,21 +22185,11 @@ AS $function$
       join matrices m on m.id = t.matrix_id
       left join public.costing_component_costs cc on cc.component_id = c.id
   ),
-  -- A Canvass on a Component alone (no product line) with no winner. A Canvass on a line is
-  -- counted through the line's own status (Still canvassing).
-  canvasses as (
-    select cv.id, cv.number, cv.created_at, comp_sor.opportunity_id,
-           comp_sor.purchasing_incharge_id as canvasser_id
-      from public.sor_canvasses cv
-      join comps comp_sor on comp_sor.id = cv.component_id
-     where cv.requested_item_id is null
-       and not exists (select 1 from public.sor_canvass_offers o where o.canvass_id = cv.id and o.is_winner)
-       and not comp_sor.is_ordered
-  ),
+  -- A line has a Canvass when a supplier has quoted it (#967: one Canvass per request).
   has_canvass as (
     select i.id as item_id
       from items i
-     where exists (select 1 from public.sor_canvasses cv where cv.requested_item_id = i.id or (i.component_id is not null and cv.component_id = i.component_id))
+     where exists (select 1 from public.request_canvass_quotes q where q.item_id = i.id)
   ),
   r as (
   -- Not checked: nobody has looked yet. One row per Purchase Request.
@@ -21613,11 +22209,6 @@ AS $function$
     from items i
    where i.status = 'still_canvassing'
    group by i.opportunity_id, i.request_id
-  union all
-  -- Still canvassing: a Component Canvass with no winner and no line
-  select c.opportunity_id, 'still_canvassing', 'canvass', c.id, c.number, 1, 0, null, c.canvasser_id, c.created_at, null,
-         null::text
-    from canvasses c
   union all
   -- Still canvassing: Components with no Acquire yet, plus the matrix when it still needs a Bid Decision
   select m.opportunity_id, 'still_canvassing', 'costing_matrix', m.opportunity_id, null,
@@ -22071,6 +22662,330 @@ BEGIN
     UPDATE hr_leave_categories SET sort_order = item.sort_order, updated_at = now() WHERE id = item.id;
   END LOOP;
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_no_other_supplier_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_canvass uuid := case when tg_op = 'DELETE' then old.canvass_id else new.canvass_id end;
+  v_count   integer;
+begin
+  -- The Canvass is going (a cascade): nothing left to protect.
+  if not exists (select 1 from public.request_canvasses where id = v_canvass) then
+    return coalesce(new, old);
+  end if;
+  select count(*)::integer into v_count from public.request_canvass_suppliers where canvass_id = v_canvass;
+
+  if tg_op = 'DELETE' then
+    if v_count < 3 and exists (
+      select 1
+        from public.request_canvass_winners w
+        join public.purchase_request_items i on i.id = w.item_id
+        join public.request_canvasses c on c.request_id = i.request_id
+       where c.id = v_canvass
+    ) then
+      raise exception 'A winner depends on this note. Take the winners off first, or add the missing suppliers.'
+        using errcode = '22023';
+    end if;
+    return old;
+  end if;
+
+  if v_count = 0 then
+    raise exception 'The first supplier can''t be explained away. Add a supplier first.' using errcode = '22023';
+  end if;
+  if v_count >= 3 then
+    raise exception 'This Canvass already has three suppliers, so there is nothing to explain.' using errcode = '22023';
+  end if;
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_quote_prices_guard_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_quote uuid := case when tg_op = 'DELETE' then old.quote_id else new.quote_id end;
+  v_item  uuid;
+begin
+  if not public.canvass_lock_applies() then
+    return coalesce(new, old);
+  end if;
+  select q.item_id into v_item from public.request_canvass_quotes q where q.id = v_quote;
+  -- The quote is gone (it was removed, or its line was): its own guard has spoken.
+  if v_item is null or not public.canvass_item_is_locked(v_item) then
+    return coalesce(new, old);
+  end if;
+
+  if tg_op = 'INSERT' and exists (select 1 from public.request_canvass_quote_prices p where p.quote_id = new.quote_id) then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and new.unit_price is not distinct from old.unit_price then
+    return new;
+  end if;
+
+  raise exception 'This line is Purchased, so its prices can''t change. A Super Admin can unlock it.'
+    using errcode = '55000';
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_quote_prices_mark_canvassing()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_quote public.request_canvass_quotes;
+  v_item  public.purchase_request_items;
+  v_actor uuid;
+begin
+  if new.unit_price is null then
+    return null;
+  end if;
+  select * into v_quote from public.request_canvass_quotes where id = new.quote_id;
+  if not found then
+    return null;
+  end if;
+
+  select * into v_item
+    from public.purchase_request_items i
+   where i.id = v_quote.item_id
+     and i.status in ('not_checked', 'available', 'to_purchase', 'cannot_source')
+     for update;
+  if not found then
+    return null;
+  end if;
+
+  v_actor := coalesce(public.get_employee_id(), v_quote.created_by);
+  update public.purchase_request_items
+     set status = 'still_canvassing',
+         status_changed_by = v_actor,
+         status_changed_at = now()
+   where id = v_item.id;
+
+  if v_actor is not null then
+    perform public._purchase_request_post_event(
+      v_item.request_id,
+      v_actor,
+      format('%s: %s → Still canvassing.', v_item.name, public._purchase_request_item_status_label(v_item.status)),
+      jsonb_build_object(
+        'event', 'item_status_changed',
+        'item_id', v_item.id,
+        'from', v_item.status,
+        'to', 'still_canvassing',
+        'changed_by', v_actor,
+        'changed_at', now()
+      )
+    );
+  end if;
+  return null;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_quotes_check_line()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  new.updated_at := now();
+  if not exists (
+    select 1
+      from public.request_canvasses c
+      join public.purchase_request_items i on i.request_id = c.request_id
+     where c.id = new.canvass_id and i.id = new.item_id
+  ) then
+    raise exception 'That line is not on this Canvass''s Purchase Request.' using errcode = '23514';
+  end if;
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_quotes_guard_locked()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_item uuid := case when tg_op = 'DELETE' then old.item_id else new.item_id end;
+begin
+  if not public.canvass_lock_applies()
+     or not exists (select 1 from public.purchase_request_items where id = v_item)
+     or not public.canvass_item_is_locked(v_item) then
+    return coalesce(new, old);
+  end if;
+
+  if tg_op = 'INSERT' and exists (
+    select 1 from public.request_canvass_quotes q where q.supplier_id = new.supplier_id and q.item_id = new.item_id
+  ) then
+    -- An upsert onto a quote already there is judged when it updates.
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and (new.brand, new.description, new.source_link, new.remarks, new.supplier_id, new.item_id, new.canvass_id)
+        is not distinct from (old.brand, old.description, old.source_link, old.remarks, old.supplier_id, old.item_id, old.canvass_id) then
+    -- Only the brochure moved: attachments stay open on a locked line.
+    return new;
+  end if;
+
+  raise exception 'This line is Purchased, so its quotes, prices, winner and reason can''t change. A Super Admin can unlock it.'
+    using errcode = '55000';
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_supplier_prices_check_rate()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  new.updated_at := now();
+  if new.comparison_rate is not null and exists (
+    select 1 from public.request_canvass_suppliers s
+     where s.id = new.supplier_id and s.currency = 'PHP'
+  ) then
+    raise exception 'A PHP supplier takes no comparison rate.' using errcode = '23514';
+  end if;
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_suppliers_check_currency()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.currency = 'PHP' and new.currency is distinct from old.currency and exists (
+    select 1 from public.request_canvass_supplier_prices p
+     where p.supplier_id = new.id and p.comparison_rate is not null
+  ) then
+    raise exception 'Clear the comparison rate before changing a supplier to PHP.' using errcode = '23514';
+  end if;
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_touch()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  new.updated_at := now();
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_winners_fill()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op = 'INSERT' or new.supplier_id is distinct from old.supplier_id then
+    perform public.canvass_fill_from_winner(new.item_id, new.supplier_id);
+  end if;
+  return null;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvass_winners_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_item   uuid := case when tg_op = 'DELETE' then old.item_id else new.item_id end;
+  v_status text;
+  v_canvass uuid;
+begin
+  select i.status into v_status from public.purchase_request_items i where i.id = v_item;
+  -- The line is going (a cascade): nothing left to protect.
+  if not found then
+    return coalesce(new, old);
+  end if;
+
+  if public.canvass_lock_applies() and public.canvass_item_is_locked(v_item) then
+    raise exception 'This line is Purchased, so its winner and reason can''t change. A Super Admin can unlock it.'
+      using errcode = '55000';
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  if v_status = 'cancelled' then
+    raise exception 'A cancelled line can''t get a winner.' using errcode = '22023';
+  end if;
+  if length(btrim(coalesce(new.reason, ''))) = 0 then
+    raise exception 'A winner needs a reason.' using errcode = '22023';
+  end if;
+
+  select q.canvass_id into v_canvass
+    from public.request_canvass_quotes q
+   where q.supplier_id = new.supplier_id and q.item_id = new.item_id;
+  if v_canvass is null then
+    raise exception 'That supplier did not quote this line.' using errcode = '23503';
+  end if;
+  if not public.canvass_suppliers_covered(v_canvass) then
+    raise exception 'A winner needs three suppliers, or a No other supplier note for the missing ones.' using errcode = '22023';
+  end if;
+
+  if tg_op = 'INSERT' then
+    new.chosen_by := coalesce(new.chosen_by, public.get_employee_id());
+  end if;
+  new.reason := btrim(new.reason);
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvasses_assign_number()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  new.number := 'CNV_' || lpad(nextval('public.sor_canvass_number_seq')::text, 4, '0');
+  if public.get_employee_id() is not null then
+    new.created_by := public.get_employee_id();
+  end if;
+  if new.canvasser_id is null then
+    new.canvasser_id := coalesce(
+      (select r.buyer_id from public.purchase_requests r where r.id = new.request_id),
+      new.created_by
+    );
+  end if;
+  return new;
+end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_canvasses_keep_number()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.number is distinct from old.number then
+    raise exception 'A Canvass number is never changed.' using errcode = '42501';
+  end if;
+  if new.request_id is distinct from old.request_id then
+    raise exception 'A Canvass stays on its Purchase Request.' using errcode = '42501';
+  end if;
+  new.updated_at := now();
+  return new;
+end
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.resend_meeting_request(p_request_id uuid)
@@ -23445,216 +24360,6 @@ AS $function$
   end
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.sor_canvass_offer_prices_check_rate()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  new.updated_at := now();
-  if new.comparison_rate is not null and exists (
-    select 1 from public.sor_canvass_offers o
-    where o.id = new.offer_id and o.currency = 'PHP'
-  ) then
-    raise exception 'A PHP Offer takes no comparison rate.' using errcode = '23514';
-  end if;
-  return new;
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvass_offers_check_currency()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  if new.currency = 'PHP' and new.currency is distinct from old.currency and exists (
-    select 1 from public.sor_canvass_offer_prices p
-    where p.offer_id = new.id and p.comparison_rate is not null
-  ) then
-    raise exception 'Clear the comparison rate before changing an Offer to PHP.' using errcode = '23514';
-  end if;
-  return new;
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvass_offers_touch()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-begin
-  new.updated_at := now();
-  return new;
-end $function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvass_signoff_events_append_only()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-begin
-  -- A cascade from the Canvass (or the Component above it) runs one trigger level down; a direct
-  -- delete does not.
-  if tg_op = 'DELETE' and pg_trigger_depth() > 1 then
-    return old;
-  end if;
-  -- Deleting an employee sets actor_id to null (the foreign key's own update, one level down).
-  if tg_op = 'UPDATE' and pg_trigger_depth() > 1 and new.actor_id is null
-     and (to_jsonb(new) - 'actor_id') = (to_jsonb(old) - 'actor_id') then
-    return new;
-  end if;
-  raise exception 'The sign-off history is append-only.' using errcode = '42501';
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvasses_assign_number()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  new.number := 'CNV_' || lpad(nextval('public.sor_canvass_number_seq')::text, 4, '0');
-  -- Whoever opens it is its creator, whatever the client sent.
-  if public.get_employee_id() is not null then
-    new.created_by := public.get_employee_id();
-  end if;
-  return new;
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvasses_default_canvasser()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-begin
-  if new.canvasser_id is null and new.component_id is null and new.requested_item_id is null then
-    new.canvasser_id := new.created_by;
-  end if;
-  return new;
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvasses_guard_signoff()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-begin
-  -- current_user tells a person at a client apart from the service role and migrations.
-  if current_user not in ('authenticated', 'anon') then
-    return new;
-  end if;
-  if tg_op = 'INSERT' then
-    if new.signed_off_by is not null or new.signed_off_at is not null then
-      raise exception 'A Canvass is no longer signed off.' using errcode = '42501';
-    end if;
-  elsif new.signed_off_by is distinct from old.signed_off_by
-     or new.signed_off_at is distinct from old.signed_off_at then
-    raise exception 'A Canvass is no longer signed off.' using errcode = '42501';
-  end if;
-  return new;
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvasses_keep_number()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-begin
-  if new.number is distinct from old.number then
-    raise exception 'A Canvass number is never changed.' using errcode = '42501';
-  end if;
-  return new;
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvasses_mark_canvassing()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_actor uuid := coalesce(public.get_employee_id(), new.created_by);
-  v_item  public.purchase_request_items;
-begin
-  for v_item in
-    select i.*
-      from public.purchase_request_items i
-     where i.status in ('not_checked', 'available', 'to_purchase', 'cannot_source')
-       and (i.id = new.requested_item_id
-            or (new.component_id is not null and i.component_id = new.component_id))
-       for update
-  loop
-    update public.purchase_request_items
-       set status = 'still_canvassing',
-           status_changed_by = v_actor,
-           status_changed_at = now()
-     where id = v_item.id;
-
-    if v_actor is not null then
-      perform public._purchase_request_post_event(
-        v_item.request_id,
-        v_actor,
-        format('%s: %s → Still canvassing.', v_item.name, public._purchase_request_item_status_label(v_item.status)),
-        jsonb_build_object(
-          'event', 'item_status_changed',
-          'item_id', v_item.id,
-          'from', v_item.status,
-          'to', 'still_canvassing',
-          'changed_by', v_actor,
-          'changed_at', now()
-        )
-      );
-    end if;
-  end loop;
-  return null;
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvasses_refuse_component_item()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-begin
-  if new.requested_item_id is not null and exists (
-    select 1 from public.purchase_request_items i
-    where i.id = new.requested_item_id and i.component_id is not null
-  ) then
-    raise exception 'This Requested Item names a Component. Canvass the Component instead.'
-      using errcode = '23514';
-  end if;
-  return new;
-end
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvasses_refuse_free_standing()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
-AS $function$
-begin
-  if new.component_id is null
-     and new.requested_item_id is null
-     and coalesce(auth.role(), '') in ('authenticated', 'anon') then
-    raise exception 'canvass: a Canvass starts on a product line, or on a line of a Direct request, never free-standing'
-      using errcode = '22023';
-  end if;
-  return new;
-end;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.sor_canvasses_touch()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-begin
-  new.updated_at := now();
-  return new;
-end $function$
-;
 CREATE OR REPLACE FUNCTION public.sor_certify_condition(p_opportunity_id uuid, p_condition_id uuid, p_stage_id uuid, p_actor_id uuid)
  RETURNS TABLE(id uuid, opportunity_id uuid, condition_id uuid, satisfied_by uuid, satisfied_at timestamp with time zone, stage_visit_id uuid, was_new boolean)
  LANGUAGE plpgsql
@@ -25002,6 +25707,27 @@ AS $function$
     and public.sor_access_level(p_opportunity_id) in ('full', 'participant', 'locked')
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.sor_logs_for_sors(p_opportunity_ids uuid[])
+ RETURNS SETOF sales_opportunity_logs
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select l.*
+  from public.sales_opportunity_logs l
+  where l.opportunity_id = any (p_opportunity_ids)
+    and (
+      (select public.is_super_admin())
+      or (l.stage_visit_id is not null
+          and l.stage_visit_id in (
+            select public.sor_visible_visit_ids(x) from unnest(p_opportunity_ids) as x))
+      or (l.stage_visit_id is null
+          and l.opportunity_id in (
+            select x from unnest(p_opportunity_ids) as x
+            where public.sor_access_level(x) = any (array['full', 'participant'])))
+    )
+$function$
+;
 CREATE OR REPLACE FUNCTION public.sor_mention_shares(p_opportunity_id uuid)
  RETURNS TABLE(id uuid, employee_id uuid, employee_name text, granted_by_name text, stage_name text, is_open boolean, created_at timestamp with time zone)
  LANGUAGE sql
@@ -25681,6 +26407,28 @@ begin
     'committee_tasks_unlinked', v_committee_task_count
   );
 end $function$
+;
+CREATE OR REPLACE FUNCTION public.sor_readable_log_sor_ids()
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select o.id
+  from public.sales_opportunities o
+  where public.sor_access_level(o.id) = any (array['full', 'participant'])
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_readable_visit_ids()
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select vis.id
+  from public.sales_opportunities o
+  cross join lateral public.sor_visible_visit_ids(o.id) as vis(id)
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_recalc_expected_value()
  RETURNS trigger
@@ -29379,7 +30127,7 @@ begin
   if v_created is null then
     raise exception 'Message not found';
   end if;
-  if v_author is distinct from auth.uid() then
+  if v_author is distinct from public.get_employee_id() then
     raise exception 'You can only unsend your own messages';
   end if;
   if now() - v_created > interval '15 minutes' then
@@ -29870,6 +30618,7 @@ CREATE TRIGGER costing_print_clear_factor AFTER INSERT OR DELETE OR UPDATE ON pu
 CREATE TRIGGER costing_print_clear_final_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('final_approved', 'A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER trg_canvass_null_fill_mark BEFORE UPDATE OF acquire_unit ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION canvass_null_fill_mark();
 CREATE TRIGGER trg_costing_acquire_source BEFORE INSERT OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_set_acquire_source();
+CREATE TRIGGER trg_costing_final_acquire BEFORE INSERT OR UPDATE ON public.costing_component_costs FOR EACH ROW EXECUTE FUNCTION costing_final_acquire_apply();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bundle_keeps_inclusions BEFORE UPDATE OF is_bundle ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_bundle_keeps_inclusions();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
@@ -29881,10 +30630,12 @@ CREATE TRIGGER costing_components_cleanup BEFORE DELETE ON public.costing_compon
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_components FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER trg_canvass_null_fill_mark BEFORE UPDATE OF offer_specification ON public.costing_components FOR EACH ROW EXECUTE FUNCTION canvass_null_fill_mark();
+CREATE TRIGGER trg_costing_final_acquire_status AFTER UPDATE OF status ON public.costing_components FOR EACH ROW WHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION costing_final_acquire_touch_component();
 CREATE TRIGGER costing_cost_categories_touch BEFORE UPDATE ON public.costing_cost_categories FOR EACH ROW EXECUTE FUNCTION costing_cost_categories_touch();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_cost_row AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('A Final Acquire changed', 'final_acquire_unit');
 CREATE TRIGGER costing_cost_rows_keep_category BEFORE UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_cost_rows_keep_category();
+CREATE TRIGGER costing_cost_rows_percent_unit BEFORE INSERT OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_cost_rows_percent_unit();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_acquire AFTER INSERT OR DELETE OR UPDATE ON public.costing_cost_rows FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'An Acquire changed', 'acquire_unit');
@@ -29898,11 +30649,13 @@ CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costi
 CREATE TRIGGER costing_inclusion_needs_bundle BEFORE INSERT OR UPDATE OF component_id ON public.costing_inclusions FOR EACH ROW EXECUTE FUNCTION costing_inclusion_needs_bundle();
 CREATE TRIGGER costing_landed_defaults_stamp BEFORE INSERT OR UPDATE ON public.costing_landed_defaults FOR EACH ROW EXECUTE FUNCTION costing_landed_defaults_stamp();
 CREATE TRIGGER costing_markup_presets_touch BEFORE UPDATE ON public.costing_markup_presets FOR EACH ROW EXECUTE FUNCTION costing_markup_presets_touch();
+CREATE TRIGGER costing_abc_moved AFTER UPDATE OF abc_mode, abc_total ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_abc_moved_matrix();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_check_incharge BEFORE INSERT OR UPDATE OF sales_incharge_id, purchasing_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_incharge();
 CREATE TRIGGER costing_check_technical_incharge BEFORE INSERT OR UPDATE OF technical_incharge_id ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_check_technical_incharge();
 CREATE TRIGGER costing_clear_evaluation_matrix AFTER UPDATE OF compliance, compliance_note ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
+CREATE TRIGGER costing_go_lock_totals BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_refuse_totals_when_locked();
 CREATE TRIGGER costing_matrices_touch BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
 CREATE TRIGGER costing_matrix_verdict_guard BEFORE UPDATE ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_matrix_verdict_guard();
 CREATE TRIGGER trg_zz_costing_matrices_default_addon BEFORE INSERT ON public.costing_matrices FOR EACH ROW EXECUTE FUNCTION costing_matrices_default_addon();
@@ -29911,15 +30664,18 @@ CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.c
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_matrix_money_touch BEFORE UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_touch_updated_at();
 CREATE TRIGGER costing_print_clear_default_factor AFTER UPDATE ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('costed', 'A markup factor changed', 'default_factor');
+CREATE TRIGGER trg_costing_final_acquire_percent AFTER INSERT OR UPDATE OF final_acquire_percent ON public.costing_matrix_money FOR EACH ROW EXECUTE FUNCTION costing_final_acquire_touch_matrix();
 CREATE TRIGGER costing_settings_stamp BEFORE UPDATE ON public.costing_settings FOR EACH ROW EXECUTE FUNCTION costing_settings_stamp();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_signoffs_guard BEFORE UPDATE ON public.costing_signoffs FOR EACH ROW EXECUTE FUNCTION costing_signoffs_guard();
+CREATE TRIGGER costing_abc_moved AFTER INSERT OR DELETE OR UPDATE OF abc_unit ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_abc_moved_price();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'final_offer_unit');
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_write_events();
 CREATE TRIGGER costing_final_offer_log AFTER INSERT OR UPDATE OF final_offer_unit ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_log_final_offer_change();
 CREATE TRIGGER costing_go_lock BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_refuse_when_locked();
 CREATE TRIGGER costing_print_clear_offer AFTER INSERT OR DELETE OR UPDATE ON public.costing_tender_line_prices FOR EACH ROW EXECUTE FUNCTION costing_clear_print_signoffs('prepared,final_approved', 'The Final Offer changed', 'final_offer_unit');
+CREATE TRIGGER costing_abc_moved AFTER INSERT OR DELETE OR UPDATE OF quantity ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_abc_moved_line();
 CREATE TRIGGER costing_bands BEFORE INSERT OR DELETE OR UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_enforce_bands();
 CREATE TRIGGER costing_bid_clear_quantity AFTER UPDATE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_bid_decisions_clear('The Final Offer changed', 'quantity');
 CREATE TRIGGER costing_clear_evaluation_lines AFTER INSERT OR DELETE OR UPDATE OF tender_specification ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_clear_evaluation_approval();
@@ -30003,6 +30759,20 @@ CREATE TRIGGER purchase_requests_updated_at BEFORE UPDATE ON public.purchase_req
 CREATE TRIGGER trg_purchase_requests_assign_number BEFORE INSERT ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION purchase_requests_assign_number();
 CREATE TRIGGER trg_purchase_requests_keep_number BEFORE UPDATE ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION purchase_requests_keep_number();
 CREATE TRIGGER trg_purchase_requests_sync_items AFTER INSERT ON public.purchase_requests FOR EACH ROW EXECUTE FUNCTION trg_purchase_request_sync_items();
+CREATE TRIGGER trg_request_canvass_no_other_supplier_guard BEFORE INSERT OR DELETE OR UPDATE ON public.request_canvass_no_other_supplier FOR EACH ROW EXECUTE FUNCTION request_canvass_no_other_supplier_guard();
+CREATE TRIGGER trg_request_canvass_quote_prices_guard_locked BEFORE INSERT OR DELETE OR UPDATE ON public.request_canvass_quote_prices FOR EACH ROW EXECUTE FUNCTION request_canvass_quote_prices_guard_locked();
+CREATE TRIGGER trg_request_canvass_quote_prices_mark_canvassing AFTER INSERT OR UPDATE OF unit_price ON public.request_canvass_quote_prices FOR EACH ROW EXECUTE FUNCTION request_canvass_quote_prices_mark_canvassing();
+CREATE TRIGGER trg_request_canvass_quote_prices_touch BEFORE UPDATE ON public.request_canvass_quote_prices FOR EACH ROW EXECUTE FUNCTION request_canvass_touch();
+CREATE TRIGGER trg_request_canvass_quotes_check_line BEFORE INSERT OR UPDATE OF item_id, canvass_id ON public.request_canvass_quotes FOR EACH ROW EXECUTE FUNCTION request_canvass_quotes_check_line();
+CREATE TRIGGER trg_request_canvass_quotes_guard_locked BEFORE INSERT OR DELETE OR UPDATE ON public.request_canvass_quotes FOR EACH ROW EXECUTE FUNCTION request_canvass_quotes_guard_locked();
+CREATE TRIGGER trg_request_canvass_quotes_touch BEFORE UPDATE ON public.request_canvass_quotes FOR EACH ROW EXECUTE FUNCTION request_canvass_touch();
+CREATE TRIGGER trg_request_canvass_supplier_prices_check_rate BEFORE INSERT OR UPDATE ON public.request_canvass_supplier_prices FOR EACH ROW EXECUTE FUNCTION request_canvass_supplier_prices_check_rate();
+CREATE TRIGGER trg_request_canvass_suppliers_check_currency BEFORE UPDATE OF currency ON public.request_canvass_suppliers FOR EACH ROW EXECUTE FUNCTION request_canvass_suppliers_check_currency();
+CREATE TRIGGER trg_request_canvass_suppliers_touch BEFORE UPDATE ON public.request_canvass_suppliers FOR EACH ROW EXECUTE FUNCTION request_canvass_touch();
+CREATE TRIGGER trg_request_canvass_winners_fill AFTER INSERT OR UPDATE ON public.request_canvass_winners FOR EACH ROW EXECUTE FUNCTION request_canvass_winners_fill();
+CREATE TRIGGER trg_request_canvass_winners_guard BEFORE INSERT OR DELETE OR UPDATE ON public.request_canvass_winners FOR EACH ROW EXECUTE FUNCTION request_canvass_winners_guard();
+CREATE TRIGGER trg_request_canvasses_assign_number BEFORE INSERT ON public.request_canvasses FOR EACH ROW EXECUTE FUNCTION request_canvasses_assign_number();
+CREATE TRIGGER trg_request_canvasses_keep_number BEFORE UPDATE ON public.request_canvasses FOR EACH ROW EXECUTE FUNCTION request_canvasses_keep_number();
 CREATE TRIGGER retail_orders_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION retail_orders_broadcast_change();
 CREATE TRIGGER trg_retail_orders_updated_at BEFORE UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION set_retail_orders_updated_at();
 CREATE TRIGGER purchase_request_sor_status_notify AFTER UPDATE OF is_deleted, flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION _purchase_request_sor_status_notify();
@@ -30023,22 +30793,6 @@ CREATE TRIGGER trg_sor_items_recalc AFTER INSERT OR DELETE OR UPDATE ON public.s
 CREATE TRIGGER trg_sor_line_sync_request_item AFTER INSERT OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION trg_sor_line_sync_request_item();
 CREATE TRIGGER sor_logs_set_stage_visit BEFORE INSERT ON public.sales_opportunity_logs FOR EACH ROW EXECUTE FUNCTION sor_set_log_stage_visit();
 CREATE TRIGGER sil_leaves_guard_head_status BEFORE UPDATE ON public.sil_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
-CREATE TRIGGER trg_sor_canvass_offer_prices_check_rate BEFORE INSERT OR UPDATE ON public.sor_canvass_offer_prices FOR EACH ROW EXECUTE FUNCTION sor_canvass_offer_prices_check_rate();
-CREATE TRIGGER trg_sor_canvass_offer_prices_locked BEFORE INSERT OR DELETE OR UPDATE ON public.sor_canvass_offer_prices FOR EACH ROW EXECUTE FUNCTION canvass_refuse_price_change_when_locked();
-CREATE TRIGGER trg_sor_canvass_offers_check_currency BEFORE UPDATE OF currency ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION sor_canvass_offers_check_currency();
-CREATE TRIGGER trg_sor_canvass_offers_locked BEFORE INSERT OR DELETE OR UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION canvass_refuse_offer_change_when_locked();
-CREATE TRIGGER trg_sor_canvass_offers_touch BEFORE UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION sor_canvass_offers_touch();
-CREATE TRIGGER trg_sor_canvass_signoff_events_append_only BEFORE DELETE OR UPDATE ON public.sor_canvass_signoff_events FOR EACH ROW EXECUTE FUNCTION sor_canvass_signoff_events_append_only();
-CREATE TRIGGER trg_sor_canvasses_assign_number BEFORE INSERT ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_assign_number();
-CREATE TRIGGER trg_sor_canvasses_default_canvasser BEFORE INSERT ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_default_canvasser();
-CREATE TRIGGER trg_sor_canvasses_guard_signoff BEFORE INSERT OR UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_guard_signoff();
-CREATE TRIGGER trg_sor_canvasses_keep_number BEFORE UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_keep_number();
-CREATE TRIGGER trg_sor_canvasses_locked BEFORE UPDATE OF reason, product_name ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION canvass_refuse_edit_when_locked();
-CREATE TRIGGER trg_sor_canvasses_mark_canvassing AFTER INSERT ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_mark_canvassing();
-CREATE TRIGGER trg_sor_canvasses_refuse_component_item BEFORE INSERT OR UPDATE OF requested_item_id ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_refuse_component_item();
-CREATE TRIGGER trg_sor_canvasses_refuse_free_standing BEFORE INSERT ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_refuse_free_standing();
-CREATE TRIGGER trg_sor_canvasses_stamp_request_made BEFORE UPDATE OF requested_item_id ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION canvass_stamp_request_made();
-CREATE TRIGGER trg_sor_canvasses_touch BEFORE UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_touch();
 CREATE TRIGGER trg_sor_inclusions_touch BEFORE UPDATE ON public.sor_inclusions FOR EACH ROW EXECUTE FUNCTION sor_inclusions_touch();
 CREATE TRIGGER trg_sor_procurement_requests_guard BEFORE UPDATE ON public.sor_procurement_requests FOR EACH ROW EXECUTE FUNCTION sor_procurement_requests_guard();
 CREATE TRIGGER trg_sor_procurement_requests_touch BEFORE UPDATE ON public.sor_procurement_requests FOR EACH ROW EXECUTE FUNCTION sor_procurement_requests_touch();

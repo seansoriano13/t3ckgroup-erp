@@ -205,6 +205,18 @@ describe("CommissionDashboardView", () => {
       expect(screen.getByText("SOR-111")).toBeInTheDocument();
     });
 
+    it("shows each SOR's own number and project when one company has several", async () => {
+      const four = [1, 2, 3, 4].map((n) => deal({ id: `same-${n}`, opportunityNo: null, sorCode: `SOR-90${n}`, projectTitle: `Same Co Project ${n}`, clientName: "Same Co" }));
+      commissionService.getCommissionDashboardData.mockResolvedValue(dashboardData(four));
+      asUser(superAdmin);
+      renderView();
+
+      for (const n of [1, 2, 3, 4]) {
+        expect(await screen.findByText(`SOR-90${n}`)).toBeInTheDocument();
+        expect(screen.getByText(`Same Co Project ${n}`)).toBeInTheDocument();
+      }
+    });
+
     it("downloads the ledger as CSV", async () => {
       const createObjectURL = vi.fn().mockReturnValue("blob:mock-url");
       global.URL.createObjectURL = createObjectURL;
@@ -237,12 +249,12 @@ describe("CommissionDashboardView", () => {
       expect(within(dialog).getByText("Bob Rep")).toBeInTheDocument();
 
       fireEvent.click(within(dialog).getByRole("button", { name: /Open SOR/ }));
-      expect(mockNavigate).toHaveBeenCalledWith("/sors", { state: { openOpportunityId: "opp-2" } });
+      expect(mockNavigate).toHaveBeenCalledWith("/sors?open=sor:opp-2");
     });
 
     it("opens the linked SOR's receipt when arriving from a SOR", async () => {
       asUser(superAdmin);
-      renderView({ state: { openOpportunityId: "opp-1" } });
+      renderView({ path: "/sors/commission?record=opp-1" });
 
       const dialog = await screen.findByRole("dialog");
       expect(within(dialog).getByText("Alpha Corp")).toBeInTheDocument();
@@ -255,7 +267,7 @@ describe("CommissionDashboardView", () => {
       await screen.findByText("SOR-001");
       fireEvent.click(screen.getByRole("tab", { name: /People/ }));
       fireEvent.click(screen.getByText("Alice Rep").closest("tr"));
-      expect(mockNavigate).toHaveBeenCalledWith("/sors", { state: { filterEmployeeId: "user-alice" } });
+      expect(mockNavigate).toHaveBeenCalledWith("/sors?employee=user-alice");
     });
   });
 

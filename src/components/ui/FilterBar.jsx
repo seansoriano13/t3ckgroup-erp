@@ -129,7 +129,7 @@ export default function FilterBar({
           onChange={(e) => search.onChange(e.target.value)}
           placeholder={search.placeholder ?? "Search"}
           aria-label={search.placeholder ?? "Search"}
-          containerClassName={cn("sm:w-auto sm:min-w-36 sm:max-w-64 sm:flex-1", phone ? "min-w-0 flex-1" : "w-full")}
+          containerClassName={cn("sm:w-auto sm:min-w-48 sm:max-w-64 sm:flex-1", phone ? "min-w-0 flex-1" : "w-full")}
           className="h-9 rounded-lg text-[13px]"
         />
       )}

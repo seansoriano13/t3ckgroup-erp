@@ -115,9 +115,9 @@ export default function DocumentCenterTab(props) {
           <Printer className="h-4 w-4" />
           {isBusy ? 'Working…' : 'Print'}
         </Button>
-        <div className="flex min-h-[720px] overflow-hidden rounded-2xl border border-border bg-muted/40 p-5">
+        <div className={`flex overflow-hidden rounded-2xl border border-border bg-muted/40 p-5 ${tray.length === 0 ? 'min-h-48 items-center justify-center' : 'min-h-[720px]'}`}>
           {tray.length === 0 ? (
-            <p className="m-auto text-sm font-medium text-muted-foreground">Your forms preview here, exactly as they print.</p>
+            <p className="text-center text-sm font-medium text-muted-foreground">Your forms preview here, exactly as they print.</p>
           ) : (
             <iframe title="Document preview" srcDoc={previewHtml} className="w-full flex-1 rounded-sm border-0 bg-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)]" />
           )}

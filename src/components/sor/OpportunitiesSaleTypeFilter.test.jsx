@@ -65,9 +65,9 @@ async function openSaleTypeFilter(user) {
 }
 
 function renderRegister() {
-  // A filterEmployeeId in router state opens the list view, which is the one with rows to assert on.
+  // An ?employee= in the address opens the list view, which is the one with rows to assert on.
   return renderWithProviders(
-    <MemoryRouter initialEntries={[{ pathname: "/sors", state: { filterEmployeeId: "ALL" } }]}>
+    <MemoryRouter initialEntries={["/sors?employee=ALL"]}>
       <OpportunitiesPage />
     </MemoryRouter>,
   );

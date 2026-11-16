@@ -43,8 +43,6 @@ import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { stubProcurementQueueRpcs } from "@/test/stubs/procurementQueueRpc"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { shapeTransmittal } from "@/utils/transmittals"
-import CanvassesPage from "@/pages/purchasing/canvasses/index"
-import { stubCanvassListRpcs, stubCanvassMoneyRpc, stubCanvassWinnerRpcs } from "@/test/stubs/canvassRpc"
 
 const auth = vi.hoisted(() => ({ user: null }))
 const transmittalService = vi.hoisted(() => ({
@@ -79,7 +77,7 @@ const CHECKER = { id: "u-check", name: "Maria Check", employee_type: "staff" }
 
 function rawTransmittal(over = {}) {
   return {
-    id: "t1",
+    id: "00000000-0000-4000-8000-0000000000b1",
     number: "TG03_0007",
     prepared_on: "2026-10-01",
     prepared_by: PREPARER,
@@ -120,7 +118,7 @@ function seedTransmittal({ raw, lists }) {
 function seedPackingList(over = {}) {
   auth.user = { id: "u-me", name: "Pat Packer", has_purchasing_flow: true }
   packingListService.get.mockResolvedValue({
-    id: "pl1",
+    id: "00000000-0000-4000-8000-0000000000c1",
     number: "TG04_0003",
     state: "draft",
     sorId: "sor1",
@@ -167,24 +165,6 @@ function seedPurchaseRequest() {
   auth.user = buyer
 }
 
-// A Canvass is a window over the Canvasses list, opened by ?canvass=<id>. It reads the fake database, which numbers it CNV_0001.
-function seedCanvass() {
-  const buyer = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true })
-  const canvasser = makeEmployee({ name: "Ana Reyes", has_purchasing_flow: true })
-  auth.user = buyer
-  stubCanvassMoneyRpc({ money: true })
-  stubCanvassWinnerRpcs({ bands: ["purchasing"] })
-  stubCanvassListRpcs({ actorId: buyer.id })
-  const canvass = db.seed("sor_canvasses", {
-    product_name: "Laser toner",
-    canvasser_id: canvasser.id,
-    created_by: canvasser.id,
-  })
-  db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Ink Depot", brand: "HP", is_winner: true })
-  db.seed("sor_canvass_offers", { canvass_id: canvass.id, supplier_name: "Toner World", brand: "Canon", is_winner: false })
-  return canvass
-}
-
 // The IPAS reads the test database (not a mocked service). One buyer, one open IPAS from Odoo.
 const IPAS_ID = "00000000-0000-4000-8000-0000000000a1"
 
@@ -221,7 +201,7 @@ const RECORDS = [
     name: "Transmittal",
     Page: TransmittalDetailPage,
     route: "/purchasing/transmittals/:id",
-    path: "/purchasing/transmittals/t1",
+    path: "/purchasing/transmittals/00000000-0000-4000-8000-0000000000b1",
     seed: () => seedTransmittal({ raw: rawTransmittal(), lists: ["transmittal_check_by"] }),
     title: /^TG03_0007\s*·\s*Store CDO$/,
     badge: "Awaiting Check by",
@@ -236,7 +216,7 @@ const RECORDS = [
     name: "Packing List",
     Page: PackingListDetailPage,
     route: "/purchasing/packing-lists/:id",
-    path: "/purchasing/packing-lists/pl1",
+    path: "/purchasing/packing-lists/00000000-0000-4000-8000-0000000000c1",
     seed: () => seedPackingList(),
     title: /^TG04_0003\s*·\s*Plant upgrade$/,
     badge: "Draft",
@@ -249,7 +229,7 @@ const RECORDS = [
     name: "Transmittal (cancelled)",
     Page: TransmittalDetailPage,
     route: "/purchasing/transmittals/:id",
-    path: "/purchasing/transmittals/t1",
+    path: "/purchasing/transmittals/00000000-0000-4000-8000-0000000000b1",
     seed: () =>
       seedTransmittal({
         raw: rawTransmittal({ state: "cancelled", cancel_reason: "Wrong slip", stages: [] }),
@@ -275,27 +255,6 @@ const RECORDS = [
     pills: ["Buyer", "SOR", "Stage", "Items"],
     hasMore: false,
     yourMove: null,
-  },
-  {
-    name: "Canvass",
-    Page: CanvassesPage,
-    route: "/purchasing/canvasses",
-    // The Canvass opens from the address, so the link is known once the seed has run.
-    get path() {
-      return `/purchasing/canvasses?canvass=${this.seeded.id}`
-    },
-    seed() {
-      this.seeded = seedCanvass()
-    },
-    title: /^CNV_0001\s*·\s*Laser toner$/,
-    badge: "Winner picked",
-    pills: ["Canvasser", "Subject", "Winner"],
-    hasMore: true,
-    yourMove: {
-      // Two offers and no explained slot, so the supplier slots come before the reason (#898).
-      status: "Next: fill or explain the other supplier slots",
-      steps: ["Offers in", "Winner picked", "Purchase Request"],
-    },
   },
   {
     name: "IPAS",

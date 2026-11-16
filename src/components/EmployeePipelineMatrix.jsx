@@ -1,3 +1,4 @@
+import { tasksHref } from "@/utils/listLinks";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -29,12 +30,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
 
   const handleDeepLink = (e, status, empId) => {
     e.stopPropagation();
-    navigate("/tasks", {
-      state: {
-        presetFilter: { status },
-        filterEmployeeId: empId,
-      },
-    });
+    navigate(tasksHref({ status, employee: empId }));
   };
   const isHead = user?.is_head === true || user?.isHead === true;
 
@@ -254,7 +250,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
               <div
                 key={emp.id}
                 onClick={() =>
-                  navigate("/tasks", { state: { filterEmployeeId: emp.id } })
+                  navigate(tasksHref({ employee: emp.id }))
                 }
                 className="cursor-pointer flex flex-col lg:flex-row lg:items-center justify-between transition-colors hover:bg-mauve-3 hover:border-mauve-5 w-full bg-card gap-4"
                 style={{
@@ -505,7 +501,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
               <div
                 key={emp.id}
                 onClick={() =>
-                  navigate("/tasks", { state: { filterEmployeeId: emp.id } })
+                  navigate(tasksHref({ employee: emp.id }))
                 }
                 className="cursor-pointer flex items-center justify-between p-3.5 bg-card hover:bg-mauve-3 border border-border rounded-xl transition-all gap-4"
               >
@@ -590,7 +586,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
             <div
               key={emp.id}
               onClick={() =>
-                navigate("/tasks", { state: { filterEmployeeId: emp.id } })
+                navigate(tasksHref({ employee: emp.id }))
               }
               className="cursor-pointer flex flex-col transition-colors hover:bg-mauve-3 hover:border-mauve-5 w-full bg-card"
               style={{

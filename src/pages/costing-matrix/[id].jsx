@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import { costingKeys } from "../../components/costing/costingKeys";
+import { useCostingMatrix } from "../../components/costing/useCostingMatrix";
 import ModalShell from "../../components/ui/ModalShell";
 import { Button } from "../../components/ui/button";
 import CostingDesk from "../../components/costing/desk/CostingDesk";
@@ -11,13 +12,14 @@ import { opportunityService } from "../../services/opportunityService";
 import { costingMatrixService } from "../../services/costingMatrixService";
 import { useAuth } from "../../context/AuthContext";
 import { getPermissionContext } from "../../utils/permissions";
+import { itemToRecordKey, withRecord } from "../../utils/recordLink";
 import { CostingMatrixList } from "./index";
 
 const LIST_PATH = "/costing-matrix";
 
 /**
  * One SOR's Costing Matrix in the record window (the Costing Desk), over the Costing Matrix list. The
- * URL is the SOR's id and works as a deep link. Opened from an SOR's PMS tab it closes back to that
+ * URL is the SOR's id (or, for an evaluation started from an S0 alone, its own id; #966) and works as a deep link. Opened from an SOR's PMS tab it closes back to that
  * SOR, on its PMS tab; otherwise it closes to the list. Who reads what is the database's to decide:
  * someone who may not read this matrix sees a plain line saying so.
  */
@@ -44,15 +46,20 @@ function CostingMatrixWindow() {
     retry: false,
   });
 
+  // The same read the sheet makes (one shared query): when it gives nothing, the header offers no actions.
+  const { data: matrix } = useCostingMatrix(id);
+  const readable = Boolean(matrix);
+
   const close = () => {
     // The list behind the window shows this SOR's figures; closing the sheet brings them up to date (#892).
     queryClient.invalidateQueries({ queryKey: costingKeys.matrixPage });
     if (returnTo?.path) {
-      navigate(returnTo.path);
+      // Back to the SOR the matrix was opened from, on its PMS tab: the address names it (#1020), so no event is needed.
       if (returnTo.sorId) {
-        // Back to the SOR the matrix was opened from, on its PMS tab.
-        setTimeout(() => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: returnTo.sorId, type: "OPPORTUNITY", view: "pms" } })), 0);
-      }
+        const [pathname, query = ""] = returnTo.path.split("?");
+        const params = withRecord(new URLSearchParams(query), itemToRecordKey({ id: returnTo.sorId, type: "OPPORTUNITY" }), "pms");
+        navigate({ pathname, search: `?${params}` });
+      } else navigate(returnTo.path);
       return;
     }
     navigate(LIST_PATH);
@@ -66,14 +73,19 @@ function CostingMatrixWindow() {
       open
       onOpenChange={(next) => !next && close()}
       size="record"
-      crumbs={["S0 Evaluation", opportunity?.sor_code ?? "SOR"]}
+      crumbs={["S0 Evaluation", opportunity?.standalone ? `${opportunity.sales_reference ?? "S0"} · No SOR` : (opportunity?.sor_code ?? "SOR")]}
       headerActions={
-        <>
-          <Button type="button" size="sm" variant="outline" onClick={openPms}>
-            SOR PMS tab
-          </Button>
-          <PrintButton opportunityId={id} opportunity={opportunity} />
-        </>
+        // Someone who may not read the evaluation gets no actions above "not yours to see" (#1038).
+        readable ? (
+          <>
+            {!opportunity?.standalone && (
+              <Button type="button" size="sm" variant="outline" onClick={openPms}>
+                SOR PMS tab
+              </Button>
+            )}
+            <PrintButton opportunityId={id} opportunity={opportunity} />
+          </>
+        ) : null
       }
     >
       <CostingDesk opportunityId={id} opportunity={opportunity} />
@@ -83,8 +95,9 @@ function CostingMatrixWindow() {
 
 function Behind() {
   const { user } = useAuth();
-  // The list is the Closed Book's page; anyone else opened the window from an SOR and sees no list behind it.
-  return getPermissionContext(user).isBidDecider ? <CostingMatrixList /> : null;
+  // The list is the Closed Book's page and the page of whoever is named on a standalone evaluation; anyone else opened
+  // the window from an SOR and sees no list behind it.
+  return getPermissionContext(user).canOpenCostingPage ? <CostingMatrixList /> : null;
 }
 
 export default function CostingMatrixRecordPage() {

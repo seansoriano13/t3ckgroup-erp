@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useLocation, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import PageShell from "../ui/PageShell";
 import TabGroup from "../ui/TabGroup";
 import { AlertCircle } from "lucide-react";
@@ -19,22 +19,20 @@ const TABS = [
 /**
  * The Commission Dashboard: the live Commission Pool (Pool tab) and the rules
  * that produce it (Formula tab) on one screen. `?tab=formula` opens the rules;
- * a SOR link arrives with `state.openOpportunityId` and opens that SOR's
+ * a SOR link arrives with `?record=<sor id>` and opens that SOR's
  * receipt on the Pool tab.
  */
 export default function CommissionDashboardView() {
-  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const access = useCommissionDashboard();
   const departments = useMemo(() => colourDepartments(access.dashboard?.departmentTotals), [access.dashboard]);
 
-  const linkedDealId = location.state?.openOpportunityId ?? null;
-  const tab = linkedDealId ? "pool" : params.get("tab") === "formula" ? "formula" : "pool";
+  const tab = params.get("record") ? "pool" : params.get("tab") === "formula" ? "formula" : "pool";
   const setTab = (value) => {
     const next = new URLSearchParams(params);
     if (value === "pool") next.delete("tab");
     else next.set("tab", value);
-    setParams(next, { replace: true, state: null });
+    setParams(next, { replace: true });
   };
 
   const body = access.isLoading ? (
@@ -45,7 +43,7 @@ export default function CommissionDashboardView() {
   ) : access.error ? (
     <EmptyState icon={AlertCircle} title="Couldn't load the Commission Pool" description={access.error.message} />
   ) : tab === "pool" ? (
-    <PoolTab key={linkedDealId ?? "pool"} access={{ ...access, dashboard: access.dashboard ?? {} }} departments={departments} initialDealId={linkedDealId} />
+    <PoolTab access={{ ...access, dashboard: access.dashboard ?? {} }} departments={departments} />
   ) : (
     <FormulaTab access={{ ...access, dashboard: access.dashboard ?? {} }} departments={departments} />
   );

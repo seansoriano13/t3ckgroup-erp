@@ -1,9 +1,9 @@
 import { CostingBandError, CostingRuleError } from "../../services/costingMatrixService";
 import { formatPHP } from "../../constants/sor";
-import { costIncomplete, factorLabel, offerIncomplete, percentOver } from "../../utils/costingMath";
+import { costIncomplete, expensesIncomplete, factorLabel, marketingIncomplete, offerIncomplete, opexIncomplete, percentOver, revenueIncomplete } from "../../utils/costingMath";
 
 // The "Incomplete — …" words live with the maths so the print says the same as the screen.
-export { costIncomplete, factorLabel, offerIncomplete };
+export { costIncomplete, expensesIncomplete, factorLabel, marketingIncomplete, offerIncomplete, opexIncomplete, revenueIncomplete };
 
 /** A refusal in words: a band or matrix-rule refusal reads as it was written; anything else loses its function-name prefix. */
 export const refusalMessage = (error) =>

@@ -1,8 +1,11 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
-import { BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
-import { complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
+import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, FINAL_ACQUIRE_PERCENT_HIGH, FINAL_ACQUIRE_PERCENT_LOW, STANDALONE_START_PROBLEM, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
+import { DEFAULT_FINAL_ACQUIRE_PERCENT, abcSettingOf, offerSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
+import { numberOrNull } from "../utils/numberOrNull";
+import { isS0Number, linesFromOdoo, normalizeS0, shapeStandalonePage } from "../utils/standaloneEvaluation";
+import { odooService } from "./odooService";
 import { summariseCompleteness } from "../constants/projectEvaluation";
 import { sorLineChange } from "../utils/requestedItem";
 import { canvassService } from "./canvassService";
@@ -118,8 +121,6 @@ function fail(error) {
   throw toBandError(error) ?? toRuleError(error) ?? error;
 }
 
-const numberOrNullValue = (value) => (value === null || value === undefined ? null : Number(value));
-
 function shapeCostCategory(row) {
   return { key: row.key, label: row.label, lowPct: Number(row.low_pct), highPct: Number(row.high_pct) };
 }
@@ -128,7 +129,7 @@ function shapeCostCategory(row) {
 export function shapeCostGuide(data) {
   if (!data) return null;
   return {
-    finalOfferTotal: numberOrNullValue(data.final_offer_total),
+    finalOfferTotal: numberOrNull(data.final_offer_total),
     missingOffer: Number(data.missing_offer ?? 0),
     missingCost: Number(data.missing_cost ?? 0),
     categories: (data.categories ?? []).map((c) => ({
@@ -136,11 +137,11 @@ export function shapeCostGuide(data) {
       label: c.label,
       lowPct: Number(c.low_pct),
       highPct: Number(c.high_pct),
-      total: numberOrNullValue(c.total),
-      sharePct: numberOrNullValue(c.share_pct),
+      total: numberOrNull(c.total),
+      sharePct: numberOrNull(c.share_pct),
       status: c.status ?? null,
     })),
-    uncategorised: { total: numberOrNullValue(data.uncategorised?.total), sharePct: numberOrNullValue(data.uncategorised?.share_pct) },
+    uncategorised: { total: numberOrNull(data.uncategorised?.total), sharePct: numberOrNull(data.uncategorised?.share_pct) },
   };
 }
 
@@ -193,7 +194,11 @@ function costColumns(fields) {
   if ("acquireUnit" in fields) columns.acquire_unit = blankToNull(fields.acquireUnit);
   if ("odooUnit" in fields) columns.odoo_unit = blankToNull(fields.odooUnit);
   if ("finalAcquireUnit" in fields) columns.final_acquire_unit = blankToNull(fields.finalAcquireUnit);
+  // #962: the line's own percent on the Odoo SRP (blank = the evaluation's), and whether Final Acquire is typed over the rule.
+  if ("finalAcquirePercent" in fields) columns.final_acquire_percent = blankToNull(fields.finalAcquirePercent);
+  if ("finalAcquireTyped" in fields) columns.final_acquire_typed = Boolean(fields.finalAcquireTyped);
   if ("markupFactor" in fields) columns.markup_factor = blankToNull(fields.markupFactor);
+  if ("abcPct" in fields) columns.abc_pct = blankToNull(fields.abcPct);
   return columns;
 }
 
@@ -322,7 +327,12 @@ export function shapeMatrix(read, settings = null) {
   });
 
   // A cost-only row with no factor of its own is x1.00, not the matrix default.
-  const costRows = (tables.costing_cost_rows ?? []).map((row, index) => ({
+  // A row typed as a percent of the ABC counts at that percent of the ABC total (#963).
+  const abcSetting = abcSettingOf(matrix);
+  // The Final Offer typed as one total (layout F, the sheet's way), the twin of the ABC setting.
+  const offerSetting = offerSettingOf(matrix);
+  const abcTotal = matrixTotals(tenderLines, abcSetting).abcTotal;
+  const costRows = applyPercentRows(tables.costing_cost_rows ?? [], abcTotal).map((row, index) => ({
     ...row,
     number: index + 1,
     totals: costRowTotals(row),
@@ -335,18 +345,23 @@ export function shapeMatrix(read, settings = null) {
     matrixId: read.matrix_id,
     matrix,
     tenderLines,
-    totals: matrixTotals(tenderLines),
+    abc: abcSetting,
+    offer: offerSetting,
+    totals: matrixTotals(tenderLines, abcSetting, offerSetting),
     // Cost tiers only: no key means the viewer was not sent it (#702).
     importAddonPercent: matrix && "import_addon_percent" in matrix ? numberOrNull(matrix.import_addon_percent) : undefined,
     defaultFactor: money ? (defaultFactor === null ? null : Number(defaultFactor)) : undefined,
     defaultPresetId: money ? (money.default_preset_id ?? null) : undefined,
-    markup: matrixMarkup(tenderLines, costRows, defaultFactor),
+    // The evaluation's percent on the Odoo SRP (#962); no key means the viewer was not sent it.
+    finalAcquirePercent: money ? Number(money.final_acquire_percent ?? DEFAULT_FINAL_ACQUIRE_PERCENT) : undefined,
+    markup: matrixMarkup(tenderLines, costRows, defaultFactor, offerSetting),
     compliance: complianceRollup(tenderLines.flatMap((line) => line.components)),
     evaluation: signoffState(signoffs, "evaluation_approved"),
     // All four sign-offs (#274), each as signoffState; the print reads them and the screen's sign buttons.
     signoffs: Object.fromEntries(SIGNOFF_ROLES.map((role) => [role, signoffState(signoffs, role)])),
     costRows,
     costRowsTotals: costRowsTotals(costRows),
+    projectExpensesTotal: projectExpensesTotal(costRows),
     costRowsMarkupTotal: markupPriceSum(costRows),
   };
 
@@ -367,7 +382,7 @@ export function shapeMatrix(read, settings = null) {
   if (tierReadsSummary(read.tier)) {
     shaped.money = money;
     shaped.rates = settings ?? DEFAULT_COSTING_SETTINGS;
-    shaped.summary = summary({ tenderLines, costRows, money }, shaped.rates);
+    shaped.summary = summary({ tenderLines, costRows, money, abc: shaped.abc, offer: shaped.offer }, shaped.rates);
   }
   return shaped;
 }
@@ -408,7 +423,7 @@ async function withCanvass(shaped, opportunityId) {
   for (const component of components) {
     const canvass = byComponent.get(component.id) ?? null;
     component.canvass = canvass
-      ? { id: canvass.id, number: canvass.number, signed: Boolean(canvass.signed_off_at), winner: canvass.winner }
+      ? { id: canvass.id, number: canvass.number, signed: false, winner: canvass.winner }
       : null;
     component.brandProposal = brandProposal(component, canvass?.winner);
     component.fromCanvass = {
@@ -445,9 +460,9 @@ async function attachSupplierMismatch(components, opportunityId) {
   const withPo = withWinner.filter((c) => poByComponent.has(c.id));
   if (withPo.length === 0) return;
 
-  // The winner's Odoo id is not on the Canvass chip; the Offer row has it (not money).
+  // The winner's Odoo id is not on the Canvass chip; the supplier row has it (not money).
   const { data: offers, error: offersError } = await supabase
-    .from("sor_canvass_offers")
+    .from("request_canvass_suppliers")
     .select("id, odoo_supplier_id")
     .in("id", withPo.map((c) => c.canvass.winner.id));
   if (offersError) throw offersError;
@@ -508,7 +523,7 @@ async function withPurchases(shaped, opportunityId) {
     line.totals = money ? { ...totals, landedCost: landedCostRollup(line.components) } : totals;
   }
   const { landedCost: _none, ...totals } = shaped.totals;
-  shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines).landedCost } : totals;
+  shaped.totals = money ? { ...totals, landedCost: matrixTotals(shaped.tenderLines, shaped.abc, shaped.offer).landedCost } : totals;
   // Planned Revenue is `summary.revenue`, untouched; Actual sits beside it, never inside it.
   if (actual) {
     const inputs = revenueInputs(shaped, { ipasShort: (ipases.data ?? []).some(ipasShortOfLcOdooDone) });
@@ -523,7 +538,6 @@ async function withPurchases(shaped, opportunityId) {
 /** An open IPAS (from `ipas_summaries_for_sor`) that has not reached LC Odoo Done. Filed and cancelled ones never hold Actual back. */
 const ipasShortOfLcOdooDone = (row) => row.state === "open" && !["lc_odoo_done", "costs_complete", "checked"].includes(row.computation_status);
 
-const numberOrNull = (value) => (value === null || value === undefined || value === "" ? null : Number(value));
 
 function shapePurchases(row, component) {
   const requests = (row?.requests ?? []).map((r) => ({
@@ -570,6 +584,7 @@ function shapeSettings(row) {
     retentionRate: Number(row.retention_rate),
     itrRate: Number(row.itr_rate),
     itrAllowance: Number(row.itr_allowance),
+    goLinePercent: Number(row.go_line_percent ?? 20),
     finalVatRate: Number(row.final_vat_rate ?? 0.12),
     hiddenLines: Array.isArray(row.summary_hidden_lines) ? row.summary_hidden_lines : ["finalVat"],
     updatedAt: row.updated_at ?? null,
@@ -614,7 +629,7 @@ export const costingMatrixService = {
     const settings = data && tierReadsSummary(data.tier) ? await settingsRead : null;
     const shaped = shapeMatrix(data, settings);
     // #880: only the Bid Decision's deciders need to know whether a Go on a loss is theirs to take.
-    const lossRight = shaped && tierDecidesBid(shaped.tier) ? costingMatrixService.canDecideLoss() : Promise.resolve(false);
+    const lossRight = shaped && tierReadsBidDecision(shaped.tier) ? costingMatrixService.canDecideLoss() : Promise.resolve(false);
     // Canvass and purchases touch different fields of the matrix, so they read side by side.
     const [canLoss] = await Promise.all([lossRight, withCanvass(shaped, opportunityId), withPurchases(shaped, opportunityId)]);
     if (shaped) shaped.canDecideLoss = Boolean(canLoss);
@@ -635,6 +650,41 @@ export const costingMatrixService = {
       .upsert({ id: true, import_addon_percent: Number(importPercent), local_addon_percent: Number(local) }, { onConflict: "id" });
     if (error) fail(error);
     return costingMatrixService.getLandedDefaults();
+  },
+
+  /**
+   * Sets how the evaluation's ABC is typed (#960, the Sales band): `mode` is "by_line" or "total_only",
+   * `total` the typed ABC total (blank clears it). Per-line ABC values are never touched.
+   */
+  async setAbc(matrixId, { mode, total } = {}) {
+    const columns = {};
+    if (mode !== undefined) {
+      if (!Object.values(ABC_MODE).includes(mode)) throw new CostingRuleError("The ABC is typed by line or as a total.", "23514");
+      columns.abc_mode = mode;
+    }
+    if (total !== undefined) columns.abc_total = blankToNull(total);
+    if (Object.keys(columns).length === 0) return;
+    const { data, error } = await supabase.from("costing_matrices").update(columns).eq("id", matrixId).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("The ABC could not be changed.");
+  },
+
+  /**
+   * Sets how the evaluation's Final Offer is typed (the Sales band), the twin of setAbc: `mode` is "by_line" or
+   * "total_only" (one offer for the whole bid, as the sheet types it), `total` the typed offer total (blank clears
+   * it). Per-line offers are never touched. A Go locks it, as it locks every price.
+   */
+  async setOffer(matrixId, { mode, total } = {}) {
+    const columns = {};
+    if (mode !== undefined) {
+      if (!Object.values(ABC_MODE).includes(mode)) throw new CostingRuleError("The Final Offer is typed by line or as a total.", "23514");
+      columns.offer_mode = mode;
+    }
+    if (total !== undefined) columns.offer_total = blankToNull(total);
+    if (Object.keys(columns).length === 0) return;
+    const { data, error } = await supabase.from("costing_matrices").update(columns).eq("id", matrixId).select("id");
+    if (error) fail(error);
+    if (!data?.length) throw new Error("The Final Offer could not be changed.");
   },
 
   /** Types the matrix's Import add-on percent (Purchasing). Null clears it back to blank. */
@@ -670,6 +720,7 @@ export const costingMatrixService = {
     if ("retentionRate" in fields) columns.retention_rate = fields.retentionRate;
     if ("itrRate" in fields) columns.itr_rate = fields.itrRate;
     if ("itrAllowance" in fields) columns.itr_allowance = fields.itrAllowance;
+    if ("goLinePercent" in fields) columns.go_line_percent = fields.goLinePercent;
     if ("finalVatRate" in fields) columns.final_vat_rate = fields.finalVatRate;
     if ("hiddenLines" in fields) columns.summary_hidden_lines = fields.hiddenLines;
     if (Object.keys(columns).length === 0) return costingMatrixService.getSettings();
@@ -732,7 +783,6 @@ export const costingMatrixService = {
   async updateMatrixMoney(matrixId, fields) {
     const patch = {};
     if ("marketing" in fields) patch.marketing = blankToNull(fields.marketing);
-    if ("opex" in fields) patch.opex = blankToNull(fields.opex);
     await writeMoney("costing_matrix_money", matrixId, patch);
   },
 
@@ -822,7 +872,7 @@ export const costingMatrixService = {
   },
 
   /**
-   * Fills blank Odoo unit costs and Acquires from each product's cost in Odoo. The server reads
+   * Pulls the Odoo SRP (list price) and fills blank Acquires from each product in Odoo. The server reads
    * Odoo and writes; nothing typed is overwritten. Resolves to `{ success, filled, unpriced, message }`;
    * `success: false` means Odoo could not be asked, not that there is no cost.
    */
@@ -1021,7 +1071,7 @@ export const costingMatrixService = {
 
   /**
    * Names who answers for the matrix, or for one Component when `target` is `{ componentId }`:
-   * `{ sales, purchasing, technical }` (an employee id, or null for the default). The Sales incharge must be
+   * `{ sales, purchasing, technical }` (an employee id, or null for the default). The Sales in-charge must be
    * on the Deal Team (written by Sales) and the Purchasing incharge must have Purchasing access
    * (written by Purchasing). The Technical in-charge (#908) must be in the Technical sub-department
    * and is set on the matrix only. It grants nothing and notifies nobody.
@@ -1036,7 +1086,19 @@ export const costingMatrixService = {
     const id = target?.componentId ?? target?.matrixId;
     const { data, error } = await supabase.from(table).update(columns).eq("id", id).select("id");
     if (error) fail(error);
-    if (!data?.length) throw new Error("The incharge could not be changed.");
+    if (!data?.length) throw new Error("The in-charge could not be changed.");
+  },
+
+  /**
+   * Sets the evaluation's default percent on the Odoo SRP (#962; starts at -20). Written by the decider list;
+   * every line without its own percent and not typed over is worked again by the database.
+   */
+  async setFinalAcquirePercent(matrixId, percent) {
+    const n = Number(percent);
+    if (percent === null || percent === undefined || percent === "" || !Number.isFinite(n) || n <= FINAL_ACQUIRE_PERCENT_LOW || n > FINAL_ACQUIRE_PERCENT_HIGH) {
+      throw new Error(`The percent must be a number above ${FINAL_ACQUIRE_PERCENT_LOW} and at most ${FINAL_ACQUIRE_PERCENT_HIGH}.`);
+    }
+    await writeMoney("costing_matrix_money", matrixId, { final_acquire_percent: n });
   },
 
   /**
@@ -1162,7 +1224,7 @@ export const costingMatrixService = {
   /**
    * Gives many products the same verdict at once (#932): `setComplianceMany(ids, { verdict, note })`. `verdict` is
    * `"complies"`, `"deviates"` or null (not judged). Deviates needs one remark, which is written to every product; the
-   * other verdicts leave each product's remark alone. Only the Technical in-charge may; the database refuses anyone else.
+   * Complies clears the remark and alternative of a product that was Deviates; Not judged leaves them alone. Only the Technical in-charge may; the database refuses anyone else.
    */
   async setComplianceMany(componentIds, { verdict, note } = {}) {
     const ids = [...new Set(componentIds ?? [])];
@@ -1175,6 +1237,17 @@ export const costingMatrixService = {
       const remark = blankText(note);
       if (remark === null) throw new CostingRuleError("A deviation needs a remark.", "23514");
       columns.compliance_note = remark;
+    }
+    if (verdict === "complies") {
+      // A product that was Deviates loses its deviation remark and recommended alternative, so a print cannot read
+      // "Complies" beside a deviation (#1035). Done first, in the same write that flips the verdict.
+      const cleared = await supabase
+        .from("costing_components")
+        .update({ compliance: "complies", compliance_note: null, recommended_alternative: null })
+        .in("id", ids)
+        .eq("compliance", "deviates")
+        .select("id");
+      if (cleared.error) fail(cleared.error);
     }
     const { data, error } = await supabase.from("costing_components").update(columns).in("id", ids).select("id");
     if (error) fail(error);
@@ -1304,7 +1377,84 @@ export const costingMatrixService = {
     if (read.error) throw read.error;
     return shapeMatrixPage(read.data, settings ?? DEFAULT_COSTING_SETTINGS);
   },
+
+  /**
+   * The evaluations that stand alone, started from an S0 and tied to no SOR (#966): the ones the caller reads, with the
+   * figures their tier may see. Each row opens by its matrix id.
+   */
+  async standalonePage() {
+    const [read, settings] = await Promise.all([supabase.rpc("costing_standalone_page"), costingMatrixService.getSettings()]);
+    if (read.error) throw read.error;
+    return shapeStandalonePage(read.data, settings ?? DEFAULT_COSTING_SETTINGS);
+  },
+
+  /**
+   * Starts an evaluation from an S0 number (#966). If the S0 already has one (standalone or on a SOR) that one is
+   * opened and Odoo is not asked. Otherwise the lines and quantities are pulled from the sale order in Odoo; the
+   * three ways it can fail are told apart with a `StandaloneStartError` whose `kind` is "not_s0", "not_found" or
+   * "odoo_down". Resolves to `{ subjectId, existed, standalone }`: `subjectId` is what the window opens by.
+   */
+  async startStandalone({ s0Number, salesIncharge, pmsIncharge }) {
+    if (!isS0Number(s0Number)) {
+      throw new StandaloneStartError(STANDALONE_START_PROBLEM.NOT_S0, "That is not an S0 number. Type S0 and its digits, like S01237.");
+    }
+    const ref = normalizeS0(s0Number);
+    const existing = await supabase.rpc("costing_s0_existing", { p_s0_number: ref });
+    if (existing.error) throw standaloneError(existing.error);
+    if (existing.data) return { subjectId: existing.data.subject_id, existed: true, standalone: existing.data.standalone };
+
+    let reply;
+    try {
+      reply = await odooService.fetchOrderLines(ref);
+    } catch {
+      throw new StandaloneStartError(STANDALONE_START_PROBLEM.ODOO_DOWN, "Odoo could not be reached. Try again in a moment.");
+    }
+    if (reply?.success !== true) {
+      if (reply?.found === false) throw new StandaloneStartError(STANDALONE_START_PROBLEM.NOT_FOUND, `No sale order ${ref} in Odoo.`);
+      throw new StandaloneStartError(STANDALONE_START_PROBLEM.ODOO_DOWN, reply?.message || "Odoo could not be reached. Try again in a moment.");
+    }
+    const { data, error } = await supabase.rpc("costing_standalone_open", {
+      p_s0_number: ref,
+      p_sales_incharge: salesIncharge,
+      p_pms_incharge: pmsIncharge,
+      p_lines: linesFromOdoo(reply.items),
+    });
+    if (error) throw standaloneError(error);
+    return { subjectId: data.subject_id, existed: Boolean(data.existed), standalone: Boolean(data.standalone) };
+  },
+
+  /** Changes the Sales in-charge and the Purchasing in-charge of a standalone evaluation (#966). Both must be named. */
+  async setStandaloneIncharge(matrixId, { sales, pms }) {
+    const { error } = await supabase.rpc("costing_standalone_set_incharge", {
+      p_matrix_id: matrixId,
+      p_sales_incharge: blankToNull(sales),
+      p_pms_incharge: blankToNull(pms),
+    });
+    if (error) throw standaloneError(error);
+  },
+
+  /** Attaches a standalone evaluation to a SOR that has none (#966). From then on the SOR's rules decide who reads it. */
+  async linkStandaloneToSor(matrixId, opportunityId) {
+    const { data, error } = await supabase.rpc("costing_standalone_link", { p_matrix_id: matrixId, p_opportunity_id: opportunityId });
+    if (error) throw standaloneError(error);
+    return data;
+  },
 };
+
+/** Why an evaluation could not be started from an S0 (#966): `kind` is "not_s0", "not_found" or "odoo_down". */
+export class StandaloneStartError extends Error {
+  constructor(kind, message) {
+    super(message);
+    this.name = "StandaloneStartError";
+    this.kind = kind;
+  }
+}
+
+/** A refusal from the standalone functions, in the database's own words; anything else as it came. */
+function standaloneError(error) {
+  const match = /^costing_standalone: (.+)$/.exec(error?.message ?? "");
+  return match ? new Error(match[1].replace(/^./, (c) => c.toUpperCase()).replace(/([^.])$/, "$1.")) : error;
+}
 
 /** A duplicate preset name in words; anything else as it came. */
 function presetError(error) {

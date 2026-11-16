@@ -15,6 +15,7 @@ export default function OpportunityDetailsModal({
   siblingIds,
   onNavigate,
   initialView,
+  onViewChange,
 }) {
   return (
     <SorModal
@@ -27,6 +28,7 @@ export default function OpportunityDetailsModal({
       siblingIds={siblingIds}
       onNavigate={onNavigate}
       initialView={initialView}
+      onViewChange={onViewChange}
     />
   );
 }

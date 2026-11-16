@@ -28,6 +28,10 @@ describe("Landed Cost on the S0 Evaluation", () => {
     await costingMatrixService.updateComponent(hose, { acquireUnit: 1300, finalAcquireUnit: 1300 })
     nozzle = await costingMatrixService.addComponent(line, { name: "Blade", quantity: 5 })
     await costingMatrixService.updateComponent(nozzle, { acquireUnit: 90, finalAcquireUnit: 90 })
+    // The sheet's Revenue also needs Project expenses (one Other costs row) and Marketing typed (#964).
+    const expenses = await costingMatrixService.addCostRow(matrix.id, { categoryKey: "logistics", description: "Delivery", quantity: 1 })
+    await costingMatrixService.updateCostRow(expenses, { finalAcquireUnit: 1000 })
+    await costingMatrixService.updateMatrixMoney(matrix.id, { marketing: 0 })
 
     ipas = db.seed("ipas", {
       number: "TGIPAS_050",
@@ -126,8 +130,9 @@ describe("Landed Cost on the S0 Evaluation", () => {
 
       const m = await read()
       // Cutter: Landed 7,500 instead of Final Acquire 7,800. Blade not bought: stays at 450.
-      expect(m.summary.revenue).toBe(6750)
-      expect(m.revenueComparison).toMatchObject({ planned: 6750, actual: 7050, difference: 300, actualLower: false, estimate: true, itemsBought: 1, itemsTotal: 2, notBought: 1 })
+      // VAT-exclusive 13,392.86 - OPEX (150 + 8,250 + 1,000 + 0), no ITR under the allowance
+      expect(m.summary.revenue).toBe(3992.86)
+      expect(m.revenueComparison).toMatchObject({ planned: 3992.86, actual: 4292.86, difference: 300, actualLower: false, estimate: true, itemsBought: 1, itemsTotal: 2, notBought: 1 })
     })
 
     it("is final once every IPAS of the SOR has reached LC Odoo Done", async () => {
@@ -150,7 +155,7 @@ describe("Landed Cost on the S0 Evaluation", () => {
       db.seed("costing_settings", { id: 1 })
       db.seed("ipas_sors", { ipas_id: ipas.id, opportunity_id: opportunity.id })
       const m = await read()
-      expect(m.revenueComparison).toMatchObject({ planned: 6750, actual: 6750, itemsBought: 0, estimate: true })
+      expect(m.revenueComparison).toMatchObject({ planned: 3992.86, actual: 3992.86, itemsBought: 0, estimate: true })
     })
 
     it.each([

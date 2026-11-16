@@ -168,7 +168,7 @@ describe("the Odoo costs (server only)", () => {
         expect(error?.code).toBe(RLS_VIOLATION)
     })
 
-    it("lists the Components with an Odoo product and a blank cost, and fills only the blanks with a positive cost", async () => {
+    it("lists the Components with an Odoo product, fills only a blank cost, and sets the Odoo SRP as is (#961)", async () => {
         const targets = await asSvc(svc().rpc("costing_odoo_cost_targets", { p_actor: ids.dealOwner, p_opportunity_id: sorId }), "targets")
         expect(targets.map((t) => t.odoo_product_id)).toEqual([8123])
 
@@ -176,15 +176,23 @@ describe("the Odoo costs (server only)", () => {
         expect(filled).toBe(1)
         const hosePart = (await components()).find((c) => c.odoo_product_id === 8123)
         const cost = await asSvc(svc().from("costing_component_costs").select("*").eq("component_id", hosePart.id).single(), "cost")
-        expect(Number(cost.odoo_unit)).toBe(1050.56)
+        // The Odoo column is the SRP now: a cost fills the Acquire only.
+        expect(cost.odoo_unit).toBeNull()
         expect(Number(cost.acquire_unit)).toBe(1050.56)
 
-        // Typed since: Odoo never overwrites it, and a zero or missing cost writes nothing.
+        // The SRP lands in the Odoo column as it is, whatever the Acquire.
+        const srp = await asSvc(svc().rpc("costing_fill_odoo_costs", { p_actor: ids.dealOwner, p_opportunity_id: sorId, p_costs: {}, p_srps: { 8123: 1300.555 } }), "srp")
+        expect(srp).toBe(1)
+        const withSrp = await asSvc(svc().from("costing_component_costs").select("*").eq("component_id", hosePart.id).single(), "cost")
+        expect(Number(withSrp.odoo_unit)).toBe(1300.56)
+        expect(Number(withSrp.acquire_unit)).toBe(1050.56)
+
+        // Typed since: Odoo never overwrites the Acquire, and a zero or missing figure writes nothing.
         await asSvc(svc().from("costing_component_costs").update({ acquire_unit: 990, odoo_unit: null }).eq("component_id", hosePart.id), "typed")
-        expect(await asSvc(svc().rpc("costing_fill_odoo_costs", { p_actor: ids.dealOwner, p_opportunity_id: sorId, p_costs: { 8123: 0 } }), "zero")).toBe(0)
-        expect(await asSvc(svc().rpc("costing_fill_odoo_costs", { p_actor: ids.dealOwner, p_opportunity_id: sorId, p_costs: { 8123: 1200 } }), "again")).toBe(1)
+        expect(await asSvc(svc().rpc("costing_fill_odoo_costs", { p_actor: ids.dealOwner, p_opportunity_id: sorId, p_costs: { 8123: 0 }, p_srps: { 8123: 0 } }), "zero")).toBe(0)
+        expect(await asSvc(svc().rpc("costing_fill_odoo_costs", { p_actor: ids.dealOwner, p_opportunity_id: sorId, p_costs: { 8123: 1200 }, p_srps: { 8123: 1500 } }), "again")).toBe(1)
         const after = await asSvc(svc().from("costing_component_costs").select("*").eq("component_id", hosePart.id).single(), "cost")
         expect(Number(after.acquire_unit)).toBe(990)
-        expect(Number(after.odoo_unit)).toBe(1200)
+        expect(Number(after.odoo_unit)).toBe(1500)
     })
 })

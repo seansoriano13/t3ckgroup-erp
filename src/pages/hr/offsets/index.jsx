@@ -26,7 +26,7 @@ import { confirmActionToast } from '../../../components/ui/CustomToast';
 import { getMonthBoundaries } from '../../../utils/dateUtils';
 import { isRequestInPendingPeriod } from '../../../utils/time';
 import { groupLeaveRows } from '../../../utils/leaveGroups';
-import { computeAvailableHours } from '../../../services/leaveRules';
+import { availableHoursForRequest, pendingHoursByEmployee } from '../../../services/leaveRules';
 import VerifiedRecordPreview from '../../../components/verify/VerifiedRecordPreview';
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
@@ -41,11 +41,14 @@ import BalancesTable from './_components/BalancesTable';
 import DocumentCenterTab from './_components/DocumentCenterTab';
 import { LEAVE_TYPES, LEAVE_VIEWS, TYPE_META } from './_components/leaveDisplay';
 import { useLeaveSheet } from './_components/useLeaveSheet';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('calendar'); // see LEAVE_VIEWS
+  // Under 1440px the Company and Date chips fold into Filters so Search keeps its width.
+  const narrowScreen = useMediaQuery('(max-width: 1439.98px)');
 
   // Date Range State (for FloatingMonthPicker)
   const currentDate = new Date();
@@ -292,22 +295,9 @@ export default function HrLeavesManagerPage() {
   // by leave type — computed from the full pending queue (not the filtered
   // view) so "available" stays accurate regardless of which filters are
   // active (issue #106).
-  const pendingHoursByEmployee = useMemo(() => {
-    const totals = new Map();
-    pendingLeaves.forEach(req => {
-      if (req.type !== 'OFFSET' && req.type !== 'SIL') return;
-      const key = `${req.employee_id}_${req.type}`;
-      totals.set(key, (totals.get(key) || 0) + parseFloat(req.hours || 0));
-    });
-    return totals;
-  }, [pendingLeaves]);
+  const pendingTotals = useMemo(() => pendingHoursByEmployee(pendingLeaves), [pendingLeaves]);
 
-  const availableHoursFor = useCallback((req) => {
-    if (req.type !== 'OFFSET' && req.type !== 'SIL') return null;
-    const balance = req.type === 'OFFSET' ? req.employee?.offset_hours_balance : req.employee?.sil_hours_balance;
-    const pending = pendingHoursByEmployee.get(`${req.employee_id}_${req.type}`) || 0;
-    return computeAvailableHours(balance, pending);
-  }, [pendingHoursByEmployee]);
+  const availableHoursFor = useCallback((req) => availableHoursForRequest(req, pendingTotals), [pendingTotals]);
 
   const processedScoped = useMemo(
     () => processedLeaves.filter(req => matchesSearch(req) && matchesCompanyFilter(req.company_id, companyFilter)),
@@ -368,14 +358,17 @@ export default function HrLeavesManagerPage() {
 
   // Pending is every open request whatever its date, and balances are as of
   // today, so only the period views take the month.
-  const usesPeriod = activeTab !== 'pending' && activeTab !== 'balances';
+  // The Calendar has its own month arrows, so only History and Documents show it
+  // (in the toolbar, never the header).
+  const usesPeriod = activeTab === 'history' || activeTab === 'documents';
   const action = (
     <>
-      {usesPeriod && <FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} />}
       <WhoIsOut approvedLeaves={approvedLeaves} />
       <Button type="button" aria-label="File for Employee" onClick={() => setIsApplyModalOpen(true)}>
         <Plus size={16} />
-        File<span className="max-sm:hidden">{' for Employee'}</span>
+        <span>
+          File<span className="max-sm:hidden">{' for Employee'}</span>
+        </span>
       </Button>
     </>
   );
@@ -505,11 +498,13 @@ export default function HrLeavesManagerPage() {
     />
   );
 
-  const hasToolbar = (activeTab === 'pending' || activeTab === 'history' || activeTab === 'balances');
+  const hasToolbar = (activeTab === 'pending' || activeTab === 'history' || activeTab === 'balances' || activeTab === 'documents');
   const toolbar = hasToolbar && (
     <>
       {typeTabs}
-      <FilterBar
+      {usesPeriod && <div data-toolbar-no-stretch><FloatingMonthPicker inline selectedRange={dateRange} onChange={setDateRange} /></div>}
+      {activeTab !== 'documents' && <FilterBar
+        inlineChips={narrowScreen ? 0 : undefined}
         search={{ value: searchQuery, onChange: setSearchQuery, placeholder: 'Search employees' }}
         chips={
           <>
@@ -560,7 +555,7 @@ export default function HrLeavesManagerPage() {
           />
         )}
         activeCount={activeTab === 'pending' && !pendingAsc ? 1 : 0}
-      />
+      />}
     </>
   );
 
@@ -599,7 +594,7 @@ export default function HrLeavesManagerPage() {
       />
       <ProfileSheet
         person={modalOpen ? null : sheet.person}
-        held={(type) => (sheet.person ? pendingHoursByEmployee.get(`${sheet.person.id}_${type}`) || 0 : 0)}
+        held={(type) => (sheet.person ? pendingTotals.get(`${sheet.person.id}_${type}`) || 0 : 0)}
         pending={sheet.person ? pendingLeaves.filter((r) => r.employee_id === sheet.person.id) : []}
         decided={sheet.person ? processedLeaves.filter((r) => r.employee_id === sheet.person.id) : []}
         onClose={sheet.close}

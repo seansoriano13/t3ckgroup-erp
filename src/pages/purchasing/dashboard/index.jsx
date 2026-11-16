@@ -21,8 +21,8 @@ import { useTrackerFilters } from "./_components/useTrackerFilters";
 function PurchasingDashboard() {
   const navigate = useNavigate();
   const filters = useTrackerFilters();
-  const { recordId, open, close } = useRecordParam("request");
-  useRequestInGlobalWindow(recordId, close);
+  const { recordId, open } = useRecordParam("request");
+  useRequestInGlobalWindow(recordId);
 
   const openRow = (row) => {
     if (row.target_kind === "purchase_request") {
@@ -30,14 +30,14 @@ function PurchasingDashboard() {
       return;
     }
     const link = linkFor(row);
-    navigate(link.to, link.state ? { state: link.state } : undefined);
+    navigate(link.to);
   };
   // An order that names a Transmittal opens that slip (#588); every other order opens its IPAS.
   const openOrder = (order) =>
     navigate(order.next?.slip?.id ? `/purchasing/transmittals/${order.next.slip.id}` : `/purchasing/ipas/${order.id}`);
   // A SOR opens on the SOR Register; a Direct request has no SOR, so it opens its request.
   const openSor = (sor) => {
-    if (sor.oppId) navigate("/sors", { state: { openOpportunityId: sor.oppId } });
+    if (sor.oppId) navigate(`/sors?open=sor:${sor.oppId}`);
     else if (sor.rows[0]) openRow(sor.rows[0]);
   };
 

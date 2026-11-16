@@ -16,8 +16,6 @@ import PageLoading from "@/components/ui/PageLoading";
 import GroupTaskCard from "./_components/GroupTaskCard";
 import GroupTaskTableView from "./_components/GroupTaskTableView";
 import CreateGroupTaskModal from "./_components/CreateGroupTaskModal";
-import GroupTaskDetailModal from "./_components/GroupTaskDetailModal";
-import RateEmployeesModal from "./_components/RateEmployeesModal";
 import EvaluationTabs from "./_components/EvaluationTabs";
 import GroupTaskFilterBar from "../../components/GroupTaskFilterBar";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
@@ -26,6 +24,10 @@ import { useMemo } from "react";
 import { usePaging } from "@/hooks/usePaging";
 import { TablePager } from "@/components/ui/TablePager";
 import { isGroupTaskEvaluator } from "../../utils/groupTaskEvaluator";
+import { openRecordWindow } from "@/utils/recordLink";
+
+// One way to open a task: the global manager reads `?open=group-task:<id>`.
+const openGroupTask = (id, searchTerm) => openRecordWindow({ id, type: "GROUP_TASK", searchTerm: searchTerm || undefined });
 
 const GROUP_TASK_FILTER_DEFAULTS = {
   statusFilter: "ALL",
@@ -75,7 +77,6 @@ export default function GroupTasksPage() {
   const isSuperAdmin =
     user?.is_super_admin === true || user?.isSuperAdmin === true;
   const isHead = user?.is_head === true || user?.isHead === true;
-  const isHr = user?.is_hr === true || user?.isHr === true;
   const canManage = canManageGroupTasks(getPermissionContext(user));
 
   // --- Data Fetching ---
@@ -131,12 +132,6 @@ export default function GroupTasksPage() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const selectedTask = useMemo(() => {
-    return groupTasks.find((t) => t.id === selectedTaskId) || null;
-  }, [groupTasks, selectedTaskId]);
-
-  const [isRateOpen, setIsRateOpen] = useState(false);
 
   // --- Filtering ---
   const { filteredTasks, uniqueCreators, uniqueMembers } = useGroupTaskFilters(
@@ -237,180 +232,6 @@ export default function GroupTasksPage() {
     onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
   });
 
-  const markDoneMutation = useMutation({
-    mutationFn: (memberId) =>
-      groupTaskService.updateMemberStatus(memberId, "DONE", user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Task marked as done.");
-      // If the selected task was auto-completed, let's close or refresh it
-      setSelectedTaskId(null);
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const updateTaskMutation = useMutation({
-    mutationFn: (payload) => groupTaskService.updateGroupTask(selectedTask.id, payload, user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group Task updated.");
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const sendToEvaluationMutation = useMutation({
-    mutationFn: () => groupTaskService.sendToEvaluation(selectedTask.id, user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Sent to the evaluator.");
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const changeEvaluatorMutation = useMutation({
-    mutationFn: (employeeId) =>
-      groupTaskService.changeEvaluator(selectedTask.id, employeeId, user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Evaluator changed.");
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const reopenMutation = useMutation({
-    mutationFn: () => groupTaskService.reopenGroupTask(selectedTask.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group task reopened.");
-      setSelectedTaskId(null);
-    },
-    onError: (err) => toast.error(err.message || "Could not reopen that group task. Try again."),
-  });
-
-  const addMemberAttachmentMutation = useMutation({
-    mutationFn: ({ memberId, url }) =>
-      groupTaskService.addMemberAttachment(memberId, url, user.id),
-    onSuccess: async () => {
-      // Awaited so the caller's "uploading" indicator stays up until the
-      // refetched task actually carries the new attachment — otherwise the
-      // button clears before the list re-renders and it looks like the
-      // upload vanished.
-      await queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Attachment uploaded.");
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const revertDoneMutation = useMutation({
-    mutationFn: (memberId) =>
-      groupTaskService.updateMemberStatus(memberId, "PENDING", user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Task reverted to pending.");
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const rateMutation = useMutation({
-    mutationFn: (ratings) =>
-      groupTaskService.rateMembers(selectedTask.id, ratings, user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Ratings submitted and task completed.");
-      setIsRateOpen(false);
-      setSelectedTaskId(null);
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id) => groupTaskService.cancelGroupTask(id, user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group Task deleted.");
-      setSelectedTaskId(null);
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const addMemberMutation = useMutation({
-    mutationFn: (payload) =>
-      groupTaskService.addMemberToTask(selectedTask.id, payload, user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Member added.");
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const updateMemberMutation = useMutation({
-    mutationFn: ({ memberId, payload }) =>
-      groupTaskService.updateMemberAssignment(
-        memberId,
-        selectedTask.id,
-        payload,
-        user.id,
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Member task updated.");
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const removeMemberMutation = useMutation({
-    mutationFn: (memberId) =>
-      groupTaskService.removeMemberFromTask(
-        memberId,
-        selectedTask.id,
-        user.id,
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Member removed from task.");
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  // Ticking a checklist item writes the checklist column, not
-  // task_description — the two are separate fields now. The service refuses
-  // the write unless the actor is the assignee and the assignment is not yet
-  // marked DONE.
-  const updateMemberChecklistMutation = useMutation({
-    mutationFn: ({ memberId, checklist }) =>
-      groupTaskService.updateMemberChecklist(
-        memberId,
-        checklist,
-        selectedTask?.id,
-        user?.id,
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-    },
-  });
-
-  const verifyMutation = useMutation({
-    mutationFn: ({ id, remarks }) =>
-      groupTaskService.verifyGroupTask(id, user.id, remarks),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group Task verified.");
-      setSelectedTaskId(null);
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: ({ id, remarks }) =>
-      groupTaskService.rejectGroupTask(id, user.id, remarks),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Group Task rejected and sent back.");
-      setSelectedTaskId(null);
-    },
-    onError: (err) => toast.error(err.message || "Could not save that change. Try again."),
-  });
-
   if (isError) return <QueryError className="m-6" title="Group tasks could not be loaded." onRetry={refetch} />;
 
   if (isLoading) {
@@ -483,7 +304,7 @@ export default function GroupTasksPage() {
             hasAnyTasks={groupTasks.length > 0}
             onClearFilters={clearAllFilters}
             searchTerm={searchTerm}
-            onView={(task) => setSelectedTaskId(task.id)}
+            onView={(task) => openGroupTask(task.id, searchTerm)}
             currentUserId={user?.id}
             isSuperAdmin={isSuperAdmin}
           />
@@ -499,7 +320,7 @@ export default function GroupTasksPage() {
                   task={task}
                   currentUserId={user?.id}
                   isSuperAdmin={isSuperAdmin}
-                  onView={() => setSelectedTaskId(task.id)}
+                  onView={() => openGroupTask(task.id, searchTerm)}
                   searchTerm={searchTerm}
                   // demoProgress={index === 0 ? demoProgress : undefined}
                 />
@@ -538,69 +359,6 @@ export default function GroupTasksPage() {
         isSubmitting={createGroupMutation.isPending}
       />
 
-      <GroupTaskDetailModal
-        isOpen={!!selectedTaskId}
-        onClose={() => setSelectedTaskId(null)}
-        task={selectedTask}
-        currentUserId={user?.id}
-        isSuperAdmin={isSuperAdmin}
-        isHead={isHead}
-        isHr={isHr}
-        canManage={canManage}
-        employees={employees}
-        onSendToEvaluation={() => sendToEvaluationMutation.mutate()}
-        isSendingToEvaluation={sendToEvaluationMutation.isPending}
-        onReopen={() => reopenMutation.mutate()}
-        isReopening={reopenMutation.isPending}
-        onChangeEvaluator={(employeeId) => changeEvaluatorMutation.mutateAsync(employeeId)}
-        isChangingEvaluator={changeEvaluatorMutation.isPending}
-        onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
-        onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
-
-        onAddAttachment={(memberId, url) => addMemberAttachmentMutation.mutateAsync({ memberId, url })}
-        onOpenRateModal={() => setIsRateOpen(true)}
-        onDelete={() => deleteMutation.mutate(selectedTaskId)}
-        onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}
-        onUpdateMember={(memberId, payload) =>
-          updateMemberMutation.mutateAsync({ memberId, payload })
-        }
-        onRemoveMember={(memberId) =>
-          removeMemberMutation.mutateAsync(memberId)
-        }
-        onInlineCheck={(memberId, checklist) =>
-          updateMemberChecklistMutation.mutateAsync({ memberId, checklist })
-        }
-        onVerify={() =>
-          verifyMutation.mutate({ id: selectedTaskId, remarks: "" })
-        }
-        onReject={(remarks) =>
-          rejectMutation.mutate({ id: selectedTaskId, remarks })
-        }
-        onUpdateTask={(payload) => updateTaskMutation.mutateAsync(payload)}
-        isUpdatingTask={updateTaskMutation.isPending}
-        isMarkingDone={markDoneMutation.isPending}
-        isReverting={revertDoneMutation.isPending}
-
-        isUploadingAttachment={addMemberAttachmentMutation.isPending}
-        isDeleting={deleteMutation.isPending}
-        isAddingMember={addMemberMutation.isPending}
-        isUpdatingMember={updateMemberMutation.isPending}
-        isRemovingMember={removeMemberMutation.isPending}
-        isVerifying={verifyMutation.isPending}
-        isRejecting={rejectMutation.isPending}
-        searchTerm={searchTerm}
-      />
-
-
-      {selectedTaskId && (canManage || selectedTask?.created_by === user?.id || isGroupTaskEvaluator(selectedTask, user?.id)) && (
-        <RateEmployeesModal
-          isOpen={isRateOpen}
-          onClose={() => setIsRateOpen(false)}
-          task={selectedTask}
-          onSubmit={(ratings) => rateMutation.mutateAsync(ratings)}
-          isSubmitting={rateMutation.isPending}
-        />
-      )}
     </PageShell>
   );
 }

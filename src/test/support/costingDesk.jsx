@@ -1,11 +1,9 @@
-import { useState } from "react"
 import { MemoryRouter } from "react-router"
 import { expect } from "vitest"
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 
 import { renderWithProviders, setupUser } from "@/test/support"
 import CostingDesk from "@/components/costing/desk/CostingDesk"
-import CanvassPanel from "@/components/CanvassPanel"
 
 /**
  * Renders the Costing Desk (the Costing Matrix's record window body) for an SOR, in a router as the app
@@ -20,15 +18,43 @@ export function renderCostingDesk(opportunity) {
   return setupUser()
 }
 
+/** The step button labelled `label` (Costs, Final Acquire, Other costs, Offers, Lines, Specs), or null when the viewer has no such step. */
+function stepButton(label) {
+  const steps = screen.queryByRole("list", { name: "Steps" })
+  if (!steps) return null
+  return within(steps).queryAllByRole("button").find((button) => new RegExp(`^\\d*${label}`).test(button.textContent.trim())) ?? null
+}
+
+/** Opens a step of the S0 Evaluation by its label, the way someone clicks it. */
+export async function openStep(label) {
+  await screen.findByRole("list", { name: "Steps" })
+  const button = stepButton(label)
+  if (!button) throw new Error(`No "${label}" step for this viewer`)
+  fireEvent.click(button)
+}
+
+/** Opens the Overview (the whole sheet, the summary with Planned vs Actual, and After buying). */
+export async function openOverview() {
+  fireEvent.click(await screen.findByRole("button", { name: "Overview" }))
+  return screen.findByTestId("costing-overview")
+}
+
 /**
  * Opens line `number` (the first by default) in its slide-over and every part in it, so a test can reach any field the way someone
- * clicking through would. A part list only exists once its line is open.
+ * clicking through would. A part list only exists once its line is open. The lines are listed on the line steps (Offers, Costs,
+ * Final Acquire, or Lines for a viewer sent no money), so one of those is opened first when the screen is on another step.
  */
 export async function openLines(number = 1) {
   await screen.findByTestId("costing-desk")
-  // A line opens in the slide-over from its row in the sheet; the panel sits outside the desk.
+  const name = new RegExp(`^Open line ${number}:`)
+  if (!screen.queryByRole("button", { name, hidden: true })) {
+    await screen.findByRole("list", { name: "Steps" })
+    const lineStep = ["Offers", "Costs", "Final Acquire", "Lines"].map(stepButton).find(Boolean)
+    if (lineStep) fireEvent.click(lineStep)
+  }
+  // A line opens in the slide-over from its row; the panel sits outside the desk.
   // `hidden`: another panel (a Canvass) may be open over the desk.
-  const open = screen.queryByRole("button", { name: new RegExp(`^Open line ${number}:`), hidden: true })
+  const open = screen.queryByRole("button", { name, hidden: true })
   if (open) fireEvent.click(open)
   if (open) await screen.findByTestId("tender-line")
   for (let round = 0; round < 4; round += 1) {
@@ -36,40 +62,6 @@ export async function openLines(number = 1) {
     if (closed.length === 0) break
     for (const button of closed) fireEvent.click(button)
   }
-}
-
-/**
- * Opens a Component's Canvass the way the app does now: from a product line (#682), not from the
- * Component row, so the panel is mounted straight on the Component as its subject. With `withDesk`
- * the Costing Desk is drawn beside it, to see what the winner writes onto the row. Closing the panel
- * unmounts it, as ItemCanvass does.
- */
-export function renderComponentCanvass(opportunity, component, { userId, canEdit = true, withDesk = false } = {}) {
-  function Host() {
-    const [open, setOpen] = useState(true)
-    return (
-      <>
-        {withDesk && <CostingDesk opportunityId={opportunity.id} opportunity={opportunity} />}
-        {open && (
-          <CanvassPanel
-            open
-            onOpenChange={setOpen}
-            subject={{ componentId: component.id }}
-            subjectLabel={component.name}
-            userId={userId}
-            canEdit={canEdit}
-            opportunityId={opportunity.id}
-          />
-        )}
-      </>
-    )
-  }
-  renderWithProviders(
-    <MemoryRouter>
-      <Host />
-    </MemoryRouter>,
-  )
-  return setupUser()
 }
 
 /** Shuts the line's slide-over, so the desk behind it can be reached again. */

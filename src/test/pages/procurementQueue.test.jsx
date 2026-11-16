@@ -152,6 +152,9 @@ describe("Procurement Queue", () => {
 
     const sheet = await screen.findByRole("dialog")
     expect(await within(sheet).findByRole("heading", { name: /Old depot/ })).toBeInTheDocument()
+    // The old shape is rewritten to the new address (#1025): ?open=pr:<id>, no ?request=.
+    expect(screen.getByTestId("where")).toHaveTextContent(`open=pr%3A${done.id}`)
+    expect(screen.getByTestId("where")).not.toHaveTextContent("request=")
   })
 
   it("Take on an unassigned row makes me the Buyer, and the row moves under Mine", async () => {

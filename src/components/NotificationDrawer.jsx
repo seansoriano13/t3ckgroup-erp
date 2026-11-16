@@ -2,25 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notificationService } from "../services/notificationService";
 import { useAuth } from "../context/AuthContext";
-import {
-  Bell,
-  X,
-  CheckCheck,
-  ShieldAlert,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  FileText,
-  Briefcase,
-  TrendingUp,
-  Trophy,
-  Trash2,
-  MessageCircle,
-  Target,
-  MoreHorizontal,
-  MailWarning,
-  MailOpen,
-} from "lucide-react";
+import { Bell, X, Trash2, MoreHorizontal, MailWarning, MailOpen } from "lucide-react";
 import { useNavigate } from "react-router";
 import { supabase } from "../lib/supabase";
 import Dropdown from "./ui/Dropdown";
@@ -40,6 +22,9 @@ import {
   mayHaveMore,
   NOTIFICATION_PAGE,
 } from "../utils/notificationPaging";
+import NotificationTypeIcon from "./NotificationTypeIcon";
+import { tabsFor, typeInTab } from "../utils/notificationMeta";
+import { getPermissionContext } from "../utils/permissions";
 import { showNotificationPopup } from "../utils/notificationPopup";
 
 // ─── Relative Timestamp ───────────────────────────────────────────────────────
@@ -91,62 +76,11 @@ function safeRenderMessage(msg) {
   return msg;
 }
 
-// ─── Icon Map ─────────────────────────────────────────────────────────────────
-const TYPE_ICONS = {
-  TASK_GRADED: <CheckCircle2 size={18} className="text-green-500" />,
-  TASK_REJECTED: <XCircle size={18} className="text-red-500" />,
-  TASK_VERIFIED: <ShieldAlert size={18} className="text-primary" />,
-  TASK_COMPLETED: <Trophy size={18} className="text-green-9" />,
-  NEW_TASK_SUBMITTED: <Clock size={18} className="text-amber-500" />,
-  TASK_ASSIGNED: <Briefcase size={18} className="text-blue-600" />,
-  TASK_APPROVED_BY_HEAD: <CheckCircle2 size={18} className="text-amber-600" />,
-  GROUP_ASSIGNED: <Briefcase size={18} className="text-violet-9" />,
-  GROUP_TASK_REOPENED: <Briefcase size={18} className="text-violet-9" />,
-  GROUP_TASK_COMMENT: <MessageCircle size={18} className="text-violet-9" />,
-  GROUP_TASK_READY_FOR_HR: (
-    <CheckCircle2 size={18} className="text-violet-10" />
-  ),
-  GROUP_MEMBER_DONE: <CheckCircle2 size={18} className="text-green-500" />,
-  GROUP_TASK_AWAITING_EVALUATION: <CheckCircle2 size={18} className="text-amber-600" />,
-  GROUP_TASK_EVALUATION_REMINDER: <Clock size={18} className="text-amber-500" />,
-  OPPORTUNITY_REGISTERED: <Target size={18} className="text-primary" />,
-  OPPORTUNITY_STAGE_CHANGED: <TrendingUp size={18} className="text-blue-600" />,
-  // TODO: transition shim — drop with LEGACY_TYPE_ALIASES in notificationRouter.js.
-  // Pre-rename rows still carry COMMITTEE_*; without these they fall back to the
-  // generic bell icon.
-  COMMITTEE_ASSIGNED: <Briefcase size={18} className="text-violet-9" />,
-  COMMITTEE_TASK_COMMENT: <MessageCircle size={18} className="text-violet-9" />,
-  COMMITTEE_TASK_READY_FOR_HR: (
-    <CheckCircle2 size={18} className="text-violet-10" />
-  ),
-  COMMITTEE_MEMBER_DONE: <CheckCircle2 size={18} className="text-green-500" />,
-};
-
-const getIconForType = (type) =>
-  TYPE_ICONS[type] ?? <Bell size={18} className="text-gray-9" />;
-
-// ─── Tabs config ──────────────────────────────────────────────────────────────
-const buildTabs = (user) => [
-  { value: "ALL", label: "ALL" },
-  { value: "UNREAD", label: "UNREAD" },
-  ...(user?.has_task_flow || user?.isHr || user?.isSuperAdmin
-    ? [{ value: "TASKS", label: "TASKS" }]
-    : []),
-  ...(user?.has_sales_flow || user?.isHr || user?.isSuperAdmin
-    ? [{ value: "OPPORTUNITIES", label: "OPPORTUNITIES" }]
-    : []),
-];
-
 // ─── Filter helper ────────────────────────────────────────────────────────────
 const filterNotifs = (notifications, tab) => {
-  if (tab === "TASKS")
-    return notifications.filter(
-      (n) => n.type.includes("TASK") || n.type.includes("GROUP"),
-    );
-  if (tab === "OPPORTUNITIES")
-    return notifications.filter((n) => n.type.startsWith("OPPORTUNITY_"));
   if (tab === "UNREAD") return notifications.filter((n) => !n.is_read);
-  return notifications; // ALL
+  if (tab === "ALL") return notifications;
+  return notifications.filter((n) => typeInTab(n.type, tab));
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -354,7 +288,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
         <div className="p-2 shrink-0">
           <TabGroup
             variant="underline"
-            tabs={buildTabs(user)}
+            tabs={tabsFor(getPermissionContext(user))}
             activeTab={activeTab}
             onChange={setActiveTab}
             fullWidth={true}
@@ -449,14 +383,14 @@ function NotifItem({
             <div
               className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${notif.is_read ? "bg-muted" : "bg-primary/10"}`}
             >
-              {getIconForType(notif.type)}
+              <NotificationTypeIcon type={notif.type} />
             </div>
           )}
 
           {/* Type badge overlay */}
           {(notif.sender_id || notif.sender?.id) && (
             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-card border border-border rounded-full flex items-center justify-center shadow-sm z-10">
-              {React.cloneElement(getIconForType(notif.type), { size: 10 })}
+              <NotificationTypeIcon type={notif.type} size={10} />
             </div>
           )}
         </div>

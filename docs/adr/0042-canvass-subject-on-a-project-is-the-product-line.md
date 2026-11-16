@@ -1,5 +1,7 @@
 # ADR 0042 — On a project, the Canvass subject is the product line
 
+> **Update 2026-11-12:** the one-Canvass-per-line shape is replaced by ADR 0053 (one Canvass per Purchase Request). See that ADR for what still holds.
+
 ## Status
 Accepted (2026-11-04), spec #675, ticket #682. Narrows ADR 0034.
 

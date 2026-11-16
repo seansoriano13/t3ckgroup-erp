@@ -372,6 +372,13 @@ function BugReportsList({ isReader, meId }) {
   // A deep link (notification) opens its report even when the filter hides it.
   const index = shown.findIndex((r) => String(r.id) === recordId);
   const openReport = index >= 0 ? shown[index] : reports.find((r) => String(r.id) === recordId) || null;
+  // #1027: a link to a report that is gone says so and clears the address.
+  useEffect(() => {
+    if (!isReader || isLoading || isError || !recordId || openReport) return;
+    toast("This request is not waiting on you any more.");
+    close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReader, isLoading, isError, recordId, openReport]);
 
   return (
     <>

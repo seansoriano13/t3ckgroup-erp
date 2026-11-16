@@ -230,8 +230,8 @@ function PurchaseRequests() {
   const { user } = useAuth();
   const { isSuperAdmin, hasPurchasingFlow } = getPermissionContext(user);
   const purchaser = isSuperAdmin || hasPurchasingFlow;
-  const { recordId, open, close } = useRecordParam("request");
-  useRequestInGlobalWindow(recordId, close);
+  const { recordId, open } = useRecordParam("request");
+  useRequestInGlobalWindow(recordId);
 
   const { initial, hasSavedDefault, saveDefault, clearDefault, isDirty } = useSavedFilters(
     "purchase_requests",

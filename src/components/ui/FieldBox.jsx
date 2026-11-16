@@ -1,6 +1,7 @@
 import { Children, cloneElement, isValidElement, useId } from "react";
 import { cn } from "@/lib/utils";
 import { CAPTION_BASE } from "@/lib/captionStyle";
+import { RequiredMark } from "@/components/ui/RequiredMark";
 
 const CAPTION = `flex items-center gap-1.5 ${CAPTION_BASE} text-muted-foreground tracking-widest`;
 
@@ -15,6 +16,7 @@ const CAPTION = `flex items-center gap-1.5 ${CAPTION_BASE} text-muted-foreground
  *
  * With children, the label is associated with a lone child element (id
  * injected unless the child has one, or `htmlFor` says otherwise).
+ * `required` adds the red asterisk after the label.
  * `className` is for layout (margins, width), not typography.
  */
 export const FieldBox = ({
@@ -24,6 +26,7 @@ export const FieldBox = ({
   bare = false,
   inline = false,
   htmlFor,
+  required = false,
   className,
   children,
 }) => {
@@ -41,6 +44,7 @@ export const FieldBox = ({
     return (
       <label htmlFor={htmlFor} className={cn(CAPTION, className)}>
         {label}
+        {required && <RequiredMark />}
       </label>
     );
   }
@@ -55,6 +59,7 @@ export const FieldBox = ({
     <div className={cn("flex flex-col gap-1.5 w-full", className)}>
       <label htmlFor={labelFor} className={cn(CAPTION, "pl-1")}>
         {label}
+        {required && <RequiredMark />}
       </label>
       {bare ? (
         content

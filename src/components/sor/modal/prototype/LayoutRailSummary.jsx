@@ -75,7 +75,7 @@ export default function RailSummaryLayout({ p }) {
                 </div>
                 {tab === "journey" && (
                   <div className="h-full overflow-y-auto">
-                    <JourneyTab opportunityId={p.id} hasOpened={p.hasOpened} onGoToNow={() => setTab("now")} />
+                    <JourneyTab opportunityId={p.id} missingFieldCount={(p.missingRequiredStageFields || []).length} hasOpened={p.hasOpened} onGoToNow={() => setTab("now")} />
                   </div>
                 )}
               </div>

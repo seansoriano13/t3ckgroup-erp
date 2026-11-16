@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import EmployeeLeavesPage from '@/pages/offsets/index';
@@ -88,7 +88,7 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     makeOvertimeRequest({ employee_id: employee.id, date: '2026-03-10' });
 
     renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
-    const table = await screen.findByRole('table');
+    const [table] = await screen.findAllByRole("table");
     expect(within(table).getByText('Offset')).toBeInTheDocument();
     expect(within(table).getByText('Overtime')).toBeInTheDocument();
 
@@ -106,9 +106,11 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     makeOvertimeRequest({ employee_id: employee.id, date: todayStr, status: 'APPROVED_OFFSET' });
 
     renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
-    const table = await screen.findByRole('table');
-    await within(table).findByText('Offset');
-    await within(table).findByText('Overtime');
+    // The March pending request sits in "Still pending", the overtime in the month's table.
+    const tables = await screen.findAllByRole('table');
+    const text = () => tables.map((t) => t.textContent).join(' ');
+    await waitFor(() => expect(text()).toMatch(/Offset/));
+    expect(text()).toMatch(/Overtime/);
 
     expect(screen.getAllByTitle('Withdraw Request')).toHaveLength(1);
   });
@@ -127,9 +129,25 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     expect(await screen.findByText('Waiting on Jane Head')).toBeInTheDocument();
   });
 
-  it('shows an empty state when nothing has been filed', async () => {
+  it('names the month in the empty state and offers the File button', async () => {
     renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
-    expect(await screen.findByText('No requests found')).toBeInTheDocument();
+    const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    expect(await screen.findByText(`Nothing filed in ${month}.`, {}, { timeout: 20000 })).toBeInTheDocument();
+    expect(screen.queryByText(/matches this filter/i)).not.toBeInTheDocument();
+    // One in the header, one in the empty state.
+    expect(screen.getAllByRole('button', { name: /file time off/i })).toHaveLength(2);
+  }, 30000);
+
+  it('shows a pending request from another month under Still pending', async () => {
+    makeOffsetLeave({ employee_id: employee.id, date: '2020-01-15', status: 'PENDING', created_at: '2020-01-10T00:00:00Z' });
+
+    renderWithProviders(<MemoryRouter><EmployeeLeavesPage /></MemoryRouter>);
+
+    const group = await screen.findByRole('region', { name: 'Still pending' });
+    expect(within(group).getByRole('table')).toBeInTheDocument();
+    expect(within(group).getByText(/Jan 15/)).toBeInTheDocument();
+    // The current month is still empty and says so.
+    expect(screen.getByText(/^Nothing filed in /)).toBeInTheDocument();
   });
 
   it('still shows the shared approved-leave calendar tab', async () => {

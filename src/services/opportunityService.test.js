@@ -1492,6 +1492,10 @@ describe("opportunityService", () => {
   describe("Deal Owner visibility (ticket 6)", () => {
     let saleType, flow, lead, qualified
     beforeEach(() => {
+      // #1042: the History read goes through one RPC that returns these SORs' log rows.
+      stubRpc("sor_logs_for_sors", ({ p_opportunity_ids }) =>
+        db.rows("sales_opportunity_logs").filter((l) => p_opportunity_ids.includes(l.opportunity_id)),
+      )
       saleType = makeSaleType({ name: "Flow" })
       flow = makeSalesFlow({ sale_type_id: saleType.id })
       lead = makeFlowStage({ flow_id: flow.id, name: "Lead", sort_order: 0 })

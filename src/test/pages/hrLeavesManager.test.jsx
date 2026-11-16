@@ -515,6 +515,19 @@ describe('HrLeavesManagerPage', () => {
       expect(paid).toHaveAttribute('aria-checked', 'true');
     });
 
+    it('shows only the detail rows that apply to an overtime request on one day', async () => {
+      const applicant = makeEmployee({ name: 'One Day Worker' });
+      const ot = makeOvertimeRequest({ employee_id: applicant.id, status: 'PENDING', hours: 3, date: midCurrentMonth() });
+      renderAt(`/hr/offsets?record=OVERTIME-${ot.leave_group_id || ot.id}`);
+
+      const sheet = await screen.findByRole('dialog');
+      await within(sheet).findByText('Date');
+      expect(within(sheet).queryByText('Category')).not.toBeInTheDocument();
+      expect(within(sheet).queryByText('From')).not.toBeInTheDocument();
+      expect(within(sheet).queryByText('To')).not.toBeInTheDocument();
+      expect(within(sheet).queryByText('Days')).not.toBeInTheDocument();
+    });
+
     it('lands a shared pending link on the Pending view, crumb and all', async () => {
       const { key } = seedPendingOffset();
       renderAt(`/hr/offsets?record=${key}`);

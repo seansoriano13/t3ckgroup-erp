@@ -2,7 +2,6 @@ import PageLoading from "@/components/ui/PageLoading";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { pluralize } from "@/utils/plural";
 import QueryError from "@/components/ui/QueryError";
-import { useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Clock, History, Layers, ListOrdered, Users } from "lucide-react";
 import toast from "react-hot-toast";
@@ -61,8 +60,6 @@ export default function TaskApprovalsPage() {
 
 function TaskApprovalsQueue() {
   const queryClient = useQueryClient();
-  const location = useLocation();
-  const navigate = useNavigate();
 
   const [reportedToMeOnly, setReportedToMeOnly] = useState(true);
   const q = useApprovalQueues({ reportedToMeOnly });
@@ -189,27 +186,17 @@ function TaskApprovalsQueue() {
 
   const index = items.findIndex((i) => String(i.id) === recordId);
   const open = index >= 0 ? items[index] : null;
-
-  // A notification deep link opens its task: in the sheet when it is in this
-  // queue, otherwise in the full details view.
+  // #1027: a link to a task that is no longer in either step (someone else decided it first) says so and clears the address.
+  // The group view reads the same `?record=` for its own rows, so it is left alone.
+  const queueReady = !q.isLoadingTasks && !q.isErrorTasks;
+  const inQueue = [...pending.tasks, ...done.tasks].some((t) => String(t.id) === recordId);
   useEffect(() => {
-    const openTaskId = location.state?.openTaskId;
-    if (!openTaskId || !q.rawTasks.length) return;
-    navigate(location.pathname + location.search, { replace: true, state: {} });
-    queueMicrotask(() => {
-      if (pending.step.has(openTaskId) || done.step.has(openTaskId)) {
-        openRecord(openTaskId);
-        return;
-      }
-      const known = q.rawTasks.find((t) => t.id === openTaskId);
-      if (known) setViewTask(known);
-      else
-        taskQueryService
-          .getTaskById(openTaskId)
-          .then((task) => task && setViewTask(task))
-          .catch((err) => toast.error(err.message || "Could not open that task."));
-    });
-  }, [location.state, location.pathname, location.search, q.rawTasks, pending, done, navigate, openRecord]);
+    if (!queueReady || !recordId || inQueue || view === "GROUP") return;
+    toast("This request is not waiting on you any more.");
+    closeRecord();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueReady, recordId, inQueue, view]);
+
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });

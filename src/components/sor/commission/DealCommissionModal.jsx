@@ -125,7 +125,7 @@ export default function DealCommissionModal({ deal, onClose, access }) {
               <span className="text-xs text-muted-foreground">
                 {deal.contractDate ? `Rates as of ${formatContractDate(deal.contractDate)}` : "Live rates · no Contract Date yet"}
               </span>
-              <Button type="button" variant="outline" size="sm" onClick={() => navigate("/sors", { state: { openOpportunityId: deal.id } })}>
+              <Button type="button" variant="outline" size="sm" onClick={() => navigate(`/sors?open=sor:${deal.id}`)}>
                 Open SOR <ArrowUpRight />
               </Button>
             </div>

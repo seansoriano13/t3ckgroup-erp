@@ -45,7 +45,7 @@ export default function LineDetail({ line, index, count, matrix, ctx }) {
   const isTyped = line.source === "typed" && !line.sor_item_id;
   const canSetProduct = isTyped && inAnyBand(matrix.bands, ROW_EDIT_BANDS);
   const canEditParts = inAnyBand(matrix.bands, ROW_EDIT_BANDS);
-  const showAbc = tierReads(matrix.tier, "abc_unit");
+  const showAbc = tierReads(matrix.tier, "abc_unit") && matrix.abc?.mode !== "total_only";
   const showOffer = tierReads(matrix.tier, "final_offer_unit");
   const showQuotation = tierReads(matrix.tier, "quotation_price_unit");
   const showMarkupPrice = tierReadsCost(matrix.tier, "markup_price_unit");

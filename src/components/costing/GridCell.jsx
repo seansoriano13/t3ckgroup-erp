@@ -25,7 +25,6 @@ export function Cell({
   money = false,
   required = false,
   align = "left",
-  step = "0.01",
   placeholder,
   className,
 }) {
@@ -60,7 +59,7 @@ export function Cell({
         if (required) return setError(`${noun} is needed.`);
         next = null;
       } else {
-        const n = Number(text);
+        const n = Number(text.replace(/,/g, ""));
         // Say which rule was broken: a word that is not a number, a negative amount, or a zero where it must be above zero.
         if (!Number.isFinite(n)) return setError(`${noun} must be a number.`);
         if (n < 0) return setError(`${noun} must be zero or more.`);
@@ -76,8 +75,14 @@ export function Cell({
     }
   };
 
+  // A money figure at rest reads 13,199.89; focused, it is the plain number to edit.
+  const draftNumber = Number(draft.replace(/,/g, ""));
+  const atRest = numeric && money && !focused && !error && draft.trim() !== "" && Number.isFinite(draftNumber)
+    ? draftNumber.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : draft;
+
   const shared = {
-    value: draft,
+    value: atRest,
     "aria-label": label,
     "aria-invalid": error ? true : undefined,
     placeholder,
@@ -96,16 +101,13 @@ export function Cell({
       ) : (
         <Input
           {...shared}
-          type={numeric ? "number" : "text"}
-          min={numeric ? 0 : undefined}
-          step={numeric ? step : undefined}
+          type="text"
+          inputMode={numeric ? "decimal" : undefined}
           className={cn(
             // One height and corner with the SelectCell beside it.
             "h-9 rounded-lg px-3 text-sm",
             numeric && "tabular-nums",
             align === "right" && "text-right",
-            // The up/down arrows of a number box eat the room the digits need.
-            numeric && "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
           )}
         />
       )}

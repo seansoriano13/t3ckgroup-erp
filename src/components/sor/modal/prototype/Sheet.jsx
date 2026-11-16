@@ -61,7 +61,7 @@ export default function Sheet({ p, view, onClose, onOpen }) {
               )}
               {view === "journey" && (
                 <div className="h-full overflow-y-auto">
-                  <JourneyTab opportunityId={p.id} hasOpened={p.hasOpened} onGoToNow={() => onOpen("now")} />
+                  <JourneyTab opportunityId={p.id} missingFieldCount={(p.missingRequiredStageFields || []).length} hasOpened={p.hasOpened} onGoToNow={() => onOpen("now")} />
                 </div>
               )}
               {view === "commission" && (

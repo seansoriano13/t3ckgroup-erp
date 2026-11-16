@@ -15,7 +15,7 @@
 import { sql } from "./stack.js"
 
 /** Deletes the matrices (and everything under them) for the given SOR ids, plus events the given actors wrote. */
-async function purge(client, { sorIds = null, emailLike = null } = {}) {
+async function purge(client, { sorIds = null, matrixIds: byMatrix = null, emailLike = null } = {}) {
     const { rows: registered } = await client.query(
         `select table_name, parent_table from public.costing_tables where table_name <> 'costing_matrices'`,
     )
@@ -29,6 +29,10 @@ async function purge(client, { sorIds = null, emailLike = null } = {}) {
     if (sorIds) {
         args.push(sorIds)
         matrixFilter.push(`opportunity_id = any($${args.length}::uuid[])`)
+    }
+    if (byMatrix) {
+        args.push(byMatrix)
+        matrixFilter.push(`id = any($${args.length}::uuid[])`)
     }
     if (emailLike) {
         args.push(emailLike)
@@ -48,22 +52,7 @@ async function purge(client, { sorIds = null, emailLike = null } = {}) {
 
     // Money and child tables hang off the matrix directly or through a parent;
     // costing_matrix_filter writes the same "belongs to matrix $1" test the read uses.
-    // A Canvass hangs off a Component (#276). The cascade is off here, so it goes first, by hand.
-    const ofMatrix = `select c.id from public.costing_components c
-        join public.costing_tender_lines l on l.id = c.tender_line_id
-        where l.matrix_id = any($1::uuid[])`
-    await client.query(
-        `delete from public.sor_canvass_offer_prices where offer_id in (
-           select o.id from public.sor_canvass_offers o join public.sor_canvasses v on v.id = o.canvass_id
-           where v.component_id in (${ofMatrix}))`,
-        [matrixIds],
-    )
-    await client.query(
-        `delete from public.sor_canvass_offers where canvass_id in (
-           select v.id from public.sor_canvasses v where v.component_id in (${ofMatrix}))`,
-        [matrixIds],
-    )
-    await client.query(`delete from public.sor_canvasses where component_id in (${ofMatrix})`, [matrixIds])
+    // (A Canvass hangs off a Purchase Request since #967, not off a Component, so none goes here.)
     await client.query(`delete from public.costing_events where matrix_id = any($1::uuid[])`, [matrixIds])
     for (const { table_name: name } of tables) {
         const { rows: filter } = await client.query(`select public.costing_matrix_filter($1, 't') as f`, [name])
@@ -87,6 +76,12 @@ async function withoutTriggers(work) {
     } finally {
         client.release()
     }
+}
+
+/** Removes Costing Matrices by their own ids (standalone ones have no SOR to go by), with their history. */
+export async function purgeCostingMatrices(matrixIds) {
+    if (!matrixIds?.length) return
+    await withoutTriggers((client) => purge(client, { matrixIds }))
 }
 
 /** Removes the Costing Matrices of the given SORs, with their history. */

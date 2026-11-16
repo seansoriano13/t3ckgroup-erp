@@ -62,25 +62,28 @@ export default function SlideOver({
       <DrawerContent className={overModal ? "z-[75] w-[560px] max-md:w-full" : "w-[560px] max-md:w-full"} initialFocus={focusRef}>
         {current && (
           <div ref={focusRef} tabIndex={-1} className="flex min-h-0 flex-1 flex-col outline-none">
-            <div className="flex items-start gap-3 border-b border-border px-6 py-5">
+            <div className="flex items-start gap-3 border-b border-border px-6 py-5 max-md:flex-wrap max-md:px-4 max-md:py-4">
               {Icon && (
                 <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-foreground">
                   <Icon size={18} />
                 </div>
               )}
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <div className="min-w-0 flex-1 max-md:contents">
+                <p className="flex items-center gap-1 text-[11px] text-muted-foreground max-md:min-w-0 max-md:flex-1 max-md:self-center">
                   <Button variant="link" size="xs" className="h-auto p-0 text-[11px] text-muted-foreground" onClick={onClose}>
                     {crumb}
                   </Button>
                   <ChevronRight size={11} />
                   <span className="font-mono">{who.ref}</span>
                 </p>
-                <div className="mt-0.5 flex items-center gap-2">
-                  <DrawerTitle className="line-clamp-2 text-base font-bold">{who.title}</DrawerTitle>
-                  {who.badge}
+                {/* On a phone the arrows and Close keep the top row; the title drops full width beneath it. */}
+                <div className="max-md:order-last max-md:basis-full">
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <DrawerTitle className="line-clamp-2 text-base font-bold max-md:line-clamp-none">{who.title}</DrawerTitle>
+                    {who.badge}
+                  </div>
+                  {who.subtitle && <DrawerDescription className="mt-0.5 text-xs">{who.subtitle}</DrawerDescription>}
                 </div>
-                {who.subtitle && <DrawerDescription className="mt-0.5 text-xs">{who.subtitle}</DrawerDescription>}
               </div>
               {stepping && (
                 <>
@@ -97,7 +100,7 @@ export default function SlideOver({
               )}
               {headerActions?.(current)}
               {onOpenFull && (
-                <Button variant="ghost" size="icon-sm" onClick={() => onOpenFull(current)} aria-label={openFullLabel} title={openFullLabel}>
+                <Button variant="ghost" size="icon-sm" className="max-md:hidden" onClick={() => onOpenFull(current)} aria-label={openFullLabel} title={openFullLabel}>
                   <Maximize2 size={14} />
                 </Button>
               )}
@@ -121,7 +124,7 @@ export function SlideOverBody({ children }) {
 /** The decision, pinned to the bottom of a slide-over. */
 export function SlideOverFooter({ children }) {
   // In the laptop band and on phones the footer stays short (#980): the quick-reply chips
-  // (NotePresets) sit in one row that scrolls sideways, and the note box starts one line
+  // (NotePresets) wrap onto as many rows as they need, and the note box starts one line
   // tall and grows when focused.
   return (
     <div

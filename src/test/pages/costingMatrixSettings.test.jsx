@@ -52,7 +52,7 @@ describe("S0 Evaluation settings", () => {
     const rows = await within(section).findAllByTestId("markup-preset-row");
     expect(rows).toHaveLength(3);
     expect(within(rows[0]).getByLabelText("Government: name")).toHaveValue("Government");
-    expect(within(rows[0]).getByLabelText("Government: factor")).toHaveValue(1.35);
+    expect(within(rows[0]).getByLabelText("Government: factor")).toHaveValue("1.35");
     expect(within(rows[0]).getByText("×1.35 · +35%")).toBeInTheDocument();
     expect(within(rows[1]).getByText("×2.40 · +140%")).toBeInTheDocument();
     expect(within(rows[2]).getByText("Switched off")).toBeInTheDocument();
