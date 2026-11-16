@@ -2865,6 +2865,27 @@ describe("opportunityService", () => {
         expect(windows).toContain(evaluator.id)
         expect(windows).toContain(registrar.id)
       })
+
+      it("adds a person once when the automation lists them twice, so the unique member row is never hit", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_group_task",
+          config: {
+            members: [
+              { employeeId: registrar.id, role: "Assignee", taskDescription: "Judge the spec" },
+              { employeeId: registrar.id, role: "Reviewer", taskDescription: "Judge it again" },
+            ],
+          },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const groupTask = db.internal.rowsOf("committee_tasks").find((t) => t.opportunity_id === deal.id)
+        const members = db.internal.rowsOf("committee_task_members").filter((m) => m.committee_task_id === groupTask.id)
+        expect(members).toHaveLength(1)
+        expect(members[0].task_description).toBe("Judge the spec")
+      })
     })
 
     // Issue #203: project_evaluation is a removed kind — an SOR still

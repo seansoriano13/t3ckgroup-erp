@@ -1019,7 +1019,8 @@ async function runStageActionsOnEntry({ existing, to, snapshotActions, actorId, 
             ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
             : "";
           payload.created_by = actorId;
-          payload.members = members.map((m) => ({
+          // One row per person: the table allows a person once per Group Task, and the first entry wins.
+          payload.members = members.filter((m, i) => members.findIndex((o) => o.employeeId === m.employeeId) === i).map((m) => ({
             employee_id: m.employeeId,
             task_description: m.taskDescription || "",
             checklist: m.checklist || null,
@@ -1452,7 +1453,8 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       createdBy: actorId,
       evaluatorId: (await resolveEvaluatorId(config.evaluator, existing)) ?? existing.deal_owner_id ?? null,
       templateId: config.templateId || null,
-      members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }],
+      members: (config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }])
+        .filter((m, i, all) => all.findIndex((o) => o.employeeId === m.employeeId) === i),
       opportunityId: existing.id,
       stageActionId: action.id,
       stageVisitId: runRow?.stage_visit_id ?? null,
