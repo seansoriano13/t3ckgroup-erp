@@ -64,7 +64,8 @@ Keep steps 6 to 12 within about 30 minutes. Staff arrive about 08:00 PHT. Prod i
 ## The day after
 
 - Check bug reports in the morning and at noon. The last release needed three small web fixes within 14 hours; plan the morning for fixes.
-- **Change the prod database password.** It was printed into a session log on 2026-11-16. Reset it in the Supabase dashboard (project `epqmberwewztzbrkhhss`, Project Settings, Database), then run `node scripts/rotate-db-password.mjs prod` and type the new password. It checks the password signs in, then updates the five settings files on this PC and the GitHub secrets `PROD_DB_PASSWORD` and `PROD_DB_URL`. Then run `pnpm db:ledger:check prod` to confirm. After the release, not before, so release night does not depend on it.
+- **The database password stays as it is.** It had been printed into 16 old session logs on this PC (`~/.claude/projects`, sessions from 2026-08 to 2026-11-16). On 2026-11-16 it was blanked out of all of them; a re-scan of those logs, the app's temp folders, `D:/Sean`, Desktop and Downloads finds it nowhere outside the `.env` files, and no commit in git history ever held it. Prod and staging share the same password.
+- If it is ever changed: reset it in the Supabase dashboard, then run `node scripts/rotate-db-password.mjs prod` (and `staging`, if that one changes too). It checks the new password signs in, then updates every `.env.local` / `.env.mirror` on this PC and the GitHub secrets `<TARGET>_DB_PASSWORD` and `<TARGET>_DB_URL`. Nothing else holds it: the web app on Vercel reads only `VITE_SUPABASE_URL` and the anon key, and the edge functions read only `SUPABASE_URL` and the service-role and anon keys, which a password reset does not change.
 
 ## Known and not in this release
 
