@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { parseManilaDate } from '@/lib/manilaDate.js';
-import { kindOf } from './entryKinds.jsx';
+import { activityTypeOf, styleOf } from './entryKinds.jsx';
 import { formatEntryTime } from './entryFormat.js';
 import { monthWeeks } from './monthWeeks.js';
 import { shortName } from './entrySpan.js';
@@ -15,7 +15,7 @@ const lineText = (e) => {
   const who = shortName(e.employee?.name);
   if (e.kind === 'MEETING') return e.title;
   if (e.kind === 'UNDERTIME' || e.kind === 'OVERTIME') return `${who} ${e.kind === 'UNDERTIME' ? 'undertime' : 'overtime'}`;
-  return `${who} · ${kindOf(e.kind)?.label ?? ''}`;
+  return `${who} · ${styleOf(e)?.label ?? ''}`;
 };
 
 const dayName = (ymd) => format(parseManilaDate(ymd), 'EEE, MMM d');
@@ -78,7 +78,7 @@ export default function CalendarAgenda({ anchor, entries, onOpenEntry, todayYmd,
           <div key={week[0].ymd} className="grid grid-cols-7">
             {week.map((day) => {
               const here = entries.filter((e) => e.manila_date === day.ymd);
-              const kinds = [...new Set(here.map((e) => e.kind))].slice(0, 3);
+              const dots = [...new Map(here.map((e) => [`${e.kind}-${activityTypeOf(e)}`, e])).values()].slice(0, 3);
               return (
                 <Button
                   key={day.ymd}
@@ -102,8 +102,8 @@ export default function CalendarAgenda({ anchor, entries, onOpenEntry, todayYmd,
                     {format(day.date, 'd')}
                   </span>
                   <span className="flex h-1.5 gap-0.5" aria-hidden>
-                    {kinds.map((k) => (
-                      <KindDot key={k} kind={k} className="size-1.5" />
+                    {dots.map((e) => (
+                      <KindDot key={e.id} kind={e.kind} entry={e} className="size-1.5" />
                     ))}
                   </span>
                 </Button>
@@ -138,11 +138,11 @@ export default function CalendarAgenda({ anchor, entries, onOpenEntry, todayYmd,
                         onClick={() => onOpenEntry(e)}
                         className={cn('h-auto w-full justify-start gap-2 px-3 py-2 text-left', e.status === 'PENDING' && 'italic text-muted-foreground')}
                       >
-                        <KindDot kind={e.kind} />
+                        <KindDot kind={e.kind} entry={e} />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium">{lineText(e)}</span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {kindOf(e.kind)?.label} · {formatEntryTime(e)}
+                            {styleOf(e)?.label} · {formatEntryTime(e)}
                           </span>
                         </span>
                       </Button>

@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { manilaTime } from '@/lib/manilaDate.js';
-import { ENTRY_KINDS, LAYERS, kindOf } from './entryKinds.jsx';
+import { ACTIVITY_TYPES, ENTRY_KINDS, LAYERS, activityTypeOf, kindOf, styleOf } from './entryKinds.jsx';
 import { formatEntryTime } from './entryFormat.js';
 import { initials } from './entrySpan.js';
 
@@ -123,21 +123,71 @@ export function Face({ person, className }) {
   );
 }
 
-/** Coloured marker for an entry kind. */
-export function KindDot({ kind, className }) {
-  return <span aria-hidden className={cn('size-2 shrink-0 rounded-full', kindOf(kind)?.dot ?? 'bg-mauve-8', className)} />;
+/** Coloured marker for an entry kind; pass the entry too and an Activity shows its type's colour. */
+export function KindDot({ kind, entry = null, className }) {
+  const dot = (entry ? styleOf(entry) : kindOf(kind))?.dot ?? 'bg-mauve-8';
+  return <span aria-hidden className={cn('size-2 shrink-0 rounded-full', dot, className)} />;
+}
+
+/**
+ * Filter by Activity type, beside the layer toggles. Nothing picked shows every
+ * type; picking some hides the rest. Time Off and Overtime are never touched.
+ * Counts are the Activities of that type in the loaded range.
+ */
+export function ActivityTypeFilter({ selected, onToggle, onClear, all }) {
+  const counts = {};
+  for (const e of all ?? []) if (e.kind === 'MEETING') counts[activityTypeOf(e)] = (counts[activityTypeOf(e)] ?? 0) + 1;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Activity type">
+      {Object.entries(ACTIVITY_TYPES).map(([key, def]) => {
+        const on = selected.includes(key);
+        return (
+          <Button
+            key={key}
+            variant="ghost"
+            aria-pressed={on}
+            onClick={() => onToggle(key)}
+            className={cn(
+              'gap-2 rounded-full border border-border px-3 font-semibold',
+              on ? 'bg-card text-foreground' : 'text-muted-foreground',
+              selected.length > 0 && !on && 'opacity-70',
+            )}
+          >
+            <span className={cn('size-2 rounded-full', def.dot)} aria-hidden />
+            {def.label}
+            <span className="font-mono text-xs tabular-nums text-muted-foreground" aria-hidden>
+              {counts[key] ?? 0}
+            </span>
+          </Button>
+        );
+      })}
+      {selected.length > 0 && (
+        <Button variant="ghost" size="sm" onClick={onClear}>
+          Clear
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /** The colour key under each layout. */
 export function KindKey() {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground" aria-label="Colour key">
-      {Object.entries(ENTRY_KINDS).map(([kind, def]) => (
-        <span key={kind} className="flex items-center gap-1.5">
-          <KindDot kind={kind} />
+      {Object.entries(ACTIVITY_TYPES).map(([type, def]) => (
+        <span key={type} className="flex items-center gap-1.5">
+          <span aria-hidden className={cn('size-2 shrink-0 rounded-full', def.dot)} />
           {def.label}
         </span>
       ))}
+      {Object.entries(ENTRY_KINDS)
+        .filter(([kind]) => kind !== 'MEETING')
+        .map(([kind, def]) => (
+          <span key={kind} className="flex items-center gap-1.5">
+            <KindDot kind={kind} />
+            {def.label}
+          </span>
+        ))}
       <span className="flex items-center gap-1.5">
         <span className="h-3 w-5 rounded border border-dashed border-mauve-9" />
         Pending
