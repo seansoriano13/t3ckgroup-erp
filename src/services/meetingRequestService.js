@@ -4,7 +4,7 @@ import { systemAuditLogService } from './systemAuditLogService';
 import { formatManilaDateTime, manilaTime } from '../lib/manilaDate.js';
 
 /**
- * Meeting Requests (#619, spec #609, ADR 0038).
+ * Activities (#619, #1055; the table and functions keep the old meeting_requests names).
  *
  * Writes go through database functions only (`file_meeting_request`, and the
  * decision functions later tickets add). The service never inserts into the
@@ -31,14 +31,17 @@ export const MEETING_STATUS_LABEL = {
 };
 
 const DECISION_VERB = {
-  HEAD_APPROVED: 'approved as department head',
-  HEAD_DECLINED: 'declined',
-  HEAD_RETURNED: 'returned',
   HR_APPROVED: 'approved',
   HR_DECLINED: 'declined',
   HR_RETURNED: 'returned',
-  HR_OVERRIDE: 'skipped the head step on',
 };
+
+export const ACTIVITY_TYPE = { MEETING: 'MEETING', ADMIN_TASK: 'ADMIN_TASK', OPERATIONS_TASK: 'OPERATIONS_TASK', EVENT: 'EVENT' };
+export const ACTIVITY_TYPE_LABEL = { MEETING: 'Meeting', ADMIN_TASK: 'Admin Task', OPERATIONS_TASK: 'Operations Task', EVENT: 'Event' };
+
+/** Mirrors the database's activity_needs_hr(): an Event, or a Meeting with a Venue (Onsite or Hybrid). */
+export const needsHr = (activityType, venueId) =>
+  activityType === ACTIVITY_TYPE.EVENT || (activityType === ACTIVITY_TYPE.MEETING && Boolean(venueId));
 
 export const MEETING_TYPE = { ONSITE: 'ONSITE', ONLINE: 'ONLINE', HYBRID: 'HYBRID' };
 export const MEETING_TYPE_LABEL = { ONSITE: 'Onsite', ONLINE: 'Online', HYBRID: 'Hybrid' };
@@ -60,17 +63,26 @@ export const guestList = (names = [], emails = []) => (names ?? []).map((name, i
 
 /** Where a meeting is held, for one-line text: the Venue, the word Online, or both. */
 export function meetingPlace(request) {
+  if (request?.activity_type && request.activity_type !== ACTIVITY_TYPE.MEETING) return '';
   const venue = request?.venue?.name;
   if (request?.meeting_type === MEETING_TYPE.ONLINE) return 'Online';
   if (request?.meeting_type === MEETING_TYPE.HYBRID) return venue ? `${venue} + Online` : 'Hybrid';
   return venue ?? 'a Venue';
 }
 
+/** "Place, time" for a Meeting; just the time for an Activity with no place. */
+const slotText = (request, when) => {
+  const place = meetingPlace(request);
+  return place ? `${place}, ${when}` : when;
+};
+
 /** One Guest as text: "Name <email>" or just the name. */
 export const guestText = (g) => (g.email ? `${g.name} <${g.email}>` : g.name);
 
 /** Only web links are made clickable. */
 export const safeLink = (url) => (/^https?:\/\//i.test(String(url ?? '').trim()) ? String(url).trim() : null);
+
+const isMeeting = (activityType) => activityType === ACTIVITY_TYPE.MEETING;
 
 const guestParams = (guests) => ({
   p_guests: guests.map((g) => (typeof g === 'string' ? g : g.name)),
@@ -177,18 +189,18 @@ export const meetingRequestService = {
     }
   },
 
-  /** A Venue with Meeting Requests is refused by the database; the message tells HR to switch it off instead. */
+  /** A Venue with Activities is refused by the database; the message tells HR to switch it off instead. */
   async deleteVenue(venue, actorId) {
     const { data, error } = await supabase.from('calendar_venues').delete().eq('id', venue.id).select('id');
     if (error) {
-      if (error.code === '23503') throw new Error('This Venue has Meeting Requests, so it cannot be deleted. Switch it off instead.');
+      if (error.code === '23503') throw new Error('This Venue has Activities, so it cannot be deleted. Switch it off instead.');
       throw new Error(error.message);
     }
     if (!data?.length) throw new Error('Could not delete the Venue.');
     await this.auditVenue(venue, 'VENUE_DELETED', `Deleted Venue "${venue.name}"`, actorId);
   },
 
-  /** The applicant's most recent request's Facilitator and Venue, or null when there is none. */
+  /** The applicant's most recent Activity's Lead and Venue, or null when there is none. */
   async lastPicks(applicantId) {
     const { data, error } = await supabase
       .from('meeting_requests')
@@ -202,14 +214,15 @@ export const meetingRequestService = {
   },
 
   /**
-   * Files a Meeting Request. `startsAt` / `endsAt` are ISO instants (the form builds
+   * Files an Activity. `startsAt` / `endsAt` are ISO instants (the form builds
    * them from a Manila date and times). Returns the saved request.
    */
-  async fileRequest({ meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, applicant }) {
+  async fileRequest({ activityType = ACTIVITY_TYPE.MEETING, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, applicant }) {
     const { data: id, error } = await supabase.rpc('file_meeting_request', {
-      p_meeting_type: meetingType,
-      p_meeting_link: needsLink(meetingType) ? meetingLink : null,
-      p_venue_id: needsVenue(meetingType) ? venueId : null,
+      p_activity_type: activityType,
+      p_meeting_type: isMeeting(activityType) ? meetingType : null,
+      p_meeting_link: isMeeting(activityType) && needsLink(meetingType) ? meetingLink : null,
+      p_venue_id: isMeeting(activityType) && needsVenue(meetingType) ? venueId : null,
       p_starts_at: startsAt,
       p_ends_at: endsAt,
       p_facilitator_id: facilitatorId,
@@ -230,30 +243,52 @@ export const meetingRequestService = {
     return request;
   },
 
-  /** Audit line plus the notification for whoever approves next. */
+  /**
+   * Audit line plus the notifications. An Activity that needs HR goes to HR's queue; any other is
+   * already approved, so its Lead and Participants hear about it at once.
+   */
   async afterFiled(request, applicant) {
     const applicantName = applicant?.name ?? request.applicant?.name ?? 'An employee';
     const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
-    const venue = meetingPlace(request);
-    const toHr = request.status === MEETING_STATUS.PENDING_HR;
+    const slot = slotText(request, when);
 
-    const note = {
-      type: 'MEETING_REQUEST',
-      title: 'Meeting Request awaiting approval',
-      message: `${applicantName} requested ${venue}, ${when}: ${request.purpose}`,
-      reference_id: request.id,
-      sender_id: request.applicant_id,
-    };
-    if (toHr) await notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], note);
-    else if (request.head_id) await notificationService.createNotification({ ...note, recipient_id: request.head_id });
+    if (request.status === MEETING_STATUS.PENDING_HR) {
+      await notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
+        type: 'MEETING_REQUEST',
+        title: 'Activity awaiting approval',
+        message: `${applicantName} requested ${slot}: ${request.purpose}`,
+        reference_id: request.id,
+        sender_id: request.applicant_id,
+      });
+    } else if (request.status === MEETING_STATUS.APPROVED) {
+      await this.notifyApproved(request, slot, request.applicant_id);
+    }
 
     await this.mirrorEvent({
       request,
       action: 'FILED',
-      content: `${applicantName} filed a Meeting Request for ${venue}, ${when}`,
+      content: `${applicantName} filed an Activity for ${slot}`,
       authorId: request.applicant_id,
       metadata: { event: 'MEETING_REQUEST_FILED', status: request.status },
     });
+  },
+
+  /** Tells the Lead and every Participant (not the person filing) that an Activity is on. */
+  async notifyApproved(request, slot, senderId) {
+    const invited = new Set([request.facilitator_id, ...(request.participants ?? []).map((p) => p.employee_id)]);
+    invited.delete(request.applicant_id);
+    invited.delete(null);
+    invited.delete(undefined);
+    for (const recipient_id of invited) {
+      await notificationService.createNotification({
+        recipient_id,
+        sender_id: senderId ?? null,
+        type: 'MEETING_APPROVED',
+        title: 'Activity approved',
+        message: `${slot}: ${request.purpose}`,
+        reference_id: request.id,
+      });
+    }
   },
 
   /** Every event is also written to the system audit log under MEETING_REQUEST (shown in HR's Activity Log). */
@@ -280,7 +315,7 @@ export const meetingRequestService = {
     return { ...data, events: events ?? [] };
   },
 
-  /** Requests where the employee is the applicant, the Facilitator or a Participant, newest first. */
+  /** Requests where the employee is the applicant, the Lead or a Participant, newest first. */
   async listMine(employeeId) {
     const { data: asParticipant, error: pErr } = await supabase
       .from('meeting_request_participants')
@@ -321,14 +356,15 @@ export const meetingRequestService = {
 
   /**
    * Applicant edit before the start (#628). Pending-HR and approved requests go back to the head;
-   * the head is told, and the Facilitator and Participants when it was approved.
+   * the head is told, and the Lead and Participants when it was approved.
    */
-  async editRequest({ requestId, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, actor }) {
+  async editRequest({ requestId, activityType = ACTIVITY_TYPE.MEETING, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, actor }) {
     const { data, error } = await supabase.rpc('edit_meeting_request', {
       p_request_id: requestId,
-      p_meeting_type: meetingType,
-      p_meeting_link: needsLink(meetingType) ? meetingLink : null,
-      p_venue_id: needsVenue(meetingType) ? venueId : null,
+      p_activity_type: activityType,
+      p_meeting_type: isMeeting(activityType) ? meetingType : null,
+      p_meeting_link: isMeeting(activityType) && needsLink(meetingType) ? meetingLink : null,
+      p_venue_id: isMeeting(activityType) && needsVenue(meetingType) ? venueId : null,
       p_starts_at: startsAt,
       p_ends_at: endsAt,
       p_facilitator_id: facilitatorId,
@@ -368,13 +404,13 @@ export const meetingRequestService = {
    * Notifications and the audit line for an edit, a resend or a cancel (the event row was written
    * by the database).
    *   - the head, when it lands back with them (HR when it lands at the HR step)
-   *   - the Facilitator and Participants, when an approved request is changed or cancelled
+   *   - the Lead and Participants, when an approved request is changed or cancelled
    *   - the applicant, when HR cancels
    */
   async afterChange(result, { note = '', actor } = {}) {
     const request = await this.getRequest(result.id);
-    const venue = meetingPlace(request);
     const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
+    const slot = slotText(request, when);
     const actorName = actor?.name ?? 'Someone';
     const senderId = actor?.id ?? null;
     const cancelled = result.to_status === MEETING_STATUS.CANCELLED;
@@ -383,10 +419,15 @@ export const meetingRequestService = {
     const withNote = note ? ` Reason: ${note}` : '';
 
     if (!cancelled && [MEETING_STATUS.PENDING_HEAD, MEETING_STATUS.PENDING_HR].includes(result.to_status) && result.to_status !== result.from_status) {
-      const message = `${actorName} ${result.action === 'RESENT' ? 'sent again' : 'changed'}: ${venue}, ${when}: ${request.purpose}`;
-      const base = { type: 'MEETING_REQUEST', title: 'Meeting Request back for approval', message, reference_id: request.id, sender_id: senderId };
+      const message = `${actorName} ${result.action === 'RESENT' ? 'sent again' : 'changed'}: ${slot}: ${request.purpose}`;
+      const base = { type: 'MEETING_REQUEST', title: 'Activity back for approval', message, reference_id: request.id, sender_id: senderId };
       if (result.to_status === MEETING_STATUS.PENDING_HR) await notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], base);
       else if (request.head_id) await notificationService.createNotification({ ...base, recipient_id: request.head_id });
+    }
+
+    // An edit that makes an Activity approved on the spot (it no longer needs HR) tells people it is on.
+    if (result.action === 'EDITED' && result.to_status === MEETING_STATUS.APPROVED && !wasApproved) {
+      await this.notifyApproved(request, slot, senderId);
     }
 
     if (wasApproved && (cancelled || result.action === 'EDITED')) {
@@ -404,8 +445,8 @@ export const meetingRequestService = {
           recipient_id,
           sender_id: senderId,
           type: cancelled ? 'MEETING_CANCELLED' : 'MEETING_CHANGED',
-          title: cancelled ? 'Meeting cancelled' : 'Meeting changed',
-          message: `${venue}, ${when}: ${request.purpose}.${withNote}`,
+          title: cancelled ? 'Activity cancelled' : 'Activity changed',
+          message: `${slot}: ${request.purpose}.${withNote}`,
           reference_id: request.id,
         });
       }
@@ -416,8 +457,8 @@ export const meetingRequestService = {
         recipient_id: request.applicant_id,
         sender_id: senderId,
         type: 'MEETING_REQUEST_DECISION',
-        title: 'Meeting Request cancelled by HR',
-        message: `${actorName} cancelled your Meeting Request for ${venue}, ${when}.${withNote}`,
+        title: 'Activity cancelled by HR',
+        message: `${actorName} cancelled your Activity for ${slot}.${withNote}`,
         reference_id: request.id,
       });
     }
@@ -426,7 +467,7 @@ export const meetingRequestService = {
     await this.mirrorEvent({
       request,
       action: result.action,
-      content: `${actorName} ${verb} the Meeting Request for ${venue}, ${when}.${withNote}${changed.length ? ` Changed: ${changed.join(', ')}.` : ''}`,
+      content: `${actorName} ${verb} the Activity for ${slot}.${withNote}${changed.length ? ` Changed: ${changed.join(', ')}.` : ''}`,
       authorId: senderId,
       metadata: {
         event: `MEETING_REQUEST_${result.action}`,
@@ -450,28 +491,17 @@ export const meetingRequestService = {
     return data;
   },
 
-  /** HR skips a pending head step. A reason is required. */
-  async overrideHead({ requestId, reason, actor }) {
-    const { data, error } = await supabase.rpc('override_meeting_request_head', {
-      p_request_id: requestId,
-      p_reason: reason,
-    });
-    if (error) throw new Error(error.message);
-    await this.afterDecision(data, { note: reason, actor });
-    return data;
-  },
-
   /**
    * Notifications and the audit line for one transition. The event row was written by the database;
    * this mirrors it into the system audit log under MEETING_REQUEST.
    *   - HR, when it reaches the HR step
    *   - the applicant, on every decision and return
-   *   - the Facilitator and Participants, when it is approved
+   *   - the Lead and Participants, when it is approved
    */
   async afterDecision(result, { note = '', actor } = {}) {
     const request = await this.getRequest(result.id);
-    const venue = meetingPlace(request);
     const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
+    const slot = slotText(request, when);
     const actorName = actor?.name ?? 'Someone';
     const senderId = actor?.id ?? null;
     const verb = DECISION_VERB[result.action] ?? 'updated';
@@ -480,8 +510,8 @@ export const meetingRequestService = {
     if (result.to_status === MEETING_STATUS.PENDING_HR) {
       await notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
         type: 'MEETING_REQUEST',
-        title: 'Meeting Request awaiting HR',
-        message: `${request.applicant?.name ?? 'An employee'} requested ${venue}, ${when}: ${request.purpose}`,
+        title: 'Activity awaiting HR',
+        message: `${request.applicant?.name ?? 'An employee'} requested ${slot}: ${request.purpose}`,
         reference_id: request.id,
         sender_id: senderId,
       });
@@ -491,30 +521,17 @@ export const meetingRequestService = {
       recipient_id: request.applicant_id,
       sender_id: senderId,
       type: 'MEETING_REQUEST_DECISION',
-      title: `Meeting Request ${MEETING_STATUS_LABEL[result.to_status]?.toLowerCase() ?? 'updated'}`,
-      message: `${actorName} ${verb} your Meeting Request for ${venue}, ${when}.${withNote}`,
+      title: `Activity ${MEETING_STATUS_LABEL[result.to_status]?.toLowerCase() ?? 'updated'}`,
+      message: `${actorName} ${verb} your Activity for ${slot}.${withNote}`,
       reference_id: request.id,
     });
 
-    if (result.to_status === MEETING_STATUS.APPROVED) {
-      const invited = new Set([request.facilitator_id, ...(request.participants ?? []).map((p) => p.employee_id)]);
-      invited.delete(request.applicant_id);
-      for (const recipient_id of invited) {
-        await notificationService.createNotification({
-          recipient_id,
-          sender_id: senderId,
-          type: 'MEETING_APPROVED',
-          title: 'Meeting approved',
-          message: `${venue}, ${when}: ${request.purpose}`,
-          reference_id: request.id,
-        });
-      }
-    }
+    if (result.to_status === MEETING_STATUS.APPROVED) await this.notifyApproved(request, slot, senderId);
 
     await this.mirrorEvent({
       request,
       action: result.action,
-      content: `${actorName} ${verb} the Meeting Request for ${venue}, ${when}.${withNote}`,
+      content: `${actorName} ${verb} the Activity for ${slot}.${withNote}`,
       authorId: senderId,
       metadata: { event: `MEETING_REQUEST_${result.action}`, from: result.from_status, to: result.to_status, note: note || null },
     });

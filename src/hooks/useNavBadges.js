@@ -59,7 +59,7 @@ export function useNavBadges(user) {
   });
   const leaveApprovals = isSuperAdmin || isHead || isHr ? pendingHeadApprovals.length : 0;
 
-  // 2b. Meeting Requests waiting on HR (#748): only HR / Super Admin decide them.
+  // 2b. Activities waiting on HR (#748): only HR / Super Admin decide them.
   const canSeeMeetings = isSuperAdmin || isHr;
   const { data: pendingMeetings = [] } = useQuery({
     queryKey: ["meeting-requests", "nav-badge", user?.id, isHr, isSuperAdmin],

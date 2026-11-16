@@ -13,14 +13,14 @@ import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
 import { employeeService } from '@/services/employeeService';
-import { MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue } from '@/services/meetingRequestService';
+import { ACTIVITY_TYPE, ACTIVITY_TYPE_LABEL, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue } from '@/services/meetingRequestService';
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
 import { manilaDate, manilaToday, manilaTime } from '@/lib/manilaDate.js';
 import { TIME_OPTIONS, draftProblem, manilaInstant } from './meetingDraft.js';
 import { clashMessage, findClash, softWarnings, venueMeetings } from './meetingPreview.js';
 
 /**
- * The Meeting Request form (#619). Mounted only while open, so it starts blank each time.
+ * The Activity form (#619, #1055). Mounted only while open, so it starts blank each time.
  * The database refuses a clash; this form only asks and shows what the service says.
  */
 export default function MeetingRequestDialog({ open, onClose, initial, editing = null, resend = false }) {
@@ -66,13 +66,14 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const queryClient = useQueryClient();
   useMeetingRealtime();
 
+  const [activityType, setActivityType] = useState(editing?.activity_type ?? ACTIVITY_TYPE.MEETING);
   const [meetingType, setMeetingType] = useState(editing?.meeting_type ?? MEETING_TYPE.ONSITE);
   const [meetingLink, setMeetingLink] = useState(editing?.meeting_link ?? '');
   const [venuePick, setVenueId] = useState(editing?.venue_id ?? initial.venueId ?? '');
   const [date, setDate] = useState(() => (editing ? manilaDate(editing.starts_at) : (initial.date ?? manilaToday())));
   const [start, setStart] = useState(editing ? manilaTime(editing.starts_at) : (initial.start ?? '09:00'));
   const [end, setEnd] = useState(editing ? manilaTime(editing.ends_at) : (initial.end ?? '10:00'));
-  const [facilitatorPick, setFacilitatorId] = useState(editing?.facilitator_id ?? '');
+  const [facilitatorPick, setFacilitatorId] = useState(editing?.facilitator_id ?? '');  // the Lead
   const [participants, setParticipants] = useState(() =>
     (editing?.participants ?? []).map((p) => ({ type: SELECTOR_TYPES.EMPLOYEE, id: p.employee_id })),
   );
@@ -83,7 +84,13 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
 
   const { data: venues = [] } = useQuery({ queryKey: ['calendar-venues'], queryFn: () => meetingRequestService.listVenues() });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => employeeService.getAllEmployees() });
-  const heads = useMemo(() => employees.filter((e) => e.isHead).sort((a, b) => a.name.localeCompare(b.name)), [employees]);
+  const people = useMemo(() => [...employees].sort((a, b) => a.name.localeCompare(b.name)), [employees]);
+  const viewerIsHead = Boolean(user?.is_head || user?.isHead);
+  // Only a department head files an Event; the database refuses anyone else.
+  const typeOptions = Object.values(ACTIVITY_TYPE)
+    .filter((t) => t !== ACTIVITY_TYPE.EVENT || viewerIsHead || editing?.activity_type === ACTIVITY_TYPE.EVENT)
+    .map((t) => ({ value: t, label: ACTIVITY_TYPE_LABEL[t] }));
+  const isMeeting = activityType === ACTIVITY_TYPE.MEETING;
 
   const { data: lastPicks } = useQuery({
     queryKey: ['meeting-last-picks', user?.id],
@@ -91,8 +98,9 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
     enabled: Boolean(user?.id),
   });
   // Remembered picks fill in until the applicant chooses something else.
-  const venueId = !needsVenue(meetingType) ? '' : venuePick || (venues.some((v) => v.id === lastPicks?.venueId) ? lastPicks.venueId : '');
-  const facilitatorId = facilitatorPick || (heads.some((h) => h.id === lastPicks?.facilitatorId) ? lastPicks.facilitatorId : '');
+  const venueId = !isMeeting || !needsVenue(meetingType) ? '' : venuePick || (venues.some((v) => v.id === lastPicks?.venueId) ? lastPicks.venueId : '');
+  // The Lead defaults to the person filing; anyone can be picked instead.
+  const facilitatorId = facilitatorPick || user?.id || '';
 
   const { data: dayAll = [] } = useQuery({
     queryKey: ['meeting-requests', 'venue-day', date],
@@ -101,24 +109,22 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   });
   // Editing: the request's own slot is not a clash with itself.
   const dayEntries = useMemo(() => (editing ? dayAll.filter((e) => e.id !== editing.id) : dayAll), [dayAll, editing]);
-  const venueName = !needsVenue(meetingType) ? undefined : venues.find((v) => v.id === venueId)?.name;
+  const venueName = !isMeeting || !needsVenue(meetingType) ? undefined : venues.find((v) => v.id === venueId)?.name;
   const startsAt = manilaInstant(date, start);
   const endsAt = manilaInstant(date, end);
   const windowOk = Boolean(date) && end > start;
   const clash = venueName && windowOk ? findClash(dayEntries, venueName, startsAt, endsAt) : null;
   const participantIds = participants.filter((p) => p.type === SELECTOR_TYPES.EMPLOYEE).map((p) => p.id);
   const pickedIds = [facilitatorId, ...participantIds];
-  const warnings =
-    venueName && windowOk
-      ? softWarnings(dayEntries, {
-          people: employees.filter((e) => pickedIds.includes(e.id)).map((e) => ({ id: e.id, name: e.name })),
-          venueName,
-          startsAt,
-          endsAt,
-        })
-      : [];
+  const warnings = windowOk
+    ? softWarnings(dayEntries, {
+        people: employees.filter((e) => pickedIds.includes(e.id)).map((e) => ({ id: e.id, name: e.name })),
+        startsAt,
+        endsAt,
+      })
+    : [];
 
-  const problem = clash ? clashMessage(clash) : draftProblem({ meetingType, meetingLink, venueId, date, start, end, facilitatorId, purpose, guests });
+  const problem = clash ? clashMessage(clash) : draftProblem({ activityType, meetingType, meetingLink, venueId, date, start, end, facilitatorId, purpose, guests });
 
   const addGuest = () => {
     const name = guestDraft.trim();
@@ -132,6 +138,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       if (editing) {
         const saved = await meetingRequestService.editRequest({
           requestId: editing.id,
+          activityType,
           meetingType,
           meetingLink,
           venueId,
@@ -147,6 +154,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         return saved;
       }
       return meetingRequestService.fileRequest({
+        activityType,
         meetingType,
         meetingLink,
         venueId,
@@ -160,7 +168,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       });
     },
     onSuccess: () => {
-      toast.success(editing ? (resend ? 'Meeting Request sent again.' : 'Meeting Request updated.') : 'Meeting Request filed.');
+      toast.success(editing ? (resend ? 'Activity sent again.' : 'Activity updated.') : 'Activity filed.');
       queryClient.invalidateQueries({ queryKey: ['calendar-entries'] });
       queryClient.invalidateQueries({ queryKey: ['meeting-requests'] });
       onClose(true);
@@ -172,8 +180,8 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
     <ModalShell
       open
       onOpenChange={(next) => !next && onClose()}
-      crumbs={['Calendar', editing ? 'Edit Meeting Request' : 'New Meeting Request']}
-      title={editing ? 'Edit Meeting Request' : 'New Meeting Request'}
+      crumbs={['Calendar', editing ? 'Edit Activity' : 'New Activity']}
+      title={editing ? 'Edit Activity' : 'New Activity'}
       actions={
         <Button disabled={Boolean(problem) || mutation.isPending} onClick={() => mutation.mutate()}>
           {mutation.isPending ? 'Sending…' : resend ? 'Send again' : editing ? 'Save changes' : 'Send request'}
@@ -182,15 +190,21 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <FieldBox label="Meeting type" className="mb-1.5 block" />
-          <SelectField
-            value={meetingType}
-            onChange={setMeetingType}
-            options={Object.values(MEETING_TYPE).map((t) => ({ value: t, label: MEETING_TYPE_LABEL[t] }))}
-            className="w-full"
-          />
+          <FieldBox label="Activity type" className="mb-1.5 block" />
+          <SelectField value={activityType} onChange={setActivityType} options={typeOptions} className="w-full" />
         </div>
-        {needsVenue(meetingType) && (
+        {isMeeting && (
+          <div className="sm:col-span-2">
+            <FieldBox label="Meeting type" className="mb-1.5 block" />
+            <SelectField
+              value={meetingType}
+              onChange={setMeetingType}
+              options={Object.values(MEETING_TYPE).map((t) => ({ value: t, label: MEETING_TYPE_LABEL[t] }))}
+              className="w-full"
+            />
+          </div>
+        )}
+        {isMeeting && needsVenue(meetingType) && (
           <div>
             <FieldBox label="Venue" className="mb-1.5 block" />
             <SelectField
@@ -202,7 +216,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             />
           </div>
         )}
-        {needsLink(meetingType) && (
+        {isMeeting && needsLink(meetingType) && (
           <div className={needsVenue(meetingType) ? '' : 'sm:col-span-2'}>
             <FieldBox label="Meeting link" className="mb-1.5 block" />
             <Input
@@ -230,12 +244,12 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           </div>
         </div>
         <div className="sm:col-span-2">
-          <FieldBox label="Facilitator" className="mb-1.5 block" />
+          <FieldBox label="Lead" className="mb-1.5 block" />
           <SelectField
             value={facilitatorId || null}
             onChange={setFacilitatorId}
-            options={heads.map((h) => ({ value: h.id, label: h.name }))}
-            placeholder="Select a department head..."
+            options={people.map((h) => ({ value: h.id, label: h.name }))}
+            placeholder="Select the Lead..."
             className="w-full"
           />
         </div>
@@ -298,7 +312,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         </div>
         <div className="sm:col-span-2">
           <FieldBox label="Purpose" className="mb-1.5 block" />
-          <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} placeholder="What is the meeting for?" />
+          <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} placeholder="What is the Activity for?" />
         </div>
       </div>
       {warnings.length > 0 && (
@@ -306,7 +320,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           {warnings.map((w) => (
             <li key={w}>{w}</li>
           ))}
-          <li className="text-muted-foreground">You can still send the request.</li>
+          <li className="text-muted-foreground">You can still send it.</li>
         </ul>
       )}
       {problem && date && <p className="text-xs text-muted-foreground">{problem}</p>}

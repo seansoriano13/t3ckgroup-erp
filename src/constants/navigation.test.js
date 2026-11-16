@@ -150,7 +150,7 @@ describe("navigation registry", () => {
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
         "Task Approvals",
         "Time Off & Overtime",
-        "Meeting Requests",
+        "Activities",
       ]);
     });
 
@@ -177,7 +177,7 @@ describe("navigation registry", () => {
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
         "Task Approvals",
         "Time Off & Overtime",
-        "Meeting Requests",
+        "Activities",
       ]);
 
       // The Administration copy of this link is Super Admin-only (#105) — HR
@@ -365,7 +365,7 @@ describe("navigation registry", () => {
           ?.links.map((l) => l.label) ?? [];
 
       expect(links({ isIpasApprover: true })).toEqual(["IPAS Sign-offs"]);
-      expect(links({ isIpasApprover: true, isHr: true })).toEqual(["Task Approvals", "Time Off & Overtime", "Meeting Requests", "IPAS Sign-offs"]);
+      expect(links({ isIpasApprover: true, isHr: true })).toEqual(["Task Approvals", "Time Off & Overtime", "Activities", "IPAS Sign-offs"]);
       expect(links({ isIpasApprover: true, isHead: true })).toContain("IPAS Sign-offs");
       expect(links({ isSuperAdmin: true })).not.toContain("IPAS Sign-offs");
       expect(links({ isIpasSigner: true })).not.toContain("IPAS Sign-offs");
@@ -505,7 +505,7 @@ describe("navigation registry", () => {
       expect(actions[0].category).toBe("Personal");
       expect(actions[0].items.map((i) => i.label)).toEqual([
         "File Time Off / Overtime",
-        "New Meeting Request",
+        "New Activity",
       ]);
       expect(actions[1].category).toBe("Operations");
       expect(actions[1].items.map((i) => i.label)).toEqual(["New Purchase Request"]);

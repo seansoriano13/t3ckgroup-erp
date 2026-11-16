@@ -2,10 +2,10 @@ import { formatEntryDate, formatEntryTime } from './entryFormat.js';
 import { ExternalLink } from '@/components/ui/external-link';
 import { SlideOverBody } from '@/components/ui/SlideOver';
 import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailParts';
-import { MEETING_STATUS_LABEL, MEETING_TYPE_LABEL, guestList, guestText, safeLink } from '@/services/meetingRequestService';
+import { ACTIVITY_TYPE_LABEL, MEETING_STATUS_LABEL, MEETING_TYPE_LABEL, guestList, guestText, safeLink } from '@/services/meetingRequestService';
 import MeetingActions from './MeetingActions.jsx';
 
-/** Meeting details are visible to everyone: Venue, Facilitator, Participants, Guests, purpose and stage. */
+/** Meeting details are visible to everyone: Venue, Lead, Participants, Guests, purpose and stage. */
 export default function MeetingDetail({ entry }) {
   const person = entry.employee ?? {};
   const d = entry.details ?? {};
@@ -16,10 +16,11 @@ export default function MeetingDetail({ entry }) {
       <DetailSection title="Requested by">
         <PersonChip person={{ id: person.id, name: person.name, dept: person.department, avatarPath: person.avatar }} />
       </DetailSection>
-      <DetailSection title="Meeting">
+      <DetailSection title="Activity">
         <dl>
+          {d.activity_type && <DetailRow label="Activity type">{ACTIVITY_TYPE_LABEL[d.activity_type] ?? d.activity_type}</DetailRow>}
           <DetailRow label="Purpose">{d.purpose}</DetailRow>
-          {d.meeting_type && <DetailRow label="Type">{MEETING_TYPE_LABEL[d.meeting_type] ?? d.meeting_type}</DetailRow>}
+          {d.meeting_type && <DetailRow label="Meeting type">{MEETING_TYPE_LABEL[d.meeting_type] ?? d.meeting_type}</DetailRow>}
           {(d.venue ?? entry.venue) && <DetailRow label="Venue">{d.venue ?? entry.venue}</DetailRow>}
           {d.meeting_link && (
             <DetailRow label="Meeting link">
@@ -35,7 +36,7 @@ export default function MeetingDetail({ entry }) {
           <DetailRow label="Date">{formatEntryDate(entry)}</DetailRow>
           <DetailRow label="Time">{formatEntryTime(entry)}</DetailRow>
           <DetailRow label="Stage">{MEETING_STATUS_LABEL[d.stage] ?? d.stage}</DetailRow>
-          <DetailRow label="Facilitator">{d.facilitator?.name}</DetailRow>
+          <DetailRow label="Lead">{d.facilitator?.name}</DetailRow>
           <DetailRow label="Participants">{participants.length ? participants.map((p) => p.name).join(', ') : 'None'}</DetailRow>
           <DetailRow label="Guests">{guests.length ? guests.map(guestText).join(', ') : 'None'}</DetailRow>
         </dl>

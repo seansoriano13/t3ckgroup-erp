@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ExternalLink } from "@/components/ui/external-link";
-import { MEETING_TYPE_LABEL, guestList, guestText, safeLink } from "@/services/meetingRequestService";
+import { ACTIVITY_TYPE_LABEL, MEETING_TYPE_LABEL, guestList, guestText, safeLink } from "@/services/meetingRequestService";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ApprovalChain, DetailRow, DetailSection, NotePresets, PersonChip } from "@/components/ui/DetailParts";
@@ -21,7 +21,7 @@ const EVENT_LABEL = {
 };
 
 /**
- * Reviewing one Meeting Request (#624). `onDecide(item, decision, note)` with decision
+ * Reviewing one Activity (#624). `onDecide(item, decision, note)` with decision
  * APPROVE | DECLINE | RETURN (a note is required for the last two). HR is the only approver (#748).
  */
 export function MeetingReview({ item, onDecide, isSubmitting }) {
@@ -36,9 +36,10 @@ export function MeetingReview({ item, onDecide, isSubmitting }) {
       <SlideOverBody>
         <PersonChip person={item.person} size="lg" />
 
-        <DetailSection title="Meeting">
+        <DetailSection title="Activity">
           <dl className="divide-y divide-border/70">
-            <DetailRow label="Type">{MEETING_TYPE_LABEL[req.meeting_type] ?? "Onsite"}</DetailRow>
+            <DetailRow label="Activity type">{ACTIVITY_TYPE_LABEL[req.activity_type] ?? "Meeting"}</DetailRow>
+            {req.meeting_type && <DetailRow label="Meeting type">{MEETING_TYPE_LABEL[req.meeting_type] ?? "Onsite"}</DetailRow>}
             {req.venue?.name && <DetailRow label="Venue">{req.venue.name}</DetailRow>}
             {req.meeting_link && (
               <DetailRow label="Meeting link">
@@ -52,7 +53,7 @@ export function MeetingReview({ item, onDecide, isSubmitting }) {
               </DetailRow>
             )}
             <DetailRow label="When">{`${formatManilaDateTime(req.starts_at)} to ${manilaTime(req.ends_at)}`}</DetailRow>
-            <DetailRow label="Facilitator">{req.facilitator?.name}</DetailRow>
+            <DetailRow label="Lead">{req.facilitator?.name}</DetailRow>
             <DetailRow label="Participants">{people.length ? people.join(", ") : "None"}</DetailRow>
             <DetailRow label="Guests">{guests.length ? guests.map(guestText).join(", ") : "None"}</DetailRow>
             <DetailRow label="Purpose">{req.purpose}</DetailRow>

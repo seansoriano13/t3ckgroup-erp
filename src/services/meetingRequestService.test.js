@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { meetingRequestService } from "./meetingRequestService"
+import { meetingRequestService, needsHr } from "./meetingRequestService"
 import { db, insertRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { stubRpc } from "@/test/msw/server"
@@ -20,7 +20,6 @@ describe("meetingRequestService.fileRequest", () => {
   const stubFiling = ({ clash = false } = {}) =>
     stubRpc("file_meeting_request", (body) => {
       if (clash) throw pgrstError("23P01", "conflicting key value violates exclusion constraint", { status: 409 })
-      const isHead = Boolean(applicant.is_head)
       const row = insertRow("meeting_requests", {
         applicant_id: applicant.id,
         venue_id: body.p_venue_id,
@@ -29,8 +28,10 @@ describe("meetingRequestService.fileRequest", () => {
         facilitator_id: body.p_facilitator_id,
         purpose: body.p_purpose,
         guests: body.p_guests,
-        status: isHead ? "PENDING_HR" : "PENDING_HEAD",
-        head_id: isHead ? null : body.p_head_id,
+        activity_type: body.p_activity_type,
+        meeting_type: body.p_meeting_type,
+        status: needsHr(body.p_activity_type, body.p_venue_id) ? "PENDING_HR" : "APPROVED",
+        head_id: null,
       })
       for (const employee_id of body.p_participant_ids) insertRow("meeting_request_participants", { request_id: row.id, employee_id })
       insertRow("meeting_request_events", { request_id: row.id, actor_id: applicant.id, action: "FILED", to_status: row.status })
@@ -61,34 +62,50 @@ describe("meetingRequestService.fileRequest", () => {
     stubFiling()
     const request = await meetingRequestService.fileRequest(input())
 
-    expect(request).toMatchObject({ status: "PENDING_HEAD", purpose: "Quarterly planning", guests: ["Mr. Visitor"], head_id: head.id })
+    expect(request).toMatchObject({ status: "PENDING_HR", activity_type: "MEETING", purpose: "Quarterly planning", guests: ["Mr. Visitor"], head_id: null })
     expect(db.rows("meeting_request_participants").map((p) => p.employee_id)).toEqual([participant.id])
     expect(db.rows("meeting_request_events")).toHaveLength(1)
     expect(request.events).toHaveLength(1)
   })
 
-  it("writes a MEETING_REQUEST audit line and notifies the routed head", async () => {
+  it("writes a MEETING_REQUEST audit line and tells HR about a room Meeting", async () => {
     stubFiling()
     const request = await meetingRequestService.fileRequest(input())
     await waitForNetworkIdle()
 
     const audit = db.rows("system_audit_logs").find((e) => e.entity_type === "MEETING_REQUEST")
     expect(audit).toMatchObject({ entity_id: request.id, author_id: applicant.id })
-    const told = db.rows("notifications").filter((n) => n.type === "MEETING_REQUEST")
-    expect(told.map((n) => n.recipient_id)).toEqual([head.id])
-  })
-
-  it("sends a head applicant's request to HR, not to a head", async () => {
-    applicant = makeHead({ name: "Other Head" })
-    stubFiling()
-    const request = await meetingRequestService.fileRequest({ ...input(), headId: null, applicant })
-    await waitForNetworkIdle()
-
-    expect(request.status).toBe("PENDING_HR")
     const hrIds = db.rows("employees").filter((e) => e.is_hr).map((e) => e.id)
     const told = db.rows("notifications").filter((n) => n.type === "MEETING_REQUEST").map((n) => n.recipient_id)
     expect(told).toEqual(expect.arrayContaining(hrIds))
-    expect(told).not.toContain(head.id)
+    expect(db.rows("notifications").filter((n) => n.type === "MEETING_APPROVED")).toHaveLength(0)
+  })
+
+  it("approves a task at once and tells the Lead and Participants, not HR", async () => {
+    stubFiling()
+    const request = await meetingRequestService.fileRequest({ ...input(), activityType: "ADMIN_TASK", venueId: null })
+    await waitForNetworkIdle()
+
+    expect(request).toMatchObject({ status: "APPROVED", activity_type: "ADMIN_TASK", venue_id: null, meeting_type: null })
+    const told = db.rows("notifications").filter((n) => n.type === "MEETING_APPROVED").map((n) => n.recipient_id)
+    expect(told.sort()).toEqual([head.id, participant.id].sort())
+    expect(db.rows("notifications").filter((n) => n.type === "MEETING_REQUEST")).toHaveLength(0)
+  })
+
+  it("does not tell the person filing when they are also the Lead", async () => {
+    stubFiling()
+    await meetingRequestService.fileRequest({ ...input(), activityType: "OPERATIONS_TASK", venueId: null, facilitatorId: applicant.id })
+    await waitForNetworkIdle()
+
+    const told = db.rows("notifications").filter((n) => n.type === "MEETING_APPROVED").map((n) => n.recipient_id)
+    expect(told).toEqual([participant.id])
+  })
+
+  it("sends a Meeting-only field only for a Meeting", async () => {
+    stubFiling()
+    await meetingRequestService.fileRequest({ ...input(), activityType: "EVENT", meetingType: "HYBRID", meetingLink: "https://x.test/a" })
+    const [row] = db.rows("meeting_requests")
+    expect(row).toMatchObject({ activity_type: "EVENT", venue_id: null, meeting_type: null })
   })
 
   it("turns a clash into a plain message naming the request that holds the slot", async () => {
