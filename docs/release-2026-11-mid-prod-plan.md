@@ -6,7 +6,7 @@ The second November release: everything on `staging` after the 2026-11-12 releas
 
 - **Web:** about 100 commits. The new screens need the new database, so the database goes first.
 - **Database:** 19 migrations.
-  - `20261201125000_676_status_words_on_prod` first. **Prod never got the Requested Item status words (#676).** Its ledger holds `20261104120000` for `group_task_reopen`, applied there before that file was renumbered, so `requested_item_new_status_words` (now at that version) counted as applied and never ran. Prod's lines still say `requested`, `canvassing`, `ordered`, with the old CHECK, while the web app has used the new words since 2026-11-12. This migration makes #676's change, and changes nothing where #676 ran.
+  - `20261216080000_676_status_words_on_prod`, right after the 17. **Prod never got the Requested Item status words (#676).** Its ledger holds `20261104120000` for `group_task_reopen`, applied there before that file was renumbered, so `requested_item_new_status_words` (now at that version) counted as applied and never ran. Prod's lines still say `requested`, `canvassing`, `ordered`, with the old CHECK, while the web app has used the new words since 2026-11-12. This migration makes #676's change, and changes nothing where #676 ran.
   - The 17 from staging, `20261201130000_960_…` to `20261211100000_1042_…`.
   - `20261216090000_unsend_uses_employee_id`: unsend compares the author with the employee id. It was on the staging database already, applied by hand.
 - **Edge function:** `odoo-costing-costs` changed (#961: it now reads Odoo's selling price). Prod edge functions deploy by hand only. **Without this step the Odoo SRP column and Final Acquire stay blank on every S0 Evaluation, with no error.**

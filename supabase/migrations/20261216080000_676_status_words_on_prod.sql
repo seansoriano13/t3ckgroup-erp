@@ -4,7 +4,9 @@
 -- Requested Items still carry the old words and the old CHECK, while the web app has used the new
 -- words since the 2026-11-12 release. Found on 2026-11-16; pnpm db:function-diff now catches this.
 --
--- It sorts before the release's Canvass migrations (967 on), which are written for the new words.
+-- It runs after the release's Canvass migrations (967 on). Those read a status only inside
+-- functions, which already use the new words, never while migrating, so the order does not matter
+-- to them; a new migration has to sort after staging's tip. The rehearsal checks the result.
 -- Where #676 already ran (staging, local, CI) every step changes nothing:
 --   1. rows, default and CHECK, as #676;
 --   2. the status events in a Purchase Request's chat, as #676;

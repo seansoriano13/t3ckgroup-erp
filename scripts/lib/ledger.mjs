@@ -7,7 +7,7 @@ const MIGRATION_FILE_RE = /^\d{14}_.*\.sql$/;
 // with. A misnamed row means the file at that version may never have run: the ledger counts it as
 // applied because the version matches. 20261104120000: prod applied group_task_reopen under it
 // before that file was renumbered to 20261105060000, so requested_item_new_status_words never ran
-// on prod; 20261201125000_676_status_words_on_prod makes its change there.
+// on prod; 20261216080000_676_status_words_on_prod makes its change there.
 export const KNOWN_MISNAMED = new Map([["20261104120000", "group_task_reopen"]]);
 
 /**
