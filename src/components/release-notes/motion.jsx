@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ArrowLeftRight, Check, MousePointer2, Play, RotateCcw } from "lucide-react"
+import { ArrowLeftRight, ArrowRight, Check, MousePointer2, Play, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import StatusBadge from "../StatusBadge"
@@ -141,6 +141,30 @@ export function Highlights({ items }) {
         >
           <p className="text-sm font-semibold text-foreground">{item.title}</p>
           <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{item.text}</p>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+const RENAME_TIMES = [1300, 3400]
+
+/** Old names and places struck through, then the new ones arriving beside them. `pairs` is [[old, new], …]. */
+export function Renames({ pairs }) {
+  const [ref, phase] = useScene(RENAME_TIMES)
+  const now = phase >= 1
+  return (
+    <ul ref={ref} className="min-w-0 space-y-2">
+      {pairs.map(([before, after], i) => (
+        <li key={before} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm">
+          <span className={cn("text-muted-foreground transition-all duration-500", now && "line-through decoration-red-9/70")}>{before}</span>
+          <ArrowRight size={14} aria-hidden="true" className={cn("text-muted-foreground transition-opacity duration-500", now ? "opacity-100" : "opacity-0")} />
+          <span
+            className="font-semibold text-foreground transition-all duration-500 ease-out-expo"
+            style={{ opacity: now ? 1 : 0, transform: now ? "none" : "translateX(-6px)", transitionDelay: `${i * 120}ms` }}
+          >
+            {after}
+          </span>
         </li>
       ))}
     </ul>

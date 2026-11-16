@@ -91,7 +91,7 @@ describe("Release Notes content", () => {
         expect(SCENES[item.scene]?.Before, item.id).toBeTypeOf("function")
         expect(SCENES[item.scene]?.After, item.id).toBeTypeOf("function")
       }
-      if (item.kind === "change") expect(Boolean(item.scene || item.flow || item.highlights), item.id).toBe(true)
+      if (item.kind === "change") expect(Boolean(item.scene || item.flow || item.highlights || item.renames || item.sample), item.id).toBe(true)
     }
   })
 

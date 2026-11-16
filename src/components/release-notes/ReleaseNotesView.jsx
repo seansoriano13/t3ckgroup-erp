@@ -7,7 +7,7 @@ import SectionHeader from "@/components/ui/SectionHeader"
 import { cn } from "@/lib/utils"
 import StatusBadge from "../StatusBadge"
 import SampleProvider from "./SampleProvider"
-import { BeforeAfter, ChangeScene, Flow, Highlights } from "./motion"
+import { BeforeAfter, ChangeScene, Flow, Highlights, Renames } from "./motion"
 import { SAMPLES, SAMPLE_MODE, SCENES } from "./sampleRegistry"
 
 /**
@@ -129,6 +129,13 @@ function ItemVisual({ item }) {
     return (
       <ChangeScene>
         <Flow steps={item.flow} />
+      </ChangeScene>
+    )
+  }
+  if (item.renames) {
+    return (
+      <ChangeScene>
+        <Renames pairs={item.renames} />
       </ChangeScene>
     )
   }
