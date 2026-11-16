@@ -1,127 +1,29 @@
-import toast from "react-hot-toast"
+import { useState } from "react"
+import { ExternalLink, Lock, X } from "lucide-react"
 import { SampleAuthProvider } from "@/context/AuthContext"
-import BidDecisionPanel from "../costing/BidDecisionPanel"
-import IpasPaymentsTable from "../ipas/IpasPaymentsTable"
-import IpasSorSection from "../ipas/IpasSorSection"
-import { ipasSorSummariesKey } from "../ipas/ipasKeys"
-import { COSTING_TIER } from "../../constants/costing"
+import { Button } from "@/components/ui/button"
+import BetaTag from "@/components/ui/BetaTag"
+import { cn } from "@/lib/utils"
 import CanvassGrid from "../purchase-request/CanvassGrid"
 import { canvassKeys, purchaseRequestKeys } from "../purchase-request/queryKeys"
-import SampleProvider, { SAMPLE_SAVE_BLOCKED } from "./SampleProvider"
-import { PEOPLE, isoDate } from "./sampleData"
+import StatusBadge from "../StatusBadge"
+import SampleProvider from "./SampleProvider"
+import { Lines, MockWindow } from "./motion"
+import { useScene } from "./useScene"
+import { isoDate } from "./sampleData"
 
 /**
- * The Purchasing (Beta) tab's samples: the app's own components fed Sample
- * Data. A sample here passes its own `writes`, so a decision never reaches
- * the service the real screen calls.
+ * The Purchasing (Beta) tab: the request's Canvass grid (the real component fed Sample Data), the
+ * PMS file on its own page, and drawn scenes of the Canvasses page and the printed Canvass.
  * Throwaway (ADR 0030, 2026-11 amendment): if one breaks, delete it.
  */
-
-const blocked = () => toast(SAMPLE_SAVE_BLOCKED, { id: "sample-save-blocked" })
-
-// What a real screen passes to save; here every save stops at the toast.
-const WRITES = { run: blocked, busy: false, notice: null }
 
 // Signed in as a made-up salesperson, so no screen here is the viewer's own.
 const VIEWER = { id: "sample-viewer", name: "Sample Viewer", department: "SALES" }
 
-const BID_MATRIX = {
-  matrixId: "sample-matrix",
-  tier: COSTING_TIER.CLOSED_BOOK,
-  bidDecision: null,
-  bidDecisionHistory: [],
-  canDecideLoss: true,
-  evaluation: { approved: true },
-  tenderLines: [
-    { id: "tl-1", number: "1", tender_specification: "Demo rugged handheld radio", quantity: 20, abc_unit: 50000, final_offer_unit: 45000 },
-    { id: "tl-2", number: "2", tender_specification: "Demo radio base station", quantity: 2, abc_unit: 250000, final_offer_unit: 225000 },
-  ],
-  totals: { missingOffer: 0, finalOfferTotal: 1350000, abcTotal: 1500000 },
-  summary: { revenue: 210000, landedCost: 1080000, itr: 60000 },
-}
+/* ------------------------------------------------------------------ the Canvass grid */
 
-export function BidDecisionSample() {
-  return (
-    <div className="max-w-2xl">
-      <BidDecisionPanel matrix={BID_MATRIX} writes={WRITES} nameOf={() => PEOPLE.mark.name} />
-    </div>
-  )
-}
-
-const payment = (id, kind, daysFromToday, amount, rate, method, extra = {}) => ({
-  id,
-  kind,
-  paid_on: isoDate(daysFromToday),
-  methodLabel: method,
-  amount,
-  forex_rate: rate,
-  rate,
-  check_no: null,
-  charge_fee_php: 0,
-  bank_charge_php: 0,
-  doc_stamp_php: 0,
-  misc_fee_php: 0,
-  proof_url: null,
-  paid_before_approval: false,
-  ...extra,
-})
-
-const IPAS = {
-  currency: "USD",
-  payments: [
-    payment("pay-1", "down_payment", -20, 3000, 58.4, "Telegraphic transfer", { bank_charge_php: 1500 }),
-    payment("pay-2", "full_payment", -4, 7000, 58.9, "Telegraphic transfer", { bank_charge_php: 1500, doc_stamp_php: 300 }),
-    payment("pay-3", "shipping_fee", -2, 450, 58.9, "Check", { check_no: "000123" }),
-  ],
-}
-
-export function IpasPaymentsSample() {
-  return <IpasPaymentsTable ipas={IPAS} />
-}
-
-const SUMMARIES = [
-  {
-    id: "sample-ipas-1",
-    number: "TGIPAS-0001",
-    state: "open",
-    poNumber: "P00001",
-    supplier: "Demo Radio Supplies Co.",
-    purpose: "project",
-    nextThing: "Delivered — waiting on the supplier",
-    nextList: null,
-    owner: "purchasing",
-    daysWaiting: 6,
-    late: true,
-    trackDone: 3,
-    trackTotal: 6,
-    buyerTrack: [
-      { key: "purchase_order", label: "Purchase Order", ticked: true },
-      { key: "with_pop", label: "With P.O.P", ticked: true },
-      { key: "import_clearance", label: "Import Clearance", ticked: true },
-      { key: "delivered", label: "Delivered", partial: true },
-      { key: "actual_checking", label: "Actual Checking" },
-      { key: "create_bill", label: "Create Bill" },
-    ],
-    computationLabel: "Encoded",
-    landedCost: null,
-    signoffs: [
-      { section: 1, name: "Order", steps: [{ label: "Submitted", done: true }, { label: "Approved", done: true }] },
-      { section: 3, name: "Payments", steps: [{ label: "Submitted", done: true }, { label: "Approved", done: false }] },
-    ],
-  },
-]
-
-export function PmsIpasSample() {
-  return (
-    <SampleProvider seed={[[ipasSorSummariesKey("sample-pms-sor"), SUMMARIES]]}>
-      <SampleAuthProvider user={VIEWER}>
-        <IpasSorSection opportunityId="sample-pms-sor" />
-      </SampleAuthProvider>
-    </SampleProvider>
-  )
-}
-
-// The request’s Canvass (ADR 0053): two lines down, three suppliers across, one with a winner.
+// The request's Canvass (ADR 0053): two lines down, three suppliers across, one with a winner.
 // The viewer is on the Sales side, so the grid is the plain read of it, with no edit controls.
 const CANVASS_REQUEST = { id: "sample-canvass-request", title: "Demo rescue gear", opportunity_id: null }
 const CANVASS_ITEMS = [
@@ -170,3 +72,161 @@ export function CanvassGridSample() {
     </SampleProvider>
   )
 }
+
+/* ------------------------------------------------------------------ the PMS file on its own page */
+
+const PMS_SECTIONS = [
+  ["S0 Evaluation", "Go · locked"],
+  ["Purchase Request", "Demo radio network · 3 lines"],
+  ["IPAS", "TGIPAS-0001 · open"],
+  ["Transmittals", "TG03-0007 · waiting for Check by"],
+  ["Packing Lists", "1 box packed"],
+]
+
+export function PmsPageDemo() {
+  const [own, setOwn] = useState(false)
+  const address = own ? "t3ckgroup-erp.online/purchasing/pms/SOR-0412" : "t3ckgroup-erp.online/sors?open=sor:SOR-0412&view=pms"
+  return (
+    <div className="max-w-2xl space-y-3">
+      <MockWindow address={address}>
+        <div className={cn("space-y-3 transition-all duration-300", !own && "rounded-xl border border-border p-3 shadow-sm")}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="font-mono text-[11px] text-muted-foreground">SOR-0412 · S01234</div>
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                {own ? "PMS file" : "Demo radio network"}
+                <BetaTag />
+              </div>
+            </div>
+            {own ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => setOwn(false)}>
+                Open SOR
+              </Button>
+            ) : (
+              <Button type="button" variant="link" size="sm" onClick={() => setOwn(true)}>
+                Open on its own page <ExternalLink aria-hidden="true" />
+              </Button>
+            )}
+          </div>
+          {!own && (
+            <div className="flex gap-3 border-b border-border text-xs text-muted-foreground" aria-hidden="true">
+              <span className="pb-1.5">Summary</span>
+              <span className="pb-1.5">Products</span>
+              <span className="border-b-2 border-mauve-10 pb-1.5 font-semibold text-foreground">PMS</span>
+              <span className="pb-1.5">History</span>
+            </div>
+          )}
+          <ul key={String(own)} className="grid gap-2 sm:grid-cols-2">
+            {PMS_SECTIONS.map(([name, line], i) => (
+              <li key={name} className="animate-content-in rounded-lg border border-border bg-card px-3 py-2 text-xs" style={{ animationDelay: `${i * 60}ms` }}>
+                <div className="font-semibold">{name}</div>
+                <div className="text-muted-foreground">{line}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </MockWindow>
+      <p className="text-sm text-muted-foreground" aria-live="polite">
+        {own ? "The same sections, on a page of their own. Open SOR goes back to the SOR on its PMS tab." : "Inside the SOR window. Press Open on its own page."}
+      </p>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ the Canvasses page, one row per request */
+
+const LIST = [
+  { number: "CNV_0003", request: "Demo rescue gear", project: "SOR-0412", suppliers: 1, won: "0 of 2", status: "Needs suppliers", theme: "amber" },
+  { number: "CNV_0002", request: "Demo office radios", project: "Direct request", suppliers: 3, won: "1 of 4", status: "Needs winners", theme: "blue" },
+  { number: "CNV_0001", request: "Demo base stations", project: "SOR-0398", suppliers: 3, won: "3 of 3", status: "Winners picked", theme: "green", locked: true },
+]
+const ROW_TIMES = [500, 500, 500, 3200]
+const LIST_COLS = "grid grid-cols-[5.5rem_minmax(0,1fr)_6.5rem_4.5rem_4.5rem_9rem] gap-2"
+
+function CanvassesPageScene() {
+  const [ref, phase] = useScene(ROW_TIMES)
+  return (
+    <div ref={ref} aria-hidden="true" className="min-w-[40rem] max-w-3xl overflow-hidden rounded-xl border border-border bg-card text-xs">
+      <div className={cn(LIST_COLS, "border-b border-border bg-muted px-3 py-2 text-label font-bold tracking-wider text-muted-foreground uppercase")}>
+        <span>Canvass</span>
+        <span>Request</span>
+        <span>Project</span>
+        <span>Suppliers</span>
+        <span>Winners</span>
+        <span>Status</span>
+      </div>
+      {LIST.map((row, i) => (
+        <div
+          key={row.number}
+          className={cn(LIST_COLS, "items-center border-b border-border px-3 py-2.5 transition-all duration-500 ease-out-expo last:border-b-0", phase > i ? "opacity-100" : "translate-y-1 opacity-0")}
+        >
+          <span className="font-mono">{row.number}</span>
+          <span className="truncate">{row.request}</span>
+          <span className="truncate text-muted-foreground">{row.project}</span>
+          <span className="font-mono">{row.suppliers} of 3</span>
+          <span className="font-mono">{row.won}</span>
+          <span className="flex items-center gap-1.5">
+            <StatusBadge label={row.status} theme={row.theme} />
+            {row.locked && <Lock size={12} className="text-muted-foreground" />}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ the printed Canvass, three suppliers to a page */
+
+const PRINT_TIMES = [1400, 3200]
+const PRINT_LINES = ["1 · Radio", "2 · Antenna", "3 · Cable"]
+
+function PrintPage({ suppliers, n, of }) {
+  return (
+    <div className="w-56 shrink-0 space-y-2 rounded-md border border-border bg-background p-2.5 text-[9px] shadow-sm">
+      <div className="flex justify-between font-semibold">
+        <span>CANVASS · CNV_0002</span>
+        <span className="text-muted-foreground">
+          Page {n} of {of}
+        </span>
+      </div>
+      <div className="grid gap-1" style={{ gridTemplateColumns: `4.5rem repeat(${suppliers.length}, minmax(0,1fr))` }}>
+        <span className="font-semibold">Line</span>
+        {suppliers.map((s) => (
+          <span key={s} className="truncate font-semibold">{s}</span>
+        ))}
+        {PRINT_LINES.map((line, li) => (
+          <div key={line} className="contents">
+            <span className="truncate">{line}</span>
+            {suppliers.map((s, si) => (
+              <span key={s} className={cn("rounded px-0.5", li === si && "bg-green-a3 font-semibold")}>
+                {li === 2 && si === 1 ? "no quote" : "₱ ·····"}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+      <Lines n={2} />
+      <div className="pt-1 text-muted-foreground">Canvassed by ______</div>
+    </div>
+  )
+}
+
+function CanvassPrintScene() {
+  const [ref, phase] = useScene(PRINT_TIMES)
+  return (
+    <div ref={ref} aria-hidden="true" className="flex max-w-3xl gap-3 overflow-x-auto pb-1">
+      <PrintPage suppliers={["Supplier A", "Supplier B", "Supplier C"]} n={1} of={phase >= 1 ? 2 : 1} />
+      {phase >= 1 ? (
+        <div className="animate-content-in">
+          <PrintPage suppliers={["Supplier D", "Supplier E"]} n={2} of={2} />
+        </div>
+      ) : (
+        <div className="flex w-40 items-center text-xs text-muted-foreground">
+          <X size={14} className="mr-1" /> And a fourth supplier?
+        </div>
+      )}
+    </div>
+  )
+}
+
+export { CanvassesPageScene, CanvassPrintScene }
