@@ -61,10 +61,10 @@ echo "restored. ledger:"; scalar "select string_agg(version, ' ' order by versio
 # its row still needs it, same as runbook step 4.
 has() { scalar "select count(*) from supabase_migrations.schema_migrations where version='$1'"; }
 step "4. repair: revert the orphan 20260914013100 (if present)"
-if [ "$(has 20260914013100)" != "0" ]; then supabase migration repair --status reverted 20260914013100 --db-url "$LOCAL"; else echo "already gone"; fi
+if [ "$(has 20260914013100)" != "0" ]; then supabase migration repair --status reverted 20260914013100 --db-url "$LOCAL" --yes; else echo "already gone"; fi
 
 step "4. repair: mark the baseline 20260904000000 applied (if missing)"
-if [ "$(has 20260904000000)" = "0" ]; then supabase migration repair --status applied 20260904000000 --db-url "$LOCAL"; else echo "already applied"; fi
+if [ "$(has 20260904000000)" = "0" ]; then supabase migration repair --status applied 20260904000000 --db-url "$LOCAL" --yes; else echo "already applied"; fi
 
 step "4. check: ledger check must be clean"
 PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod --include-all || fail "ledger check blocked"
@@ -76,6 +76,10 @@ step "5. check: ledger clean after push"
 PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod || fail "ledger not clean after push"
 PENDING=$(PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod | grep -c "^    2026" || true)
 [ "$PENDING" = "0" ] || fail "$PENDING migrations still pending after push"
+
+step "5. check: every function body matches staging (pnpm db:function-diff)"
+# The ledger can count a migration that never ran (20261104120000, 2026-11-16); bodies show it.
+PROD_DB_URL="$LOCAL" node scripts/function-diff.mjs || fail "functions differ from staging after the push"
 
 step "5. check: verify the schema"
 DIFF_AFTER=$(scalar "select count(*) from public.offset_leaves where approved_hours is not null and approved_hours is distinct from hours")
