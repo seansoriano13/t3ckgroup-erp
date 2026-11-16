@@ -41,6 +41,10 @@ docker exec "$DB_CONTAINER" sh -c 'wc -c /tmp/prod.sql'
 # prod's own state remains (archive_quota included: left behind, it would
 # make the archive migration skip as "already exists").
 psql_local -c "drop schema if exists public cascade; drop schema if exists supabase_migrations cascade; drop schema if exists archive_quota cascade;"
+# The dump holds public only, not extensions. Migration 619 (meeting requests)
+# put btree_gist on prod, and its exclusion constraint will not restore without
+# it; on the stack it went into public and was just dropped with it.
+psql_local -c "create extension if not exists btree_gist with schema extensions;"
 docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -X -q -f /tmp/prod.sql
 psql_local <<'SQL'
 grant usage on schema public to anon, authenticated, service_role;
@@ -57,10 +61,10 @@ echo "restored. ledger:"; scalar "select string_agg(version, ' ' order by versio
 # its row still needs it, same as runbook step 4.
 has() { scalar "select count(*) from supabase_migrations.schema_migrations where version='$1'"; }
 step "4. repair: revert the orphan 20260914013100 (if present)"
-if [ "$(has 20260914013100)" != "0" ]; then supabase migration repair --status reverted 20260914013100 --db-url "$LOCAL"; else echo "already gone"; fi
+if [ "$(has 20260914013100)" != "0" ]; then supabase migration repair --status reverted 20260914013100 --db-url "$LOCAL" --yes; else echo "already gone"; fi
 
 step "4. repair: mark the baseline 20260904000000 applied (if missing)"
-if [ "$(has 20260904000000)" = "0" ]; then supabase migration repair --status applied 20260904000000 --db-url "$LOCAL"; else echo "already applied"; fi
+if [ "$(has 20260904000000)" = "0" ]; then supabase migration repair --status applied 20260904000000 --db-url "$LOCAL" --yes; else echo "already applied"; fi
 
 step "4. check: ledger check must be clean"
 PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod --include-all || fail "ledger check blocked"
@@ -72,6 +76,10 @@ step "5. check: ledger clean after push"
 PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod || fail "ledger not clean after push"
 PENDING=$(PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod | grep -c "^    2026" || true)
 [ "$PENDING" = "0" ] || fail "$PENDING migrations still pending after push"
+
+step "5. check: every function body matches staging (pnpm db:function-diff)"
+# The ledger can count a migration that never ran (20261104120000, 2026-11-16); bodies show it.
+PROD_DB_URL="$LOCAL" node scripts/function-diff.mjs || fail "functions differ from staging after the push"
 
 step "5. check: verify the schema"
 DIFF_AFTER=$(scalar "select count(*) from public.offset_leaves where approved_hours is not null and approved_hours is distinct from hours")

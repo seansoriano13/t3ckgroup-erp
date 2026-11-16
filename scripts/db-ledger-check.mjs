@@ -80,7 +80,7 @@ const files = readdirSync(join(repoRoot, 'supabase', 'migrations'));
 // back past what the remote has already recorded without --include-all. A
 // pending file that sorts before the tip is the "my timestamp is too early"
 // trap — the remedy is a NEW file with a current timestamp, never a rename.
-const { orphans, pending, outOfOrder, remoteTip, fileCount, ok } = analyzeLedger({ ledger, files, includeAll });
+const { orphans, pending, outOfOrder, misnamed, remoteTip, fileCount, ok } = analyzeLedger({ ledger, files, includeAll });
 
 const bold = (s) => `[1m${s}[0m`;
 console.log(`\n${bold(`Migration ledger — ${target}`)} (${projectRef})\n`);
@@ -105,6 +105,19 @@ if (orphans.length) {
   console.log('  Do not rename a file to match a ledger row. See AGENTS.md, "The migration set is append-only".');
 }
 
+const badNames = misnamed.filter((m) => !m.known);
+for (const m of misnamed.filter((m) => m.known)) {
+  console.log(`  known: ${m.version} is "${m.ledgerName}" in the ledger, "${m.fileName}" as a file (see KNOWN_MISNAMED)`);
+}
+if (badNames.length) {
+  console.log(`
+${bold('MISNAMED')} — the ledger names a different migration than the file at this version.`);
+  console.log('  The file counts as applied because the version matches, but it may never have run,');
+  console.log('  and `db push` will never run it. Check its objects in the live database; if they are');
+  console.log('  missing, write a NEW migration that makes the same change.');
+  for (const m of badNames) console.log(`    ${m.version}  ledger: ${m.ledgerName}  file: ${m.fileName}`);
+}
+
 if (outOfOrder.length) {
   console.log(`\n${bold('OUT OF ORDER')} — pending, but sorts before the remote tip (${remoteTip}).`);
   console.log('  `db push` will not reach back past the tip. Do NOT rename these forward —');
@@ -123,7 +136,7 @@ if (!orphans.length && !pending.length) {
 
 console.log('');
 if (!ok) {
-  console.log(`${bold('BLOCKED')} — ${orphans.length} orphan(s), ${outOfOrder.length} out-of-order pending migration(s). Do not push.
+  console.log(`${bold('BLOCKED')} — ${orphans.length} orphan(s), ${outOfOrder.length} out-of-order pending migration(s), ${badNames.length} misnamed ledger row(s). Do not push.
 `);
 }
 process.exit(ok ? 0 : 1);

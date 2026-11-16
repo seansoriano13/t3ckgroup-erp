@@ -30127,7 +30127,7 @@ begin
   if v_created is null then
     raise exception 'Message not found';
   end if;
-  if v_author is distinct from auth.uid() then
+  if v_author is distinct from public.get_employee_id() then
     raise exception 'You can only unsend your own messages';
   end if;
   if now() - v_created > interval '15 minutes' then

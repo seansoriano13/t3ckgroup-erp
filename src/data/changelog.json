@@ -1,5 +1,18 @@
 [
     {
+        "date": "2026-11-16",
+        "title": "What's new: mid-November",
+        "version": "1.11.0",
+        "changes": [
+            "Every window has its own link, a Copy link button, and clicking a notification opens what it is about.",
+            "S0 Evaluation (Beta) works like the sheet: a price corridor, Final Acquire by rule, costs as a percent of the ABC and a 20% Go line.",
+            "Purchasing (Beta): one Canvass for the whole Purchase Request, and the PMS file on its own page.",
+            "Time Off, SORs and HR: clearer forms, the real Stage in Overview and Commission, and lists that load again.",
+            "Open Release Notes to try each change."
+        ],
+        "link": "/release-notes"
+    },
+    {
         "date": "2026-11-14",
         "title": "Every window has a link, and bell clicks open the record",
         "version": "1.10.8",

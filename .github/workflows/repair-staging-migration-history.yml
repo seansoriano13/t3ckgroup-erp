@@ -50,7 +50,7 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
-        run: supabase migration repair --status ${{ github.event.inputs.status }} ${{ github.event.inputs.version }} --project-ref fpjxdyowngpnovotbzqi
+        run: supabase migration repair --status ${{ github.event.inputs.status }} ${{ github.event.inputs.version }} --project-ref fpjxdyowngpnovotbzqi --yes
 
       - name: Show resulting migration list
         env:

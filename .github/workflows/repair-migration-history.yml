@@ -75,7 +75,7 @@ jobs:
           new_version='${{ github.event.inputs.new_version }}'
 
           if [ "$status" != "renumber" ]; then
-            supabase migration repair --status "$status" "$version" --project-ref "$ref"
+            supabase migration repair --status "$status" "$version" --project-ref "$ref" --yes
             exit 0
           fi
 
@@ -95,8 +95,8 @@ jobs:
             exit 1
           fi
           echo "Renumbering $version -> $new_version on $ref"
-          supabase migration repair --status reverted "$version" --project-ref "$ref"
-          supabase migration repair --status applied "$new_version" --project-ref "$ref"
+          supabase migration repair --status reverted "$version" --project-ref "$ref" --yes
+          supabase migration repair --status applied "$new_version" --project-ref "$ref" --yes
 
       - name: Show resulting migration list
         env:
