@@ -6,7 +6,7 @@ import { analyzeLedger } from "../../../scripts/lib/ledger.mjs"
 // migration, because either one turns `db push` into a refusal or, worse, a
 // partial apply.
 
-const row = (version, name = "m") => ({ version, name, stmt_count: 1 })
+const row = (version, name) => ({ version, name, stmt_count: 1 })
 
 describe("analyzeLedger", () => {
     it("passes when every file is applied and the ledger claims nothing extra", () => {
@@ -80,5 +80,26 @@ describe("analyzeLedger", () => {
             includeAll: true,
         })
         expect(result.ok).toBe(false)
+    })
+
+    it("fails when a ledger row names a different migration than the file at its version", () => {
+        // The file at that version counts as applied, but may never have run, and push never runs it.
+        const result = analyzeLedger({
+            ledger: [row("20260904000000", "baseline"), row("20261001000000", "something_else")],
+            files: ["20260904000000_baseline.sql", "20261001000000_status_words.sql"],
+        })
+        expect(result.ok).toBe(false)
+        expect(result.misnamed).toEqual([
+            { version: "20261001000000", ledgerName: "something_else", fileName: "status_words", known: false },
+        ])
+    })
+
+    it("passes prod's known misnamed row, whose change a later migration makes", () => {
+        const result = analyzeLedger({
+            ledger: [row("20261104120000", "group_task_reopen"), row("20261105060000", "group_task_reopen")],
+            files: ["20261104120000_requested_item_new_status_words.sql", "20261105060000_group_task_reopen.sql"],
+        })
+        expect(result.ok).toBe(true)
+        expect(result.misnamed.map((m) => m.known)).toEqual([true])
     })
 })
