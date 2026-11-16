@@ -13,10 +13,12 @@ import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
 import { employeeService } from '@/services/employeeService';
-import { ACTIVITY_TYPE, ACTIVITY_TYPE_LABEL, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue } from '@/services/meetingRequestService';
+import { ACTIVITY_TYPE, ACTIVITY_TYPE_LABEL, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue, requestDays } from '@/services/meetingRequestService';
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
-import { manilaDate, manilaToday, manilaTime } from '@/lib/manilaDate.js';
+import { manilaToday, manilaTime } from '@/lib/manilaDate.js';
 import { TIME_OPTIONS, draftProblem, manilaInstant } from './meetingDraft.js';
+import ActivityDayRows from './ActivityDayRows.jsx';
+import { daysFromSaved, daysPayload, keptDays } from './activityDays.js';
 import { clashMessage, findClash, softWarnings, venueMeetings } from './meetingPreview.js';
 
 /**
@@ -27,6 +29,8 @@ export default function MeetingRequestDialog({ open, onClose, initial, editing =
   if (!open) return null;
   return <MeetingRequestForm onClose={onClose} initial={initial} editing={editing} resend={resend} />;
 }
+
+const NO_DATES = new Set();
 
 /** The chosen Venue's day: held slots listed, pending ones faded. */
 function VenuePreview({ venueName, meetings }) {
@@ -70,9 +74,14 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const [meetingType, setMeetingType] = useState(editing?.meeting_type ?? MEETING_TYPE.ONSITE);
   const [meetingLink, setMeetingLink] = useState(editing?.meeting_link ?? '');
   const [venuePick, setVenueId] = useState(editing?.venue_id ?? initial.venueId ?? '');
-  const [date, setDate] = useState(() => (editing ? manilaDate(editing.starts_at) : (initial.date ?? manilaToday())));
-  const [start, setStart] = useState(editing ? manilaTime(editing.starts_at) : (initial.start ?? '09:00'));
-  const [end, setEnd] = useState(editing ? manilaTime(editing.ends_at) : (initial.end ?? '10:00'));
+  // A saved request's days: the range, each day's own times, and the days that have already started.
+  const saved = useMemo(() => (editing ? daysFromSaved(requestDays(editing)) : null), [editing]);
+  const [date, setDate] = useState(() => saved?.from ?? initial.date ?? manilaToday());
+  const [dateTo, setDateTo] = useState(() => saved?.to ?? '');
+  const [dayEdits, setDayEdits] = useState(() => saved?.edits ?? {});
+  const [start, setStart] = useState(saved?.start ?? initial.start ?? '09:00');
+  const [end, setEnd] = useState(saved?.end ?? initial.end ?? '10:00');
+  const frozenDates = saved?.frozen ?? NO_DATES;
   const [facilitatorPick, setFacilitatorId] = useState(editing?.facilitator_id ?? '');  // the Lead
   const [participants, setParticipants] = useState(() =>
     (editing?.participants ?? []).map((p) => ({ type: SELECTOR_TYPES.EMPLOYEE, id: p.employee_id })),
@@ -108,7 +117,13 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
     enabled: Boolean(date),
   });
   // Editing: the request's own slot is not a clash with itself.
-  const dayEntries = useMemo(() => (editing ? dayAll.filter((e) => e.id !== editing.id) : dayAll), [dayAll, editing]);
+  const dayEntries = useMemo(() => (editing ? dayAll.filter((e) => (e.group_id ?? e.id) !== editing.id) : dayAll), [dayAll, editing]);
+  // A Meeting is one day. The other types can run From to To, one row per day.
+  const rangeEnd = !isMeeting && dateTo > date ? dateTo : date;
+  const days = isMeeting
+    ? [{ date, start, end, frozen: false }]
+    : keptDays(date, rangeEnd, dayEdits, start, end, frozenDates);
+  const setDayEdit = (day, edit) => setDayEdits((prev) => ({ ...prev, [day]: edit }));
   const venueName = !isMeeting || !needsVenue(meetingType) ? undefined : venues.find((v) => v.id === venueId)?.name;
   const startsAt = manilaInstant(date, start);
   const endsAt = manilaInstant(date, end);
@@ -124,7 +139,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       })
     : [];
 
-  const problem = clash ? clashMessage(clash) : draftProblem({ activityType, meetingType, meetingLink, venueId, date, start, end, facilitatorId, purpose, guests });
+  const problem = clash ? clashMessage(clash) : draftProblem({ activityType, meetingType, meetingLink, venueId, date, start, end, days, facilitatorId, purpose, guests });
 
   const addGuest = () => {
     const name = guestDraft.trim();
@@ -144,6 +159,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           venueId,
           startsAt,
           endsAt,
+          days: daysPayload(days),
           facilitatorId,
           purpose,
           guests,
@@ -160,6 +176,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         venueId,
         startsAt,
         endsAt,
+        days: daysPayload(days),
         facilitatorId,
         purpose,
         guests,
@@ -229,9 +246,30 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           </div>
         )}
         <div>
-          <FieldBox label="Date" className="mb-1.5 block" />
-          <Input type="date" value={date} min={manilaToday()} onChange={(e) => setDate(e.target.value)} containerClassName="w-full" className="font-semibold" />
+          <FieldBox label={isMeeting ? 'Date' : 'From'} className="mb-1.5 block" />
+          <Input
+            type="date"
+            value={date}
+            min={manilaToday()}
+            disabled={frozenDates.size > 0}
+            onChange={(e) => setDate(e.target.value)}
+            containerClassName="w-full"
+            className="font-semibold"
+          />
         </div>
+        {!isMeeting && (
+          <div>
+            <FieldBox label="To" className="mb-1.5 block" />
+            <Input
+              type="date"
+              value={rangeEnd}
+              min={date || undefined}
+              onChange={(e) => setDateTo(e.target.value)}
+              containerClassName="w-full"
+              className="font-semibold"
+            />
+          </div>
+        )}
         {venueName && date && <VenuePreview venueName={venueName} meetings={venueMeetings(dayEntries, venueName)} />}
         <div className="grid grid-cols-2 gap-4 sm:col-span-2">
           <div className="min-w-0">
@@ -243,6 +281,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             <SelectField value={end} onChange={setEnd} options={TIME_OPTIONS} className="w-full" />
           </div>
         </div>
+        {!isMeeting && <ActivityDayRows from={date} to={rangeEnd} edits={dayEdits} onEdit={setDayEdit} start={start} end={end} frozen={frozenDates} />}
         <div className="sm:col-span-2">
           <FieldBox label="Lead" className="mb-1.5 block" />
           <SelectField

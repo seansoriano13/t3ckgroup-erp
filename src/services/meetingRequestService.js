@@ -76,6 +76,22 @@ const slotText = (request, when) => {
   return place ? `${place}, ${when}` : when;
 };
 
+/** The saved days of a request, first to last. A request with no day rows reads as one day. */
+export function requestDays(request) {
+  const days = [...(request?.days ?? [])].sort((a, b) => String(a.starts_at).localeCompare(String(b.starts_at)));
+  return days.length ? days : request?.starts_at ? [{ starts_at: request.starts_at, ends_at: request.ends_at }] : [];
+}
+
+/** When an Activity runs, for one line of text: one day, or the first day to the last. */
+export function activityWhen(request) {
+  const days = requestDays(request);
+  if (days.length > 1) return `${formatManilaDateTime(days[0].starts_at)} to ${formatManilaDateTime(days[days.length - 1].ends_at)}`;
+  return `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
+}
+
+/** The start of the last day: an Activity can still be changed or cancelled while this is ahead. */
+export const lastDayStart = (request) => requestDays(request).at(-1)?.starts_at ?? request?.starts_at;
+
 /** One Guest as text: "Name <email>" or just the name. */
 export const guestText = (g) => (g.email ? `${g.name} <${g.email}>` : g.name);
 
@@ -94,7 +110,8 @@ const REQUEST_SELECT = `*,
   venue:calendar_venues(id, name),
   applicant:employees!meeting_requests_applicant_id_fkey(id, name, department),
   facilitator:employees!meeting_requests_facilitator_id_fkey(id, name),
-  participants:meeting_request_participants(employee_id, employee:employees(id, name))`;
+  participants:meeting_request_participants(employee_id, employee:employees(id, name)),
+  days:meeting_request_days(id, starts_at, ends_at)`;
 
 const timeRange = (startsAt, endsAt) => `${manilaTime(startsAt)} to ${manilaTime(endsAt)}`;
 
@@ -217,14 +234,15 @@ export const meetingRequestService = {
    * Files an Activity. `startsAt` / `endsAt` are ISO instants (the form builds
    * them from a Manila date and times). Returns the saved request.
    */
-  async fileRequest({ activityType = ACTIVITY_TYPE.MEETING, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, applicant }) {
+  async fileRequest({ activityType = ACTIVITY_TYPE.MEETING, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, days = null, applicant }) {
     const { data: id, error } = await supabase.rpc('file_meeting_request', {
       p_activity_type: activityType,
       p_meeting_type: isMeeting(activityType) ? meetingType : null,
       p_meeting_link: isMeeting(activityType) && needsLink(meetingType) ? meetingLink : null,
       p_venue_id: isMeeting(activityType) && needsVenue(meetingType) ? venueId : null,
-      p_starts_at: startsAt,
-      p_ends_at: endsAt,
+      p_starts_at: days?.[0]?.startsAt ?? startsAt,
+      p_ends_at: days?.[0]?.endsAt ?? endsAt,
+      p_days: days?.map((d) => ({ starts_at: d.startsAt, ends_at: d.endsAt })) ?? null,
       p_facilitator_id: facilitatorId,
       p_purpose: purpose,
       ...guestParams(guests),
@@ -249,7 +267,7 @@ export const meetingRequestService = {
    */
   async afterFiled(request, applicant) {
     const applicantName = applicant?.name ?? request.applicant?.name ?? 'An employee';
-    const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
+    const when = activityWhen(request);
     const slot = slotText(request, when);
 
     if (request.status === MEETING_STATUS.PENDING_HR) {
@@ -358,15 +376,16 @@ export const meetingRequestService = {
    * Applicant edit before the start (#628). Pending-HR and approved requests go back to the head;
    * the head is told, and the Lead and Participants when it was approved.
    */
-  async editRequest({ requestId, activityType = ACTIVITY_TYPE.MEETING, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, actor }) {
+  async editRequest({ requestId, activityType = ACTIVITY_TYPE.MEETING, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, days = null, actor }) {
     const { data, error } = await supabase.rpc('edit_meeting_request', {
       p_request_id: requestId,
       p_activity_type: activityType,
       p_meeting_type: isMeeting(activityType) ? meetingType : null,
       p_meeting_link: isMeeting(activityType) && needsLink(meetingType) ? meetingLink : null,
       p_venue_id: isMeeting(activityType) && needsVenue(meetingType) ? venueId : null,
-      p_starts_at: startsAt,
-      p_ends_at: endsAt,
+      p_starts_at: days?.[0]?.startsAt ?? startsAt,
+      p_ends_at: days?.[0]?.endsAt ?? endsAt,
+      p_days: days?.map((d) => ({ starts_at: d.startsAt, ends_at: d.endsAt })) ?? null,
       p_facilitator_id: facilitatorId,
       p_purpose: purpose,
       ...guestParams(guests),
@@ -409,7 +428,7 @@ export const meetingRequestService = {
    */
   async afterChange(result, { note = '', actor } = {}) {
     const request = await this.getRequest(result.id);
-    const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
+    const when = activityWhen(request);
     const slot = slotText(request, when);
     const actorName = actor?.name ?? 'Someone';
     const senderId = actor?.id ?? null;
@@ -500,7 +519,7 @@ export const meetingRequestService = {
    */
   async afterDecision(result, { note = '', actor } = {}) {
     const request = await this.getRequest(result.id);
-    const when = `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
+    const when = activityWhen(request);
     const slot = slotText(request, when);
     const actorName = actor?.name ?? 'Someone';
     const senderId = actor?.id ?? null;

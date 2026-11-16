@@ -34,6 +34,7 @@ export default function MeetingDetail({ entry }) {
             </DetailRow>
           )}
           <DetailRow label="Date">{formatEntryDate(entry)}</DetailRow>
+          {d.days_total > 1 && <DetailRow label="Day">{`Day ${d.day_index} of ${d.days_total}`}</DetailRow>}
           <DetailRow label="Time">{formatEntryTime(entry)}</DetailRow>
           <DetailRow label="Stage">{MEETING_STATUS_LABEL[d.stage] ?? d.stage}</DetailRow>
           <DetailRow label="Lead">{d.facilitator?.name}</DetailRow>
@@ -41,7 +42,7 @@ export default function MeetingDetail({ entry }) {
           <DetailRow label="Guests">{guests.length ? guests.map(guestText).join(', ') : 'None'}</DetailRow>
         </dl>
       </DetailSection>
-      <MeetingActions request={{ id: entry.id, status: d.stage, startsAt: entry.starts_at, applicantId: person.id }} />
+      <MeetingActions request={{ id: d.request_id ?? entry.group_id ?? entry.id, status: d.stage, startsAt: d.last_day_starts_at ?? entry.starts_at, applicantId: person.id }} />
     </SlideOverBody>
   );
 }
