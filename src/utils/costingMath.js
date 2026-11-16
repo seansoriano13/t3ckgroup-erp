@@ -742,14 +742,14 @@ export function lineMarkup(tenderLine, components, defaultFactor) {
  * The whole matrix's markup, counting the cost-only rows (they carry cost and a x1.00 markup but no Final
  * Offer, so they pull the overall figure down and leave every line's alone):
  *
- *   achievedFactor   the Final Offer total / every Component's and cost-only row's Acquire total. Null
+ *   achievedFactor   the Final Offer total (the typed total in Total only) / every Component's and cost-only row's Acquire total. Null
  *                    while any Tender Line has no Final Offer or no Component, or any Acquire is blank.
  *   targetFactor     see lineMarkup, over every Component and cost-only row
  *   priceTotal       the Markup Prices of the Tender Lines added up (null while any is blank)
  *
  * `tenderLines` carry their `components` (with `markup`); `costRows` carry `markup` too.
  */
-export function matrixMarkup(tenderLines, costRows, defaultFactor) {
+export function matrixMarkup(tenderLines, costRows, defaultFactor, offerSetting = null) {
   const lines = tenderLines ?? [];
   const rows = costRows ?? [];
   const components = lines.flatMap((l) => l.components ?? []);
@@ -762,7 +762,13 @@ export function matrixMarkup(tenderLines, costRows, defaultFactor) {
     ? sumUnlessBlank([...components, ...rows].map((c) => extendedCentavos(effectiveAcquireUnit(c), c?.quantity)))
     : null;
   const price = sumUnlessBlank(markups.map((m) => extendedCentavos(m.priceTotal, 1)));
-  const offer = sumUnlessBlank(lines.map((l) => extendedCentavos(l?.final_offer_unit, l?.quantity)));
+  // The Final Offer typed as one total: achieved is worked from it, not from the lines' own (blank) offers.
+  const offer =
+    offerSetting?.mode === ABC_MODE.TOTAL_ONLY
+      ? lines.length > 0
+        ? extendedCentavos(offerSetting.total, 1)
+        : null
+      : sumUnlessBlank(lines.map((l) => extendedCentavos(l?.final_offer_unit, l?.quantity)));
   const linesPrice = sumUnlessBlank(lines.map((l) => extendedCentavos(l?.markup?.priceTotal, 1)));
   return {
     priceTotal: pesosFromCentavos(linesPrice),

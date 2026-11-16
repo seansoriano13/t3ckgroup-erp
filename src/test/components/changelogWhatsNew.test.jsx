@@ -23,8 +23,8 @@ import { entryTouchesUser, getUnreadVersion } from "@/utils/changelogAccess";
 import changelog from "@/data/changelog.json";
 
 const latest = changelog[0];
-const salesExec = { id: "sales-1", role: "EMPLOYEE", department: "Sales", has_sales_flow: true, last_seen_changelog_version: "1.0.0" };
-const purchaser = { id: "buyer-1", role: "EMPLOYEE", department: "Purchasing", has_purchasing_flow: true, last_seen_changelog_version: "1.0.0" };
+const salesExec = { id: "sales-1", role: "EMPLOYEE", department: "Sales", has_sales_flow: true, lastSeenChangelogVersion: "1.0.0" };
+const purchaser = { id: "buyer-1", role: "EMPLOYEE", department: "Purchasing", has_purchasing_flow: true, lastSeenChangelogVersion: "1.0.0" };
 
 function Dot() {
   return useReleaseNotesDot(auth.user) ? <span data-testid="dot" /> : null;

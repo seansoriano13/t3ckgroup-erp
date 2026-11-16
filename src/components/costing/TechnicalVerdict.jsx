@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 
 import StatusBadge from "../StatusBadge";
 import { costingMatrixService } from "../../services/costingMatrixService";
@@ -13,7 +14,7 @@ import { refusalMessage } from "./gridFormat";
  * "Judge every product to see the result" until each one has a verdict. The Technical in-charge writes the offer-level
  * note, which a deviation needs; everyone else reads it. `nameOf` is kept for callers that pass it.
  */
-export default function TechnicalVerdict({ matrix, actorId, writes }) {
+export default function TechnicalVerdict({ matrix, actorId, writes, onTechnicalPage = false }) {
   const row = matrix.matrix ?? {};
   const matrixId = matrix.matrixId;
   const inCharge = row.technical_incharge_id ?? null;
@@ -24,6 +25,7 @@ export default function TechnicalVerdict({ matrix, actorId, writes }) {
   const judged = components.filter((c) => c.compliance === "complies" || c.compliance === "deviates").length;
   const allJudged = components.length > 0 && judged === components.length;
   const result = overallCompliance(components);
+  const opportunityId = row.opportunity_id ?? null;
 
   const [error, setError] = useState(null);
   const saveNote = async (value) => {
@@ -59,6 +61,21 @@ export default function TechnicalVerdict({ matrix, actorId, writes }) {
             </p>
           )}
 
+          {!onTechnicalPage &&
+            (isInCharge && opportunityId ? (
+              <Link
+                to={`/technical/${opportunityId}`}
+                className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground hover:bg-muted"
+                data-testid="judge-products"
+              >
+                Judge the products
+              </Link>
+            ) : (
+              <p className="text-xs text-muted-foreground" data-testid="judge-products-hint">
+                The Technical in-charge judges the products on the Technical page.
+              </p>
+            ))}
+
           {isInCharge ? (
             <>
               <Cell
@@ -71,7 +88,7 @@ export default function TechnicalVerdict({ matrix, actorId, writes }) {
               />
               {result === "deviates" && !note.trim() && (
                 <p className="text-xs text-muted-foreground" data-testid="verdict-needs-note">
-                  A deviation needs a note.
+                  Write the deviation in Technical Evaluation Remarks below.
                 </p>
               )}
               {error && (

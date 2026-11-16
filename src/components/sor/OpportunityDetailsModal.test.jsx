@@ -180,7 +180,7 @@ describe("OpportunityDetailsModal — no manual Fetch Items (#816)", () => {
     await screen.findByText("Existing Pumper")
     await waitForNetworkIdle()
 
-    fireEvent.click(screen.getByRole("button", { name: /^edit( opportunity)?$/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^edit( sor)?$/i }))
     await screen.findByRole("button", { name: /^save$/i })
 
     expect(screen.queryByRole("button", { name: /fetch items/i })).not.toBeInTheDocument()

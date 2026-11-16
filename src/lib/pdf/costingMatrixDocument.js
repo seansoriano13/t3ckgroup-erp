@@ -146,7 +146,7 @@ function moneyTable(money) {
         <td>${esc(r.description)}<div class="sub">Cost only: no specification, no offer line</div></td>
         <td class="num">—</td><td class="num">—</td>
         <td class="num">${esc(r.acquire)}</td><td class="num">${esc(r.finalAcquire)}</td>
-        <td class="num">${esc(r.factor)}</td><td class="num"><span class="wait">${esc(r.landedCost)}</span></td></tr>`,
+        <td class="num">${esc(r.factor)}</td><td class="num"></td></tr>`,
     )
     .join('');
   const empty = money.lines.length + money.costRows.length === 0 ? '<tr><td colspan="8" class="empty">No Tender Lines yet.</td></tr>' : '';
@@ -154,7 +154,7 @@ function moneyTable(money) {
     <colgroup><col style="width:9mm"><col><col style="width:25mm"><col style="width:25mm"><col style="width:25mm"><col style="width:25mm"><col style="width:17mm"><col style="width:22mm"></colgroup>
     <thead>
       <tr class="band owner"><th colspan="2"></th><th class="num">Client</th><th class="num">Sales</th><th class="num">Purchasing</th><th class="num">Management</th><th class="num">Automatic</th><th class="num">After purchase</th></tr>
-      <tr><th>No.</th><th>Tender line · PHP</th><th class="num">ABC</th><th class="num">Final offer</th><th class="num">Acquire</th><th class="num">Final cost</th><th class="num">Achieved</th><th class="num">Landed cost</th></tr>
+      <tr><th>No.</th><th>Tender line · PHP</th><th class="num">ABC</th><th class="num">Final offer</th><th class="num">Acquire</th><th class="num">Final Acquire</th><th class="num">Achieved</th><th class="num">Landed cost</th></tr>
     </thead>
     <tbody>${lines}${costRows}${empty}</tbody></table>`;
 }

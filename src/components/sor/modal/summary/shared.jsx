@@ -250,10 +250,10 @@ export function HeaderActions({ p, extra = null }) {
     <div className="flex shrink-0 items-center gap-1">
       {(p.hasPrev || p.hasNext) && (
         <>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={p.goPrev} disabled={!p.hasPrev} aria-label="Previous opportunity" className="text-muted-foreground">
+          <Button type="button" variant="ghost" size="icon-sm" onClick={p.goPrev} disabled={!p.hasPrev} aria-label="Previous SOR" className="text-muted-foreground">
             <ChevronLeft size={15} />
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={p.goNext} disabled={!p.hasNext} aria-label="Next opportunity" className="text-muted-foreground">
+          <Button type="button" variant="ghost" size="icon-sm" onClick={p.goNext} disabled={!p.hasNext} aria-label="Next SOR" className="text-muted-foreground">
             <ChevronRight size={15} />
           </Button>
           <div className="mx-1 h-4 w-px bg-border/60" />
@@ -272,7 +272,7 @@ export function HeaderActions({ p, extra = null }) {
         <>
           {extra}
           {p.canEdit && (
-            <Button type="button" variant="ghost" size="icon-sm" onClick={p.handleEditToggle} aria-label="Edit opportunity" title="Edit" className="text-muted-foreground">
+            <Button type="button" variant="ghost" size="icon-sm" onClick={p.handleEditToggle} aria-label="Edit SOR" title="Edit" className="text-muted-foreground">
               <Pencil size={14} />
             </Button>
           )}
@@ -299,7 +299,7 @@ export function HeaderActions({ p, extra = null }) {
                     className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-red-9/10 hover:text-red-11"
                   >
                     <Trash2 size={14} className="text-red-11" />
-                    Delete opportunity
+                    Delete SOR
                   </Button>
                 )}
               </div>

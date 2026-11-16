@@ -167,7 +167,7 @@ describe("SorModal — access level", () => {
     await waitForNetworkIdle()
 
     await waitFor(() => {
-      const btn = screen.queryByRole("button", { name: "Edit opportunity" })
+      const btn = screen.queryByRole("button", { name: "Edit SOR" })
       expect(!!btn).toBe(shown)
     })
   })

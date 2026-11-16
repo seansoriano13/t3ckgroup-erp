@@ -326,7 +326,7 @@ export const NAV_MODULES = {
         label: "Bid Decisions",
         link: "/approvals/bid-decisions",
         icon: Gavel,
-        isPermitted: (ctx) => ctx.isBidDecider,
+        isPermitted: (ctx) => ctx.canDecideBid,
         exactMatch: true,
       },
     ],

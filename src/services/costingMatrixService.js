@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
-import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, FINAL_ACQUIRE_PERCENT_HIGH, FINAL_ACQUIRE_PERCENT_LOW, STANDALONE_START_PROBLEM, bandRefusalMessage, tierDecidesBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
+import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, FINAL_ACQUIRE_PERCENT_HIGH, FINAL_ACQUIRE_PERCENT_LOW, STANDALONE_START_PROBLEM, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
 import { DEFAULT_FINAL_ACQUIRE_PERCENT, abcSettingOf, offerSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { numberOrNull } from "../utils/numberOrNull";
@@ -354,7 +354,7 @@ export function shapeMatrix(read, settings = null) {
     defaultPresetId: money ? (money.default_preset_id ?? null) : undefined,
     // The evaluation's percent on the Odoo SRP (#962); no key means the viewer was not sent it.
     finalAcquirePercent: money ? Number(money.final_acquire_percent ?? DEFAULT_FINAL_ACQUIRE_PERCENT) : undefined,
-    markup: matrixMarkup(tenderLines, costRows, defaultFactor),
+    markup: matrixMarkup(tenderLines, costRows, defaultFactor, offerSetting),
     compliance: complianceRollup(tenderLines.flatMap((line) => line.components)),
     evaluation: signoffState(signoffs, "evaluation_approved"),
     // All four sign-offs (#274), each as signoffState; the print reads them and the screen's sign buttons.
@@ -629,7 +629,7 @@ export const costingMatrixService = {
     const settings = data && tierReadsSummary(data.tier) ? await settingsRead : null;
     const shaped = shapeMatrix(data, settings);
     // #880: only the Bid Decision's deciders need to know whether a Go on a loss is theirs to take.
-    const lossRight = shaped && tierDecidesBid(shaped.tier) ? costingMatrixService.canDecideLoss() : Promise.resolve(false);
+    const lossRight = shaped && tierReadsBidDecision(shaped.tier) ? costingMatrixService.canDecideLoss() : Promise.resolve(false);
     // Canvass and purchases touch different fields of the matrix, so they read side by side.
     const [canLoss] = await Promise.all([lossRight, withCanvass(shaped, opportunityId), withPurchases(shaped, opportunityId)]);
     if (shaped) shaped.canDecideLoss = Boolean(canLoss);
@@ -1071,7 +1071,7 @@ export const costingMatrixService = {
 
   /**
    * Names who answers for the matrix, or for one Component when `target` is `{ componentId }`:
-   * `{ sales, purchasing, technical }` (an employee id, or null for the default). The Sales incharge must be
+   * `{ sales, purchasing, technical }` (an employee id, or null for the default). The Sales in-charge must be
    * on the Deal Team (written by Sales) and the Purchasing incharge must have Purchasing access
    * (written by Purchasing). The Technical in-charge (#908) must be in the Technical sub-department
    * and is set on the matrix only. It grants nothing and notifies nobody.
@@ -1086,7 +1086,7 @@ export const costingMatrixService = {
     const id = target?.componentId ?? target?.matrixId;
     const { data, error } = await supabase.from(table).update(columns).eq("id", id).select("id");
     if (error) fail(error);
-    if (!data?.length) throw new Error("The incharge could not be changed.");
+    if (!data?.length) throw new Error("The in-charge could not be changed.");
   },
 
   /**
@@ -1224,7 +1224,7 @@ export const costingMatrixService = {
   /**
    * Gives many products the same verdict at once (#932): `setComplianceMany(ids, { verdict, note })`. `verdict` is
    * `"complies"`, `"deviates"` or null (not judged). Deviates needs one remark, which is written to every product; the
-   * other verdicts leave each product's remark alone. Only the Technical in-charge may; the database refuses anyone else.
+   * Complies clears the remark and alternative of a product that was Deviates; Not judged leaves them alone. Only the Technical in-charge may; the database refuses anyone else.
    */
   async setComplianceMany(componentIds, { verdict, note } = {}) {
     const ids = [...new Set(componentIds ?? [])];
@@ -1237,6 +1237,17 @@ export const costingMatrixService = {
       const remark = blankText(note);
       if (remark === null) throw new CostingRuleError("A deviation needs a remark.", "23514");
       columns.compliance_note = remark;
+    }
+    if (verdict === "complies") {
+      // A product that was Deviates loses its deviation remark and recommended alternative, so a print cannot read
+      // "Complies" beside a deviation (#1035). Done first, in the same write that flips the verdict.
+      const cleared = await supabase
+        .from("costing_components")
+        .update({ compliance: "complies", compliance_note: null, recommended_alternative: null })
+        .in("id", ids)
+        .eq("compliance", "deviates")
+        .select("id");
+      if (cleared.error) fail(cleared.error);
     }
     const { data, error } = await supabase.from("costing_components").update(columns).in("id", ids).select("id");
     if (error) fail(error);
@@ -1412,7 +1423,7 @@ export const costingMatrixService = {
     return { subjectId: data.subject_id, existed: Boolean(data.existed), standalone: Boolean(data.standalone) };
   },
 
-  /** Changes the Sales incharge and the PMS incharge of a standalone evaluation (#966). Both must be named. */
+  /** Changes the Sales in-charge and the Purchasing in-charge of a standalone evaluation (#966). Both must be named. */
   async setStandaloneIncharge(matrixId, { sales, pms }) {
     const { error } = await supabase.rpc("costing_standalone_set_incharge", {
       p_matrix_id: matrixId,

@@ -102,13 +102,13 @@ describe("TaskCard", () => {
     it("shows an icon-only SOR link in the footer for a task tied to a deal, not the sales number again", () => {
       renderCard({ task: task({ opportunityId: "opp-1" }) })
 
-      expect(screen.getByTitle("Linked Sales Opportunity")).toBeInTheDocument()
+      expect(screen.getByTitle("Linked SOR")).toBeInTheDocument()
     })
 
     it("shows no SOR link for a task with no linked deal", () => {
       renderCard()
 
-      expect(screen.queryByTitle("Linked Sales Opportunity")).not.toBeInTheDocument()
+      expect(screen.queryByTitle("Linked SOR")).not.toBeInTheDocument()
     })
 
     it("opens Quick View, not the card, when the SOR link is clicked", async () => {
@@ -117,7 +117,7 @@ describe("TaskCard", () => {
       const onOpen = (e) => opened.push(e.detail)
       window.addEventListener("OPEN_ENTITY_DETAILS", onOpen)
 
-      await setupUser().click(screen.getByTitle("Linked Sales Opportunity"))
+      await setupUser().click(screen.getByTitle("Linked SOR"))
 
       window.removeEventListener("OPEN_ENTITY_DETAILS", onOpen)
       expect(opened).toEqual([{ id: "opp-1", type: "OPPORTUNITY_QUICK_VIEW" }])

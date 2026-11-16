@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
  *
  * `count` is optional: without it, only the two money figures show.
  */
-export default function SorsTotals({ count, openValue, wonValue, className }) {
+export default function SorsTotals({ count, leftOut = 0, openValue, wonValue, className }) {
   return (
     <div
       className={cn(
@@ -27,11 +27,19 @@ export default function SorsTotals({ count, openValue, wonValue, className }) {
     >
       {count != null && (
         <>
-          <span className="tabular-nums text-foreground">
+          <span
+            className="tabular-nums text-foreground"
+            title={leftOut > 0 ? `${leftOut.toLocaleString()} Lost ${leftOut === 1 ? "SOR is" : "SORs are"} not counted` : undefined}
+          >
             {count.toLocaleString()}{" "}
             <span className="font-semibold text-muted-foreground">
               {count === 1 ? "SOR" : "SORs"}
             </span>
+            {leftOut > 0 && (
+              <span className="ml-1 font-semibold text-muted-foreground">
+                (+{leftOut.toLocaleString()} Lost)
+              </span>
+            )}
           </span>
           <Separator />
         </>

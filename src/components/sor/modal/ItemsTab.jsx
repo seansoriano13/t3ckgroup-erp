@@ -256,7 +256,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
                 <span className={cn("block truncate font-semibold text-foreground", it.removed_from_s0 && "line-through")}>{it.product_name}</span>
                 {it.removed_from_s0 && (
                   <span className="mt-1 block">
-                    <StatusBadge label="Removed from S0" theme="amber" title="The S0 no longer lists this product. It is kept here and left out of Estimated Value." />
+                    <StatusBadge label="Removed from S0" theme="amber" title="The S0 no longer lists this product. It is kept here and left out of Expected Value." />
                   </span>
                 )}
                 <RequestedItemStatus line={it} requested={purchaseRequest?.items} />

@@ -85,15 +85,30 @@ export function SorFieldGroup({ label, aside = null, columns = 1, className = ""
   );
 }
 
+/** The red line under a field that failed the form's own check (#1046). */
+function FieldError({ id, children }) {
+  if (!children) return null;
+  return (
+    <p id={id} role="alert" data-field-error className="mt-1 text-label font-bold text-destructive">
+      {children}
+    </p>
+  );
+}
+
 export function TextField({
   label,
   required,
   className = "",
   autofilled = false,
   action = null,
+  error = null,
+  id,
   ...props
 }) {
   const shell = useShell(className, autofilled);
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+  const errorId = `${inputId}-error`;
   return (
     <div {...shell} data-autofilled={autofilled ? "true" : undefined}>
       {/* The label row carries any per-field action, so a control that acts on
@@ -102,10 +117,18 @@ export function TextField({
           grid's rhythm unchanged whether or not an action is present. */}
       <div className="flex items-baseline justify-between gap-2">
         <FieldBox label={<>{label}
-          {required && <span className="text-red-500 ml-0.5">*</span>}</>} className={LABEL} />
+          {required && <span className="text-red-500 ml-0.5">*</span>}</>} htmlFor={inputId} className={LABEL} />
         {action}
       </div>
-      <Input className={`h-auto rounded-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 ${CONTROL}`} required={required} {...props} />
+      <Input
+        id={inputId}
+        className={`h-auto rounded-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 ${CONTROL}`}
+        required={required}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        {...props}
+      />
+      <FieldError id={errorId}>{error}</FieldError>
     </div>
   );
 }
@@ -119,6 +142,7 @@ export function SelectField({
   value,
   onChange,
   disabled = false,
+  error = null,
 }) {
   const labelId = useId();
   const shell = useShell(className);
@@ -145,8 +169,10 @@ export function SelectField({
         disabled={disabled}
         required={required}
         aria-labelledby={labelId}
+        error={error}
         className={`w-full h-auto rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent data-[popup-open]:bg-transparent data-[popup-open]:ring-0 text-sm font-medium data-placeholder:text-muted-foreground/50`}
       />
+      <FieldError>{error}</FieldError>
     </div>
   );
 }
@@ -167,6 +193,7 @@ export function DateField({
   onChange,
   disabled = false,
   placeholder = "Select date…",
+  error = null,
 }) {
   const shell = useShell(className);
   const control = (isOpen = false) => (
@@ -217,6 +244,7 @@ export function DateField({
           </div>
         )}
       </Dropdown>
+      <FieldError>{error}</FieldError>
     </div>
   );
 }

@@ -1765,10 +1765,9 @@ async function deadlineEvaluations(opportunities) {
   if (conditions.length === 0) return {};
 
   const opportunityIds = opportunities.map((o) => o.id);
-  const { data: logs, error: logsError } = await supabase
-    .from("sales_opportunity_logs")
-    .select("opportunity_id, created_at, metadata")
-    .in("opportunity_id", opportunityIds);
+  const { data: logs, error: logsError } = await supabase.rpc("sor_logs_for_sors", {
+    p_opportunity_ids: opportunityIds,
+  });
   if (logsError) throw logsError;
 
   const logsByOpportunity = groupBy(logs, "opportunity_id");
@@ -4748,10 +4747,7 @@ export const opportunityService = {
         .select("*")
         .in("opportunity_id", opportunityIds)
         .in("condition_id", conditionIds),
-      supabase
-        .from("sales_opportunity_logs")
-        .select("opportunity_id, author_id, created_at, metadata")
-        .in("opportunity_id", opportunityIds),
+      supabase.rpc("sor_logs_for_sors", { p_opportunity_ids: opportunityIds }),
       supabase
         .from("sales_opportunity_members")
         .select(

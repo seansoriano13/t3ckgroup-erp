@@ -6,13 +6,13 @@ import { db } from "@/test/db/store";
 import { makeEmployee } from "@/test/factories";
 
 describe("OpenCostingMatrixActionModal", () => {
-  it("saves the defaults as an empty-handed config: Deal Owner as Sales Incharge, nobody named, nobody told", async () => {
+  it("saves the defaults as an empty-handed config: Deal Owner as Sales in-charge, nobody named, nobody told", async () => {
     const user = setupUser();
     const onSubmit = vi.fn();
     renderWithProviders(<OpenCostingMatrixActionModal isOpen onClose={() => {}} onSubmit={onSubmit} />);
 
-    expect(screen.getByRole("combobox", { name: "Sales Incharge" })).toHaveTextContent("Deal Owner (default)");
-    expect(screen.getByRole("combobox", { name: "Purchasing Incharge" })).toHaveTextContent("Not named");
+    expect(screen.getByRole("combobox", { name: "Sales in-charge" })).toHaveTextContent("Deal Owner (default)");
+    expect(screen.getByRole("combobox", { name: "Purchasing in-charge" })).toHaveTextContent("Not named");
     expect(screen.getByText("Who assigns it")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Save" }));
@@ -28,7 +28,7 @@ describe("OpenCostingMatrixActionModal", () => {
     });
   });
 
-  it("reads a saved config back, and hides 'Who assigns it' once a Purchasing Incharge is named", () => {
+  it("reads a saved config back, and hides 'Who assigns it' once a Purchasing in-charge is named", () => {
     const buyer = makeEmployee({ name: "Rey Santos" });
     const preset = db.seed("costing_markup_presets", { label: "Government", factor: 1.35, sort: 0, active: true });
     renderWithProviders(
@@ -44,12 +44,12 @@ describe("OpenCostingMatrixActionModal", () => {
       />,
     );
 
-    expect(screen.getByRole("combobox", { name: "Sales Incharge" })).toHaveTextContent("Closing Sales");
-    expect(screen.getByRole("combobox", { name: "Purchasing Incharge" })).toHaveTextContent("A person");
+    expect(screen.getByRole("combobox", { name: "Sales in-charge" })).toHaveTextContent("Closing Sales");
+    expect(screen.getByRole("combobox", { name: "Purchasing in-charge" })).toHaveTextContent("A person");
     expect(screen.queryByText("Who assigns it")).not.toBeInTheDocument();
   });
 
-  it("will not save a Purchasing Incharge 'A person' with nobody chosen", () => {
+  it("will not save a Purchasing in-charge 'A person' with nobody chosen", () => {
     renderWithProviders(
       <OpenCostingMatrixActionModal
         isOpen
@@ -74,8 +74,8 @@ describe("OpenCostingMatrixActionModal", () => {
     expect(screen.queryByRole("option", { name: /Retired/ })).not.toBeInTheDocument();
   });
 
-  // Issue #900 — a Purchasing Incharge is one person, so the picker offers no second one once a person is chosen.
-  it("offers no second Purchasing Incharge once one is chosen, and offers the choice again after removal", async () => {
+  // Issue #900 — a Purchasing in-charge is one person, so the picker offers no second one once a person is chosen.
+  it("offers no second Purchasing in-charge once one is chosen, and offers the choice again after removal", async () => {
     const user = setupUser();
     const buyer = makeEmployee({ name: "Rey Santos" });
     renderWithProviders(
@@ -88,10 +88,10 @@ describe("OpenCostingMatrixActionModal", () => {
     );
 
     expect(await screen.findByText("Rey Santos")).toBeInTheDocument();
-    expect(screen.queryByText("Choose the Purchasing Incharge")).not.toBeInTheDocument();
+    expect(screen.queryByText("Choose the Purchasing in-charge")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Remove Rey Santos" }));
 
-    expect(await screen.findByText("Choose the Purchasing Incharge")).toBeInTheDocument();
+    expect(await screen.findByText("Choose the Purchasing in-charge")).toBeInTheDocument();
   });
 });

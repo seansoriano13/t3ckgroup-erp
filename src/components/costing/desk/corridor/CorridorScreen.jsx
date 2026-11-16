@@ -11,7 +11,7 @@
  * On the right the decision card: what a Go needs (Costing settled), then Go / Revise / No-go and the sign-offs.
  * Parts are one-line liners under their line, never a table in a row; a line's name opens its slide-over.
  */
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Check, ChevronDown, ChevronRight, LayoutDashboard, Trash2, Users } from "lucide-react";
 
@@ -21,7 +21,7 @@ import ConfirmDialog from "../../../ui/ConfirmDialog";
 import { SelectField } from "../../../ui/SelectField";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../../ui/table";
 import RecordHeader from "../../../record/RecordHeader";
-import { Cell } from "../../GridCell";
+import { Cell, SelectCell } from "../../GridCell";
 import { factorLabel, pesos } from "../../gridFormat";
 import { costingKeys } from "../../costingKeys";
 import EvaluationBar from "../../EvaluationBar";
@@ -29,12 +29,14 @@ import InchargeSelects from "../../InchargeSelects";
 import SignoffBar from "../../SignoffBar";
 import TechnicalVerdict from "../../TechnicalVerdict";
 import DecisionCard from "./DecisionCard";
+import { goFloorSoFar } from "./goFloor";
 import { useInchargeOptions } from "../../useCostingWrites";
 import { costingMatrixService } from "../../../../services/costingMatrixService";
 import { useAuth } from "../../../../context/AuthContext";
-import { ABC_MODE, COMPONENT_BANDS, COSTING_BAND, COSTING_TIER, COST_ROW_BANDS, MATRIX_MONEY_BANDS, ROW_EDIT_BANDS, USUAL_COST_CATEGORIES, inAnyBand, tierReads, tierReadsCost, tierReadsCostRow } from "../../../../constants/costing";
-import { costUnit, finalAcquireTotal, projectExpensesTotal } from "../../../../utils/costingMath";
+import { ABC_MODE, COMPONENT_BANDS, COMPONENT_STATUS_LABEL, COSTING_BAND, COSTING_TIER, COST_ROW_BANDS, MATRIX_MONEY_BANDS, ROW_EDIT_BANDS, USUAL_COST_CATEGORIES, inAnyBand, tierReads, tierReadsCost, tierReadsCostRow } from "../../../../constants/costing";
+import { costUnit, finalAcquireByRule, finalAcquireTotal, projectExpensesTotal } from "../../../../utils/costingMath";
 
+const STATUS_OPTIONS = Object.entries(COMPONENT_STATUS_LABEL).map(([value, label]) => ({ value, label }));
 const num = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
 const money = (v) => (v === null || v === undefined ? <span className="text-muted-foreground">—</span> : pesos(v));
 const itemName = (line) => line.sor_line_snapshot?.name || (line.tender_specification ?? "").split("\n")[0].trim() || "Untitled line";
@@ -42,23 +44,6 @@ const partName = (part) => [part.brand, part.name].filter(Boolean).join(" ") || 
 const sum = (xs) => (xs.length === 0 || xs.some((x) => x === null) ? null : xs.reduce((a, b) => a + b, 0));
 
 /* ------------------------------------------------------------------ the Go floor */
-
-/**
- * The lowest offer total that keeps Revenue at the Go line, from the same formula the summary uses
- * (costingMath sheetRevenue): Revenue = offer ÷ VAT divisor − (retention × offer + landed + expenses + marketing)
- * − ITR × (offer above the allowance). Solved for Revenue = Go% × offer. Null while a cost is blank.
- */
-function goFloor(fixedCost, rates) {
-  if (fixedCost === null || !rates) return null;
-  const d = Number(rates.vatDivisor ?? 1.12);
-  const r = Number(rates.retentionRate ?? 0.01);
-  const i = Number(rates.itrRate ?? 0.08);
-  const a = Number(rates.itrAllowance ?? 0);
-  const g = Number(rates.goLinePercent ?? 20) / 100;
-  const above = (fixedCost - i * a) / (1 / d - r - i - g);
-  if (above > a && 1 / d - r - i - g > 0) return above;
-  return 1 / d - r - g > 0 ? fixedCost / (1 / d - r - g) : null;
-}
 
 /** Everything F draws, worked once from the matrix. */
 function useCorridor(matrix) {
@@ -76,8 +61,10 @@ function useCorridor(matrix) {
     const offerTotalOnly = matrix.offer?.mode === ABC_MODE.TOTAL_ONLY;
     const productCost = sum(rows.map((r) => r.cost));
     const expenses = num(projectExpensesTotal(matrix.costRows));
-    const marketing = num(matrix.money?.marketing) ?? 0;
-    const floorTotal = goFloor(productCost === null ? null : productCost + (expenses ?? 0) + marketing, matrix.rates);
+    const costRows = matrix.costRows ?? [];
+    // Every usual category is shown, row or not (2026-11-13: "add all at default"); one without a row is blank.
+    const missingUsual = USUAL_COST_CATEGORIES.filter((key) => !costRows.some((row) => row.category_key === key));
+    const { floor: floorTotal, uncounted, partial } = goFloorSoFar({ productCost, costRows, missingUsual: missingUsual.length, marketing: matrix.money?.marketing, rates: matrix.rates });
     // A line's floor: the deal's floor shared out by each line's part of the product cost.
     for (const row of rows) {
       row.floorTotal = floorTotal === null || row.cost === null || !productCost ? null : (floorTotal * row.cost) / productCost;
@@ -88,9 +75,6 @@ function useCorridor(matrix) {
       row.marginPct = row.offerTotal && row.cost !== null ? ((row.offerTotal - row.cost) / row.offerTotal) * 100 : null;
     }
     const allParts = rows.flatMap((r) => r.parts.map((p) => p.part));
-    const costRows = matrix.costRows ?? [];
-    // Every usual category is shown, row or not (2026-11-13: "add all at default"); one without a row is blank.
-    const missingUsual = USUAL_COST_CATEGORIES.filter((key) => !costRows.some((row) => row.category_key === key));
     const evaluated = Boolean(matrix.evaluation?.approved);
     // Each tier gets the steps whose figures it is sent (the Closed Book all of them, a Stage Participant only the specs).
     const tier = matrix.tier;
@@ -108,12 +92,29 @@ function useCorridor(matrix) {
       sees,
       rows,
       floorTotal,
+      floorUncounted: uncounted,
+      floorPartial: partial,
       expenses,
       abcTotal: num(matrix.totals?.abcTotal),
       offerTotal: num(matrix.totals?.finalOfferTotal),
       steps: [
         { key: "costs", label: "Costs", who: "Purchasing", band: "purchasing", left: allParts.filter((p) => p.acquire_unit == null).length, of: allParts.length },
-        { key: "finalAcquire", label: "Final Acquire", who: "Management", band: "management", left: allParts.filter((p) => costUnit(p) == null).length, of: allParts.length },
+        {
+          key: "finalAcquire",
+          label: "Final Acquire",
+          who: "Management",
+          band: "management",
+          left: allParts.filter((p) => costUnit(p) == null).length,
+          of: allParts.length,
+          // What is in the way: a part with no Status gets no Final Acquire from the rule (#1034).
+          words: (() => {
+            const left = allParts.filter((p) => costUnit(p) == null).length;
+            const noStatus = allParts.filter((p) => costUnit(p) == null && !p.status).length;
+            if (allParts.length === 0) return undefined;
+            if (left === 0) return "all filled";
+            return `${left} of ${allParts.length} left${noStatus > 0 ? ` · ${noStatus} need a Status` : ""}`;
+          })(),
+        },
         {
           key: "otherCosts",
           label: "Other costs",
@@ -143,7 +144,7 @@ function useCorridor(matrix) {
  * One bar: the Go floor and the ABC as two lines, the safe zone between them, our offer as a dot and the markup's
  * suggestion as a ring. Each label sits under its own line. Outside the corridor is tinted and named.
  */
-function Corridor({ floor, abc, offer, size = "sm" }) {
+function Corridor({ floor, abc, offer, size = "sm", deal = false, floorLabel = "Go floor", uncounted = 0 }) {
   if (floor === null && abc === null) return <span className="text-xs text-muted-foreground">Needs the costs and the ABC</span>;
   const values = [floor, abc, offer].filter((v) => v !== null);
   const lo = Math.min(...values) * 0.85;
@@ -152,6 +153,8 @@ function Corridor({ floor, abc, offer, size = "sm" }) {
   const at = (v) => `${pct(v)}%`;
   const state = offer === null ? "none" : floor !== null && offer < floor ? "low" : abc !== null && offer > abc ? "high" : "ok";
   const big = size === "lg";
+  // No offer can work when the floor is above the ABC (#1036); said once, on the deal bar.
+  const noOffer = deal && floor !== null && abc !== null && floor > abc;
   // The floor's label ends at its line and the ABC's starts at its line, so the two never run into each other.
   const floorAt = (v) => ({ right: `clamp(0%, calc(100% - ${at(v)}), calc(100% - 7rem))` });
   const abcAt = (v) => ({ left: `clamp(0%, ${at(v)}, calc(100% - 7rem))` });
@@ -172,13 +175,13 @@ function Corridor({ floor, abc, offer, size = "sm" }) {
       {floor !== null && abc !== null && pct(abc) - pct(floor) < (big ? 22 : 45) ? (
         // Too close for two labels: one line, in the same left-to-right order as the two lines on the bar.
         <div className={cn("mt-1.5 text-right tabular-nums text-muted-foreground", big ? "text-xs" : "text-[11px]")}>
-          Go floor <span className="text-foreground">{pesos(floor)}</span> – ABC <span className="text-foreground">{pesos(abc)}</span>
+          {floorLabel} <span className="text-foreground">{pesos(floor)}</span> – ABC <span className="text-foreground">{pesos(abc)}</span>
         </div>
       ) : (
       <div className={cn("relative mt-1.5", big ? "h-9" : "h-8")}>
         {floor !== null && (
           <div className="absolute whitespace-nowrap pr-1.5 text-right leading-tight" style={floorAt(floor)}>
-            <div className={cn("text-muted-foreground", big ? "text-xs" : "text-[11px]")}>Go floor</div>
+            <div className={cn("text-muted-foreground", big ? "text-xs" : "text-[11px]")}>{floorLabel}</div>
             <div className={cn("tabular-nums", big ? "text-xs font-semibold" : "text-[11px]")}>{pesos(floor)}</div>
           </div>
         )}
@@ -190,7 +193,15 @@ function Corridor({ floor, abc, offer, size = "sm" }) {
         )}
       </div>
       )}
-      {state === "low" && <div className="text-xs font-medium text-red-11">Below the Go floor: the deal stops paying.</div>}
+      {deal && uncounted > 0 && (
+        <div className="text-xs text-muted-foreground" data-testid="corridor-uncounted">
+          {uncounted} {uncounted === 1 ? "cost" : "costs"} not counted yet
+        </div>
+      )}
+      {noOffer && <div className="text-xs font-medium text-red-11" data-testid="corridor-no-offer">No offer reaches the Go line under this ABC.</div>}
+      {!noOffer && state === "low" && (
+        <div className="text-xs font-medium text-red-11">{deal ? "Below the Go floor: the deal stops paying." : "Under this line’s share of the Go floor."}</div>
+      )}
       {state === "high" && <div className="text-xs font-medium text-red-11">Over the ABC: the client cannot accept it.</div>}
     </div>
   );
@@ -199,14 +210,20 @@ function Corridor({ floor, abc, offer, size = "sm" }) {
 /* ------------------------------------------------------------------ the rows */
 
 const HEAD = "border-b border-border bg-muted px-3 py-2 text-label font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap";
+// Under the pinned deal bar (xl and up): the table heading sticks at the bar's bottom edge (the body's 0.75rem padding is taken off so nothing shows above the bar), on a solid background (#1038).
+const STICKY_HEAD = "xl:sticky xl:top-[calc(var(--deal-h,0px)-0.75rem)] xl:z-10";
 const CELL = "border-b border-border px-3 py-3 align-top text-sm";
 const NUM = "text-right tabular-nums whitespace-nowrap";
 
 /** A part as one line: name and quantity, its Odoo SRP, then the one box this step fills (or the figure, greyed). */
-function PartLiner({ part, step, save, canWrite, factor, faPercent }) {
+function PartLiner({ part, step, save, canWrite, canStatus, factor, faPercent }) {
   const srp = num(part.odoo_unit);
   const fa = num(costUnit(part));
   const markupCol = step === "costs" && factor != null;
+  const statusCol = step === "finalAcquire";
+  // The empty Final Acquire box says what the rule needs, never "by rule" when the rule gives nothing (#1034).
+  const byRule = finalAcquireByRule(part, faPercent);
+  const ruleHint = byRule !== null ? `${pesos(byRule)} by rule` : !part.status ? "Needs a Status" : part.status === "source_out" ? "Needs the Acquire" : "Needs the Odoo SRP";
   if (step === "lines") {
     return (
       <li className="grid grid-cols-[minmax(0,1fr)_5rem] items-center gap-x-4 py-1.5 text-[13px]" data-testid="corridor-part">
@@ -218,7 +235,7 @@ function PartLiner({ part, step, save, canWrite, factor, faPercent }) {
     );
   }
   return (
-    <li className={cn("grid items-center gap-x-4 py-1.5 text-[13px]", markupCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem_9rem]" : "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem]")} data-testid="corridor-part">
+    <li className={cn("grid items-center gap-x-4 py-1.5 text-[13px]", markupCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem_12rem]" : statusCol ? "grid-cols-[minmax(0,1fr)_5rem_8rem_9rem_10rem]" : "grid-cols-[minmax(0,1fr)_5rem_8rem_10rem]")} data-testid="corridor-part">
       <span className="min-w-0 truncate">{partName(part)}</span>
       <span className="text-right tabular-nums text-muted-foreground">
         {num(part.quantity)} {part.unit}
@@ -226,15 +243,22 @@ function PartLiner({ part, step, save, canWrite, factor, faPercent }) {
       <span className="text-right tabular-nums text-muted-foreground" title="Odoo SRP / unit">
         SRP {money(srp)}
       </span>
+      {statusCol && (
+        <div title={canStatus ? undefined : "Sales sets the Status"} data-testid="corridor-part-status">
+          <SelectCell label={`Status ${partName(part)}`} value={part.status} options={STATUS_OPTIONS} readOnly={!canStatus} onSave={(v) => save.part(part.id, { status: v })} />
+          {!canStatus && <p className="text-xs text-muted-foreground">Sales sets the Status</p>}
+        </div>
+      )}
       {step === "costs" ? (
         <Cell label={`Acquire / unit ${partName(part)}`} noun="Acquire" value={part.acquire_unit} numeric money align="right" placeholder="Supplier price" readOnly={!canWrite} onSave={(v) => save.part(part.id, { acquireUnit: v })} />
       ) : step === "finalAcquire" ? (
-        <Cell label={`Final Acquire / unit ${partName(part)}`} noun="Final Acquire" value={part.final_acquire_unit} numeric money align="right" placeholder={srp ? `${pesos(Math.round(srp * (100 + faPercent)) / 100)} by rule` : "Final Acquire"} readOnly={!canWrite} onSave={(v) => save.part(part.id, { finalAcquireUnit: v })} />
+        <Cell label={`Final Acquire / unit ${partName(part)}`} noun="Final Acquire" value={part.final_acquire_unit} numeric money align="right" placeholder={ruleHint} readOnly={!canWrite} onSave={(v) => save.part(part.id, { finalAcquireUnit: v })} />
       ) : (
         <span className="text-right tabular-nums text-muted-foreground">FA {money(fa)}</span>
       )}
       {markupCol && (
         <span className="text-right tabular-nums text-muted-foreground" title="Acquire × markup (the part's own, else the evaluation's), worked out by itself" data-testid="corridor-markup-price">
+          <span className="mr-1.5 text-xs">Markup price</span>
           {money(num(part.acquire_unit) === null ? null : Math.round(num(part.acquire_unit) * Number(num(part.markup_factor) ?? factor) * 100) / 100)}
         </span>
       )}
@@ -242,7 +266,7 @@ function PartLiner({ part, step, save, canWrite, factor, faPercent }) {
   );
 }
 
-function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offerByLine, factor, faPercent, onOpenLine }) {
+function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offerByLine, factor, faPercent, onOpenLine, floorLabel = "Go floor" }) {
   const { line, kids, parts, qty } = row;
   const showAbc = sees.abc && abcByLine;
   const showBar = sees.abc || sees.closed;
@@ -250,6 +274,7 @@ function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offe
   const pricing = step === "offers";
   const showParts = !pricing || open;
   const canOffer = bands.includes(COSTING_BAND.SALES);
+  const canStatus = inAnyBand(bands, COMPONENT_BANDS.status);
   const canPart = bands.includes(step === "costs" ? COSTING_BAND.PURCHASING : COSTING_BAND.MANAGEMENT);
   const cut = showParts && "border-b-0";
   return (
@@ -297,13 +322,13 @@ function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offe
         {showBar && (
         <TableCell className={cn(CELL, "w-[20rem] min-w-[15rem]", cut)}>
           {abcByLine && sees.abc ? (
-            <Corridor floor={row.floorUnit} abc={row.abcUnit} offer={row.offerUnit} />
+            <Corridor floor={row.floorUnit} abc={row.abcUnit} offer={row.offerUnit} floorLabel={floorLabel} />
           ) : (
             // The ABC is one total, so a line has no ceiling of its own: no bar, just its floor (2026-11-13, option 1).
             <div className="text-sm" data-testid="corridor-floor-only">
-              <span className="text-muted-foreground">Go floor </span>
+              <span className="text-muted-foreground">{floorLabel} </span>
               <span className="tabular-nums">{money(row.floorUnit)}</span>
-              {row.offerUnit != null && row.floorUnit != null && row.offerUnit < row.floorUnit && <div className="text-xs font-medium text-red-11">The offer is below this line&apos;s Go floor.</div>}
+              {row.offerUnit != null && row.floorUnit != null && row.offerUnit < row.floorUnit && <div className="text-xs font-medium text-red-11">Under this line&apos;s share of the Go floor.</div>}
             </div>
           )}
         </TableCell>
@@ -327,7 +352,7 @@ function LineRow({ row, step, save, bands, sees, open, onToggle, abcByLine, offe
           <TableCell colSpan={columns} className="border-b border-border bg-mauve-2/60 px-3 pb-2 pt-1">
             <ul className="ml-8 max-w-3xl divide-y divide-border/60">
               {parts.map(({ part }) => (
-                <PartLiner key={part.id} part={part} step={step} save={save} canWrite={canPart} factor={factor} faPercent={faPercent} />
+                <PartLiner key={part.id} part={part} step={step} save={save} canWrite={canPart} canStatus={canStatus} factor={factor} faPercent={faPercent} />
               ))}
               {parts.length === 0 && <li className="py-1.5 text-[13px] text-muted-foreground">No part yet. Open the line to add one.</li>}
             </ul>
@@ -348,7 +373,7 @@ const pctOf = (v) => (v === null || !Number.isFinite(v) ? null : Math.round(v * 
 /** The range the company expects for a cost; amber, with the word, only when a typed amount falls outside it. */
 function RangeCell({ range, share }) {
   if (!range) return <span className="text-muted-foreground">—</span>;
-  const off = share ? (share < range.lowPct ? "below" : share > range.highPct ? "above" : null) : null;
+  const off = share !== null && share !== undefined ? (share < range.lowPct ? "below" : share > range.highPct ? "above" : null) : null;
   return (
     <span className={cn("tabular-nums", off ? "font-semibold text-amber-11" : "text-muted-foreground")} title={off ? `This cost is ${off} the range, as a share of the ABC` : undefined} data-testid="other-cost-range">
       {range.lowPct}–{range.highPct}%{off && <span className="block text-xs font-normal">{off}</span>}
@@ -363,7 +388,7 @@ function RangeCell({ range, share }) {
  * #723), named, renamed or removed, and the category's range is checked on its rows together. Marketing is the
  * last row. They all count in OPEX, so every amount moves the Go floor as it is typed.
  */
-function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal }) {
+function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal, floorPartial }) {
   const { data: categories = [] } = useQuery({ queryKey: costingKeys.costCategories(), queryFn: () => costingMatrixService.listCostCategories(), staleTime: 60_000 });
   const [removing, setRemoving] = useState(null);
   const rows = matrix.costRows ?? [];
@@ -383,7 +408,9 @@ function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal }
   for (const cat of USUAL_COST_CATEGORIES) {
     const own = rows.filter((r) => r.category_key === cat);
     const label = guide.get(cat)?.label ?? FALLBACK_LABEL[cat] ?? cat;
-    const groupShare = share(sum(own.map(amountOf)));
+    // Flag from the rows that have an amount (an empty second row does not hide it); 0 counts and is below.
+    const amounts = own.map(amountOf).filter((a) => a !== null);
+    const groupShare = share(amounts.length === 0 ? null : amounts.reduce((a, b) => a + b, 0));
     if (own.length === 0) list.push({ key: cat, cat, label, range: guide.get(cat), row: null, share: null });
     else own.forEach((row, i) => list.push({ key: row.id, cat, label, range: i === 0 ? guide.get(cat) : null, row, share: i === 0 ? groupShare : null, more: i > 0 }));
   }
@@ -512,7 +539,7 @@ function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal }
         ) : (
           <span />
         )}
-        <span className="text-xs text-muted-foreground">Go floor now {floorTotal === null ? "—" : pesos(floorTotal)}</span>
+        <span className="text-xs text-muted-foreground">{floorPartial ? "Go floor so far" : "Go floor now"} {floorTotal === null ? "—" : pesos(floorTotal)}</span>
       </div>
       <ConfirmDialog
         open={Boolean(removing)}
@@ -544,6 +571,16 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
   const actorId = user?.id ?? null;
   const incharge = useInchargeOptions(opportunity);
   const c = useCorridor(matrix);
+  // The deal bar's height, handed to the table heading so it sticks right under the bar (#1038).
+  const dealRef = useRef(null);
+  const [dealH, setDealH] = useState(0);
+  useLayoutEffect(() => {
+    const el = dealRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(() => setDealH(Math.round(el.getBoundingClientRect().height)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
   const bands = matrix.bands ?? [];
   const closed = matrix.tier === COSTING_TIER.CLOSED_BOOK;
   // Markup is Purchasing's (the sheet's "Markup Price · PMS – Automatic"): Acquire × the evaluation's markup, 1.35 by default.
@@ -638,19 +675,19 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
         </p>
       )}
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]" style={{ "--deal-h": `${dealH}px` }}>
         <div className="min-w-0 space-y-5">
           {/* The deal's corridor: is the whole bid winnable and paying? */}
           {(sees.abc || sees.offer) && (
-          <section className="sticky top-0 z-20 grid gap-x-8 gap-y-3 rounded-xl border border-border bg-card px-5 py-4 lg:grid-cols-[minmax(0,1fr)_auto]" aria-label="The deal" data-testid="corridor-deal">
+          <section ref={dealRef} className="grid gap-x-8 gap-y-3 rounded-xl border border-border bg-card px-5 py-4 lg:grid-cols-[minmax(0,1fr)_auto] xl:sticky xl:top-[-0.75rem] xl:z-20" aria-label="The deal" data-testid="corridor-deal">
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-baseline gap-x-3">
                 <h3 className="text-sm font-semibold">The deal</h3>
                 <span className="text-xs text-muted-foreground">{closed ? "Keep the dot between the Go floor and the client\u2019s ABC" : "Keep the dot under the client\u2019s ABC"}</span>
               </div>
-              <Corridor floor={c.floorTotal} abc={c.abcTotal} offer={c.offerTotal} size="lg" />
+              <Corridor floor={c.floorTotal} abc={c.abcTotal} offer={c.offerTotal} size="lg" deal floorLabel={c.floorPartial ? "Go floor so far" : "Go floor"} uncounted={c.floorUncounted} />
             </div>
-            <dl className="flex items-end gap-x-6">
+            <dl className="flex min-w-0 flex-col gap-y-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-6">
               {sees.abc && (
               <div>
                 <dt className="text-xs text-muted-foreground">Client ABC</dt>
@@ -708,7 +745,7 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
             })}
           </ol>
 
-          {step === "otherCosts" && <OtherCostsPanel matrix={matrix} save={save} bands={bands} abcTotal={c.abcTotal} expenses={c.expenses} floorTotal={c.floorTotal} />}
+          {step === "otherCosts" && <OtherCostsPanel matrix={matrix} save={save} bands={bands} abcTotal={c.abcTotal} expenses={c.expenses} floorTotal={c.floorTotal} floorPartial={c.floorPartial} />}
 
           {step === "specs" && (
             <div className="space-y-4" data-testid="corridor-specs">
@@ -780,21 +817,21 @@ export default function CorridorScreen({ data, opportunity, onOverview, onOpenLi
                   )}
                 </div>
               )}
-              <div className="overflow-x-auto rounded-xl border border-border bg-card">
-                <Table className="border-separate border-spacing-0">
+              <div className="overflow-x-auto rounded-xl border border-border bg-card xl:overflow-x-clip">
+                <Table className="border-separate border-spacing-0" containerClassName="xl:overflow-x-clip">
                   <TableHeader className="bg-transparent">
                     <TableRow className="hover:bg-transparent">
-                      <th className={cn(HEAD, "text-left")}>S0 line</th>
-                      {sees.cost && <th className={cn(HEAD, "text-right")}>Our cost</th>}
-                      {sees.abc && abcByLine && <th className={cn(HEAD, "text-right")}>ABC / unit</th>}
-                      {(sees.abc || closed) && <th className={cn(HEAD, "text-left")}>{abcByLine && sees.abc ? "Corridor · per unit" : "Go floor · per unit"}</th>}
-                      {sees.offer && <th className={cn(HEAD, "text-right")}>Offer / unit</th>}
-                      {closed && <th className={cn(HEAD, "text-right")}>Margin</th>}
+                      <th className={cn(HEAD, STICKY_HEAD, "text-left")}>S0 line</th>
+                      {sees.cost && <th className={cn(HEAD, STICKY_HEAD, "text-right")}>{step === "costs" ? "Final Acquire / unit" : "Our cost"}</th>}
+                      {sees.abc && abcByLine && <th className={cn(HEAD, STICKY_HEAD, "text-right")}>ABC / unit</th>}
+                      {(sees.abc || closed) && <th className={cn(HEAD, STICKY_HEAD, "text-left")}>{abcByLine && sees.abc ? "Corridor · per unit" : "Go floor · per unit"}</th>}
+                      {sees.offer && <th className={cn(HEAD, STICKY_HEAD, "text-right")}>Offer / unit</th>}
+                      {closed && <th className={cn(HEAD, STICKY_HEAD, "text-right")}>Margin</th>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {c.rows.map((row) => (
-                      <LineRow key={row.line.id} row={row} step={step} save={save} bands={bands} sees={sees} open={open.has(row.line.id)} onToggle={() => toggle(row.line.id)} abcByLine={abcByLine} offerByLine={offerByLine} factor={closed ? factor : null} faPercent={Number(matrix.finalAcquirePercent ?? -20)} onOpenLine={onOpenLine} />
+                      <LineRow key={row.line.id} row={row} step={step} save={save} bands={bands} sees={sees} open={open.has(row.line.id)} onToggle={() => toggle(row.line.id)} abcByLine={abcByLine} offerByLine={offerByLine} factor={closed ? factor : null} faPercent={Number(matrix.finalAcquirePercent ?? -20)} onOpenLine={onOpenLine} floorLabel={c.floorPartial ? "Go floor so far" : "Go floor"} />
                     ))}
                   </TableBody>
                 </Table>

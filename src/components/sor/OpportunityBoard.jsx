@@ -14,6 +14,7 @@ import HighlightText from "../HighlightText";
 import { Button } from "../ui/button";
 import { SelectField } from "../ui/SelectField";
 import { useIsPhone } from "@/hooks/useScreenBand";
+import { sorCodeOf } from "../../utils/sorCode";
 
 const THEME_DOT = {
   green: "bg-green-9",
@@ -561,7 +562,7 @@ function BoardColumn({
         <div className="custom-scrollbar flex-1 min-h-0 space-y-2 overflow-y-auto p-2">
           {column.items.length === 0 ? (
             <p className="py-8 text-center text-[11px] italic text-muted-foreground/50">
-              No opportunities
+              No SORs
             </p>
           ) : (
             column.items.map((o) => (
@@ -639,7 +640,7 @@ function BoardCard({
     >
       <div className={`flex items-center justify-between gap-2 ${compact ? "mb-0.5" : "mb-1.5"}`}>
         <span className="font-mono text-[10px] font-bold text-primary truncate">
-          <HighlightText text={opportunity.sales_reference || ""} search={search} />
+          <HighlightText text={sorCodeOf(opportunity) || opportunity.sales_reference || ""} search={search} />
         </span>
         <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide shrink-0">
           {PROJECT_TYPE_SHORT[opportunity.project_type] || opportunity.project_type}
@@ -651,7 +652,7 @@ function BoardCard({
       {!compact && (
         <div className="flex items-center justify-between gap-2 mb-2.5">
           <p className="text-xs text-muted-foreground truncate">
-            <HighlightText text={opportunity.project_title} search={search} />
+            <HighlightText text={[sorCodeOf(opportunity) ? opportunity.sales_reference : "", opportunity.project_title].filter(Boolean).join(" · ")} search={search} />
           </p>
           <DeadlineBadge deadline={deadline} />
         </div>

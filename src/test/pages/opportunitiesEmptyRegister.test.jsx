@@ -39,7 +39,7 @@ describe("OpportunitiesPage with nothing the caller may see", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText(/No opportunities registered yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No SORs registered yet/i)).toBeInTheDocument();
   });
 
   it("renders the same empty state on the Board tab", async () => {
@@ -49,11 +49,11 @@ describe("OpportunitiesPage with nothing the caller may see", () => {
         <OpportunitiesPage />
       </MemoryRouter>,
     );
-    await screen.findByText(/No opportunities registered yet/i);
+    await screen.findByText(/No SORs registered yet/i);
 
     await user.click(screen.getByRole("tab", { name: /Board/i }));
 
-    expect(screen.getByText(/No opportunities registered yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No SORs registered yet/i)).toBeInTheDocument();
   });
 
   it("renders a plain empty state on the Overview tab", async () => {
@@ -63,7 +63,7 @@ describe("OpportunitiesPage with nothing the caller may see", () => {
         <OpportunitiesPage />
       </MemoryRouter>,
     );
-    await screen.findByText(/No opportunities registered yet/i);
+    await screen.findByText(/No SORs registered yet/i);
 
     await user.click(screen.getByRole("tab", { name: /Overview/i }));
 

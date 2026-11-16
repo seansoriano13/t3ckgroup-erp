@@ -71,7 +71,7 @@ export function StatsBand({ p, dg, className }) {
   const note = dg.latestNote;
   return (
     <dl className={cn("grid grid-cols-2 divide-border/60 rounded-xl border border-border/70 bg-card sm:divide-x", showMoney(p) ? "sm:grid-cols-5" : "sm:grid-cols-4", className)}>
-      {showMoney(p) && <Stat label="Estimated value" value={p.ctx.estimatedValueDisplay} sub={p.opportunity.sales_reference || "No Sales Reference"} />}
+      {showMoney(p) && <Stat label="Expected value" value={p.ctx.estimatedValueDisplay} sub={p.opportunity.sales_reference || "No Sales Reference"} />}
       <Stat label="Products" value={dg.itemsCount} sub={showMoney(p) && dg.itemsCount ? dg.itemsTotal : "lines"} />
       <Stat label="Open tasks" value={dg.openTasks.length} sub={dg.overdueTasks.length ? `${dg.overdueTasks.length} past due` : "on this stage"} tone={dg.overdueTasks.length ? "red" : undefined} />
       <Stat

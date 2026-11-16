@@ -59,9 +59,9 @@ describe("markup on the S0 Evaluation", () => {
     const block = await screen.findByTestId("components");
     const rows = within(block).getAllByTestId("component");
     // The vehicle's own x1.47; the bolts follow the default x1.35.
-    expect(within(rows[0]).getByLabelText("Markup factor 1.1")).toHaveValue(1.47);
+    expect(within(rows[0]).getByLabelText("Markup factor 1.1")).toHaveValue("1.47");
     expect(within(rows[0]).getByTestId("markup-factor-shown")).toHaveTextContent("×1.47 · +47%");
-    expect(within(rows[1]).getByLabelText("Markup factor 1.2")).toHaveValue(null);
+    expect(within(rows[1]).getByLabelText("Markup factor 1.2")).toHaveValue("");
     expect(within(rows[1]).getByTestId("markup-factor-shown")).toHaveTextContent("×1.35 · +35% (default)");
     // 2,160,500 x 1.47 = 3,175,935 and 1,000 x 1.35 = 1,350 per unit, 2,700 for two.
     expect(within(rows[0]).getAllByText("₱3,175,935.00")).toHaveLength(2);
@@ -98,6 +98,23 @@ describe("markup on the S0 Evaluation", () => {
     expect(prices[1]).toHaveTextContent("₱1,350.00");
     // Only the Markup list sets it: Purchasing reads it.
     expect(screen.getByLabelText("Markup").tagName).toBe("SPAN");
+  });
+
+  it("labels the Markup price beside Acquire, names the Costs-step cost column, and sticks the heading under a deal bar pinned only on a laptop (#1038)", async () => {
+    seed();
+    stubCostingMatrixRpcs({ tier: "closed_book", bands: ["purchasing", "management"] });
+    openDesk(deal);
+
+    await openStep("Costs");
+    const prices = await screen.findAllByTestId("corridor-markup-price");
+    expect(prices[0]).toHaveTextContent("Markup price");
+    const heading = screen.getByRole("columnheader", { name: "Final Acquire / unit" });
+    expect(heading.className).toContain("xl:sticky");
+    expect(screen.queryByRole("columnheader", { name: "Our cost" })).not.toBeInTheDocument();
+    // The deal bar pins from xl up only: a phone shows it in the flow, with the figures stacked.
+    const bar = screen.getByTestId("corridor-deal");
+    expect(bar.className).toContain("xl:sticky");
+    expect(bar.className).not.toMatch(/(^|\s)sticky(\s|$)/);
   });
 
   it("saves a typed markup for the evaluation, follows it on the parts, and never changes an offer", async () => {
@@ -186,7 +203,7 @@ describe("markup on the S0 Evaluation", () => {
     await openLines();
 
     const block = await screen.findByTestId("components");
-    expect(within(block).getByLabelText("Acquire 1.1")).toHaveValue(2160500);
+    expect(within(block).getByLabelText("Acquire 1.1")).toHaveValue("2,160,500.00");
     expect(screen.queryByText(/Markup/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("line-markup-price")).not.toBeInTheDocument();
     expect(screen.queryByTestId("markup-default")).not.toBeInTheDocument();

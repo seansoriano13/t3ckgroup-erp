@@ -43,6 +43,17 @@ describe("DeletedOpportunitiesView", () => {
     expect(screen.getByText("Cara Lim")).toBeInTheDocument();
   });
 
+  it("tells two SORs on the same S0 apart by SOR number, with the Sales Reference second", async () => {
+    opportunityService.getDeletedOpportunities.mockResolvedValue([
+      { ...ROW, id: "a", sor_code: "SOR-101" },
+      { ...ROW, id: "b", sor_code: "SOR-102" },
+    ]);
+    renderWithProviders(<DeletedOpportunitiesView currentUserId="owner-1" isSuperAdmin={false} />);
+    const rows = (await screen.findAllByRole("row")).slice(1).map((r) => r.textContent);
+    expect(rows[0]).toMatch(/SOR-101\s*S01234/);
+    expect(rows[1]).toMatch(/SOR-102\s*S01234/);
+  });
+
   it("searches by client and sorts the matches together", async () => {
     const user = setupUser();
     opportunityService.getDeletedOpportunities.mockResolvedValue([

@@ -22,7 +22,7 @@ export function SorQuickLinkButton({ opportunityId, className = "" }) {
           }),
         );
       }}
-      title="Linked Sales Opportunity"
+      title="Linked SOR"
       className={cn(
         "flex size-6 shrink-0 items-center justify-center rounded-full bg-mauve-4 text-mauve-11 ring-1 ring-mauve-6 transition-colors hover:bg-mauve-5 hover:ring-mauve-8",
         className,

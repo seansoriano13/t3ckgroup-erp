@@ -94,7 +94,7 @@ export const CONDITION_KIND_META = {
   [CONDITION_KINDS.COSTING_PRICED]: {
     label: "Costing priced",
     icon: Tags,
-    hint: "Purchasing has costed the matrix: at least one Component, an Acquire unit cost on every Component and cost-only row, and a Purchasing Incharge named. Unmet when there is no matrix.",
+    hint: "Purchasing has costed the matrix: at least one Component, an Acquire unit cost on every Component and cost-only row, and a Purchasing in-charge named. Unmet when there is no matrix.",
   },
   [CONDITION_KINDS.COSTING_EVALUATION_APPROVED]: {
     label: "Evaluation of Specification approved",
@@ -244,7 +244,7 @@ export function actionSummary(action, { employees = [] } = {}) {
     const buyer = config.purchasingIncharge?.id
       ? employees.find((e) => e.id === config.purchasingIncharge.id)?.name ?? "someone no longer listed"
       : null
-    summary = buyer ? `${label} · Purchasing: ${buyer}` : `${label} · no Purchasing Incharge named`
+    summary = buyer ? `${label} · Purchasing: ${buyer}` : `${label} · no Purchasing in-charge named`
   } else if (action?.kind === "request_packing_list") {
     summary = `${label} · ${packingListNotifySummary(
       config,

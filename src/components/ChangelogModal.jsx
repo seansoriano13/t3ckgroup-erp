@@ -13,7 +13,7 @@ import { entryTouchesUser, setUnreadVersion } from "@/utils/changelogAccess";
 const changelog = visibleEntries(allChangelog, isStaging);
 
 export default function ChangelogModal({ manualOpen = false, onManualClose = null }) {
-  const { user } = useAuth();
+  const { user, updateUserPreferences } = useAuth();
   const navigate = useNavigate();
   const [autoOpen, setAutoOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -35,6 +35,7 @@ export default function ChangelogModal({ manualOpen = false, onManualClose = nul
       console.error("Error updating changelog version:", err);
     } finally {
       localStorage.setItem(`changelog_dismissed_${user.id}`, latestRelease.version);
+      updateUserPreferences?.({ lastSeenChangelogVersion: latestRelease.version });
     }
   };
 
@@ -44,7 +45,7 @@ export default function ChangelogModal({ manualOpen = false, onManualClose = nul
     const localDismissedVersion = localStorage.getItem(`changelog_dismissed_${user.id}`);
 
     if (
-      user.last_seen_changelog_version !== latestRelease.version &&
+      user.lastSeenChangelogVersion !== latestRelease.version &&
       localDismissedVersion !== latestRelease.version
     ) {
       if (entryTouchesUser(latestRelease, user)) {
