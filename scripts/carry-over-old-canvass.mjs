@@ -8,8 +8,9 @@
  * prod (docs/release-2026-11-mid-prod-plan.md).
  *
  * Usage:
- *   node scripts/carry-over-old-canvass.mjs <prod|staging> <saved.json>           dry run: adds, prints, rolls back
- *   node scripts/carry-over-old-canvass.mjs <prod|staging> <saved.json> --apply   adds and commits
+ *   node scripts/carry-over-old-canvass.mjs <prod|staging> <saved.json> --save    before 967: saves the old rows, read-only
+ *   node scripts/carry-over-old-canvass.mjs <prod|staging> <saved.json>           after 967, dry run: adds, prints, rolls back
+ *   node scripts/carry-over-old-canvass.mjs <prod|staging> <saved.json> --apply   after 967: adds and commits
  *
  * <saved.json>: { sor_canvasses, sor_canvass_offers, sor_canvass_offer_prices,
  *   sor_canvass_no_other_supplier, sor_canvass_signoff_events, requested_items }, each a list of rows.
@@ -22,7 +23,7 @@
  * Reads PROD_DB_URL / STAGING_DB_URL from .env.local or the environment. Never prints them.
  */
 import pg from "pg"
-import { readFileSync } from "fs"
+import { existsSync, readFileSync, writeFileSync } from "fs"
 import { fileURLToPath } from "url"
 import { dirname, join } from "path"
 import { loadDotEnvLocal } from "./lib/seedShared.mjs"
@@ -30,8 +31,9 @@ import { loadDotEnvLocal } from "./lib/seedShared.mjs"
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..")
 const [target, file] = process.argv.slice(2)
 const apply = process.argv.includes("--apply")
-if (!["prod", "staging"].includes(target) || !file) {
-  console.error("Usage: node scripts/carry-over-old-canvass.mjs <prod|staging> <saved.json> [--apply]")
+const save = process.argv.includes("--save")
+if (!["prod", "staging"].includes(target) || !file || (apply && save)) {
+  console.error("Usage: node scripts/carry-over-old-canvass.mjs <prod|staging> <saved.json> [--save | --apply]")
   process.exit(1)
 }
 
@@ -45,6 +47,36 @@ if (!dbUrl) {
 if (!dbUrl.includes(projectRef)) {
   console.error(`${envVar} does not name the ${target} project (${projectRef}). Stopping.`)
   process.exit(1)
+}
+
+// --save: copy the old rows to the file, read-only, before migration 967 drops their tables.
+if (save) {
+  if (existsSync(file)) {
+    console.error(`${file} already exists. Pick a new name; a saved copy is never overwritten.`)
+    process.exit(1)
+  }
+  const client = new pg.Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } })
+  await client.connect()
+  const out = {}
+  try {
+    await client.query("begin transaction read only")
+    if (!(await client.query("select to_regclass('public.sor_canvasses') as t")).rows[0].t) {
+      console.error(`The old Canvass tables are not on ${target} (migration 967 already ran). Nothing saved.`)
+      process.exit(1)
+    }
+    for (const t of ["sor_canvasses", "sor_canvass_offers", "sor_canvass_offer_prices", "sor_canvass_no_other_supplier", "sor_canvass_signoff_events"]) {
+      out[t] = (await client.query(`select * from public.${t}`)).rows
+    }
+    out.requested_items = (await client.query(
+      "select * from public.purchase_request_items where id in (select requested_item_id from public.sor_canvasses)",
+    )).rows
+  } finally {
+    await client.query("rollback").catch(() => {})
+    await client.end()
+  }
+  writeFileSync(file, JSON.stringify(out, null, 2))
+  console.log(`Saved from ${target}: ` + Object.entries(out).map(([t, rows]) => `${t} ${rows.length}`).join(", "))
+  process.exit(0)
 }
 
 const saved = JSON.parse(readFileSync(file, "utf8"))
