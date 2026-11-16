@@ -37,6 +37,7 @@ create or replace function public.activity_needs_hr(p_activity_type text, p_venu
 returns boolean
 language sql
 immutable
+set search_path = ''
 as $function$
   select p_activity_type = 'EVENT' or (p_activity_type = 'MEETING' and p_venue_id is not null);
 $function$;
@@ -46,6 +47,7 @@ create or replace function public.activity_fields_check(p_activity_type text, p_
 returns void
 language plpgsql
 immutable
+set search_path = ''
 as $function$
 begin
   if p_activity_type not in ('MEETING', 'ADMIN_TASK', 'OPERATIONS_TASK', 'EVENT') then
@@ -214,11 +216,11 @@ begin
   end if;
 
   if v_req.starts_at <= now() then
-    raise exception 'This meeting has already started, so it can no longer be edited.' using errcode = '22023';
+    raise exception 'This Activity has already started, so it can no longer be edited.' using errcode = '22023';
   end if;
 
   if p_starts_at < now() then
-    raise exception 'A meeting cannot start in the past.' using errcode = '22023';
+    raise exception 'An Activity cannot start in the past.' using errcode = '22023';
   end if;
 
   v_atype := upper(coalesce(p_activity_type, v_req.activity_type));

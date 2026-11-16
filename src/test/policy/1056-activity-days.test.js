@@ -282,11 +282,23 @@ describe("cancelling", () => {
         expect(data.filter((e) => e.group_id === id)).toHaveLength(2)
     })
 
+    it("while still waiting on HR never shows its held days as approved", async () => {
+        const b = nextBlock()
+        const { id, error: fileError } = await file("head", { p_activity_type: "EVENT", p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2)] })
+        expect(fileError).toBeNull()
+        expect((await row(id)).status).toBe("PENDING_HR")
+        await startDays(id, 2)
+        const held = await daysOf(id)
+        expect((await cancel("head", id)).error).toBeNull()
+        const { data } = await (await clientFor("outsider")).rpc("calendar_entries", { p_from: manilaDay(held[0].starts_at), p_to: manilaDay(held[1].starts_at), p_include_pending: true })
+        expect(data.filter((e) => e.group_id === id && e.status === "APPROVED")).toHaveLength(0)
+    })
+
     it("before the first day hides the whole Activity and deletes nothing", async () => {
         const b = nextBlock()
         const days = [dayAt(b), dayAt(b + 1), dayAt(b + 2)]
-        const { id } = await file("ordinary", { p_days: days })
-        expect((await cancel("ordinary", id)).error).toBeNull()
+        const { id } = await file("head", { p_days: days })
+        expect((await cancel("head", id)).error).toBeNull()
         expect(await daysOf(id)).toHaveLength(3)
         const { data } = await (await clientFor("outsider")).rpc("calendar_entries", { p_from: manilaDay(days[0].starts_at), p_to: manilaDay(days[2].starts_at), p_include_pending: false })
         expect(data.filter((e) => e.group_id === id)).toHaveLength(0)

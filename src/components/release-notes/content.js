@@ -501,7 +501,7 @@ export const SECTIONS = [
       {
         id: "meeting-requests",
         title: "Book a Venue for an Activity",
-        body: "Book a Venue from the Calendar and add a Lead, Participants and guests. A meeting is Onsite, Online or Hybrid, with a link and guest emails. HR approves it in Approvals, under Meeting Requests. You can edit, send again or cancel before it starts, and everyone invited gets a reminder 15 minutes before. A Venue that is already booked at that time is refused, and you are warned, without being stopped, when someone you invite is on approved time off or in another meeting.",
+        body: "Book a Venue from the Calendar and add a Lead, Participants and guests. A meeting is Onsite, Online or Hybrid, with a link and guest emails. HR approves it in Approvals, under Activities. You can edit, send again or cancel before it starts, and everyone invited gets a reminder 15 minutes before. A Venue that is already booked at that time is refused, and you are warned, without being stopped, when someone you invite is on approved time off or in another meeting.",
         who: ["Everyone", "HR"],
         sample: "meeting-requests",
       },

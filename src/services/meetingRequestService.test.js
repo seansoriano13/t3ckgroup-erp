@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { meetingRequestService, needsHr } from "./meetingRequestService"
+import { meetingRequestService } from "./meetingRequestService"
 import { db, insertRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { stubRpc } from "@/test/msw/server"
+
+// Mirrors the database's activity_needs_hr(): an Event, or a Meeting with a Venue.
+const needsHr = (activityType, venueId) => activityType === "EVENT" || (activityType === "MEETING" && Boolean(venueId))
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeHrEmployee } from "@/test/factories"
 

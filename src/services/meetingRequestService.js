@@ -39,10 +39,6 @@ const DECISION_VERB = {
 export const ACTIVITY_TYPE = { MEETING: 'MEETING', ADMIN_TASK: 'ADMIN_TASK', OPERATIONS_TASK: 'OPERATIONS_TASK', EVENT: 'EVENT' };
 export const ACTIVITY_TYPE_LABEL = { MEETING: 'Meeting', ADMIN_TASK: 'Admin Task', OPERATIONS_TASK: 'Operations Task', EVENT: 'Event' };
 
-/** Mirrors the database's activity_needs_hr(): an Event, or a Meeting with a Venue (Onsite or Hybrid). */
-export const needsHr = (activityType, venueId) =>
-  activityType === ACTIVITY_TYPE.EVENT || (activityType === ACTIVITY_TYPE.MEETING && Boolean(venueId));
-
 export const MEETING_TYPE = { ONSITE: 'ONSITE', ONLINE: 'ONLINE', HYBRID: 'HYBRID' };
 export const MEETING_TYPE_LABEL = { ONSITE: 'Onsite', ONLINE: 'Online', HYBRID: 'Hybrid' };
 

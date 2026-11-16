@@ -13,8 +13,8 @@
 --   ?entry=meeting:<id> still opens its first day. A parent insert with no days gets one automatically.
 -- * Changing: a day that has started is frozen. Days not started can be changed or removed.
 -- * Cancelling after the first day started deletes the days not started and keeps the held days.
---   cancelled_at tells the Calendar which cancelled Activities still have held days to show: it shows
---   them when cancelled_at is after the first start. A cancel before the start keeps every day row
+--   cancelled_at tells the Calendar which cancelled Activities still have held days to show: it is set
+--   only when the Activity was approved, and the Calendar shows them when it is after the first start. A cancel before the start keeps every day row
 --   (nothing is deleted) and the Calendar hides it as before.
 -- * The 15-minute reminder reads the day rows; the "sent" mark moves to the day. The old column stays.
 -- Written as a file only. Apply it through the normal staging/prod path.
@@ -69,7 +69,7 @@ language plpgsql
 as $function$
 begin
   if new.starts_at < now() then
-    raise exception 'A meeting cannot start in the past.' using errcode = '22023';
+    raise exception 'An Activity cannot start in the past.' using errcode = '22023';
   end if;
   return new;
 end;
@@ -412,7 +412,7 @@ begin
 
   -- Editable while at least one day has not started.
   if not exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at > now()) then
-    raise exception 'This meeting has already started, so it can no longer be edited.' using errcode = '22023';
+    raise exception 'This Activity has already started, so it can no longer be edited.' using errcode = '22023';
   end if;
 
   v_atype := upper(coalesce(p_activity_type, v_req.activity_type));
@@ -442,7 +442,7 @@ begin
         where d.request_id = p_request_id and d.starts_at = x.starts_at and d.ends_at = x.ends_at
       )
   ) then
-    raise exception 'A meeting cannot start in the past.' using errcode = '22023';
+    raise exception 'An Activity cannot start in the past.' using errcode = '22023';
   end if;
 
   if p_venue_id is not null and not exists (
@@ -640,7 +640,7 @@ begin
   end if;
 
   if not exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at > now()) then
-    raise exception 'This meeting has already started, so it can no longer be cancelled.' using errcode = '22023';
+    raise exception 'This Activity has already started, so it can no longer be cancelled.' using errcode = '22023';
   end if;
 
   if not v_by_applicant and v_reason is null then
@@ -649,6 +649,8 @@ begin
 
   v_action := case when v_by_applicant then 'CANCELLED' else 'HR_CANCELLED' end;
 
+  -- cancelled_at is set only when the Activity was approved, so held days of one cancelled while
+  -- still waiting on HR are never shown as approved.
   -- Once a day has started, drop the days that have not; the held days stay.
   if exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at <= now()) then
     delete from public.meeting_request_days where request_id = p_request_id and starts_at > now();
@@ -659,7 +661,7 @@ begin
     status = 'CANCELLED',
     cancel_reason = v_reason,
     cancelled_by = v_actor,
-    cancelled_at = now(),
+    cancelled_at = case when v_req.status = 'APPROVED' then now() else null end,
     ends_at = coalesce(v_left_end, ends_at)
   where id = p_request_id;
 
