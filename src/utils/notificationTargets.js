@@ -100,6 +100,9 @@ const purchaseRequestTarget =
   ({ notif }) =>
     openRecordWindow({ id: notif.reference_id, type: "PURCHASE_REQUEST", focusChat: false, ...extra });
 const ipasTarget = ({ notif, navigate }) => navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}`);
+/** An IPAS chat message or mention opens the IPAS at its chat. */
+const ipasChatTarget = ({ notif, navigate }) =>
+  navigate(`/purchasing/ipas/${encodeURIComponent(notif.reference_id)}?view=chat`);
 
 const transmittalTarget = ({ notif, navigate }) =>
   navigate(`/purchasing/transmittals/${encodeURIComponent(notif.reference_id)}`);
@@ -196,6 +199,8 @@ export const NOTIFICATION_TARGETS = {
   IPAS_PO_CHANGED: { module: "purchasing", icon: "FileText", target: ipasTarget },
   IPAS_ACCOUNT_FLAGGED: { module: "purchasing", icon: "FileText", target: ipasTarget },
   IPAS_SECTION_3_CLEARED: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  IPAS_MESSAGE: { module: "purchasing", icon: "MessageCircle", target: ipasChatTarget },
+  IPAS_MENTION: { module: "purchasing", icon: "MessageCircle", target: ipasChatTarget },
   PURCHASE_REQUEST_BUYER: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },
   PURCHASE_REQUEST_ITEM_ADDED: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },
   IPAS_SENT_BACK: { module: "purchasing", icon: "FileText", target: ipasTarget },

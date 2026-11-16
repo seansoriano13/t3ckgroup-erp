@@ -1,7 +1,7 @@
 import RecordNotFound from "@/components/ui/RecordNotFound";
 import { isRecordId } from "@/utils/recordLink";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
@@ -22,6 +22,7 @@ import FilingDialog from "../../../components/ipas/FilingDialog";
 import { IpasFiledNotice } from "../../../components/ipas/IpasFiling";
 import { IpasWarnings } from "../../../components/ipas/IpasSections";
 import IpasJourney from "../../../components/ipas/record/IpasJourney";
+import IpasChat from "../../../components/ipas/IpasChat";
 import { journeyFor } from "../../../components/ipas/record/journey";
 import RecordHeader from "../../../components/record/RecordHeader";
 import PropertyPills from "../../../components/record/PropertyPills";
@@ -149,6 +150,9 @@ function typingInitialValue(field, ipas) {
  */
 function IpasPage({ onClose }) {
   const { id } = useParams();
+  // A chat notification opens `?view=chat`: the page jumps to the chat.
+  const [searchParams] = useSearchParams();
+  const chatFocus = searchParams.get("view") === "chat";
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { hasPurchasingFlow, hasFinanceFlow, isSuperAdmin } = getPermissionContext(user);
@@ -1132,6 +1136,7 @@ function IpasPage({ onClose }) {
                 failure={editFailure}
               />
             </div>
+            <IpasChat ipasId={id} focusOnMount={chatFocus} />
           </RecordWithRail>
         </div>
       </ModalShell>

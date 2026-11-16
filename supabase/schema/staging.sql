@@ -824,6 +824,15 @@ create table if not exists public."ipas_file_rules" (
   "updated_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."ipas_messages" (
+  "id" uuid not null default gen_random_uuid(),
+  "ipas_id" uuid not null,
+  "author_id" uuid,
+  "content" text not null,
+  "metadata" jsonb not null default '{}'::jsonb,
+  "created_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."ipas_options" (
   "id" uuid not null default gen_random_uuid(),
   "list" text not null,
@@ -2040,6 +2049,7 @@ alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id)
 alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_file_rules add constraint "ipas_file_rules_pkey" PRIMARY KEY (id);
 alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
+alter table ipas_messages add constraint "ipas_messages_pkey" PRIMARY KEY (id);
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIMARY KEY (id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
@@ -2540,6 +2550,8 @@ alter table ipas_payments add constraint "ipas_payments_method_id_fkey" FOREIGN 
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
+alter table ipas_messages add constraint "ipas_messages_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
+alter table ipas_messages add constraint "ipas_messages_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_by_fkey" FOREIGN KEY (cleared_by) REFERENCES employees(id);
 alter table ipas_signoffs add constraint "ipas_signoffs_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_signoffs add constraint "ipas_signoffs_signed_by_fkey" FOREIGN KEY (signed_by) REFERENCES employees(id);
@@ -2849,6 +2861,7 @@ CREATE INDEX ipas_payments_created_by_idx ON public.ipas_payments USING btree (c
 CREATE INDEX ipas_payments_ipas_id_idx ON public.ipas_payments USING btree (ipas_id, paid_on);
 CREATE INDEX ipas_payments_method_id_idx ON public.ipas_payments USING btree (method_id);
 CREATE INDEX ipas_signer_list_log_actor_id_idx ON public.ipas_signer_list_log USING btree (actor_id);
+CREATE INDEX ipas_messages_ipas_id_idx ON public.ipas_messages USING btree (ipas_id, created_at);
 CREATE INDEX ipas_signer_list_log_created_at_idx ON public.ipas_signer_list_log USING btree (created_at DESC);
 CREATE INDEX ipas_signer_list_log_employee_id_idx ON public.ipas_signer_list_log USING btree (employee_id);
 CREATE INDEX ipas_signer_lists_employee_id_idx ON public.ipas_signer_lists USING btree (employee_id);
@@ -3042,6 +3055,7 @@ alter table public."ipas_signer_list_log" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
 alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
+alter table public."ipas_messages" enable row level security;
 alter table public."ipas_work_marks" enable row level security;
 alter table public."lwop_leaves" enable row level security;
 alter table public."meeting_request_days" enable row level security;
@@ -3938,6 +3952,16 @@ create policy "ipas_options_insert" on public."ipas_options"
   to authenticated
   with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
 create policy "ipas_options_read" on public."ipas_options"
+create policy "ipas_messages_insert" on public."ipas_messages"
+  as permissive
+  for insert
+  to authenticated
+  with check (((author_id = get_employee_id()) AND (NOT (metadata ? 'event'::text)) AND ipas_can_read()));
+create policy "ipas_messages_read" on public."ipas_messages"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
   as permissive
   for select
   to authenticated
@@ -5581,6 +5605,29 @@ CREATE OR REPLACE FUNCTION public._ipas_file_rules_now()
  STABLE
  SET search_path TO 'public'
 AS $function$
+CREATE OR REPLACE FUNCTION public._ipas_employee_can_read(p_employee_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from employees e
+    where e.id = p_employee_id
+      and not coalesce(e.is_deleted, false)
+      and (
+        coalesce(e.has_purchasing_flow, false)
+        or coalesce(e.has_finance_flow, false)
+        or coalesce(e.is_super_admin, false)
+        or exists (
+          select 1 from ipas_signer_lists l
+           where l.employee_id = e.id
+             and l.list_key not like 'transmittal\_%' escape '\'
+        )
+      )
+  );
+$function$
+;
   select jsonb_build_object(
     'options', coalesce(
       (select jsonb_object_agg(o.id::text, o.required_before)
@@ -5984,6 +6031,64 @@ CREATE OR REPLACE FUNCTION public._ipas_missing_documents(p_ipas_id uuid, p_sect
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+CREATE OR REPLACE FUNCTION public._ipas_message_notify()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ipas public.ipas;
+  v_label text;
+  v_author text;
+  v_mentioned uuid[] := '{}';
+  v_others uuid[] := '{}';
+begin
+  select * into v_ipas from public.ipas where id = new.ipas_id;
+  if v_ipas.id is null then
+    return null;
+  end if;
+  v_label := concat_ws(' — ', v_ipas.number, nullif(v_ipas.odoo_copy->'supplier'->>'name', ''));
+  select name into v_author from public.employees where id = new.author_id;
+
+  if jsonb_typeof(new.metadata->'mentions') = 'array' then
+    select coalesce(array_agg(distinct e.id), '{}') into v_mentioned
+    from jsonb_array_elements(new.metadata->'mentions') x
+    join public.employees e on e.id::text = x->>'id'
+    where jsonb_typeof(x) = 'object'
+      and e.id is distinct from new.author_id
+      and public._ipas_employee_can_read(e.id);
+
+    insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+    select r, new.author_id, 'IPAS_MENTION',
+           coalesce(v_author, 'Someone') || ' mentioned you',
+           left(v_label || ': ' || new.content, 280),
+           v_ipas.id::text
+    from unnest(v_mentioned) r;
+  end if;
+
+  select coalesce(array_agg(distinct x), '{}') into v_others
+  from (
+    select v_ipas.created_by as x
+    union
+    select m.author_id from public.ipas_messages m where m.ipas_id = v_ipas.id and m.id <> new.id
+  ) q
+  where x is not null
+    and x is distinct from new.author_id
+    and not (x = any (v_mentioned))
+    and public._ipas_employee_can_read(x);
+
+  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select r, new.author_id, 'IPAS_MESSAGE',
+         'New message from ' || coalesce(v_author, 'someone'),
+         left(v_label || ': ' || new.content, 280),
+         v_ipas.id::text
+  from unnest(v_others) r;
+
+  return null;
+end;
+$function$
+;
 declare
   v_source text;
   v_screen smallint;
@@ -16780,6 +16885,27 @@ begin
     or new.applies_to is distinct from old.applies_to
     or new.used_for is distinct from old.used_for
   ) and public.ipas_option_on_filed(old.id) then
+CREATE OR REPLACE FUNCTION public.ipas_messages_broadcast_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', new.id, 'ipas_id', new.ipas_id),
+      tg_op,
+      'ipas_messages-changes',
+      true -- private: gated by the realtime.messages policy, not public
+    );
+  exception when others then
+    null;
+  end;
+  return null;
+end;
+$function$
+;
     raise exception 'ipas_options: "%" is used on a filed IPAS. Deactivate it and add a new one instead.', old.label
       using errcode = '22023';
   end if;
@@ -31129,6 +31255,8 @@ CREATE TRIGGER transmittal_references_guard BEFORE INSERT OR DELETE OR UPDATE ON
 CREATE TRIGGER transmittal_stages_guard BEFORE DELETE OR UPDATE ON public.transmittal_stages FOR EACH ROW EXECUTE FUNCTION transmittal_stages_guard();
 CREATE TRIGGER transmittals_guard BEFORE DELETE OR UPDATE ON public.transmittals FOR EACH ROW EXECUTE FUNCTION transmittals_guard();
 CREATE TRIGGER undertime_requests_guard_head_status BEFORE UPDATE ON public.undertime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
+CREATE TRIGGER ipas_messages_broadcast_change_trigger AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION ipas_messages_broadcast_change();
+CREATE TRIGGER ipas_messages_notify AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION _ipas_message_notify();
 
 -- ============================================================
 -- Views

@@ -113,6 +113,8 @@ export const SEED_TABLES = [
   "ipas",
   "ipas_sors",
   "ipas_events",
+  // The IPAS chat: after ipas and employees, which it points at.
+  "ipas_messages",
   // "Worked on since raising" marks (#928): written by a trigger on ipas_events, which the restore
   // runs with triggers off, so the marks are copied with the history they come from.
   "ipas_work_marks",

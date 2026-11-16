@@ -10,6 +10,10 @@ export const ipasKey = (id) => ["ipas", "one", id];
 /** Every open IPAS record, whatever its id (a setting changed under them, #959). */
 export const ipasAllRecordsKey = ["ipas", "one"];
 export const ipasRefreshKey = (id) => ["ipas", "refresh", id];
+/** An IPAS's chat thread. */
+export const ipasMessagesKey = (id) => ["ipas", "messages", id];
+/** Everyone who can be mentioned in an IPAS chat. */
+export const ipasChatPeopleKey = ["ipas", "chat-people"];
 export const ipasSorSearchKey = (term) => ["ipas", "sor-search", term];
 /** The caller's last five SORs named on an IPAS (#601). */
 export const ipasRecentSorsKey = ["ipas", "recent-sors"];
