@@ -224,8 +224,8 @@ describe("SORS: My work view", () => {
     renderPage();
     const user = userEvent.setup();
 
-    expect(await screen.findByText("S01234")).toBeInTheDocument();
-    const row = screen.getByText("S01234").closest("tr");
+    expect(await screen.findByText("SOR-1")).toBeInTheDocument();
+    const row = screen.getByText("SOR-1").closest("tr");
     expect(await whyText(user)).toMatch(/Deal Team · sees the whole SOR \(Full access\)/);
     // The Deal Team window has no start date: a dash, never "Invalid Date".
     expect(row).not.toHaveTextContent("Invalid Date");
@@ -234,11 +234,11 @@ describe("SORS: My work view", () => {
     // Access: Full keeps it; Why I'm here: Mentioned drops it.
     await user.click(screen.getByText("Current access"));
     await user.click(await screen.findByRole("button", { name: "Full" }));
-    expect(screen.getByText("S01234")).toBeInTheDocument();
+    expect(screen.getByText("SOR-1")).toBeInTheDocument();
 
     await user.click(screen.getByText("Any reason"));
     await user.click(await screen.findByRole("button", { name: "Mentioned" }));
-    expect(screen.queryByText("S01234")).toBeNull();
+    expect(screen.queryByText("SOR-1")).toBeNull();
   });
 
   it("searches Sales Reference, client and project", async () => {
@@ -250,23 +250,23 @@ describe("SORS: My work view", () => {
 
     renderPage();
     const user = userEvent.setup();
-    await screen.findByText("S01234");
+    await screen.findByText("SOR-1");
     const box = screen.getByRole("textbox", { name: "Search reference, SOR code, client or project" });
 
     await user.type(box, "equipment");
-    expect(screen.getByText("S01234")).toBeInTheDocument();
+    expect(screen.getByText("SOR-1")).toBeInTheDocument();
 
     await user.clear(box);
     await user.type(box, "s0123");
-    expect(screen.getByText("S01234")).toBeInTheDocument();
+    expect(screen.getByText("SOR-1")).toBeInTheDocument();
 
     await user.clear(box);
     await user.type(box, "metro hosp");
-    expect(screen.getByText("S01234")).toBeInTheDocument();
+    expect(screen.getByText("SOR-1")).toBeInTheDocument();
 
     await user.clear(box);
     await user.type(box, "zzz");
-    expect(screen.queryByText("S01234")).toBeNull();
+    expect(screen.queryByText("SOR-1")).toBeNull();
     expect(screen.getByText(/No SOR matches these filters/)).toBeInTheDocument();
   });
 

@@ -540,9 +540,9 @@ describe("the Costing Desk", () => {
       await user.click(await screen.findByRole("button", { name: "People" }));
 
       // Purchasing reads the Sales incharge as a name and may change its own.
-      expect(await screen.findByLabelText("Sales incharge")).toHaveTextContent("Sandy Sales");
-      expect(screen.getByLabelText("Sales incharge").tagName).toBe("SPAN");
-      expect(screen.getByLabelText("Purchasing incharge").tagName).not.toBe("SPAN");
+      expect(await screen.findByLabelText("Sales in-charge")).toHaveTextContent("Sandy Sales");
+      expect(screen.getByLabelText("Sales in-charge").tagName).toBe("SPAN");
+      expect(screen.getByLabelText("Purchasing in-charge").tagName).not.toBe("SPAN");
     });
 
     it("Purchasing sees the full header and resolves Sales incharge with narrow header data (#836)", async () => {
@@ -582,7 +582,7 @@ describe("the Costing Desk", () => {
       expect(screen.getByText("SOR-256")).toBeInTheDocument();
       expect(screen.getByText("Project [FOR DEMO]")).toBeInTheDocument();
       expect(screen.getByText("SO S03204 · Acme Client")).toBeInTheDocument();
-      expect(await screen.findByLabelText("Sales incharge")).toHaveTextContent("Dani demo");
+      expect(await screen.findByLabelText("Sales in-charge")).toHaveTextContent("Dani demo");
       expect(screen.queryByText("Former team member")).not.toBeInTheDocument();
     });
 
