@@ -6,7 +6,7 @@ import { createTestQueryClient } from "@/test/support"
 import { QueryClientProvider } from "@tanstack/react-query"
 import ReleaseNotesSection, { ReleaseNotesOverview } from "./ReleaseNotesView"
 import { SECTIONS } from "./content"
-import { SAMPLES, SAMPLE_MODE } from "./sampleRegistry"
+import { SAMPLES, SAMPLE_MODE, SCENES } from "./sampleRegistry"
 import { SAMPLE_EMPLOYEES } from "./sampleData"
 
 // Every employee opens Release Notes on prod (ADR 0030). What is tested here
@@ -75,6 +75,26 @@ describe("Release Notes content", () => {
     expect(Object.keys(SAMPLES).sort()).toEqual([...new Set(named)].sort())
   })
 
+  it("points every scene key at a registered scene, and registers none unused", () => {
+    const named = items.map((i) => i.scene).filter(Boolean)
+    for (const key of named) expect(SCENES[key], key).toBeTruthy()
+    expect(Object.keys(SCENES).sort()).toEqual([...new Set(named)].sort())
+  })
+
+  it("shows every fix as a Before and After, and every change with something that moves", () => {
+    // The page's promise to its readers: a fix shows what it was like and what it is like now; a
+    // change shows how it works. A new thing may be text only when nothing shows it better.
+    for (const item of items) {
+      if (item.kind === "fix") {
+        expect(item.before, item.id).toBeTruthy()
+        expect(item.after, item.id).toBeTruthy()
+        expect(SCENES[item.scene]?.Before, item.id).toBeTypeOf("function")
+        expect(SCENES[item.scene]?.After, item.id).toBeTypeOf("function")
+      }
+      if (item.kind === "change") expect(Boolean(item.scene || item.flow || item.highlights), item.id).toBe(true)
+    }
+  })
+
   it("marks only registered samples as look-only or screenshots", () => {
     // A stale key here would leave a locked sample inviting clicks.
     for (const [key, mode] of Object.entries(SAMPLE_MODE)) {
@@ -83,11 +103,11 @@ describe("Release Notes content", () => {
     }
   })
 
-  it("lists new things before fixes in every tab, as the page groups them", () => {
+  it("lists new things, then changes, then fixes in every tab, as the page groups them", () => {
+    const rank = (item) => (item.kind === "fix" ? 2 : item.kind === "change" || item.kind === "removed" ? 1 : 0)
     for (const section of SECTIONS) {
-      const firstFix = section.items.findIndex((i) => i.kind === "fix")
-      if (firstFix === -1) continue
-      expect(section.items.slice(firstFix).every((i) => i.kind === "fix"), section.key).toBe(true)
+      const ranks = section.items.map(rank)
+      expect(ranks, section.key).toEqual([...ranks].sort((a, b) => a - b))
     }
   })
 
@@ -108,7 +128,7 @@ describe("Release Notes content", () => {
 
 describe("Release Notes sections", () => {
   for (const section of SECTIONS) {
-    it(`${section.label}: every sample shows, and nothing reaches the network`, async () => {
+    it(`${section.label}: every demo and scene shows, and nothing reaches the network`, async () => {
       renderSection(section)
       await flush()
 
@@ -122,17 +142,17 @@ describe("Release Notes sections", () => {
 })
 
 describe("Release Notes overview", () => {
-  it("lists every new thing as one line, and counts each tab's fixes", () => {
+  it("lists every change as one line, and counts each tab's small fixes", () => {
     const onOpen = vi.fn()
     render(<ReleaseNotesOverview sections={SECTIONS} onOpen={onOpen} />)
 
     for (const section of SECTIONS) {
       const card = screen.getByRole("region", { name: section.label })
-      for (const item of section.items.filter((i) => i.kind !== "fix")) {
+      for (const item of section.items) {
         expect(within(card).getByRole("button", { name: item.title })).toBeInTheDocument()
       }
-      const fixes = section.items.filter((i) => i.kind === "fix").length + (section.alsoFixed?.length ?? 0)
-      if (fixes > 0) expect(within(card).getByRole("button", { name: new RegExp(`and ${fixes} fix`) })).toBeInTheDocument()
+      const small = section.alsoFixed?.length ?? 0
+      if (small > 0) expect(within(card).getByRole("button", { name: new RegExp(`and ${small} small fix`) })).toBeInTheDocument()
     }
 
     const [first] = SECTIONS
@@ -145,20 +165,27 @@ describe("Release Notes samples", () => {
   // Click everything a sample offers, including what its pop-ups offer once
   // open, and submit every form. Sample Data has no rows behind it, and the
   // viewer is on prod: nothing may be read or saved.
-  if (Object.keys(SAMPLES).length === 0) it.todo("no samples this release")
-  for (const [key, Sample] of Object.entries(SAMPLES)) {
+  // Demos, then scenes: a Before and After pair plays as a fix, one component as a change.
+  const cases = [
+    ...Object.keys(SAMPLES).map((key) => ({ key, item: { sample: key } })),
+    ...Object.entries(SCENES).map(([key, scene]) => ({
+      key: `scene ${key}`,
+      item: scene.Before ? { kind: "fix", scene: key, before: "Before", after: "After" } : { kind: "change", scene: key },
+    })),
+  ]
+  if (cases.length === 0) it.todo("no samples this release")
+  for (const { key, item } of cases) {
     it(`${key}: clicking everything reaches no database`, async () => {
       render(
         <QueryClientProvider client={createTestQueryClient()}>
           <MemoryRouter>
             <ReleaseNotesSection
-              section={{ key, label: key, intro: "", items: [{ id: key, title: key, body: key, who: ["Test"], sample: key }] }}
+              section={{ key, label: key, intro: "", items: [{ id: "case", title: key, body: key, who: ["Test"], ...item }] }}
               defaultOpen="all"
             />
           </MemoryRouter>
         </QueryClientProvider>,
       )
-      expect(Sample).toBeTypeOf("function")
       await flush()
 
       const clicked = new WeakSet()
