@@ -7,7 +7,7 @@ import Calendar from '@/components/calendar/Calendar';
 import MeetingRequestDialog from '@/components/calendar/MeetingRequestDialog';
 import MyMeetingRequests from '@/components/calendar/MyMeetingRequests';
 
-/** The Calendar page: the shared Calendar, plus the viewer's Meeting Requests. */
+/** The Calendar page: the shared Calendar, plus the viewer's Activities. */
 export default function CalendarPage() {
   const [tab, setTab] = useState('calendar');
   const [request, setRequest] = useState(null); // null = closed; an object = open, with optional pre-fill
@@ -17,13 +17,13 @@ export default function CalendarPage() {
     <ProtectedRoute>
       <PageShell
         title="Calendar"
-        description="Meetings, Time Off and overtime across the company."
-        action={<Button onClick={() => openRequest()}>New Meeting Request</Button>}
+        description="Activities, Time Off and overtime across the company."
+        action={<Button onClick={() => openRequest()}>New Activity</Button>}
         tabs={
           <TabGroup
             tabs={[
               { value: 'calendar', label: 'Calendar' },
-              { value: 'mine', label: 'My Meeting Requests' },
+              { value: 'mine', label: 'My Activities' },
             ]}
             activeTab={tab}
             onChange={setTab}

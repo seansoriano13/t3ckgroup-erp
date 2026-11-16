@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { kindOf } from './entryKinds.jsx';
+import { styleOf } from './entryKinds.jsx';
 import { formatEntryTime } from './entryFormat.js';
 import { groupByDepartment, outByDay } from './peopleRows.js';
 import { TIME_OFF_KINDS, time12 } from './entrySpan.js';
@@ -125,7 +125,7 @@ function VenueRow({ venue, days, cols, meetings, todayYmd, compact, onOpenEntry,
                 aria-label={`${m.title}, ${formatEntryTime(m)}`}
                 className={cn(
                   'h-6 justify-center rounded-md px-1 font-mono text-xs font-semibold tabular-nums',
-                  m.status === 'PENDING' ? 'border border-dashed border-teal-7 text-teal-11' : 'bg-teal-3 text-teal-11 hover:bg-teal-4',
+                  m.status === 'PENDING' ? ['border border-dashed', styleOf(m).pending, styleOf(m).text] : [styleOf(m).soft, styleOf(m).text],
                 )}
               >
                 {time12(m.starts_at)}
@@ -171,7 +171,7 @@ function PersonRow({ row, days, cols, todayYmd, onOpenEntry }) {
         <div key={d.ymd} className={cn('border-l border-mauve-5', dayTint(d, todayYmd))} style={{ gridColumn: i + 1, gridRow: '1 / -1' }} />
       ))}
       {row.bars.map((bar) => {
-        const def = kindOf(bar.kind);
+        const def = styleOf(bar.entry);
         const start = ymds.indexOf(bar.startYmd);
         const end = ymds.indexOf(bar.endYmd);
         const e = bar.entry;
@@ -264,7 +264,7 @@ export default function CalendarGantt({ days, entries, layers, venues, todayYmd,
 
           {layers.meetings && venues.length > 0 && (
             <>
-              <GroupRow label="Rooms" count={meetings.length} open={!closed.__rooms} onToggle={() => toggle('__rooms')} />
+              <GroupRow label="Rooms" count={meetings.filter((m) => m.venue).length} open={!closed.__rooms} onToggle={() => toggle('__rooms')} />
               {!closed.__rooms &&
                 venues.map((v) => (
                   <VenueRow

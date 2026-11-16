@@ -211,9 +211,11 @@ describe("file_meeting_request()", () => {
         expect(events[0]).toMatchObject({ action: "FILED", from_status: null, to_status: "PENDING_HR", actor_id: ids.ordinary })
     })
 
-    it("refuses a Facilitator who is not a department head", async () => {
-        const { error } = await file("ordinary", adminOffice, "18:00", "19:00", { args: { p_facilitator_id: ids.outsider } })
-        expect(error?.message).toMatch(/department head/i)
+    it("accepts any employee as the Lead, not only a department head (#1055)", async () => {
+        const { id, error } = await file("ordinary", adminOffice, "18:00", "19:00", { args: { p_facilitator_id: ids.outsider } })
+        expect(error).toBeNull()
+        const { data } = await svc().from("meeting_requests").select("facilitator_id").eq("id", id).single()
+        expect(data.facilitator_id).toBe(ids.outsider)
     })
 
     it("refuses a blank purpose", async () => {

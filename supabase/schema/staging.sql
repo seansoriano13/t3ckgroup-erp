@@ -953,6 +953,15 @@ create table if not exists public."meal_break_settings" (
   "enabled" boolean not null default false
 );
 
+create table if not exists public."meeting_request_days" (
+  "id" uuid not null default gen_random_uuid(),
+  "request_id" uuid not null,
+  "starts_at" timestamp with time zone not null,
+  "ends_at" timestamp with time zone not null,
+  "reminder_sent_at" timestamp with time zone,
+  "created_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."meeting_request_events" (
   "id" uuid not null default gen_random_uuid(),
   "request_id" uuid not null,
@@ -994,9 +1003,11 @@ create table if not exists public."meeting_requests" (
   "reminder_sent_at" timestamp with time zone,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "meeting_type" text not null default 'ONSITE'::text,
+  "meeting_type" text default 'ONSITE'::text,
   "meeting_link" text,
-  "guest_emails" text[] not null default '{}'::text[]
+  "guest_emails" text[] not null default '{}'::text[],
+  "activity_type" text not null default 'MEETING'::text,
+  "cancelled_at" timestamp with time zone
 );
 
 create table if not exists public."notifications" (
@@ -2037,8 +2048,8 @@ alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
 alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
 alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_file_rules add constraint "ipas_file_rules_pkey" PRIMARY KEY (id);
-alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
 alter table ipas_messages add constraint "ipas_messages_pkey" PRIMARY KEY (id);
+alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIMARY KEY (id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
@@ -2047,6 +2058,7 @@ alter table ipas_sors add constraint "ipas_sors_pkey" PRIMARY KEY (id);
 alter table ipas_work_marks add constraint "ipas_work_marks_pkey" PRIMARY KEY (ipas_id);
 alter table lwop_leaves add constraint "lwop_leaves_pkey" PRIMARY KEY (id);
 alter table meal_break_settings add constraint "meal_break_settings_pkey" PRIMARY KEY (key);
+alter table meeting_request_days add constraint "meeting_request_days_pkey" PRIMARY KEY (id);
 alter table meeting_request_events add constraint "meeting_request_events_pkey" PRIMARY KEY (id);
 alter table meeting_request_participants add constraint "meeting_request_participants_pkey" PRIMARY KEY (request_id, employee_id);
 alter table meeting_requests add constraint "meeting_requests_pkey" PRIMARY KEY (id);
@@ -2310,19 +2322,27 @@ alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((sec
 alter table lwop_leaves add constraint "lwop_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table lwop_leaves add constraint "lwop_leaves_hours_check" CHECK ((hours > (0)::numeric));
 alter table lwop_leaves add constraint "lwop_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
+alter table meeting_request_days add constraint "meeting_request_days_end_after_start" CHECK ((ends_at > starts_at));
+alter table meeting_request_days add constraint "meeting_request_days_quarter_hours" CHECK (((mod((EXTRACT(epoch FROM starts_at))::bigint, (900)::bigint) = 0) AND (mod((EXTRACT(epoch FROM ends_at))::bigint, (900)::bigint) = 0)));
+alter table meeting_request_days add constraint "meeting_request_days_same_manila_day" CHECK ((((starts_at AT TIME ZONE 'Asia/Manila'::text))::date = ((ends_at AT TIME ZONE 'Asia/Manila'::text))::date));
+alter table meeting_requests add constraint "meeting_requests_activity_type_check" CHECK ((activity_type = ANY (ARRAY['MEETING'::text, 'ADMIN_TASK'::text, 'OPERATIONS_TASK'::text, 'EVENT'::text])));
 alter table meeting_requests add constraint "meeting_requests_end_after_start" CHECK ((ends_at > starts_at));
 alter table meeting_requests add constraint "meeting_requests_guest_emails_aligned" CHECK ((COALESCE(array_length(guest_emails, 1), 0) = COALESCE(array_length(guests, 1), 0)));
 alter table meeting_requests add constraint "meeting_requests_link_not_blank" CHECK (((meeting_link IS NULL) OR (btrim(meeting_link) <> ''::text)));
 alter table meeting_requests add constraint "meeting_requests_quarter_hours" CHECK (((mod((EXTRACT(epoch FROM starts_at))::bigint, (900)::bigint) = 0) AND (mod((EXTRACT(epoch FROM ends_at))::bigint, (900)::bigint) = 0)));
-alter table meeting_requests add constraint "meeting_requests_same_manila_day" CHECK ((((starts_at AT TIME ZONE 'Asia/Manila'::text))::date = ((ends_at AT TIME ZONE 'Asia/Manila'::text))::date));
+alter table meeting_requests add constraint "meeting_requests_same_manila_day" CHECK (((activity_type <> 'MEETING'::text) OR (((starts_at AT TIME ZONE 'Asia/Manila'::text))::date = ((ends_at AT TIME ZONE 'Asia/Manila'::text))::date)));
 alter table meeting_requests add constraint "meeting_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING_HEAD'::text, 'PENDING_HR'::text, 'RETURNED'::text, 'APPROVED'::text, 'DECLINED'::text, 'CANCELLED'::text])));
-alter table meeting_requests add constraint "meeting_requests_type_check" CHECK ((meeting_type = ANY (ARRAY['ONSITE'::text, 'ONLINE'::text, 'HYBRID'::text])));
+alter table meeting_requests add constraint "meeting_requests_type_check" CHECK (((meeting_type IS NULL) OR (meeting_type = ANY (ARRAY['ONSITE'::text, 'ONLINE'::text, 'HYBRID'::text]))));
 alter table meeting_requests add constraint "meeting_requests_type_rules" CHECK (
-CASE meeting_type
-    WHEN 'ONSITE'::text THEN ((venue_id IS NOT NULL) AND (meeting_link IS NULL))
-    WHEN 'ONLINE'::text THEN ((venue_id IS NULL) AND (meeting_link IS NOT NULL))
-    WHEN 'HYBRID'::text THEN ((venue_id IS NOT NULL) AND (meeting_link IS NOT NULL))
-    ELSE NULL::boolean
+CASE
+    WHEN (activity_type = 'MEETING'::text) THEN
+    CASE meeting_type
+        WHEN 'ONSITE'::text THEN ((venue_id IS NOT NULL) AND (meeting_link IS NULL))
+        WHEN 'ONLINE'::text THEN ((venue_id IS NULL) AND (meeting_link IS NOT NULL))
+        WHEN 'HYBRID'::text THEN ((venue_id IS NOT NULL) AND (meeting_link IS NOT NULL))
+        ELSE false
+    END
+    ELSE ((venue_id IS NULL) AND (meeting_type IS NULL) AND (meeting_link IS NULL))
 END);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'dismissed'::text])));
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
@@ -2524,14 +2544,14 @@ alter table ipas_documents add constraint "ipas_documents_ipas_id_fkey" FOREIGN 
 alter table ipas_documents add constraint "ipas_documents_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
 alter table ipas_events add constraint "ipas_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table ipas_events add constraint "ipas_events_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_messages add constraint "ipas_messages_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
+alter table ipas_messages add constraint "ipas_messages_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_payments add constraint "ipas_payments_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_method_id_fkey" FOREIGN KEY (method_id) REFERENCES ipas_options(id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
-alter table ipas_messages add constraint "ipas_messages_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
-alter table ipas_messages add constraint "ipas_messages_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_by_fkey" FOREIGN KEY (cleared_by) REFERENCES employees(id);
 alter table ipas_signoffs add constraint "ipas_signoffs_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_signoffs add constraint "ipas_signoffs_signed_by_fkey" FOREIGN KEY (signed_by) REFERENCES employees(id);
@@ -2544,6 +2564,7 @@ alter table lwop_leaves add constraint "lwop_leaves_employee_id_fkey" FOREIGN KE
 alter table lwop_leaves add constraint "lwop_leaves_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table lwop_leaves add constraint "lwop_leaves_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table lwop_leaves add constraint "lwop_leaves_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
+alter table meeting_request_days add constraint "meeting_request_days_request_id_fkey" FOREIGN KEY (request_id) REFERENCES meeting_requests(id) ON DELETE CASCADE;
 alter table meeting_request_events add constraint "meeting_request_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table meeting_request_events add constraint "meeting_request_events_request_id_fkey" FOREIGN KEY (request_id) REFERENCES meeting_requests(id) ON DELETE CASCADE;
 alter table meeting_request_participants add constraint "meeting_request_participants_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
@@ -2764,6 +2785,8 @@ alter table undertime_requests add constraint "undertime_requests_hr_processed_b
 alter table undertime_requests add constraint "undertime_requests_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_sor_rule_on_ipas" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table ipas_sors add constraint "ipas_sor_rule_on_sors" TRIGGER DEFERRABLE INITIALLY DEFERRED;
+alter table meeting_request_days add constraint "meeting_request_days_meeting_check" TRIGGER DEFERRABLE INITIALLY DEFERRED;
+alter table meeting_requests add constraint "meeting_requests_meeting_days_check" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table meeting_requests add constraint "meeting_requests_no_double_booking" EXCLUDE USING gist (venue_id WITH =, tstzrange(starts_at, ends_at, '[)'::text) WITH &&) WHERE ((status = ANY (ARRAY['PENDING_HEAD'::text, 'PENDING_HR'::text, 'RETURNED'::text, 'APPROVED'::text])));
 
 -- ============================================================
@@ -2832,13 +2855,13 @@ CREATE UNIQUE INDEX ipas_documents_kind_key ON public.ipas_documents USING btree
 CREATE UNIQUE INDEX ipas_documents_label_key ON public.ipas_documents USING btree (ipas_id, lower(btrim(label))) WHERE (kind_id IS NULL);
 CREATE INDEX ipas_events_actor_id_idx ON public.ipas_events USING btree (actor_id);
 CREATE INDEX ipas_events_ipas_id_idx ON public.ipas_events USING btree (ipas_id, created_at);
+CREATE INDEX ipas_messages_ipas_id_idx ON public.ipas_messages USING btree (ipas_id, created_at);
 CREATE UNIQUE INDEX ipas_options_list_label_key ON public.ipas_options USING btree (list, lower(btrim(label)));
 CREATE INDEX ipas_options_list_sort_idx ON public.ipas_options USING btree (list, sort);
 CREATE INDEX ipas_payments_created_by_idx ON public.ipas_payments USING btree (created_by);
 CREATE INDEX ipas_payments_ipas_id_idx ON public.ipas_payments USING btree (ipas_id, paid_on);
 CREATE INDEX ipas_payments_method_id_idx ON public.ipas_payments USING btree (method_id);
 CREATE INDEX ipas_signer_list_log_actor_id_idx ON public.ipas_signer_list_log USING btree (actor_id);
-CREATE INDEX ipas_messages_ipas_id_idx ON public.ipas_messages USING btree (ipas_id, created_at);
 CREATE INDEX ipas_signer_list_log_created_at_idx ON public.ipas_signer_list_log USING btree (created_at DESC);
 CREATE INDEX ipas_signer_list_log_employee_id_idx ON public.ipas_signer_list_log USING btree (employee_id);
 CREATE INDEX ipas_signer_lists_employee_id_idx ON public.ipas_signer_lists USING btree (employee_id);
@@ -2851,6 +2874,8 @@ CREATE INDEX lwop_leaves_company_id_idx ON public.lwop_leaves USING btree (compa
 CREATE INDEX lwop_leaves_employee_id_date_idx ON public.lwop_leaves USING btree (employee_id, date);
 CREATE INDEX lwop_leaves_head_id_idx ON public.lwop_leaves USING btree (head_id);
 CREATE INDEX lwop_leaves_leave_group_id_idx ON public.lwop_leaves USING btree (leave_group_id);
+CREATE INDEX meeting_request_days_request_idx ON public.meeting_request_days USING btree (request_id, starts_at);
+CREATE INDEX meeting_request_days_starts_at_idx ON public.meeting_request_days USING btree (starts_at);
 CREATE INDEX meeting_request_events_request_idx ON public.meeting_request_events USING btree (request_id, created_at);
 CREATE INDEX meeting_request_participants_employee_idx ON public.meeting_request_participants USING btree (employee_id);
 CREATE INDEX meeting_requests_applicant_idx ON public.meeting_requests USING btree (applicant_id);
@@ -3024,15 +3049,16 @@ alter table public."ipas_charges" enable row level security;
 alter table public."ipas_documents" enable row level security;
 alter table public."ipas_events" enable row level security;
 alter table public."ipas_file_rules" enable row level security;
+alter table public."ipas_messages" enable row level security;
 alter table public."ipas_options" enable row level security;
 alter table public."ipas_payments" enable row level security;
 alter table public."ipas_signer_list_log" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
 alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
-alter table public."ipas_messages" enable row level security;
 alter table public."ipas_work_marks" enable row level security;
 alter table public."lwop_leaves" enable row level security;
+alter table public."meeting_request_days" enable row level security;
 alter table public."meeting_request_events" enable row level security;
 alter table public."meeting_request_participants" enable row level security;
 alter table public."meeting_requests" enable row level security;
@@ -3920,12 +3946,6 @@ create policy "ipas_file_rules_update" on public."ipas_file_rules"
   to authenticated
   using (COALESCE(is_super_admin(), false))
   with check (COALESCE(is_super_admin(), false));
-create policy "ipas_options_insert" on public."ipas_options"
-  as permissive
-  for insert
-  to authenticated
-  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
-create policy "ipas_options_read" on public."ipas_options"
 create policy "ipas_messages_insert" on public."ipas_messages"
   as permissive
   for insert
@@ -3936,6 +3956,12 @@ create policy "ipas_messages_read" on public."ipas_messages"
   for select
   to authenticated
   using (ipas_can_read());
+create policy "ipas_options_insert" on public."ipas_options"
+  as permissive
+  for insert
+  to authenticated
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
+create policy "ipas_options_read" on public."ipas_options"
   as permissive
   for select
   to authenticated
@@ -4018,6 +4044,11 @@ create policy "lwop_leaves_withdraw" on public."lwop_leaves"
   to authenticated
   using (((employee_id = get_employee_id()) AND (status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text]))))
   with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
+create policy "meeting_request_days_read" on public."meeting_request_days"
+  as permissive
+  for select
+  to authenticated
+  using (true);
 create policy "meeting_request_events_read" on public."meeting_request_events"
   as permissive
   for select
@@ -5568,12 +5599,6 @@ AS $function$
   );
 $function$
 ;
-CREATE OR REPLACE FUNCTION public._ipas_file_rules_now()
- RETURNS jsonb
- LANGUAGE sql
- STABLE
- SET search_path TO 'public'
-AS $function$
 CREATE OR REPLACE FUNCTION public._ipas_employee_can_read(p_employee_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -5597,6 +5622,12 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_file_rules_now()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
   select jsonb_build_object(
     'options', coalesce(
       (select jsonb_object_agg(o.id::text, o.required_before)
@@ -5994,12 +6025,6 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public._ipas_missing_documents(p_ipas_id uuid, p_section integer)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
 CREATE OR REPLACE FUNCTION public._ipas_message_notify()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -6058,6 +6083,12 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_missing_documents(p_ipas_id uuid, p_section integer)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 declare
   v_source text;
   v_screen smallint;
@@ -7999,6 +8030,93 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.activity_days_normalize(p_days jsonb, p_activity_type text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+declare
+  v_raw jsonb;
+  v_out jsonb;
+  v_n int;
+  v_listed boolean := coalesce(case when jsonb_typeof(p_days) = 'array' then jsonb_array_length(p_days) > 0 end, false);
+  r record;
+begin
+  v_raw := case
+    when p_days is null or jsonb_typeof(p_days) <> 'array' or jsonb_array_length(p_days) = 0
+      then jsonb_build_array(jsonb_build_object('starts_at', p_starts_at, 'ends_at', p_ends_at))
+    else p_days
+  end;
+
+  select coalesce(jsonb_agg(jsonb_build_object('starts_at', x.starts_at, 'ends_at', x.ends_at) order by x.starts_at), '[]'::jsonb)
+    into v_out
+    from jsonb_to_recordset(v_raw) as x(starts_at timestamptz, ends_at timestamptz);
+  v_n := jsonb_array_length(v_out);
+
+  if v_n = 0 then
+    raise exception 'Choose at least one day.' using errcode = '22023';
+  end if;
+  if p_activity_type = 'MEETING' and v_n > 1 then
+    raise exception 'A Meeting is one day.' using errcode = '22023';
+  end if;
+
+  for r in select x.starts_at, x.ends_at from jsonb_to_recordset(v_out) as x(starts_at timestamptz, ends_at timestamptz) loop
+    if r.starts_at is null or r.ends_at is null then
+      raise exception 'Every day needs a start and an end.' using errcode = '22023';
+    end if;
+    if r.ends_at <= r.starts_at then
+      raise exception 'Each day must end after it starts.' using errcode = '22023';
+    end if;
+    if (r.starts_at at time zone 'Asia/Manila')::date <> (r.ends_at at time zone 'Asia/Manila')::date then
+      raise exception 'Each day must start and end on the same day.' using errcode = '22023';
+    end if;
+    if mod(extract(epoch from r.starts_at)::bigint, 900) <> 0 or mod(extract(epoch from r.ends_at)::bigint, 900) <> 0 then
+      raise exception 'Times must be on 15-minute marks.' using errcode = '22023';
+    end if;
+    if v_listed and ((r.starts_at at time zone 'Asia/Manila')::time < time '06:00'
+       or (r.ends_at at time zone 'Asia/Manila')::time > time '21:45') then
+      raise exception 'Times must be between 06:00 and 21:45.' using errcode = '22023';
+    end if;
+  end loop;
+
+  if (
+    select count(distinct (x.starts_at at time zone 'Asia/Manila')::date)
+    from jsonb_to_recordset(v_out) as x(starts_at timestamptz, ends_at timestamptz)
+  ) <> v_n then
+    raise exception 'Each day can be listed only once.' using errcode = '22023';
+  end if;
+
+  return v_out;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.activity_fields_check(p_activity_type text, p_type text, p_venue_id uuid, p_link text)
+ RETURNS void
+ LANGUAGE plpgsql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+begin
+  if p_activity_type not in ('MEETING', 'ADMIN_TASK', 'OPERATIONS_TASK', 'EVENT') then
+    raise exception 'Choose an Activity type.' using errcode = '22023';
+  end if;
+  if p_activity_type = 'MEETING' then
+    perform public.meeting_type_check(p_type, p_venue_id, p_link);
+  elsif p_type is not null or p_venue_id is not null or p_link is not null then
+    raise exception 'Only a Meeting has a Venue, a meeting type or a meeting link.' using errcode = '22023';
+  end if;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.activity_needs_hr(p_activity_type text, p_venue_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+  select p_activity_type = 'EVENT' or (p_activity_type = 'MEETING' and p_venue_id is not null);
+$function$
+;
 CREATE OR REPLACE FUNCTION public.add_bug_report_note(p_report_id uuid, p_body text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -8224,24 +8342,32 @@ begin
 
     union all
 
-    -- ---- MEETING --------------------------------------------------------
+
+    -- ---- MEETING (one entry per Activity day) -----------------------------
     select
       'MEETING'::text,
+      d.id,
       m.id,
-      m.id,
-      m.starts_at,
-      m.ends_at,
+      d.starts_at,
+      d.ends_at,
       false,
-      (m.starts_at at time zone 'Asia/Manila')::date,
+      (d.starts_at at time zone 'Asia/Manila')::date,
       jsonb_build_object('id', a.id, 'name', a.name, 'department', a.department, 'avatar', a.avatar_path),
-      case when m.status = 'APPROVED' then 'APPROVED' else 'PENDING' end,
-      round((extract(epoch from (m.ends_at - m.starts_at)) / 3600.0)::numeric, 2),
+      case when m.status in ('APPROVED', 'CANCELLED') then 'APPROVED' else 'PENDING' end,
+      round((extract(epoch from (d.ends_at - d.starts_at)) / 3600.0)::numeric, 2),
       v.name,
       m.purpose,
       jsonb_build_object(
         'stage', m.status,
+        'request_id', m.id,
+        'day_index', d.day_index,
+        'days_total', d.days_total,
+        'range_start', (d.range_start at time zone 'Asia/Manila')::date,
+        'range_end', (d.range_end at time zone 'Asia/Manila')::date,
+        'last_day_starts_at', d.range_end,
         'purpose', m.purpose,
         'venue', v.name,
+        'activity_type', m.activity_type,
         'meeting_type', m.meeting_type,
         'meeting_link', m.meeting_link,
         'facilitator', jsonb_build_object('id', f.id, 'name', f.name),
@@ -8255,11 +8381,22 @@ begin
         'guest_emails', to_jsonb(m.guest_emails)
       )
     from public.meeting_requests m
+    join (
+      select dd.id, dd.request_id, dd.starts_at, dd.ends_at,
+             row_number() over (partition by dd.request_id order by dd.starts_at) as day_index,
+             count(*) over (partition by dd.request_id) as days_total,
+             min(dd.starts_at) over (partition by dd.request_id) as range_start,
+             max(dd.starts_at) over (partition by dd.request_id) as range_end
+        from public.meeting_request_days dd
+    ) d on d.request_id = m.id
     left join public.calendar_venues v on v.id = m.venue_id
     join public.employees a on a.id = m.applicant_id
     join public.employees f on f.id = m.facilitator_id
-    where m.status in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED')
-      and (m.starts_at at time zone 'Asia/Manila')::date between p_from and p_to
+    where (
+        m.status in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED')
+        or (m.status = 'CANCELLED' and m.cancelled_at is not null and m.cancelled_at > m.starts_at)
+      )
+      and (d.starts_at at time zone 'Asia/Manila')::date between p_from and p_to
   ) q
   order by q.manila_date, q.starts_at, q.id;
 end;
@@ -8417,9 +8554,10 @@ declare
   v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
   v_by_applicant boolean;
   v_action text;
+  v_left_end timestamptz;
 begin
   if v_actor is null then
-    raise exception 'Sign in to cancel a Meeting Request.' using errcode = '42501';
+    raise exception 'Sign in to cancel an Activity.' using errcode = '42501';
   end if;
 
   select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false)
@@ -8428,32 +8566,42 @@ begin
 
   select * into v_req from public.meeting_requests where id = p_request_id for update;
   if not found then
-    raise exception 'Meeting Request not found.' using errcode = 'P0002';
+    raise exception 'Activity not found.' using errcode = 'P0002';
   end if;
 
   v_by_applicant := v_req.applicant_id = v_actor;
   if not (v_by_applicant or v_is_hr) then
-    raise exception 'Only the applicant, HR or a Super Admin can cancel this Meeting Request.' using errcode = '42501';
+    raise exception 'Only the applicant, HR or a Super Admin can cancel this Activity.' using errcode = '42501';
   end if;
 
   if v_req.status not in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED') then
-    raise exception 'A % Meeting Request is final and cannot be cancelled.', lower(v_req.status) using errcode = '22023';
+    raise exception 'A % Activity is final and cannot be cancelled.', lower(v_req.status) using errcode = '22023';
   end if;
 
-  if v_req.starts_at <= now() then
-    raise exception 'This meeting has already started, so it can no longer be cancelled.' using errcode = '22023';
+  if not exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at > now()) then
+    raise exception 'This Activity has already started, so it can no longer be cancelled.' using errcode = '22023';
   end if;
 
   if not v_by_applicant and v_reason is null then
-    raise exception 'Write the reason for cancelling this Meeting Request.' using errcode = '22023';
+    raise exception 'Write the reason for cancelling this Activity.' using errcode = '22023';
   end if;
 
   v_action := case when v_by_applicant then 'CANCELLED' else 'HR_CANCELLED' end;
 
+  -- cancelled_at is set only when the Activity was approved, so held days of one cancelled while
+  -- still waiting on HR are never shown as approved.
+  -- Once a day has started, drop the days that have not; the held days stay.
+  if exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at <= now()) then
+    delete from public.meeting_request_days where request_id = p_request_id and starts_at > now();
+    select max(ends_at) into v_left_end from public.meeting_request_days where request_id = p_request_id;
+  end if;
+
   update public.meeting_requests set
     status = 'CANCELLED',
     cancel_reason = v_reason,
-    cancelled_by = v_actor
+    cancelled_by = v_actor,
+    cancelled_at = case when v_req.status = 'APPROVED' then now() else null end,
+    ends_at = coalesce(v_left_end, ends_at)
   where id = p_request_id;
 
   perform public.log_meeting_request_event(p_request_id, v_actor, v_action, v_req.status, 'CANCELLED', null, v_reason);
@@ -13887,7 +14035,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.edit_meeting_request(p_request_id uuid, p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT 'ONSITE'::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[])
+CREATE OR REPLACE FUNCTION public.edit_meeting_request(p_request_id uuid, p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT NULL::text, p_days jsonb DEFAULT NULL::jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -13897,45 +14045,74 @@ declare
   v_actor uuid := public.get_employee_id();
   v_req public.meeting_requests%rowtype;
   v_applicant_is_head boolean;
+  v_atype text;
   v_to text;
   v_head uuid;
   v_guests text[];
   v_emails text[];
   v_link text := nullif(btrim(coalesce(p_meeting_link, '')), '');
-  v_type text := upper(coalesce(p_meeting_type, 'ONSITE'));
+  v_type text := nullif(upper(btrim(coalesce(p_meeting_type, ''))), '');
   v_old_people uuid[];
   v_new_people uuid[];
   v_changed jsonb := '{}'::jsonb;
-  v_time_changed boolean;
   v_restart boolean;
   v_purpose text := btrim(coalesce(p_purpose, ''));
+  v_days jsonb;
+  v_old_days jsonb;
+  v_new_start timestamptz;
+  v_new_end timestamptz;
 begin
   if v_actor is null then
-    raise exception 'Sign in to edit a Meeting Request.' using errcode = '42501';
+    raise exception 'Sign in to edit an Activity.' using errcode = '42501';
   end if;
 
   select * into v_req from public.meeting_requests where id = p_request_id for update;
   if not found then
-    raise exception 'Meeting Request not found.' using errcode = 'P0002';
+    raise exception 'Activity not found.' using errcode = 'P0002';
   end if;
 
   if v_req.applicant_id <> v_actor then
-    raise exception 'Only the person who filed this Meeting Request can edit it.' using errcode = '42501';
+    raise exception 'Only the person who filed this Activity can edit it.' using errcode = '42501';
   end if;
 
   if v_req.status not in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED') then
-    raise exception 'A % Meeting Request cannot be edited.', lower(v_req.status) using errcode = '22023';
+    raise exception 'A % Activity cannot be edited.', lower(v_req.status) using errcode = '22023';
   end if;
 
-  if v_req.starts_at <= now() then
-    raise exception 'This meeting has already started, so it can no longer be edited.' using errcode = '22023';
+  -- Editable while at least one day has not started.
+  if not exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at > now()) then
+    raise exception 'This Activity has already started, so it can no longer be edited.' using errcode = '22023';
   end if;
 
-  if p_starts_at < now() then
-    raise exception 'A meeting cannot start in the past.' using errcode = '22023';
+  v_atype := upper(coalesce(p_activity_type, v_req.activity_type));
+  if v_atype = 'MEETING' and v_type is null then
+    v_type := 'ONSITE';
   end if;
+  perform public.activity_fields_check(v_atype, v_type, p_venue_id, v_link);
+  v_days := public.activity_days_normalize(p_days, v_atype, p_starts_at, p_ends_at);
 
-  perform public.meeting_type_check(v_type, p_venue_id, v_link);
+  -- Days that have started stay exactly as they are.
+  if exists (
+    select 1 from public.meeting_request_days d
+    where d.request_id = p_request_id and d.starts_at <= now()
+      and not exists (
+        select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
+        where x.starts_at = d.starts_at and x.ends_at = d.ends_at
+      )
+  ) then
+    raise exception 'A day that has already started cannot be changed or removed.' using errcode = '22023';
+  end if;
+  -- Any day that is not already saved must be in the future.
+  if exists (
+    select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
+    where x.starts_at < now()
+      and not exists (
+        select 1 from public.meeting_request_days d
+        where d.request_id = p_request_id and d.starts_at = x.starts_at and d.ends_at = x.ends_at
+      )
+  ) then
+    raise exception 'An Activity cannot start in the past.' using errcode = '22023';
+  end if;
 
   if p_venue_id is not null and not exists (
     select 1 from public.calendar_venues
@@ -13946,21 +14123,28 @@ begin
 
   if not exists (
     select 1 from public.employees
-    where id = p_facilitator_id and coalesce(is_head, false) and coalesce(is_deleted, false) = false
+    where id = p_facilitator_id and coalesce(is_deleted, false) = false
   ) then
-    raise exception 'The Facilitator must be a department head.' using errcode = '22023';
+    raise exception 'Choose a Lead.' using errcode = '22023';
   end if;
 
   if v_purpose = '' then
-    raise exception 'Write the purpose of the meeting.' using errcode = '22023';
+    raise exception 'Write the purpose of the Activity.' using errcode = '22023';
   end if;
 
   select coalesce(is_head, false) into v_applicant_is_head from public.employees where id = v_actor;
+  if v_atype = 'EVENT' and v_req.activity_type <> 'EVENT' and not coalesce(v_applicant_is_head, false) then
+    raise exception 'Only a department head can file an Event.' using errcode = '42501';
+  end if;
 
   v_head := null;
 
-  v_to := case when v_req.status = 'RETURNED' then 'RETURNED' else 'PENDING_HR' end;
-  -- Approval starts over when the request moves back to a pending stage from a later one.
+  -- The same rule as filing, run again on every edit: any change to an Event goes back to HR.
+  v_to := case
+    when not public.activity_needs_hr(v_atype, p_venue_id) then 'APPROVED'
+    when v_req.status = 'RETURNED' then 'RETURNED'
+    else 'PENDING_HR'
+  end;
   v_restart := v_to <> v_req.status and v_to in ('PENDING_HEAD', 'PENDING_HR');
 
   select coalesce(array_agg(btrim(g.name) order by g.i), '{}'),
@@ -13975,9 +14159,15 @@ begin
   select coalesce(array_agg(e.id order by e.id), '{}') into v_new_people
     from public.employees e where e.id = any(coalesce(p_participant_ids, '{}'));
 
-  v_time_changed := v_req.starts_at <> p_starts_at or v_req.ends_at <> p_ends_at;
+  select coalesce(jsonb_agg(jsonb_build_object('starts_at', d.starts_at, 'ends_at', d.ends_at) order by d.starts_at), '[]'::jsonb)
+    into v_old_days from public.meeting_request_days d where d.request_id = p_request_id;
+  select min(x.starts_at), max(x.ends_at) into v_new_start, v_new_end
+    from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz);
 
-  if v_req.meeting_type <> v_type then
+  if v_req.activity_type <> v_atype then
+    v_changed := v_changed || jsonb_build_object('activity_type', jsonb_build_object('from', v_req.activity_type, 'to', v_atype));
+  end if;
+  if v_req.meeting_type is distinct from v_type then
     v_changed := v_changed || jsonb_build_object('meeting_type', jsonb_build_object('from', v_req.meeting_type, 'to', v_type));
   end if;
   if v_req.venue_id is distinct from p_venue_id then
@@ -13986,11 +14176,20 @@ begin
   if v_req.meeting_link is distinct from v_link then
     v_changed := v_changed || jsonb_build_object('meeting_link', jsonb_build_object('from', v_req.meeting_link, 'to', v_link));
   end if;
-  if v_req.starts_at <> p_starts_at then
-    v_changed := v_changed || jsonb_build_object('starts_at', jsonb_build_object('from', v_req.starts_at, 'to', p_starts_at));
+  if v_req.starts_at <> v_new_start then
+    v_changed := v_changed || jsonb_build_object('starts_at', jsonb_build_object('from', v_req.starts_at, 'to', v_new_start));
   end if;
-  if v_req.ends_at <> p_ends_at then
-    v_changed := v_changed || jsonb_build_object('ends_at', jsonb_build_object('from', v_req.ends_at, 'to', p_ends_at));
+  if v_req.ends_at <> v_new_end then
+    v_changed := v_changed || jsonb_build_object('ends_at', jsonb_build_object('from', v_req.ends_at, 'to', v_new_end));
+  end if;
+  if jsonb_array_length(v_old_days) <> jsonb_array_length(v_days) or exists (
+    select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
+    where not exists (
+      select 1 from public.meeting_request_days d
+      where d.request_id = p_request_id and d.starts_at = x.starts_at and d.ends_at = x.ends_at
+    )
+  ) then
+    v_changed := v_changed || jsonb_build_object('days', jsonb_build_object('from', v_old_days, 'to', v_days));
   end if;
   if v_req.facilitator_id <> p_facilitator_id then
     v_changed := v_changed || jsonb_build_object('facilitator_id', jsonb_build_object('from', v_req.facilitator_id, 'to', p_facilitator_id));
@@ -14008,19 +14207,34 @@ begin
     v_changed := v_changed || jsonb_build_object('head_id', jsonb_build_object('from', v_req.head_id, 'to', v_head));
   end if;
 
+  -- Days: drop the ones not started that are no longer listed, add the ones not saved yet.
+  delete from public.meeting_request_days d
+  where d.request_id = p_request_id and d.starts_at > now()
+    and not exists (
+      select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
+      where x.starts_at = d.starts_at and x.ends_at = d.ends_at
+    );
+  insert into public.meeting_request_days (request_id, starts_at, ends_at)
+  select p_request_id, x.starts_at, x.ends_at
+  from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
+  where not exists (
+    select 1 from public.meeting_request_days d
+    where d.request_id = p_request_id and d.starts_at = x.starts_at and d.ends_at = x.ends_at
+  );
+
   update public.meeting_requests set
+    activity_type = v_atype,
     meeting_type = v_type,
     venue_id = p_venue_id,
     meeting_link = v_link,
-    starts_at = p_starts_at,
-    ends_at = p_ends_at,
+    starts_at = v_new_start,
+    ends_at = v_new_end,
     facilitator_id = p_facilitator_id,
     purpose = v_purpose,
     guests = v_guests,
     guest_emails = v_emails,
     head_id = v_head,
     status = v_to,
-    reminder_sent_at = case when v_time_changed then null else reminder_sent_at end,
     head_decided_at = case when v_restart then null else head_decided_at end,
     head_note = case when v_restart then null else head_note end,
     hr_override = case when v_restart then false else hr_override end,
@@ -14073,7 +14287,7 @@ AS $function$
     );
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT 'ONSITE'::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[])
+CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT 'MEETING'::text, p_days jsonb DEFAULT NULL::jsonb)
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -14082,19 +14296,35 @@ AS $function$
 declare
   v_applicant uuid := public.get_employee_id();
   v_applicant_is_head boolean;
+  v_atype text := upper(coalesce(p_activity_type, 'MEETING'));
   v_status text;
   v_head uuid;
   v_id uuid;
   v_guests text[];
   v_emails text[];
   v_link text := nullif(btrim(coalesce(p_meeting_link, '')), '');
-  v_type text := upper(coalesce(p_meeting_type, 'ONSITE'));
+  v_type text := nullif(upper(btrim(coalesce(p_meeting_type, ''))), '');
+  v_days jsonb;
+  v_first_start timestamptz;
+  v_first_end timestamptz;
+  v_last_end timestamptz;
 begin
   if v_applicant is null then
-    raise exception 'Sign in to file a Meeting Request.' using errcode = '42501';
+    raise exception 'Sign in to file an Activity.' using errcode = '42501';
   end if;
 
-  perform public.meeting_type_check(v_type, p_venue_id, v_link);
+  if v_atype = 'MEETING' and v_type is null then
+    v_type := 'ONSITE';
+  end if;
+  perform public.activity_fields_check(v_atype, v_type, p_venue_id, v_link);
+  v_days := public.activity_days_normalize(p_days, v_atype, p_starts_at, p_ends_at);
+
+  if v_atype = 'EVENT' then
+    select coalesce(is_head, false) into v_applicant_is_head from public.employees where id = v_applicant;
+    if not coalesce(v_applicant_is_head, false) then
+      raise exception 'Only a department head can file an Event.' using errcode = '42501';
+    end if;
+  end if;
 
   if p_venue_id is not null and not exists (select 1 from public.calendar_venues where id = p_venue_id and active) then
     raise exception 'Choose a Venue that is open for booking.' using errcode = '22023';
@@ -14102,16 +14332,16 @@ begin
 
   if not exists (
     select 1 from public.employees
-    where id = p_facilitator_id and coalesce(is_head, false) and coalesce(is_deleted, false) = false
+    where id = p_facilitator_id and coalesce(is_deleted, false) = false
   ) then
-    raise exception 'The Facilitator must be a department head.' using errcode = '22023';
+    raise exception 'Choose a Lead.' using errcode = '22023';
   end if;
 
   if coalesce(btrim(p_purpose), '') = '' then
-    raise exception 'Write the purpose of the meeting.' using errcode = '22023';
+    raise exception 'Write the purpose of the Activity.' using errcode = '22023';
   end if;
 
-  v_status := 'PENDING_HR';
+  v_status := case when public.activity_needs_hr(v_atype, p_venue_id) then 'PENDING_HR' else 'APPROVED' end;
   v_head := null;
 
   select coalesce(array_agg(btrim(g.name) order by g.i), '{}'),
@@ -14121,13 +14351,27 @@ begin
     where btrim(g.name) <> '';
   perform public.guest_emails_check(v_emails);
 
+  select (v_days->0->>'starts_at')::timestamptz, (v_days->0->>'ends_at')::timestamptz into v_first_start, v_first_end;
+  select max(x.ends_at) into v_last_end from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz);
+
+  -- The parent is inserted with the first day (its default-day trigger writes that day row);
+  -- the other days follow, then the parent's end moves to the last day's end.
   insert into public.meeting_requests (
     applicant_id, venue_id, starts_at, ends_at, facilitator_id, purpose, guests, guest_emails, status, head_id,
-    meeting_type, meeting_link
+    meeting_type, meeting_link, activity_type
   ) values (
-    v_applicant, p_venue_id, p_starts_at, p_ends_at, p_facilitator_id, btrim(p_purpose), v_guests, v_emails, v_status, v_head,
-    v_type, v_link
+    v_applicant, p_venue_id, v_first_start, v_first_end, p_facilitator_id, btrim(p_purpose), v_guests, v_emails, v_status, v_head,
+    v_type, v_link, v_atype
   ) returning id into v_id;
+
+  insert into public.meeting_request_days (request_id, starts_at, ends_at)
+  select v_id, x.starts_at, x.ends_at
+  from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
+  where x.starts_at <> v_first_start;
+
+  if v_last_end <> v_first_end then
+    update public.meeting_requests set ends_at = v_last_end where id = v_id;
+  end if;
 
   insert into public.meeting_request_participants (request_id, employee_id)
   select v_id, e.id from public.employees e
@@ -14136,8 +14380,8 @@ begin
 
   perform public.log_meeting_request_event(
     v_id, v_applicant, 'FILED', null, v_status,
-    jsonb_build_object('meeting_type', v_type, 'venue_id', p_venue_id, 'starts_at', p_starts_at, 'ends_at', p_ends_at,
-                       'facilitator_id', p_facilitator_id, 'head_id', v_head),
+    jsonb_build_object('activity_type', v_atype, 'meeting_type', v_type, 'venue_id', p_venue_id, 'starts_at', v_first_start, 'ends_at', v_last_end,
+                       'days', v_days, 'facilitator_id', p_facilitator_id, 'head_id', v_head),
     null
   );
 
@@ -16581,6 +16825,27 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_messages_broadcast_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', new.id, 'ipas_id', new.ipas_id),
+      tg_op,
+      'ipas_messages-changes',
+      true -- private: gated by the realtime.messages policy, not public
+    );
+  exception when others then
+    null;
+  end;
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_next_number()
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -16641,27 +16906,6 @@ begin
     or new.applies_to is distinct from old.applies_to
     or new.used_for is distinct from old.used_for
   ) and public.ipas_option_on_filed(old.id) then
-CREATE OR REPLACE FUNCTION public.ipas_messages_broadcast_change()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-begin
-  begin
-    perform realtime.send(
-      jsonb_build_object('id', new.id, 'ipas_id', new.ipas_id),
-      tg_op,
-      'ipas_messages-changes',
-      true -- private: gated by the realtime.messages policy, not public
-    );
-  exception when others then
-    null;
-  end;
-  return null;
-end;
-$function$
-;
     raise exception 'ipas_options: "%" is used on a filed IPAS. Deactivate it and add a new one instead.', old.label
       using errcode = '22023';
   end if;
@@ -19651,6 +19895,60 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.meeting_request_days_broadcast_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', coalesce(new.request_id, old.request_id)),
+      tg_op,
+      'meeting_request_days-changes',
+      true
+    );
+  exception when others then
+    null;
+  end;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.meeting_request_days_guard_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.starts_at < now() then
+    raise exception 'An Activity cannot start in the past.' using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.meeting_request_days_meeting_check()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+declare
+  v_id uuid;
+  v_type text;
+begin
+  if tg_table_name = 'meeting_requests' then
+    v_id := new.id;
+  else
+    v_id := coalesce(new.request_id, old.request_id);
+  end if;
+  select activity_type into v_type from public.meeting_requests where id = v_id;
+  if v_type = 'MEETING' and (select count(*) from public.meeting_request_days where request_id = v_id) <> 1 then
+    raise exception 'A Meeting is one day.' using errcode = '23514';
+  end if;
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.meeting_request_holder(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_exclude_id uuid DEFAULT NULL::uuid)
  RETURNS TABLE(id uuid, purpose text, starts_at timestamp with time zone, ends_at timestamp with time zone, applicant_name text, venue_name text)
  LANGUAGE sql
@@ -19708,6 +20006,17 @@ begin
   exception when others then
     null;
   end;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.meeting_requests_default_day()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  insert into public.meeting_request_days (id, request_id, starts_at, ends_at, reminder_sent_at)
+  values (new.id, new.id, new.starts_at, new.ends_at, new.reminder_sent_at);
   return null;
 end;
 $function$
@@ -23932,20 +24241,22 @@ declare
   v_count integer;
 begin
   with due as (
-    update public.meeting_requests r
+    update public.meeting_request_days dy
        set reminder_sent_at = now()
-     where r.status = 'APPROVED'
-       and r.reminder_sent_at is null
-       and r.starts_at > now()
-       and r.starts_at <= now() + interval '15 minutes'
-    returning r.id, r.applicant_id, r.facilitator_id, r.venue_id, r.starts_at, r.purpose
+      from public.meeting_requests r
+     where r.id = dy.request_id
+       and r.status = 'APPROVED'
+       and dy.reminder_sent_at is null
+       and dy.starts_at > now()
+       and dy.starts_at <= now() + interval '15 minutes'
+    returning r.id, r.applicant_id, r.facilitator_id, r.venue_id, r.meeting_type, dy.starts_at, r.purpose
   ),
   people as (
-    select d.id as request_id, d.applicant_id as person_id from due d
+    select d.id as request_id, d.starts_at, d.applicant_id as person_id from due d
     union
-    select d.id, d.facilitator_id from due d
+    select d.id, d.starts_at, d.facilitator_id from due d
     union
-    select d.id, p.employee_id
+    select d.id, d.starts_at, p.employee_id
       from due d
       join public.meeting_request_participants p on p.request_id = d.id
   ),
@@ -23954,14 +24265,17 @@ begin
     select pe.person_id,
            null,
            'MEETING_REMINDER',
-           'Meeting starts soon',
-           format('%s, %s: %s',
-                  coalesce(v.name, 'Venue'),
-                  to_char(d.starts_at at time zone 'Asia/Manila', 'Mon FMDD, FMHH12:MI AM'),
-                  d.purpose),
+           'Activity starts soon',
+           concat_ws(', ',
+                     case
+                       when v.name is not null then v.name
+                       when d.meeting_type = 'ONLINE' then 'Online'
+                     end,
+                     to_char(d.starts_at at time zone 'Asia/Manila', 'Mon FMDD, FMHH12:MI AM')
+           ) || ': ' || d.purpose,
            d.id
       from people pe
-      join due d on d.id = pe.request_id
+      join due d on d.id = pe.request_id and d.starts_at = pe.starts_at
       left join public.calendar_venues v on v.id = d.venue_id
     returning 1
   )
@@ -30842,6 +31156,8 @@ CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents 
 CREATE TRIGGER ipas_events_mark_worked_on AFTER INSERT ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION _ipas_mark_worked_on();
 CREATE TRIGGER ipas_events_no_change BEFORE DELETE OR UPDATE ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_events_no_truncate BEFORE TRUNCATE ON public.ipas_events FOR EACH STATEMENT EXECUTE FUNCTION ipas_events_append_only();
+CREATE TRIGGER ipas_messages_broadcast_change_trigger AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION ipas_messages_broadcast_change();
+CREATE TRIGGER ipas_messages_notify AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION _ipas_message_notify();
 CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_filed_guard();
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_required_before_guard();
@@ -30860,9 +31176,14 @@ CREATE TRIGGER ipas_signoffs_logistics_guard BEFORE INSERT ON public.ipas_signof
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_sors AFTER INSERT OR DELETE OR UPDATE ON public.ipas_sors DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_sors_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_sors FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER lwop_leaves_guard_head_status BEFORE UPDATE ON public.lwop_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
+CREATE TRIGGER meeting_request_days_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.meeting_request_days FOR EACH ROW EXECUTE FUNCTION meeting_request_days_broadcast_change();
+CREATE TRIGGER meeting_request_days_guard_insert BEFORE INSERT ON public.meeting_request_days FOR EACH ROW EXECUTE FUNCTION meeting_request_days_guard_insert();
+CREATE CONSTRAINT TRIGGER meeting_request_days_meeting_check AFTER INSERT OR DELETE OR UPDATE ON public.meeting_request_days DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION meeting_request_days_meeting_check();
 CREATE TRIGGER meeting_request_participants_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.meeting_request_participants FOR EACH ROW EXECUTE FUNCTION meeting_request_participants_broadcast_change();
 CREATE TRIGGER meeting_requests_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_broadcast_change();
+CREATE TRIGGER meeting_requests_default_day AFTER INSERT ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_default_day();
 CREATE TRIGGER meeting_requests_guard_insert BEFORE INSERT ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_guard_insert();
+CREATE CONSTRAINT TRIGGER meeting_requests_meeting_days_check AFTER UPDATE OF activity_type ON public.meeting_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION meeting_request_days_meeting_check();
 CREATE TRIGGER meeting_requests_touch BEFORE UPDATE ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_touch();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
@@ -30936,8 +31257,6 @@ CREATE TRIGGER transmittal_references_guard BEFORE INSERT OR DELETE OR UPDATE ON
 CREATE TRIGGER transmittal_stages_guard BEFORE DELETE OR UPDATE ON public.transmittal_stages FOR EACH ROW EXECUTE FUNCTION transmittal_stages_guard();
 CREATE TRIGGER transmittals_guard BEFORE DELETE OR UPDATE ON public.transmittals FOR EACH ROW EXECUTE FUNCTION transmittals_guard();
 CREATE TRIGGER undertime_requests_guard_head_status BEFORE UPDATE ON public.undertime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
-CREATE TRIGGER ipas_messages_broadcast_change_trigger AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION ipas_messages_broadcast_change();
-CREATE TRIGGER ipas_messages_notify AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION _ipas_message_notify();
 
 -- ============================================================
 -- Views

@@ -123,7 +123,7 @@ const myRequestTarget = ({ notif, navigate }) =>
 const bugReportTarget = ({ notif, navigate }) =>
   navigate(`/bug-reports?record=${encodeURIComponent(notif.reference_id)}`);
 
-/** A new Meeting Request goes to the approver, whose page reads `?record=`. */
+/** A new Activity goes to the approver, whose page reads `?record=`. */
 const meetingApprovalTarget = ({ notif, navigate }) =>
   navigate(`/approvals/meetings?record=${encodeURIComponent(notif.reference_id)}`);
 /** Everyone else sees the meeting on the Calendar, whose address names the open entry. */

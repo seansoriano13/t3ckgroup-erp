@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { parseManilaDate } from '@/lib/manilaDate.js';
 import { MEETING_STATUS_LABEL } from '@/services/meetingRequestService';
-import { kindOf } from './entryKinds.jsx';
+import { styleOf } from './entryKinds.jsx';
 import { isOut, time12 } from './entrySpan.js';
 import { Face, KindDot, VenueStrip } from './calendarParts.jsx';
 
@@ -78,11 +78,11 @@ export default function DayRail({ ymd, entries, layers, venues, todayYmd, onOpen
                     <span
                       className={cn(
                         'shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-bold',
-                        kindOf(e.kind).chip,
+                        styleOf(e).chip,
                         e.status === 'PENDING' && 'border-dashed',
                       )}
                     >
-                      {kindOf(e.kind).label}
+                      {styleOf(e).label}
                       {e.kind === 'UNDERTIME' && ` from ${time12(e.starts_at)}`}
                       {e.status === 'PENDING' && ' · pending'}
                     </span>
@@ -95,7 +95,7 @@ export default function DayRail({ ymd, entries, layers, venues, todayYmd, onOpen
       )}
 
       {layers.meetings && (
-        <RailSection title="Rooms" count={meetings.length}>
+        <RailSection title="Rooms" count={meetings.filter((m) => m.venue).length}>
           {venues.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {meetings.length ? `${meetings.length} meetings, no rooms set up.` : 'No rooms set up.'}

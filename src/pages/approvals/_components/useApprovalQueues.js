@@ -44,10 +44,10 @@ export const APPROVAL_QUEUES = [
     can: (r) => r.isSuperAdmin || r.isHead || r.isHr,
   },
   {
-    // Meeting Requests (#624): a head approves the ones routed to them, HR gives the final say.
+    // Activities (#624): a head approves the ones routed to them, HR gives the final say.
     key: "meetings",
     path: "/approvals/meetings",
-    label: "Meeting Requests",
+    label: "Activities",
     icon: CalendarDays,
     can: (r) => r.isSuperAdmin || r.isHead || r.isHr,
   },

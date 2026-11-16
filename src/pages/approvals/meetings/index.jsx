@@ -21,7 +21,7 @@ const QUEUE = APPROVAL_QUEUES.find((q) => q.key === "meetings");
 const DONE_TEXT = { APPROVE: "Approved.", DECLINE: "Declined.", RETURN: "Returned." };
 
 /**
- * Meeting Requests (#624, #748) in the Approval Center. HR is the only approver: HR and Super
+ * Activities (#624, #748) in the Approval Center. HR is the only approver: HR and Super
  * Admins see the pending-HR requests; nobody else has a queue.
  */
 export default function MeetingApprovalsPage() {
@@ -91,8 +91,8 @@ function MeetingApprovalsQueue() {
   const onDecide = (item, decision, note) => decide.mutate({ item, decision, note }, { onSuccess: () => stepAfter(item) });
   const busy = decide.isPending;
 
-  if (q.isErrorMeetings) return <QueryError className="m-6" title="Meeting requests could not be loaded." onRetry={q.refetchMeetings} />;
-  if (q.isLoadingMeetings) return <PageLoading label="meeting requests" />;
+  if (q.isErrorMeetings) return <QueryError className="m-6" title="Activities could not be loaded." onRetry={q.refetchMeetings} />;
+  if (q.isLoadingMeetings) return <PageLoading label="activities" />;
 
   return (
     <>
@@ -126,7 +126,7 @@ function MeetingApprovalsQueue() {
           renderRowAction={(item) => (
             <>
               <Tooltip content="Review to decline or return">
-                <Button variant="outline" size="icon-sm" aria-label={`Review ${item.person.name}'s meeting request`} disabled={busy} onClick={() => openRecord(item.id)}>
+                <Button variant="outline" size="icon-sm" aria-label={`Review ${item.person.name}'s activity`} disabled={busy} onClick={() => openRecord(item.id)}>
                   <X size={14} />
                 </Button>
               </Tooltip>
@@ -134,7 +134,7 @@ function MeetingApprovalsQueue() {
                 <Button
                   variant="outline"
                   size="icon-sm"
-                  aria-label={`Approve ${item.person.name}'s meeting request`}
+                  aria-label={`Approve ${item.person.name}'s activity`}
                   disabled={busy}
                   className="hover:border-green-7 hover:bg-green-3 hover:text-green-11"
                   onClick={() => onDecide(item, "APPROVE", "")}
@@ -144,7 +144,7 @@ function MeetingApprovalsQueue() {
               </Tooltip>
             </>
           )}
-          empty={{ title: "Nothing waiting on you right now", description: "Meeting Requests waiting for HR show up here." }}
+          empty={{ title: "Nothing waiting on you right now", description: "Activities waiting for HR show up here." }}
         />
       </ApprovalCenterLayout>
 

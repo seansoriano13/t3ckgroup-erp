@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LAYERS, ENTRY_KINDS, LAYERS, kindOf, layerOf, visibleEntries } from './entryKinds.jsx';
+import { ACTIVITY_TYPES, DEFAULT_LAYERS, ENTRY_KINDS, LAYERS, kindOf, layerOf, styleOf, visibleEntries } from './entryKinds.jsx';
 
 describe('entry-kind registry', () => {
   it('maps each kind to its layer', () => {
@@ -33,5 +33,23 @@ describe('entry-kind registry', () => {
     const entries = [{ kind: 'SIL' }, { kind: 'OVERTIME' }, { kind: 'HOLIDAY' }];
     expect(visibleEntries(entries, DEFAULT_LAYERS).map((e) => e.kind)).toEqual(['SIL', 'OVERTIME']);
     expect(visibleEntries(entries, { ...DEFAULT_LAYERS, overtime: false }).map((e) => e.kind)).toEqual(['SIL']);
+  });
+
+  it('gives each Activity type its own colour, falling back to Meeting', () => {
+    const dots = Object.values(ACTIVITY_TYPES).map((t) => t.dot);
+    expect(new Set(dots).size).toBe(4);
+    expect(styleOf({ kind: 'MEETING', details: { activity_type: 'EVENT' } }).label).toBe('Event');
+    expect(styleOf({ kind: 'MEETING', details: {} }).dot).toBe(ACTIVITY_TYPES.MEETING.dot);
+    expect(styleOf({ kind: 'SIL' }).dot).toBe(ENTRY_KINDS.SIL.dot);
+  });
+
+  it('filters Activities by type only, and none chosen shows all', () => {
+    const entries = [
+      { kind: 'MEETING', details: { activity_type: 'EVENT' } },
+      { kind: 'MEETING', details: { activity_type: 'ADMIN_TASK' } },
+      { kind: 'SIL' },
+    ];
+    expect(visibleEntries(entries, DEFAULT_LAYERS, ['EVENT'])).toHaveLength(2);
+    expect(visibleEntries(entries, DEFAULT_LAYERS, [])).toHaveLength(3);
   });
 });

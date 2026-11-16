@@ -283,7 +283,7 @@ export function shortDate(iso, now = Date.now()) {
 }
 
 /**
- * A Meeting Request's approval chain: Requested -> HR approval (#748, HR is the only approver).
+ * An Activity's approval chain: Requested -> HR approval (#748, HR is the only approver).
  * An old request that went through a department head keeps that step as history.
  */
 export function meetingChain(request) {
@@ -302,7 +302,7 @@ export function meetingChain(request) {
     ];
 }
 
-/** A Meeting Request waiting on the signed-in reviewer as an ApprovalItem (#624). */
+/** An Activity waiting on the signed-in reviewer as an ApprovalItem (#624). */
 export function meetingToItem(request, now = Date.now()) {
     const a = request.applicant || {};
     const clockAt = request.created_at || request.starts_at;

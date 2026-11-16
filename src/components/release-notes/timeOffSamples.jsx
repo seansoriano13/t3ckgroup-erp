@@ -26,7 +26,7 @@ import { PEOPLE } from "./sampleData"
 // Signed in as a made-up employee, so nothing on these screens is the viewer's own.
 const VIEWER = { id: "sample-viewer", name: "Sample Viewer", department: "SALES" }
 
-const BOOKING_NOTE = "In the app, this opens a Meeting Request for that Venue and time. Nothing is booked here."
+const BOOKING_NOTE = "In the app, this opens an Activity for that Venue and time. Nothing is booked here."
 
 // Manila has no daylight saving, so a day is always 24 hours.
 const addDays = (ymd, n) => manilaDate(new Date(parseManilaDate(ymd).getTime() + n * 86400000))
