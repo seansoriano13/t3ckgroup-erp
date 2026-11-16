@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-11-16",
+        "title": "IPAS has its own chat",
+        "version": "1.11.1",
+        "changes": [
+            "Every IPAS now has a Chat under its sections. Anyone who can open the IPAS can read and post, attach files, and type @ to mention someone.",
+            "The person you mention gets a notification. Whoever raised the IPAS, and everyone who posted before, hears about new messages. Clicking the notification opens the IPAS at its chat."
+        ]
+    },
+    {
+        "date": "2026-11-16",
         "title": "What's new: mid-November",
         "version": "1.11.0",
         "changes": [
