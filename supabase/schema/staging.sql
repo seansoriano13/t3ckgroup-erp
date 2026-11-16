@@ -2048,8 +2048,8 @@ alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
 alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
 alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_file_rules add constraint "ipas_file_rules_pkey" PRIMARY KEY (id);
-alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
 alter table ipas_messages add constraint "ipas_messages_pkey" PRIMARY KEY (id);
+alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIMARY KEY (id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
@@ -2544,14 +2544,14 @@ alter table ipas_documents add constraint "ipas_documents_ipas_id_fkey" FOREIGN 
 alter table ipas_documents add constraint "ipas_documents_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
 alter table ipas_events add constraint "ipas_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table ipas_events add constraint "ipas_events_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_messages add constraint "ipas_messages_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
+alter table ipas_messages add constraint "ipas_messages_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_payments add constraint "ipas_payments_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_method_id_fkey" FOREIGN KEY (method_id) REFERENCES ipas_options(id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
-alter table ipas_messages add constraint "ipas_messages_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
-alter table ipas_messages add constraint "ipas_messages_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_by_fkey" FOREIGN KEY (cleared_by) REFERENCES employees(id);
 alter table ipas_signoffs add constraint "ipas_signoffs_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_signoffs add constraint "ipas_signoffs_signed_by_fkey" FOREIGN KEY (signed_by) REFERENCES employees(id);
@@ -2855,13 +2855,13 @@ CREATE UNIQUE INDEX ipas_documents_kind_key ON public.ipas_documents USING btree
 CREATE UNIQUE INDEX ipas_documents_label_key ON public.ipas_documents USING btree (ipas_id, lower(btrim(label))) WHERE (kind_id IS NULL);
 CREATE INDEX ipas_events_actor_id_idx ON public.ipas_events USING btree (actor_id);
 CREATE INDEX ipas_events_ipas_id_idx ON public.ipas_events USING btree (ipas_id, created_at);
+CREATE INDEX ipas_messages_ipas_id_idx ON public.ipas_messages USING btree (ipas_id, created_at);
 CREATE UNIQUE INDEX ipas_options_list_label_key ON public.ipas_options USING btree (list, lower(btrim(label)));
 CREATE INDEX ipas_options_list_sort_idx ON public.ipas_options USING btree (list, sort);
 CREATE INDEX ipas_payments_created_by_idx ON public.ipas_payments USING btree (created_by);
 CREATE INDEX ipas_payments_ipas_id_idx ON public.ipas_payments USING btree (ipas_id, paid_on);
 CREATE INDEX ipas_payments_method_id_idx ON public.ipas_payments USING btree (method_id);
 CREATE INDEX ipas_signer_list_log_actor_id_idx ON public.ipas_signer_list_log USING btree (actor_id);
-CREATE INDEX ipas_messages_ipas_id_idx ON public.ipas_messages USING btree (ipas_id, created_at);
 CREATE INDEX ipas_signer_list_log_created_at_idx ON public.ipas_signer_list_log USING btree (created_at DESC);
 CREATE INDEX ipas_signer_list_log_employee_id_idx ON public.ipas_signer_list_log USING btree (employee_id);
 CREATE INDEX ipas_signer_lists_employee_id_idx ON public.ipas_signer_lists USING btree (employee_id);
@@ -3049,13 +3049,13 @@ alter table public."ipas_charges" enable row level security;
 alter table public."ipas_documents" enable row level security;
 alter table public."ipas_events" enable row level security;
 alter table public."ipas_file_rules" enable row level security;
+alter table public."ipas_messages" enable row level security;
 alter table public."ipas_options" enable row level security;
 alter table public."ipas_payments" enable row level security;
 alter table public."ipas_signer_list_log" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
 alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
-alter table public."ipas_messages" enable row level security;
 alter table public."ipas_work_marks" enable row level security;
 alter table public."lwop_leaves" enable row level security;
 alter table public."meeting_request_days" enable row level security;
@@ -3946,12 +3946,6 @@ create policy "ipas_file_rules_update" on public."ipas_file_rules"
   to authenticated
   using (COALESCE(is_super_admin(), false))
   with check (COALESCE(is_super_admin(), false));
-create policy "ipas_options_insert" on public."ipas_options"
-  as permissive
-  for insert
-  to authenticated
-  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
-create policy "ipas_options_read" on public."ipas_options"
 create policy "ipas_messages_insert" on public."ipas_messages"
   as permissive
   for insert
@@ -3962,6 +3956,12 @@ create policy "ipas_messages_read" on public."ipas_messages"
   for select
   to authenticated
   using (ipas_can_read());
+create policy "ipas_options_insert" on public."ipas_options"
+  as permissive
+  for insert
+  to authenticated
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
+create policy "ipas_options_read" on public."ipas_options"
   as permissive
   for select
   to authenticated
@@ -5599,12 +5599,6 @@ AS $function$
   );
 $function$
 ;
-CREATE OR REPLACE FUNCTION public._ipas_file_rules_now()
- RETURNS jsonb
- LANGUAGE sql
- STABLE
- SET search_path TO 'public'
-AS $function$
 CREATE OR REPLACE FUNCTION public._ipas_employee_can_read(p_employee_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -5628,6 +5622,12 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_file_rules_now()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
   select jsonb_build_object(
     'options', coalesce(
       (select jsonb_object_agg(o.id::text, o.required_before)
@@ -6025,12 +6025,6 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public._ipas_missing_documents(p_ipas_id uuid, p_section integer)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
 CREATE OR REPLACE FUNCTION public._ipas_message_notify()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -6089,6 +6083,12 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_missing_documents(p_ipas_id uuid, p_section integer)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
 declare
   v_source text;
   v_screen smallint;
@@ -16825,6 +16825,27 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_messages_broadcast_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', new.id, 'ipas_id', new.ipas_id),
+      tg_op,
+      'ipas_messages-changes',
+      true -- private: gated by the realtime.messages policy, not public
+    );
+  exception when others then
+    null;
+  end;
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_next_number()
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -16885,27 +16906,6 @@ begin
     or new.applies_to is distinct from old.applies_to
     or new.used_for is distinct from old.used_for
   ) and public.ipas_option_on_filed(old.id) then
-CREATE OR REPLACE FUNCTION public.ipas_messages_broadcast_change()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-begin
-  begin
-    perform realtime.send(
-      jsonb_build_object('id', new.id, 'ipas_id', new.ipas_id),
-      tg_op,
-      'ipas_messages-changes',
-      true -- private: gated by the realtime.messages policy, not public
-    );
-  exception when others then
-    null;
-  end;
-  return null;
-end;
-$function$
-;
     raise exception 'ipas_options: "%" is used on a filed IPAS. Deactivate it and add a new one instead.', old.label
       using errcode = '22023';
   end if;
@@ -31156,6 +31156,8 @@ CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents 
 CREATE TRIGGER ipas_events_mark_worked_on AFTER INSERT ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION _ipas_mark_worked_on();
 CREATE TRIGGER ipas_events_no_change BEFORE DELETE OR UPDATE ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION ipas_events_append_only();
 CREATE TRIGGER ipas_events_no_truncate BEFORE TRUNCATE ON public.ipas_events FOR EACH STATEMENT EXECUTE FUNCTION ipas_events_append_only();
+CREATE TRIGGER ipas_messages_broadcast_change_trigger AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION ipas_messages_broadcast_change();
+CREATE TRIGGER ipas_messages_notify AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION _ipas_message_notify();
 CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_filed_guard();
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_required_before_guard();
@@ -31255,8 +31257,6 @@ CREATE TRIGGER transmittal_references_guard BEFORE INSERT OR DELETE OR UPDATE ON
 CREATE TRIGGER transmittal_stages_guard BEFORE DELETE OR UPDATE ON public.transmittal_stages FOR EACH ROW EXECUTE FUNCTION transmittal_stages_guard();
 CREATE TRIGGER transmittals_guard BEFORE DELETE OR UPDATE ON public.transmittals FOR EACH ROW EXECUTE FUNCTION transmittals_guard();
 CREATE TRIGGER undertime_requests_guard_head_status BEFORE UPDATE ON public.undertime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
-CREATE TRIGGER ipas_messages_broadcast_change_trigger AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION ipas_messages_broadcast_change();
-CREATE TRIGGER ipas_messages_notify AFTER INSERT ON public.ipas_messages FOR EACH ROW EXECUTE FUNCTION _ipas_message_notify();
 
 -- ============================================================
 -- Views
