@@ -41,6 +41,10 @@ docker exec "$DB_CONTAINER" sh -c 'wc -c /tmp/prod.sql'
 # prod's own state remains (archive_quota included: left behind, it would
 # make the archive migration skip as "already exists").
 psql_local -c "drop schema if exists public cascade; drop schema if exists supabase_migrations cascade; drop schema if exists archive_quota cascade;"
+# The dump holds public only, not extensions. Migration 619 (meeting requests)
+# put btree_gist on prod, and its exclusion constraint will not restore without
+# it; on the stack it went into public and was just dropped with it.
+psql_local -c "create extension if not exists btree_gist with schema extensions;"
 docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -X -q -f /tmp/prod.sql
 psql_local <<'SQL'
 grant usage on schema public to anon, authenticated, service_role;
