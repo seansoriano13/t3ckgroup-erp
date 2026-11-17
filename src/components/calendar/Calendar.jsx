@@ -244,7 +244,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
           setShowPending={setShowPending}
           onClearAll={clearAllFilters}
         />
-        {!gantt && !fullScreen && (
+        {!gantt && !fullScreen && !phone && (
           <SidePanel
             label={dayButtonLabel}
             icon={CalendarDays}
