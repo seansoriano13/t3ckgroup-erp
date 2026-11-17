@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-11-17",
+        "title": "Meeting Requests are now Activities",
+        "version": "1.11.2",
+        "changes": [
+            "What used to be a Meeting Request is now an Activity, in four types: Meeting, Admin Task, Operations Task and Event.",
+            "Anyone can lead an Activity. Only Meetings in a room and Events wait for HR. The others go on the Calendar as soon as you file them.",
+            "Admin Tasks, Operations Tasks and Events can run over several days, each day with its own hours. Reception can be booked as a Venue.",
+            "The Calendar shows each type in its own colour, with a filter by type. The form warns you about clashes on every day of the Activity."
+        ],
+        "link": "/release-notes"
+    },
+    {
         "date": "2026-11-16",
         "title": "IPAS has its own chat",
         "version": "1.11.1",
