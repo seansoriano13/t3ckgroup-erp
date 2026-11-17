@@ -19,15 +19,20 @@ import { bugReportService, BUG_REPORT_MAX_BYTES } from "@/services/bugReportServ
 import { formatBytes } from "@/utils/attachments";
 
 /**
- * The floating "Report a bug" button on every signed-in page (CONTEXT.md →
- * Bug Report). One text box plus up to 5 files of any type, 50 MB each; a
- * screenshot pasted into the text box is attached. The page it was sent from
- * is recorded automatically. From md up it is the "Report a bug" item in the
- * side menu footer (`asMenuItem`); the floating circle is phones only. The sender gets a toast; IT may then write back
- * in the report's Notes, which the sender follows under "My reports"
- * (/bug-reports shows a non-reader only their own).
+ * The "Report a bug" button on every signed-in page (CONTEXT.md → Bug Report).
+ * One text box plus up to 5 files of any type, 50 MB each; a screenshot pasted
+ * into the text box is attached. The page it was sent from is recorded
+ * automatically. The sender gets a toast; IT may then write back in the
+ * report's Notes, which the sender follows under "My reports" (/bug-reports
+ * shows a non-reader only their own).
+ *
+ * Two looks, both always on screen:
+ * - `menu` (default): an outlined button in the side menu footer, which is
+ *   pinned to the bottom of the menu so a long menu never scrolls it away.
+ *   `collapsed` shows the icon only, for the icon rail.
+ * - `icon`: a bug icon in the phone top bar, beside the bell.
  */
-export default function BugReportButton({ asMenuItem = false, collapsed = false }) {
+export default function BugReportButton({ variant = "menu", collapsed = false }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -63,30 +68,30 @@ export default function BugReportButton({ asMenuItem = false, collapsed = false 
 
   return (
     <>
-      {/* Neutral, not the red main-action colour: it sits on every page and
-          is never that page's main action. z-30 so a page's own bottom
-          toolbar (Approvals, z-40) covers it rather than the other way round. */}
-      {asMenuItem ? (
+      {/* The button stays neutral (outlined, not a red fill): it sits on every
+          page and is never that page's main action. Only the bug icon is
+          Signal Red, so the eye finds it among the grey menu links. */}
+      {variant === "icon" ? (
         <Button
           variant="ghost"
-          aria-label="Report a bug"
-          title="Report a bug"
-          onClick={() => setOpen(true)}
-          className={`h-auto w-full justify-start gap-3 rounded-md px-3 py-2 laptop:py-1.5 text-[13.5px] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground ${collapsed ? "justify-center px-2" : ""}`}
-        >
-          <Bug size={15} strokeWidth={2.2} className="shrink-0 text-sidebar-foreground/60" />
-          {!collapsed && <span className="truncate">Report a bug</span>}
-        </Button>
-      ) : (
-        <Button
-          variant="outline"
           size="icon"
           aria-label="Report a bug"
           title="Report a bug"
           onClick={() => setOpen(true)}
-          className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 size-9 rounded-full bg-card text-muted-foreground shadow-lg hover:text-foreground md:hidden"
+          className="size-10 shrink-0 text-sidebar-primary hover:text-sidebar-primary"
         >
-          <Bug size={16} />
+          <Bug size={18} strokeWidth={2.4} />
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          aria-label="Report a bug"
+          title="Report a bug"
+          onClick={() => setOpen(true)}
+          className={`h-auto w-full gap-2.5 rounded-lg border-sidebar-border bg-card py-2 laptop:py-1.5 text-[13.5px] font-semibold text-sidebar-foreground shadow-sm hover:bg-sidebar-accent hover:text-sidebar-foreground ${collapsed ? "justify-center px-2" : "justify-start px-3"}`}
+        >
+          <Bug size={16} strokeWidth={2.4} className="shrink-0 text-sidebar-primary" />
+          {!collapsed && <span className="truncate">Report a bug</span>}
         </Button>
       )}
 

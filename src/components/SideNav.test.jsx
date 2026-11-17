@@ -1,5 +1,5 @@
 ﻿import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import SideNav from "./SideNav";
 import { renderWithProviders } from "../test/support";
@@ -245,6 +245,29 @@ describe("SideNav Component", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Log Task/ }).at(-1));
 
     expect(screen.getByTestId("log-task-window")).toBeInTheDocument();
+  });
+
+  // The bug report used to sit only inside the closed menu drawer on phones,
+  // so no employee ever saw it there.
+  it("phone top bar: has the Report a bug button, always on screen", () => {
+    stubMatchMedia();
+    renderSideNav({ id: "u-bug", name: "Bug Tester" });
+
+    const bar = screen.getByTestId("mobile-top-bar");
+    expect(within(bar).getByRole("button", { name: "Report a bug" })).toBeInTheDocument();
+  });
+
+  // The bug report used to be the last thing in the side menu's scroll, so a
+  // long menu (Super Admin, heads) pushed it below the bottom of the screen.
+  // jsdom has no layout, so this only checks it is pinned; the real "is it on
+  // screen" check is a browser one.
+  it("side menu: the Report a bug footer is pinned to the bottom, not scrolled away", () => {
+    stubMatchMedia();
+    renderSideNav({ id: "u-admin", name: "Admin", isSuperAdmin: true });
+
+    const footer = screen.getByTestId("sidenav-footer");
+    expect(footer).toHaveClass("sticky", "bottom-0");
+    expect(within(footer).getByRole("button", { name: "Report a bug" })).toHaveTextContent("Report a bug");
   });
 
   function stubMatchMedia() {
