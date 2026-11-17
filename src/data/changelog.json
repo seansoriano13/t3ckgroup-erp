@@ -19,7 +19,8 @@
             "Opening it lists the From and To dates and every day with its own hours, and marks the day you opened.",
             "The Calendar now has one switch, Month or Gantt. The extra Calendar and My Activities tabs are gone.",
             "My Activities is now a button at the top. It opens a side panel with your Activities and their Edit and Cancel buttons.",
-            "A new Full screen button hides the side menu, the page title and the day panel, to give the board all the room. Esc or the same button brings them back as they were."
+            "A new Full screen button hides the side menu, the page title and the day panel, to give the board all the room. Esc or the same button brings them back as they were.",
+            "On a phone, the Calendar is a small month with a coloured dot on each day that has entries. Tap a day to see its list below, and tap an entry to open its details."
         ],
         "link": "/release-notes"
     },
