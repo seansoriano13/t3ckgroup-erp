@@ -60,7 +60,7 @@ export default function EntryDetail({ entry, onClose, entries = [], viewerId = n
       crumb="Calendar"
       identity={(e) => ({
         ref: styleOf(e)?.label ?? e.kind,
-        title: e.span?.days > 1 ? `${styleOf(e)?.label} · ${e.span.days} days` : e.title || styleOf(e)?.label || e.kind,
+        title: e.span?.days > 1 && e.kind !== 'MEETING' ? `${styleOf(e)?.label} · ${e.span.days} days` : e.title || styleOf(e)?.label || e.kind,
         subtitle: e.employee?.name,
       })}
       onClose={onClose}

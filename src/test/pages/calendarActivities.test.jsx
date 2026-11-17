@@ -129,3 +129,49 @@ describe("Calendar Gantt people rows", () => {
     expect(screen.getByTestId("person-lead")).toBeInTheDocument();
   });
 });
+
+describe("A multi-day Activity", () => {
+  const dayN = (n) => `${month}${String(n).padStart(2, "0")}`;
+  const days = (id, type, dates) =>
+    dates.map((n, i) =>
+      activity(`${id}-${n}`, type, {
+        group_id: id,
+        manila_date: dayN(n),
+        starts_at: `${dayN(n)}T0${i + 1}:00:00Z`,
+        ends_at: `${dayN(n)}T0${i + 1}:30:00Z`,
+        title: "Site visit",
+        details: { activity_type: type, days_total: dates.length, day_index: i + 1, facilitator: { id: lead.id, name: lead.name }, participants: [] },
+      }),
+    );
+
+  it("is one bar in the Month, and its details list every day and mark the one opened", async () => {
+    stubScreen(1920);
+    mocks.entries = days("ops", "OPERATIONS_TASK", [10, 11, 12]);
+    const user = userEvent.setup();
+    renderAt(`date=${day}`);
+    const bars = await screen.findAllByTestId("month-bar");
+    expect(bars).toHaveLength(1);
+    await user.click(bars[0]);
+    const list = await screen.findByTestId("activity-days");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("From")).toBeInTheDocument();
+    expect(screen.getByText("To")).toBeInTheDocument();
+    expect(list.querySelectorAll('[data-clicked="true"]')).toHaveLength(1);
+  });
+
+  it("shows a removed day as a gap in the Gantt", async () => {
+    stubScreen(1920);
+    mocks.entries = days("evt", "EVENT", [10, 11, 13, 14, 15]);
+    renderAt(`layout=gantt&weeks=2&date=${day}`);
+    const row = await screen.findByTestId("person-lead");
+    expect(within(row).getAllByTestId("people-bar")).toHaveLength(2);
+  });
+
+  it("opens the right Activity from its address", async () => {
+    stubScreen(1920);
+    mocks.entries = days("evt", "EVENT", [10, 11, 12]);
+    renderAt(`date=${day}&entry=meeting:evt-11`);
+    const list = await screen.findByTestId("activity-days");
+    expect(list.querySelector('[data-clicked="true"]')).toHaveTextContent(/11/);
+  });
+});

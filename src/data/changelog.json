@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-11-17",
+        "title": "A multi-day Activity is one bar",
+        "version": "1.11.4",
+        "changes": [
+            "An Activity over several days now shows as one bar in the Month and the Gantt. A day taken out of the middle shows as a gap.",
+            "Opening it lists the From and To dates and every day with its own hours, and marks the day you opened."
+        ]
+    },
+    {
+        "date": "2026-11-17",
         "title": "One Filters button, and every Activity on the Calendar",
         "version": "1.11.3",
         "changes": [

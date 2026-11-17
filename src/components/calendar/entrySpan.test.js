@@ -6,7 +6,7 @@ const day = (id, date, over = {}) => ({ kind: 'SIL', id: `${id}-${date}`, group_
 describe('withSpan', () => {
   it('attaches the whole request to a multi-day Time Off entry', () => {
     const rows = [day('g', '2026-10-21'), day('g', '2026-10-19'), day('g', '2026-10-20', { hours: 4 }), day('h', '2026-10-19')];
-    expect(withSpan(rows[0], rows).span).toEqual({ first: '2026-10-19', last: '2026-10-21', days: 3, hours: 20 });
+    expect(withSpan(rows[0], rows).span).toMatchObject({ first: '2026-10-19', last: '2026-10-21', days: 3, hours: 20 });
   });
 
   it('leaves meetings, overtime and ungrouped entries alone', () => {

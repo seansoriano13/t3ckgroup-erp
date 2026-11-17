@@ -145,7 +145,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   // history step, or a replace when another entry is already open), closing clears it.
   const wanted = parseEntryAddress(params.get(ENTRY_PARAM));
   const found = findEntry(all, wanted);
-  const selected = found ? withSpan(found, entries) : null;
+  const selected = found ? withSpan(found, all) : null;
   // An entry opened by a push from this page is closed by stepping Back, so Back
   // leaves the Calendar's open entry rather than replaying it. One that arrived by
   // a link (or was swapped for another) has no such step, so it just drops the address.
