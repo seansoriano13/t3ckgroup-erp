@@ -7,6 +7,7 @@
 
 import { IPAS_PAYMENT_KIND } from "../constants/ipas";
 import { finiteNumber, fromCents, isPhpCurrency, paymentPhp, paymentRate, toCents } from "./landedCost";
+import { isIsoDate } from "./dateUtils";
 
 /**
  * Reads an amount someone typed ("1,250", "₱ 1 250.50", "", "12."). Never
@@ -25,12 +26,8 @@ export function parseAmountInput(raw) {
   return Number.isFinite(value) ? { ok: true, value } : { ok: false };
 }
 
-/** `2026-10-13` -> true; anything else (including a half-typed date) -> false. */
-export function isIsoDate(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value; // eslint-disable-line local/no-iso-date-slice -- round-trips a UTC-midnight parse of the same string; no zone shift
-}
+// Moved to the shared date helpers; re-exported so IPAS callers keep their import.
+export { isIsoDate };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

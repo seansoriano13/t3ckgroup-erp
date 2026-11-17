@@ -6,6 +6,8 @@ import MeetingRequestDialog from './MeetingRequestDialog';
 import { employeeService } from '@/services/employeeService';
 import { meetingRequestService } from '@/services/meetingRequestService';
 import { calendarService } from '@/services/calendarService';
+import { manilaToday } from '@/lib/manilaDate.js';
+import { formatDayLabel } from './activityDays.js';
 
 const mockUser = { id: 'me', name: 'Me', is_head: true };
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: mockUser }) }));
@@ -22,6 +24,7 @@ vi.mock('@/services/meetingRequestService', async (importActual) => ({
 const meeting = (over) => ({
   kind: 'MEETING',
   id: 'm1',
+  manila_date: '2031-03-10',
   starts_at: '2031-03-10T01:00:00.000Z', // 09:00 Manila
   ends_at: '2031-03-10T02:00:00.000Z', // 10:00 Manila
   status: 'APPROVED',
@@ -32,7 +35,7 @@ const meeting = (over) => ({
   ...over,
 });
 
-function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end: '10:00' }) {
+function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end: '10:00' }, editing = null) {
   employeeService.getAllEmployees.mockResolvedValue([
     { id: 'fac', name: 'Fay Facilitator', isHead: true },
     { id: 'me', name: 'Me', isHead: true },
@@ -42,14 +45,23 @@ function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end
     { id: 'v2', name: 'Admin Office' },
   ]);
   meetingRequestService.lastPicks.mockResolvedValue({ venueId: 'v1', facilitatorId: 'fac' });
-  calendarService.fetchEntries.mockResolvedValue(entries);
+  // Like the server: only the entries whose Manila date is inside the asked range.
+  calendarService.fetchEntries.mockImplementation(async ({ from, to }) => entries.filter((e) => e.manila_date >= from && e.manila_date <= to));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MeetingRequestDialog open onClose={() => {}} initial={initial} />
+      <MeetingRequestDialog open onClose={() => {}} initial={initial} editing={editing} />
     </QueryClientProvider>,
   );
 }
+
+/** A Manila date `n` days from `ymd`, and a Manila wall-clock time on it as an instant. */
+const shiftDate = (ymd, n) => {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const at = (ymd, hhmm) => new Date(`${ymd}T${hhmm}:00+08:00`).toISOString();
 
 describe('Activity form', () => {
   it('shows the Venue day with held slots, pending ones faded', async () => {
@@ -68,7 +80,7 @@ describe('Activity form', () => {
 
   it('warns about Time Off and another meeting without blocking the send', async () => {
     renderForm([
-      { kind: 'SIL', id: 's1', status: 'APPROVED', employee: { id: 'me', name: 'Me' }, details: {} },
+      { kind: 'SIL', id: 's1', status: 'APPROVED', manila_date: '2031-03-10', employee: { id: 'me', name: 'Me' }, details: {} },
       meeting({
         id: 'm3',
         venue: 'Admin Office',
@@ -81,6 +93,14 @@ describe('Activity form', () => {
     expect(box).toHaveTextContent('Me is in another Activity at Admin Office, 09:00 to 10:00.');
     fireEvent.change(screen.getByPlaceholderText('What is the Activity for?'), { target: { value: 'Planning' } });
     expect(screen.getByRole('button', { name: /Send request/ })).toBeEnabled();
+  });
+
+  it('does not crash when the date is cleared, and asks for a date', async () => {
+    renderForm([]);
+    await screen.findByText('Activity type');
+    fireEvent.change(document.querySelector('input[type="date"]'), { target: { value: '' } });
+    expect(await screen.findByText('Choose a date.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
   });
 
   it('fills the Lead with the person filing, and lets anyone be picked', async () => {
@@ -173,6 +193,55 @@ describe('Activity form', () => {
       expect(screen.getByTestId('activity-day-rows')).toHaveTextContent('2 days');
       fireEvent.click(screen.getByTitle('Add this day back'));
       expect(screen.getByTestId('activity-day-rows')).toHaveTextContent('3 days');
+    });
+
+    it('warns about every day of the range, naming the day, and drops a removed day', async () => {
+      renderForm(
+        [
+          meeting({
+            id: 'm5',
+            manila_date: '2031-03-15',
+            starts_at: '2031-03-15T01:00:00.000Z', // Sat 09:00 Manila
+            ends_at: '2031-03-15T02:00:00.000Z',
+            venue: 'Admin Office',
+            title: 'Site visit',
+            details: { facilitator: { id: 'me', name: 'Me' }, participants: [] },
+          }),
+          { kind: 'SIL', id: 's2', status: 'APPROVED', manila_date: '2031-03-16', employee: { id: 'me', name: 'Me' }, details: {} },
+        ],
+        { date: '2031-03-14' },
+      );
+      await screen.findByText('Activity type');
+      await pickType('Operations Task');
+      setTo('2031-03-16');
+      const box = await screen.findByTestId('soft-warnings');
+      expect(box).toHaveTextContent('Sat, Mar 15: Me is in another Activity at Admin Office, 09:00 to 10:00.');
+      expect(box).toHaveTextContent('Sun, Mar 16: Me is on approved SIL that day.');
+      expect(box).not.toHaveTextContent('Fri, Mar 14');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Sun, Mar 16' }));
+      expect(screen.getByTestId('soft-warnings')).not.toHaveTextContent('approved SIL');
+    });
+
+    it('editing a running Activity, warns only about the days still ahead, and still names the day', async () => {
+      const today = manilaToday();
+      const [twoAgo, yesterday, tomorrow] = [shiftDate(today, -2), shiftDate(today, -1), shiftDate(today, 1)];
+      const sil = (id, date) => ({ kind: 'SIL', id, status: 'APPROVED', manila_date: date, employee: { id: 'me', name: 'Me' }, details: {} });
+      renderForm([sil('s-held', yesterday), sil('s-ahead', tomorrow)], {}, {
+        id: 'r1',
+        status: 'APPROVED',
+        activity_type: 'OPERATIONS_TASK',
+        facilitator_id: 'me',
+        participants: [],
+        guests: [],
+        guest_emails: [],
+        purpose: 'Site work',
+        // Two days held already, today left out, one day still ahead.
+        days: [twoAgo, yesterday, tomorrow].map((d) => ({ starts_at: at(d, '09:00'), ends_at: at(d, '10:00') })),
+      });
+      const box = await screen.findByTestId('soft-warnings');
+      expect(box).toHaveTextContent(`${formatDayLabel(tomorrow)}: Me is on approved SIL that day.`);
+      expect(box).not.toHaveTextContent(formatDayLabel(yesterday));
     });
 
     it('keeps a Meeting to one day: no To date and no day rows', async () => {

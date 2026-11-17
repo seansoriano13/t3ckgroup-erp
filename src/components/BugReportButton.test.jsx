@@ -12,7 +12,7 @@ vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: mockUser.curre
 vi.mock("browser-image-compression", () => ({ default: async (file) => file }))
 
 /**
- * The floating "Report a bug" button on every page: one text box plus files,
+ * The "Report a bug" button on every page: one text box plus files,
  * sent straight to the Bug Reports list. The sender gets a "Sent" toast and
  * follows any notes from IT under "My reports".
  */

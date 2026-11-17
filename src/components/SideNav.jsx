@@ -480,7 +480,7 @@ export default function SideNav() {
         </div>
 
         {/* 4. Combined Workspace Menus */}
-        <div className="px-3 flex-1 flex flex-col text-sidebar-foreground/80 pb-4">
+        <div className="px-3 flex-1 flex flex-col text-sidebar-foreground/80">
           <nav className="flex flex-col gap-5 mb-6 mt-2">
             {activeGroups.map((group) => {
               const key = group.key;
@@ -586,9 +586,13 @@ export default function SideNav() {
           </div>
 
           {/* Footer: the bug report lives here (it used to float over the last
-              table column and the page corner on phones). */}
-          <div className="mt-auto pt-3">
-            <BugReportButton asMenuItem collapsed={collapsed} />
+              table column). Pinned to the bottom of the menu's scroll, so a
+              long menu (Super Admin, heads) never pushes it off screen. */}
+          <div
+            data-testid="sidenav-footer"
+            className="sticky bottom-0 z-10 -mx-3 mt-auto border-t border-sidebar-border bg-sidebar px-3 pt-3 pb-4 laptop:pb-3"
+          >
+            <BugReportButton collapsed={collapsed} />
           </div>
         </div>
     </>
@@ -641,6 +645,7 @@ export default function SideNav() {
             {renderQuickMenu}
           </Dropdown>
         )}
+        <BugReportButton variant="icon" />
         <Button
           variant="ghost"
           size="icon"

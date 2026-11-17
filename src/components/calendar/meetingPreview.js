@@ -1,4 +1,6 @@
 import { manilaTime } from '@/lib/manilaDate.js';
+import { formatDayLabel } from './activityDays.js';
+import { manilaInstant } from './meetingDraft.js';
 
 /** Kinds of Time Off that make someone unavailable (overtime and undertime do not). */
 const TIME_OFF_KINDS = new Set(['SIL', 'LWOP', 'OFFSET']);
@@ -27,11 +29,8 @@ export function clashMessage(entry) {
   );
 }
 
-/**
- * Soft warnings that never block, for every Activity type: the Lead or a Participant on approved
- * Time Off that day, or in another Activity at the same time. `people` is [{ id, name }].
- */
-export function softWarnings(entries, { people, startsAt, endsAt }) {
+/** One day's soft warnings; `entries` are that day's entries. */
+function dayWarnings(entries, { people, startsAt, endsAt }) {
   const byId = new Map(people.map((p) => [p.id, p]));
   const out = [];
   for (const e of entries) {
@@ -50,4 +49,23 @@ export function softWarnings(entries, { people, startsAt, endsAt }) {
     }
   }
   return [...new Set(out)];
+}
+
+/**
+ * Soft warnings that never block, for every Activity type and every day it runs (#1055, #1056): the
+ * Lead or a Participant on approved Time Off that day, or in another Activity at the same time.
+ * Each day is checked only against the entries on that day (`manila_date`).
+ *
+ *   people    [{ id, name }]
+ *   days      the days to check, as the form holds them: [{ date: 'YYYY-MM-DD', start: 'HH:MM', end: 'HH:MM' }]
+ *   nameDays  start each warning with its day, for an Activity shown over more than one day
+ */
+export function rangeWarnings(entries, { people, days, nameDays = false }) {
+  const out = [];
+  for (const { date, start, end } of days) {
+    const sameDay = entries.filter((e) => e.manila_date === date);
+    const window = { people, startsAt: manilaInstant(date, start), endsAt: manilaInstant(date, end) };
+    for (const w of dayWarnings(sameDay, window)) out.push(nameDays ? `${formatDayLabel(date)}: ${w}` : w);
+  }
+  return out;
 }

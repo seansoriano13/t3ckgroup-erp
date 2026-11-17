@@ -1,3 +1,5 @@
+import { isIsoDate } from '@/utils/dateUtils.js';
+
 /** "06:00" .. "21:45" in 15-minute steps. */
 export const TIME_OPTIONS = Array.from({ length: 64 }, (_, i) => {
   const minutes = 6 * 60 + i * 15;
@@ -15,7 +17,7 @@ export function draftProblem({ activityType = 'MEETING', meetingType = 'ONSITE',
   const isMeeting = activityType === 'MEETING';
   if (isMeeting && meetingType !== 'ONLINE' && !venueId) return 'Choose a Venue.';
   if (isMeeting && meetingType !== 'ONSITE' && !String(meetingLink ?? '').trim()) return 'Paste the meeting link.';
-  if (!date) return 'Choose a date.';
+  if (!isIsoDate(date)) return 'Choose a date.';
   if (!start || !end) return 'Choose a start and end time.';
   if (days) {
     // A range: every kept day is checked. A day that has already started is not checked again.

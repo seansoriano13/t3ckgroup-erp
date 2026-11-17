@@ -20,6 +20,13 @@ describe('meeting type rules in the form', () => {
     expect(draftProblem({ ...base, venueId: 'v', guests: [{ name: 'Ana', email: 'a@b.co' }, { name: 'Ben', email: '' }] })).toBeNull();
   });
 
+  it('asks for a date when the date is empty or not a real date, instead of crashing', () => {
+    // A date box hands over '' while cleared, and a year typed with too many digits as-is.
+    for (const date of ['', '20261-03-10']) {
+      expect(draftProblem({ ...base, venueId: 'v', date })).toBe('Choose a date.');
+    }
+  });
+
   it('an Online meeting holds no Venue, so it never shows as a clash', () => {
     const online = { kind: 'MEETING', venue: null, starts_at: '2099-01-02T01:00:00Z', ends_at: '2099-01-02T02:00:00Z' };
     expect(findClash([online], 'Conference Room', online.starts_at, online.ends_at)).toBeNull();

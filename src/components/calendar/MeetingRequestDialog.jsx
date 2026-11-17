@@ -15,11 +15,12 @@ import { calendarService } from '@/services/calendarService';
 import { employeeService } from '@/services/employeeService';
 import { ACTIVITY_TYPE, ACTIVITY_TYPE_LABEL, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue, requestDays } from '@/services/meetingRequestService';
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
+import { isIsoDate } from '@/utils/dateUtils.js';
 import { manilaToday, manilaTime } from '@/lib/manilaDate.js';
 import { TIME_OPTIONS, draftProblem, manilaInstant } from './meetingDraft.js';
 import ActivityDayRows from './ActivityDayRows.jsx';
 import { daysFromSaved, daysPayload, keptDays } from './activityDays.js';
-import { clashMessage, findClash, softWarnings, venueMeetings } from './meetingPreview.js';
+import { clashMessage, findClash, rangeWarnings, venueMeetings } from './meetingPreview.js';
 
 /**
  * The Activity form (#619, #1055). Mounted only while open, so it starts blank each time.
@@ -111,31 +112,37 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   // The Lead defaults to the person filing; anyone can be picked instead.
   const facilitatorId = facilitatorPick || user?.id || '';
 
-  const { data: dayAll = [] } = useQuery({
-    queryKey: ['meeting-requests', 'venue-day', date],
-    queryFn: () => calendarService.fetchEntries({ from: date, to: date }),
-    enabled: Boolean(date),
-  });
-  // Editing: the request's own slot is not a clash with itself.
-  const dayEntries = useMemo(() => (editing ? dayAll.filter((e) => (e.group_id ?? e.id) !== editing.id) : dayAll), [dayAll, editing]);
+  // A date box hands over '' while cleared and a too-long year as typed. Nothing below works
+  // out a time from a date that is not real: that threw "Invalid time value" and took the page down.
+  const dateOk = isIsoDate(date);
   // A Meeting is one day. The other types can run From to To, one row per day.
-  const rangeEnd = !isMeeting && dateTo > date ? dateTo : date;
+  const rangeEnd = !isMeeting && isIsoDate(dateTo) && dateTo > date ? dateTo : date;
   const days = isMeeting
     ? [{ date, start, end, frozen: false }]
     : keptDays(date, rangeEnd, dayEdits, start, end, frozenDates);
+  // Every day of the range, so the soft warnings cover each day. A Meeting's range is its one day.
+  const { data: rangeAll = [] } = useQuery({
+    queryKey: ['meeting-requests', 'form-range', date, rangeEnd],
+    queryFn: () => calendarService.fetchEntries({ from: date, to: rangeEnd }),
+    enabled: dateOk,
+  });
+  // Editing: the request's own slot is not a clash with itself.
+  const rangeEntries = useMemo(() => (editing ? rangeAll.filter((e) => (e.group_id ?? e.id) !== editing.id) : rangeAll), [rangeAll, editing]);
   const setDayEdit = (day, edit) => setDayEdits((prev) => ({ ...prev, [day]: edit }));
   const venueName = !isMeeting || !needsVenue(meetingType) ? undefined : venues.find((v) => v.id === venueId)?.name;
-  const startsAt = manilaInstant(date, start);
-  const endsAt = manilaInstant(date, end);
-  const windowOk = Boolean(date) && end > start;
-  const clash = venueName && windowOk ? findClash(dayEntries, venueName, startsAt, endsAt) : null;
+  const startsAt = dateOk ? manilaInstant(date, start) : null;
+  const endsAt = dateOk ? manilaInstant(date, end) : null;
+  const windowOk = dateOk && end > start;
+  const clash = venueName && windowOk ? findClash(rangeEntries, venueName, startsAt, endsAt) : null;
   const participantIds = participants.filter((p) => p.type === SELECTOR_TYPES.EMPLOYEE).map((p) => p.id);
   const pickedIds = [facilitatorId, ...participantIds];
-  const warnings = windowOk
-    ? softWarnings(dayEntries, {
+  // Days that have started cannot change, so only the days still ahead are checked. The day is
+  // named whenever the form shows more than one, even if only one is left to check.
+  const warnings = dateOk
+    ? rangeWarnings(rangeEntries, {
         people: employees.filter((e) => pickedIds.includes(e.id)).map((e) => ({ id: e.id, name: e.name })),
-        startsAt,
-        endsAt,
+        days: days.filter((d) => !d.frozen && d.end > d.start),
+        nameDays: days.length > 1,
       })
     : [];
 
@@ -270,7 +277,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             />
           </div>
         )}
-        {venueName && date && <VenuePreview venueName={venueName} meetings={venueMeetings(dayEntries, venueName)} />}
+        {venueName && dateOk && <VenuePreview venueName={venueName} meetings={venueMeetings(rangeEntries, venueName)} />}
         <div className="grid grid-cols-2 gap-4 sm:col-span-2">
           <div className="min-w-0">
             <FieldBox label="Start" className="mb-1.5 block" />
@@ -362,7 +369,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           <li className="text-muted-foreground">You can still send it.</li>
         </ul>
       )}
-      {problem && date && <p className="text-xs text-muted-foreground">{problem}</p>}
+      {problem && <p className="text-xs text-muted-foreground">{problem}</p>}
     </ModalShell>
   );
 }
