@@ -39,6 +39,11 @@ const DECISION_VERB = {
 export const ACTIVITY_TYPE = { MEETING: 'MEETING', ADMIN_TASK: 'ADMIN_TASK', OPERATIONS_TASK: 'OPERATIONS_TASK', EVENT: 'EVENT' };
 export const ACTIVITY_TYPE_LABEL = { MEETING: 'Meeting', ADMIN_TASK: 'Admin Task', OPERATIONS_TASK: 'Operations Task', EVENT: 'Event' };
 
+/** Lays the names HR set in Settings > Activities (#1064) over the labels, in place. `types` is settings.types. */
+export function applyActivityTypeNames(types) {
+  for (const key of Object.keys(ACTIVITY_TYPE_LABEL)) if (types?.[key]?.name) ACTIVITY_TYPE_LABEL[key] = types[key].name;
+}
+
 export const MEETING_TYPE = { ONSITE: 'ONSITE', ONLINE: 'ONLINE', HYBRID: 'HYBRID' };
 export const MEETING_TYPE_LABEL = { ONSITE: 'Onsite', ONLINE: 'Online', HYBRID: 'Hybrid' };
 

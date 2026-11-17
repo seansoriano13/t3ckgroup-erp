@@ -11,7 +11,7 @@ import { formatDayLabel, rangeDays } from './activityDays.js';
  * date: undefined = the form's start and end, { start, end } = this day's own times, null = removed.
  * A date in `frozen` has already started: its row shows but cannot be changed.
  */
-export default function ActivityDayRows({ from, to, edits, onEdit, start, end, frozen = new Set() }) {
+export default function ActivityDayRows({ from, to, edits, onEdit, start, end, frozen = new Set(), timeOptions = TIME_OPTIONS }) {
   const days = rangeDays(from, to, edits);
   if (days.length < 2) return null;
   const kept = days.filter((d) => d.edit !== null);
@@ -33,7 +33,7 @@ export default function ActivityDayRows({ from, to, edits, onEdit, start, end, f
                 <SelectField
                   value={dayStart}
                   onChange={(v) => onEdit(date, { start: v, end: dayEnd })}
-                  options={TIME_OPTIONS}
+                  options={timeOptions}
                   disabled={locked}
                   aria-label={`Start for ${label}`}
                   className="w-24"
@@ -42,7 +42,7 @@ export default function ActivityDayRows({ from, to, edits, onEdit, start, end, f
                 <SelectField
                   value={dayEnd}
                   onChange={(v) => onEdit(date, { start: dayStart, end: v })}
-                  options={TIME_OPTIONS}
+                  options={timeOptions}
                   disabled={locked}
                   aria-label={`End for ${label}`}
                   className="w-24"

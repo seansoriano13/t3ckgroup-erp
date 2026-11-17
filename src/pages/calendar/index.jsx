@@ -4,6 +4,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import { newActivityLabel } from '@/utils/activityFiling';
 import { useCalendarFullScreen } from '@/lib/calendarFullScreen';
+import { useActivitySettings } from '@/hooks/useActivitySettings';
 import PageShell from '@/components/ui/PageShell';
 import SidePanel from '@/components/ui/SidePanel';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import MyMeetingRequests from '@/components/calendar/MyMeetingRequests';
 /** The Calendar page: the shared board, with the viewer's Activities in a side panel. */
 export default function CalendarPage() {
   const { user } = useAuth();
+  const activitySettings = useActivitySettings();
   const fullScreen = useCalendarFullScreen();
   const [mineOpen, setMineOpen] = useState(false);
   const [request, setRequest] = useState(null); // null = closed; an object = open, with optional pre-fill
@@ -39,7 +41,7 @@ export default function CalendarPage() {
                 <MyMeetingRequests />
               </div>
             </SidePanel>
-            <Button onClick={() => openRequest()}>{newActivityLabel(user)}</Button>
+            <Button onClick={() => openRequest()}>{newActivityLabel(user, activitySettings)}</Button>
           </div>
         }
       >

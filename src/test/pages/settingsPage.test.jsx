@@ -67,7 +67,7 @@ describe("SettingsPage", () => {
     renderAt("/settings?tab=hr");
 
     await screen.findByRole("tab", { name: "HR & Schedule", hidden: true });
-    expect(tabNames()).toEqual(["General", "HR & Schedule", "Venues"]);
+    expect(tabNames()).toEqual(["General", "HR & Schedule", "Venues", "Activities"]);
     expect(screen.queryByText(/working week/i)).not.toBeInTheDocument();
     expect(await screen.findByText("Leave categories")).toBeInTheDocument();
   });
@@ -90,7 +90,7 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("tab", { name: "Sign-off lists", hidden: true })).not.toBeInTheDocument();
   });
 
-  it("shows a Super Admin all nine tabs, each on its own key", async () => {
+  it("shows a Super Admin all ten tabs, each on its own key", async () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
     renderAt("/settings");
 
@@ -100,6 +100,7 @@ describe("SettingsPage", () => {
       "Approval Rules",
       "HR & Schedule",
       "Venues",
+      "Activities",
       "Sales Configuration",
       "Purchasing",
       "S0 Evaluation",

@@ -1,5 +1,6 @@
 import { CalendarClock, CalendarDays, CalendarOff, ClipboardList, Hourglass, PartyPopper, Timer, Users, Wrench } from 'lucide-react';
 import MeetingDetail from './MeetingDetail.jsx';
+import { ACTIVITY_COLORS } from '@/constants/activityColors';
 
 /**
  * The Calendar's entry-kind registry (ADR 0037). One entry per `kind` the
@@ -90,11 +91,23 @@ export const ENTRY_KINDS = {
  *   pending  the dashed-border colour for a pending one
  */
 export const ACTIVITY_TYPES = {
-  MEETING: { label: 'Meeting', icon: Users, chip: 'bg-teal-2 text-teal-11 border-teal-6', dot: 'bg-teal-9', bar: 'bg-teal-5', text: 'text-teal-11', soft: 'bg-teal-3 hover:bg-teal-4', pending: 'border-teal-7' },
-  ADMIN_TASK: { label: 'Admin Task', icon: ClipboardList, chip: 'bg-indigo-2 text-indigo-11 border-indigo-6', dot: 'bg-indigo-9', bar: 'bg-indigo-5', text: 'text-indigo-11', soft: 'bg-indigo-3 hover:bg-indigo-4', pending: 'border-indigo-7' },
-  OPERATIONS_TASK: { label: 'Operations Task', icon: Wrench, chip: 'bg-orange-2 text-orange-11 border-orange-6', dot: 'bg-orange-9', bar: 'bg-orange-5', text: 'text-orange-11', soft: 'bg-orange-3 hover:bg-orange-4', pending: 'border-orange-7' },
-  EVENT: { label: 'Event', icon: PartyPopper, chip: 'bg-plum-2 text-plum-11 border-plum-6', dot: 'bg-plum-9', bar: 'bg-plum-5', text: 'text-plum-11', soft: 'bg-plum-3 hover:bg-plum-4', pending: 'border-plum-7' },
+  MEETING: { icon: Users, ...ACTIVITY_COLORS.teal, label: 'Meeting' },
+  ADMIN_TASK: { icon: ClipboardList, ...ACTIVITY_COLORS.indigo, label: 'Admin Task' },
+  OPERATIONS_TASK: { icon: Wrench, ...ACTIVITY_COLORS.orange, label: 'Operations Task' },
+  EVENT: { icon: PartyPopper, ...ACTIVITY_COLORS.plum, label: 'Event' },
 };
+
+/**
+ * Lays the names and colours HR set in Settings > Activities (#1064) over the four types, in place, so every
+ * chip, dot, bar, filter and key that reads ACTIVITY_TYPES follows. `types` is settings.types.
+ */
+export function applyActivityTypeStyles(types) {
+  for (const key of Object.keys(ACTIVITY_TYPES)) {
+    const t = types?.[key];
+    if (!t) continue;
+    ACTIVITY_TYPES[key] = { ...ACTIVITY_TYPES[key], ...(ACTIVITY_COLORS[t.color] ?? ACTIVITY_COLORS.teal), label: t.name };
+  }
+}
 
 /** The Activity type of an entry; entries without one are Meetings. */
 export function activityTypeOf(entry) {
