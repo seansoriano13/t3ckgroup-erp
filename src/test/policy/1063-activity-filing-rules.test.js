@@ -242,6 +242,12 @@ describe("the one-time approval", () => {
         expect(notes[0]).toMatchObject({ type: "MEETING_APPROVED", title: "You're on an Activity" })
         expect(notes[0].message).toMatch(/^Event: /)
         expect(notes[0].message).toMatch(/Scheduled by /)
+        expect(notes[0].message).toMatch(/\d{1,2}:\d{2} [AP]M to \d{1,2}:\d{2} [AP]M: /)
+
+        // Decided by the rule: a time, and no person.
+        const decided = await row(headEvent)
+        expect(decided.hr_decided_at).not.toBeNull()
+        expect(decided.hr_decided_by).toBeNull()
     })
 
     it("does nothing a second time", async () => {

@@ -208,6 +208,15 @@ describe("the times, the range and Guests", () => {
         expect((await file("head", listed(day(901, 1, 1)))).error).toBeNull()
     })
 
+    it("holds the hours even when no day list is sent", async () => {
+        await setGeneral({ earliest_start: "08:00", latest_end: "18:00", default_start: "09:00", default_end: "10:00" })
+        const early = day(905, -1, 1)
+        const refused = await file("head", { p_starts_at: early.starts_at, p_ends_at: early.ends_at })
+        expect(refused.error?.message).toMatch(/between 08:00 and 18:00/)
+        const ok = day(906, 1, 1)
+        expect((await file("head", { p_starts_at: ok.starts_at, p_ends_at: ok.ends_at })).error).toBeNull()
+    })
+
     it("holds times to the time step", async () => {
         await setGeneral({ time_step_minutes: 30 })
         const odd = day(910)

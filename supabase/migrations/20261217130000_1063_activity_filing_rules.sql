@@ -9,7 +9,8 @@
 --   Operations Tasks and Events are approved on filing (the head filing them is the approval). The edit
 --   runs the same rule, so an approver's own approved Activity stays approved.
 -- * One time: PENDING_HR requests that HR or a Super Admin filed, and PENDING_HR Events that a head filed, are
---   approved now, each with an APPROVED_BY_RULE history row, and the Lead and Participants are told
+--   approved now (hr_decided_at = now(), hr_decided_by left empty: the rule decided), each with an
+--   APPROVED_BY_RULE history row, and the Lead and Participants are told
 --   "You're on an Activity".
 -- Written as a file only. Apply it through the normal staging/prod path.
 
@@ -442,7 +443,9 @@ grant execute on function public.edit_meeting_request(uuid, uuid, timestamptz, t
 -- "You're on an Activity", the same note the app sends when an Activity goes straight onto the Calendar.
 with moved as (
   update public.meeting_requests m
-     set status = 'APPROVED'
+     set status = 'APPROVED',
+         hr_decided_by = null,   -- decided by the rule, not a person
+         hr_decided_at = now()
    where m.status = 'PENDING_HR'
      and (
        public.activity_is_approver(m.applicant_id)
@@ -482,6 +485,7 @@ select pe.person_id,
             else ''
           end
        || ', ' || to_char(mv.starts_at at time zone 'Asia/Manila', 'FMHH12:MI AM')
+       || ' to ' || to_char(mv.ends_at at time zone 'Asia/Manila', 'FMHH12:MI AM')
        || ': ' || mv.purpose
        || '. Scheduled by ' || coalesce(a.name, 'someone') || '.',
        mv.id

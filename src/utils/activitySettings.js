@@ -73,7 +73,8 @@ const toText = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')
 /** The times the form lists: earliest start to latest end, one per step. */
 export function timeOptions(general = getActivitySettings().general) {
   const out = [];
-  for (let m = toMinutes(general.earliestStart); m <= toMinutes(general.latestEnd); m += general.timeStep) {
+  const step = general.timeStep > 0 ? general.timeStep : 15;
+  for (let m = toMinutes(general.earliestStart); m <= toMinutes(general.latestEnd); m += step) {
     out.push({ value: toText(m), label: toText(m) });
   }
   return out;
@@ -82,6 +83,7 @@ export function timeOptions(general = getActivitySettings().general) {
 /** Every time of day on a step, for the settings pickers. */
 export function timesOfDay(step = 15) {
   const out = [];
+  if (!(step > 0)) step = 15;
   for (let m = 0; m < 24 * 60; m += step) out.push({ value: toText(m), label: toText(m) });
   return out;
 }

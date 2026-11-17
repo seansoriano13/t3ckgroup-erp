@@ -116,12 +116,13 @@ const REQUEST_SELECT = `*,
 
 const timeRange = (startsAt, endsAt) => `${manilaTime(startsAt)} to ${manilaTime(endsAt)}`;
 
-async function describeHolder({ venueId, startsAt, endsAt }) {
+async function describeHolder({ venueId, startsAt, endsAt, days = null }) {
   if (!venueId) return 'That time clashes with another booking. Pick another time.';
   const { data } = await supabase.rpc('meeting_request_holder', {
     p_venue_id: venueId,
     p_starts_at: startsAt,
     p_ends_at: endsAt,
+    p_days: days?.map((d) => ({ starts_at: d.startsAt, ends_at: d.endsAt })) ?? null,
   });
   const holder = Array.isArray(data) ? data[0] : data;
   if (!holder) return 'That Venue is already booked at that time. Pick another time.';
@@ -252,7 +253,7 @@ export const meetingRequestService = {
     });
     if (error) {
       if (error.code === EXCLUSION_VIOLATION) {
-        throw new Error(await describeHolder({ venueId, startsAt, endsAt }));
+        throw new Error(await describeHolder({ venueId, startsAt, endsAt, days }));
       }
       throw new Error(error.message);
     }
@@ -402,7 +403,7 @@ export const meetingRequestService = {
       p_head_id: headId,
     });
     if (error) {
-      if (error.code === EXCLUSION_VIOLATION) throw new Error(await describeHolder({ venueId, startsAt, endsAt }));
+      if (error.code === EXCLUSION_VIOLATION) throw new Error(await describeHolder({ venueId, startsAt, endsAt, days }));
       throw new Error(error.message);
     }
     await this.afterChange(data, { actor });

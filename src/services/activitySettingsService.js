@@ -9,6 +9,7 @@ import { settingsFromRows } from '../utils/activitySettings';
  * Activity Log under HR_SETTINGS, one line per setting changed, the way Venue changes are.
  */
 
+const NOT_ALLOWED = 'Only HR and Super Admins can change Activity settings.';
 const TYPE_COLUMNS = { name: 'name', color: 'color', active: 'active', whoFiles: 'who_files', needsHr: 'needs_hr', multiDay: 'multi_day' };
 const GENERAL_COLUMNS = {
   earliestStart: 'earliest_start',
@@ -89,12 +90,13 @@ export const activitySettingsService = {
   async saveType(typeKey, from, changes, actorId) {
     const diff = Object.keys(changes).filter((k) => TYPE_COLUMNS[k] && changes[k] !== from[k]);
     if (!diff.length) return from;
-    const row = Object.fromEntries(diff.map((k) => [TYPE_COLUMNS[k], k === 'name' ? String(changes[k]).trim() : changes[k]]));
-    if ('name' in row && !row.name) throw new Error('Give the type a name.');
+    const values = Object.fromEntries(diff.map((k) => [k, k === 'name' ? String(changes[k]).trim() : changes[k]]));
+    if ('name' in values && !values.name) throw new Error('Give the type a name.');
+    const row = Object.fromEntries(diff.map((k) => [TYPE_COLUMNS[k], values[k]]));
     const { data, error } = await supabase.from('activity_type_settings').update(row).eq('activity_type', typeKey).select('activity_type');
     if (error) refuse(error);
-    if (!data?.length) throw new Error('Only HR and Super Admins can change Activity settings.');
-    const to = { ...from, ...Object.fromEntries(diff.map((k) => [k, k === 'name' ? String(changes[k]).trim() : changes[k]])) };
+    if (!data?.length) throw new Error(NOT_ALLOWED);
+    const to = { ...from, ...values };
     for (const field of diff) {
       await audit(typeKey, describeTypeChange(field, from, to), actorId, { setting: field, activity_type: typeKey, from: from[field], to: to[field] });
     }
@@ -122,7 +124,7 @@ export const activitySettingsService = {
     if (!fields.length) return from;
     const { data, error } = await supabase.from('activity_general_settings').update(row).eq('id', true).select('id');
     if (error) refuse(error);
-    if (!data?.length) throw new Error('Only HR and Super Admins can change Activity settings.');
+    if (!data?.length) throw new Error(NOT_ALLOWED);
     const to = { ...from, ...changes, meetingTypes: { ...from.meetingTypes, ...(changes.meetingTypes ?? {}) } };
     for (const field of fields) {
       await audit('general', describeGeneralChange(field, from, to), actorId, { setting: field, from: from[field], to: to[field] });

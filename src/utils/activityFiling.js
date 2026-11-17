@@ -6,8 +6,6 @@ import { ACTIVITY_TYPE_KEYS, getActivitySettings } from './activitySettings';
  * by a department head. Plain functions, so the form, the New button and the side menu all read one place.
  * Pass `settings` to use a read you already hold; otherwise the app's current settings are used.
  */
-export const ACTIVITY_TYPES = ACTIVITY_TYPE_KEYS;
-
 const isHead = (user) => Boolean(user?.is_head || user?.isHead);
 
 export function canFileActivityType(user, activityType, settings = getActivitySettings()) {
@@ -19,7 +17,7 @@ export function canFileActivityType(user, activityType, settings = getActivitySe
 
 /** The types the viewer may file, in the usual order. */
 export function fileableActivityTypes(user, settings = getActivitySettings()) {
-  return ACTIVITY_TYPES.filter((t) => canFileActivityType(user, t, settings));
+  return ACTIVITY_TYPE_KEYS.filter((t) => canFileActivityType(user, t, settings));
 }
 
 /**
@@ -28,7 +26,7 @@ export function fileableActivityTypes(user, settings = getActivitySettings()) {
  * type the viewer cannot file.
  */
 export function formTypeOptions(user, editingType = null, settings = getActivitySettings()) {
-  return ACTIVITY_TYPES.filter((t) => t === editingType || canFileActivityType(user, t, settings));
+  return ACTIVITY_TYPE_KEYS.filter((t) => t === editingType || canFileActivityType(user, t, settings));
 }
 
 /** "New Meeting" when one type is the only one the viewer may file, "New Activity" when there are more. */

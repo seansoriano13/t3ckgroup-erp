@@ -114,6 +114,7 @@ describe("meetingRequestService.fileRequest", () => {
     expect(note.message).toContain("Admin Task")
     expect(note.message).toContain("Mar 10, 2031")
     expect(note.message).toContain("9:00 AM")
+    expect(note.message).toMatch(/9:00 AM to 10:00/)
     expect(note.message).toContain("Scheduled by Ana Reyes")
   })
 
@@ -148,6 +149,24 @@ describe("meetingRequestService.fileRequest", () => {
       /Conference Room is already held 08:30 to 09:30 for "Sales huddle" \(requested by Dana Lim\)/,
     )
     expect(db.rows("meeting_requests")).toHaveLength(0)
+  })
+
+  it("asks who holds the slot by day, so a multi-day room Meeting is checked per day", async () => {
+    stubFiling({ clash: true })
+    let body
+    stubRpc("meeting_request_holder", (b) => {
+      body = b
+      return []
+    })
+    const days = [
+      { startsAt: "2031-03-10T01:00:00.000Z", endsAt: "2031-03-10T02:00:00.000Z" },
+      { startsAt: "2031-03-12T01:00:00.000Z", endsAt: "2031-03-12T02:00:00.000Z" },
+    ]
+    await expect(meetingRequestService.fileRequest({ ...input(), days })).rejects.toThrow(/already booked/)
+    expect(body.p_days).toEqual([
+      { starts_at: days[0].startsAt, ends_at: days[0].endsAt },
+      { starts_at: days[1].startsAt, ends_at: days[1].endsAt },
+    ])
   })
 })
 

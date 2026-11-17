@@ -231,7 +231,6 @@ declare
   v_raw jsonb;
   v_out jsonb;
   v_n int;
-  v_listed boolean := coalesce(case when jsonb_typeof(p_days) = 'array' then jsonb_array_length(p_days) > 0 end, false);
   g public.activity_general_settings%rowtype;
   v_multi boolean;
   v_name text;
@@ -273,7 +272,7 @@ begin
        or mod(extract(epoch from r.ends_at)::bigint, g.time_step_minutes * 60) <> 0 then
       raise exception 'Times must be on %-minute marks.', g.time_step_minutes using errcode = '22023';
     end if;
-    if v_listed and ((r.starts_at at time zone 'Asia/Manila')::time < g.earliest_start
+    if ((r.starts_at at time zone 'Asia/Manila')::time < g.earliest_start
        or (r.ends_at at time zone 'Asia/Manila')::time > g.latest_end) then
       raise exception 'Times must be between % and %.', to_char(g.earliest_start, 'HH24:MI'), to_char(g.latest_end, 'HH24:MI') using errcode = '22023';
     end if;

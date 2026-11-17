@@ -21,6 +21,13 @@ describe("Activity settings (#1064)", () => {
     expect(timeOptions(g).at(-1).value).toBe("21:45")
   })
 
+  it("does not hang on a time step of zero or less", () => {
+    const g = { ...DEFAULT_ACTIVITY_SETTINGS.general, timeStep: 0 }
+    expect(timeOptions(g)).toHaveLength(64)
+    expect(timeOptions({ ...g, timeStep: -15 })).toHaveLength(64)
+    expect(timesOfDay(0)).toHaveLength(96)
+  })
+
   it("reads the two tables into the app's shape, trimming seconds off times", () => {
     const s = settingsFromRows(
       [{ activity_type: "EVENT", name: "Party", color: "pink", active: false, who_files: "EVERYONE", needs_hr: true, multi_day: false }],
