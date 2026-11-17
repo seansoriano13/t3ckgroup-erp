@@ -19,6 +19,8 @@ const FRAME_WIDTH = { centred: "7xl", narrow: "4xl", full: "full" };
  * it sizes itself to the body and scrolls its own columns). The body is
  * `children` (or `body`).
  *
+ * `hideHeader` drops the header (a Page's full-screen mode).
+ *
  * Phone behaviour lives here: the header stacks, the tabs strip scrolls
  * sideways (TabGroup), the toolbar wraps.
  */
@@ -32,6 +34,7 @@ export default function PageShell({
   body,
   children,
   frame = "centred",
+  hideHeader = false,
   className = "",
 }) {
   const full = frame === "full";
@@ -45,9 +48,11 @@ export default function PageShell({
       className={`laptop:space-y-3 ${className}`}
     >
       {banner && <div className={pinned}>{banner}</div>}
-      <PageHeader title={title} description={description}>
-        {action}
-      </PageHeader>
+      {!hideHeader && (
+        <PageHeader title={title} description={description}>
+          {action}
+        </PageHeader>
+      )}
       {tabs && (
         <div data-testid="page-tabs" className={`max-w-full overflow-x-auto ${pinned}`}>
           {tabs}

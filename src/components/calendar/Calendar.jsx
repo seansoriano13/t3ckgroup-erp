@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays, Maximize2, Minimize2 } from 'lucide-react';
+import { toggleCalendarFullScreen, useCalendarFullScreenOn } from '@/lib/calendarFullScreen';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { cn } from '@/lib/utils';
@@ -76,8 +77,9 @@ function WeeksSwitch({ weeks, onChange }) {
  *   onPickSlot    when given, rooms can be booked from the rail and the Gantt;
  *                 called with a pre-fill for the request form
  */
-export default function Calendar({ presetLayers = null, onWithdraw = null, onPickSlot = null }) {
+export default function Calendar({ presetLayers = null, onWithdraw = null, onPickSlot = null, allowFullScreen = false }) {
   const { user } = useAuth();
+  const fullScreen = useCalendarFullScreenOn() && allowFullScreen;
   const ctx = getPermissionContext(user);
   useMeetingRealtime();
   const canSeePending = ctx.isHr || ctx.isSuperAdmin || ctx.canManageLeaves;
@@ -195,7 +197,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   const dayButtonLabel = format(dayDate, 'EEE · MMM d');
   const openDay = (ymd) => {
     go({ date: ymd });
-    setPanelOpen(true);
+    if (!fullScreen) setPanelOpen(true);
   };
   const dayRail = (
     <DayRail
@@ -242,7 +244,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
           setShowPending={setShowPending}
           onClearAll={clearAllFilters}
         />
-                {!gantt && (
+        {!gantt && !fullScreen && (
           <SidePanel
             label={dayButtonLabel}
             icon={CalendarDays}
@@ -253,6 +255,19 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
           >
             {dayRail}
           </SidePanel>
+        )}
+        {allowFullScreen && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            aria-pressed={fullScreen}
+            onClick={toggleCalendarFullScreen}
+          >
+            {fullScreen ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
+            {fullScreen ? 'Exit full screen' : 'Full screen'}
+          </Button>
         )}
       </div>
     </div>
@@ -312,15 +327,13 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
           <KindKey />
         </div>
       ) : (
-        <div className="flex items-start gap-6">
-          <section className="flex min-w-0 flex-1 flex-col gap-3">
-            {toolbar}
-            {entryMissing && <p className="text-sm text-muted-foreground" role="status">Not found. This entry is no longer on the Calendar.</p>}
-            {ganttHidden && <p className="text-sm text-muted-foreground">Gantt needs a wider screen.</p>}
-            {body}
-            <KindKey />
-          </section>
-        </div>
+        <section className="flex min-w-0 flex-col gap-4">
+          {toolbar}
+          {entryMissing && <p className="text-sm text-muted-foreground" role="status">Not found. This entry is no longer on the Calendar.</p>}
+          {ganttHidden && <p className="text-sm text-muted-foreground">Gantt needs a wider screen.</p>}
+          {body}
+          <KindKey />
+        </section>
       )}
       <EntryDetail entry={selected} onClose={closeEntry} entries={entries} viewerId={user?.id} onWithdraw={onWithdraw} />
     </div>
