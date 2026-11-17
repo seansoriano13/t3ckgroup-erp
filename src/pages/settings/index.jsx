@@ -22,6 +22,7 @@ import { formatBuildFingerprint } from "@/utils/buildFingerprint";
 import LeaveCategoriesConfig from "../../components/hr/LeaveCategoriesConfig";
 import MealBreakConfig from "../../components/hr/MealBreakConfig";
 import VenueManager from "../../components/settings/VenueManager";
+import ActivitySettings from "../../components/settings/ActivitySettings";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
 import LeadSourceManager from "../../components/settings/LeadSourceManager";
 import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager";
@@ -386,6 +387,7 @@ const TAB_DEFS = [
   { value: "approvals", label: "Approval Rules", isPermitted: (c) => c.isSuperAdmin, Panel: ApprovalRulesPanel },
   { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: HrPanel },
   { value: "venues", label: "Venues", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: VenueManager },
+  { value: "activities", label: "Activities", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: ActivitySettings },
   { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin, Panel: SalesPanel },
   { value: "purchasing", label: "Purchasing", isPermitted: (c) => c.isSuperAdmin || c.hasPurchasingFlow, Panel: PurchasingPanel },
   { value: "costing", label: "S0 Evaluation", isPermitted: (c) => c.isSuperAdmin || c.hasFinanceFlow || c.hasPurchasingFlow || c.managesCostingMarkup, Panel: CostingMatrixPanel },
