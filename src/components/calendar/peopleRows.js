@@ -86,19 +86,36 @@ function summarize(list) {
 }
 
 /**
- * The Gantt's people: one row per person with an entry other than a meeting,
- * grouped by department (sorted, "No department" for none), people sorted by
- * name. `days` are the Manila dates the chart shows. `query` narrows by name
+ * The people an entry is drawn for on the Gantt. An Activity (kind MEETING) is on the row of
+ * its Lead and of every Participant; every other kind is on its one employee's row.
+ * A person with no known department is looked up in `known` (id to employee).
+ */
+function peopleOf(entry, known) {
+  if (entry.kind !== 'MEETING') return entry.employee?.id ? [entry.employee] : [];
+  const d = entry.details ?? {};
+  const lead = d.facilitator?.id ? [d.facilitator] : entry.employee?.id ? [entry.employee] : [];
+  const seen = new Set();
+  return [...lead, ...(d.participants ?? [])]
+    .filter((p) => p?.id && !seen.has(p.id) && seen.add(p.id))
+    .map((p) => ({ ...p, department: p.department ?? known.get(p.id)?.department }));
+}
+
+/**
+ * The Gantt's people: one row per person with an entry, Activities included
+ * (on the Lead's and each Participant's row), grouped by department (sorted,
+ * "No department" for none), people sorted by name. `days` are the Manila dates the chart shows. `query` narrows by name
  * or department (case-insensitive). Returns [[department, rows]].
  */
 export function groupByDepartment(entries, days, query = '') {
+  const known = new Map();
+  for (const entry of entries ?? []) if (entry.employee?.id && !known.has(entry.employee.id)) known.set(entry.employee.id, entry.employee);
   const people = new Map();
   for (const entry of entries ?? []) {
-    const person = entry.employee;
-    if (entry.kind === 'MEETING' || !person?.id) continue;
-    const row = people.get(person.id) ?? { employee: person, entries: [] };
-    row.entries.push(entry);
-    people.set(person.id, row);
+    for (const person of peopleOf(entry, known)) {
+      const row = people.get(person.id) ?? { employee: person, entries: [] };
+      row.entries.push(entry);
+      people.set(person.id, row);
+    }
   }
   const needle = query.trim().toLowerCase();
   const shown = new Set(days);

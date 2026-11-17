@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-11-17",
+        "title": "Every Activity shows on the Calendar",
+        "version": "1.11.3",
+        "changes": [
+            "Admin Tasks, Operations Tasks, Events and Online Meetings now show in the day panel, under the rooms.",
+            "On the Gantt, every Activity is on the row of its Lead and each Participant. A room Meeting also stays on its room's row.",
+            "The day panel opens from a day or from +N more on every screen size."
+        ]
+    },
+    {
+        "date": "2026-11-17",
         "title": "Meeting Requests are now Activities",
         "version": "1.11.2",
         "changes": [

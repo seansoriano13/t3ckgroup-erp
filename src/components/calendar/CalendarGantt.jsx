@@ -176,8 +176,9 @@ function PersonRow({ row, days, cols, todayYmd, onOpenEntry }) {
         const end = ymds.indexOf(bar.endYmd);
         const e = bar.entry;
         const span = end - start + 1;
+        const activity = bar.kind === 'MEETING';
         const timed = !TIME_OFF_KINDS.has(bar.kind);
-        const label = timed ? `${bar.kind === 'OVERTIME' ? 'OT' : 'UT'} ${e.hours != null ? `${Number(e.hours)}h` : ''}` : def.label;
+        const label = activity ? e.title || def.label : timed ? `${bar.kind === 'OVERTIME' ? 'OT' : 'UT'} ${e.hours != null ? `${Number(e.hours)}h` : ''}` : def.label;
         return (
           <Button
             key={bar.key}
@@ -185,7 +186,7 @@ function PersonRow({ row, days, cols, todayYmd, onOpenEntry }) {
             onClick={() => onOpenEntry(e)}
             data-testid="people-bar"
             data-pending={bar.pending}
-            title={`${e.employee?.name} · ${def.label}${timed ? ` · ${formatEntryTime(e)}` : ''}${bar.pending ? ' (pending)' : ''}`}
+            title={`${activity ? e.title : e.employee?.name} · ${def.label}${timed ? ` · ${formatEntryTime(e)}` : ''}${bar.pending ? ' (pending)' : ''}`}
             className={cn(
               'z-1 mx-1.5 my-1 h-auto min-w-0 justify-start gap-1 rounded-md border px-2.5 py-0 text-xs font-semibold',
               def.chip,
@@ -298,7 +299,7 @@ export default function CalendarGantt({ days, entries, layers, venues, todayYmd,
 
           {groups.length === 0 && (
             <p className="sticky left-0 p-6 text-sm text-muted-foreground">
-              {needle ? 'Nobody matches that search.' : 'Nobody is out or on overtime in this range.'}
+              {needle ? 'Nobody matches that search.' : 'Nobody is out, on overtime or in an Activity in this range.'}
             </p>
           )}
           {groups.map(([dept, rows]) => (
