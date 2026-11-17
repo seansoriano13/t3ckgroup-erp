@@ -1,6 +1,19 @@
 [
     {
         "date": "2026-11-17",
+        "title": "Department heads file Admin Tasks, Operations Tasks and Events",
+        "version": "1.11.3",
+        "changes": [
+            "Anyone can file a Meeting. Only a department head can file an Admin Task, an Operations Task or an Event. If you can only file Meetings, the button says New Meeting.",
+            "A head's Admin Tasks, Operations Tasks and Events go straight onto the Calendar. A room Meeting that HR or a Super Admin files themselves is approved at once, and stays approved when they change it. Other room Meetings still wait for HR.",
+            "Requests that HR or a Super Admin filed, and Events that a head filed, were waiting for approval. They are approved now.",
+            "People on an Activity get a note, You're on an Activity, with the type, the date, the time and who scheduled it. Someone added later gets it too.",
+            "The Approvals Activities list and its count in the side menu now update on their own, and every approver sees the same count."
+        ],
+        "link": "/release-notes"
+    },
+    {
+        "date": "2026-11-17",
         "title": "Meeting Requests are now Activities",
         "version": "1.11.2",
         "changes": [

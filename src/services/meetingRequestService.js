@@ -287,19 +287,26 @@ export const meetingRequestService = {
     });
   },
 
-  /** Tells the Lead and every Participant (not the person filing) that an Activity is on. */
-  async notifyApproved(request, slot, senderId) {
-    const invited = new Set([request.facilitator_id, ...(request.participants ?? []).map((p) => p.employee_id)]);
+  /**
+   * Tells people "You're on an Activity" when it goes onto the Calendar (#1063): the type, the date or
+   * dates, the time and who scheduled it. By default that is the Lead and every Participant; `only` narrows
+   * it to the people an edit just added. The person filing is never told. The type stays MEETING_APPROVED
+   * so older notifications still open.
+   */
+  async notifyApproved(request, slot, senderId, { only = null } = {}) {
+    const invited = new Set(only ?? [request.facilitator_id, ...(request.participants ?? []).map((p) => p.employee_id)]);
     invited.delete(request.applicant_id);
     invited.delete(null);
     invited.delete(undefined);
+    const typeLabel = ACTIVITY_TYPE_LABEL[request.activity_type] ?? 'Activity';
+    const scheduler = request.applicant?.name ?? 'Someone';
     for (const recipient_id of invited) {
       await notificationService.createNotification({
         recipient_id,
         sender_id: senderId ?? null,
         type: 'MEETING_APPROVED',
-        title: 'Activity approved',
-        message: `${slot}: ${request.purpose}`,
+        title: "You're on an Activity",
+        message: `${typeLabel}: ${slot}: ${request.purpose}. Scheduled by ${scheduler}.`,
         reference_id: request.id,
       });
     }
@@ -352,15 +359,16 @@ export const meetingRequestService = {
   },
 
   /**
-   * Requests waiting on HR (#748). Only HR and Super Admins have a queue; nobody is shown their
-   * own request.
+   * Requests waiting on HR (#748). Only HR and Super Admins have a queue. Every approver sees the
+   * same list and count (#1063): what HR or a Super Admin files is approved on filing, so nothing of
+   * their own is left waiting to be hidden.
    */
-  async listPendingForApprover({ employeeId, isHr = false, isSuperAdmin = false } = {}) {
+  async listPendingForApprover({ isHr = false, isSuperAdmin = false } = {}) {
     if (!isHr && !isSuperAdmin) return [];
     const query = supabase.from('meeting_requests').select(REQUEST_SELECT).eq('status', MEETING_STATUS.PENDING_HR).order('created_at');
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return (data ?? []).filter((r) => r.applicant_id !== employeeId);
+    return data ?? [];
   },
 
   /** The count behind the sidebar badge (same filter as the queue). */
@@ -455,6 +463,13 @@ export const meetingRequestService = {
       invited.delete(request.applicant_id);
       invited.delete(null);
       invited.delete(undefined);
+      // Someone an edit just added is told they are on it, not that "an Activity changed".
+      if (!cancelled) {
+        const before = new Set([result.old_facilitator_id, ...(result.old_participant_ids ?? [])]);
+        const added = [...invited].filter((id) => !before.has(id) && id !== request.applicant_id);
+        if (added.length) await this.notifyApproved(request, slot, senderId, { only: added });
+        for (const id of added) invited.delete(id);
+      }
       for (const recipient_id of invited) {
         await notificationService.createNotification({
           recipient_id,

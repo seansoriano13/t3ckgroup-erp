@@ -60,6 +60,25 @@ describe("meetingRequestService edit, resend and cancel", () => {
     expect(audit()[0]).toMatchObject({ entity_id: request.id, author_id: applicant.id })
   })
 
+  it("a Participant added to an approved Activity is told they are on it; the others hear it changed (#1063)", async () => {
+    const added = makeEmployee({ name: "Newly Added" })
+    request.status = "APPROVED"
+    insertRow("meeting_request_participants", { request_id: request.id, employee_id: added.id })
+    stub("edit_meeting_request", {
+      action: "EDITED", from_status: "APPROVED", to_status: "APPROVED",
+      participant_ids: [participant.id, added.id], old_participant_ids: [participant.id],
+      changed_fields: { participant_ids: { from: [participant.id], to: [participant.id, added.id] } },
+    })
+    await meetingRequestService.editRequest({ ...editArgs(), participantIds: [participant.id, added.id] })
+    await waitForNetworkIdle()
+
+    const note = db.rows("notifications").find((n) => n.recipient_id === added.id)
+    expect(note).toMatchObject({ type: "MEETING_APPROVED", title: "You're on an Activity" })
+    expect(to("MEETING_CHANGED")).not.toContain(added.id)
+    expect(to("MEETING_CHANGED").sort()).toEqual([facilitator.id, participant.id].sort())
+    expect(to("MEETING_APPROVED")).not.toContain(applicant.id)
+  })
+
   it("an edit of a pending-head request tells nobody new", async () => {
     stub("edit_meeting_request", { action: "EDITED", from_status: "PENDING_HEAD", to_status: "PENDING_HEAD" })
     await meetingRequestService.editRequest(editArgs())

@@ -27,6 +27,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { canManageGroupTasks, getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
+import { newActivityLabel } from "@/utils/activityFiling";
 
 export const NAV_MODULES = {
   workspace: {
@@ -527,7 +528,10 @@ export function getFilteredQuickActions(user) {
   const ctx = buildUserPermissionContext(user);
 
   return QUICK_ACTIONS.map((group) => {
-    const visibleItems = group.items.filter((item) => isNavEntryVisible(ctx, item));
+    const visibleItems = group.items
+      .filter((item) => isNavEntryVisible(ctx, item))
+      // "New Meeting" when Meeting is the only type this person may file (#1063).
+      .map((item) => (item.id === "meeting-request" ? { ...item, label: newActivityLabel(user) } : item));
     return {
       category: group.category,
       items: visibleItems,

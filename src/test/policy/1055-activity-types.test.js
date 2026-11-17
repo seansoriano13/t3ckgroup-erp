@@ -79,7 +79,7 @@ afterAll(async () => {
 describe("who approves", () => {
     it("approves an Admin Task and an Operations Task at once, without HR", async () => {
         for (const type of ["ADMIN_TASK", "OPERATIONS_TASK"]) {
-            const { id, error } = await file("ordinary", { p_activity_type: type })
+            const { id, error } = await file("head", { p_activity_type: type })
             expect(error).toBeNull()
             expect(await row(id)).toMatchObject({ status: "APPROVED", activity_type: type, venue_id: null, meeting_type: null })
         }
@@ -109,10 +109,10 @@ describe("who approves", () => {
         expect((await row(hybrid.id)).status).toBe("PENDING_HR")
     })
 
-    it("sends every Event to HR", async () => {
+    it("approves an Event a head files at once (#1063)", async () => {
         const { id, error } = await file("head", { p_activity_type: "EVENT" })
         expect(error).toBeNull()
-        expect(await row(id)).toMatchObject({ status: "PENDING_HR", activity_type: "EVENT" })
+        expect(await row(id)).toMatchObject({ status: "APPROVED", activity_type: "EVENT" })
     })
 
     it("treats a call without a type as an Onsite Meeting, like before", async () => {
@@ -146,23 +146,23 @@ describe("Event is for heads only", () => {
         expect(error).not.toBeNull()
     })
 
-    it("refuses an edit that turns a task into an Event for a non-head", async () => {
-        const { id } = await file("ordinary")
-        const { error } = await edit("ordinary", id, { p_activity_type: "EVENT" })
+    it("refuses an edit that turns a Meeting into an Event for a non-head", async () => {
+        const { id } = await file("ordinary", { p_activity_type: "MEETING", p_meeting_type: "ONLINE", p_meeting_link: "https://x.test/e" })
+        const { error } = await edit("ordinary", id, { p_activity_type: "EVENT", p_meeting_type: null, p_meeting_link: null })
         expect(error?.message).toMatch(/department head/i)
-        expect((await row(id)).activity_type).toBe("ADMIN_TASK")
+        expect((await row(id)).activity_type).toBe("MEETING")
     })
 })
 
 describe("the Lead", () => {
     it("can be any employee, head or not", async () => {
-        const { id, error } = await file("ordinary", { p_facilitator_id: ids.outsider })
+        const { id, error } = await file("head", { p_facilitator_id: ids.outsider })
         expect(error).toBeNull()
         expect((await row(id)).facilitator_id).toBe(ids.outsider)
     })
 
     it("must be a real employee", async () => {
-        const { error } = await file("ordinary", { p_facilitator_id: "00000000-0000-0000-0000-000000000000" })
+        const { error } = await file("head", { p_facilitator_id: "00000000-0000-0000-0000-000000000000" })
         expect(error?.message).toMatch(/Lead/)
     })
 })
@@ -170,15 +170,15 @@ describe("the Lead", () => {
 describe("Meeting-only fields", () => {
     it("refuses a Venue, a meeting type or a link on any other Activity", async () => {
         for (const type of ["ADMIN_TASK", "OPERATIONS_TASK"]) {
-            expect((await file("ordinary", { p_activity_type: type, p_venue_id: venue })).error?.message).toMatch(/Only a Meeting/)
-            expect((await file("ordinary", { p_activity_type: type, p_meeting_type: "ONLINE" })).error?.message).toMatch(/Only a Meeting/)
-            expect((await file("ordinary", { p_activity_type: type, p_meeting_link: "https://x.test/a" })).error?.message).toMatch(/Only a Meeting/)
+            expect((await file("head", { p_activity_type: type, p_venue_id: venue })).error?.message).toMatch(/Only a Meeting/)
+            expect((await file("head", { p_activity_type: type, p_meeting_type: "ONLINE" })).error?.message).toMatch(/Only a Meeting/)
+            expect((await file("head", { p_activity_type: type, p_meeting_link: "https://x.test/a" })).error?.message).toMatch(/Only a Meeting/)
         }
         expect((await file("head", { p_activity_type: "EVENT", p_venue_id: venue })).error?.message).toMatch(/Only a Meeting/)
     })
 
     it("refuses an unknown Activity type", async () => {
-        expect((await file("ordinary", { p_activity_type: "PARTY" })).error?.message).toMatch(/Activity type/)
+        expect((await file("head", { p_activity_type: "PARTY" })).error?.message).toMatch(/Activity type/)
     })
 
     it("is enforced by the table itself, not only the function", async () => {
@@ -220,8 +220,8 @@ describe("an edit runs the approval rule again", () => {
     })
 
     it("keeps an edited task approved, and an edited pending-HR Online row approved", async () => {
-        const { id } = await file("ordinary")
-        const { data, error } = await edit("ordinary", id, { p_purpose: "Changed" })
+        const { id } = await file("head")
+        const { data, error } = await edit("head", id, { p_purpose: "Changed" })
         expect(error).toBeNull()
         expect(data.to_status).toBe("APPROVED")
         // a legacy Online row that was left pending HR at ship time
@@ -236,11 +236,11 @@ describe("an edit runs the approval rule again", () => {
         expect(e.data.to_status).toBe("APPROVED")
     })
 
-    it("lets a department head change a task into an Event, which goes to HR", async () => {
+    it("lets a department head change a task into an Event, which stays approved", async () => {
         const { id } = await file("head")
         const { data, error } = await edit("head", id, { p_activity_type: "EVENT" })
         expect(error).toBeNull()
-        expect(data.to_status).toBe("PENDING_HR")
+        expect(data.to_status).toBe("APPROVED")
     })
 })
 
