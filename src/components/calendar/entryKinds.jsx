@@ -22,6 +22,9 @@ export const LAYERS = [
   { key: 'overtime', label: 'Overtime', icon: Timer },
 ];
 
+/** The name people read for a layer: the `meetings` layer holds Activities. */
+export const layerLabel = (layer) => (layer.key === 'meetings' ? 'Activities' : layer.label);
+
 export const DEFAULT_LAYERS = { meetings: true, timeOff: true, overtime: true };
 
 /** The preset for the filtered views (HR's Time Off & Overtime tab, My Requests): no Meetings. */

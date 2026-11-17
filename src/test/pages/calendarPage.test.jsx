@@ -96,6 +96,7 @@ describe("Calendar page", () => {
     renderPage();
     await screen.findByText("Cara T. overtime");
 
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
     await user.click(screen.getByRole("button", { name: /^Overtime/ }));
 
     expect(screen.queryByText("Cara T. overtime")).toBeNull();
@@ -110,6 +111,7 @@ describe("Calendar page", () => {
     renderPage();
     const cell = await screen.findByTestId(`day-${day}`);
     expect(await within(cell.parentElement).findByText(/Lia G\. · LWOP/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
     await user.click(screen.getByRole("button", { name: /^Time Off/ }));
     expect(screen.queryByText(/Lia G\. · LWOP/)).toBeNull();
   });
@@ -185,5 +187,90 @@ describe("Calendar page", () => {
     renderPage();
     await screen.findByText(/Ana C\. · SIL/);
     expect(screen.queryByLabelText("Show pending")).toBeNull();
+  });
+
+  describe("filters", () => {
+    const withActivity = () => {
+      mocks.entries = [
+        entry("SIL", "a", "Ana Cruz"),
+        entry("OVERTIME", "c", "Cara Tan"),
+        {
+          ...entry("MEETING", "m", "Dana Reyes", {
+            activity_type: "MEETING",
+            facilitator: { id: "emp-lead", name: "Lee Lead", department: "IT" },
+            participants: [{ id: "emp-part", name: "Pat Part", department: "IT" }],
+          }),
+          employee: { id: mocks.user.id, name: "Dana Reyes", department: "SALES" },
+          title: "Weekly sync",
+        },
+      ];
+    };
+
+    it("puts every filter behind one Filters button with a count", async () => {
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByText(/Ana C\. · SIL/);
+      expect(screen.getAllByRole("button", { name: /^Filters/ })).toHaveLength(1);
+      expect(screen.queryByRole("button", { name: /^Overtime/ })).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      for (const name of [/^Activities/, /^Time Off/, /^Overtime/, /^Event/]) {
+        expect(screen.getByRole("button", { name })).toBeInTheDocument();
+      }
+      await user.click(screen.getByRole("button", { name: /^Overtime/ }));
+      expect(screen.getByRole("button", { name: /^Filters.*1/ })).toBeInTheDocument();
+    });
+
+    it("shows a chip for a filter that is on, and removing the chip turns it off", async () => {
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByText("Cara T. overtime");
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(screen.getByRole("button", { name: /^Overtime/ }));
+      expect(screen.queryByText("Cara T. overtime")).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Remove filter Overtime hidden" }));
+      expect(await screen.findByText("Cara T. overtime")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Remove filter/ })).toBeNull();
+    });
+
+    it("Only me shows only the viewer's own entries", async () => {
+      const user = userEvent.setup();
+      mocks.entries = [entry("SIL", "a", "Ana Cruz"), { ...entry("OVERTIME", "c", "Dana Reyes"), employee: { id: mocks.user.id, name: "Dana Reyes", department: "SALES" } }];
+      renderPage();
+      await screen.findByText(/Ana C\. · SIL/);
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(screen.getByRole("checkbox", { name: "Only me" }));
+
+      expect(screen.queryByText(/Ana C\. · SIL/)).toBeNull();
+      expect(screen.getByText("Dana R. overtime")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Remove filter Only me" }));
+      expect(await screen.findByText(/Ana C\. · SIL/)).toBeInTheDocument();
+    });
+
+    it("picking a department shows only that department's people", async () => {
+      const user = userEvent.setup();
+      mocks.entries = [entry("SIL", "a", "Ana Cruz"), { ...entry("OFFSET", "b", "Ben Lim"), employee: { id: "emp-b", name: "Ben Lim", department: "IT" } }];
+      renderPage();
+      await screen.findByText(/Ana C\. · SIL/);
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(screen.getByRole("checkbox", { name: "IT department" }));
+
+      expect(screen.queryByText(/Ana C\. · SIL/)).toBeNull();
+      expect(screen.getByText(/Ben L\. · Offset/)).toBeInTheDocument();
+    });
+
+    it("an Activity shows for a chosen Lead or Participant", async () => {
+      const user = userEvent.setup();
+      withActivity();
+      renderPage();
+      await screen.findByText(/Ana C\. · SIL/);
+      await user.click(screen.getByRole("button", { name: /^Filters/ }));
+      await user.click(screen.getByRole("checkbox", { name: "Pat Part" }));
+
+      expect(screen.queryByText(/Ana C\. · SIL/)).toBeNull();
+      expect(screen.getAllByText(/Weekly sync/).length).toBeGreaterThan(0);
+      expect(screen.getByRole("button", { name: "Remove filter Pat Part" })).toBeInTheDocument();
+    });
   });
 });

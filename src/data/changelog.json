@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-11-17",
+        "title": "One Filters button on the Calendar",
+        "version": "1.11.3",
+        "changes": [
+            "The Calendar now has one Filters button, with a count of the filters that are on.",
+            "Each filter that is on shows as a small chip you can remove with one click.",
+            "You can filter by people: pick some people, a whole department, or Only me. In the Gantt, only their rows show."
+        ]
+    },
+    {
+        "date": "2026-11-17",
         "title": "Meeting Requests are now Activities",
         "version": "1.11.2",
         "changes": [

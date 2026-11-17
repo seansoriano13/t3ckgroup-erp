@@ -147,7 +147,7 @@ describe('Calendar Activity types', () => {
   it('draws each type in its own colour', async () => {
     const { container } = renderAt('/calendar?date=2031-03-10');
     await screen.findByText('Weekly sync', { selector: '*' }).catch(() => null);
-    await screen.findByRole('button', { name: /^Event/ });
+    await screen.findByRole('button', { name: /^Filters/ });
     for (const dot of ['bg-teal-9', 'bg-plum-9', 'bg-indigo-9', 'bg-orange-9']) {
       expect(container.querySelector(`.${dot}`)).not.toBeNull();
     }
@@ -155,9 +155,11 @@ describe('Calendar Activity types', () => {
 
   it('filters by type, leaves Time Off alone, and shows everything again when cleared', async () => {
     renderAt('/calendar?date=2031-03-10');
+    fireEvent.click(await screen.findByRole('button', { name: /^Filters/ }));
     const eventChip = await screen.findByRole('button', { name: /^Event/ });
     expect(await screen.findAllByText(/Weekly sync/)).not.toHaveLength(0);
     fireEvent.click(eventChip);
+    expect(screen.getByRole('button', { name: 'Remove filter Event' })).toBeInTheDocument();
     expect(screen.queryAllByText(/Weekly sync/)).toHaveLength(0);
     expect(screen.queryAllByText(/Archive files/)).toHaveLength(0);
     expect(screen.getAllByText(/Town hall/).length).toBeGreaterThan(0);

@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils';
 import PageLoading from '@/components/ui/PageLoading';
 import QueryError from '@/components/ui/QueryError';
 import { Button } from '@/components/ui/button';
-import FilterBar from '@/components/ui/FilterBar';
 import SidePanel from '@/components/ui/SidePanel';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
@@ -19,8 +18,10 @@ import CalendarAgenda from '@/components/calendar/CalendarAgenda';
 import CalendarGantt from '@/components/calendar/CalendarGantt';
 import DayRail from '@/components/calendar/DayRail';
 import EntryDetail from '@/components/calendar/EntryDetail';
-import { ActivityTypeFilter, KindKey, LayerToggles, LayoutSwitch, NavArrows, PendingSwitch } from '@/components/calendar/calendarParts.jsx';
-import { visibleEntries } from '@/components/calendar/entryKinds.jsx';
+import { KindKey, LayoutSwitch, NavArrows } from '@/components/calendar/calendarParts.jsx';
+import CalendarFilters from '@/components/calendar/CalendarFilters';
+import { NO_PEOPLE, filterByPeople, peopleOptions, selectedIds } from '@/components/calendar/peopleFilter.js';
+import { DEFAULT_LAYERS, visibleEntries } from '@/components/calendar/entryKinds.jsx';
 import { withSpan } from '@/components/calendar/entrySpan.js';
 import { GANTT_WEEKS, ganttDays, layoutRange, layoutTitle, parseCalendarParams, shiftDate } from '@/components/calendar/calendarNav.js';
 import { useCalendarLayers } from '@/components/calendar/useCalendarLayers';
@@ -116,6 +117,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   const [showPending, setShowPending] = useState(false);
   const [activityTypes, setActivityTypes] = useState([]);
   const toggleActivityType = (key) => setActivityTypes((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+  const [people, setPeople] = useState(NO_PEOPLE);
   const todayYmd = manilaToday();
 
   const { data: venues = [] } = useQuery({
@@ -132,7 +134,15 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   });
 
   const all = data ?? [];
-  const entries = visibleEntries(all, layers, activityTypes);
+  const options = peopleOptions(all);
+  const entries = filterByPeople(visibleEntries(all, layers, activityTypes), selectedIds(people, options, user?.id));
+  const baseline = { ...DEFAULT_LAYERS, ...presetLayers };
+  const clearAllFilters = () => {
+    Object.keys(baseline).forEach((key) => Boolean(layers[key]) !== Boolean(baseline[key]) && toggleLayer(key));
+    setActivityTypes([]);
+    setPeople(NO_PEOPLE);
+    setShowPending(false);
+  };
   // The open entry is the address's `?entry=<kind>:<id>`: opening writes it (a new
   // history step, or a replace when another entry is already open), closing clears it.
   const wanted = parseEntryAddress(params.get(ENTRY_PARAM));
@@ -218,17 +228,23 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
       />
       {gantt && <WeeksSwitch weeks={weeks} onChange={(n) => go({ weeks: String(n) })} />}
       <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
-        <LayerToggles layers={layers} toggleLayer={toggleLayer} all={all} />
-        {layers.meetings && (
-          <ActivityTypeFilter selected={activityTypes} onToggle={toggleActivityType} onClear={() => setActivityTypes([])} all={all} />
-        )}
-        {canSeePending && (
-          <FilterBar
-            className="w-auto flex-none sm:flex-none"
-            filters={<PendingSwitch showPending={showPending} setShowPending={setShowPending} />}
-            activeCount={showPending ? 1 : 0}
-          />
-        )}
+        <CalendarFilters
+          layers={layers}
+          baseline={baseline}
+          toggleLayer={toggleLayer}
+          all={all}
+          activityTypes={activityTypes}
+          toggleActivityType={toggleActivityType}
+          clearActivityTypes={() => setActivityTypes([])}
+          people={people}
+          setPeople={setPeople}
+          options={options}
+          viewerId={user?.id}
+          canSeePending={canSeePending}
+          showPending={showPending}
+          setShowPending={setShowPending}
+          onClearAll={clearAllFilters}
+        />
         {!gantt && !roomy && (
           <SidePanel
             label={dayButtonLabel}
