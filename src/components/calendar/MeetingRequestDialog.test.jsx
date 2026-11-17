@@ -95,6 +95,14 @@ describe('Activity form', () => {
     expect(screen.getByRole('button', { name: /Send request/ })).toBeEnabled();
   });
 
+  it('does not crash when the date is cleared, and asks for a date', async () => {
+    renderForm([]);
+    await screen.findByText('Activity type');
+    fireEvent.change(document.querySelector('input[type="date"]'), { target: { value: '' } });
+    expect(await screen.findByText('Choose a date.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
+  });
+
   it('fills the Lead with the person filing, and lets anyone be picked', async () => {
     renderForm([]);
     expect(await screen.findByText('Me')).toBeInTheDocument();
