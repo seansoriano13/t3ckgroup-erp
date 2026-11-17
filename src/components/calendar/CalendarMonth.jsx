@@ -8,8 +8,8 @@ import { manilaDate, parseManilaDate } from '@/lib/manilaDate.js';
 import { styleOf } from './entryKinds.jsx';
 import { formatEntryTime } from './entryFormat.js';
 import { monthWeeks } from './monthWeeks.js';
-import { entriesToBars } from './peopleRows.js';
-import { TIME_OFF_KINDS, shortName, time12 } from './entrySpan.js';
+import { entriesToBars, entryUnderClick } from './peopleRows.js';
+import { TIME_OFF_KINDS, isMultiDayActivity, shortName, time12 } from './entrySpan.js';
 import { KindDot } from './calendarParts.jsx';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -19,7 +19,7 @@ const MAX_LANES = 3;
 const MAX_LINES = 3;
 const LANE = '1.5rem';
 
-const isBar = (e) => TIME_OFF_KINDS.has(e.kind);
+const isBar = (e) => TIME_OFF_KINDS.has(e.kind) || isMultiDayActivity(e);
 const lineText = (e) =>
   e.kind === 'MEETING' ? e.title : `${shortName(e.employee?.name)} ${e.kind === 'UNDERTIME' ? 'undertime' : 'overtime'}`;
 
@@ -81,23 +81,29 @@ function Week({ week, entries, selectedYmd, todayYmd, onSelectDay, onOpenDay, on
         const def = styleOf(bar.entry);
         const start = ymds.indexOf(bar.startYmd);
         const end = ymds.indexOf(bar.endYmd);
-        const name = end > start ? bar.entry.employee?.name : shortName(bar.entry.employee?.name);
+        const activity = bar.kind === 'MEETING';
+        const name = activity ? bar.entry.title : end > start ? bar.entry.employee?.name : shortName(bar.entry.employee?.name);
         return (
           <Button
             key={bar.key}
             variant="ghost"
             tabIndex={-1}
-            onClick={() => onOpenEntry(bar.entry)}
-            title={`${bar.entry.employee?.name} · ${def.label}${bar.pending ? ' (pending)' : ''}`}
+            onClick={(event) => onOpenEntry(entryUnderClick(bar, ymds, event))}
+            data-testid="month-bar"
+            data-continues-before={bar.continuesBefore}
+            data-continues-after={bar.continuesAfter}
+            title={`${activity ? bar.entry.title : bar.entry.employee?.name} · ${def.label}${bar.pending ? ' (pending)' : ''}`}
             className={cn(
-              'z-10 mx-1.5 hidden h-5 min-w-0 justify-start gap-1 rounded-md border px-2 text-xs font-semibold sm:flex',
+              'z-10 hidden h-5 min-w-0 justify-start gap-1 rounded-md border px-2 text-xs font-semibold sm:flex',
+              bar.continuesBefore ? 'ml-0 rounded-l-none border-l-0' : 'ml-1.5',
+              bar.continuesAfter ? 'mr-0 rounded-r-none border-r-0' : 'mr-1.5',
               def.chip,
               bar.pending && 'border-dashed',
             )}
             style={{ gridColumn: `${start + 1} / ${end + 2}`, gridRow: bar.lane + 2 }}
           >
             <span className="truncate">
-              {name} · {def.label}
+              {activity ? `${name} · ${shortName(bar.entry.employee?.name)}` : `${name} · ${def.label}`}
               {bar.pending && ' · pending'}
             </span>
           </Button>

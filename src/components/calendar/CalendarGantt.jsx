@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { styleOf } from './entryKinds.jsx';
 import { formatEntryTime } from './entryFormat.js';
-import { groupByDepartment, outByDay } from './peopleRows.js';
+import { entryUnderClick, groupByDepartment, outByDay } from './peopleRows.js';
 import { TIME_OFF_KINDS, time12 } from './entrySpan.js';
 import { Face } from './calendarParts.jsx';
 
@@ -183,12 +183,16 @@ function PersonRow({ row, days, cols, todayYmd, onOpenEntry }) {
           <Button
             key={bar.key}
             variant="ghost"
-            onClick={() => onOpenEntry(e)}
+            onClick={(event) => onOpenEntry(entryUnderClick(bar, ymds, event))}
             data-testid="people-bar"
+            data-continues-before={bar.continuesBefore}
+            data-continues-after={bar.continuesAfter}
             data-pending={bar.pending}
             title={`${activity ? e.title : e.employee?.name} · ${def.label}${timed ? ` · ${formatEntryTime(e)}` : ''}${bar.pending ? ' (pending)' : ''}`}
             className={cn(
-              'z-1 mx-1.5 my-1 h-auto min-w-0 justify-start gap-1 rounded-md border px-2.5 py-0 text-xs font-semibold',
+              'z-1 my-1 h-auto min-w-0 justify-start gap-1 rounded-md border px-2.5 py-0 text-xs font-semibold',
+              bar.continuesBefore ? 'ml-0 rounded-l-none border-l-0' : 'ml-1.5',
+              bar.continuesAfter ? 'mr-0 rounded-r-none border-r-0' : 'mr-1.5',
               def.chip,
               bar.pending && 'border-dashed',
               timed && 'justify-center px-2',
