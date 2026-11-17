@@ -37,6 +37,8 @@ export default function DayRail({ ymd, entries, layers, venues, todayYmd, onOpen
   const day = entries.filter((e) => e.manila_date === ymd);
   const out = day.filter(isOut);
   const meetings = day.filter((e) => e.kind === 'MEETING').sort(byStart);
+  // Admin Tasks, Operations Tasks, Events and Online Meetings have no Venue, so no room strip.
+  const unplaced = meetings.filter((m) => !m.venue);
   const overtime = day.filter((e) => e.kind === 'OVERTIME').sort(byStart);
 
   return (
@@ -135,6 +137,27 @@ export default function DayRail({ ymd, entries, layers, venues, todayYmd, onOpen
                 );
               })}
             </div>
+          )}
+        </RailSection>
+      )}
+
+      {layers.meetings && (
+        <RailSection title="No venue" count={unplaced.length}>
+          {unplaced.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nothing without a venue.</p>
+          ) : (
+            unplaced.map((m) => (
+              <Button key={m.id} variant="ghost" onClick={() => onOpenEntry(m)} className="h-auto justify-start gap-3 px-2 py-1.5 text-left">
+                <KindDot kind="MEETING" entry={m} />
+                <span className="w-28 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                  {time12(m.starts_at)}–{time12(m.ends_at)}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={cn('block truncate text-sm font-medium', m.status === 'PENDING' && 'italic text-muted-foreground')}>{m.title}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{styleOf(m).label}</span>
+                </span>
+              </Button>
+            ))
           )}
         </RailSection>
       )}

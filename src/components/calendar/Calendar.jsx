@@ -27,10 +27,9 @@ import { GANTT_WEEKS, ganttDays, layoutRange, layoutTitle, parseCalendarParams, 
 import { useCalendarLayers } from '@/components/calendar/useCalendarLayers';
 import { ENTRY_PARAM, entryAddress, findEntry, parseEntryAddress } from '@/components/calendar/entryAddress.js';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
-import { useIsPhone, useRoomy } from "@/hooks/useScreenBand";
+import { useIsPhone } from "@/hooks/useScreenBand";
 
 const LAYOUT_KEY = 'calendar.layout';
-// The same test SidePanel uses for its inline column (inlineFrom 1440, over 700px tall).
 
 function rememberedLayout() {
   try {
@@ -66,8 +65,8 @@ function WeeksSwitch({ weeks, onChange }) {
  * HR's Time Off & Overtime tab and My Requests all render it.
  *
  * Two layouts, picked with the Calendar | Gantt switch (`?layout=`, and
- * remembered in this browser): the month with the selected day in a rail
- * beside it, and a Gantt of rooms and people across two or four weeks. The
+ * remembered in this browser): the month with the selected day in a side
+ * panel that opens on a day click or "+N more", and a Gantt of rooms and people across two or four weeks. The
  * selected date lives in `?date=`, the Gantt's range in `?weeks=`.
  *
  *   presetLayers  start from these layers (a filtered view) instead of the
@@ -87,7 +86,6 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   const parsed = parseCalendarParams(params, manilaToday(), rememberedLayout());
   const { date: anchor, weeks } = parsed;
   const phone = useIsPhone();
-  const roomy = useRoomy();
   // The Gantt needs room; a phone always gets the month, as an Agenda.
   const layout = phone ? 'calendar' : parsed.layout;
   const ganttHidden = phone && parsed.layout === 'gantt';
@@ -193,7 +191,6 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   const gantt = layout === 'gantt';
   const dayEntries = entries.filter((e) => e.manila_date === anchor);
   const dayDate = parseManilaDate(anchor);
-  const dayLabel = `${anchor === todayYmd ? 'Today' : format(dayDate, 'EEE')} · ${format(dayDate, 'MMM d')}`;
   // The toolbar already has a Today button, so its day button names the date only.
   const dayButtonLabel = format(dayDate, 'EEE · MMM d');
   const openDay = (ymd) => {
@@ -209,7 +206,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
       todayYmd={todayYmd}
       onOpenEntry={open}
       onPickSlot={onPickSlot}
-      framed={roomy}
+      framed={false}
     />
   );
   const unit = gantt ? 'week' : 'month';
@@ -245,11 +242,12 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
           setShowPending={setShowPending}
           onClearAll={clearAllFilters}
         />
-        {!gantt && !roomy && (
+                {!gantt && (
           <SidePanel
             label={dayButtonLabel}
             icon={CalendarDays}
             badge={dayEntries.length}
+            inlineFrom={100000}
             open={panelOpen}
             onOpenChange={setPanelOpen}
           >
@@ -322,11 +320,6 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
             {body}
             <KindKey />
           </section>
-          {roomy && (
-            <SidePanel label={dayLabel} inlineFrom={1440} width="20rem" className="sticky top-4">
-              {dayRail}
-            </SidePanel>
-          )}
         </div>
       )}
       <EntryDetail entry={selected} onClose={closeEntry} entries={entries} viewerId={user?.id} onWithdraw={onWithdraw} />

@@ -1,12 +1,15 @@
 [
     {
         "date": "2026-11-17",
-        "title": "One Filters button on the Calendar",
+        "title": "One Filters button, and every Activity on the Calendar",
         "version": "1.11.3",
         "changes": [
             "The Calendar now has one Filters button, with a count of the filters that are on.",
             "Each filter that is on shows as a small chip you can remove with one click.",
-            "You can filter by people: pick some people, a whole department, or Only me. In the Gantt, only their rows show."
+            "You can filter by people: pick some people, a whole department, or Only me. In the Gantt, only their rows show.",
+            "Admin Tasks, Operations Tasks, Events and Online Meetings now show in the day panel, under the rooms.",
+            "On the Gantt, every Activity is on the row of its Lead and each Participant. A room Meeting also stays on its room's row.",
+            "The day panel opens from a day or from +N more on every screen size."
         ]
     },
     {

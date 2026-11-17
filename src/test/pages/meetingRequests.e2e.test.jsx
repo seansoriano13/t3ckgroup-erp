@@ -143,6 +143,7 @@ describe("Meeting Request journey", () => {
                 <CalendarPage />
             </MemoryRouter>,
         )
+        await user.click(await screen.findByRole("button", { name: /^[A-Z][a-z]{2} · [A-Z][a-z]{2} \d+/ }))
         const rooms = within(await screen.findByTestId("day-rail")).getByRole("region", { name: "Rooms" })
         expect(await within(rooms).findByText("Quarterly planning")).not.toHaveClass("italic")
         expect(within(rooms).queryByText(/Waiting for/)).not.toBeInTheDocument()

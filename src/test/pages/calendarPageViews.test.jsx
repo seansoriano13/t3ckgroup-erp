@@ -4,7 +4,7 @@
  * in this browser. Rooms can be booked from the rail and the Gantt.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
 import CalendarPage from '@/pages/calendar';
@@ -39,6 +39,9 @@ function renderAt(url) {
     </QueryClientProvider>,
   );
 }
+
+// The day panel is a side panel at every width: open it from the toolbar's day button.
+const openDayPanel = async () => fireEvent.click(await screen.findByRole('button', { name: /^[A-Z][a-z]{2} · [A-Z][a-z]{2} \d+/ }));
 
 describe('Calendar layouts', () => {
   beforeEach(() => {
@@ -98,6 +101,7 @@ describe('Calendar layouts', () => {
 
   it('shows each room in the day rail; a free spot opens the pre-filled form', async () => {
     renderAt('/calendar?date=2031-03-10');
+    await openDayPanel();
     expect(await screen.findByTestId('venue-strip-Conference Room')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Request Admin Office on 2031-03-10' }));
     expect(JSON.parse(screen.getByTestId('request-form').textContent)).toEqual({
@@ -163,7 +167,10 @@ describe('Calendar Activity types', () => {
     expect(screen.queryAllByText(/Weekly sync/)).toHaveLength(0);
     expect(screen.queryAllByText(/Archive files/)).toHaveLength(0);
     expect(screen.getAllByText(/Town hall/).length).toBeGreaterThan(0);
+    await openDayPanel();
     expect(screen.getAllByText(/Away Person/).length).toBeGreaterThan(0);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByTestId('day-rail')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
     expect(screen.getAllByText(/Weekly sync/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Archive files/).length).toBeGreaterThan(0);
@@ -171,6 +178,7 @@ describe('Calendar Activity types', () => {
 
   it('counts only Activities with a Venue under Rooms', async () => {
     renderAt('/calendar?date=2031-03-10');
+    await openDayPanel();
     await screen.findByTestId('venue-strip-Conference Room');
     const rooms = screen.getByRole('region', { name: 'Rooms' });
     expect(rooms).toHaveTextContent(/Rooms\s*2/);

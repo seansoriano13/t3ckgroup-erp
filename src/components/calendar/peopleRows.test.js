@@ -38,16 +38,28 @@ describe('groupByDepartment', () => {
     e('b', '2026-10-02', { employee: ben }),
     e('c', '2026-10-09'),
     e('o', '2026-10-03', { kind: 'OVERTIME', hours: 3, employee: cara }),
-    e('m', '2026-10-03', { kind: 'MEETING', employee: { id: 'p4', name: 'Dino Uy', department: 'HR' } }),
   ];
 
-  it('groups people by department, ignoring meetings and days outside the view', () => {
+  it('groups people by department, ignoring days outside the view', () => {
     const groups = groupByDepartment(entries, days);
     expect(groups.map(([dept]) => dept)).toEqual(['IT', 'SALES']);
     const sales = groups[1][1];
     expect(sales.map((r) => r.employee.name)).toEqual(['Ana Cruz', 'Cara Tan']);
     expect(sales[0]).toMatchObject({ summary: '1 day out', lanes: 1 });
     expect(sales[1].summary).toBe('3 h overtime');
+  });
+
+  it('puts an Activity on the rows of its Lead and each Participant, not the requester', () => {
+    const activity = e('m', '2026-10-03', {
+      kind: 'MEETING',
+      title: 'Inventory',
+      employee: { id: 'p4', name: 'Dino Uy', department: 'HR' },
+      details: { facilitator: { id: 'p1', name: 'Ana Cruz' }, participants: [{ id: 'p2', name: 'Ben Lim' }, { id: 'p1', name: 'Ana Cruz' }] },
+    });
+    const rows = groupByDepartment([e('a', '2026-10-01'), e('b', '2026-10-02', { employee: ben }), activity], days).flatMap(([, r]) => r);
+    expect(rows.map((r) => r.employee.id).sort()).toEqual(['p1', 'p2']);
+    expect(rows.find((r) => r.employee.id === 'p1').bars.map((b) => b.kind).sort()).toEqual(['MEETING', 'SIL']);
+    expect(rows.find((r) => r.employee.id === 'p2').employee.department).toBe('IT');
   });
 
   it('filters by name or department', () => {

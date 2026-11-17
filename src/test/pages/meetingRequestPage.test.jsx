@@ -102,7 +102,7 @@ describe("Meeting Request from the Calendar page", () => {
     await screen.findByTestId("calendar-month");
     if (!screen.queryByTestId(`day-${tomorrow}`)) await user.click(screen.getByRole("button", { name: "Next month" }));
     await user.click(await screen.findByTestId(`day-${tomorrow}`));
-    const rooms = within(screen.getByTestId("day-rail")).getByRole("region", { name: "Rooms" });
+    const rooms = within(await screen.findByTestId("day-rail")).getByRole("region", { name: "Rooms" });
     expect(await within(rooms).findByText("Quarterly planning")).toHaveClass("italic");
     expect(within(rooms).getByText("Waiting for head")).toBeInTheDocument();
   }, 30000);

@@ -42,6 +42,12 @@ const entry = (kind, id, name, details = {}, manila_date = day) => ({
   details,
 });
 
+// The day panel is a side panel at every width: open it from the toolbar's day button.
+const openDayPanel = async (user) => {
+  await user.click(await screen.findByRole("button", { name: /^[A-Z][a-z]{2} · [A-Z][a-z]{2} \d+/ }));
+  return screen.findByTestId("day-rail");
+};
+
 const renderPage = () =>
   renderWithProviders(
     <MemoryRouter initialEntries={[`/calendar?date=${day}`]}>
@@ -73,8 +79,9 @@ describe("Calendar page", () => {
   });
 
   it("lists the selected day in the rail: who is out, and overtime", async () => {
+    const user = userEvent.setup();
     renderPage();
-    const rail = await screen.findByTestId("day-rail");
+    const rail = await openDayPanel(user);
     const out = await within(rail).findByRole("region", { name: "Out of office" });
     expect(within(out).getByText("Ana Cruz")).toBeInTheDocument();
     expect(within(out).getByText("Ben Lim")).toBeInTheDocument();
@@ -86,7 +93,7 @@ describe("Calendar page", () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByTestId(`day-${nextDay}`));
-    const out = within(screen.getByTestId("day-rail")).getByRole("region", { name: "Out of office" });
+    const out = within(await screen.findByTestId("day-rail")).getByRole("region", { name: "Out of office" });
     expect(within(out).getByText("Dino Uy")).toBeInTheDocument();
     expect(within(out).queryByText("Ana Cruz")).toBeNull();
   });
