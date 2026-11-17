@@ -1,18 +1,21 @@
 import { useState } from 'react';
+import { ListChecks } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import { newActivityLabel } from '@/utils/activityFiling';
+import { useCalendarFullScreen } from '@/lib/calendarFullScreen';
 import PageShell from '@/components/ui/PageShell';
+import SidePanel from '@/components/ui/SidePanel';
 import { Button } from '@/components/ui/button';
-import TabGroup from '@/components/ui/TabGroup';
 import Calendar from '@/components/calendar/Calendar';
 import MeetingRequestDialog from '@/components/calendar/MeetingRequestDialog';
 import MyMeetingRequests from '@/components/calendar/MyMeetingRequests';
 
-/** The Calendar page: the shared Calendar, plus the viewer's Activities. */
+/** The Calendar page: the shared board, with the viewer's Activities in a side panel. */
 export default function CalendarPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState('calendar');
+  const fullScreen = useCalendarFullScreen();
+  const [mineOpen, setMineOpen] = useState(false);
   const [request, setRequest] = useState(null); // null = closed; an object = open, with optional pre-fill
   const openRequest = (initial = {}) => setRequest(initial);
 
@@ -21,19 +24,26 @@ export default function CalendarPage() {
       <PageShell
         title="Calendar"
         description="Activities, Time Off and overtime across the company."
-        action={<Button onClick={() => openRequest()}>{newActivityLabel(user)}</Button>}
-        tabs={
-          <TabGroup
-            tabs={[
-              { value: 'calendar', label: 'Calendar' },
-              { value: 'mine', label: 'My Activities' },
-            ]}
-            activeTab={tab}
-            onChange={setTab}
-          />
+        hideHeader={fullScreen}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <SidePanel
+              label="My Activities"
+              icon={ListChecks}
+              inlineFrom={100000}
+              width="26rem"
+              open={mineOpen}
+              onOpenChange={setMineOpen}
+            >
+              <div className="p-4">
+                <MyMeetingRequests />
+              </div>
+            </SidePanel>
+            <Button onClick={() => openRequest()}>{newActivityLabel(user)}</Button>
+          </div>
         }
       >
-        {tab === 'mine' ? <MyMeetingRequests /> : <Calendar onPickSlot={openRequest} />}
+        <Calendar onPickSlot={openRequest} allowFullScreen />
         <MeetingRequestDialog open={Boolean(request)} initial={request ?? undefined} onClose={() => setRequest(null)} />
       </PageShell>
     </ProtectedRoute>

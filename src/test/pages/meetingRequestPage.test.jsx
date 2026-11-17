@@ -92,12 +92,12 @@ describe("Meeting Request from the Calendar page", () => {
     await waitFor(() => expect(db.rows("meeting_requests")).toHaveLength(1));
     expect(db.rows("meeting_request_events")).toHaveLength(1);
 
-    await user.click(await screen.findByRole("tab", { name: "My Activities" }));
+    await user.click(await screen.findByRole("button", { name: "My Activities" }));
     const list = await screen.findByTestId("my-meeting-requests");
     expect(within(list).getByText("Quarterly planning")).toBeInTheDocument();
     expect(within(list).getByText("Waiting for head")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Calendar" }));
+    await user.click(screen.getByRole("button", { name: "Close My Activities" }));
     // Tomorrow is in this month's grid unless today ends a month on a Sunday.
     await screen.findByTestId("calendar-month");
     if (!screen.queryByTestId(`day-${tomorrow}`)) await user.click(screen.getByRole("button", { name: "Next month" }));

@@ -82,7 +82,7 @@ describe('Calendar layouts', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('date=2026-11-16');
     fireEvent.click(screen.getByRole('button', { name: '4 weeks' }));
     expect(screen.getByTestId('where')).toHaveTextContent('weeks=4');
-    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Month' }));
     expect(screen.getByTestId('where').textContent).not.toContain('weeks=');
     fireEvent.click(screen.getByRole('button', { name: 'Today' }));
     const now = new Date();
@@ -171,7 +171,8 @@ describe('Calendar Activity types', () => {
     expect(screen.getAllByText(/Away Person/).length).toBeGreaterThan(0);
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByTestId('day-rail')).toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Filters/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
     expect(screen.getAllByText(/Weekly sync/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Archive files/).length).toBeGreaterThan(0);
   });

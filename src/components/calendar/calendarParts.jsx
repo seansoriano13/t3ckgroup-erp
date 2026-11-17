@@ -10,11 +10,11 @@ import { initials } from './entrySpan.js';
 // Small parts both Calendar layouts share; each layout owns its own grid.
 
 const LAYOUT_SWITCH = [
-  { key: 'calendar', label: 'Calendar', icon: CalendarDays },
+  { key: 'calendar', label: 'Month', icon: CalendarDays },
   { key: 'gantt', label: 'Gantt', icon: ChartGantt },
 ];
 
-/** Calendar | Gantt. */
+/** Month | Gantt. */
 export function LayoutSwitch({ layout, onChange }) {
   return (
     <div className="flex rounded-xl bg-muted p-1" role="group" aria-label="Layout">
