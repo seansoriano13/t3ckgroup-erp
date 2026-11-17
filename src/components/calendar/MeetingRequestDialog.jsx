@@ -13,6 +13,7 @@ import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
 import { employeeService } from '@/services/employeeService';
+import { formTypeOptions } from '@/utils/activityFiling';
 import { ACTIVITY_TYPE, ACTIVITY_TYPE_LABEL, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue, requestDays } from '@/services/meetingRequestService';
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
 import { isIsoDate } from '@/utils/dateUtils.js';
@@ -95,11 +96,8 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const { data: venues = [] } = useQuery({ queryKey: ['calendar-venues'], queryFn: () => meetingRequestService.listVenues() });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => employeeService.getAllEmployees() });
   const people = useMemo(() => [...employees].sort((a, b) => a.name.localeCompare(b.name)), [employees]);
-  const viewerIsHead = Boolean(user?.is_head || user?.isHead);
-  // Only a department head files an Event; the database refuses anyone else.
-  const typeOptions = Object.values(ACTIVITY_TYPE)
-    .filter((t) => t !== ACTIVITY_TYPE.EVENT || viewerIsHead || editing?.activity_type === ACTIVITY_TYPE.EVENT)
-    .map((t) => ({ value: t, label: ACTIVITY_TYPE_LABEL[t] }));
+  // The form offers only what the viewer may file; the database refuses the rest (#1063).
+  const typeOptions = formTypeOptions(user, editing?.activity_type).map((t) => ({ value: t, label: ACTIVITY_TYPE_LABEL[t] }));
   const isMeeting = activityType === ACTIVITY_TYPE.MEETING;
 
   const { data: lastPicks } = useQuery({

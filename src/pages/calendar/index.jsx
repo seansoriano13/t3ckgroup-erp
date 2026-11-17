@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAuth } from '@/context/AuthContext';
+import { newActivityLabel } from '@/utils/activityFiling';
 import PageShell from '@/components/ui/PageShell';
 import { Button } from '@/components/ui/button';
 import TabGroup from '@/components/ui/TabGroup';
@@ -9,6 +11,7 @@ import MyMeetingRequests from '@/components/calendar/MyMeetingRequests';
 
 /** The Calendar page: the shared Calendar, plus the viewer's Activities. */
 export default function CalendarPage() {
+  const { user } = useAuth();
   const [tab, setTab] = useState('calendar');
   const [request, setRequest] = useState(null); // null = closed; an object = open, with optional pre-fill
   const openRequest = (initial = {}) => setRequest(initial);
@@ -18,7 +21,7 @@ export default function CalendarPage() {
       <PageShell
         title="Calendar"
         description="Activities, Time Off and overtime across the company."
-        action={<Button onClick={() => openRequest()}>New Activity</Button>}
+        action={<Button onClick={() => openRequest()}>{newActivityLabel(user)}</Button>}
         tabs={
           <TabGroup
             tabs={[

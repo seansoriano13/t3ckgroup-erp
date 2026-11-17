@@ -74,7 +74,7 @@ describe("Meeting Request from the Calendar page", () => {
       </MemoryRouter>,
     );
 
-    await user.click(await screen.findByRole("button", { name: "New Activity" }));
+    await user.click(await screen.findByRole("button", { name: "New Meeting" }));
     const dialog = await screen.findByRole("dialog");
 
     await user.click(within(dialog).getAllByRole("combobox")[2]);

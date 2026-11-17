@@ -4,8 +4,8 @@ import { db, insertRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { stubRpc } from "@/test/msw/server"
 
-// Mirrors the database's activity_needs_hr(): an Event, or a Meeting with a Venue.
-const needsHr = (activityType, venueId) => activityType === "EVENT" || (activityType === "MEETING" && Boolean(venueId))
+// Mirrors the database's activity_needs_hr() for an ordinary filer: only a Meeting with a Venue waits for HR.
+const needsHr = (activityType, venueId) => activityType === "MEETING" && Boolean(venueId)
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeHrEmployee } from "@/test/factories"
 
@@ -102,6 +102,26 @@ describe("meetingRequestService.fileRequest", () => {
 
     const told = db.rows("notifications").filter((n) => n.type === "MEETING_APPROVED").map((n) => n.recipient_id)
     expect(told).toEqual([participant.id])
+  })
+
+  it("tells them \"You're on an Activity\" with the type, the date, the time and who scheduled it", async () => {
+    stubFiling()
+    await meetingRequestService.fileRequest({ ...input(), activityType: "ADMIN_TASK", venueId: null })
+    await waitForNetworkIdle()
+
+    const [note] = db.rows("notifications").filter((n) => n.type === "MEETING_APPROVED" && n.recipient_id === participant.id)
+    expect(note.title).toBe("You're on an Activity")
+    expect(note.message).toContain("Admin Task")
+    expect(note.message).toContain("Mar 10, 2031")
+    expect(note.message).toContain("9:00 AM")
+    expect(note.message).toContain("Scheduled by Ana Reyes")
+  })
+
+  it("tells no one before a room Meeting is approved", async () => {
+    stubFiling()
+    await meetingRequestService.fileRequest(input())
+    await waitForNetworkIdle()
+    expect(db.rows("notifications").filter((n) => n.title === "You're on an Activity")).toHaveLength(0)
   })
 
   it("sends a Meeting-only field only for a Meeting", async () => {

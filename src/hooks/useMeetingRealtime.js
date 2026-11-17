@@ -12,8 +12,9 @@ import { useTableRealtime } from "./useTableRealtime";
 export const MEETING_TABLES = ["meeting_requests", "meeting_request_participants", "meeting_request_days"];
 export const MEETING_QUERY_ROOTS = [["calendar-entries"], ["meeting-requests"]];
 
-export function useMeetingRealtime() {
-  useTableRealtime(MEETING_TABLES[0], { invalidateKeys: MEETING_QUERY_ROOTS });
-  useTableRealtime(MEETING_TABLES[1], { invalidateKeys: MEETING_QUERY_ROOTS });
-  useTableRealtime(MEETING_TABLES[2], { invalidateKeys: MEETING_QUERY_ROOTS });
+/** `enabled: false` keeps the channels closed, for a caller that only needs them for some viewers. */
+export function useMeetingRealtime({ enabled = true } = {}) {
+  useTableRealtime(enabled ? MEETING_TABLES[0] : null, { invalidateKeys: MEETING_QUERY_ROOTS });
+  useTableRealtime(enabled ? MEETING_TABLES[1] : null, { invalidateKeys: MEETING_QUERY_ROOTS });
+  useTableRealtime(enabled ? MEETING_TABLES[2] : null, { invalidateKeys: MEETING_QUERY_ROOTS });
 }

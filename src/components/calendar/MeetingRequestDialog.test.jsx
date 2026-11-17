@@ -122,13 +122,15 @@ describe('Activity form', () => {
     expect(await screen.findByRole('option', { name: 'Event' })).toBeInTheDocument();
   });
 
-  it('hides Event from a non-head', async () => {
+  it('offers a non-head only Meetings (#1063)', async () => {
     mockUser.is_head = false;
     try {
       renderForm([]);
       await screen.findByText('Activity type');
       fireEvent.click(screen.getAllByRole('combobox')[0]);
-      expect(await screen.findByRole('option', { name: 'Admin Task' })).toBeInTheDocument();
+      expect(await screen.findByRole('option', { name: 'Meeting' })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Admin Task' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Operations Task' })).not.toBeInTheDocument();
       expect(screen.queryByRole('option', { name: 'Event' })).not.toBeInTheDocument();
     } finally {
       mockUser.is_head = true;
