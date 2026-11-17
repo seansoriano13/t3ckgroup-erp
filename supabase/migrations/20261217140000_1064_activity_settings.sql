@@ -198,15 +198,17 @@ as $function$
 declare
   g public.activity_general_settings%rowtype;
   v_on boolean;
+  v_type_on boolean;
   v_name text;
 begin
   select * into g from public.activity_general_settings limit 1;
   select t.active, t.name into v_on, v_name from public.activity_type_settings t where t.activity_type = p_activity_type;
+  v_type_on := case p_meeting_type when 'ONSITE' then g.meeting_onsite when 'ONLINE' then g.meeting_online when 'HYBRID' then g.meeting_hybrid else true end;
   if not coalesce(v_on, false) and p_activity_type is distinct from p_old_activity_type then
     raise exception '% is switched off, so it cannot be filed.', coalesce(v_name, 'That Activity type') using errcode = '22023';
   end if;
   if p_activity_type = 'MEETING' and p_meeting_type is distinct from p_old_meeting_type
-     and not case p_meeting_type when 'ONSITE' then g.meeting_onsite when 'ONLINE' then g.meeting_online when 'HYBRID' then g.meeting_hybrid else true end then
+     and not coalesce(v_type_on, false) then
     raise exception '% meetings are switched off.', initcap(lower(p_meeting_type)) using errcode = '22023';
   end if;
   if not g.guests_allowed and coalesce(array_length(p_guests, 1), 0) > 0

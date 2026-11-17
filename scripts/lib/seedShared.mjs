@@ -187,6 +187,10 @@ export const SEED_EXCLUDED_TABLES = {
     "Belongs to meeting_requests, which the seed leaves out.",
   meeting_request_events:
     "The history of meeting_requests, which the seed leaves out.",
+  activity_type_settings:
+    "The four Activity types and their rules (#1064). The migration inserts the starting rows itself, so a seed would only replace them with whatever the remote held.",
+  activity_general_settings:
+    "The one row of Activity rules (#1064). The migration inserts it itself, so a seed would only replace it with whatever the remote held.",
   meeting_request_days:
     "The days of each Activity (#1056). Belongs to meeting_requests, which the seed leaves out.",
   costing_tables:

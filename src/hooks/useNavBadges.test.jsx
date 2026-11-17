@@ -22,6 +22,10 @@ vi.mock("../services/ipasService", () => ({
   },
 }));
 
+vi.mock("./useMeetingRealtime", () => ({
+  useMeetingRealtime: vi.fn(),
+}));
+
 vi.mock("../lib/supabase", () => ({
   supabase: {
     from: vi.fn(),
