@@ -505,3 +505,29 @@ describe("Stage filter follows the Stage a flow SOR sits on", () => {
     expect(screen.queryByText("Flow deal on Lead")).toBeNull()
   })
 })
+
+// Status sits right after the SOR and SO numbers, in the headings and in
+// each row's cells alike: both are drawn from one ordered column list.
+describe("SOR register column order", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    opportunityService.getOpportunities.mockResolvedValue([MOCK_OPP_1])
+  })
+
+  it("shows Status third, after the SOR and SO numbers", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/opportunities"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    )
+
+    await screen.findByText("Acme Corp")
+    const headings = screen.getAllByRole("columnheader").map((heading) => heading.textContent)
+    expect(headings.slice(0, 3)).toEqual(["SOR", "Sales Ref.", "Status"])
+
+    const row = screen.getByText("Acme Corp").closest("tr")
+    const cells = within(row).getAllByRole("cell")
+    expect(cells[1]).toHaveTextContent("S01234")
+    expect(cells[2]).toHaveTextContent(/lead/i)
+  })
+})

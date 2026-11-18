@@ -262,7 +262,25 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
       for (const heading of ["Raised by", "DP", "FP"]) {
         expect(screen.queryByRole("columnheader", { name: new RegExp(`^${heading}`) })).not.toBeInTheDocument();
       }
-      expect(screen.getByRole("columnheader", { name: /^State/ })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: /^Status/ })).toBeInTheDocument();
+    });
+
+    it("puts Status beside the PO number, has no State column, and says Cancelled for a cancelled IPAS", async () => {
+      ipas({ po_number: "P02001", pi_qt_amount: 10000 });
+      ipas({ po_number: "P02002", state: "cancelled", cancel_reason: "Dropped", cancelled_at: "2026-10-13T03:00:00.000Z" });
+      const user = setupUser();
+
+      renderList();
+      const [open] = await screen.findAllByTestId("ipas-row");
+
+      const headings = screen.getAllByRole("columnheader").map((heading) => heading.textContent);
+      expect(headings.slice(0, 3)).toEqual(["IPAS", "Odoo PO", "Status"]);
+      expect(screen.queryByRole("columnheader", { name: /^State/ })).not.toBeInTheDocument();
+      expect(within(within(open).getAllByRole("cell")[2]).getByTestId("ipas-status-pill")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("tab", { name: /Cancelled/ }));
+      await waitFor(() => expect(within(screen.getByTestId("ipas-row")).getByText("P02002")).toBeInTheDocument());
+      expect(within(screen.getByTestId("ipas-row")).getAllByRole("cell")[2]).toHaveTextContent(/^Cancelled$/);
     });
 
     it("keeps a saved column choice, even when it shows everything", async () => {

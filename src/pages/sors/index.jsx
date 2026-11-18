@@ -65,6 +65,7 @@ import { useMediaQuery } from "../../hooks/useMediaQuery";
 import ColumnsMenu from "../../components/purchasing/list/ColumnsMenu";
 import HighlightText from "../../components/HighlightText";
 import { sorCodeOf, matchesSorSearch } from "../../utils/sorCode";
+import { cellsInOrder, shownColumns } from "../../utils/columnOrder";
 import { Building2, Users, Layers, Tag } from "lucide-react";
 import {
   Table,
@@ -89,7 +90,7 @@ const TH_ALIGN = {
  * A clickable register column header. Same interaction styling as
  * `TaskTableView` — cursor-pointer, hover:text-foreground, transition-colors —
  * but this table keeps its own px-2.5/py-2.5 padding: ten columns already
- * overflow the fixed layout, and wider gutters would push Status out of view.
+ * overflow the fixed layout, and wider gutters would push the last ones out of view.
  *
  * Lives at module scope, not inside the page component. A component declared
  * during render is a new type on every render, so React unmounts and remounts
@@ -128,19 +129,22 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", phone
   );
 }
 
-// The list's columns, in order. SOR is always shown; the others can be hidden
-// with the Columns picker. `w` is the column's width (px) in the fixed layout.
+// The list's columns, in order: the headings and each row's cells are both
+// drawn from this list, so moving a line here moves the column. SOR and Status
+// are always shown; the others can be hidden with the Columns picker. `w` is the
+// column's width (px) in the fixed layout and `width` the same as a class
+// (written out in full so Tailwind sees it); `phone` is its place on a phone card.
 const REGISTER_COLUMNS = [
-  { key: "serial_no", label: "SOR", w: 76, locked: true },
-  { key: "sales_reference", label: "Sales Ref.", w: 92 },
-  { key: "registration_date", label: "Date", w: 84 },
-  { key: "lead_source", label: "Lead Source", w: 112 },
-  { key: "client_name", label: "Company", w: 168 },
-  { key: "project_title", label: "Project", w: 176 },
-  { key: "expected_value", label: "Expected Value", w: 128 },
-  { key: "project_type", label: "Div.", w: 56 },
-  { key: "deal_owner", label: "Deal Owner", w: 120 },
-  { key: "status", label: "Status", w: 160, locked: true },
+  { key: "serial_no", label: "SOR", w: 76, width: "w-[76px]", phone: "meta", locked: true },
+  { key: "sales_reference", label: "Sales Ref.", w: 92, width: "w-[92px]", phone: "hide" },
+  { key: "status", label: "Status", w: 160, width: "w-[160px]", phone: "badge", locked: true },
+  { key: "registration_date", label: "Date", w: 84, width: "w-[84px]", phone: "hide" },
+  { key: "lead_source", label: "Lead Source", w: 112, width: "w-[112px]", phone: "hide" },
+  { key: "client_name", label: "Company", w: 168, width: "w-[168px]", phone: "title" },
+  { key: "project_title", label: "Project", w: 176, width: "w-[176px]", phone: "meta" },
+  { key: "expected_value", label: "Expected Value", w: 128, width: "w-[128px]", phone: "meta", align: "right" },
+  { key: "project_type", label: "Div.", w: 56, width: "px-2 w-[56px]", phone: "hide", align: "center" },
+  { key: "deal_owner", label: "Deal Owner", w: 120, width: "w-[120px]", phone: "meta" },
 ];
 const REGISTER_COLUMN_KEYS = REGISTER_COLUMNS.map((c) => c.key);
 // Below 1440px wide, someone who never chose columns starts without these two.
@@ -230,7 +234,7 @@ export default function OpportunitiesPage() {
     defaults: narrowScreen ? NARROW_HIDDEN_COLUMNS : [],
     known: REGISTER_COLUMN_KEYS,
   });
-  const showColumn = (key) => REGISTER_COLUMNS.find((c) => c.key === key)?.locked || columns.show(key);
+  const visibleColumns = shownColumns(REGISTER_COLUMNS, columns.show);
   // Who can read the register itself (`sor_read`). Everyone else, someone
   // called into an SOR from another team, gets only My work: the register's
   // list would come back empty for them.
@@ -646,7 +650,7 @@ export default function OpportunitiesPage() {
 
   const showLostReason = stageFilter === "LOST";
   const tableMinWidth =
-    REGISTER_COLUMNS.filter((c) => showColumn(c.key)).reduce((sum, c) => sum + c.w, 0) +
+    visibleColumns.reduce((sum, c) => sum + c.w, 0) +
     (showLostReason ? LOST_REASON_WIDTH : 0);
 
   const currentStageLabel =
@@ -1156,19 +1160,23 @@ export default function OpportunitiesPage() {
                       TaskTableView's — cursor-pointer hover:text-foreground
                       transition-colors — but the padding stays at this
                       table's own px-2.5/py-2.5: ten columns fill the 1120px the
-                      content gets at 1440 px, and px-4 gutters would push Status
-                      out of view. */}
+                      content gets at 1440 px, and px-4 gutters would push the
+                      last ones out of view. */}
                   <TableRow>
-                    {showColumn("serial_no") && <SortableTh field="serial_no" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">SOR</SortableTh>}
-                    {showColumn("sales_reference") && <SortableTh field="sales_reference" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[92px]">Sales Ref.</SortableTh>}
-                    {showColumn("registration_date") && <SortableTh field="registration_date" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>}
-                    {showColumn("lead_source") && <SortableTh field="lead_source" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[112px]">Lead Source</SortableTh>}
-                    {showColumn("client_name") && <SortableTh field="client_name" phone="title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[168px]">Company</SortableTh>}
-                    {showColumn("project_title") && <SortableTh field="project_title" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[176px]">Project</SortableTh>}
-                    {showColumn("expected_value") && <SortableTh field="expected_value" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[128px]">Expected Value</SortableTh>}
-                    {showColumn("project_type") && <SortableTh field="project_type" phone="hide" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[56px]">Div.</SortableTh>}
-                    {showColumn("deal_owner") && <SortableTh field="deal_owner" phone="meta" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[120px]">Deal Owner</SortableTh>}
-                    {showColumn("status") && <SortableTh field="status" phone="badge" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[160px]">Status</SortableTh>}
+                    {visibleColumns.map((c) => (
+                      <SortableTh
+                        key={c.key}
+                        field={c.key}
+                        phone={c.phone}
+                        align={c.align}
+                        sortField={sortField}
+                        sortOrder={sortOrder}
+                        onSort={handleSort}
+                        className={c.width}
+                      >
+                        {c.label}
+                      </SortableTh>
+                    ))}
                     {showLostReason && <TableHead className="w-[220px] px-2.5 py-2.5">Reason</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -1203,132 +1211,133 @@ export default function OpportunitiesPage() {
         }}
                         className="cursor-pointer outline-none focus-visible:bg-muted"
                       >
-                        {showColumn("serial_no") && (
-<TableCell className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
-                          <HighlightText text={sorCodeOf(o)} search={search} />
-                        </TableCell>
-)}
-{showColumn("sales_reference") && (
-                        <TableCell
-                          className="px-2.5 py-2.5 font-mono text-xs whitespace-nowrap truncate"
-                          title={o.sales_reference || ""}
-                        >
-                          {o.sales_reference ? (
-                            <HighlightText text={o.sales_reference} search={search} />
-                          ) : (
-                            <span className="text-muted-foreground/50">—</span>
-                          )}
-                        </TableCell>
-)}
-{showColumn("registration_date") && (
-                        <TableCell className="px-2.5 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
-                          {dateFormatted}
-                        </TableCell>
-)}
-{showColumn("lead_source") && (
-                        <TableCell
-                          className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
-                          title={leadSourceText}
-                        >
-                          <HighlightText text={leadSourceText} search={search} />
-                        </TableCell>
-)}
-{showColumn("client_name") && (
-                        <TableCell
-                          className="px-2.5 py-2.5 font-semibold text-xs truncate whitespace-nowrap"
-                          title={o.client_name}
-                        >
-                          <HighlightText text={o.client_name} search={search} />
-                        </TableCell>
-)}
-{showColumn("project_title") && (
-                        <TableCell
-                          className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
-                          title={o.project_title}
-                        >
-                          <HighlightText text={o.project_title} search={search} />
-                        </TableCell>
-)}
-{showColumn("expected_value") && (
-                        <TableCell className="px-2.5 py-2.5 text-right font-bold text-xs whitespace-nowrap">
-                          {formatPHP(o.expected_value)}
-                        </TableCell>
-)}
-{showColumn("project_type") && (
-                        <TableCell className="px-2 py-2.5 text-center text-xs font-bold text-muted-foreground whitespace-nowrap">
-                          {PROJECT_TYPE_SHORT[o.project_type] || o.project_type}
-                        </TableCell>
-)}
-{showColumn("deal_owner") && (
-                        <TableCell
-                          className="px-2.5 py-2.5 whitespace-nowrap"
-                          title={o.deal_owner?.name || ""}
-                        >
-                          {o.deal_owner ? (
-                            <span className="inline-flex items-center gap-1.5 max-w-full overflow-hidden">
-                              <Avatar
-                                name={o.deal_owner.name}
-                                src={o.deal_owner.avatar_path}
-                                size="xs"
-                              />
-                              <span className="text-xs font-semibold truncate">
-                                <HighlightText text={o.deal_owner.name} search={search} />
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/60">—</span>
-                          )}
-                        </TableCell>
-)}
-{showColumn("status") && (
-                        <TableCell className="px-2.5 py-2.5 whitespace-nowrap overflow-hidden">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            {(() => {
-                              const display = stageDisplay(o);
-                              return display.label ? (
-                                <StatusBadge
-                                  label={display.label}
-                                  status={display.code}
-                                  theme={display.tone}
-                                  className="min-w-0"
-                                  title={display.label}
-                                />
+                        {cellsInOrder(visibleColumns, {
+                          serial_no: () => (
+                            <TableCell className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
+                              <HighlightText text={sorCodeOf(o)} search={search} />
+                            </TableCell>
+                          ),
+                          sales_reference: () => (
+                            <TableCell
+                              className="px-2.5 py-2.5 font-mono text-xs whitespace-nowrap truncate"
+                              title={o.sales_reference || ""}
+                            >
+                              {o.sales_reference ? (
+                                <HighlightText text={o.sales_reference} search={search} />
                               ) : (
-                                <span className="text-muted-foreground/50 text-xs">—</span>
-                              );
-                            })()}
-                            {blockedDeals[o.id]?.length > 0 && (
-                              <span
-                                title={`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}
-                                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
-                              >
-                                <AlertTriangle size={10} aria-hidden="true" />
-                                <span className="sr-only">{`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}</span>
-                              </span>
-                            )}
-                            {/* Deadline kind (ticket 7, story 26) — deadlines
-                                never block, so this is informational only,
-                                separate from the "Blocked" badge above. */}
-                            {deadline?.isBreached && (
-                              <span
-                                title={`Deadline passed: “${deadline.condition.label}”`}
-                                className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
-                              >
-                                <Clock size={10} />
-                              </span>
-                            )}
-                            {deadline && !deadline.isBreached && deadline.isApproaching && (
-                              <span
-                                title={`“${deadline.condition.label}” — ${pluralize(deadline.daysRemaining, "day")} left`}
-                                className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400"
-                              >
-                                <Clock size={10} />
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        
-)}
+                                <span className="text-muted-foreground/50">—</span>
+                              )}
+                            </TableCell>
+                          ),
+                          status: () => (
+                            <TableCell className="px-2.5 py-2.5 whitespace-nowrap overflow-hidden">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {(() => {
+                                  const display = stageDisplay(o);
+                                  return display.label ? (
+                                    <StatusBadge
+                                      label={display.label}
+                                      status={display.code}
+                                      theme={display.tone}
+                                      className="min-w-0"
+                                      title={display.label}
+                                    />
+                                  ) : (
+                                    <span className="text-muted-foreground/50 text-xs">—</span>
+                                  );
+                                })()}
+                                {blockedDeals[o.id]?.length > 0 && (
+                                  <span
+                                    title={`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}
+                                    className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
+                                  >
+                                    <AlertTriangle size={10} aria-hidden="true" />
+                                    <span className="sr-only">{`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}</span>
+                                  </span>
+                                )}
+                                {/* Deadline kind (ticket 7, story 26) — deadlines
+                                    never block, so this is informational only,
+                                    separate from the "Blocked" badge above. */}
+                                {deadline?.isBreached && (
+                                  <span
+                                    title={`Deadline passed: “${deadline.condition.label}”`}
+                                    className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
+                                  >
+                                    <Clock size={10} />
+                                  </span>
+                                )}
+                                {deadline && !deadline.isBreached && deadline.isApproaching && (
+                                  <span
+                                    title={`“${deadline.condition.label}” — ${pluralize(deadline.daysRemaining, "day")} left`}
+                                    className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400"
+                                  >
+                                    <Clock size={10} />
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                          ),
+                          registration_date: () => (
+                            <TableCell className="px-2.5 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
+                              {dateFormatted}
+                            </TableCell>
+                          ),
+                          lead_source: () => (
+                            <TableCell
+                              className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
+                              title={leadSourceText}
+                            >
+                              <HighlightText text={leadSourceText} search={search} />
+                            </TableCell>
+                          ),
+                          client_name: () => (
+                            <TableCell
+                              className="px-2.5 py-2.5 font-semibold text-xs truncate whitespace-nowrap"
+                              title={o.client_name}
+                            >
+                              <HighlightText text={o.client_name} search={search} />
+                            </TableCell>
+                          ),
+                          project_title: () => (
+                            <TableCell
+                              className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
+                              title={o.project_title}
+                            >
+                              <HighlightText text={o.project_title} search={search} />
+                            </TableCell>
+                          ),
+                          expected_value: () => (
+                            <TableCell className="px-2.5 py-2.5 text-right font-bold text-xs whitespace-nowrap">
+                              {formatPHP(o.expected_value)}
+                            </TableCell>
+                          ),
+                          project_type: () => (
+                            <TableCell className="px-2 py-2.5 text-center text-xs font-bold text-muted-foreground whitespace-nowrap">
+                              {PROJECT_TYPE_SHORT[o.project_type] || o.project_type}
+                            </TableCell>
+                          ),
+                          deal_owner: () => (
+                            <TableCell
+                              className="px-2.5 py-2.5 whitespace-nowrap"
+                              title={o.deal_owner?.name || ""}
+                            >
+                              {o.deal_owner ? (
+                                <span className="inline-flex items-center gap-1.5 max-w-full overflow-hidden">
+                                  <Avatar
+                                    name={o.deal_owner.name}
+                                    src={o.deal_owner.avatar_path}
+                                    size="xs"
+                                  />
+                                  <span className="text-xs font-semibold truncate">
+                                    <HighlightText text={o.deal_owner.name} search={search} />
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/60">—</span>
+                              )}
+                            </TableCell>
+                          ),
+                        })}
                         {showLostReason && (
                           <TableCell className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap" title={formatLostReason(o)}>
                             {formatLostReason(o) || <span className="text-muted-foreground/50">—</span>}
