@@ -168,7 +168,8 @@ export default function FilterBar({
           trigger={trigger}
         >
           {(api) => (
-            <div className="flex w-[min(90vw,560px)] flex-col gap-2.5 p-2">{body(api)}</div>
+            // The popover is height-capped and clips its overflow, so the body scrolls rather than losing its last filter.
+            <div className="custom-scrollbar flex min-h-0 w-[min(90vw,560px)] flex-col gap-2.5 overflow-y-auto p-2">{body(api)}</div>
           )}
         </Dropdown>
       )}

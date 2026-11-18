@@ -330,8 +330,11 @@ export default function SideNav() {
               (above the avatar on the rail) so it never overlaps the profile. */}
           <div className={`flex items-center gap-1.5 ${collapsed ? "md:flex-col-reverse" : ""}`}>
           <div className="flex-1 min-w-0 w-full">
+            {/* Portalled: the rail is only 68px wide and scrolls, so an in-place menu is cut off by it and by the page beside it. */}
             <Dropdown
               className="flex-1 min-w-0"
+              usePortal
+              matchTriggerWidth={false}
               trigger={({ isOpen }) => (
                 <div
                   className={`flex items-center gap-2.5 px-3 py-2 laptop:py-1 rounded-lg transition-all ${collapsed ? "md:justify-center md:px-0" : "justify-between"} ${isOpen ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50"

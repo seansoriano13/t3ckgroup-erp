@@ -102,6 +102,8 @@ describe("Meeting Request from the Calendar page", () => {
     await screen.findByTestId("calendar-month");
     if (!screen.queryByTestId(`day-${tomorrow}`)) await user.click(screen.getByRole("button", { name: "Next month" }));
     await user.click(await screen.findByTestId(`day-${tomorrow}`));
+    // A day click only picks the day; the panel opens from the toolbar's day button.
+    await user.click(await screen.findByRole("button", { name: /^[A-Z][a-z]{2} · [A-Z][a-z]{2} \d+/ }));
     const rooms = within(await screen.findByTestId("day-rail")).getByRole("region", { name: "Rooms" });
     expect(await within(rooms).findByText("Quarterly planning")).toHaveClass("italic");
     expect(within(rooms).getByText("Waiting for head")).toBeInTheDocument();

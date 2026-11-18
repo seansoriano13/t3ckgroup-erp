@@ -1395,6 +1395,15 @@ create table if not exists public."request_canvasses" (
   "updated_at" timestamp with time zone not null default now()
 );
 
+create table if not exists public."request_units" (
+  "id" uuid not null default gen_random_uuid(),
+  "label" text not null,
+  "sort" integer not null default 0,
+  "active" boolean not null default true,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."retail_orders" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default now(),
@@ -2116,6 +2125,7 @@ alter table request_canvass_supplier_prices add constraint "request_canvass_supp
 alter table request_canvass_suppliers add constraint "request_canvass_suppliers_pkey" PRIMARY KEY (id);
 alter table request_canvass_winners add constraint "request_canvass_winners_pkey" PRIMARY KEY (item_id);
 alter table request_canvasses add constraint "request_canvasses_pkey" PRIMARY KEY (id);
+alter table request_units add constraint "request_units_pkey" PRIMARY KEY (id);
 alter table retail_orders add constraint "retail_orders_pkey" PRIMARY KEY (id);
 alter table revenue_activity_logs add constraint "revenue_activity_logs_pkey" PRIMARY KEY (id);
 alter table sale_types add constraint "sale_types_pkey" PRIMARY KEY (id);
@@ -2429,6 +2439,7 @@ alter table request_canvass_quote_prices add constraint "request_canvass_quote_p
 alter table request_canvass_supplier_prices add constraint "request_canvass_supplier_prices_rate_chk" CHECK (((comparison_rate IS NULL) OR (comparison_rate > (0)::numeric)));
 alter table request_canvass_suppliers add constraint "request_canvass_suppliers_currency_chk" CHECK ((currency ~ '^[A-Z]{3}$'::text));
 alter table request_canvass_suppliers add constraint "request_canvass_suppliers_name_chk" CHECK ((length(btrim(supplier_name)) > 0));
+alter table request_units add constraint "request_units_label_chk" CHECK (((btrim(label) <> ''::text) AND (char_length(label) <= 24)));
 alter table retail_orders add constraint "retail_orders_source_check" CHECK ((source = ANY (ARRAY['sync'::text, 'queue'::text, 'sor'::text])));
 alter table sale_types add constraint "sale_types_name_not_blank" CHECK ((btrim(name) <> ''::text));
 alter table sales_flows add constraint "sales_flows_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'locked'::text])));
@@ -2955,6 +2966,8 @@ CREATE INDEX request_canvass_quotes_canvass_idx ON public.request_canvass_quotes
 CREATE INDEX request_canvass_quotes_item_idx ON public.request_canvass_quotes USING btree (item_id);
 CREATE INDEX request_canvass_suppliers_canvass_idx ON public.request_canvass_suppliers USING btree (canvass_id, sort_order);
 CREATE UNIQUE INDEX request_canvass_suppliers_name_key ON public.request_canvass_suppliers USING btree (canvass_id, lower(btrim(supplier_name)));
+CREATE UNIQUE INDEX request_units_label_key ON public.request_units USING btree (lower(btrim(label)));
+CREATE INDEX request_units_sort_idx ON public.request_units USING btree (sort);
 CREATE INDEX retail_orders_ordered_at_idx ON public.retail_orders USING btree (ordered_at DESC);
 CREATE UNIQUE INDEX sale_types_live_name_key ON public.sale_types USING btree (lower(btrim(name))) WHERE (archived_at IS NULL);
 CREATE UNIQUE INDEX sale_types_system_key_key ON public.sale_types USING btree (system_key) WHERE (system_key IS NOT NULL);
@@ -3130,6 +3143,7 @@ alter table public."request_canvass_supplier_prices" enable row level security;
 alter table public."request_canvass_suppliers" enable row level security;
 alter table public."request_canvass_winners" enable row level security;
 alter table public."request_canvasses" enable row level security;
+alter table public."request_units" enable row level security;
 alter table public."retail_orders" enable row level security;
 alter table public."revenue_activity_logs" enable row level security;
 alter table public."sale_types" enable row level security;
@@ -4502,6 +4516,22 @@ create policy "request_canvasses_update" on public."request_canvasses"
   to authenticated
   using ((canvass_can_write() AND canvass_request_can_read(request_id)))
   with check ((canvass_can_write() AND canvass_request_can_read(request_id)));
+create policy "request_units_insert" on public."request_units"
+  as permissive
+  for insert
+  to authenticated
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
+create policy "request_units_read" on public."request_units"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "request_units_update" on public."request_units"
+  as permissive
+  for update
+  to authenticated
+  using ((has_purchasing_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
 create policy "Retail handlers can view retail orders" on public."retail_orders"
   as permissive
   for select
@@ -23659,6 +23689,32 @@ begin
 end
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.request_units_keep_one()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.active = false and old.active
+     and not exists (select 1 from public.request_units u where u.active and u.id <> new.id) then
+    raise exception 'request_units: at least one unit must stay on' using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.request_units_touch()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  new.updated_at := now();
+  new.label := btrim(new.label);
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.resend_meeting_request(p_request_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -31464,6 +31520,8 @@ CREATE TRIGGER trg_request_canvass_winners_fill AFTER INSERT OR UPDATE ON public
 CREATE TRIGGER trg_request_canvass_winners_guard BEFORE INSERT OR DELETE OR UPDATE ON public.request_canvass_winners FOR EACH ROW EXECUTE FUNCTION request_canvass_winners_guard();
 CREATE TRIGGER trg_request_canvasses_assign_number BEFORE INSERT ON public.request_canvasses FOR EACH ROW EXECUTE FUNCTION request_canvasses_assign_number();
 CREATE TRIGGER trg_request_canvasses_keep_number BEFORE UPDATE ON public.request_canvasses FOR EACH ROW EXECUTE FUNCTION request_canvasses_keep_number();
+CREATE TRIGGER request_units_keep_one BEFORE UPDATE ON public.request_units FOR EACH ROW EXECUTE FUNCTION request_units_keep_one();
+CREATE TRIGGER request_units_touch BEFORE INSERT OR UPDATE ON public.request_units FOR EACH ROW EXECUTE FUNCTION request_units_touch();
 CREATE TRIGGER retail_orders_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION retail_orders_broadcast_change();
 CREATE TRIGGER trg_retail_orders_updated_at BEFORE UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION set_retail_orders_updated_at();
 CREATE TRIGGER purchase_request_sor_status_notify AFTER UPDATE OF is_deleted, flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION _purchase_request_sor_status_notify();

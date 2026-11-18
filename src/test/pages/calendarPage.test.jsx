@@ -89,11 +89,12 @@ describe("Calendar page", () => {
     expect(within(within(rail).getByRole("region", { name: "Overtime" })).getByText("Cara Tan")).toBeInTheDocument();
   });
 
-  it("moves the rail to the day that is clicked", async () => {
+  it("moves the rail to the day that is clicked, without opening the panel by itself", async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByTestId(`day-${nextDay}`));
-    const out = within(await screen.findByTestId("day-rail")).getByRole("region", { name: "Out of office" });
+    expect(screen.queryByTestId("day-rail")).toBeNull();
+    const out = within(await openDayPanel(user)).getByRole("region", { name: "Out of office" });
     expect(within(out).getByText("Dino Uy")).toBeInTheDocument();
     expect(within(out).queryByText("Ana Cruz")).toBeNull();
   });
