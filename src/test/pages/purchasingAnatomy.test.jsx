@@ -158,6 +158,9 @@ const LISTS = [
     pills: ["Open", "Filed", "Cancelled", "All"],
     counts: { Open: 1, All: 1 },
     noun: "IPAS",
+    // No State column: the pills already say Open, Filed or Cancelled, and the IPAS Status
+    // sits beside the PO number (a cancelled IPAS says Cancelled there).
+    skip: ["state"],
     seed() {
       const buyer = makeEmployee({ name: "Pia Buyer", department: "OPERATIONS", has_purchasing_flow: true })
       db.seed("ipas", {
@@ -178,7 +181,7 @@ const LISTS = [
         },
       })
       stubIpasRpcs({ actorId: buyer.id })
-      return { employee: buyer, reference: "TGIPAS_049", name: "Scorpe Technologies", state: "Open" }
+      return { employee: buyer, reference: "TGIPAS_049", name: "Scorpe Technologies" }
     },
   },
   {

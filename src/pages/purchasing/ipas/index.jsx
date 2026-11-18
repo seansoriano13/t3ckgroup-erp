@@ -29,6 +29,7 @@ import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView } from "../../../utils/ipasList
 import ExportButton from "../../../components/purchasing/list/ExportButton";
 import ColumnsMenu from "../../../components/purchasing/list/ColumnsMenu";
 import { useHiddenColumns } from "../../../hooks/useHiddenColumns";
+import { shownColumns } from "../../../utils/columnOrder";
 import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -58,7 +59,7 @@ const CHIP_WRAPPER = "w-auto shrink-0";
 const ALL = "__all__";
 
 // Supplier, Entity, Project / SO, Raised, Raised by and the payment columns hide below md so the number, Purpose,
-// Costing, Amount, Remaining balance and State stay in view.
+// Costing, Amount, Remaining balance and Status stay in view.
 const NARROW_HIDDEN = new Set(["Entity", "Project / SO", "Raised", "Raised by", "Payment scheme", "DP", "FP"]);
 // The sheet's money columns (#596): worked out by the IPAS figures, in each PO's currency.
 const MONEY_HEADINGS = ["Amount", "Payment scheme", "DP", "FP", "Remaining balance"];
@@ -79,8 +80,8 @@ const IPAS_SORT = {
   dp: (r) => r.figures.downPayment,
   fp: (r) => r.figures.fullPayment,
   "remaining-balance": (r) => r.figures.remainingBalance,
+  // A cancelled IPAS has no IPAS Status (its cell says Cancelled): it sorts after every status.
   status: (r) => (r.figures.status ? IPAS_STATUSES.indexOf(r.figures.status) : IPAS_STATUSES.length),
-  state: (r) => r.state,
 };
 
 const STATUS_OPTIONS = [
@@ -106,10 +107,14 @@ const VIEW_OPTIONS = [
 
 const slug = (heading) => heading.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-// Every column of the list, in order. The IPAS number is always shown; the rest can be hidden with the column picker.
+// Every column of the list, in order: the headings and each row's cells are both drawn from this list, so moving a
+// line here moves the column. The IPAS number is always shown; the rest can be hidden with the column picker.
+// There is no State column: the Open, Filed and Cancelled tabs already say it, Done means filed, and a cancelled
+// IPAS says Cancelled in its Status cell.
 const LIST_HEADINGS = [
   "IPAS",
   "Odoo PO",
+  "Status",
   "Entity",
   "Purpose",
   "Costing",
@@ -117,8 +122,6 @@ const LIST_HEADINGS = [
   "Raised",
   "Raised by",
   ...MONEY_HEADINGS,
-  "Status",
-  "State",
 ];
 const LOCKED_HEADING = "IPAS";
 // Someone who has never chosen columns starts without these three; a saved choice (even "show all") is kept.
@@ -126,7 +129,7 @@ const DEFAULT_HIDDEN_COLUMNS = ["raised-by", "dp", "fp"];
 // In the laptop band (ADR 0051) Purpose and Costing start hidden too, so Project / SO fits.
 const LAPTOP_HIDDEN_COLUMNS = [...DEFAULT_HIDDEN_COLUMNS, "purpose", "costing"];
 // A column's place on a phone card (Table `stackOnPhone`); a heading not listed is hidden there.
-const PHONE_ROLE = { IPAS: "title", State: "badge", "Odoo PO": "meta", Purpose: "meta", Amount: "meta" };
+const PHONE_ROLE = { IPAS: "title", Status: "badge", "Odoo PO": "meta", Purpose: "meta", Amount: "meta" };
 
 const COLUMNS = LIST_HEADINGS.map((heading) => ({ key: slug(heading), label: heading, locked: heading === LOCKED_HEADING }));
 const KNOWN_COLUMN_KEYS = COLUMNS.map((column) => column.key);
@@ -152,7 +155,7 @@ function IpasList() {
     defaults: inLaptopBand ? LAPTOP_HIDDEN_COLUMNS : DEFAULT_HIDDEN_COLUMNS,
     known: KNOWN_COLUMN_KEYS,
   });
-  const { show } = columns;
+  const visibleColumns = shownColumns(COLUMNS, columns.show);
 
   const { data: listed = [], isLoading, isError, refetch } = useQuery({
     queryKey: ipasListKey,
@@ -330,17 +333,17 @@ function IpasList() {
               <Table tableId="ipas" resetAbove stackOnPhone className="md:min-w-[60rem]">
                 <TableHeader>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    {LIST_HEADINGS.filter((heading) => heading === LOCKED_HEADING || show(slug(heading))).map((heading) => (
+                    {visibleColumns.map(({ key, label }) => (
                       <SortHead
-                        key={heading}
-                        id={slug(heading)}
-                        phone={PHONE_ROLE[heading] ?? "hide"}
-                        sortKey={slug(heading)}
+                        key={key}
+                        id={key}
+                        phone={PHONE_ROLE[label] ?? "hide"}
+                        sortKey={key}
                         sort={sort}
                         onSort={toggle}
-                        className={`${HEAD} ${heading === "State" || MONEY_RIGHT.has(heading) ? "text-right" : ""} ${NARROW_HIDDEN.has(heading) ? "hidden md:table-cell" : ""}`}
+                        className={`${HEAD} ${MONEY_RIGHT.has(label) ? "text-right" : ""} ${NARROW_HIDDEN.has(label) ? "hidden md:table-cell" : ""}`}
                       >
-                        {heading}
+                        {label}
                       </SortHead>
                     ))}
                   </TableRow>
@@ -351,7 +354,7 @@ function IpasList() {
                       key={row.id}
                       row={row}
                       search={search}
-                      show={show}
+                      columns={visibleColumns}
                       onOpen={(id) => navigate(`/purchasing/ipas/${id}`)}
                     />
                   ))}
