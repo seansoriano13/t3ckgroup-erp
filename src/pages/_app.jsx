@@ -75,18 +75,17 @@ export default function AppLayout() {
       <ChangelogModal />
 
       <main className="flex-1 flex flex-col min-w-0 bg-background md:my-2 md:mr-2 md:ml-2 md:rounded-2xl border-l md:border border-border shadow-sm overflow-hidden relative z-10 transition-transform">
-        {isFullBleed ? (
-          <div className="flex-1 min-h-0 overflow-hidden">
+        {/* One tree for both shapes, so the page keeps its place when the frame flips (Calendar
+            full screen does that while the page is open). Two different trees remounted the page,
+            and the Calendar's own hook ends full screen when it unmounts: the button did nothing.
+            `contents` gives the full-bleed shape no box of its own, so the page sits directly in
+            the frame as before. */}
+        <div className={isFullBleed ? "flex-1 min-h-0 overflow-hidden" : "flex-1 overflow-y-auto custom-scrollbar"}>
+          <div className={isFullBleed ? "contents" : "wrapper pt-4 px-4 md:pt-6 md:px-6 laptop:pt-4"}>
+            {!isFullBleed && <IssuedPasswordBanner />}
             <Outlet />
           </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div className="wrapper pt-4 px-4 md:pt-6 md:px-6 laptop:pt-4">
-              <IssuedPasswordBanner />
-              <Outlet />
-            </div>
-          </div>
-        )}
+        </div>
       </main>
     </div>
   );
