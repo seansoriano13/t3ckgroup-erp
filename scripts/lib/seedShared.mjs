@@ -185,6 +185,8 @@ export const SEED_EXCLUDED_TABLES = {
     "Meeting Requests (#619) are transactional bookings tied to real people and dates. A local stack files its own.",
   meeting_request_participants:
     "Belongs to meeting_requests, which the seed leaves out.",
+  request_units:
+    "The Unit dropdown list of a Purchasing Request. The migration inserts the nine starting units itself, so a seed would only replace them with whatever the remote held.",
   meeting_request_events:
     "The history of meeting_requests, which the seed leaves out.",
   activity_type_settings:
