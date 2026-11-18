@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
-import { formatManilaDateTime, manilaTime } from '../lib/manilaDate.js';
+import { formatManilaDateTime, formatManilaTime, manilaTime } from '../lib/manilaDate.js';
 
 /**
  * Activities (#619, #1055; the table and functions keep the old meeting_requests names).
@@ -87,7 +87,7 @@ export function requestDays(request) {
 export function activityWhen(request) {
   const days = requestDays(request);
   if (days.length > 1) return `${formatManilaDateTime(days[0].starts_at)} to ${formatManilaDateTime(days[days.length - 1].ends_at)}`;
-  return `${formatManilaDateTime(request.starts_at)} to ${manilaTime(request.ends_at)}`;
+  return `${formatManilaDateTime(request.starts_at)} to ${formatManilaTime(request.ends_at)}`;
 }
 
 /** The start of the last day: an Activity can still be changed or cancelled while this is ahead. */

@@ -79,6 +79,8 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const times = useMemo(() => timeOptions(rules), [rules]);
   const meetingTypeKeys = enabledMeetingTypes(rules);
 
+  // Once Send is pressed the new entry reaches this form's own preview (realtime refresh), and would show as a clash with itself. The preview stops refetching from then on.
+  const [sending, setSending] = useState(false);
   const [activityType, setActivityType] = useState(editing?.activity_type ?? ACTIVITY_TYPE.MEETING);
   const [meetingType, setMeetingType] = useState(editing?.meeting_type ?? (meetingTypeKeys.includes(MEETING_TYPE.ONSITE) ? MEETING_TYPE.ONSITE : meetingTypeKeys[0] ?? MEETING_TYPE.ONSITE));
   const [meetingLink, setMeetingLink] = useState(editing?.meeting_link ?? '');
@@ -134,7 +136,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const { data: rangeAll = [] } = useQuery({
     queryKey: ['meeting-requests', 'form-range', date, rangeEnd],
     queryFn: () => calendarService.fetchEntries({ from: date, to: rangeEnd }),
-    enabled: dateOk,
+    enabled: dateOk && !sending,
   });
   // Editing: the request's own slot is not a clash with itself.
   const rangeEntries = useMemo(() => (editing ? rangeAll.filter((e) => (e.group_id ?? e.id) !== editing.id) : rangeAll), [rangeAll, editing]);
@@ -166,6 +168,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   };
 
   const mutation = useMutation({
+    onMutate: () => setSending(true),
     mutationFn: async () => {
       if (editing) {
         const saved = await meetingRequestService.editRequest({
@@ -207,7 +210,10 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       queryClient.invalidateQueries({ queryKey: ['meeting-requests'] });
       onClose(true);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      setSending(false);
+      toast.error(err.message);
+    },
   });
 
   return (

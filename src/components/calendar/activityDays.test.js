@@ -65,6 +65,6 @@ describe('Activity range days (#1056)', () => {
     expect(requestDays(request).map((d) => d.starts_at)[0]).toBe('2031-03-14T01:00:00.000Z');
     expect(activityWhen(request)).toBe('Mar 14, 2031 · 9:00 AM to Mar 16, 2031 · 11:00 AM');
     expect(lastDayStart(request)).toBe('2031-03-16T01:00:00.000Z');
-    expect(activityWhen({ starts_at: request.starts_at, ends_at: '2031-03-14T02:00:00.000Z' })).toBe('Mar 14, 2031 · 9:00 AM to 10:00');
+    expect(activityWhen({ starts_at: request.starts_at, ends_at: '2031-03-14T02:00:00.000Z' })).toBe('Mar 14, 2031 · 9:00 AM to 10:00 AM');
   });
 });
