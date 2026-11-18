@@ -14,7 +14,8 @@ import Spinner from "@/components/ui/Spinner";
 import { AttachmentPreviews } from "@/components/ui/Attachments";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
-import { REQUEST_PURPOSES, REQUEST_UNITS } from "../../constants/procurement";
+import { REQUEST_PURPOSES } from "../../constants/procurement";
+import { useRequestUnits } from "../../hooks/useRequestUnits";
 import { purchaseRequestKeys } from "./queryKeys";
 import { useRefreshRequest } from "./requestHooks";
 import { OVER_REQUEST_MODAL } from "./stacking";
@@ -25,7 +26,8 @@ const refusal = (error) => (error?.message || "Something went wrong.").replace(/
 const blankProduct = () => ({
   name: "",
   quantity: "1",
-  unit: "unit",
+  // Empty until someone picks one; empty means the list's first unit (see useRequestUnits).
+  unit: "",
   description: "",
   purpose: "client",
 });
@@ -36,6 +38,7 @@ const blankProduct = () => ({
 export function NewProductDialog({ open, onOpenChange, requestId }) {
   const refresh = useRefreshRequest(requestId);
   const [product, setProduct] = useState(blankProduct);
+  const { options: unitOptions, defaultUnit } = useRequestUnits();
   const attachments = useFileAttachments();
   const fileRef = useRef(null);
   const set = (key) => (value) => setProduct((prev) => ({ ...prev, [key]: value }));
@@ -61,7 +64,7 @@ export function NewProductDialog({ open, onOpenChange, requestId }) {
       const fields = {
         name: product.name.trim(),
         quantity,
-        unit: product.unit,
+        unit: product.unit || defaultUnit,
         description: product.description.trim(),
         images: await attachments.upload(),
         purpose: product.purpose,
@@ -124,8 +127,8 @@ export function NewProductDialog({ open, onOpenChange, requestId }) {
             </FieldBox>
             <FieldBox bare label="Unit">
               <SelectField
-                options={REQUEST_UNITS.map((u) => ({ value: u, label: u }))}
-                value={product.unit}
+                options={unitOptions}
+                value={product.unit || defaultUnit}
                 onChange={set("unit")}
               />
             </FieldBox>
