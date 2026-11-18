@@ -2371,7 +2371,6 @@ alter table meeting_requests add constraint "meeting_requests_end_after_start" C
 alter table meeting_requests add constraint "meeting_requests_guest_emails_aligned" CHECK ((COALESCE(array_length(guest_emails, 1), 0) = COALESCE(array_length(guests, 1), 0)));
 alter table meeting_requests add constraint "meeting_requests_link_not_blank" CHECK (((meeting_link IS NULL) OR (btrim(meeting_link) <> ''::text)));
 alter table meeting_requests add constraint "meeting_requests_quarter_hours" CHECK (((mod((EXTRACT(epoch FROM starts_at))::bigint, (900)::bigint) = 0) AND (mod((EXTRACT(epoch FROM ends_at))::bigint, (900)::bigint) = 0)));
-alter table meeting_requests add constraint "meeting_requests_same_manila_day" CHECK (((activity_type <> 'MEETING'::text) OR (((starts_at AT TIME ZONE 'Asia/Manila'::text))::date = ((ends_at AT TIME ZONE 'Asia/Manila'::text))::date)));
 alter table meeting_requests add constraint "meeting_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING_HEAD'::text, 'PENDING_HR'::text, 'RETURNED'::text, 'APPROVED'::text, 'DECLINED'::text, 'CANCELLED'::text])));
 alter table meeting_requests add constraint "meeting_requests_type_check" CHECK (((meeting_type IS NULL) OR (meeting_type = ANY (ARRAY['ONSITE'::text, 'ONLINE'::text, 'HYBRID'::text]))));
 alter table meeting_requests add constraint "meeting_requests_type_rules" CHECK (
@@ -2827,8 +2826,8 @@ alter table undertime_requests add constraint "undertime_requests_printed_by_fke
 alter table ipas add constraint "ipas_sor_rule_on_ipas" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table ipas_sors add constraint "ipas_sor_rule_on_sors" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table meeting_request_days add constraint "meeting_request_days_meeting_check" TRIGGER DEFERRABLE INITIALLY DEFERRED;
-alter table meeting_requests add constraint "meeting_requests_meeting_days_check" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table meeting_request_days add constraint "meeting_request_days_venue_clash" TRIGGER DEFERRABLE INITIALLY DEFERRED;
+alter table meeting_requests add constraint "meeting_requests_meeting_days_check" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table meeting_requests add constraint "meeting_requests_venue_clash" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 
 -- ============================================================
@@ -8099,8 +8098,7 @@ $function$
 CREATE OR REPLACE FUNCTION public.activity_can_file(p_employee_id uuid, p_activity_type text)
  RETURNS boolean
  LANGUAGE sql
- STABLE
- SECURITY DEFINER
+ STABLE SECURITY DEFINER
  SET search_path TO ''
 AS $function$
   select case
@@ -8116,7 +8114,7 @@ AS $function$
   end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.activity_days_normalize(p_days jsonb, p_activity_type text, p_starts_at timestamptz, p_ends_at timestamptz)
+CREATE OR REPLACE FUNCTION public.activity_days_normalize(p_days jsonb, p_activity_type text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone)
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE
@@ -8221,19 +8219,17 @@ $function$
 CREATE OR REPLACE FUNCTION public.activity_is_approver(p_employee_id uuid)
  RETURNS boolean
  LANGUAGE sql
- STABLE
- SECURITY DEFINER
+ STABLE SECURITY DEFINER
  SET search_path TO ''
 AS $function$
   select coalesce((select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false)
                    from public.employees e where e.id = p_employee_id), false);
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.activity_needs_hr(p_activity_type text, p_venue_id uuid, p_filer_id uuid DEFAULT null)
+CREATE OR REPLACE FUNCTION public.activity_needs_hr(p_activity_type text, p_venue_id uuid, p_filer_id uuid DEFAULT NULL::uuid)
  RETURNS boolean
  LANGUAGE sql
- STABLE
- SECURITY DEFINER
+ STABLE SECURITY DEFINER
  SET search_path TO ''
 AS $function$
   select coalesce((
@@ -8243,11 +8239,10 @@ AS $function$
      and not public.activity_is_approver(p_filer_id);
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.activity_settings_check(p_activity_type text, p_meeting_type text, p_guests text[], p_old_activity_type text DEFAULT null, p_old_meeting_type text DEFAULT null, p_old_guests text[] DEFAULT null)
+CREATE OR REPLACE FUNCTION public.activity_settings_check(p_activity_type text, p_meeting_type text, p_guests text[], p_old_activity_type text DEFAULT NULL::text, p_old_meeting_type text DEFAULT NULL::text, p_old_guests text[] DEFAULT NULL::text[])
  RETURNS void
  LANGUAGE plpgsql
- STABLE
- SECURITY DEFINER
+ STABLE SECURITY DEFINER
  SET search_path TO ''
 AS $function$
 declare
@@ -8276,8 +8271,7 @@ $function$
 CREATE OR REPLACE FUNCTION public.activity_type_phrase(p_activity_type text)
  RETURNS text
  LANGUAGE sql
- STABLE
- SECURITY DEFINER
+ STABLE SECURITY DEFINER
  SET search_path TO ''
 AS $function$
   select coalesce((select t.name from public.activity_type_settings t where t.activity_type = p_activity_type), 'this Activity type');
@@ -8607,8 +8601,7 @@ $function$
 CREATE OR REPLACE FUNCTION public.can_manage_activity_settings()
  RETURNS boolean
  LANGUAGE sql
- STABLE
- SECURITY DEFINER
+ STABLE SECURITY DEFINER
  SET search_path TO ''
 AS $function$
   select coalesce(
@@ -14230,7 +14223,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.edit_meeting_request(p_request_id uuid, p_venue_id uuid, p_starts_at timestamptz, p_ends_at timestamptz, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}', p_participant_ids uuid[] DEFAULT '{}', p_head_id uuid DEFAULT null, p_meeting_type text DEFAULT null, p_meeting_link text DEFAULT null, p_guest_emails text[] DEFAULT '{}', p_activity_type text DEFAULT null, p_days jsonb DEFAULT null)
+CREATE OR REPLACE FUNCTION public.edit_meeting_request(p_request_id uuid, p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT NULL::text, p_days jsonb DEFAULT NULL::jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -14483,7 +14476,7 @@ AS $function$
     );
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamptz, p_ends_at timestamptz, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}', p_participant_ids uuid[] DEFAULT '{}', p_head_id uuid DEFAULT null, p_meeting_type text DEFAULT null, p_meeting_link text DEFAULT null, p_guest_emails text[] DEFAULT '{}', p_activity_type text DEFAULT 'MEETING', p_days jsonb DEFAULT null)
+CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT 'MEETING'::text, p_days jsonb DEFAULT NULL::jsonb)
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -20146,11 +20139,10 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.meeting_request_holder(p_venue_id uuid, p_starts_at timestamptz, p_ends_at timestamptz, p_exclude_id uuid DEFAULT null, p_days jsonb DEFAULT null)
- RETURNS table (id uuid, purpose text, starts_at timestamptz, ends_at timestamptz, applicant_name text, venue_name text)
+CREATE OR REPLACE FUNCTION public.meeting_request_holder(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_exclude_id uuid DEFAULT NULL::uuid, p_days jsonb DEFAULT NULL::jsonb)
+ RETURNS TABLE(id uuid, purpose text, starts_at timestamp with time zone, ends_at timestamp with time zone, applicant_name text, venue_name text)
  LANGUAGE sql
- STABLE
- SECURITY DEFINER
+ STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
   with wanted as (
