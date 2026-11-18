@@ -26,7 +26,7 @@ function Row({ name, cols, children, gridClassName, gridStyle, testId }) {
       >
         {name}
       </div>
-      <div className={cn('grid flex-1', gridClassName)} style={{ gridTemplateColumns: cols, ...gridStyle }}>
+      <div className={cn('grid min-w-0 flex-1', gridClassName)} style={{ gridTemplateColumns: cols, ...gridStyle }}>
         {children}
       </div>
     </div>
@@ -44,7 +44,7 @@ function DayHeader({ days, cols, todayYmd, out, compact }) {
       >
         People out each day
       </div>
-      <div className="grid flex-1" style={{ gridTemplateColumns: cols }}>
+      <div className="grid min-w-0 flex-1" style={{ gridTemplateColumns: cols }}>
         {days.map((d) => {
           const n = out.get(d.ymd) ?? 0;
           return (
@@ -225,6 +225,9 @@ const EASE = [0.16, 1, 0.3, 1];
 export default function CalendarGantt({ days, entries, layers, venues, todayYmd, selectedYmd, onOpenEntry, onPickSlot = null }) {
   const compact = days.length > 14;
   const width = WIDTHS[days.length / 7] ?? WIDTHS[2];
+  // The chart is as wide as its columns need and no wider, so a long title can never stretch a day: it is cut short inside its bar.
+  const weekends = days.filter((d) => d.weekend).length;
+  const minWidth = `calc(${NAME_W} + ${days.length - weekends} * ${width.day} + ${weekends} * ${width.weekend})`;
   const cols = days.map((d) => `minmax(${d.weekend ? width.weekend : width.day}, ${d.weekend ? '0.55fr' : '1fr'})`).join(' ');
   const [query, setQuery] = useState('');
   const [closed, setClosed] = useState({});
@@ -263,7 +266,8 @@ export default function CalendarGantt({ days, entries, layers, venues, todayYmd,
           exit={{ x: reduce ? 0 : dir * -48, opacity: 0 }}
           transition={{ duration: reduce ? 0 : 0.26, ease: EASE }}
           onAnimationComplete={settle}
-          className="w-max min-w-full"
+          className="w-full"
+          style={{ minWidth }}
         >
           <DayHeader days={days} cols={cols} todayYmd={todayYmd} out={out} compact={compact} />
 
