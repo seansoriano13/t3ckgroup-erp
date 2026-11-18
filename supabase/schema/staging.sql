@@ -20204,7 +20204,13 @@ declare
   v_id uuid;
   v_venue uuid;
 begin
-  v_id := case when tg_table_name = 'meeting_requests' then new.id else new.request_id end;
+  -- Read the id with if/else: plpgsql resolves every field in a CASE, and
+  -- meeting_requests rows have no request_id.
+  if tg_table_name = 'meeting_requests' then
+    v_id := new.id;
+  else
+    v_id := new.request_id;
+  end if;
   select m.venue_id into v_venue from public.meeting_requests m
    where m.id = v_id and m.venue_id is not null and m.status in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED');
   if v_venue is null then

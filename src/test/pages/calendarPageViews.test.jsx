@@ -18,7 +18,10 @@ vi.mock('@/services/calendarService', () => ({
   calendarService: { fetchEntries: vi.fn().mockResolvedValue([]) },
 }));
 
-vi.mock('@/services/meetingRequestService', () => ({ meetingRequestService: { listVenues: vi.fn() } }));
+vi.mock('@/services/meetingRequestService', async (importOriginal) => ({
+  ...(await importOriginal()),
+  meetingRequestService: { listVenues: vi.fn() },
+}));
 vi.mock('@/components/calendar/MeetingRequestDialog', () => ({
   default: ({ open, initial }) => (open ? <div data-testid="request-form">{JSON.stringify(initial)}</div> : null),
 }));
