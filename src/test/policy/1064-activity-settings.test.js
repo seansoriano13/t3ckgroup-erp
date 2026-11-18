@@ -218,7 +218,7 @@ describe("the times, the range and Guests", () => {
     })
 
     it("holds times to the time step", async () => {
-        await setGeneral({ time_step_minutes: 30 })
+        await setGeneral({ latest_end: "21:30", time_step_minutes: 30 }) // the window ends on a 30-minute mark too
         const odd = day(910)
         const off = { starts_at: new Date(Date.parse(odd.starts_at) + 15 * 60_000).toISOString(), ends_at: new Date(Date.parse(odd.ends_at) + 15 * 60_000).toISOString() }
         expect((await file("head", listed(off))).error?.message).toMatch(/30-minute marks/)

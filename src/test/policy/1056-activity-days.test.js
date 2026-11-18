@@ -23,6 +23,12 @@ const dayAt = (n, startHour = 9, endHour = 10) => {
     const base = Date.UTC(2035, 0, 1 + n, 0, 0, 0) - 8 * HOUR
     return { starts_at: new Date(base + startHour * HOUR).toISOString(), ends_at: new Date(base + endHour * HOUR).toISOString() }
 }
+// A day counted from today (Manila), for tests that move days into the past and so must stay inside the day limit.
+const soonAt = (n, startHour = 9, endHour = 10) => {
+    const t = new Date(Date.now() + 8 * HOUR)
+    const base = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate() + n) - 8 * HOUR
+    return { starts_at: new Date(base + startHour * HOUR).toISOString(), ends_at: new Date(base + endHour * HOUR).toISOString() }
+}
 const manilaDay = (iso) => new Date(new Date(iso).getTime() + 8 * HOUR).toISOString().slice(0, 10)
 
 let block = 100
@@ -234,20 +240,20 @@ describe("changing days", () => {
     })
 
     it("keeps a started day as it is, and lets the other days change or go", async () => {
-        const b = nextBlock()
-        const { id } = await file("head", { p_activity_type: "EVENT", p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2), dayAt(b + 3), dayAt(b + 4)] })
+        const b = 3 // days near today, so the started days and the future days stay inside the day limit
+        const { id } = await file("head", { p_activity_type: "EVENT", p_days: [soonAt(b), soonAt(b + 1), soonAt(b + 2), soonAt(b + 3), soonAt(b + 4)] })
         await svc().from("meeting_requests").update({ status: "APPROVED" }).eq("id", id)
         await startDays(id, 2) // day 1 and day 2 have started
         const rows = await daysOf(id)
         const kept = rows.slice(0, 2).map(({ starts_at, ends_at }) => ({ starts_at, ends_at }))
         // changing a started day is refused
-        const moved = await edit("head", id, { p_days: [{ ...kept[0], ends_at: new Date(new Date(kept[0].ends_at).getTime() + HOUR).toISOString() }, kept[1], dayAt(b + 2)] })
+        const moved = await edit("head", id, { p_days: [{ ...kept[0], ends_at: new Date(new Date(kept[0].ends_at).getTime() + HOUR).toISOString() }, kept[1], soonAt(b + 2)] })
         expect(moved.error?.message).toMatch(/already started/i)
         // dropping a started day is refused
-        const dropped = await edit("head", id, { p_days: [kept[1], dayAt(b + 2)] })
+        const dropped = await edit("head", id, { p_days: [kept[1], soonAt(b + 2)] })
         expect(dropped.error?.message).toMatch(/already started/i)
         // days 3 to 5 can change and go, and the Event stays approved
-        const ok = await edit("head", id, { p_days: [...kept, dayAt(b + 2, 10, 12)] })
+        const ok = await edit("head", id, { p_days: [...kept, soonAt(b + 2, 10, 12)] })
         expect(ok.error).toBeNull()
         expect(ok.data.to_status).toBe("APPROVED")
         const after = await daysOf(id)

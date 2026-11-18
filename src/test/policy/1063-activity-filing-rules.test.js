@@ -73,7 +73,7 @@ const seedRaw = async (over) => {
     n += 1
     const { data, error } = await svc()
         .from("meeting_requests")
-        .insert({ facilitator_id: ids.head, purpose: `${MARKER} seeded`, ...rawSlot(500 + n), ...over })
+        .insert({ facilitator_id: ids.head, purpose: `${MARKER} seeded`, ...rawSlot(500 + n), ...(over.activity_type && over.activity_type !== "MEETING" ? { meeting_type: null } : {}), ...over })
         .select("id")
         .single()
     if (error) throw new Error(error.message)

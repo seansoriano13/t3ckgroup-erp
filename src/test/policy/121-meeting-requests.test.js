@@ -224,7 +224,7 @@ describe("file_meeting_request()", () => {
     })
 
     it("lets every signed-in employee read requests, Participants and events", async () => {
-        const { id } = await file("ordinary", adminOffice, "21:00", "22:00")
+        const { id } = await file("ordinary", adminOffice, "19:00", "20:00") // inside the 06:00 to 21:45 window
         const reader = await clientFor("outsider")
         expect((await reader.from("meeting_requests").select("id").eq("id", id)).data).toHaveLength(1)
         expect((await reader.from("meeting_request_participants").select("request_id").eq("request_id", id)).data).toHaveLength(1)
