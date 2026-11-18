@@ -292,6 +292,7 @@ describe("the reminder lead time", () => {
                 purpose: `${MARKER} reminder lead`,
                 status: "APPROVED",
                 activity_type: "ADMIN_TASK",
+                meeting_type: null,
                 starts_at: start.toISOString(),
                 ends_at: new Date(start.getTime() + QUARTER).toISOString(),
             })
