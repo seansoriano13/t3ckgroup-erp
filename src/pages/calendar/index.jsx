@@ -27,6 +27,7 @@ export default function CalendarPage() {
         title="Calendar"
         description="Activities, Time Off and overtime across the company."
         hideHeader={fullScreen}
+        frame={fullScreen ? 'full' : 'centred'}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <SidePanel

@@ -111,8 +111,8 @@ export default function CalendarFilters({
           <ActivityTypeFilter selected={activityTypes} onToggle={toggleActivityType} onClear={clearActivityTypes} all={all} />
         </div>
       )}
-      <PeopleFilter people={people} onChange={setPeople} options={options} departments={departments} viewerId={viewerId} />
       {canSeePending && <PendingSwitch showPending={showPending} setShowPending={setShowPending} />}
+      <PeopleFilter people={people} onChange={setPeople} options={options} departments={departments} viewerId={viewerId} />
     </div>
   );
 

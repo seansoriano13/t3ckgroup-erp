@@ -33,6 +33,7 @@ export default function AppLayout() {
   // redirect, never the register, so the frame they would briefly get does not
   // matter and naming them here would only be one more place to keep in step.
   const isFullBleed =
+    calendarFullScreen ||
     location.pathname.startsWith("/super-admin/flow-canvas") ||
     location.pathname.startsWith("/flow-versions/") ||
     (location.pathname.startsWith("/sors") &&

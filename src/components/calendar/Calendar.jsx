@@ -191,6 +191,8 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
   }, [outOfView, entryDate]);
   const entryMissing = lookupDate && dateFetched && !outOfView;
   const gantt = layout === 'gantt';
+  // Full screen: the month grid takes all the room the window gives it.
+  const fill = fullScreen && !gantt && !phone;
   const dayEntries = entries.filter((e) => e.manila_date === anchor);
   const dayDate = parseManilaDate(anchor);
   // The toolbar already has a Today button, so its day button names the date only.
@@ -314,11 +316,12 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
         onOpenDay={openDay}
         onOpenEntry={open}
         loading={isLoading ? <PageLoading /> : null}
+        fill={fill}
       />
     );
 
   return (
-    <div className="pb-16 laptop:pb-8">
+    <div className={fill ? 'flex h-full min-h-0 flex-col' : 'pb-16 laptop:pb-8'}>
       {gantt ? (
         <div className="flex min-w-0 flex-col gap-4">
           {toolbar}
@@ -327,7 +330,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
           <KindKey />
         </div>
       ) : (
-        <section className="flex min-w-0 flex-col gap-4">
+        <section className={cn('flex min-w-0 flex-col gap-4', fill && 'min-h-0 flex-1')}>
           {toolbar}
           {entryMissing && <p className="text-sm text-muted-foreground" role="status">Not found. This entry is no longer on the Calendar.</p>}
           {ganttHidden && <p className="text-sm text-muted-foreground">Gantt needs a wider screen.</p>}
