@@ -9,6 +9,7 @@ import OrderAgeingRules from "./OrderAgeingRules";
 import DeliveryDeadlineSetting from "./DeliveryDeadlineSetting";
 import ReferenceRates from "./ReferenceRates";
 import LandedAddonDefaults from "./LandedAddonDefaults";
+import RequestUnitsSettings from "./RequestUnitsSettings";
 import { IPAS_OPTION_LISTS, IPAS_OPTION_LIST_LABELS } from "../../constants/ipas";
 import { TRANSMITTAL_OPTION_LIST } from "../../constants/transmittals";
 
@@ -23,6 +24,9 @@ const AGEING_TAB = "ageing";
 
 /** The sub-tab for the daily Reference Rates (#317); overridable by Super Admins. */
 const RATES_TAB = "rates";
+
+/** The sub-tab for the Unit dropdown of a Purchasing Request (its Quantity section). */
+const UNITS_TAB = "request-units";
 
 /** The Transmittal option lists (#252), edited beside the IPAS ones. */
 const TRANSMITTAL_LISTS = [TRANSMITTAL_OPTION_LIST.PRODUCT, TRANSMITTAL_OPTION_LIST.REFERENCE];
@@ -43,6 +47,7 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
     ...IPAS_OPTION_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
     ...TRANSMITTAL_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
     { value: NUMBERING_TAB, label: "IPAS number" },
+    { value: UNITS_TAB, label: "Request units" },
     { value: AGEING_TAB, label: "Ageing rules" },
     { value: RATES_TAB, label: "Reference rates" },
     ...(isSuperAdmin ? [{ value: SIGNERS_TAB, label: "Sign-off lists" }] : []),
@@ -52,7 +57,8 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
   const showNumbering = list === NUMBERING_TAB;
   const showAgeing = list === AGEING_TAB;
   const showRates = list === RATES_TAB;
-  const optionList = list === SIGNERS_TAB || showNumbering || showAgeing || showRates ? IPAS_OPTION_LISTS[0] : list;
+  const showUnits = list === UNITS_TAB;
+  const optionList = list === SIGNERS_TAB || showNumbering || showAgeing || showRates || showUnits ? IPAS_OPTION_LISTS[0] : list;
 
   return (
     <div className="space-y-4" data-testid="purchasing-settings">
@@ -63,8 +69,10 @@ export default function PurchasingSettings({ isSuperAdmin = false }) {
           apply to new rows; existing rows keep their option.
         </p>
       </div>
-      <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : showNumbering ? NUMBERING_TAB : showAgeing ? AGEING_TAB : showRates ? RATES_TAB : optionList} onChange={setList} tabs={tabs} />
-      {showRates ? (
+      <TabGroup variant="pill" size="sm" activeTab={showSigners ? SIGNERS_TAB : showNumbering ? NUMBERING_TAB : showAgeing ? AGEING_TAB : showRates ? RATES_TAB : showUnits ? UNITS_TAB : optionList} onChange={setList} tabs={tabs} />
+      {showUnits ? (
+        <RequestUnitsSettings />
+      ) : showRates ? (
         <>
           <ReferenceRates isSuperAdmin={isSuperAdmin} />
           <LandedAddonDefaults />

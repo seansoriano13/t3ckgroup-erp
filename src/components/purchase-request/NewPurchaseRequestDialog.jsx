@@ -12,7 +12,7 @@ import { SelectField } from "@/components/ui/SelectField";
 import { Textarea } from "@/components/ui/textarea";
 import Spinner from "@/components/ui/Spinner";
 import { purchaseRequestService } from "../../services/purchaseRequestService";
-import { REQUEST_UNITS } from "../../constants/procurement";
+import { useRequestUnits } from "../../hooks/useRequestUnits";
 import { ipasService } from "../../services/ipasService";
 import { ipasSorSearchKey } from "../ipas/ipasKeys";
 import { procurementQueueKey } from "./queryKeys";
@@ -21,10 +21,10 @@ import { procurementQueueKey } from "./queryKeys";
 const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
 
 const TITLE_MAX = 120;
-const UNIT_OPTIONS = REQUEST_UNITS.map((u) => ({ value: u, label: u }));
 
 let nextKey = 0;
-const blankItem = () => ({ key: nextKey++, name: "", quantity: "1", unit: REQUEST_UNITS[0], description: "" });
+// The unit stays empty until someone picks one; an empty unit means the list's first (see useRequestUnits).
+const blankItem = () => ({ key: nextKey++, name: "", quantity: "1", unit: "", description: "" });
 
 const isItemReady = (item) => item.name.trim() !== "" && Number(item.quantity) > 0;
 
@@ -113,6 +113,7 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
   const [title, setTitle] = useState("");
   const [project, setProject] = useState(null);
   const [items, setItems] = useState(() => [blankItem()]);
+  const { options: unitOptions, defaultUnit } = useRequestUnits();
 
   const setItem = (key, field) => (value) =>
     setItems((prev) => prev.map((item) => (item.key === key ? { ...item, [field]: value } : item)));
@@ -130,7 +131,12 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
     mutationFn: () =>
       purchaseRequestService.openDirect(
         title.trim(),
-        items.map((item) => ({ ...item, name: item.name.trim(), description: item.description.trim() })),
+        items.map((item) => ({
+          ...item,
+          unit: item.unit || defaultUnit,
+          name: item.name.trim(),
+          description: item.description.trim(),
+        })),
         project?.id ?? null,
       ),
     onSuccess: (id) => {
@@ -207,7 +213,7 @@ export default function NewPurchaseRequestDialog({ open, onOpenChange, onOpened 
                   />
                 </FieldBox>
                 <FieldBox bare label="Unit">
-                  <SelectField options={UNIT_OPTIONS} value={item.unit} onChange={setItem(item.key, "unit")} />
+                  <SelectField options={unitOptions} value={item.unit || defaultUnit} onChange={setItem(item.key, "unit")} />
                 </FieldBox>
               </div>
               <FieldBox bare label="Details">
