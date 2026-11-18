@@ -84,10 +84,10 @@ export function LayerToggles({ layers, toggleLayer, all }) {
 /** The pending switch, for viewers who may see pending entries. */
 export function PendingSwitch({ showPending, setShowPending }) {
   return (
-    <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-      <Switch checked={showPending} onCheckedChange={setShowPending} aria-label="Show pending" />
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md px-1.5 py-1 text-sm font-medium hover:bg-mauve-3">
       Show pending
-    </span>
+      <Switch checked={showPending} onCheckedChange={setShowPending} aria-label="Show pending" />
+    </label>
   );
 }
 
